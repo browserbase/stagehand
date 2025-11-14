@@ -10,6 +10,7 @@ import {
   ActCacheDeps,
   CachedActEntry,
 } from "../types/private";
+import { StagehandNotInitializedError } from "../types/public/sdkErrors";
 
 export class ActCache {
   private readonly storage: CacheStorage;
@@ -164,7 +165,7 @@ export class ActCache {
   ): Promise<ActResult> {
     const handler = this.getActHandler();
     if (!handler) {
-      throw new Error("V3 not initialized. Call init() before act().");
+      throw new StagehandNotInitializedError("act()");
     }
 
     const execute = async (): Promise<ActResult> => {

@@ -325,26 +325,36 @@ interface StagehandMetrics {
   // Act metrics
   actPromptTokens: number;
   actCompletionTokens: number;
+  actReasoningTokens: number;
+  actCachedInputTokens: number;
   actInferenceTimeMs: number;
 
   // Extract metrics
   extractPromptTokens: number;
   extractCompletionTokens: number;
+  extractReasoningTokens: number;
+  extractCachedInputTokens: number;
   extractInferenceTimeMs: number;
 
   // Observe metrics
   observePromptTokens: number;
   observeCompletionTokens: number;
+  observeReasoningTokens: number;
+  observeCachedInputTokens: number;
   observeInferenceTimeMs: number;
 
   // Agent metrics
   agentPromptTokens: number;
   agentCompletionTokens: number;
+  agentReasoningTokens: number;
+  agentCachedInputTokens: number;
   agentInferenceTimeMs: number;
 
   // Totals
   totalPromptTokens: number;
   totalCompletionTokens: number;
+  totalReasoningTokens: number;
+  totalCachedInputTokens: number;
   totalInferenceTimeMs: number;
 }
 ```

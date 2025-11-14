@@ -7,6 +7,7 @@ import { installV3PiercerIntoSession } from "./piercer";
 import { executionContexts } from "./executionContextRegistry";
 import type { StagehandAPIClient } from "../api";
 import { LocalBrowserLaunchOptions } from "../types/public";
+import { TimeoutError, PageNotFoundError } from "../types/public/sdkErrors";
 
 type TargetId = string;
 type SessionId = string;
@@ -67,7 +68,6 @@ export class V3Context {
     },
   ): Promise<V3Context> {
     const conn = await CdpConnection.connect(wsUrl);
-    await conn.enableAutoAttach();
     const ctx = new V3Context(
       conn,
       opts?.env ?? "LOCAL",
@@ -96,9 +96,41 @@ export class V3Context {
       }
       await new Promise((r) => setTimeout(r, 25));
     }
-    throw new Error(
-      `waitForFirstTopLevelPage timed out after ${timeoutMs}ms (no top-level Page)`,
+    throw new TimeoutError(
+      "waitForFirstTopLevelPage (no top-level Page)",
+      timeoutMs,
     );
+  }
+
+  private async waitForInitialTopLevelTargets(
+    targetIds: TargetId[],
+    timeoutMs = 3000,
+  ): Promise<void> {
+    if (!targetIds.length) return;
+    const pending = new Set(targetIds);
+    const deadline = Date.now() + timeoutMs;
+    while (pending.size && Date.now() < deadline) {
+      for (const tid of Array.from(pending)) {
+        if (this.pagesByTarget.has(tid)) {
+          pending.delete(tid);
+        }
+      }
+      if (!pending.size) return;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    if (pending.size) {
+      v3Logger({
+        category: "ctx",
+        message: "Timed out waiting for existing top-level targets to attach",
+        level: 2,
+        auxiliary: {
+          remainingTargets: {
+            value: JSON.stringify(Array.from(pending)),
+            type: "object",
+          },
+        },
+      });
+    }
   }
 
   private async ensurePiercer(session: CDPSessionLike): Promise<void> {
@@ -201,8 +233,7 @@ export class V3Context {
     rootMainFrameId: string,
   ): Promise<Protocol.Page.FrameTree> {
     const owner = this.resolvePageByMainFrameId(rootMainFrameId);
-    if (!owner)
-      throw new Error(`No Page found for mainFrameId=${rootMainFrameId}`);
+    if (!owner) throw new PageNotFoundError(`mainFrameId=${rootMainFrameId}`);
     return owner.asProtocolFrameTree(rootMainFrameId);
   }
 
@@ -225,7 +256,7 @@ export class V3Context {
       if (page) return page;
       await new Promise((r) => setTimeout(r, 25));
     }
-    throw new Error(`newPage timeout: target not attached (${targetId})`);
+    throw new TimeoutError(`newPage: target not attached (${targetId})`, 5000);
   }
 
   /**
@@ -305,6 +336,9 @@ export class V3Context {
       },
     );
 
+    // Only enable auto-attach after listeners are ready so replayed targets are captured.
+    await this.conn.enableAutoAttach();
+
     const targets = await this.conn.getTargets();
     for (const t of targets) {
       try {
@@ -313,6 +347,11 @@ export class V3Context {
         // ignore attach race
       }
     }
+
+    const topLevelTargetIds = targets
+      .filter((t) => isTopLevelPage(t))
+      .map((t) => t.targetId);
+    await this.waitForInitialTopLevelTargets(topLevelTargetIds);
   }
 
   /**
@@ -366,6 +405,7 @@ export class V3Context {
         info.targetId,
         this.apiClient,
         this.localBrowserLaunchOptions,
+        this.env === "BROWSERBASE",
       );
       this.wireSessionToOwnerPage(sessionId, page);
       this.pagesByTarget.set(info.targetId, page);
@@ -670,6 +710,6 @@ export class V3Context {
       await new Promise((r) => setTimeout(r, 25));
     }
     if (immediate) return immediate;
-    throw new Error("awaitActivePage: no page available");
+    throw new PageNotFoundError("awaitActivePage: no page available");
   }
 }

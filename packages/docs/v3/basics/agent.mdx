@@ -85,6 +85,8 @@ await agent.execute({
 ```
 </CodeGroup>
 
+<Callout icon="code" color="#6ec202" iconType="regular">View or run the example template [here](https://www.browserbase.com/templates/gemini-cua)</Callout>
+
 ### Use Stagehand Agent with Any LLM
 
 Use the agent without specifying a provider to utilize any model or LLM provider:
@@ -137,6 +139,8 @@ When you use `agent()`, Stagehand will return a `Promise<AgentResult>` with the 
   usage: {
     input_tokens: 2040,
     output_tokens: 28,
+    reasoning_tokens: 12,
+    cached_input_tokens: 0,
     inference_time_ms: 14079
   }
 }

@@ -7,6 +7,7 @@ import type {
   ScreenshotClip,
   ScreenshotScaleOption,
 } from "../types/public/screenshotTypes";
+import { StagehandInvalidArgumentError } from "../types/public/sdkErrors";
 
 export type ScreenshotCleanup = () => Promise<void> | void;
 
@@ -28,12 +29,16 @@ export function normalizeScreenshotClip(clip: ScreenshotClip): ScreenshotClip {
 
   for (const [key, value] of Object.entries({ x, y, width, height })) {
     if (!Number.isFinite(value)) {
-      throw new Error(`screenshot: clip.${key} must be a finite number`);
+      throw new StagehandInvalidArgumentError(
+        `screenshot: clip.${key} must be a finite number`,
+      );
     }
   }
 
   if (width <= 0 || height <= 0) {
-    throw new Error("screenshot: clip width/height must be positive");
+    throw new StagehandInvalidArgumentError(
+      "screenshot: clip width/height must be positive",
+    );
   }
 
   return { x, y, width, height };

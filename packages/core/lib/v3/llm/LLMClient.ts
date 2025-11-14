@@ -97,13 +97,21 @@ export interface CreateChatCompletionOptions {
   retries?: number;
 }
 
+/** Simple usage shape if your LLM returns usage tokens. */
+export interface LLMUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  reasoning_tokens?: number;
+  cached_input_tokens?: number;
+}
+
+/**
+ * For calls that use a schema: the LLMClient may return { data: T; usage?: LLMUsage }
+ */
 export interface LLMParsedResponse<T> {
   data: T;
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
+  usage?: LLMUsage;
 }
 
 export abstract class LLMClient {

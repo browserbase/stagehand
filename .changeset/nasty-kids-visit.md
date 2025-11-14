@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-add support for page.on('console') events
+fix: file uploads failing on Browserbase

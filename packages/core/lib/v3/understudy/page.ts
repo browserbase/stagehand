@@ -12,11 +12,15 @@ import { LoadState } from "../types/public/page";
 import { NetworkManager } from "./networkManager";
 import { LifecycleWatcher } from "./lifecycleWatcher";
 import { NavigationResponseTracker } from "./navigationResponseTracker";
-import { Response } from "./response";
+import { Response, isSerializableResponse } from "./response";
 import { ConsoleMessage, ConsoleListener } from "./consoleMessage";
 import type { StagehandAPIClient } from "../api";
 import type { LocalBrowserLaunchOptions } from "../types/public";
 import type { Locator } from "./locator";
+import {
+  StagehandInvalidArgumentError,
+  StagehandEvalError,
+} from "../types/public/sdkErrors";
 import type {
   ScreenshotAnimationsOption,
   ScreenshotCaretOption,
@@ -72,6 +76,7 @@ export class Page {
 
   /** cache Frames per frameId so everyone uses the same one */
   private readonly frameCache = new Map<string, Frame>();
+  private readonly browserIsRemote: boolean;
 
   /** Stable id for Frames created by this Page (use top-level TargetId). */
   private readonly pageId: string;
@@ -96,9 +101,11 @@ export class Page {
     private readonly _targetId: string,
     mainFrameId: string,
     apiClient?: StagehandAPIClient | null,
+    browserIsRemote = false,
   ) {
     this.pageId = _targetId;
     this.apiClient = apiClient ?? null;
+    this.browserIsRemote = browserIsRemote;
 
     // own the main session
     if (mainSession.id) this.sessions.set(mainSession.id, mainSession);
@@ -111,6 +118,7 @@ export class Page {
       this.mainSession,
       mainFrameId,
       this.pageId,
+      this.browserIsRemote,
     );
 
     this.networkManager = new NetworkManager();
@@ -223,6 +231,7 @@ export class Page {
     targetId: string,
     apiClient?: StagehandAPIClient | null,
     localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null,
+    browserIsRemote = false,
   ): Promise<Page> {
     await session.send("Page.enable").catch(() => {});
     await session
@@ -233,7 +242,14 @@ export class Page {
     }>("Page.getFrameTree");
     const mainFrameId = frameTree.frame.id;
 
-    const page = new Page(conn, session, targetId, mainFrameId, apiClient);
+    const page = new Page(
+      conn,
+      session,
+      targetId,
+      mainFrameId,
+      apiClient,
+      browserIsRemote,
+    );
     // Seed current URL from initial frame tree
     try {
       page._currentUrl = String(frameTree?.frame?.url ?? page._currentUrl);
@@ -300,7 +316,12 @@ export class Page {
     if (newRoot !== prevRoot) {
       const oldOrd = this.frameOrdinals.get(prevRoot) ?? 0;
       this.frameOrdinals.set(newRoot, oldOrd);
-      this.mainFrameWrapper = new Frame(this.mainSession, newRoot, this.pageId);
+      this.mainFrameWrapper = new Frame(
+        this.mainSession,
+        newRoot,
+        this.pageId,
+        this.browserIsRemote,
+      );
     }
 
     // Update cached URL if this navigation pertains to the current main frame
@@ -436,7 +457,7 @@ export class Page {
     if (hit) return hit;
 
     const sess = this.getSessionForFrame(frameId);
-    const f = new Frame(sess, frameId, this.pageId);
+    const f = new Frame(sess, frameId, this.pageId, this.browserIsRemote);
     this.frameCache.set(frameId, f);
     return f;
   }
@@ -456,7 +477,7 @@ export class Page {
 
   public on(event: "console", listener: ConsoleListener): Page {
     if (event !== "console") {
-      throw new Error(`Unsupported event: ${event}`);
+      throw new StagehandInvalidArgumentError(`Unsupported event: ${event}`);
     }
 
     const firstListener = this.consoleListeners.size === 0;
@@ -471,7 +492,7 @@ export class Page {
 
   public once(event: "console", listener: ConsoleListener): Page {
     if (event !== "console") {
-      throw new Error(`Unsupported event: ${event}`);
+      throw new StagehandInvalidArgumentError(`Unsupported event: ${event}`);
     }
 
     const wrapper: ConsoleListener = (message) => {
@@ -484,7 +505,7 @@ export class Page {
 
   public off(event: "console", listener: ConsoleListener): Page {
     if (event !== "console") {
-      throw new Error(`Unsupported event: ${event}`);
+      throw new StagehandInvalidArgumentError(`Unsupported event: ${event}`);
     }
 
     this.consoleListeners.delete(listener);
@@ -711,13 +732,20 @@ export class Page {
     try {
       // Route to API if available
       if (this.apiClient) {
-        await this.apiClient.goto(
+        const result = await this.apiClient.goto(
           url,
           { waitUntil: options?.waitUntil },
           this.mainFrameId(),
         );
         this._currentUrl = url;
-        return null;
+
+        if (isSerializableResponse(result)) {
+          return Response.fromSerializable(result, {
+            page: this,
+            session: this.mainSession,
+          });
+        }
+        return result;
       }
       const response =
         await this.mainSession.send<Protocol.Page.NavigateResponse>(
@@ -972,15 +1000,19 @@ export class Page {
     const type = opts.type ?? "png";
 
     if (type !== "png" && type !== "jpeg") {
-      throw new Error(`screenshot: unsupported image type "${type}"`);
+      throw new StagehandInvalidArgumentError(
+        `screenshot: unsupported image type "${type}"`,
+      );
     }
 
     if (opts.fullPage && opts.clip) {
-      throw new Error("screenshot: clip and fullPage cannot be used together");
+      throw new StagehandInvalidArgumentError(
+        "screenshot: clip and fullPage cannot be used together",
+      );
     }
 
     if (type === "png" && typeof opts.quality === "number") {
-      throw new Error(
+      throw new StagehandInvalidArgumentError(
         'screenshot: quality option is only valid for type="jpeg"',
       );
     }
@@ -1141,7 +1173,7 @@ export class Page {
         exceptionDetails.text ||
         exceptionDetails.exception?.description ||
         "Evaluation failed";
-      throw new Error(msg);
+      throw new StagehandEvalError(msg);
     }
 
     return result?.value as R;
