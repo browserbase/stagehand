@@ -29,6 +29,7 @@ export interface AgentResult {
     input_tokens: number;
     output_tokens: number;
     reasoning_tokens?: number;
+    cached_input_tokens?: number;
     inference_time_ms: number;
   };
 }

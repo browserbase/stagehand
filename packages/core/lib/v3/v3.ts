@@ -163,22 +163,27 @@ export class V3 {
     actPromptTokens: 0,
     actCompletionTokens: 0,
     actReasoningTokens: 0,
+    actCachedInputTokens: 0,
     actInferenceTimeMs: 0,
     extractPromptTokens: 0,
     extractCompletionTokens: 0,
     extractReasoningTokens: 0,
+    extractCachedInputTokens: 0,
     extractInferenceTimeMs: 0,
     observePromptTokens: 0,
     observeCompletionTokens: 0,
     observeReasoningTokens: 0,
+    observeCachedInputTokens: 0,
     observeInferenceTimeMs: 0,
     agentPromptTokens: 0,
     agentCompletionTokens: 0,
     agentReasoningTokens: 0,
+    agentCachedInputTokens: 0,
     agentInferenceTimeMs: 0,
     totalPromptTokens: 0,
     totalCompletionTokens: 0,
     totalReasoningTokens: 0,
+    totalCachedInputTokens: 0,
     totalInferenceTimeMs: 0,
   };
 
@@ -421,6 +426,7 @@ export class V3 {
     promptTokens: number,
     completionTokens: number,
     reasoningTokens: number,
+    cachedInputTokens: number,
     inferenceTimeMs: number,
   ): void {
     switch (functionName) {
@@ -428,6 +434,7 @@ export class V3 {
         this.stagehandMetrics.actPromptTokens += promptTokens;
         this.stagehandMetrics.actCompletionTokens += completionTokens;
         this.stagehandMetrics.actReasoningTokens += reasoningTokens;
+        this.stagehandMetrics.actCachedInputTokens += cachedInputTokens;
         this.stagehandMetrics.actInferenceTimeMs += inferenceTimeMs;
         break;
 
@@ -435,6 +442,7 @@ export class V3 {
         this.stagehandMetrics.extractPromptTokens += promptTokens;
         this.stagehandMetrics.extractCompletionTokens += completionTokens;
         this.stagehandMetrics.extractReasoningTokens += reasoningTokens;
+        this.stagehandMetrics.extractCachedInputTokens += cachedInputTokens;
         this.stagehandMetrics.extractInferenceTimeMs += inferenceTimeMs;
         break;
 
@@ -442,6 +450,7 @@ export class V3 {
         this.stagehandMetrics.observePromptTokens += promptTokens;
         this.stagehandMetrics.observeCompletionTokens += completionTokens;
         this.stagehandMetrics.observeReasoningTokens += reasoningTokens;
+        this.stagehandMetrics.observeCachedInputTokens += cachedInputTokens;
         this.stagehandMetrics.observeInferenceTimeMs += inferenceTimeMs;
         break;
 
@@ -449,6 +458,7 @@ export class V3 {
         this.stagehandMetrics.agentPromptTokens += promptTokens;
         this.stagehandMetrics.agentCompletionTokens += completionTokens;
         this.stagehandMetrics.agentReasoningTokens += reasoningTokens;
+        this.stagehandMetrics.agentCachedInputTokens += cachedInputTokens;
         this.stagehandMetrics.agentInferenceTimeMs += inferenceTimeMs;
         break;
     }
@@ -456,6 +466,7 @@ export class V3 {
       promptTokens,
       completionTokens,
       reasoningTokens,
+      cachedInputTokens,
       inferenceTimeMs,
     );
   }
@@ -464,11 +475,13 @@ export class V3 {
     promptTokens: number,
     completionTokens: number,
     reasoningTokens: number,
+    cachedInputTokens: number,
     inferenceTimeMs: number,
   ): void {
     this.stagehandMetrics.totalPromptTokens += promptTokens;
     this.stagehandMetrics.totalCompletionTokens += completionTokens;
     this.stagehandMetrics.totalReasoningTokens += reasoningTokens;
+    this.stagehandMetrics.totalCachedInputTokens += cachedInputTokens;
     this.stagehandMetrics.totalInferenceTimeMs += inferenceTimeMs;
   }
 
@@ -570,6 +583,7 @@ export class V3 {
             promptTokens,
             completionTokens,
             reasoningTokens,
+            cachedInputTokens,
             inferenceTimeMs,
           ) =>
             this.updateMetrics(
@@ -577,6 +591,7 @@ export class V3 {
               promptTokens,
               completionTokens,
               reasoningTokens,
+              cachedInputTokens,
               inferenceTimeMs,
             ),
           this.domSettleTimeoutMs,
@@ -594,6 +609,7 @@ export class V3 {
             promptTokens,
             completionTokens,
             reasoningTokens,
+            cachedInputTokens,
             inferenceTimeMs,
           ) =>
             this.updateMetrics(
@@ -601,6 +617,7 @@ export class V3 {
               promptTokens,
               completionTokens,
               reasoningTokens,
+              cachedInputTokens,
               inferenceTimeMs,
             ),
         );
@@ -617,6 +634,7 @@ export class V3 {
             promptTokens,
             completionTokens,
             reasoningTokens,
+            cachedInputTokens,
             inferenceTimeMs,
           ) =>
             this.updateMetrics(
@@ -624,6 +642,7 @@ export class V3 {
               promptTokens,
               completionTokens,
               reasoningTokens,
+              cachedInputTokens,
               inferenceTimeMs,
             ),
         );

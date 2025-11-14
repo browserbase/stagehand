@@ -38,6 +38,7 @@ interface ExtractionResponseBase {
   prompt_tokens: number;
   completion_tokens: number;
   reasoning_tokens: number;
+  cached_input_tokens?: number;
   inference_time_ms: number;
 }
 
@@ -57,6 +58,7 @@ export class ExtractHandler {
     promptTokens: number,
     completionTokens: number,
     reasoningTokens: number,
+    cachedInputTokens: number,
     inferenceTimeMs: number,
   ) => void;
 
@@ -73,6 +75,7 @@ export class ExtractHandler {
       promptTokens: number,
       completionTokens: number,
       reasoningTokens: number,
+      cachedInputTokens: number,
       inferenceTimeMs: number,
     ) => void,
   ) {
@@ -164,6 +167,7 @@ export class ExtractHandler {
         prompt_tokens,
         completion_tokens,
         reasoning_tokens = 0,
+        cached_input_tokens = 0,
         inference_time_ms,
         ...rest
       } = extractionResponse;
@@ -194,6 +198,7 @@ export class ExtractHandler {
         prompt_tokens,
         completion_tokens,
         reasoning_tokens,
+        cached_input_tokens,
         inference_time_ms,
       );
 

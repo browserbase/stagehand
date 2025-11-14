@@ -36,6 +36,7 @@ export class ActHandler {
     promptTokens: number,
     completionTokens: number,
     reasoningTokens: number,
+    cachedInputTokens: number,
     inferenceTimeMs: number,
   ) => void;
   private readonly defaultDomSettleTimeoutMs?: number;
@@ -53,6 +54,7 @@ export class ActHandler {
       promptTokens: number,
       completionTokens: number,
       reasoningTokens: number,
+      cachedInputTokens: number,
       inferenceTimeMs: number,
     ) => void,
     defaultDomSettleTimeoutMs?: number,
@@ -107,12 +109,14 @@ export class ActHandler {
       const actPromptTokens = actInferenceResponse.prompt_tokens ?? 0;
       const actCompletionTokens = actInferenceResponse.completion_tokens ?? 0;
       const actReasoningTokens = actInferenceResponse.reasoning_tokens ?? 0;
+      const actCachedInputTokens = actInferenceResponse.cached_input_tokens ?? 0;
       const actInferenceTimeMs = actInferenceResponse.inference_time_ms ?? 0;
       this.onMetrics?.(
         V3FunctionName.ACT,
         actPromptTokens,
         actCompletionTokens,
         actReasoningTokens,
+        actCachedInputTokens,
         actInferenceTimeMs,
       );
 
@@ -235,6 +239,7 @@ export class ActHandler {
         action2.prompt_tokens ?? 0,
         action2.completion_tokens ?? 0,
         action2.reasoning_tokens ?? 0,
+        action2.cached_input_tokens ?? 0,
         action2.inference_time_ms ?? 0,
       );
 
@@ -427,6 +432,7 @@ export class ActHandler {
             actInferenceResponse.prompt_tokens ?? 0,
             actInferenceResponse.completion_tokens ?? 0,
             actInferenceResponse.reasoning_tokens ?? 0,
+            actInferenceResponse.cached_input_tokens ?? 0,
             actInferenceResponse.inference_time_ms ?? 0,
           );
 

@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-Expose reasoning tokens in stagehand metrics
+Expose reasoning, and cached input tokens in stagehand metrics

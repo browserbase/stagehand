@@ -194,6 +194,7 @@ export class AISdkClientWrapped extends LLMClient {
           prompt_tokens: objectResponse.usage.inputTokens ?? 0,
           completion_tokens: objectResponse.usage.outputTokens ?? 0,
           reasoning_tokens: objectResponse.usage.reasoningTokens ?? 0,
+          cached_input_tokens: objectResponse.usage.cachedInputTokens ?? 0,
           total_tokens: objectResponse.usage.totalTokens ?? 0,
         },
       } as T;

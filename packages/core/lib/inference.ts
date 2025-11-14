@@ -18,6 +18,7 @@ interface LLMUsage {
   completion_tokens: number;
   total_tokens: number;
   reasoning_tokens?: number;
+  cached_input_tokens?: number;
 }
 
 /**
@@ -125,6 +126,7 @@ export async function extract({
       prompt_tokens: extractUsage?.prompt_tokens ?? 0,
       completion_tokens: extractUsage?.completion_tokens ?? 0,
       reasoning_tokens: extractUsage?.reasoning_tokens ?? 0,
+      cached_input_tokens: extractUsage?.cached_input_tokens ?? 0,
       inference_time_ms: extractEndTime - extractStartTime,
     });
   }
@@ -196,6 +198,7 @@ export async function extract({
       prompt_tokens: metadataResponseUsage?.prompt_tokens ?? 0,
       completion_tokens: metadataResponseUsage?.completion_tokens ?? 0,
       reasoning_tokens: metadataResponseUsage?.reasoning_tokens ?? 0,
+      cached_input_tokens: metadataResponseUsage?.cached_input_tokens ?? 0,
       inference_time_ms: metadataEndTime - metadataStartTime,
     });
   }
@@ -213,6 +216,9 @@ export async function extract({
   const totalReasoningTokens =
     (extractUsage?.reasoning_tokens ?? 0) +
     (metadataResponseUsage?.reasoning_tokens ?? 0);
+  const totalCachedInputTokens =
+    (extractUsage?.cached_input_tokens ?? 0) +
+    (metadataResponseUsage?.cached_input_tokens ?? 0);
 
   return {
     ...extractedData,
@@ -223,6 +229,7 @@ export async function extract({
     prompt_tokens: totalPromptTokens,
     completion_tokens: totalCompletionTokens,
     reasoning_tokens: totalReasoningTokens,
+    cached_input_tokens: totalCachedInputTokens,
     inference_time_ms: totalInferenceTimeMs,
   };
 }
@@ -320,6 +327,7 @@ export async function observe({
   const promptTokens = observeUsage?.prompt_tokens ?? 0;
   const completionTokens = observeUsage?.completion_tokens ?? 0;
   const reasoningTokens = observeUsage?.reasoning_tokens ?? 0;
+  const cachedInputTokens = observeUsage?.cached_input_tokens ?? 0;
 
   let responseFile = "";
   if (logInferenceToFile) {
@@ -341,6 +349,7 @@ export async function observe({
       prompt_tokens: promptTokens,
       completion_tokens: completionTokens,
       reasoning_tokens: reasoningTokens,
+      cached_input_tokens: cachedInputTokens,
       inference_time_ms: usageTimeMs,
     });
   }
@@ -361,6 +370,7 @@ export async function observe({
     prompt_tokens: promptTokens,
     completion_tokens: completionTokens,
     reasoning_tokens: reasoningTokens,
+    cached_input_tokens: cachedInputTokens,
     inference_time_ms: usageTimeMs,
   };
 }
@@ -451,6 +461,7 @@ export async function act({
   const promptTokens = actUsage?.prompt_tokens ?? 0;
   const completionTokens = actUsage?.completion_tokens ?? 0;
   const reasoningTokens = actUsage?.reasoning_tokens ?? 0;
+  const cachedInputTokens = actUsage?.cached_input_tokens ?? 0;
 
   let responseFile = "";
   if (logInferenceToFile) {
@@ -472,6 +483,7 @@ export async function act({
       prompt_tokens: promptTokens,
       completion_tokens: completionTokens,
       reasoning_tokens: reasoningTokens,
+      cached_input_tokens: cachedInputTokens,
       inference_time_ms: usageTimeMs,
     });
   }
@@ -488,6 +500,7 @@ export async function act({
     prompt_tokens: promptTokens,
     completion_tokens: completionTokens,
     reasoning_tokens: reasoningTokens,
+    cached_input_tokens: cachedInputTokens,
     inference_time_ms: usageTimeMs,
     twoStep: actData.twoStep,
   };
