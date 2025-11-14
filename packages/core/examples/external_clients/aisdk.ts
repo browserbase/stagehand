@@ -96,6 +96,8 @@ export class AISdkClient extends LLMClient {
         usage: {
           prompt_tokens: response.usage.inputTokens ?? 0,
           completion_tokens: response.usage.outputTokens ?? 0,
+          reasoning_tokens: response.usage.reasoningTokens ?? 0,
+          cached_input_tokens: response.usage.cachedInputTokens ?? 0,
           total_tokens: response.usage.totalTokens ?? 0,
         },
       } as T;
@@ -121,6 +123,8 @@ export class AISdkClient extends LLMClient {
       usage: {
         prompt_tokens: response.usage.inputTokens ?? 0,
         completion_tokens: response.usage.outputTokens ?? 0,
+        reasoning_tokens: response.usage.reasoningTokens ?? 0,
+        cached_input_tokens: response.usage.cachedInputTokens ?? 0,
         total_tokens: response.usage.totalTokens ?? 0,
       },
     } as T;
