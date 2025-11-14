@@ -145,10 +145,12 @@ export class V3AgentHandler {
       const endTime = Date.now();
       const inferenceTimeMs = endTime - startTime;
       if (result.usage) {
+      
         this.v3.updateMetrics(
           V3FunctionName.AGENT,
           result.usage.inputTokens || 0,
           result.usage.outputTokens || 0,
+          result.usage.reasoningTokens || 0,
           inferenceTimeMs,
         );
       }
@@ -162,6 +164,7 @@ export class V3AgentHandler {
           ? {
               input_tokens: result.usage.inputTokens || 0,
               output_tokens: result.usage.outputTokens || 0,
+              reasoning_tokens: result.usage.reasoningTokens || 0,
               inference_time_ms: inferenceTimeMs,
             }
           : undefined,

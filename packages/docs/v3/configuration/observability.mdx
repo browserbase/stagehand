@@ -248,26 +248,31 @@ interface StagehandMetrics {
   // Act operation metrics
   actPromptTokens: number;
   actCompletionTokens: number;
+  actReasoningTokens: number;
   actInferenceTimeMs: number;
 
   // Extract operation metrics
   extractPromptTokens: number;
   extractCompletionTokens: number;
+  extractReasoningTokens: number;
   extractInferenceTimeMs: number;
 
   // Observe operation metrics
   observePromptTokens: number;
   observeCompletionTokens: number;
+  observeReasoningTokens: number;
   observeInferenceTimeMs: number;
 
   // Agent operation metrics
   agentPromptTokens: number;
   agentCompletionTokens: number;
+  agentReasoningTokens: number;
   agentInferenceTimeMs: number;
 
   // Cumulative totals
   totalPromptTokens: number;
   totalCompletionTokens: number;
+  totalReasoningTokens: number;
   totalInferenceTimeMs: number;
 }
 ```
@@ -281,18 +286,23 @@ console.log(metrics);
 // {
 //   actPromptTokens: 4011,
 //   actCompletionTokens: 51,
+//   actReasoningTokens: 12,
 //   actInferenceTimeMs: 1688,
 //   extractPromptTokens: 4200,
 //   extractCompletionTokens: 243,
+//   extractReasoningTokens: 18,
 //   extractInferenceTimeMs: 4297,
 //   observePromptTokens: 347,
 //   observeCompletionTokens: 43,
+//   observeReasoningTokens: 5,
 //   observeInferenceTimeMs: 903,
 //   agentPromptTokens: 0,
 //   agentCompletionTokens: 0,
+//   agentReasoningTokens: 0,
 //   agentInferenceTimeMs: 0,
 //   totalPromptTokens: 8558,
 //   totalCompletionTokens: 337,
+//   totalReasoningTokens: 35,
 //   totalInferenceTimeMs: 6888
 // }
 ```

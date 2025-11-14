@@ -17,6 +17,8 @@ interface LLMUsage {
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
+  reasoning_tokens?: number;
+  reasoningTokens?: number;
 }
 
 /**
@@ -103,6 +105,8 @@ export async function extract({
 
   const { data: extractedData, usage: extractUsage } =
     extractionResponse as LLMParsedResponse<ExtractionResponse>;
+  const extractReasoningTokens =
+    extractUsage?.reasoning_tokens ?? extractUsage?.reasoningTokens ?? 0;
 
   let extractResponseFile = "";
   if (logInferenceToFile) {
@@ -123,6 +127,7 @@ export async function extract({
       LLM_output_file: extractResponseFile,
       prompt_tokens: extractUsage?.prompt_tokens ?? 0,
       completion_tokens: extractUsage?.completion_tokens ?? 0,
+      reasoning_tokens: extractReasoningTokens,
       inference_time_ms: extractEndTime - extractStartTime,
     });
   }
@@ -172,6 +177,10 @@ export async function extract({
     },
     usage: metadataResponseUsage,
   } = metadataResponse as LLMParsedResponse<MetadataResponse>;
+  const metadataReasoningTokens =
+    metadataResponseUsage?.reasoning_tokens ??
+    metadataResponseUsage?.reasoningTokens ??
+    0;
 
   let metadataResponseFile = "";
   if (logInferenceToFile) {
@@ -193,6 +202,7 @@ export async function extract({
       LLM_output_file: metadataResponseFile,
       prompt_tokens: metadataResponseUsage?.prompt_tokens ?? 0,
       completion_tokens: metadataResponseUsage?.completion_tokens ?? 0,
+      reasoning_tokens: metadataReasoningTokens,
       inference_time_ms: metadataEndTime - metadataStartTime,
     });
   }
@@ -207,6 +217,7 @@ export async function extract({
 
   const totalInferenceTimeMs =
     extractEndTime - extractStartTime + (metadataEndTime - metadataStartTime);
+  const totalReasoningTokens = extractReasoningTokens + metadataReasoningTokens;
 
   return {
     ...extractedData,
@@ -216,6 +227,7 @@ export async function extract({
     },
     prompt_tokens: totalPromptTokens,
     completion_tokens: totalCompletionTokens,
+    reasoning_tokens: totalReasoningTokens,
     inference_time_ms: totalInferenceTimeMs,
   };
 }
@@ -312,6 +324,8 @@ export async function observe({
     rawResponse as LLMParsedResponse<ObserveResponse>;
   const promptTokens = observeUsage?.prompt_tokens ?? 0;
   const completionTokens = observeUsage?.completion_tokens ?? 0;
+  const reasoningTokens =
+    observeUsage?.reasoning_tokens ?? observeUsage?.reasoningTokens ?? 0;
 
   let responseFile = "";
   if (logInferenceToFile) {
@@ -332,6 +346,7 @@ export async function observe({
       LLM_output_file: responseFile,
       prompt_tokens: promptTokens,
       completion_tokens: completionTokens,
+      reasoning_tokens: reasoningTokens,
       inference_time_ms: usageTimeMs,
     });
   }
@@ -351,6 +366,7 @@ export async function observe({
     elements: parsedElements,
     prompt_tokens: promptTokens,
     completion_tokens: completionTokens,
+    reasoning_tokens: reasoningTokens,
     inference_time_ms: usageTimeMs,
   };
 }
@@ -440,6 +456,8 @@ export async function act({
     rawResponse as LLMParsedResponse<ActResponse>;
   const promptTokens = actUsage?.prompt_tokens ?? 0;
   const completionTokens = actUsage?.completion_tokens ?? 0;
+  const reasoningTokens =
+    actUsage?.reasoning_tokens ?? actUsage?.reasoningTokens ?? 0;
 
   let responseFile = "";
   if (logInferenceToFile) {
@@ -460,6 +478,7 @@ export async function act({
       LLM_output_file: responseFile,
       prompt_tokens: promptTokens,
       completion_tokens: completionTokens,
+      reasoning_tokens: reasoningTokens,
       inference_time_ms: usageTimeMs,
     });
   }
@@ -475,6 +494,7 @@ export async function act({
     element: parsedElement,
     prompt_tokens: promptTokens,
     completion_tokens: completionTokens,
+    reasoning_tokens: reasoningTokens,
     inference_time_ms: usageTimeMs,
     twoStep: actData.twoStep,
   };

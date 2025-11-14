@@ -168,6 +168,7 @@ interface AgentResult {
   usage?: {
     input_tokens: number;
     output_tokens: number;
+    reasoning_tokens?: number;
     inference_time_ms: number;
   };
 }
@@ -216,6 +217,9 @@ interface AgentAction {
     <ResponseField name="output_tokens" type="number">
       Number of output tokens generated
     </ResponseField>
+    <ResponseField name="reasoning_tokens" type="number" optional>
+      Number of reasoning tokens (if supported by the model)
+    </ResponseField>
     <ResponseField name="inference_time_ms" type="number">
       Total inference time in milliseconds
     </ResponseField>
@@ -247,6 +251,7 @@ interface AgentAction {
   "usage": {
     "input_tokens": 1250,
     "output_tokens": 340,
+    "reasoning_tokens": 42,
     "inference_time_ms": 2500
   }
 }

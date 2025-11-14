@@ -147,6 +147,7 @@ export class V3CuaAgentHandler {
         V3FunctionName.AGENT,
         result.usage.input_tokens,
         result.usage.output_tokens,
+        result.usage.reasoning_tokens ?? 0,
         inferenceTimeMs,
       );
     }

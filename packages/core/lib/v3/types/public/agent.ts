@@ -28,6 +28,7 @@ export interface AgentResult {
   usage?: {
     input_tokens: number;
     output_tokens: number;
+    reasoning_tokens?: number;
     inference_time_ms: number;
   };
 }
