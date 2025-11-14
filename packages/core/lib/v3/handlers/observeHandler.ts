@@ -26,6 +26,8 @@ export class ObserveHandler {
     functionName: V3FunctionName,
     promptTokens: number,
     completionTokens: number,
+    reasoningTokens: number,
+    cachedInputTokens: number,
     inferenceTimeMs: number,
   ) => void;
 
@@ -41,6 +43,8 @@ export class ObserveHandler {
       functionName: V3FunctionName,
       promptTokens: number,
       completionTokens: number,
+      reasoningTokens: number,
+      cachedInputTokens: number,
       inferenceTimeMs: number,
     ) => void,
   ) {
@@ -105,6 +109,8 @@ export class ObserveHandler {
       const {
         prompt_tokens = 0,
         completion_tokens = 0,
+        reasoning_tokens = 0,
+        cached_input_tokens = 0,
         inference_time_ms = 0,
       } = observationResponse;
 
@@ -113,6 +119,8 @@ export class ObserveHandler {
         V3FunctionName.OBSERVE,
         prompt_tokens,
         completion_tokens,
+        reasoning_tokens,
+        cached_input_tokens,
         inference_time_ms,
       );
 

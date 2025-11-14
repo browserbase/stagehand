@@ -43,6 +43,8 @@ interface ReplayMetricsResponse {
         tokenUsage?: {
           inputTokens?: number;
           outputTokens?: number;
+          reasoningTokens?: number;
+          cachedInputTokens?: number;
           timeMs?: number;
         };
       }>;
@@ -282,18 +284,28 @@ export class StagehandAPIClient {
     const metrics: StagehandMetrics = {
       actPromptTokens: 0,
       actCompletionTokens: 0,
+      actReasoningTokens: 0,
+      actCachedInputTokens: 0,
       actInferenceTimeMs: 0,
       extractPromptTokens: 0,
       extractCompletionTokens: 0,
+      extractReasoningTokens: 0,
+      extractCachedInputTokens: 0,
       extractInferenceTimeMs: 0,
       observePromptTokens: 0,
       observeCompletionTokens: 0,
+      observeReasoningTokens: 0,
+      observeCachedInputTokens: 0,
       observeInferenceTimeMs: 0,
       agentPromptTokens: 0,
       agentCompletionTokens: 0,
+      agentReasoningTokens: 0,
+      agentCachedInputTokens: 0,
       agentInferenceTimeMs: 0,
       totalPromptTokens: 0,
       totalCompletionTokens: 0,
+      totalReasoningTokens: 0,
+      totalCachedInputTokens: 0,
       totalInferenceTimeMs: 0,
     };
 
@@ -309,30 +321,42 @@ export class StagehandAPIClient {
         if (tokenUsage) {
           const inputTokens = tokenUsage.inputTokens || 0;
           const outputTokens = tokenUsage.outputTokens || 0;
+          const reasoningTokens = tokenUsage.reasoningTokens || 0;
+          const cachedInputTokens = tokenUsage.cachedInputTokens || 0;
           const timeMs = tokenUsage.timeMs || 0;
 
           // Map method to metrics fields
           if (method === "act") {
             metrics.actPromptTokens += inputTokens;
             metrics.actCompletionTokens += outputTokens;
+            metrics.actReasoningTokens += reasoningTokens;
+            metrics.actCachedInputTokens += cachedInputTokens;
             metrics.actInferenceTimeMs += timeMs;
           } else if (method === "extract") {
             metrics.extractPromptTokens += inputTokens;
             metrics.extractCompletionTokens += outputTokens;
+            metrics.extractReasoningTokens += reasoningTokens;
+            metrics.extractCachedInputTokens += cachedInputTokens;
             metrics.extractInferenceTimeMs += timeMs;
           } else if (method === "observe") {
             metrics.observePromptTokens += inputTokens;
             metrics.observeCompletionTokens += outputTokens;
+            metrics.observeReasoningTokens += reasoningTokens;
+            metrics.observeCachedInputTokens += cachedInputTokens;
             metrics.observeInferenceTimeMs += timeMs;
           } else if (method === "agent") {
             metrics.agentPromptTokens += inputTokens;
             metrics.agentCompletionTokens += outputTokens;
+            metrics.agentReasoningTokens += reasoningTokens;
+            metrics.agentCachedInputTokens += cachedInputTokens;
             metrics.agentInferenceTimeMs += timeMs;
           }
 
           // Always update totals for any method with token usage
           metrics.totalPromptTokens += inputTokens;
           metrics.totalCompletionTokens += outputTokens;
+          metrics.totalReasoningTokens += reasoningTokens;
+          metrics.totalCachedInputTokens += cachedInputTokens;
           metrics.totalInferenceTimeMs += timeMs;
         }
       }

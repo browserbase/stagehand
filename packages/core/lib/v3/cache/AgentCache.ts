@@ -353,6 +353,8 @@ export class AgentCache {
       result.usage = {
         input_tokens: 0,
         output_tokens: 0,
+        reasoning_tokens: 0,
+        cached_input_tokens: 0,
         inference_time_ms: 0,
       };
       result.metadata = {

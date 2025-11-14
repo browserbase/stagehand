@@ -37,6 +37,8 @@ interface ExtractionResponseBase {
   metadata: { completed: boolean };
   prompt_tokens: number;
   completion_tokens: number;
+  reasoning_tokens: number;
+  cached_input_tokens?: number;
   inference_time_ms: number;
 }
 
@@ -55,6 +57,8 @@ export class ExtractHandler {
     functionName: V3FunctionName,
     promptTokens: number,
     completionTokens: number,
+    reasoningTokens: number,
+    cachedInputTokens: number,
     inferenceTimeMs: number,
   ) => void;
 
@@ -70,6 +74,8 @@ export class ExtractHandler {
       functionName: V3FunctionName,
       promptTokens: number,
       completionTokens: number,
+      reasoningTokens: number,
+      cachedInputTokens: number,
       inferenceTimeMs: number,
     ) => void,
   ) {
@@ -160,6 +166,8 @@ export class ExtractHandler {
         metadata: { completed },
         prompt_tokens,
         completion_tokens,
+        reasoning_tokens = 0,
+        cached_input_tokens = 0,
         inference_time_ms,
         ...rest
       } = extractionResponse;
@@ -189,6 +197,8 @@ export class ExtractHandler {
         V3FunctionName.EXTRACT,
         prompt_tokens,
         completion_tokens,
+        reasoning_tokens,
+        cached_input_tokens,
         inference_time_ms,
       );
 
