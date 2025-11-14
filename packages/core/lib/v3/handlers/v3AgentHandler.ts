@@ -145,7 +145,6 @@ export class V3AgentHandler {
       const endTime = Date.now();
       const inferenceTimeMs = endTime - startTime;
       if (result.usage) {
-      
         this.v3.updateMetrics(
           V3FunctionName.AGENT,
           result.usage.inputTokens || 0,
