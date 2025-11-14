@@ -1,17 +1,28 @@
 import { expect, test } from "@playwright/test";
+import { Buffer } from "buffer";
+import { promises as fs } from "fs";
+import path from "path";
 import { V3 } from "../v3";
 import { v3TestConfig } from "./v3.config";
 
 test.describe("tests setInputFiles()", () => {
   let v3: V3;
+  let tempFixturePath: string;
 
   test.beforeEach(async () => {
     v3 = new V3(v3TestConfig);
     await v3.init();
+    tempFixturePath = path.resolve(process.cwd(), "fake.html");
+    await fs.writeFile(
+      tempFixturePath,
+      "<html><body><p>stagehand upload</p></body></html>",
+      "utf-8",
+    );
   });
 
   test.afterEach(async () => {
     await v3?.close?.().catch(() => {});
+    await fs.unlink(tempFixturePath).catch(() => {});
   });
 
   test("deepLocator().setInputFiles() (inside an iframe)", async () => {
