@@ -24,7 +24,7 @@ async function recordPlaywrightVideo(stagehand: Stagehand): Promise<void> {
     waitUntil: "domcontentloaded",
   });
 
-await stagehand.act('click the introduction div in the first steps section')
+  await stagehand.act("click the introduction div in the first steps section");
 
   const { primitives } = await stagehand.extract(
     "list the four Stagehand primitives that are described on the page",
@@ -63,4 +63,3 @@ await stagehand.act('click the introduction div in the first steps section')
     await stagehand.close().catch(() => {});
   }
 })();
-
