@@ -5,8 +5,8 @@ import { StagehandInvalidArgumentError } from "../types/public/sdkErrors";
 import {
   SetInputFilesArgument,
   SetInputFilePayload,
-  NormalizedFilePayload,
 } from "../types/public/locator";
+import { NormalizedFilePayload } from "../types/private/locator";
 
 const DEFAULT_MIME_TYPE = "application/octet-stream";
 
