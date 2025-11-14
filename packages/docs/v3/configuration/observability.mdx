@@ -249,30 +249,35 @@ interface StagehandMetrics {
   actPromptTokens: number;
   actCompletionTokens: number;
   actReasoningTokens: number;
+  actCachedInputTokens: number;
   actInferenceTimeMs: number;
 
   // Extract operation metrics
   extractPromptTokens: number;
   extractCompletionTokens: number;
   extractReasoningTokens: number;
+  extractCachedInputTokens: number;
   extractInferenceTimeMs: number;
 
   // Observe operation metrics
   observePromptTokens: number;
   observeCompletionTokens: number;
   observeReasoningTokens: number;
+  observeCachedInputTokens: number;
   observeInferenceTimeMs: number;
 
   // Agent operation metrics
   agentPromptTokens: number;
   agentCompletionTokens: number;
   agentReasoningTokens: number;
+  agentCachedInputTokens: number;
   agentInferenceTimeMs: number;
 
   // Cumulative totals
   totalPromptTokens: number;
   totalCompletionTokens: number;
   totalReasoningTokens: number;
+  totalCachedInputTokens: number;
   totalInferenceTimeMs: number;
 }
 ```
@@ -287,22 +292,27 @@ console.log(metrics);
 //   actPromptTokens: 4011,
 //   actCompletionTokens: 51,
 //   actReasoningTokens: 12,
+//   actCachedInputTokens: 0,
 //   actInferenceTimeMs: 1688,
 //   extractPromptTokens: 4200,
 //   extractCompletionTokens: 243,
 //   extractReasoningTokens: 18,
+//   extractCachedInputTokens: 0,
 //   extractInferenceTimeMs: 4297,
 //   observePromptTokens: 347,
 //   observeCompletionTokens: 43,
 //   observeReasoningTokens: 5,
+//   observeCachedInputTokens: 0,
 //   observeInferenceTimeMs: 903,
 //   agentPromptTokens: 0,
 //   agentCompletionTokens: 0,
 //   agentReasoningTokens: 0,
+//   agentCachedInputTokens: 0,
 //   agentInferenceTimeMs: 0,
 //   totalPromptTokens: 8558,
 //   totalCompletionTokens: 337,
 //   totalReasoningTokens: 35,
+//   totalCachedInputTokens: 0,
 //   totalInferenceTimeMs: 6888
 // }
 ```

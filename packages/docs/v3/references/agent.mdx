@@ -169,6 +169,7 @@ interface AgentResult {
     input_tokens: number;
     output_tokens: number;
     reasoning_tokens?: number;
+    cached_input_tokens?: number;
     inference_time_ms: number;
   };
 }
@@ -220,6 +221,9 @@ interface AgentAction {
     <ResponseField name="reasoning_tokens" type="number" optional>
       Number of reasoning tokens (if supported by the model)
     </ResponseField>
+    <ResponseField name="cached_input_tokens" type="number" optional>
+      Number of cached input tokens (if supported by the model)
+    </ResponseField>
     <ResponseField name="inference_time_ms" type="number">
       Total inference time in milliseconds
     </ResponseField>
@@ -252,6 +256,7 @@ interface AgentAction {
     "input_tokens": 1250,
     "output_tokens": 340,
     "reasoning_tokens": 42,
+    "cached_input_tokens": 0,
     "inference_time_ms": 2500
   }
 }

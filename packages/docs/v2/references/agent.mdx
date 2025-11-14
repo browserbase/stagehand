@@ -180,6 +180,7 @@ interface AgentResult {
     input_tokens: number;
     output_tokens: number;
     reasoning_tokens?: number;
+    cached_input_tokens?: number;
     inference_time_ms: number;
   };
 }
@@ -254,6 +255,7 @@ interface AgentResult {
     "input_tokens": 100,
     "output_tokens": 50,
     "reasoning_tokens": 12,
+    "cached_input_tokens": 0,
     "inference_time_ms": 100
   }
 }
