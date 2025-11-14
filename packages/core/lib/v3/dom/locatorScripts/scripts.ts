@@ -24,6 +24,61 @@ export function ensureFileInputElement(this: Element): boolean {
   }
 }
 
+export interface SerializedFilePayload {
+  name: string;
+  mimeType: string;
+  base64: string;
+  lastModified?: number;
+}
+
+/** Attach File objects created from serialized payloads to an <input type="file">. */
+export function assignFilePayloadsToInputElement(
+  this: Element,
+  payloads: SerializedFilePayload[],
+): boolean {
+  try {
+    const input = this as HTMLInputElement;
+    if (!input || input.tagName?.toLowerCase() !== "input") return false;
+    if ((input.type ?? "").toLowerCase() !== "file") return false;
+
+    const transfer: DataTransfer | null = (() => {
+      try {
+        return new DataTransfer();
+      } catch {
+        return null;
+      }
+    })();
+    if (!transfer) return false;
+
+    const entries = Array.isArray(payloads) ? payloads : [];
+    for (const payload of entries) {
+      if (!payload) continue;
+      const name = payload.name || "upload.bin";
+      const mimeType = payload.mimeType || "application/octet-stream";
+      const lastModified =
+        typeof payload.lastModified === "number"
+          ? payload.lastModified
+          : Date.now();
+
+      const binary = window.atob(payload.base64 ?? "");
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: mimeType });
+      const file = new File([blob], name, { type: mimeType, lastModified });
+      transfer.items.add(file);
+    }
+
+    input.files = transfer.files;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function dispatchDomClick(
   this: Element,
   options?: ClickEventOptions,

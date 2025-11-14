@@ -76,6 +76,7 @@ export class Page {
 
   /** cache Frames per frameId so everyone uses the same one */
   private readonly frameCache = new Map<string, Frame>();
+  private readonly browserIsRemote: boolean;
 
   /** Stable id for Frames created by this Page (use top-level TargetId). */
   private readonly pageId: string;
@@ -100,9 +101,11 @@ export class Page {
     private readonly _targetId: string,
     mainFrameId: string,
     apiClient?: StagehandAPIClient | null,
+    browserIsRemote = false,
   ) {
     this.pageId = _targetId;
     this.apiClient = apiClient ?? null;
+    this.browserIsRemote = browserIsRemote;
 
     // own the main session
     if (mainSession.id) this.sessions.set(mainSession.id, mainSession);
@@ -115,6 +118,7 @@ export class Page {
       this.mainSession,
       mainFrameId,
       this.pageId,
+      this.browserIsRemote,
     );
 
     this.networkManager = new NetworkManager();
@@ -227,6 +231,7 @@ export class Page {
     targetId: string,
     apiClient?: StagehandAPIClient | null,
     localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null,
+    browserIsRemote = false,
   ): Promise<Page> {
     await session.send("Page.enable").catch(() => {});
     await session
@@ -237,7 +242,14 @@ export class Page {
     }>("Page.getFrameTree");
     const mainFrameId = frameTree.frame.id;
 
-    const page = new Page(conn, session, targetId, mainFrameId, apiClient);
+    const page = new Page(
+      conn,
+      session,
+      targetId,
+      mainFrameId,
+      apiClient,
+      browserIsRemote,
+    );
     // Seed current URL from initial frame tree
     try {
       page._currentUrl = String(frameTree?.frame?.url ?? page._currentUrl);
@@ -304,7 +316,12 @@ export class Page {
     if (newRoot !== prevRoot) {
       const oldOrd = this.frameOrdinals.get(prevRoot) ?? 0;
       this.frameOrdinals.set(newRoot, oldOrd);
-      this.mainFrameWrapper = new Frame(this.mainSession, newRoot, this.pageId);
+      this.mainFrameWrapper = new Frame(
+        this.mainSession,
+        newRoot,
+        this.pageId,
+        this.browserIsRemote,
+      );
     }
 
     // Update cached URL if this navigation pertains to the current main frame
@@ -440,7 +457,7 @@ export class Page {
     if (hit) return hit;
 
     const sess = this.getSessionForFrame(frameId);
-    const f = new Frame(sess, frameId, this.pageId);
+    const f = new Frame(sess, frameId, this.pageId, this.browserIsRemote);
     this.frameCache.set(frameId, f);
     return f;
   }

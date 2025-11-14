@@ -405,6 +405,7 @@ export class V3Context {
         info.targetId,
         this.apiClient,
         this.localBrowserLaunchOptions,
+        this.env === "BROWSERBASE",
       );
       this.wireSessionToOwnerPage(sessionId, page);
       this.pagesByTarget.set(info.targetId, page);
