@@ -109,7 +109,8 @@ export class ActHandler {
       const actPromptTokens = actInferenceResponse.prompt_tokens ?? 0;
       const actCompletionTokens = actInferenceResponse.completion_tokens ?? 0;
       const actReasoningTokens = actInferenceResponse.reasoning_tokens ?? 0;
-      const actCachedInputTokens = actInferenceResponse.cached_input_tokens ?? 0;
+      const actCachedInputTokens =
+        actInferenceResponse.cached_input_tokens ?? 0;
       const actInferenceTimeMs = actInferenceResponse.inference_time_ms ?? 0;
       this.onMetrics?.(
         V3FunctionName.ACT,
