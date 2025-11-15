@@ -26,6 +26,10 @@ export class AISdkClient extends LLMClient {
     this.model = model;
   }
 
+  public getLanguageModel(): LanguageModelV2 {
+    return this.model;
+  }
+
   async createChatCompletion<T = ChatCompletion>({
     options,
   }: CreateChatCompletionOptions): Promise<T> {

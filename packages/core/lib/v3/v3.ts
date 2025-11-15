@@ -240,6 +240,7 @@ export class V3 {
       this.llmClient = opts.llmClient;
       this.modelClientOptions = baseClientOptions;
       this.disableAPI = true;
+      this.modelName = this.llmClient.modelName as AvailableModel;
     } else {
       // Ensure API key is set
       let apiKey = (baseClientOptions as { apiKey?: string }).apiKey;
@@ -1603,9 +1604,8 @@ export class V3 {
 
           // Resolve the LLM client for the agent based on the model parameter
           // Use the agent's model if specified, otherwise fall back to the default
-          const agentLlmClient = options?.model
-            ? this.resolveLlmClient(options.model)
-            : this.llmClient;
+          const agentLlmClient =
+            options?.llmClient ?? this.resolveLlmClient(options?.model);
 
           const handler = new V3AgentHandler(
             this,

@@ -5,6 +5,7 @@ import { Page as PlaywrightPage } from "playwright-core";
 import { Page as PuppeteerPage } from "puppeteer-core";
 import { Page as PatchrightPage } from "patchright-core";
 import { Page } from "../../understudy/page";
+import type { LLMClient } from "../../llm/LLMClient";
 
 export interface AgentAction {
   type: string;
@@ -198,4 +199,8 @@ export type AgentConfig = {
    * Format: "provider/model" (e.g., "openai/gpt-4o-mini", "google/gemini-2.0-flash-exp")
    */
   executionModel?: string | AgentModelConfig<string>;
+  /**
+   * Custom LLM client for the agent (non-CUA). Overrides model resolution.
+   */
+  llmClient?: LLMClient;
 };

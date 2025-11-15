@@ -107,6 +107,10 @@ export class AgentCache {
     const serializedExecutionModel = this.serializeAgentModelForCache(
       agentOptions?.executionModel,
     );
+    const defaultLlmClient = this.getDefaultLlmClient();
+    const llmClientSignature =
+      agentOptions?.llmClient?.modelName ??
+      (!agentOptions?.model ? defaultLlmClient?.modelName : undefined);
     return JSON.stringify({
       v3Model: this.getBaseModelName(),
       systemPrompt: this.getSystemPrompt() ?? "",
@@ -115,6 +119,7 @@ export class AgentCache {
         model: serializedModel ?? null,
         executionModel: agentOptions?.cua ? null : serializedExecutionModel,
         systemPrompt: agentOptions?.systemPrompt ?? null,
+        llmClientModel: llmClientSignature ?? null,
         toolKeys,
         integrations: integrationSignatures,
       },
