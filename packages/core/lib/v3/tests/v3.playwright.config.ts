@@ -4,8 +4,9 @@ export default defineConfig({
   testDir: ".",
   timeout: 90_000,
   expect: { timeout: 10_000 },
-  // Keep single-worker until the suite is stable; parallel browsers can clash with a single V3 instance.
-  workers: 2,
+  // Increased from 2 to improve CI performance. Use environment variable to control.
+  // CI uses 4 workers, local development can use up to 8 for faster test runs.
+  workers: process.env.CI ? 4 : 6,
   fullyParallel: true,
   reporter: "list",
   use: {

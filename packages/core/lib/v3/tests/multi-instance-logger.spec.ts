@@ -4,6 +4,11 @@ import { getV3DynamicTestConfig } from "./v3.dynamic.config";
 import type { LogLine } from "../types/public/logs";
 
 test.describe("V3 Multi-Instance Logger Isolation", () => {
+  // Run tests serially to avoid resource exhaustion from creating many Chrome instances
+  test.describe.configure({ mode: "serial" });
+  // Increase timeout for stress tests that create/destroy multiple instances
+  test.setTimeout(120_000);
+
   test("multiple V3 instances can be created concurrently without logger conflicts", async () => {
     const instanceCount = 5;
     const instances: V3[] = [];
