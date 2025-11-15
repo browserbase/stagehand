@@ -9,6 +9,7 @@
 import { Stagehand } from "../lib/v3";
 import dotenv from "dotenv";
 import chalk from "chalk";
+import z from "zod";
 
 // Load environment variables
 dotenv.config();
@@ -22,6 +23,7 @@ async function main() {
     verbose: 2,
     cacheDir: "stagehand-agent-cache",
     logInferenceToFile: false,
+    model: "google/gemini-2.5-flash",
   });
 
   await stagehand.init();
@@ -29,19 +31,25 @@ async function main() {
   try {
     const page = stagehand.context.pages()[0];
     await page.goto(
-      "https://browserbase.github.io/stagehand-eval-sites/sites/shadow-dom/",
+      "https://browserbase.github.io/stagehand-eval-sites/sites/jfk/",
     );
-    const agent = stagehand.agent();
 
-    const result = await agent.execute({
-      instruction: "click the button",
-      maxSteps: 20,
-    });
+    const extraction = await stagehand.extract(
+      "extract all the record file name and their corresponding links",
+      z.object({
+        records: z.array(
+          z.object({
+            file_name: z.string().describe("the file name of the record"),
+            link: z.string().url(),
+          }),
+        ),
+      }),
+    );
+
+    console.log(extraction);
 
     console.log(`${chalk.green("✓")} Execution complete`);
     console.log(`${chalk.yellow("⤷")} Result:`);
-    console.log(JSON.stringify(result, null, 2));
-    console.log(chalk.white(result.message));
   } catch (error) {
     console.log(`${chalk.red("✗")} Error: ${error}`);
   } finally {

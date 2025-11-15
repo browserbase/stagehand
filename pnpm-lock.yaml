@@ -19,7 +19,7 @@ importers:
         version: 9.25.1
       '@langchain/community':
         specifier: ^1.0.0
-        version: 1.0.0(@browserbasehq/sdk@2.5.0)(@browserbasehq/stagehand@3.0.1(@opentelemetry/api@1.9.0)(deepmerge@4.3.1)(dotenv@16.5.0)(zod@3.25.67))(@ibm-cloud/watsonx-ai@1.7.0)(@langchain/core@0.3.50(@opentelemetry/api@1.9.0)(openai@6.7.0(ws@8.18.3)(zod@3.25.67)))(@opentelemetry/api@1.9.0)(cheerio@1.0.0)(google-auth-library@9.15.1)(ibm-cloud-sdk-core@5.4.3)(ignore@5.3.2)(jsonwebtoken@9.0.2)(lodash@4.17.21)(openai@6.7.0(ws@8.18.3)(zod@3.25.67))(playwright@1.54.2)(puppeteer@22.15.0(typescript@5.8.3))(ws@8.18.3)
+        version: 1.0.0(@browserbasehq/sdk@2.5.0)(@browserbasehq/stagehand@3.0.2(@opentelemetry/api@1.9.0)(deepmerge@4.3.1)(dotenv@16.5.0)(zod@3.25.67))(@ibm-cloud/watsonx-ai@1.7.0)(@langchain/core@0.3.50(@opentelemetry/api@1.9.0)(openai@6.7.0(ws@8.18.3)(zod@3.25.67)))(@opentelemetry/api@1.9.0)(cheerio@1.0.0)(google-auth-library@9.15.1)(ibm-cloud-sdk-core@5.4.3)(ignore@5.3.2)(jsonwebtoken@9.0.2)(lodash@4.17.21)(openai@6.7.0(ws@8.18.3)(zod@3.25.67))(playwright@1.54.2)(puppeteer@22.15.0(typescript@5.8.3))(ws@8.18.3)
       '@langchain/core':
         specifier: ^0.3.40
         version: 0.3.50(@opentelemetry/api@1.9.0)(openai@6.7.0(ws@8.18.3)(zod@3.25.67))
@@ -164,9 +164,9 @@ importers:
       ws:
         specifier: ^8.18.0
         version: 8.18.3
-      zod:
-        specifier: ^4.1.8
-        version: 4.1.12
+      zod-to-json-schema:
+        specifier: ^3.24.5
+        version: 3.24.5(zod@4.1.12)
     optionalDependencies:
       '@ai-sdk/anthropic':
         specifier: ^2.0.34
@@ -238,6 +238,9 @@ importers:
       typescript:
         specifier: ^5.2.2
         version: 5.8.3
+      zod:
+        specifier: ^4.1.8
+        version: 4.1.12
 
   packages/docs:
     dependencies:
@@ -416,8 +419,8 @@ packages:
   '@browserbasehq/sdk@2.5.0':
     resolution: {integrity: sha512-bcnbYZvm5Ht1nrHUfWDK4crspiTy1ESJYMApsMiOTUnlKOan0ocRD6m7hZH34iSC2c2XWsoryR80cwsYgCBWzQ==}
 
-  '@browserbasehq/stagehand@3.0.1':
-    resolution: {integrity: sha512-GfI6qWAGBj3obGvIgi8wbE1e65y29hB7u9FUmlQIz2wUX/izFFchlq+PszafPr9d2q4ZzbqzqNoc9WSjhxT65w==}
+  '@browserbasehq/stagehand@3.0.2':
+    resolution: {integrity: sha512-m5GSOgHtRlC8wj4cdfJzB6sY6oQsTznmR2fjao0QRbtQd71Eh2dCYzmN/jZtc0K60Ga9ARMVTrix4iSaKaY2eQ==}
     peerDependencies:
       deepmerge: ^4.3.1
       dotenv: ^16.4.5
@@ -6401,7 +6404,7 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@browserbasehq/stagehand@3.0.1(@opentelemetry/api@1.9.0)(deepmerge@4.3.1)(dotenv@16.5.0)(zod@3.25.67)':
+  '@browserbasehq/stagehand@3.0.2(@opentelemetry/api@1.9.0)(deepmerge@4.3.1)(dotenv@16.5.0)(zod@3.25.67)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
       '@anthropic-ai/sdk': 0.39.0
@@ -7173,9 +7176,9 @@ snapshots:
       - openai
       - ws
 
-  '@langchain/community@1.0.0(@browserbasehq/sdk@2.5.0)(@browserbasehq/stagehand@3.0.1(@opentelemetry/api@1.9.0)(deepmerge@4.3.1)(dotenv@16.5.0)(zod@3.25.67))(@ibm-cloud/watsonx-ai@1.7.0)(@langchain/core@0.3.50(@opentelemetry/api@1.9.0)(openai@6.7.0(ws@8.18.3)(zod@3.25.67)))(@opentelemetry/api@1.9.0)(cheerio@1.0.0)(google-auth-library@9.15.1)(ibm-cloud-sdk-core@5.4.3)(ignore@5.3.2)(jsonwebtoken@9.0.2)(lodash@4.17.21)(openai@6.7.0(ws@8.18.3)(zod@3.25.67))(playwright@1.54.2)(puppeteer@22.15.0(typescript@5.8.3))(ws@8.18.3)':
+  '@langchain/community@1.0.0(@browserbasehq/sdk@2.5.0)(@browserbasehq/stagehand@3.0.2(@opentelemetry/api@1.9.0)(deepmerge@4.3.1)(dotenv@16.5.0)(zod@3.25.67))(@ibm-cloud/watsonx-ai@1.7.0)(@langchain/core@0.3.50(@opentelemetry/api@1.9.0)(openai@6.7.0(ws@8.18.3)(zod@3.25.67)))(@opentelemetry/api@1.9.0)(cheerio@1.0.0)(google-auth-library@9.15.1)(ibm-cloud-sdk-core@5.4.3)(ignore@5.3.2)(jsonwebtoken@9.0.2)(lodash@4.17.21)(openai@6.7.0(ws@8.18.3)(zod@3.25.67))(playwright@1.54.2)(puppeteer@22.15.0(typescript@5.8.3))(ws@8.18.3)':
     dependencies:
-      '@browserbasehq/stagehand': 3.0.1(@opentelemetry/api@1.9.0)(deepmerge@4.3.1)(dotenv@16.5.0)(zod@3.25.67)
+      '@browserbasehq/stagehand': 3.0.2(@opentelemetry/api@1.9.0)(deepmerge@4.3.1)(dotenv@16.5.0)(zod@3.25.67)
       '@ibm-cloud/watsonx-ai': 1.7.0
       '@langchain/classic': 1.0.0(@langchain/core@0.3.50(@opentelemetry/api@1.9.0)(openai@6.7.0(ws@8.18.3)(zod@3.25.67)))(@opentelemetry/api@1.9.0)(cheerio@1.0.0)(openai@6.7.0(ws@8.18.3)(zod@3.25.67))(ws@8.18.3)
       '@langchain/core': 0.3.50(@opentelemetry/api@1.9.0)(openai@6.7.0(ws@8.18.3)(zod@3.25.67))
@@ -10073,7 +10076,7 @@ snapshots:
       isstream: 0.1.2
       jsonwebtoken: 9.0.2
       mime-types: 2.1.35
-      retry-axios: 2.6.0(axios@1.13.0(debug@4.4.1))
+      retry-axios: 2.6.0(axios@1.13.0)
       tough-cookie: 4.1.4
     transitivePeerDependencies:
       - supports-color
@@ -12057,7 +12060,7 @@ snapshots:
       retext-stringify: 4.0.0
       unified: 11.0.5
 
-  retry-axios@2.6.0(axios@1.13.0(debug@4.4.1)):
+  retry-axios@2.6.0(axios@1.13.0):
     dependencies:
       axios: 1.13.0(debug@4.4.1)
 
@@ -13112,6 +13115,10 @@ snapshots:
   zod-to-json-schema@3.24.5(zod@3.25.76):
     dependencies:
       zod: 3.25.76
+
+  zod-to-json-schema@3.24.5(zod@4.1.12):
+    dependencies:
+      zod: 4.1.12
 
   zod@3.23.8: {}
 

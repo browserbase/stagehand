@@ -1,5 +1,4 @@
 import Browserbase from "@browserbasehq/sdk";
-import { ZodTypeAny } from "zod";
 import {
   Action,
   ActOptions,
@@ -8,6 +7,7 @@ import {
   ObserveOptions,
 } from "../public";
 import type { Protocol } from "devtools-protocol";
+import type { StagehandZodSchema } from "../../zodCompat";
 
 export interface StagehandAPIConstructorParams {
   apiKey: string;
@@ -60,7 +60,7 @@ export interface APIActParameters {
 
 export interface APIExtractParameters {
   instruction?: string;
-  schema?: ZodTypeAny;
+  schema?: StagehandZodSchema;
   options?: ExtractOptions;
   frameId?: string;
 }

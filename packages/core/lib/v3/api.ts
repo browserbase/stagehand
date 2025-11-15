@@ -1,5 +1,4 @@
 import makeFetchCookie from "fetch-cookie";
-import { z } from "zod";
 import { Action } from "./types/public";
 import { STAGEHAND_VERSION } from "../version";
 import {
@@ -29,6 +28,8 @@ import {
   ExperimentalNotConfiguredError,
 } from "./types/public";
 import type { SerializableResponse } from "./types/private";
+import { toJsonSchema } from "./zodCompat";
+import type { StagehandZodSchema } from "./zodCompat";
 
 /**
  * API response structure for replay metrics endpoint
@@ -156,13 +157,13 @@ export class StagehandAPIClient {
     });
   }
 
-  async extract<T extends z.ZodObject>({
+  async extract<T extends StagehandZodSchema>({
     instruction,
     schema: zodSchema,
     options,
     frameId,
   }: APIExtractParameters): Promise<ExtractResult<T>> {
-    const jsonSchema = zodSchema ? z.toJSONSchema(zodSchema) : undefined;
+    const jsonSchema = zodSchema ? toJsonSchema(zodSchema) : undefined;
 
     const args: Record<string, unknown> = {
       schema: jsonSchema,

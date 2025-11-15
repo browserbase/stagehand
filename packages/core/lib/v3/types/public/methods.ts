@@ -2,6 +2,7 @@ import { Page as PatchrightPage } from "patchright-core";
 import { Page as PlaywrightPage } from "playwright-core";
 import { Page as PuppeteerPage } from "puppeteer-core";
 import { z } from "zod";
+import type { InferStagehandSchema, StagehandZodSchema } from "../../zodCompat";
 import { Page } from "../../understudy/page";
 import { ModelConfiguration } from "../public/model";
 
@@ -19,7 +20,8 @@ export interface ActResult {
   actions: Action[];
 }
 
-export type ExtractResult<T extends z.ZodObject> = z.infer<T>;
+export type ExtractResult<T extends StagehandZodSchema> =
+  InferStagehandSchema<T>;
 
 export interface Action {
   selector: string;

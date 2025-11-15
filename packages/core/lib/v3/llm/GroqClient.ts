@@ -1,6 +1,5 @@
 import type { ClientOptions } from "openai";
 import OpenAI from "openai";
-import { z } from "zod";
 import { LogLine } from "../types/public/logs";
 import { AvailableModel } from "../types/public/model";
 import {
@@ -10,6 +9,7 @@ import {
   LLMResponse,
 } from "./LLMClient";
 import { CreateChatCompletionResponseError } from "../types/public/sdkErrors";
+import { toJsonSchema } from "../zodCompat";
 
 export class GroqClient extends LLMClient {
   public type = "groq" as const;
@@ -100,7 +100,7 @@ export class GroqClient extends LLMClient {
 
     // Add response model as a tool if provided
     if (options.response_model) {
-      const jsonSchema = z.toJSONSchema(options.response_model.schema) as {
+      const jsonSchema = toJsonSchema(options.response_model.schema) as {
         properties?: Record<string, unknown>;
         required?: string[];
       };

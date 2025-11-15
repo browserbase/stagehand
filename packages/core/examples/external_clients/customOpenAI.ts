@@ -22,10 +22,14 @@ import type {
   ChatCompletionSystemMessageParam,
   ChatCompletionUserMessageParam,
 } from "openai/resources/chat/completions";
-import { z } from "zod";
 import { CreateChatCompletionResponseError } from "../../lib/v3";
+import {
+  StagehandZodSchema,
+  isZod4Schema,
+  toJsonSchema,
+} from "../../lib/v3/zodCompat";
 
-function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
+function validateZodSchema(schema: StagehandZodSchema, data: unknown) {
   try {
     schema.parse(data);
     return true;
@@ -83,12 +87,25 @@ export class CustomOpenAIClient extends LLMClient {
       );
     }
 
-    let responseFormat = undefined;
+    let responseFormat:
+      | ChatCompletionCreateParamsNonStreaming["response_format"]
+      | undefined;
     if (options.response_model) {
-      responseFormat = zodResponseFormat(
-        options.response_model.schema,
-        options.response_model.name,
-      );
+      const responseModelSchema = options.response_model.schema;
+      if (isZod4Schema(responseModelSchema)) {
+        responseFormat = zodResponseFormat(
+          responseModelSchema,
+          options.response_model.name,
+        );
+      } else {
+        responseFormat = {
+          type: "json_schema",
+          json_schema: {
+            name: options.response_model.name,
+            schema: toJsonSchema(responseModelSchema),
+          },
+        };
+      }
     }
 
     /* eslint-disable */

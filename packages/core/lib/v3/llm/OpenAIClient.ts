@@ -12,7 +12,6 @@ import {
 import { LogLine } from "../types/public/logs";
 import { AvailableModel } from "../types/public/model";
 import { validateZodSchema } from "../../utils";
-import { z } from "zod";
 import {
   ChatCompletionOptions,
   ChatMessage,
@@ -25,6 +24,7 @@ import {
   StagehandError,
   ZodSchemaValidationError,
 } from "../types/public/sdkErrors";
+import { isZod4Schema, toJsonSchema } from "../zodCompat";
 
 export class OpenAIClient extends LLMClient {
   public type = "openai" as const;
@@ -152,13 +152,15 @@ export class OpenAIClient extends LLMClient {
       options.messages.push(screenshotMessage);
     }
 
-    let responseFormat = undefined;
+    let responseFormat:
+      | ChatCompletionCreateParamsNonStreaming["response_format"]
+      | undefined;
     if (options.response_model) {
       // For O1 models, we need to add the schema as a user message.
       if (this.modelName.startsWith("o1") || this.modelName.startsWith("o3")) {
         try {
           const parsedSchema = JSON.stringify(
-            z.toJSONSchema(options.response_model.schema),
+            toJsonSchema(options.response_model.schema),
           );
           options.messages.push({
             role: "user",
@@ -184,11 +186,19 @@ export class OpenAIClient extends LLMClient {
 
           throw error;
         }
-      } else {
+      } else if (isZod4Schema(options.response_model.schema)) {
         responseFormat = zodResponseFormat(
           options.response_model.schema,
           options.response_model.name,
         );
+      } else {
+        responseFormat = {
+          type: "json_schema",
+          json_schema: {
+            name: options.response_model.name,
+            schema: toJsonSchema(options.response_model.schema),
+          },
+        };
       }
     }
 

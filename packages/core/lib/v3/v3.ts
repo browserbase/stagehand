@@ -3,8 +3,8 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import process from "process";
-import type { ZodTypeAny } from "zod";
 import { z } from "zod";
+import type { InferStagehandSchema, StagehandZodSchema } from "./zodCompat";
 import { loadApiKeyFromEnv } from "../utils";
 import { StagehandLogger, LoggerOptions } from "../logger";
 import { ActCache } from "./cache/ActCache";
@@ -1073,15 +1073,15 @@ export class V3 {
     instruction: string,
     options?: ExtractOptions,
   ): Promise<z.infer<typeof defaultExtractSchema>>;
-  async extract<T extends ZodTypeAny>(
+  async extract<T extends StagehandZodSchema>(
     instruction: string,
     schema: T,
     options?: ExtractOptions,
-  ): Promise<z.infer<T>>;
+  ): Promise<InferStagehandSchema<T>>;
 
   async extract(
     a?: string | ExtractOptions,
-    b?: ZodTypeAny | ExtractOptions,
+    b?: StagehandZodSchema | ExtractOptions,
     c?: ExtractOptions,
   ): Promise<unknown> {
     return await withInstanceLogContext(this.instanceId, async () => {
@@ -1091,18 +1091,18 @@ export class V3 {
 
       // Normalize args
       let instruction: string | undefined;
-      let schema: ZodTypeAny | undefined;
+      let schema: StagehandZodSchema | undefined;
       let options: ExtractOptions | undefined;
 
       if (typeof a === "string") {
         instruction = a;
-        const isZodSchema = (val: unknown): val is ZodTypeAny =>
+        const isZodSchema = (val: unknown): val is StagehandZodSchema =>
           !!val &&
           typeof val === "object" &&
           "parse" in val &&
           "safeParse" in val;
         if (isZodSchema(b)) {
-          schema = b as ZodTypeAny;
+          schema = b as StagehandZodSchema;
           options = c as ExtractOptions | undefined;
         } else {
           options = b as ExtractOptions | undefined;
@@ -1125,9 +1125,9 @@ export class V3 {
       // Resolve page from options or use active page
       const page = await this.resolvePage(options?.page);
 
-      const handlerParams: ExtractHandlerParams<ZodTypeAny> = {
+      const handlerParams: ExtractHandlerParams<StagehandZodSchema> = {
         instruction,
-        schema: effectiveSchema as unknown as ZodTypeAny | undefined,
+        schema: effectiveSchema as StagehandZodSchema | undefined,
         model: options?.model,
         timeout: options?.timeout,
         selector: options?.selector,
@@ -1143,7 +1143,8 @@ export class V3 {
           frameId,
         });
       } else {
-        result = await this.extractHandler.extract<ZodTypeAny>(handlerParams);
+        result =
+          await this.extractHandler.extract<StagehandZodSchema>(handlerParams);
       }
       return result;
     });

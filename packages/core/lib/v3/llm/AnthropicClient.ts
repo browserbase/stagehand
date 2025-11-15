@@ -5,7 +5,6 @@ import {
   TextBlockParam,
   Tool,
 } from "@anthropic-ai/sdk/resources";
-import { z } from "zod";
 import { LogLine } from "../types/public/logs";
 import {
   AnthropicJsonSchemaObject,
@@ -17,6 +16,7 @@ import {
   LLMResponse,
 } from "./LLMClient";
 import { CreateChatCompletionResponseError } from "../types/public/sdkErrors";
+import { toJsonSchema } from "../zodCompat";
 
 export class AnthropicClient extends LLMClient {
   public type = "anthropic" as const;
@@ -145,7 +145,7 @@ export class AnthropicClient extends LLMClient {
 
     let toolDefinition: Tool | undefined;
     if (options.response_model) {
-      const jsonSchema = z.toJSONSchema(options.response_model.schema);
+      const jsonSchema = toJsonSchema(options.response_model.schema);
       const { properties: schemaProperties, required: schemaRequired } =
         extractSchemaProperties(jsonSchema);
 

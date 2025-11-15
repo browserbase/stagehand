@@ -1,10 +1,11 @@
 // lib/v3/handlers/extractHandler.ts
 import { extract as runExtract } from "../../inference";
-import { injectUrls, transformSchema } from "../../utils";
+import { getZodType, injectUrls, transformSchema } from "../../utils";
 import { v3Logger } from "../logger";
 import { V3FunctionName } from "../types/public/methods";
 import { captureHybridSnapshot } from "../understudy/a11y/snapshot";
-import { z, ZodTypeAny } from "zod";
+import { z } from "zod";
+import type { ZodTypeAny } from "zod";
 import { LLMClient } from "../llm/LLMClient";
 import { ExtractHandlerParams } from "../types/private/handlers";
 import { EncodedId, ZodPathSegments } from "../types/private/internal";
@@ -15,6 +16,11 @@ import {
   ModelConfiguration,
 } from "../types/public/model";
 import { StagehandInvalidArgumentError } from "../types/public/sdkErrors";
+import type {
+  InferStagehandSchema,
+  StagehandZodObject,
+  StagehandZodSchema,
+} from "../zodCompat";
 
 /**
  * Scans the provided Zod schema for any `z.string().url()` fields and
@@ -26,11 +32,11 @@ import { StagehandInvalidArgumentError } from "../types/public/sdkErrors";
  *   2. An array of {@link ZodPathSegments} objects representing all the replaced URL fields,
  *      with each path segment showing where in the schema the replacement occurred.
  */
-export function transformUrlStringsToNumericIds<T extends ZodTypeAny>(
+export function transformUrlStringsToNumericIds<T extends StagehandZodSchema>(
   schema: T,
-): [T, ZodPathSegments[]] {
+): [StagehandZodSchema, ZodPathSegments[]] {
   const [finalSchema, urlPaths] = transformSchema(schema, []);
-  return [finalSchema as T, urlPaths];
+  return [finalSchema, urlPaths];
 }
 
 interface ExtractionResponseBase {
@@ -42,8 +48,8 @@ interface ExtractionResponseBase {
   inference_time_ms: number;
 }
 
-type ExtractionResponse<T extends z.ZodObject> = ExtractionResponseBase &
-  z.infer<T>;
+type ExtractionResponse<T extends StagehandZodObject> = ExtractionResponseBase &
+  InferStagehandSchema<T>;
 
 export class ExtractHandler {
   private readonly llmClient: LLMClient;
@@ -89,14 +95,16 @@ export class ExtractHandler {
     this.onMetrics = onMetrics;
   }
 
-  async extract<T extends ZodTypeAny>(
+  async extract<T extends StagehandZodSchema>(
     params: ExtractHandlerParams<T>,
-  ): Promise<z.infer<T> | { pageText: string }> {
+  ): Promise<InferStagehandSchema<T> | { pageText: string }> {
     const { instruction, schema, page, selector, timeout, model } = params;
 
     const llmClient = this.resolveLlmClient(model);
 
-    const doExtract = async (): Promise<z.infer<T> | { pageText: string }> => {
+    const doExtract = async (): Promise<
+      InferStagehandSchema<T> | { pageText: string }
+    > => {
       // No-args → page text (parity with v2)
       const noArgs = !instruction && !schema;
       if (noArgs) {
@@ -138,29 +146,30 @@ export class ExtractHandler {
       });
 
       // Normalize schema: if instruction provided without schema, use defaultExtractSchema
-      const baseSchema: ZodTypeAny = (schema ??
-        defaultExtractSchema) as ZodTypeAny;
+      const baseSchema: StagehandZodSchema = (schema ??
+        defaultExtractSchema) as StagehandZodSchema;
       // Ensure we pass an object schema into inference; wrap non-object schemas
-      const isObjectSchema = !!(
-        baseSchema as unknown as { _def?: { shape?: unknown } }
-      )._def?.shape;
+      const isObjectSchema = getZodType(baseSchema) === "object";
       const WRAP_KEY = "value" as const;
-      const objectSchema = isObjectSchema
-        ? (baseSchema as unknown as z.ZodObject<z.ZodRawShape>)
-        : z.object({ [WRAP_KEY]: baseSchema });
+      const objectSchema: StagehandZodObject = isObjectSchema
+        ? (baseSchema as StagehandZodObject)
+        : (z.object({
+            [WRAP_KEY]: baseSchema as unknown as ZodTypeAny,
+          }) as StagehandZodObject);
 
       const [transformedSchema, urlFieldPaths] =
         transformUrlStringsToNumericIds(objectSchema);
 
-      const extractionResponse = (await runExtract({
-        instruction,
-        domElements: combinedTree,
-        schema: transformedSchema as z.ZodObject<z.ZodRawShape>,
-        llmClient,
-        userProvidedInstructions: this.systemPrompt,
-        logger: v3Logger,
-        logInferenceToFile: this.logInferenceToFile,
-      })) as ExtractionResponse<z.ZodObject<z.ZodRawShape>>;
+      const extractionResponse: ExtractionResponse<StagehandZodObject> =
+        await runExtract<StagehandZodObject>({
+          instruction,
+          domElements: combinedTree,
+          schema: transformedSchema as StagehandZodObject,
+          llmClient,
+          userProvidedInstructions: this.systemPrompt,
+          logger: v3Logger,
+          logInferenceToFile: this.logInferenceToFile,
+        });
 
       const {
         metadata: { completed },
@@ -171,7 +180,7 @@ export class ExtractHandler {
         inference_time_ms,
         ...rest
       } = extractionResponse;
-      let output: unknown = rest;
+      let output = rest as InferStagehandSchema<StagehandZodObject>;
 
       v3Logger({
         category: "extraction",
@@ -218,18 +227,20 @@ export class ExtractHandler {
         output = (output as Record<string, unknown>)[WRAP_KEY];
       }
 
-      return output as z.infer<T>;
+      return output as InferStagehandSchema<T>;
     };
     if (!timeout) return doExtract();
 
     return await Promise.race([
       doExtract(),
-      new Promise<z.infer<T> | { pageText: string }>((_, reject) => {
-        setTimeout(
-          () => reject(new Error(`extract() timed out after ${timeout}ms`)),
-          timeout,
-        );
-      }),
+      new Promise<InferStagehandSchema<T> | { pageText: string }>(
+        (_, reject) => {
+          setTimeout(
+            () => reject(new Error(`extract() timed out after ${timeout}ms`)),
+            timeout,
+          );
+        },
+      ),
     ]);
   }
 }

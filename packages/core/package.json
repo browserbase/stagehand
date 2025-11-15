@@ -38,7 +38,8 @@
   "license": "MIT",
   "peerDependencies": {
     "deepmerge": "^4.3.1",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "zod": "^3.25.0 || ^4.0.0"
   },
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",
@@ -55,7 +56,7 @@
     "pino-pretty": "^13.0.0",
     "playwright": "^1.52.0",
     "ws": "^8.18.0",
-    "zod": "^4.1.8"
+    "zod-to-json-schema": "^3.24.5"
   },
   "optionalDependencies": {
     "@ai-sdk/anthropic": "^2.0.34",
@@ -82,7 +83,8 @@
     "prettier": "^3.2.5",
     "tsup": "^8.2.1",
     "tsx": "^4.10.5",
-    "typescript": "^5.2.2"
+    "typescript": "^5.2.2",
+    "zod": "^4.1.8"
   },
   "repository": {
     "type": "git",

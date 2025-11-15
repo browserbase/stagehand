@@ -11,9 +11,9 @@ import {
   streamText,
 } from "ai";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
-import { ZodType } from "zod";
 import { LogLine } from "../types/public/logs";
 import { AvailableModel, ClientOptions } from "../types/public/model";
+import type { StagehandZodSchema } from "../zodCompat";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -55,7 +55,7 @@ export interface ChatCompletionOptions {
   };
   response_model?: {
     name: string;
-    schema: ZodType;
+    schema: StagehandZodSchema;
   };
   tools?: LLMTool[];
   tool_choice?: "auto" | "none" | "required";
@@ -129,7 +129,9 @@ export abstract class LLMClient {
   // Overload 1: When response_model is provided, returns LLMParsedResponse<T>
   abstract createChatCompletion<T>(
     options: CreateChatCompletionOptions & {
-      options: { response_model: { name: string; schema: ZodType } };
+      options: {
+        response_model: { name: string; schema: StagehandZodSchema };
+      };
     },
   ): Promise<LLMParsedResponse<T>>;
 

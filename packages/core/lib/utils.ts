@@ -1,38 +1,207 @@
 import { ZodSchemaValidationError } from "./v3/types/public/sdkErrors";
 import { Schema, Type } from "@google/genai";
 import { z, ZodTypeAny } from "zod";
+import z3 from "zod/v3";
 import { LogLine } from "./v3/types/public/logs";
 import { ModelProvider } from "./v3/types/public/model";
 import { ZodPathSegments } from "./v3/types/private/internal";
-
-/**
- * Zod 4 Internal Types
- *
- * We import these from zod/v4/core to access the internal structure of Zod schemas.
- * Note: zod/v4/core uses `$ZodType` while the main zod module uses `z.ZodTypeAny`.
- * These are functionally identical at runtime but TypeScript sees them as incompatible types.
- * Therefore, when extracting properties from these internals (e.g., `def.element`, `def.innerType`),
- * we must cast them to `z.ZodTypeAny` to work with the public Zod API.
- */
-import type {
-  $ZodArrayInternals,
-  $ZodObjectInternals,
-  $ZodStringInternals,
-  $ZodUnionInternals,
-  $ZodIntersectionInternals,
-  $ZodOptionalInternals,
-  $ZodNullableInternals,
-  $ZodPipeInternals,
-  $ZodEnumInternals,
-  $ZodLiteralInternals,
-} from "zod/v4/core";
+import type { StagehandZodSchema } from "./v3/zodCompat";
+import { isZod4Schema } from "./v3/zodCompat";
 
 const ID_PATTERN = /^\d+-\d+$/;
 
-// Helper type for accessing Zod 4 internals
-type ZodWithInternals<T> = z.ZodTypeAny & { _zod: T };
+const zFactories = {
+  v4: z,
+  v3: z3 as unknown as typeof z,
+};
 
-export function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
+function getZFactory(schema: StagehandZodSchema): typeof z {
+  return isZod4Schema(schema) ? zFactories.v4 : zFactories.v3;
+}
+
+const TYPE_NAME_MAP: Record<string, string> = {
+  ZodString: "string",
+  string: "string",
+  ZodNumber: "number",
+  number: "number",
+  ZodBoolean: "boolean",
+  boolean: "boolean",
+  ZodObject: "object",
+  object: "object",
+  ZodArray: "array",
+  array: "array",
+  ZodUnion: "union",
+  union: "union",
+  ZodIntersection: "intersection",
+  intersection: "intersection",
+  ZodOptional: "optional",
+  optional: "optional",
+  ZodNullable: "nullable",
+  nullable: "nullable",
+  ZodLiteral: "literal",
+  literal: "literal",
+  ZodEnum: "enum",
+  enum: "enum",
+  ZodDefault: "default",
+  default: "default",
+  ZodEffects: "effects",
+  effects: "effects",
+  pipe: "pipe",
+};
+
+function getZ4Def(schema: StagehandZodSchema) {
+  return (schema as SchemaInternals)._zod?.def as
+    | Record<string, unknown>
+    | undefined;
+}
+
+function getZ4Bag(schema: StagehandZodSchema) {
+  return (schema as SchemaInternals)._zod?.bag as
+    | Record<string, unknown>
+    | undefined;
+}
+
+function getZ3Def(schema: StagehandZodSchema) {
+  return (schema as SchemaInternals)._def as
+    | Record<string, unknown>
+    | undefined;
+}
+
+function getObjectShape(
+  schema: StagehandZodSchema,
+): Record<string, StagehandZodSchema> | undefined {
+  const z4Shape = getZ4Def(schema)?.shape as
+    | Record<string, StagehandZodSchema>
+    | undefined;
+  if (z4Shape) {
+    return z4Shape;
+  }
+
+  const z3Shape = getZ3Def(schema)?.shape;
+  if (!z3Shape) {
+    return undefined;
+  }
+
+  if (typeof z3Shape === "function") {
+    return (z3Shape as () => Record<string, StagehandZodSchema>)();
+  }
+
+  return z3Shape as Record<string, StagehandZodSchema>;
+}
+
+function getArrayElement(
+  schema: StagehandZodSchema,
+): StagehandZodSchema | undefined {
+  return (getZ4Def(schema)?.element ?? getZ3Def(schema)?.type) as
+    | StagehandZodSchema
+    | undefined;
+}
+
+function getInnerType(
+  schema: StagehandZodSchema,
+): StagehandZodSchema | undefined {
+  return (getZ4Def(schema)?.innerType ?? getZ3Def(schema)?.innerType) as
+    | StagehandZodSchema
+    | undefined;
+}
+
+function getUnionOptions(
+  schema: StagehandZodSchema,
+): StagehandZodSchema[] | undefined {
+  const z4Options = getZ4Def(schema)?.options;
+  if (Array.isArray(z4Options)) {
+    return z4Options as StagehandZodSchema[];
+  }
+  const z3Options = getZ3Def(schema)?.options;
+  return Array.isArray(z3Options)
+    ? (z3Options as StagehandZodSchema[])
+    : undefined;
+}
+
+function getIntersectionSides(schema: StagehandZodSchema): {
+  left?: StagehandZodSchema;
+  right?: StagehandZodSchema;
+} {
+  const z4Def = getZ4Def(schema);
+  if (z4Def?.left || z4Def?.right) {
+    return {
+      left: z4Def?.left as StagehandZodSchema | undefined,
+      right: z4Def?.right as StagehandZodSchema | undefined,
+    };
+  }
+  const z3Def = getZ3Def(schema);
+  return {
+    left: z3Def?.left as StagehandZodSchema | undefined,
+    right: z3Def?.right as StagehandZodSchema | undefined,
+  };
+}
+
+function getEnumValues(schema: StagehandZodSchema): string[] | undefined {
+  const z4Entries = getZ4Def(schema)?.entries;
+  if (z4Entries && typeof z4Entries === "object") {
+    return Object.values(z4Entries as Record<string, string>);
+  }
+  const z3Values = getZ3Def(schema)?.values;
+  return Array.isArray(z3Values) ? (z3Values as string[]) : undefined;
+}
+
+function getLiteralValues(schema: StagehandZodSchema): unknown[] {
+  const z4Values = getZ4Def(schema)?.values;
+  if (Array.isArray(z4Values)) {
+    return z4Values as unknown[];
+  }
+  const value = getZ3Def(schema)?.value;
+  return typeof value !== "undefined" ? [value] : [];
+}
+
+function getStringChecks(schema: StagehandZodSchema): unknown[] {
+  const z4Checks = getZ4Def(schema)?.checks;
+  if (Array.isArray(z4Checks)) {
+    return z4Checks;
+  }
+  const z3Checks = getZ3Def(schema)?.checks;
+  return Array.isArray(z3Checks) ? z3Checks : [];
+}
+
+function getStringFormat(schema: StagehandZodSchema): string | undefined {
+  const bagFormat = getZ4Bag(schema)?.format;
+  if (typeof bagFormat === "string") {
+    return bagFormat;
+  }
+  const z4Format = getZ4Def(schema)?.format;
+  if (typeof z4Format === "string") {
+    return z4Format;
+  }
+  const z3Format = getZ3Def(schema)?.format;
+  return typeof z3Format === "string" ? z3Format : undefined;
+}
+
+function getPipeEndpoints(schema: StagehandZodSchema): {
+  in?: StagehandZodSchema;
+  out?: StagehandZodSchema;
+} {
+  const z4Def = getZ4Def(schema);
+  if (z4Def?.in || z4Def?.out) {
+    return {
+      in: z4Def?.in as StagehandZodSchema | undefined,
+      out: z4Def?.out as StagehandZodSchema | undefined,
+    };
+  }
+  return {};
+}
+
+function getEffectsBaseSchema(
+  schema: StagehandZodSchema,
+): StagehandZodSchema | undefined {
+  return getZ3Def(schema)?.schema as StagehandZodSchema | undefined;
+}
+
+type SchemaInternals = {
+  _zod?: { def?: Record<string, unknown>; bag?: Record<string, unknown> };
+  _def?: Record<string, unknown>;
+};
+
+export function validateZodSchema(schema: StagehandZodSchema, data: unknown) {
   const result = schema.safeParse(data);
 
   if (result.success) {
@@ -71,32 +240,35 @@ function decorateGeminiSchema(
   return geminiSchema;
 }
 
-export function toGeminiSchema(zodSchema: z.ZodTypeAny): Schema {
+export function toGeminiSchema(zodSchema: StagehandZodSchema): Schema {
+  const normalizedSchema = zodSchema as z.ZodTypeAny;
   const zodType = getZodType(zodSchema);
   switch (zodType) {
     case "array": {
-      const arraySchema = zodSchema as ZodWithInternals<$ZodArrayInternals>;
-      const element = arraySchema._zod.def.element as z.ZodTypeAny;
+      const element = getArrayElement(zodSchema) ?? z.any();
       return decorateGeminiSchema(
         {
           type: Type.ARRAY,
-          items: toGeminiSchema(element ?? z.any()),
+          items: toGeminiSchema(element),
         },
-        zodSchema,
+        normalizedSchema,
       );
     }
     case "object": {
       const properties: Record<string, Schema> = {};
       const required: string[] = [];
 
-      const objectSchema = zodSchema as ZodWithInternals<$ZodObjectInternals>;
-      const shape = objectSchema._zod.def.shape;
-      Object.entries(shape).forEach(([key, value]: [string, z.ZodTypeAny]) => {
-        properties[key] = toGeminiSchema(value);
-        if (getZodType(value) !== "optional") {
-          required.push(key);
-        }
-      });
+      const shape = getObjectShape(zodSchema);
+      if (shape) {
+        Object.entries(shape).forEach(
+          ([key, value]: [string, StagehandZodSchema]) => {
+            properties[key] = toGeminiSchema(value);
+            if (getZodType(value) !== "optional") {
+              required.push(key);
+            }
+          },
+        );
+      }
 
       return decorateGeminiSchema(
         {
@@ -104,100 +276,101 @@ export function toGeminiSchema(zodSchema: z.ZodTypeAny): Schema {
           properties,
           required: required.length > 0 ? required : undefined,
         },
-        zodSchema,
+        normalizedSchema,
       );
     }
     case "string":
-    case "url":
       return decorateGeminiSchema(
         {
           type: Type.STRING,
         },
-        zodSchema,
+        normalizedSchema,
       );
     case "number":
       return decorateGeminiSchema(
         {
           type: Type.NUMBER,
         },
-        zodSchema,
+        normalizedSchema,
       );
     case "boolean":
       return decorateGeminiSchema(
         {
           type: Type.BOOLEAN,
         },
-        zodSchema,
+        normalizedSchema,
       );
     case "enum": {
-      const enumSchema = zodSchema as ZodWithInternals<$ZodEnumInternals>;
-      const values = Object.values(enumSchema._zod.def.entries);
+      const values = getEnumValues(zodSchema);
       return decorateGeminiSchema(
         {
           type: Type.STRING,
-          enum: values as string[],
+          enum: values,
         },
-        zodSchema,
+        normalizedSchema,
       );
     }
     case "default":
     case "nullable":
     case "optional": {
-      const wrapperSchema = zodSchema as ZodWithInternals<
-        $ZodOptionalInternals | $ZodNullableInternals
-      >;
-      const innerType = wrapperSchema._zod.def.innerType as z.ZodTypeAny;
+      const innerType = getInnerType(zodSchema) ?? z.any();
       const innerSchema = toGeminiSchema(innerType);
       return decorateGeminiSchema(
         {
           ...innerSchema,
           nullable: true,
         },
-        zodSchema,
+        normalizedSchema,
       );
     }
     case "literal": {
-      const literalSchema = zodSchema as ZodWithInternals<$ZodLiteralInternals>;
-      const values = literalSchema._zod.def.values;
+      const values = getLiteralValues(zodSchema);
       return decorateGeminiSchema(
         {
           type: Type.STRING,
           enum: values as string[],
         },
-        zodSchema,
+        normalizedSchema,
       );
     }
     case "pipe": {
-      const pipeSchema = zodSchema as ZodWithInternals<$ZodPipeInternals>;
-      const inSchema = pipeSchema._zod.def.in as z.ZodTypeAny;
-      return toGeminiSchema(inSchema);
+      const endpoints = getPipeEndpoints(zodSchema);
+      if (endpoints.in) {
+        return toGeminiSchema(endpoints.in);
+      }
+      return decorateGeminiSchema(
+        {
+          type: Type.STRING,
+        },
+        normalizedSchema,
+      );
     }
     // Standalone transforms and any unknown types fall through to default
     default:
       return decorateGeminiSchema(
         {
-          type: Type.OBJECT,
-          nullable: true,
+          type: Type.STRING,
         },
-        zodSchema,
+        normalizedSchema,
       );
   }
 }
 
 // Helper function to check the type of Zod schema
-export function getZodType(schema: z.ZodTypeAny): string {
-  // In Zod 4, the type is accessed via _zod.def.type
-  const schemaWithDef = schema as unknown as {
+export function getZodType(schema: StagehandZodSchema): string {
+  const schemaWithDef = schema as SchemaInternals & {
     _zod?: { def?: { type?: string } };
   };
+  const rawType =
+    (schemaWithDef._zod?.def?.type as string | undefined) ??
+    (schemaWithDef._def?.typeName as string | undefined) ??
+    (schemaWithDef._def?.type as string | undefined);
 
-  if (schemaWithDef._zod?.def?.type) {
-    return schemaWithDef._zod.def.type;
+  if (!rawType) {
+    return "unknown";
   }
 
-  throw new Error(
-    `Unable to determine Zod schema type. Schema: ${JSON.stringify(schema)}`,
-  );
+  return TYPE_NAME_MAP[rawType] ?? rawType;
 }
 
 /**
@@ -214,74 +387,69 @@ export function getZodType(schema: z.ZodTypeAny): string {
  *   2. An array of {@link ZodPathSegments} objects representing each replaced field, including the path segments.
  */
 export function transformSchema(
-  schema: z.ZodTypeAny,
+  schema: StagehandZodSchema,
   currentPath: Array<string | number>,
-): [z.ZodTypeAny, ZodPathSegments[]] {
-  // 1) If it's a URL type (z.url() in Zod 4), convert to ID string pattern
-  if (isKind(schema, "url")) {
-    const transformed = makeIdStringSchema(schema as z.ZodString);
-    return [transformed, [{ segments: [] }]];
-  }
-
-  // 2) If it's a string with .url() check, convert to ID string pattern
+): [StagehandZodSchema, ZodPathSegments[]] {
   if (isKind(schema, "string")) {
-    const stringSchema = schema as ZodWithInternals<
-      $ZodStringInternals<unknown>
-    >;
-    const checks = stringSchema._zod.def.checks;
-    const format = stringSchema._zod.bag?.format;
+    const checks = getStringChecks(schema);
+    const format = getStringFormat(schema);
     const hasUrlCheck =
-      (checks?.some((check) => check._zod?.def?.check === "url") ?? false) ||
-      format === "url";
+      checks.some((check) => {
+        const candidate = check as {
+          kind?: string;
+          format?: string;
+          _zod?: { def?: { check?: string; format?: string } };
+        };
+        return (
+          candidate.kind === "url" ||
+          candidate.format === "url" ||
+          candidate._zod?.def?.check === "url" ||
+          candidate._zod?.def?.format === "url"
+        );
+      }) || format === "url";
+
     if (hasUrlCheck) {
-      return [makeIdStringSchema(schema as z.ZodString), [{ segments: [] }]];
+      return [makeIdStringSchema(schema), [{ segments: [] }]];
     }
     return [schema, []];
   }
 
-  // 3) If it's an object, transform each field
   if (isKind(schema, "object")) {
-    const objectSchema = schema as ZodWithInternals<$ZodObjectInternals>;
-    const shape = objectSchema._zod.def.shape as Record<string, z.ZodTypeAny>;
+    const shape = getObjectShape(schema);
     if (!shape) {
       return [schema, []];
     }
-    const newShape: Record<string, z.ZodTypeAny> = {};
+    const newShape: Record<string, StagehandZodSchema> = {};
     const urlPaths: ZodPathSegments[] = [];
     let changed = false;
 
-    const shapeKeys = Object.keys(shape);
-
-    for (const key of shapeKeys) {
+    for (const key of Object.keys(shape)) {
       const child = shape[key];
       const [transformedChild, childPaths] = transformSchema(child, [
         ...currentPath,
         key,
       ]);
-
       if (transformedChild !== child) {
         changed = true;
       }
       newShape[key] = transformedChild;
-
-      if (childPaths.length > 0) {
-        for (const cp of childPaths) {
-          urlPaths.push({ segments: [key, ...cp.segments] });
-        }
-      }
+      childPaths.forEach((cp) => {
+        urlPaths.push({ segments: [key, ...cp.segments] });
+      });
     }
 
     if (changed) {
-      const newSchema = z.object(newShape);
-      return [newSchema, urlPaths];
+      const factory = getZFactory(schema);
+      return [
+        factory.object(newShape as Record<string, z.ZodTypeAny>),
+        urlPaths,
+      ];
     }
     return [schema, urlPaths];
   }
 
-  // 4) If it's an array, transform its item type
   if (isKind(schema, "array")) {
-    const arraySchema = schema as ZodWithInternals<$ZodArrayInternals>;
-    const itemType = arraySchema._zod.def.element as z.ZodTypeAny;
+    const itemType = getArrayElement(schema);
     if (!itemType) {
       return [schema, []];
     }
@@ -289,30 +457,29 @@ export function transformSchema(
       ...currentPath,
       "*",
     ]);
-    const changed = transformedItem !== itemType;
     const arrayPaths: ZodPathSegments[] = childPaths.map((cp) => ({
       segments: ["*", ...cp.segments],
     }));
-
-    if (changed) {
-      const newSchema = z.array(transformedItem);
-      return [newSchema, arrayPaths];
+    if (transformedItem !== itemType) {
+      const factory = getZFactory(schema);
+      return [
+        factory.array(transformedItem as unknown as z.ZodTypeAny),
+        arrayPaths,
+      ];
     }
     return [schema, arrayPaths];
   }
 
-  // 5) If it's a union, transform each option
   if (isKind(schema, "union")) {
-    const unionSchema = schema as ZodWithInternals<$ZodUnionInternals>;
-    const unionOptions = unionSchema._zod.def.options;
+    const unionOptions = getUnionOptions(schema);
     if (!unionOptions || unionOptions.length === 0) {
       return [schema, []];
     }
-    const newOptions: z.ZodTypeAny[] = [];
+    const newOptions: StagehandZodSchema[] = [];
     let changed = false;
     let allPaths: ZodPathSegments[] = [];
 
-    unionOptions.forEach((option: z.ZodTypeAny, idx: number) => {
+    unionOptions.forEach((option, idx) => {
       const [newOption, childPaths] = transformSchema(option, [
         ...currentPath,
         `union_${idx}`,
@@ -325,74 +492,81 @@ export function transformSchema(
     });
 
     if (changed) {
-      // We assume at least two options remain:
+      const factory = getZFactory(schema);
       return [
-        z.union(newOptions as [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]]),
+        factory.union(
+          newOptions as unknown as [
+            z.ZodTypeAny,
+            z.ZodTypeAny,
+            ...z.ZodTypeAny[],
+          ],
+        ),
         allPaths,
       ];
     }
     return [schema, allPaths];
   }
 
-  // 6) If it's an intersection, transform left and right
   if (isKind(schema, "intersection")) {
-    const intersectionSchema =
-      schema as ZodWithInternals<$ZodIntersectionInternals>;
-    const leftType = intersectionSchema._zod.def.left as z.ZodTypeAny;
-    const rightType = intersectionSchema._zod.def.right as z.ZodTypeAny;
-    if (!leftType || !rightType) {
+    const { left, right } = getIntersectionSides(schema);
+    if (!left || !right) {
       return [schema, []];
     }
-
-    const [left, leftPaths] = transformSchema(leftType, [
+    const [newLeft, leftPaths] = transformSchema(left, [
       ...currentPath,
       "intersection_left",
     ]);
-    const [right, rightPaths] = transformSchema(rightType, [
+    const [newRight, rightPaths] = transformSchema(right, [
       ...currentPath,
       "intersection_right",
     ]);
-    const changed = left !== leftType || right !== rightType;
+    const changed = newLeft !== left || newRight !== right;
     const allPaths = [...leftPaths, ...rightPaths];
     if (changed) {
-      return [z.intersection(left, right), allPaths];
+      const factory = getZFactory(schema);
+      return [
+        factory.intersection(
+          newLeft as unknown as z.ZodTypeAny,
+          newRight as unknown as z.ZodTypeAny,
+        ),
+        allPaths,
+      ];
     }
     return [schema, allPaths];
   }
 
-  // 7) If it's optional, transform inner
   if (isKind(schema, "optional")) {
-    const optionalSchema = schema as ZodWithInternals<$ZodOptionalInternals>;
-    const innerType = optionalSchema._zod.def.innerType as z.ZodTypeAny;
+    const innerType = getInnerType(schema);
     if (!innerType) {
       return [schema, []];
     }
     const [inner, innerPaths] = transformSchema(innerType, currentPath);
     if (inner !== innerType) {
-      return [z.optional(inner), innerPaths];
+      return [
+        (inner as z.ZodTypeAny).optional() as unknown as StagehandZodSchema,
+        innerPaths,
+      ];
     }
     return [schema, innerPaths];
   }
 
-  // 8) If it's nullable, transform inner
   if (isKind(schema, "nullable")) {
-    const nullableSchema = schema as ZodWithInternals<$ZodNullableInternals>;
-    const innerType = nullableSchema._zod.def.innerType as z.ZodTypeAny;
+    const innerType = getInnerType(schema);
     if (!innerType) {
       return [schema, []];
     }
     const [inner, innerPaths] = transformSchema(innerType, currentPath);
     if (inner !== innerType) {
-      return [z.nullable(inner), innerPaths];
+      return [
+        (inner as z.ZodTypeAny).nullable() as unknown as StagehandZodSchema,
+        innerPaths,
+      ];
     }
     return [schema, innerPaths];
   }
 
-  // 9) If it's a pipe (which is what .transform() creates in Zod 4)
-  if (isKind(schema, "pipe")) {
-    const pipeSchema = schema as ZodWithInternals<$ZodPipeInternals>;
-    const inSchema = pipeSchema._zod.def.in as z.ZodTypeAny;
-    const outSchema = pipeSchema._zod.def.out as z.ZodTypeAny;
+  if (isKind(schema, "pipe") && isZod4Schema(schema)) {
+    const { in: inSchema, out: outSchema } = getPipeEndpoints(schema);
     if (!inSchema || !outSchema) {
       return [schema, []];
     }
@@ -401,15 +575,24 @@ export function transformSchema(
     const [newOut, outPaths] = transformSchema(outSchema, currentPath);
     const allPaths = [...inPaths, ...outPaths];
 
-    const changed = newIn !== inSchema || newOut !== outSchema;
-    if (changed) {
-      // Reconstruct the pipe with transformed schemas
-      // In Zod 4, we use z.pipe() to create pipes
-      const result = z.pipe(newIn as never, newOut as never) as z.ZodTypeAny;
+    if (newIn !== inSchema || newOut !== outSchema) {
+      const result = z.pipe(
+        newIn as unknown as z.ZodTypeAny,
+        newOut as unknown as z.ZodTypeAny,
+      ) as StagehandZodSchema;
       return [result, allPaths];
     }
     return [schema, allPaths];
   }
+
+  if (isKind(schema, "effects")) {
+    const baseSchema = getEffectsBaseSchema(schema);
+    if (!baseSchema) {
+      return [schema, []];
+    }
+    return transformSchema(baseSchema, currentPath);
+  }
+
   return [schema, []];
 }
 
@@ -467,7 +650,7 @@ export function injectUrls(
 }
 
 // Helper to check if a schema is of a specific type
-function isKind(s: z.ZodTypeAny, kind: string): boolean {
+function isKind(s: StagehandZodSchema, kind: string): boolean {
   try {
     return getZodType(s) === kind;
   } catch {
@@ -475,7 +658,7 @@ function isKind(s: z.ZodTypeAny, kind: string): boolean {
   }
 }
 
-function makeIdStringSchema(orig: z.ZodString): z.ZodString {
+function makeIdStringSchema(orig: StagehandZodSchema): StagehandZodSchema {
   const userDesc =
     (orig as unknown as { description?: string }).description ?? "";
 
@@ -487,7 +670,8 @@ function makeIdStringSchema(orig: z.ZodString): z.ZodString {
       ? `${base} that follows this user-defined description: ${userDesc}`
       : base;
 
-  return z.string().regex(ID_PATTERN).describe(composed);
+  const factory = getZFactory(orig);
+  return factory.string().regex(ID_PATTERN).describe(composed);
 }
 
 /**

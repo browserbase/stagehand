@@ -4,7 +4,6 @@ import {
   LLMClient,
   AvailableModel,
 } from "../../lib/v3";
-import { z } from "zod";
 import {
   AIMessage,
   BaseMessageLike,
@@ -12,6 +11,7 @@ import {
   SystemMessage,
 } from "@langchain/core/messages";
 import { ChatCompletion } from "openai/resources";
+import { toJsonSchema } from "../../lib/v3/zodCompat";
 
 export class LangchainClient extends LLMClient {
   public type = "langchainClient" as const;
@@ -61,7 +61,7 @@ export class LangchainClient extends LLMClient {
 
     if (options.response_model) {
       //ref string no longer needed, this is now default behavior
-      const responseSchema = z.toJSONSchema(options.response_model.schema);
+      const responseSchema = toJsonSchema(options.response_model.schema);
       const structuredModel = this.model.withStructuredOutput(responseSchema);
       const response = await structuredModel.invoke(formattedMessages);
 

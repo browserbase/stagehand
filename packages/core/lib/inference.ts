@@ -11,11 +11,12 @@ import {
   buildObserveUserMessage,
 } from "./prompt";
 import { appendSummary, writeTimestampedTxtFile } from "./inferenceLogUtils";
+import type { InferStagehandSchema, StagehandZodObject } from "./v3/zodCompat";
 
 // Re-export for backward compatibility
 export type { LLMParsedResponse, LLMUsage } from "./v3/llm/LLMClient";
 
-export async function extract({
+export async function extract<T extends StagehandZodObject>({
   instruction,
   domElements,
   schema,
@@ -26,7 +27,7 @@ export async function extract({
 }: {
   instruction: string;
   domElements: string;
-  schema: z.ZodObject<z.ZodRawShape>;
+  schema: T;
   llmClient: LLMClient;
   userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
@@ -45,7 +46,7 @@ export async function extract({
       ),
   });
 
-  type ExtractionResponse = z.infer<typeof schema>;
+  type ExtractionResponse = InferStagehandSchema<T>;
   type MetadataResponse = z.infer<typeof metadataSchema>;
 
   const isUsingAnthropic = llmClient.type === "anthropic";
