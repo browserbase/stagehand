@@ -1,6 +1,6 @@
 import { EvalFunction } from "../types/evals";
 import { normalizeString } from "../utils";
-import { z } from "zod/v3";
+import { z } from "zod";
 
 export const ted_talk: EvalFunction = async ({
   debugUrl,

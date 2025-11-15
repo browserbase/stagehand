@@ -1,5 +1,5 @@
 import { Stagehand } from "../../lib/v3";
-import { z } from "zod/v3";
+import { z } from "zod";
 
 async function example(stagehand: Stagehand) {
   const page = stagehand.context.pages()[0];

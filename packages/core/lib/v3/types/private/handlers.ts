@@ -1,4 +1,4 @@
-import { ZodTypeAny } from "zod/v3";
+import { ZodTypeAny } from "zod";
 import { Page } from "../../understudy/page";
 import { ModelConfiguration } from "../public/model";
 
