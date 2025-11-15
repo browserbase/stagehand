@@ -1,5 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import type { Page } from "./page";
+import { v3Logger } from "../logger";
 
 type RemoteObject = Protocol.Runtime.RemoteObject;
 
@@ -14,7 +15,19 @@ function formatRemoteObject(obj: RemoteObject | undefined): string {
     if (typeof value === "string") return value;
     try {
       return JSON.stringify(value);
-    } catch {
+    } catch (error) {
+      v3Logger({
+        category: "ctx",
+        message: "Failed to stringify console message value",
+        level: 2,
+        auxiliary: {
+          error: {
+            value: error instanceof Error ? error.message : String(error),
+            type: "string",
+          },
+          valueType: { value: typeof value, type: "string" },
+        },
+      });
       return String(value);
     }
   }

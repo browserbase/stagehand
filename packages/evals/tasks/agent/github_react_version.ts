@@ -21,8 +21,14 @@ export const github_react_version: EvalFunction = async ({
       question:
         "Does the page show the latest version of react and the date it was published",
     });
-    console.log(`evaluation: ${evaluation}`);
-    console.log(`reasoning: ${reasoning}`);
+    logger.log({
+      message: "Evaluation results",
+      level: 1,
+      auxiliary: {
+        evaluation: { value: evaluation, type: "string" },
+        reasoning: { value: reasoning, type: "string" },
+      },
+    });
     // only use url check for now, as using extract on the version is prone to breaking in future
     const success = evaluation === "YES";
     if (!success) {

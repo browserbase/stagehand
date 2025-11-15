@@ -17,7 +17,10 @@ export const hugging_face: EvalFunction = async ({
         "Search for a model on Hugging Face with an Apache-2.0 license that has received the highest number of likes.",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,
     });
-    console.log(`agentResult: ${agentResult.message}`);
+    logger.log({
+      message: `Agent result: ${agentResult.message}`,
+      level: 1,
+    });
     const { evaluation, reasoning } = await evaluator.ask({
       question:
         "Does the message mention 'kokoro-82m' or 'hexgrad/Kokoro-82M'?",
@@ -27,7 +30,10 @@ export const hugging_face: EvalFunction = async ({
 
     const success = evaluation === "YES";
 
-    console.log(`reasoning: ${reasoning}`);
+    logger.log({
+      message: `Evaluation reasoning: ${reasoning}`,
+      level: 1,
+    });
     if (!success) {
       return {
         _success: false,

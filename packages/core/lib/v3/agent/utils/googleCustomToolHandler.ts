@@ -135,11 +135,7 @@ function convertToolToFunctionDeclaration(
       description: tool.description || `Execute ${name}`,
       parameters,
     };
-  } catch (error) {
-    console.error(
-      `Error converting tool ${name} to function declaration:`,
-      error,
-    );
+  } catch {
     return null;
   }
 }

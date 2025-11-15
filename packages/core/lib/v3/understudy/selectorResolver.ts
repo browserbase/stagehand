@@ -331,7 +331,19 @@ export class FrameSelectorResolver {
         typeof data.count === "number" ? data.count : Number(data.count);
       if (!Number.isFinite(num)) return 0;
       return Math.max(0, Math.floor(num));
-    } catch {
+    } catch (error) {
+      v3Logger({
+        category: "locator",
+        message: "Failed to count CSS selector matches",
+        level: 2,
+        auxiliary: {
+          error: {
+            value: error instanceof Error ? error.message : String(error),
+            type: "string",
+          },
+          selector: { value, type: "string" },
+        },
+      });
       return 0;
     }
   }
@@ -370,7 +382,19 @@ export class FrameSelectorResolver {
           : Number(evalRes.result.value);
       if (!Number.isFinite(num)) return 0;
       return Math.max(0, Math.floor(num));
-    } catch {
+    } catch (error) {
+      v3Logger({
+        category: "locator",
+        message: "Failed to count XPath matches",
+        level: 2,
+        auxiliary: {
+          error: {
+            value: error instanceof Error ? error.message : String(error),
+            type: "string",
+          },
+          xpath: { value, type: "string" },
+        },
+      });
       return 0;
     }
   }
@@ -386,7 +410,19 @@ export class FrameSelectorResolver {
         { objectId },
       );
       nodeId = rn.nodeId ?? null;
-    } catch {
+    } catch (error) {
+      v3Logger({
+        category: "locator",
+        message: "Failed to resolve node from object ID",
+        level: 2,
+        auxiliary: {
+          error: {
+            value: error instanceof Error ? error.message : String(error),
+            type: "string",
+          },
+          objectId: { value: objectId, type: "string" },
+        },
+      });
       nodeId = null;
     }
 
@@ -418,7 +454,18 @@ export class FrameSelectorResolver {
       const num = typeof value === "number" ? value : Number(value);
       if (!Number.isFinite(num)) return 0;
       return Math.max(0, Math.floor(num));
-    } catch {
+    } catch (error) {
+      v3Logger({
+        category: "locator",
+        message: "Failed to evaluate count expression",
+        level: 2,
+        auxiliary: {
+          error: {
+            value: error instanceof Error ? error.message : String(error),
+            type: "string",
+          },
+        },
+      });
       return 0;
     }
   }
@@ -445,7 +492,18 @@ export class FrameSelectorResolver {
       }
 
       return this.resolveFromObjectId(evalRes.result.objectId);
-    } catch {
+    } catch (error) {
+      v3Logger({
+        category: "locator",
+        message: "Failed to evaluate element expression",
+        level: 2,
+        auxiliary: {
+          error: {
+            value: error instanceof Error ? error.message : String(error),
+            type: "string",
+          },
+        },
+      });
       return null;
     }
   }

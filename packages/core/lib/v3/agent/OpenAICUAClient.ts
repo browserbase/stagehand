@@ -214,7 +214,11 @@ export class OpenAICUAClient extends AgentClient {
   }> {
     try {
       // Get response from the model
-      const result = await this.getAction(inputItems, previousResponseId);
+      const result = await this.getAction(
+        inputItems,
+        previousResponseId,
+        logger,
+      );
       const output = result.output;
       const responseId = result.responseId;
       const usage = {
@@ -262,7 +266,7 @@ export class OpenAICUAClient extends AgentClient {
             message: `Found function_call: ${item.name}, call_id: ${item.call_id}`,
             level: 2,
           });
-          const action = this.convertFunctionCallToAction(item);
+          const action = this.convertFunctionCallToAction(item, logger);
           if (action) {
             stepActions.push(action);
             logger({
@@ -363,7 +367,8 @@ export class OpenAICUAClient extends AgentClient {
 
   async getAction(
     inputItems: ResponseInputItem[],
-    previousResponseId?: string,
+    previousResponseId: string | undefined,
+    logger: (message: LogLine) => void,
   ): Promise<{
     output: ResponseItem[];
     responseId: string;
@@ -432,7 +437,20 @@ export class OpenAICUAClient extends AgentClient {
         usage,
       };
     } catch (error) {
-      console.error("Error getting action from OpenAI:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      logger({
+        category: "agent",
+        message: `Error getting action from OpenAI: ${errorMessage}`,
+        level: 0,
+        auxiliary: {
+          error: { value: errorMessage, type: "string" },
+          stack: {
+            value: error instanceof Error ? error.stack || "" : "",
+            type: "string",
+          },
+        },
+      });
       throw error;
     }
   }
@@ -460,7 +478,7 @@ export class OpenAICUAClient extends AgentClient {
           }
 
           // Capture a screenshot
-          const screenshot = await this.captureScreenshot();
+          const screenshot = await this.captureScreenshot(logger);
 
           // Create a computer_call_output for the next request
           const outputItem = {
@@ -532,7 +550,7 @@ export class OpenAICUAClient extends AgentClient {
 
           try {
             // Capture a screenshot even on error
-            const screenshot = await this.captureScreenshot();
+            const screenshot = await this.captureScreenshot(logger);
 
             const errorOutputItem = {
               type: "computer_call_output" as const,
@@ -608,7 +626,7 @@ export class OpenAICUAClient extends AgentClient {
       ) {
         // Handle function calls (tool calls)
         try {
-          const action = this.convertFunctionCallToAction(item);
+          const action = this.convertFunctionCallToAction(item, logger);
 
           if (action && this.actionHandler) {
             await this.actionHandler(action);
@@ -701,6 +719,7 @@ export class OpenAICUAClient extends AgentClient {
 
   private convertFunctionCallToAction(
     call: FunctionCallItem,
+    logger: (message: LogLine) => void,
   ): AgentAction | null {
     try {
       const args = JSON.parse(call.arguments);
@@ -710,15 +729,33 @@ export class OpenAICUAClient extends AgentClient {
         params: args,
       };
     } catch (error) {
-      console.error("Error parsing function call arguments:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      logger({
+        category: "agent",
+        message: `Error parsing function call arguments: ${errorMessage}`,
+        level: 0,
+        auxiliary: {
+          error: { value: errorMessage, type: "string" },
+          stack: {
+            value: error instanceof Error ? error.stack || "" : "",
+            type: "string",
+          },
+          callId: { value: call.call_id, type: "string" },
+          callName: { value: call.name, type: "string" },
+        },
+      });
       return null;
     }
   }
 
-  async captureScreenshot(options?: {
-    base64Image?: string;
-    currentUrl?: string;
-  }): Promise<string> {
+  async captureScreenshot(
+    logger: (message: LogLine) => void,
+    options?: {
+      base64Image?: string;
+      currentUrl?: string;
+    },
+  ): Promise<string> {
     // Use provided options if available
     if (options?.base64Image) {
       return `data:image/png;base64,${options.base64Image}`;
@@ -730,7 +767,20 @@ export class OpenAICUAClient extends AgentClient {
         const base64Image = await this.screenshotProvider();
         return `data:image/png;base64,${base64Image}`;
       } catch (error) {
-        console.error("Error capturing screenshot:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        logger({
+          category: "agent",
+          message: `Error capturing screenshot: ${errorMessage}`,
+          level: 0,
+          auxiliary: {
+            error: { value: errorMessage, type: "string" },
+            stack: {
+              value: error instanceof Error ? error.stack || "" : "",
+              type: "string",
+            },
+          },
+        });
         throw error;
       }
     }

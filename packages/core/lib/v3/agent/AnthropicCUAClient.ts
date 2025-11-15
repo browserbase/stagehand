@@ -223,7 +223,7 @@ export class AnthropicCUAClient extends AgentClient {
   }> {
     try {
       // Get response from the model
-      const result = await this.getAction(inputItems);
+      const result = await this.getAction(inputItems, logger);
       const content = result.content;
       const usage = {
         input_tokens: result.usage.input_tokens,
@@ -269,7 +269,7 @@ export class AnthropicCUAClient extends AgentClient {
           });
 
           // Convert tool use to action and add to actions list
-          const action = this.convertToolUseToAction(toolUseItem);
+          const action = this.convertToolUseToAction(toolUseItem, logger);
           if (action) {
             logger({
               category: "agent",
@@ -397,7 +397,10 @@ export class AnthropicCUAClient extends AgentClient {
     ];
   }
 
-  async getAction(inputItems: ResponseInputItem[]): Promise<{
+  async getAction(
+    inputItems: ResponseInputItem[],
+    logger: (message: LogLine) => void,
+  ): Promise<{
     content: AnthropicContentBlock[];
     id: string;
     usage: Record<string, number>;
@@ -501,7 +504,20 @@ export class AnthropicCUAClient extends AgentClient {
         usage,
       };
     } catch (error) {
-      console.error("Error getting action from Anthropic:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      logger({
+        category: "agent",
+        message: `Error getting action from Anthropic: ${errorMessage}`,
+        level: 0,
+        auxiliary: {
+          error: { value: errorMessage, type: "string" },
+          stack: {
+            value: error instanceof Error ? error.stack || "" : "",
+            type: "string",
+          },
+        },
+      });
       throw error;
     }
   }
@@ -540,7 +556,7 @@ export class AnthropicCUAClient extends AgentClient {
           });
 
           // Capture a screenshot for the response
-          const screenshot = await this.captureScreenshot();
+          const screenshot = await this.captureScreenshot(logger);
           logger({
             category: "agent",
             message: `Screenshot captured, length: ${screenshot.length}`,
@@ -654,7 +670,7 @@ export class AnthropicCUAClient extends AgentClient {
         try {
           // For computer tool, try to capture a screenshot even on error
           if (item.name === "computer") {
-            const screenshot = await this.captureScreenshot();
+            const screenshot = await this.captureScreenshot(logger);
 
             toolResults.push({
               type: "tool_result",
@@ -736,7 +752,10 @@ export class AnthropicCUAClient extends AgentClient {
     return toolResults;
   }
 
-  private convertToolUseToAction(item: ToolUseItem): AgentAction | null {
+  private convertToolUseToAction(
+    item: ToolUseItem,
+    logger: (message: LogLine) => void,
+  ): AgentAction | null {
     try {
       const { name, input } = item;
 
@@ -745,7 +764,14 @@ export class AnthropicCUAClient extends AgentClient {
         const action = input.action as string;
 
         if (!action) {
-          console.warn("Missing action in tool use item:", item);
+          logger({
+            category: "agent",
+            message: "Missing action in tool use item",
+            level: 1,
+            auxiliary: {
+              item: { value: JSON.stringify(item), type: "object" },
+            },
+          });
           return null;
         }
 
@@ -901,18 +927,38 @@ export class AnthropicCUAClient extends AgentClient {
         return null;
       }
 
-      console.warn(`Unknown tool name: ${name}`);
+      logger({
+        category: "agent",
+        message: `Unknown tool name: ${name}`,
+        level: 1,
+      });
       return null;
     } catch (error) {
-      console.error("Error converting tool use to action:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      logger({
+        category: "agent",
+        message: `Error converting tool use to action: ${errorMessage}`,
+        level: 0,
+        auxiliary: {
+          error: { value: errorMessage, type: "string" },
+          stack: {
+            value: error instanceof Error ? error.stack || "" : "",
+            type: "string",
+          },
+        },
+      });
       return null;
     }
   }
 
-  async captureScreenshot(options?: {
-    base64Image?: string;
-    currentUrl?: string;
-  }): Promise<string> {
+  async captureScreenshot(
+    logger: (message: LogLine) => void,
+    options?: {
+      base64Image?: string;
+      currentUrl?: string;
+    },
+  ): Promise<string> {
     // Use provided options if available
     if (options?.base64Image) {
       return `data:image/png;base64,${options.base64Image}`;
@@ -924,7 +970,20 @@ export class AnthropicCUAClient extends AgentClient {
         const base64Image = await this.screenshotProvider();
         return `data:image/png;base64,${base64Image}`;
       } catch (error) {
-        console.error("Error capturing screenshot:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        logger({
+          category: "agent",
+          message: `Error capturing screenshot: ${errorMessage}`,
+          level: 0,
+          auxiliary: {
+            error: { value: errorMessage, type: "string" },
+            stack: {
+              value: error instanceof Error ? error.stack || "" : "",
+              type: "string",
+            },
+          },
+        });
         throw error;
       }
     }
