@@ -8,7 +8,6 @@ screenshot.png
 .cache/
 .env
 downloads/
-dist/
 packages/evals/**/public
 packages/core/lib/dom/build/
 packages/core/lib/v3/dom/build/
