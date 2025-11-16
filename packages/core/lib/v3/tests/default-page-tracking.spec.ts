@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { V3 } from "../v3";
 import { v3DynamicTestConfig } from "./v3.dynamic.config";
 
+test.describe.configure({ mode: "parallel" });
 test.describe("V3 default page tracking", () => {
   let v3: V3;
 
@@ -40,7 +41,7 @@ test.describe("V3 default page tracking", () => {
     const root = await ctx.awaitActivePage();
     await root!.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/",
-      { waitUntil: "networkidle", timeoutMs: 15000 },
+      { waitUntil: "load", timeoutMs: 15000 },
     );
     // 2) Click button on the page to open a new tab → page2.html
     await root.locator("xpath=/html/body/button").click();

@@ -133,12 +133,15 @@ export class V3Context {
     }
   }
 
-  private async ensurePiercer(session: CDPSessionLike): Promise<void> {
+  private async ensurePiercer(session: CDPSessionLike): Promise<boolean> {
     const key = this.sessionKey(session);
-    if (this._piercerInstalled.has(key)) return;
+    if (this._piercerInstalled.has(key)) return true;
 
-    await installV3PiercerIntoSession(session);
-    this._piercerInstalled.add(key);
+    const installed = await installV3PiercerIntoSession(session);
+    if (installed) {
+      this._piercerInstalled.add(key);
+    }
+    return installed;
   }
 
   /** Mark a page target as the most-recent one (active). */
@@ -286,11 +289,7 @@ export class V3Context {
     this.conn.on<Protocol.Target.AttachedToTargetEvent>(
       "Target.attachedToTarget",
       async (evt) => {
-        await this.onAttachedToTarget(
-          evt.targetInfo,
-          evt.sessionId,
-          evt.waitingForDebugger === true,
-        );
+        await this.onAttachedToTarget(evt.targetInfo, evt.sessionId);
       },
     );
 
@@ -365,7 +364,6 @@ export class V3Context {
   private async onAttachedToTarget(
     info: Protocol.Target.TargetInfo,
     sessionId: SessionId,
-    waitingForDebugger?: boolean, // Chrome paused this target at doc-start?
   ): Promise<void> {
     const session = this.conn.getSession(sessionId);
     if (!session) return;
@@ -373,29 +371,17 @@ export class V3Context {
     // Init guard
     if (this._sessionInit.has(sessionId)) return;
     this._sessionInit.add(sessionId);
+    await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
 
-    // Page domain first so frame events flow
-    const pageEnabled = await session
-      .send("Page.enable")
-      .then(() => true)
-      .catch(() => false);
-    if (!pageEnabled) {
-      if (waitingForDebugger) {
-        await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
-      }
-      return;
-    }
+    // Register for Runtime events before enabling it so we don't miss initial contexts.
+    executionContexts.attachSession(session);
+
+    const piercerReady = await this.ensurePiercer(session);
+    if (!piercerReady) return;
+
     await session
       .send("Page.setLifecycleEventsEnabled", { enabled: true })
       .catch(() => {});
-
-    // Proactively resume ASAP so navigation isn't stuck at about:blank
-    await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
-
-    // Capture main-world creations & inject piercer after resume
-    executionContexts.attachSession(session);
-    await session.send("Runtime.enable").catch(() => {});
-    await this.ensurePiercer(session);
 
     // Top-level handling
     if (isTopLevelPage(info)) {
@@ -422,10 +408,6 @@ export class V3Context {
       this._pushActive(info.targetId);
       this.installFrameEventBridges(sessionId, page);
 
-      // Resume only if Chrome actually paused
-      if (waitingForDebugger) {
-        await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
-      }
       return;
     }
 
@@ -458,72 +440,17 @@ export class V3Context {
         owner.adoptOopifSession(session, childMainId);
         this.sessionOwnerPage.set(sessionId, owner);
         this.installFrameEventBridges(sessionId, owner);
+        // Prime the execution-context registry so later lookups succeed even if
+        // the frame navigates before we issue a command.
+        void executionContexts
+          .waitForMainWorld(session, childMainId)
+          .catch(() => {});
       } else {
         this.pendingOopifByMainFrame.set(childMainId, sessionId);
       }
     } catch {
       // page.getFrameTree failed. Most likely was an ad iframe
       // that opened & closed before we could attach. ignore
-    }
-
-    /* TODO: for child OOPIFs, we rely on reloads for our script to be applied.
-     *  This is not ideal. We should figure out a way to pause them, and inject them
-     *  from the beginning.
-     */
-    // --- If Chrome did NOT pause this iframe (waitingForDebugger=false),
-    //     we missed doc-start. Do a one-time, best-effort child reload
-    //     so Page.addScriptToEvaluateOnNewDocument applies at creation time.
-    if (info.type === "iframe" && !waitingForDebugger) {
-      try {
-        // Ensure lifecycle events are enabled to observe load
-        await session
-          .send("Page.setLifecycleEventsEnabled", { enabled: true })
-          .catch(() => {});
-
-        const loadWait = new Promise<void>((resolve) => {
-          const handler = (evt: Protocol.Page.LifecycleEventEvent) => {
-            if (evt.name === "load") {
-              session.off("Page.lifecycleEvent", handler);
-              resolve();
-            }
-          };
-          session.on("Page.lifecycleEvent", handler);
-        });
-
-        // Cannot use Page.reload on child targets → use Runtime.evaluate
-        await session
-          .send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-            expression: "location.reload()",
-            returnByValue: true,
-            awaitPromise: false,
-          })
-          .catch(() => {});
-
-        // Wait up to ~3s for the child to finish loading (best effort)
-        await Promise.race([
-          loadWait,
-          new Promise<void>((r) => setTimeout(r, 3000)),
-        ]);
-
-        // After reload, our addScriptToEvaluateOnNewDocument runs at doc-start.
-        // We can optionally re-evaluate the piercer (idempotent), but not required.
-        await this.ensurePiercer(session);
-      } catch (e) {
-        v3Logger({
-          category: "ctx",
-          message: "child reload attempt failed (continuing)",
-          level: 2,
-          auxiliary: {
-            sessionId: { value: String(sessionId), type: "string" },
-            err: { value: String(e), type: "string" },
-          },
-        });
-      }
-    }
-
-    // Resume only if Chrome actually paused (rare for iframes in your logs)
-    if (waitingForDebugger) {
-      await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
     }
   }
 
