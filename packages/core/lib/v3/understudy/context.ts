@@ -371,6 +371,7 @@ export class V3Context {
     // Init guard
     if (this._sessionInit.has(sessionId)) return;
     this._sessionInit.add(sessionId);
+    await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
 
     // Register for Runtime events before enabling it so we don't miss initial contexts.
     executionContexts.attachSession(session);
