@@ -140,8 +140,8 @@ await stagehand.init();
 const page = stagehand.context.pages()[0];
 await page.goto("https://example.com");
 
-// Or use the convenience getter
-const page = stagehand.page;
+// Or `await` the active page
+const page = stagehand.context.awaitActivePage();
 await page.goto("https://example.com");
 ```
 
@@ -173,8 +173,8 @@ const newPage = await stagehand.context.newPage();
 // Set active page
 stagehand.context.setActivePage(newPage);
 
-// Now stagehand.page returns newPage
-await stagehand.act("click button");  // Acts on newPage
+// implicitly takes action on newPage
+await stagehand.act("click button");
 ```
 
 ### act() Method Changes
@@ -650,7 +650,7 @@ const result = await agent.execute("Complete the checkout process");
 v3 agents can now specify which page to operate on.
 
 ```typescript Stagehand v3 icon="/images/typescript.svg"
-const page1 = stagehand.page;
+const page1 = stagehand.context.pages()[0]
 const page2 = await stagehand.context.newPage();
 
 const agent = stagehand.agent({
@@ -885,16 +885,16 @@ await stagehand.close();
 
 ### Error: Cannot find property 'page' on Stagehand instance
 
-**Problem**: Direct `stagehand.page` access may not work immediately after init.
+**Problem**: Direct `stagehand.page` is not supported in Stagehand v3.
 
-**Solution**: Use the Context API or ensure you're using the getter method:
+**Solution**: Use the Context API or `await` the active page:
 
 ```typescript
 // Use context API (recommended)
 const page = stagehand.context.pages()[0];
 
-// Or use the convenience getter
-const page = stagehand.page;
+// Or grab the active page
+const page = await stagehand.context.awaitActivePage();
 ```
 
 ### Error: act() method not found on page
