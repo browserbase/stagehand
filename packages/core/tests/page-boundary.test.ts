@@ -83,6 +83,23 @@ function stubAgentCache(instance: Stagehand): void {
   });
 }
 
+function installHandleContext(
+  instance: Stagehand,
+  frameId: string,
+  page: Page,
+) {
+  const resolvePageByMainFrameId = vi.fn().mockImplementation(
+    (requestedFrameId: string) => {
+      if (requestedFrameId === frameId) {
+        return page;
+      }
+      return undefined;
+    },
+  );
+  Reflect.set(instance, "ctx", { resolvePageByMainFrameId });
+  return resolvePageByMainFrameId;
+}
+
 function createApiClient() {
   return {
     act: vi.fn().mockResolvedValue(defaultActResult),
@@ -127,6 +144,27 @@ describe("Page boundary contracts", () => {
       await expect(resolvePage.call(stagehand, {} as AnyPage)).rejects.toBeInstanceOf(
         StagehandInvalidArgumentError,
       );
+    });
+
+    it("maps PageHandle.mainFrameId back to a V3 Page", async () => {
+      const stagehand = createStagehand();
+      const fakePage = createInternalPage("frame-handle");
+      const resolvePageByMainFrameId = installHandleContext(
+        stagehand,
+        "frame-handle",
+        fakePage,
+      );
+
+      const resolvePage = Reflect.get(
+        stagehand,
+        "resolvePage",
+      ) as (page?: AnyPage) => Promise<Page>;
+
+      const handle = { pageId: "page-handle", mainFrameId: "frame-handle" } as AnyPage;
+      const resolved = await resolvePage.call(stagehand, handle);
+
+      expect(resolvePageByMainFrameId).toHaveBeenCalledWith("frame-handle");
+      expect(resolved).toBe(fakePage);
     });
   });
 
@@ -206,18 +244,21 @@ describe("Page boundary contracts", () => {
 
   describe("API payload serialization", () => {
     it("act forwards only the frameId to StagehandAPI", async () => {
-      const stagehand = createStagehand();
-      stubActHandler(stagehand);
-      stubActCache(stagehand);
-      stubAgentCache(stagehand);
+    const stagehand = createStagehand();
+    stubActHandler(stagehand);
+    stubActCache(stagehand);
+    stubAgentCache(stagehand);
 
-      const fakePage = createInternalPage("frame-act");
-      Reflect.set(stagehand, "resolvePage", vi.fn().mockResolvedValue(fakePage));
+    const frameId = "frame-act";
+    const fakePage = createInternalPage(frameId);
+    installHandleContext(stagehand, frameId, fakePage);
 
-      const apiClient = createApiClient();
-      Reflect.set(stagehand, "apiClient", apiClient);
+    const apiClient = createApiClient();
+    Reflect.set(stagehand, "apiClient", apiClient);
 
-      const options = { page: {} as AnyPage };
+    const options = {
+      page: { pageId: "page-act", mainFrameId: frameId } as AnyPage,
+    };
 
       await stagehand.act("Click button", options);
 
@@ -229,18 +270,21 @@ describe("Page boundary contracts", () => {
     });
 
     it("extract forwards frameId and JSON-safe payload", async () => {
-      const stagehand = createStagehand();
-      stubExtractHandler(stagehand);
-      stubAgentCache(stagehand);
+    const stagehand = createStagehand();
+    stubExtractHandler(stagehand);
+    stubAgentCache(stagehand);
 
-      const fakePage = createInternalPage("frame-extract");
-      Reflect.set(stagehand, "resolvePage", vi.fn().mockResolvedValue(fakePage));
+    const frameId = "frame-extract";
+    const fakePage = createInternalPage(frameId);
+    installHandleContext(stagehand, frameId, fakePage);
 
-      const apiClient = createApiClient();
-      Reflect.set(stagehand, "apiClient", apiClient);
+    const apiClient = createApiClient();
+    Reflect.set(stagehand, "apiClient", apiClient);
 
-      const schema = z.object({ value: z.string() });
-      const options = { page: {} as AnyPage };
+    const schema = z.object({ value: z.string() });
+    const options = {
+      page: { pageId: "page-extract", mainFrameId: frameId } as AnyPage,
+    };
 
       await stagehand.extract("Summarize", schema, options);
 
@@ -253,17 +297,20 @@ describe("Page boundary contracts", () => {
     });
 
     it("observe forwards frameId without leaking the page object", async () => {
-      const stagehand = createStagehand();
-      stubObserveHandler(stagehand);
-      stubAgentCache(stagehand);
+    const stagehand = createStagehand();
+    stubObserveHandler(stagehand);
+    stubAgentCache(stagehand);
 
-      const fakePage = createInternalPage("frame-observe");
-      Reflect.set(stagehand, "resolvePage", vi.fn().mockResolvedValue(fakePage));
+    const frameId = "frame-observe";
+    const fakePage = createInternalPage(frameId);
+    installHandleContext(stagehand, frameId, fakePage);
 
-      const apiClient = createApiClient();
-      Reflect.set(stagehand, "apiClient", apiClient);
+    const apiClient = createApiClient();
+    Reflect.set(stagehand, "apiClient", apiClient);
 
-      const options = { page: {} as AnyPage };
+    const options = {
+      page: { pageId: "page-observe", mainFrameId: frameId } as AnyPage,
+    };
 
       await stagehand.observe("Check", options);
 
