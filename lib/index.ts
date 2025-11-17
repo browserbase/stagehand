@@ -698,7 +698,6 @@ export class Stagehand {
         });
       } finally {
         // Exit explicitly once cleanup is done
-        process.exit(0);
       }
     };
 
