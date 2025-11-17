@@ -747,6 +747,7 @@ export interface JsonSchemaProperty {
   minimum?: number;
   maximum?: number;
   description?: string;
+  format?: string; // JSON Schema format field (e.g., "uri", "url", "email", etc.)
 }
 export interface JsonSchema extends JsonSchemaProperty {
   type: string;
@@ -795,6 +796,17 @@ export function jsonSchemaToZod(schema: JsonSchema): ZodTypeAny {
         return z.string().refine((val) => schema.enum!.includes(val));
       }
       let zodString = z.string();
+      
+      // Handle JSON Schema format field
+      if (schema.format === "uri" || schema.format === "url") {
+        zodString = zodString.url();
+      } else if (schema.format === "email") {
+        zodString = zodString.email();
+      } else if (schema.format === "uuid") {
+        zodString = zodString.uuid();
+      }
+      // Add more format handlers as needed
+      
       if (schema.description) {
         zodString = zodString.describe(schema.description);
       }
