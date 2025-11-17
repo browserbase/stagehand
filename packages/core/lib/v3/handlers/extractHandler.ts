@@ -14,6 +14,7 @@ import {
   ClientOptions,
   ModelConfiguration,
 } from "../types/public/model";
+import { StagehandInvalidArgumentError } from "../types/public/sdkErrors";
 
 /**
  * Scans the provided Zod schema for any `z.string().url()` fields and
@@ -36,6 +37,8 @@ interface ExtractionResponseBase {
   metadata: { completed: boolean };
   prompt_tokens: number;
   completion_tokens: number;
+  reasoning_tokens: number;
+  cached_input_tokens?: number;
   inference_time_ms: number;
 }
 
@@ -54,6 +57,8 @@ export class ExtractHandler {
     functionName: V3FunctionName,
     promptTokens: number,
     completionTokens: number,
+    reasoningTokens: number,
+    cachedInputTokens: number,
     inferenceTimeMs: number,
   ) => void;
 
@@ -69,6 +74,8 @@ export class ExtractHandler {
       functionName: V3FunctionName,
       promptTokens: number,
       completionTokens: number,
+      reasoningTokens: number,
+      cachedInputTokens: number,
       inferenceTimeMs: number,
     ) => void,
   ) {
@@ -105,7 +112,7 @@ export class ExtractHandler {
       }
 
       if (!instruction && schema) {
-        throw new Error(
+        throw new StagehandInvalidArgumentError(
           "extract() requires an instruction when a schema is provided.",
         );
       }
@@ -159,6 +166,8 @@ export class ExtractHandler {
         metadata: { completed },
         prompt_tokens,
         completion_tokens,
+        reasoning_tokens = 0,
+        cached_input_tokens = 0,
         inference_time_ms,
         ...rest
       } = extractionResponse;
@@ -188,6 +197,8 @@ export class ExtractHandler {
         V3FunctionName.EXTRACT,
         prompt_tokens,
         completion_tokens,
+        reasoning_tokens,
+        cached_input_tokens,
         inference_time_ms,
       );
 

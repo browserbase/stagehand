@@ -6,6 +6,7 @@ import {
   FunctionCall,
   GenerateContentConfig,
   Tool,
+  GoogleGenAIOptions,
 } from "@google/genai";
 import { LogLine } from "../types/public/logs";
 import {
@@ -15,7 +16,10 @@ import {
   AgentExecutionOptions,
 } from "../types/public/agent";
 import { AgentClient } from "./AgentClient";
-import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
+import {
+  AgentScreenshotProviderError,
+  LLMResponseError,
+} from "../types/public/sdkErrors";
 import { buildGoogleCUASystemPrompt } from "../../prompt";
 import { compressGoogleConversationImages } from "./utils/imageCompression";
 import { mapKeyToPlaywright } from "./utils/cuaKeyMapping";
@@ -42,6 +46,7 @@ export class GoogleCUAClient extends AgentClient {
     "ENVIRONMENT_BROWSER";
   private generateContentConfig: GenerateContentConfig;
   private tools?: ToolSet;
+  private baseURL?: string;
   constructor(
     type: AgentType,
     modelName: string,
@@ -58,11 +63,14 @@ export class GoogleCUAClient extends AgentClient {
       process.env.GEMINI_API_KEY ||
       process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
       "";
+    this.baseURL = clientOptions?.baseURL as string | undefined;
 
     // Initialize the Google Generative AI client
-    this.client = new GoogleGenAI({
+    const genAIOptions: GoogleGenAIOptions = {
       apiKey: this.apiKey,
-    });
+      ...(this.baseURL ? { httpOptions: { baseUrl: this.baseURL } } : {}),
+    };
+    this.client = new GoogleGenAI(genAIOptions);
 
     // Get environment if specified
     if (
@@ -92,6 +100,7 @@ export class GoogleCUAClient extends AgentClient {
     // Store client options for reference
     this.clientOptions = {
       apiKey: this.apiKey,
+      ...(this.baseURL ? { baseURL: this.baseURL } : {}),
     };
 
     // Initialize tools if provided
@@ -312,7 +321,7 @@ export class GoogleCUAClient extends AgentClient {
 
           // Check if we have valid response content
           if (!response.candidates || response.candidates.length === 0) {
-            throw new Error("Response has no candidates!");
+            throw new LLMResponseError("agent", "Response has no candidates!");
           }
 
           // Success - we have a valid response

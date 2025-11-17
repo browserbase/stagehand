@@ -93,7 +93,7 @@ export class CdpConnection implements CDPSessionLike {
     await this.send("Target.setAutoAttach", {
       autoAttach: true,
       flatten: true,
-      waitForDebuggerOnStart: true,
+      waitForDebuggerOnStart: false,
       filter: [
         { type: "worker", exclude: true },
         { type: "shared_worker", exclude: true },
@@ -158,14 +158,10 @@ export class CdpConnection implements CDPSessionLike {
     return session;
   }
 
-  async getTargets(): Promise<
-    Array<{ targetId: string; type: string; url: string }>
-  > {
-    const res = (await this.send<{
-      targetInfos: Array<{ targetId: string; type: string; url: string }>;
-    }>("Target.getTargets")) as {
-      targetInfos: Array<{ targetId: string; type: string; url: string }>;
-    };
+  async getTargets(): Promise<Protocol.Target.TargetInfo[]> {
+    const res = await this.send<{
+      targetInfos: Protocol.Target.TargetInfo[];
+    }>("Target.getTargets");
     return res.targetInfos;
   }
 

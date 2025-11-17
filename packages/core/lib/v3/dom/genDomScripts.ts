@@ -25,3 +25,26 @@ const script = fs.readFileSync(path.join(outDir, "v3-index.js"), "utf8");
 const content = `export const v3ScriptContent = ${JSON.stringify(script)};`;
 
 fs.writeFileSync(path.join(outDir, "scriptV3Content.ts"), content);
+
+esbuild.buildSync({
+  entryPoints: [path.join(here, "rerenderMissingShadows.entry.ts")],
+  bundle: true,
+  format: "iife",
+  platform: "browser",
+  target: "es2020",
+  minify: true,
+  legalComments: "none",
+  outfile: path.join(outDir, "rerender-index.js"),
+});
+
+const rerenderScript = fs.readFileSync(
+  path.join(outDir, "rerender-index.js"),
+  "utf8",
+);
+const rerenderContent = `export const reRenderScriptContent = ${JSON.stringify(
+  rerenderScript,
+)};`;
+fs.writeFileSync(
+  path.join(outDir, "reRenderScriptContent.ts"),
+  rerenderContent,
+);

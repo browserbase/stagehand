@@ -3,6 +3,7 @@ import { Locator } from "./locator";
 import type { Page } from "./page";
 import { Frame } from "./frame";
 import { executionContexts } from "./executionContextRegistry";
+import { ContentFrameNotFoundError } from "../types/public/sdkErrors";
 
 /**
  * FrameLocator: resolves iframe elements to their child Frames and allows
@@ -72,9 +73,7 @@ export class FrameLocator {
           // ignore and try next
         }
       }
-      throw new Error(
-        `frameLocator: could not resolve child frame for selector: ${this.selector}`,
-      );
+      throw new ContentFrameNotFoundError(this.selector);
     } finally {
       await parentSession
         .send("Runtime.releaseObject", { objectId })

@@ -180,6 +180,9 @@ jobs:
             packages/*/lib/
           retention-days: 1
 
+      - name: Run Vitest
+        run: pnpm --filter @browserbasehq/stagehand run test:vitest
+
   run-e2e-local-tests:
     needs: [run-lint, run-build]
     runs-on: ubuntu-latest

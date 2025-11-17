@@ -2,6 +2,7 @@
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp";
 import { Locator } from "./locator";
+import { StagehandEvalError } from "../types/public/sdkErrors";
 
 interface FrameManager {
   session: CDPSessionLike;
@@ -25,8 +26,14 @@ export class Frame implements FrameManager {
     public session: CDPSessionLike,
     public frameId: string,
     public pageId: string,
+    private readonly remoteBrowser: boolean,
   ) {
     this.sessionId = this.session.id ?? null;
+  }
+
+  /** True when the controlled browser runs on a different machine. */
+  public isBrowserRemote(): boolean {
+    return this.remoteBrowser;
   }
 
   /** DOM.getNodeForLocation → DOM.describeNode */
@@ -150,7 +157,9 @@ export class Frame implements FrameManager {
       },
     );
     if (res.exceptionDetails) {
-      throw new Error(res.exceptionDetails.text ?? "Evaluation failed");
+      throw new StagehandEvalError(
+        res.exceptionDetails.text ?? "Evaluation failed",
+      );
     }
     return res.result.value as R;
   }
@@ -215,7 +224,14 @@ export class Frame implements FrameManager {
 
     const collect = (tree: Protocol.Page.FrameTree) => {
       if (tree.frame.parentId === this.frameId) {
-        frames.push(new Frame(this.session, tree.frame.id, this.pageId));
+        frames.push(
+          new Frame(
+            this.session,
+            tree.frame.id,
+            this.pageId,
+            this.remoteBrowser,
+          ),
+        );
       }
       tree.childFrames?.forEach(collect);
     };
