@@ -16,7 +16,9 @@ export default defineConfig({
   testDir: ".",
   timeout: 90_000,
   expect: { timeout: 10_000 },
-  workers: 2,
+  // Conservative parallelization for Browserbase: 2 workers in CI to avoid resource exhaustion.
+  // Browserbase tests are heavier due to remote browser connections.
+  workers: process.env.CI ? 2 : 3,
   fullyParallel: true,
   reporter: "list",
   use: {

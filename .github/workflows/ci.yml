@@ -26,6 +26,7 @@ jobs:
     outputs:
       core: ${{ steps.filter.outputs.core }}
       evals: ${{ steps.filter.outputs.evals }}
+      docs-only: ${{ steps.filter.outputs.docs-only }}
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -44,10 +45,17 @@ jobs:
               - 'packages/evals/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
+            docs-only:
+              - '**/*.md'
+              - 'examples/**'
+              - '!packages/**/*.md'
 
   determine-evals:
+    needs: [determine-changes]
     runs-on: ubuntu-latest
     outputs:
+      skip-all-evals: ${{ steps.check-labels.outputs.skip-all-evals }}
+      run-regression: ${{ steps.check-labels.outputs.run-regression }}
       run-combination: ${{ steps.check-labels.outputs.run-combination }}
       run-extract: ${{ steps.check-labels.outputs.run-extract }}
       run-act: ${{ steps.check-labels.outputs.run-act }}
@@ -57,9 +65,39 @@ jobs:
     steps:
       - id: check-labels
         run: |
+          # Check if skip-evals label is present
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'skip-evals') }}" == "true" ]]; then
+            echo "skip-evals label found - skipping all evals"
+            echo "skip-all-evals=true" >> $GITHUB_OUTPUT
+            echo "run-regression=false" >> $GITHUB_OUTPUT
+            echo "run-combination=false" >> $GITHUB_OUTPUT
+            echo "run-extract=false" >> $GITHUB_OUTPUT
+            echo "run-act=false" >> $GITHUB_OUTPUT
+            echo "run-observe=false" >> $GITHUB_OUTPUT
+            echo "run-targeted-extract=false" >> $GITHUB_OUTPUT
+            echo "run-agent=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Skip evals if only docs/examples changed (and not on main)
+          if [[ "${{ needs.determine-changes.outputs.docs-only }}" == "true" && "${{ needs.determine-changes.outputs.core }}" == "false" && "${{ needs.determine-changes.outputs.evals }}" == "false" && "${{ github.ref }}" != "refs/heads/main" ]]; then
+            echo "Only docs/examples changed - skipping evals"
+            echo "skip-all-evals=true" >> $GITHUB_OUTPUT
+            echo "run-regression=false" >> $GITHUB_OUTPUT
+            echo "run-combination=false" >> $GITHUB_OUTPUT
+            echo "run-extract=false" >> $GITHUB_OUTPUT
+            echo "run-act=false" >> $GITHUB_OUTPUT
+            echo "run-observe=false" >> $GITHUB_OUTPUT
+            echo "run-targeted-extract=false" >> $GITHUB_OUTPUT
+            echo "run-agent=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
           # Default to running all tests on main branch
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "Running all tests for main branch"
+            echo "skip-all-evals=false" >> $GITHUB_OUTPUT
+            echo "run-regression=true" >> $GITHUB_OUTPUT
             echo "run-combination=true" >> $GITHUB_OUTPUT
             echo "run-extract=true" >> $GITHUB_OUTPUT
             echo "run-act=true" >> $GITHUB_OUTPUT
@@ -69,7 +107,17 @@ jobs:
             exit 0
           fi
 
+          # Check for skip-regression-evals label
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'skip-regression-evals') }}" == "true" ]]; then
+            echo "skip-regression-evals label found - regression evals will be skipped"
+            echo "run-regression=false" >> $GITHUB_OUTPUT
+          else
+            echo "Regression evals will run by default"
+            echo "run-regression=true" >> $GITHUB_OUTPUT
+          fi
+
           # Check for specific labels
+          echo "skip-all-evals=false" >> $GITHUB_OUTPUT
           echo "run-combination=${{ contains(github.event.pull_request.labels.*.name, 'combination') }}" >> $GITHUB_OUTPUT
           echo "run-extract=${{ contains(github.event.pull_request.labels.*.name, 'extract') }}" >> $GITHUB_OUTPUT
           echo "run-act=${{ contains(github.event.pull_request.labels.*.name, 'act') }}" >> $GITHUB_OUTPUT
@@ -85,16 +133,17 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
-        run: |
-          rm -rf node_modules
-          npm i -g pnpm
-          pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Run Lint
         run: pnpm run lint
@@ -107,19 +156,32 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
-        run: |
-          rm -rf node_modules
-          npm i -g pnpm
-          pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Run Build
         run: pnpm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            packages/*/dist/
+            packages/*/lib/
+          retention-days: 1
+
+      - name: Run Vitest
+        run: pnpm --filter @browserbasehq/stagehand run test:vitest
 
   run-e2e-local-tests:
     needs: [run-lint, run-build]
@@ -131,16 +193,17 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
-        run: |
-          rm -rf node_modules
-          npm i -g pnpm
-          pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build Stagehand
         run: pnpm run build
@@ -166,16 +229,17 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
-        run: |
-          rm -rf node_modules
-          npm i -g pnpm
-          pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build Stagehand
         run: pnpm run build
@@ -185,7 +249,8 @@ jobs:
 
   run-regression-evals:
     needs:
-      [run-e2e-bb-tests, run-e2e-local-tests, determine-evals]
+      [run-e2e-bb-tests, run-e2e-local-tests, run-build, determine-evals]
+    if: needs.determine-evals.outputs.skip-all-evals != 'true' && needs.determine-evals.outputs.run-regression == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 9
     outputs:
@@ -203,19 +268,22 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
-        run: |
-          rm -rf node_modules
-          npm i -g pnpm
-          pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
-      - name: Build Stagehand
-        run: pnpm run build
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
 
       - name: Run Regression Evals
         run: pnpm run evals category regression trials=2 concurrency=20 env=BROWSERBASE
@@ -237,7 +305,7 @@ jobs:
           fi
 
   run-combination-evals:
-    needs: [run-regression-evals, determine-evals]
+    needs: [run-regression-evals, run-build, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -263,22 +331,28 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
+      - name: Setup pnpm
+        if: needs.determine-evals.outputs.run-combination == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Set up Node.js
         if: needs.determine-evals.outputs.run-combination == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-combination == 'true'
-        run: |
-          rm -rf node_modules
-          npm i -g pnpm
-          pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
-      - name: Build Stagehand
+      - name: Download build artifacts
         if: needs.determine-evals.outputs.run-combination == 'true'
-        run: pnpm run build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
 
       - name: Run Combination Evals
         if: needs.determine-evals.outputs.run-combination == 'true'
@@ -299,7 +373,7 @@ jobs:
           fi
 
   run-act-evals:
-    needs: [run-combination-evals, determine-evals]
+    needs: [run-regression-evals, run-build, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -325,22 +399,28 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
+      - name: Setup pnpm
+        if: needs.determine-evals.outputs.run-act == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Set up Node.js
         if: needs.determine-evals.outputs.run-act == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-act == 'true'
-        run: |
-          rm -rf node_modules
-          npm i -g pnpm
-          pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
-      - name: Build Stagehand
+      - name: Download build artifacts
         if: needs.determine-evals.outputs.run-act == 'true'
-        run: pnpm run build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
 
       - name: Run Act Evals
         if: needs.determine-evals.outputs.run-act == 'true'
@@ -364,7 +444,7 @@ jobs:
           fi
 
   run-extract-evals:
-    needs: [run-act-evals, determine-evals]
+    needs: [run-regression-evals, run-build, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 50
     env:
@@ -390,22 +470,28 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
+      - name: Setup pnpm
+        if: needs.determine-evals.outputs.run-extract == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Set up Node.js
         if: needs.determine-evals.outputs.run-extract == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-extract == 'true'
-        run: |
-          rm -rf node_modules
-          npm i -g pnpm
-          pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
-      - name: Build Stagehand
+      - name: Download build artifacts
         if: needs.determine-evals.outputs.run-extract == 'true'
-        run: pnpm run build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
 
       # 1. Run extract category with domExtract
       - name: Run Extract Evals (domExtract)
@@ -432,7 +518,7 @@ jobs:
           fi
 
   run-observe-evals:
-    needs: [run-extract-evals, determine-evals]
+    needs: [run-regression-evals, run-build, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -458,22 +544,28 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
+      - name: Setup pnpm
+        if: needs.determine-evals.outputs.run-observe == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Set up Node.js
         if: needs.determine-evals.outputs.run-observe == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-observe == 'true'
-        run: |
-          rm -rf node_modules
-          npm i -g pnpm
-          pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
-      - name: Build Stagehand
+      - name: Download build artifacts
         if: needs.determine-evals.outputs.run-observe == 'true'
-        run: pnpm run build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
 
       - name: Run Observe Evals
         if: needs.determine-evals.outputs.run-observe == 'true'
@@ -497,7 +589,7 @@ jobs:
           fi
 
   run-targeted-extract-evals:
-    needs: [run-observe-evals, determine-evals]
+    needs: [run-regression-evals, run-build, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -523,22 +615,28 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
+      - name: Setup pnpm
+        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Set up Node.js
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        run: |
-          rm -rf node_modules
-          npm i -g pnpm
-          pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
-      - name: Build Stagehand
+      - name: Download build artifacts
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        run: pnpm run build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
 
       - name: Run targeted extract Evals
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
@@ -562,7 +660,7 @@ jobs:
           fi
 
   run-agent-evals:
-    needs: [run-targeted-extract-evals, determine-evals]
+    needs: [run-regression-evals, run-build, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 90 # Agent evals can be long-running
     env:
@@ -592,22 +690,28 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
+      - name: Setup pnpm
+        if: needs.determine-evals.outputs.run-agent == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Set up Node.js
         if: needs.determine-evals.outputs.run-agent == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-agent == 'true'
-        run: |
-          rm -rf node_modules
-          npm i -g pnpm
-          pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
-      - name: Build Stagehand
+      - name: Download build artifacts
         if: needs.determine-evals.outputs.run-agent == 'true'
-        run: pnpm run build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
 
       - name: Run Agent Evals
         if: needs.determine-evals.outputs.run-agent == 'true'
