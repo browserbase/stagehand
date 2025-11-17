@@ -82,8 +82,7 @@
     "prettier": "^3.2.5",
     "tsup": "^8.2.1",
     "tsx": "^4.10.5",
-    "typescript": "^5.2.2",
-    "zod": "^4.1.8"
+    "typescript": "^5.2.2"
   },
   "repository": {
     "type": "git",
