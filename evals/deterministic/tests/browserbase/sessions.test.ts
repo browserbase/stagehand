@@ -63,7 +63,7 @@ test.describe("Browserbase Sessions", () => {
     const page = stagehand.page;
 
     expect(page.url()).toBe(
-      "https://docs.stagehand.dev/v3/first-steps/introductionn",
+      "https://docs.stagehand.dev/v3/first-steps/introduction",
     );
   });
 });
