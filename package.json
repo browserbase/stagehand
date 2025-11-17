@@ -1,62 +1,8 @@
 {
-  "name": "@browserbasehq/stagehand",
-  "version": "3.0.1",
-  "description": "An AI web browsing framework focused on simplicity and extensibility.",
-  "main": "./packages/core/dist/index.js",
-  "module": "./packages/core/dist/index.js",
-  "types": "./packages/core/dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./packages/core/dist/index.d.ts",
-      "import": "./packages/core/dist/index.js",
-      "default": "./packages/core/dist/index.js"
-    },
-    "./package.json": "./package.json"
-  },
-  "files": [
-    "packages/core/dist/**/*"
-  ],
-  "peerDependencies": {
-    "deepmerge": "^4.3.1",
-    "dotenv": "^16.4.5",
-    "zod": "^3.25.0 || ^4.0.0"
-  },
-  "dependencies": {
-    "@ai-sdk/provider": "^2.0.0",
-    "@anthropic-ai/sdk": "0.39.0",
-    "@browserbasehq/sdk": "^2.4.0",
-    "@google/genai": "^1.22.0",
-    "@langchain/openai": "^0.4.4",
-    "@modelcontextprotocol/sdk": "^1.17.2",
-    "ai": "^5.0.0",
-    "devtools-protocol": "^0.0.1464554",
-    "fetch-cookie": "^3.1.0",
-    "openai": "^4.87.1",
-    "pino": "^9.6.0",
-    "pino-pretty": "^13.0.0",
-    "playwright": "^1.52.0",
-    "ws": "^8.18.0",
-    "zod-to-json-schema": "^3.23.5"
-  },
-  "optionalDependencies": {
-    "@ai-sdk/anthropic": "^2.0.34",
-    "@ai-sdk/azure": "^2.0.54",
-    "@ai-sdk/cerebras": "^1.0.25",
-    "@ai-sdk/deepseek": "^1.0.23",
-    "@ai-sdk/google": "^2.0.23",
-    "@ai-sdk/groq": "^2.0.24",
-    "@ai-sdk/mistral": "^2.0.19",
-    "@ai-sdk/openai": "^2.0.53",
-    "@ai-sdk/perplexity": "^2.0.13",
-    "@ai-sdk/togetherai": "^1.0.23",
-    "@ai-sdk/xai": "^2.0.26",
-    "@langchain/core": "^0.3.40",
-    "chrome-launcher": "^1.2.0",
-    "ollama-ai-provider-v2": "^1.5.0",
-    "patchright-core": "^1.55.2",
-    "playwright-core": "^1.54.1",
-    "puppeteer-core": "^22.8.0"
-  },
+  "name": "stagehand-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Stagehand monorepo workspace",
   "scripts": {
     "build": "turbo run build",
     "build:cli": "turbo run build:cli",
@@ -114,10 +60,6 @@
     "typescript": "^5.2.2",
     "typescript-eslint": "^8.17.0"
   },
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org/"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/browserbase/stagehand.git"
@@ -131,4 +73,3 @@
   },
   "packageManager": "pnpm@9.15.0+sha512.76e2379760a4328ec4415815bcd6628dee727af3779aaa4c914e3944156c4299921a89f976381ee107d41f12cfa4b66681ca9c718f0668fa0831ed4c6d8ba56c"
 }
-
