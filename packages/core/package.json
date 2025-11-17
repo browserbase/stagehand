@@ -18,7 +18,8 @@
     "e2e:local": "playwright test --config=lib/v3/tests/v3.local.playwright.config.ts",
     "e2e:bb": "playwright test --config=lib/v3/tests/v3.bb.playwright.config.ts",
     "lint": "cd ../.. && prettier --check packages/core && cd packages/core && eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test:vitest": "pnpm run build-js && vitest run --config vitest.config.ts"
   },
   "files": [
     "dist/index.js",
@@ -83,7 +84,8 @@
     "prettier": "^3.2.5",
     "tsup": "^8.2.1",
     "tsx": "^4.10.5",
-    "typescript": "^5.2.2"
+    "typescript": "^5.2.2",
+    "vitest": "^4.0.8"
   },
   "repository": {
     "type": "git",
