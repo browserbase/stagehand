@@ -21,7 +21,7 @@ function generateId(label: string): string {
   } catch {
     const fallback =
       (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
-      `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+      `${Date.now()}-${label}-${Math.floor(Math.random() * 1e6)}`;
     return fallback;
   }
 }
