@@ -379,6 +379,36 @@ interface HistoryEntry {
 }
 ```
 
+### browserbaseSessionID
+
+Browserbase session identifier for the active Browserbase run.
+
+```typescript
+const sessionId = stagehand.browserbaseSessionID;
+```
+
+**Type:** `string | undefined` — undefined for LOCAL runs or before `init()`.
+
+### browserbaseSessionURL
+
+Shareable link to the active Browserbase session dashboard.
+
+```typescript
+const sessionUrl = stagehand.browserbaseSessionURL;
+```
+
+**Type:** `string | undefined` — undefined until a Browserbase session is active.
+
+### browserbaseDebugURL
+
+Debugger URL returned by Browserbase for direct CDP inspection.
+
+```typescript
+const debugUrl = stagehand.browserbaseDebugURL;
+```
+
+**Type:** `string | undefined` — undefined for LOCAL runs or if Browserbase doesn’t provide one.
+
 ## Code Examples
 
 <Tabs>
