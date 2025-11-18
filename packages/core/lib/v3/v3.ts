@@ -1073,26 +1073,26 @@ export class V3 {
     instruction: string,
     options?: ExtractOptions,
   ): Promise<z.infer<typeof defaultExtractSchema>>;
-  async extract<T extends z.ZodTypeAny>(
+  async extract<T extends StagehandZodSchema>(
     instruction: string,
     schema: T,
     options?: ExtractOptions,
-  ): Promise<z.infer<T>>;
-  async extract<T extends import("zod/v3").ZodTypeAny>(
-    instruction: string,
-    schema: T,
-    options?: ExtractOptions,
-  ): Promise<import("zod/v3").infer<T>>;
-  // Fallback overload to accept unknown schemas from user apps to avoid TS identity issues
-  async extract(
-    instruction: string,
-    schema: unknown,
-    options?: ExtractOptions,
-  ): Promise<unknown>;
+  ): Promise<InferStagehandSchema<T>>;
+
+
+
+
+
+
+
+
+
+
+
 
   async extract(
     a?: string | ExtractOptions,
-    b?: unknown | ExtractOptions,
+    b?: StagehandZodSchema | ExtractOptions,
     c?: ExtractOptions,
   ): Promise<unknown> {
     return await withInstanceLogContext(this.instanceId, async () => {
