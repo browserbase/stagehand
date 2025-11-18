@@ -86,4 +86,5 @@ export interface V3Options {
   cacheDir?: string;
   domSettleTimeout?: number;
   disableAPI?: boolean;
+  manual?: boolean;
 }
