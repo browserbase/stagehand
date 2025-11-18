@@ -528,8 +528,12 @@ export async function waitForDomNetworkQuiet(
   frame: Frame,
   timeoutMs?: number,
 ): Promise<void> {
-  const timeout = typeof timeoutMs === "number" ? timeoutMs : 5_000;
+  const overallTimeout =
+    typeof timeoutMs === "number" && Number.isFinite(timeoutMs)
+      ? Math.max(0, timeoutMs)
+      : 5_000;
   const client = frame.session;
+  const settleStart = Date.now();
 
   // Ensure a document exists; if not, wait for DOMContentLoaded on this frame.
   let hasDoc: boolean;
@@ -539,8 +543,16 @@ export async function waitForDomNetworkQuiet(
   } catch {
     hasDoc = false;
   }
-  if (!hasDoc) {
-    await frame.waitForLoadState("domcontentloaded").catch(() => {});
+  if (!hasDoc && overallTimeout > 0) {
+    await frame
+      .waitForLoadState("domcontentloaded", overallTimeout)
+      .catch(() => {});
+  }
+
+  const elapsed = Date.now() - settleStart;
+  const remainingBudget = Math.max(0, overallTimeout - elapsed);
+  if (remainingBudget === 0) {
+    return;
   }
 
   await client.send("Network.enable").catch(() => {});
@@ -653,7 +665,7 @@ export async function waitForDomNetworkQuiet(
         });
       }
       resolveDone();
-    }, timeout);
+    }, remainingBudget);
 
     const resolveDone = () => {
       client.off("Network.requestWillBeSent", onRequest);
