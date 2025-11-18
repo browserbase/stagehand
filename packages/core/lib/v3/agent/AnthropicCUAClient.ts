@@ -443,18 +443,7 @@ export class AnthropicCUAClient extends AgentClient {
       // Add custom tools if available
       if (this.tools && Object.keys(this.tools).length > 0) {
         const customTools = Object.entries(this.tools).map(([name, tool]) => {
-          const schema = tool.inputSchema as StagehandZodSchema | undefined;
-          if (!schema) {
-            return {
-              name,
-              description: tool.description,
-              input_schema: {
-                type: "object",
-                properties: {},
-                required: [],
-              },
-            };
-          }
+          const schema = tool.inputSchema as StagehandZodSchema;
 
           // Convert Zod schema to proper JSON schema format for Anthropic
           const jsonSchema = toJsonSchema(schema) as {
