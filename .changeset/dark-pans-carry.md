@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-Migrate from zodv3 to zodv4
+Add support for zod 4, while maintaining backwards compatibility for zod 3 
