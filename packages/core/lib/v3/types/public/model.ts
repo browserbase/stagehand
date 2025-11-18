@@ -66,8 +66,7 @@ export type ModelProvider =
   | "aisdk";
 
 export type KnownModel = keyof typeof MODEL_PROVIDER_MAP;
-export type AvailableModel = KnownModel | string & {};
-
+export type AvailableModel = KnownModel | (string & {});
 
 export type ClientOptions = OpenAIClientOptions | AnthropicClientOptions;
 
