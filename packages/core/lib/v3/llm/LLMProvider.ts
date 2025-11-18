@@ -132,8 +132,8 @@ export function getAISDKLanguageModel(
 
 export class LLMProvider {
   private logger: (message: LogLine) => void;
-  private manual: boolean = false;
-  constructor(logger: (message: LogLine) => void, manual: boolean) {
+  private manual?: boolean = false;
+  constructor(logger: (message: LogLine) => void, manual?: boolean) {
     this.manual = manual;
     this.logger = logger;
   }
