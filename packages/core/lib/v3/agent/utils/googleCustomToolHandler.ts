@@ -122,11 +122,7 @@ function convertToolToFunctionDeclaration(
 ): FunctionDeclaration | null {
   try {
     // Convert Zod schema to JSON schema
-    const schema = tool.inputSchema as StagehandZodSchema | undefined;
-    if (!schema) {
-      return null;
-    }
-
+    const schema = tool.inputSchema as StagehandZodSchema;
     const jsonSchema = toJsonSchema(schema) as {
       properties?: Record<string, unknown>;
       required?: string[];
