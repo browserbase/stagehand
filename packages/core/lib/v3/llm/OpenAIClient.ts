@@ -1,5 +1,4 @@
 import OpenAI, { ClientOptions } from "openai";
-import { zodResponseFormat } from "openai/helpers/zod";
 import {
   ChatCompletionAssistantMessageParam,
   ChatCompletionContentPartImage,
@@ -24,7 +23,7 @@ import {
   StagehandError,
   ZodSchemaValidationError,
 } from "../types/public/sdkErrors";
-import { isZod4Schema, toJsonSchema } from "../zodCompat";
+import { toJsonSchema } from "../zodCompat";
 
 export class OpenAIClient extends LLMClient {
   public type = "openai" as const;
@@ -186,11 +185,6 @@ export class OpenAIClient extends LLMClient {
 
           throw error;
         }
-      } else if (isZod4Schema(options.response_model.schema)) {
-        responseFormat = zodResponseFormat(
-          options.response_model.schema,
-          options.response_model.name,
-        );
       } else {
         responseFormat = {
           type: "json_schema",

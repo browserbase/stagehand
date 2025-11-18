@@ -11,7 +11,6 @@ import {
   LLMClient,
 } from "../../lib/v3";
 import OpenAI from "openai";
-import { zodResponseFormat } from "openai/helpers/zod";
 import type {
   ChatCompletion,
   ChatCompletionAssistantMessageParam,
@@ -23,11 +22,7 @@ import type {
   ChatCompletionUserMessageParam,
 } from "openai/resources/chat/completions";
 import { CreateChatCompletionResponseError } from "../../lib/v3";
-import {
-  StagehandZodSchema,
-  isZod4Schema,
-  toJsonSchema,
-} from "../../lib/v3/zodCompat";
+import { StagehandZodSchema, toJsonSchema } from "../../lib/v3/zodCompat";
 
 function validateZodSchema(schema: StagehandZodSchema, data: unknown) {
   try {
@@ -92,20 +87,13 @@ export class CustomOpenAIClient extends LLMClient {
       | undefined;
     if (options.response_model) {
       const responseModelSchema = options.response_model.schema;
-      if (isZod4Schema(responseModelSchema)) {
-        responseFormat = zodResponseFormat(
-          responseModelSchema,
-          options.response_model.name,
-        );
-      } else {
-        responseFormat = {
-          type: "json_schema",
-          json_schema: {
-            name: options.response_model.name,
-            schema: toJsonSchema(responseModelSchema),
-          },
-        };
-      }
+      responseFormat = {
+        type: "json_schema",
+        json_schema: {
+          name: options.response_model.name,
+          schema: toJsonSchema(responseModelSchema),
+        },
+      };
     }
 
     /* eslint-disable */
