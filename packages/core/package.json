@@ -72,6 +72,7 @@
     "@ai-sdk/togetherai": "^1.0.23",
     "@ai-sdk/xai": "^2.0.26",
     "@langchain/core": "^0.3.40",
+    "bufferutil": "^4.0.9",
     "chrome-launcher": "^1.2.0",
     "ollama-ai-provider-v2": "^1.5.0",
     "patchright-core": "^1.55.2",
