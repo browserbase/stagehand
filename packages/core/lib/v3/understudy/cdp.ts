@@ -1,6 +1,7 @@
 // lib/v3/understudy/cdp.ts
 import WebSocket from "ws";
 import type { Protocol } from "devtools-protocol";
+import { logCdpMessage } from "../flowLogger";
 
 /**
  * CDP transport & session multiplexer
@@ -118,6 +119,7 @@ export class CdpConnection implements CDPSessionLike {
         ts: Date.now(),
       });
     });
+    logCdpMessage({ method, params, sessionId: null });
     this.ws.send(JSON.stringify(payload));
     return p;
   }
@@ -232,6 +234,7 @@ export class CdpConnection implements CDPSessionLike {
         ts: Date.now(),
       });
     });
+    logCdpMessage({ method, params, sessionId });
     this.ws.send(JSON.stringify(payload));
     return p;
   }

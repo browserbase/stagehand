@@ -13,6 +13,7 @@ import {
 } from "../types/public/agent";
 import { LogLine } from "../types/public/logs";
 import { type Action, V3FunctionName } from "../types/public/methods";
+import { logActionProgress } from "../flowLogger";
 
 export class V3CuaAgentHandler {
   private v3: V3;
@@ -162,6 +163,15 @@ export class V3CuaAgentHandler {
   ): Promise<ActionExecutionResult> {
     const page = await this.v3.context.awaitActivePage();
     const recording = this.v3.isAgentReplayActive();
+    const pointerTarget =
+      typeof action.x === "number" && typeof action.y === "number"
+        ? `(${action.x}, ${action.y})`
+        : action.selector || action.input || action.description;
+    logActionProgress({
+      actionType: action.type,
+      target: pointerTarget,
+      args: [action],
+    });
     switch (action.type) {
       case "click": {
         const { x, y, button = "left", clickCount } = action;
