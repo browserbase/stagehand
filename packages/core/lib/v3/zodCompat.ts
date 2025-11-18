@@ -30,10 +30,7 @@ export const isZod3Schema = (
 
 export type JsonSchemaDocument = Record<string, unknown>;
 
-
-
 export function toJsonSchema(schema: StagehandZodSchema): JsonSchemaDocument {
-
   if (!isZod4Schema(schema)) {
     return zodToJsonSchema(schema);
   }
