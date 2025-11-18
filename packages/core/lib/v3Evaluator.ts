@@ -32,7 +32,7 @@ export class V3Evaluator {
   private manual?: boolean;
   private modelName: AvailableModel;
   private modelClientOptions: ClientOptions | { apiKey: string };
-  private silentLogger: (message: LogLine) => void = () => { };
+  private silentLogger: (message: LogLine) => void = () => {};
 
   constructor(
     v3: V3,
@@ -108,13 +108,13 @@ export class V3Evaluator {
               },
               ...(screenshot && imageBuffer
                 ? [
-                  {
-                    type: "image_url" as const,
-                    image_url: {
-                      url: `data:image/jpeg;base64,${imageBuffer.toString("base64")}`,
+                    {
+                      type: "image_url" as const,
+                      image_url: {
+                        url: `data:image/jpeg;base64,${imageBuffer.toString("base64")}`,
+                      },
                     },
-                  },
-                ]
+                  ]
                 : []),
               ...(answer
                 ? [{ type: "text" as const, text: `the answer is ${answer}` }]
@@ -182,13 +182,13 @@ export class V3Evaluator {
               { type: "text", text: formatted },
               ...(screenshot && imageBuffer
                 ? [
-                  {
-                    type: "image_url" as const,
-                    image_url: {
-                      url: `data:image/jpeg;base64,${imageBuffer.toString("base64")}`,
+                    {
+                      type: "image_url" as const,
+                      image_url: {
+                        url: `data:image/jpeg;base64,${imageBuffer.toString("base64")}`,
+                      },
                     },
-                  },
-                ]
+                  ]
                 : []),
             ],
           },
