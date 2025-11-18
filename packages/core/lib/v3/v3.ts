@@ -137,15 +137,15 @@ export class V3 {
   private readonly domSettleTimeoutMs?: number;
   private _isClosing = false;
   public browserbaseSessionId?: string;
-  private browserbaseSessionUrl = "";
-  private browserbaseDebugUrl = "";
+  private browserbaseSessionUrl?: string;
+  private browserbaseDebugUrl?: string;
   public get browserbaseSessionID(): string | undefined {
     return this.browserbaseSessionId;
   }
-  public get browserbaseSessionURL(): string {
+  public get browserbaseSessionURL(): string | undefined {
     return this.browserbaseSessionUrl;
   }
-  public get browserbaseDebugURL(): string {
+  public get browserbaseDebugURL(): string | undefined {
     return this.browserbaseDebugUrl;
   }
   private _onCdpClosed = (why: string) => {
@@ -862,7 +862,7 @@ export class V3 {
           }
           const sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
           this.browserbaseSessionUrl = sessionUrl;
-          this.browserbaseDebugUrl = debugUrl ?? "";
+          this.browserbaseDebugUrl = debugUrl;
 
           try {
             this.logger({
@@ -940,8 +940,8 @@ export class V3 {
 
   private resetBrowserbaseSessionMetadata(): void {
     this.browserbaseSessionId = undefined;
-    this.browserbaseSessionUrl = "";
-    this.browserbaseDebugUrl = "";
+    this.browserbaseSessionUrl = undefined;
+    this.browserbaseDebugUrl = undefined;
   }
 
   /**

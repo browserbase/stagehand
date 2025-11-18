@@ -89,8 +89,8 @@ describe("browserbase accessors", () => {
     await v3.init();
     await v3.close();
 
-    expect(v3.browserbaseSessionURL).toBe("");
-    expect(v3.browserbaseDebugURL).toBe("");
+    expect(v3.browserbaseSessionURL).toBeUndefined();
+    expect(v3.browserbaseDebugURL).toBeUndefined();
   });
 });
 
@@ -107,8 +107,8 @@ describe("local accessors", () => {
 
     try {
       await v3.init();
-      expect(v3.browserbaseSessionURL).toBe("");
-      expect(v3.browserbaseDebugURL).toBe("");
+      expect(v3.browserbaseSessionURL).toBeUndefined();
+      expect(v3.browserbaseDebugURL).toBeUndefined();
     } finally {
       await v3.close().catch(() => {});
     }
