@@ -243,16 +243,45 @@ export class Frame implements FrameManager {
   /** Wait for a lifecycle state (load/domcontentloaded/networkidle) */
   async waitForLoadState(
     state: "load" | "domcontentloaded" | "networkidle" = "load",
+    timeoutMs: number = 15_000,
   ): Promise<void> {
     await this.session.send("Page.enable");
-    await new Promise<void>((resolve) => {
+    const targetState = state.toLowerCase();
+    const timeout = Math.max(0, timeoutMs);
+    await new Promise<void>((resolve, reject) => {
+      let done = false;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        this.session.off("Page.lifecycleEvent", handler);
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        resolve();
+      };
       const handler = (evt: Protocol.Page.LifecycleEventEvent) => {
-        if (evt.frameId === this.frameId && evt.name === state) {
-          this.session.off("Page.lifecycleEvent", handler);
-          resolve();
+        const sameFrame = evt.frameId === this.frameId;
+        // need to normalize here because CDP lifecycle names look like 'DOMContentLoaded'
+        // but we accept 'domcontentloaded'
+        const lifecycleName = String(evt.name ?? "").toLowerCase();
+        if (sameFrame && lifecycleName === targetState) {
+          finish();
         }
       };
       this.session.on("Page.lifecycleEvent", handler);
+
+      timer = setTimeout(() => {
+        if (done) return;
+        done = true;
+        this.session.off("Page.lifecycleEvent", handler);
+        reject(
+          new Error(
+            `waitForLoadState(${state}) timed out after ${timeout}ms for frame ${this.frameId}`,
+          ),
+        );
+      }, timeout);
     });
   }
 
