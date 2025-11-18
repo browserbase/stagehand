@@ -24,6 +24,7 @@ const publicApiShape = {
   LLMResponseError: Stagehand.LLMResponseError,
   LOG_LEVEL_NAMES: Stagehand.LOG_LEVEL_NAMES,
   MCPConnectionError: Stagehand.MCPConnectionError,
+  MODEL_PROVIDER_MAP: Stagehand.MODEL_PROVIDER_MAP,
   MissingEnvironmentVariableError: Stagehand.MissingEnvironmentVariableError,
   MissingLLMConfigurationError: Stagehand.MissingLLMConfigurationError,
   PageNotFoundError: Stagehand.PageNotFoundError,
