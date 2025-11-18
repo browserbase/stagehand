@@ -68,7 +68,9 @@ function formatArgs(args?: unknown | unknown[]): string {
   if (args === undefined) {
     return "";
   }
-  const normalized = Array.isArray(args) ? args : [args];
+  const normalized = (Array.isArray(args) ? args : [args]).filter(
+    (entry) => entry !== undefined,
+  );
   const rendered = normalized
     .map((entry) => formatValue(entry))
     .filter((entry) => entry.length > 0);
