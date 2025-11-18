@@ -1,6 +1,6 @@
 {
-  "name": "@browserbasehq/orca",
-  "version": "3.0.2-zod373",
+  "name": "@browserbasehq/stagehand",
+  "version": "3.0.3",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -85,7 +85,7 @@
     "tsx": "^4.10.5",
     "typescript": "^5.2.2",
     "vitest": "^4.0.8",
-    "zod": "4.1.8"
+    "zod": "3.25.76 || 4.1.8"
   },
   "repository": {
     "type": "git",
