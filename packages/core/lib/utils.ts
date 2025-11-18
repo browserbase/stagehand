@@ -796,7 +796,7 @@ export function jsonSchemaToZod(schema: JsonSchema): ZodTypeAny {
         return z.string().refine((val) => schema.enum!.includes(val));
       }
       let zodString = z.string();
-      
+
       // Handle JSON Schema format field
       if (schema.format === "uri" || schema.format === "url") {
         zodString = zodString.url();
@@ -806,7 +806,7 @@ export function jsonSchemaToZod(schema: JsonSchema): ZodTypeAny {
         zodString = zodString.uuid();
       }
       // Add more format handlers as needed
-      
+
       if (schema.description) {
         zodString = zodString.describe(schema.description);
       }
