@@ -136,7 +136,7 @@ export class V3 {
   }
   private _onCdpClosed = (why: string) => {
     // Single place to react to the transport closing
-    this._immediateShutdown(`CDP transport closed: ${why}`).catch(() => {});
+    this._immediateShutdown(`CDP transport closed: ${why}`).catch(() => { });
   };
   public readonly experimental: boolean = false;
   public readonly logInferenceToFile: boolean = false;
@@ -173,6 +173,7 @@ export class V3 {
 
   constructor(opts: V3Options) {
     V3._installProcessGuards();
+
     this.externalLogger = opts.logger;
     this.verbose = opts.verbose ?? 1;
     this.instanceId =
@@ -213,7 +214,7 @@ export class V3 {
     this.modelName = modelName;
     this.experimental = opts.experimental ?? false;
     this.logInferenceToFile = opts.logInferenceToFile ?? false;
-    this.llmProvider = new LLMProvider(this.logger, this.opts.manual);
+    this.llmProvider = new LLMProvider(this.logger, this.opts?.manual ?? false);
     this.domSettleTimeoutMs = opts.domSettleTimeout;
     this.disableAPI = opts.disableAPI ?? false;
     const baseClientOptions: ClientOptions = clientOptions
@@ -611,7 +612,7 @@ export class V3 {
               kind: "LOCAL",
               // no LaunchedChrome when attaching externally; create a stub kill
               chrome: {
-                kill: async () => {},
+                kill: async () => { },
               } as unknown as import("chrome-launcher").LaunchedChrome,
               ws: lbo.cdpUrl,
             };
@@ -840,7 +841,7 @@ export class V3 {
             downloadPath: lbo.downloadsPath,
             eventsEnabled: true,
           })
-          .catch(() => {});
+          .catch(() => { });
       }
     } catch {
       // best-effort only
@@ -1418,7 +1419,7 @@ export class V3 {
       if (!isCua) {
         throw new Error(
           "To use the computer use agent, please provide a CUA model in the agent constructor or stagehand config. Try one of our supported CUA models: " +
-            AVAILABLE_CUA_MODELS.join(", "),
+          AVAILABLE_CUA_MODELS.join(", "),
         );
       }
 
