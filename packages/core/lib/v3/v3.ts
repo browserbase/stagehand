@@ -213,7 +213,7 @@ export class V3 {
     this.modelName = modelName;
     this.experimental = opts.experimental ?? false;
     this.logInferenceToFile = opts.logInferenceToFile ?? false;
-    this.llmProvider = new LLMProvider(this.logger);
+    this.llmProvider = new LLMProvider(this.logger, this.opts.manual);
     this.domSettleTimeoutMs = opts.domSettleTimeout;
     this.disableAPI = opts.disableAPI ?? false;
     const baseClientOptions: ClientOptions = clientOptions
