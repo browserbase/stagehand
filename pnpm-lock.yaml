@@ -164,6 +164,9 @@ importers:
       ws:
         specifier: ^8.18.0
         version: 8.18.3
+      zod:
+        specifier: ^4.1.8
+        version: 4.1.12
     optionalDependencies:
       '@ai-sdk/anthropic':
         specifier: ^2.0.34
@@ -238,9 +241,6 @@ importers:
       vitest:
         specifier: ^4.0.8
         version: 4.0.10(@types/debug@4.1.12)(@types/node@20.17.32)(jiti@1.21.7)(tsx@4.19.4)(yaml@2.7.1)
-      zod:
-        specifier: ^4.1.8
-        version: 4.1.12
 
   packages/docs:
     dependencies:
@@ -10497,7 +10497,7 @@ snapshots:
       isstream: 0.1.2
       jsonwebtoken: 9.0.2
       mime-types: 2.1.35
-      retry-axios: 2.6.0(axios@1.13.0(debug@4.4.3))
+      retry-axios: 2.6.0(axios@1.13.0)
       tough-cookie: 4.1.4
     transitivePeerDependencies:
       - supports-color
@@ -12500,7 +12500,7 @@ snapshots:
       retext-stringify: 4.0.0
       unified: 11.0.5
 
-  retry-axios@2.6.0(axios@1.13.0(debug@4.4.3)):
+  retry-axios@2.6.0(axios@1.13.0):
     dependencies:
       axios: 1.13.0(debug@4.4.3)
 

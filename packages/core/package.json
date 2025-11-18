@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/orca",
-  "version": "3.0.2-zod3456",
+  "version": "3.0.2-zod360",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -39,8 +39,7 @@
   "license": "MIT",
   "peerDependencies": {
     "deepmerge": "^4.3.1",
-    "dotenv": "^16.4.5",
-    "zod": "^4.1.8"
+    "dotenv": "^16.4.5"
   },
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",
@@ -56,7 +55,8 @@
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
     "playwright": "^1.52.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "zod": "^4.1.8"
   },
   "optionalDependencies": {
     "@ai-sdk/anthropic": "^2.0.34",
@@ -85,7 +85,7 @@
     "tsx": "^4.10.5",
     "typescript": "^5.2.2",
     "vitest": "^4.0.8",
-    "zod": "^4.1.8"
+    "zod": "3.25.76 || 4.1.8"
   },
   "repository": {
     "type": "git",
