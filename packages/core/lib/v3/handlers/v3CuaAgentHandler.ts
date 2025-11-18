@@ -166,7 +166,13 @@ export class V3CuaAgentHandler {
     const pointerTarget =
       typeof action.x === "number" && typeof action.y === "number"
         ? `(${action.x}, ${action.y})`
-        : action.selector || action.input || action.description;
+        : typeof action.selector === "string"
+          ? action.selector
+          : typeof action.input === "string"
+            ? action.input
+            : typeof action.description === "string"
+              ? action.description
+              : undefined;
     logActionProgress({
       actionType: action.type,
       target: pointerTarget,
