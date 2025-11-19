@@ -22,9 +22,9 @@ export interface LLMTool {
 
 export type AISDKProvider = (modelName: string) => LanguageModelV2;
 // Represents a function that takes options (like apiKey) and returns an AISDKProvider
-export type AISDKCustomProvider = (options: {
-  apiKey: string;
-}) => AISDKProvider;
+export type AISDKCustomProvider = (
+  options: Record<string, unknown>,
+) => AISDKProvider;
 
 export type AvailableModel =
   | "gpt-4.1"
@@ -66,7 +66,8 @@ export type ModelProvider =
   | "google"
   | "aisdk";
 
-export type ClientOptions = OpenAIClientOptions | AnthropicClientOptions;
+export type ClientOptions = (OpenAIClientOptions | AnthropicClientOptions) &
+  Record<string, any>;
 
 export type ModelConfiguration =
   | AvailableModel
