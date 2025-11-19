@@ -334,8 +334,6 @@ jobs:
       - name: Setup pnpm
         if: needs.determine-evals.outputs.run-combination == 'true'
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Set up Node.js
         if: needs.determine-evals.outputs.run-combination == 'true'
@@ -402,8 +400,6 @@ jobs:
       - name: Setup pnpm
         if: needs.determine-evals.outputs.run-act == 'true'
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Set up Node.js
         if: needs.determine-evals.outputs.run-act == 'true'
@@ -473,8 +469,6 @@ jobs:
       - name: Setup pnpm
         if: needs.determine-evals.outputs.run-extract == 'true'
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Set up Node.js
         if: needs.determine-evals.outputs.run-extract == 'true'
@@ -547,8 +541,6 @@ jobs:
       - name: Setup pnpm
         if: needs.determine-evals.outputs.run-observe == 'true'
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Set up Node.js
         if: needs.determine-evals.outputs.run-observe == 'true'
@@ -618,8 +610,6 @@ jobs:
       - name: Setup pnpm
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Set up Node.js
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
@@ -693,8 +683,6 @@ jobs:
       - name: Setup pnpm
         if: needs.determine-evals.outputs.run-agent == 'true'
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Set up Node.js
         if: needs.determine-evals.outputs.run-agent == 'true'
