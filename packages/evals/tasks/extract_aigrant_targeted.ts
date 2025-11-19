@@ -1,4 +1,4 @@
-import { z } from "zod/v3";
+import { z } from "zod";
 import { EvalFunction } from "../types/evals";
 
 export const extract_aigrant_targeted: EvalFunction = async ({

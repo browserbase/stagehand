@@ -1,4 +1,4 @@
-import { ZodError } from "zod/v3";
+import { ZodError } from "zod";
 // Avoid .js extension so tsup/esbuild resolves TS source
 import { STAGEHAND_VERSION } from "../../../version";
 

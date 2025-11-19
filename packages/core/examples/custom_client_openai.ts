@@ -6,7 +6,7 @@
  * You will need to reference the Custom OpenAI Client in /external_clients/customOpenAI.ts
  */
 import { Stagehand } from "../lib/v3";
-import { z } from "zod/v3";
+import { z } from "zod";
 import { CustomOpenAIClient } from "./external_clients/customOpenAI";
 import OpenAI from "openai";
 

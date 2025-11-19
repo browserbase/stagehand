@@ -1,5 +1,5 @@
 import { tool } from "ai";
-import { z } from "zod/v3";
+import { z } from "zod";
 import type { V3 } from "../../v3";
 
 export const createScrollTool = (v3: V3) =>

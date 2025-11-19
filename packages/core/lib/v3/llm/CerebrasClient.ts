@@ -1,6 +1,5 @@
 import OpenAI from "openai";
 import type { ClientOptions } from "openai";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import { LogLine } from "../types/public/logs";
 import { AvailableModel } from "../types/public/model";
 import {
@@ -10,6 +9,7 @@ import {
   LLMResponse,
 } from "./LLMClient";
 import { CreateChatCompletionResponseError } from "../types/public/sdkErrors";
+import { toJsonSchema } from "../zodCompat";
 
 export class CerebrasClient extends LLMClient {
   public type = "cerebras" as const;
@@ -100,7 +100,7 @@ export class CerebrasClient extends LLMClient {
 
     // Add response model as a tool if provided
     if (options.response_model) {
-      const jsonSchema = zodToJsonSchema(options.response_model.schema) as {
+      const jsonSchema = toJsonSchema(options.response_model.schema) as {
         properties?: Record<string, unknown>;
         required?: string[];
       };

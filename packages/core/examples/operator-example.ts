@@ -5,17 +5,14 @@
  *
  * To learn more about Stagehand Agents, see: https://docs.stagehand.dev/concepts/agent
  */
-
 import { Stagehand } from "../lib/v3";
 import dotenv from "dotenv";
 import chalk from "chalk";
 
 // Load environment variables
 dotenv.config();
-
 async function main() {
   console.log(`\n${chalk.bold("Stagehand 🤘 Operator Example")}\n`);
-
   // Initialize Stagehand
   const stagehand = new Stagehand({
     env: "LOCAL",
@@ -48,5 +45,4 @@ async function main() {
     // await stagehand.close();
   }
 }
-
 main();
