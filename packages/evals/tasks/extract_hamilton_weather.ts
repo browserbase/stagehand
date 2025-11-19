@@ -1,5 +1,5 @@
 import { EvalFunction } from "../types/evals";
-import { z } from "zod/v3";
+import { z } from "zod";
 import { compareStrings } from "../utils";
 
 export const extract_hamilton_weather: EvalFunction = async ({

@@ -1,6 +1,6 @@
-import { ZodTypeAny } from "zod/v3";
 import { Page } from "../../understudy/page";
 import { ModelConfiguration } from "../public/model";
+import type { StagehandZodSchema } from "../../zodCompat";
 
 export interface ActHandlerParams {
   instruction: string;
@@ -10,7 +10,7 @@ export interface ActHandlerParams {
   page: Page;
 }
 
-export interface ExtractHandlerParams<T extends ZodTypeAny> {
+export interface ExtractHandlerParams<T extends StagehandZodSchema> {
   instruction?: string;
   schema?: T;
   model?: ModelConfiguration;

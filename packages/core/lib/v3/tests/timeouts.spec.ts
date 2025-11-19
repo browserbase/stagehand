@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { V3 } from "../v3";
 import { v3DynamicTestConfig } from "./v3.dynamic.config";
-import { z } from "zod/v3";
+import { z } from "zod";
 
 test.describe("V3 hard timeouts", () => {
   let v3: V3;

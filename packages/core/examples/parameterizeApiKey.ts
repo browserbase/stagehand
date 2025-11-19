@@ -1,5 +1,5 @@
 import { Stagehand } from "../lib/v3";
-import { z } from "zod/v3";
+import { z } from "zod";
 
 /**
  * This example shows how to parameterize the API key for the LLM provider.

@@ -1,7 +1,7 @@
 /**
  * This example shows how to pass custom tools to stagehand agent (both CUA and non-CUA)
  */
-import { z } from "zod/v3";
+import { z } from "zod";
 import { tool } from "ai";
 import { Stagehand } from "../lib/v3";
 import chalk from "chalk";

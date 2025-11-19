@@ -2,7 +2,7 @@ import path from "node:path";
 import { mkdir } from "node:fs/promises";
 import { Stagehand } from "../../lib/v3";
 import { chromium } from "playwright-core";
-import { z } from "zod/v3";
+import { z } from "zod";
 
 async function recordPlaywrightVideo(stagehand: Stagehand): Promise<void> {
   const browser = await chromium.connectOverCDP({
