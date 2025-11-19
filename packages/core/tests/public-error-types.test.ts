@@ -53,54 +53,9 @@ export const publicErrorTypes = {
   ZodSchemaValidationError: Stagehand.ZodSchemaValidationError,
 } as const;
 
-const errorTypes = [
-  "AgentScreenshotProviderError",
-  "BrowserbaseSessionNotFoundError",
-  "CaptchaTimeoutError",
-  "ConnectionTimeoutError",
-  "ContentFrameNotFoundError",
-  "CreateChatCompletionResponseError",
-  "CuaModelRequiredError",
-  "ElementNotVisibleError",
-  "ExperimentalApiConflictError",
-  "ExperimentalNotConfiguredError",
-  "HandlerNotInitializedError",
-  "InvalidAISDKModelFormatError",
-  "LLMResponseError",
-  "MCPConnectionError",
-  "MissingEnvironmentVariableError",
-  "MissingLLMConfigurationError",
-  "PageNotFoundError",
-  "ResponseBodyError",
-  "ResponseParseError",
-  "StagehandAPIError",
-  "StagehandAPIUnauthorizedError",
-  "StagehandClickError",
-  "StagehandDefaultError",
-  "StagehandDomProcessError",
-  "StagehandElementNotFoundError",
-  "StagehandEnvironmentError",
-  "StagehandError",
-  "StagehandEvalError",
-  "StagehandHttpError",
-  "StagehandIframeError",
-  "StagehandInitError",
-  "StagehandInvalidArgumentError",
-  "StagehandMissingArgumentError",
-  "StagehandNotInitializedError",
-  "StagehandResponseBodyError",
-  "StagehandResponseParseError",
-  "StagehandServerError",
-  "StagehandShadowRootMissingError",
-  "StagehandShadowSegmentEmptyError",
-  "StagehandShadowSegmentNotFoundError",
-  "TimeoutError",
-  "UnsupportedAISDKModelProviderError",
-  "UnsupportedModelError",
-  "UnsupportedModelProviderError",
-  "XPathResolutionError",
-  "ZodSchemaValidationError",
-] as const;
+const errorTypes = Object.keys(publicErrorTypes) as Array<
+  keyof typeof publicErrorTypes
+>;
 
 describe("Stagehand public error types", () => {
   describe("errors", () => {

@@ -77,10 +77,7 @@ describe("LLM and Agents public API types", () => {
       userProvidedInstructions?: string;
     };
 
-    type ExpectedCtorParams = [
-      Stagehand.AvailableModel,
-      string?,
-    ];
+    type ExpectedCtorParams = [Stagehand.AvailableModel, string?];
 
     type ExpectedBasicOptions = {
       options: {
