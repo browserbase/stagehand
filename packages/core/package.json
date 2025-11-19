@@ -71,6 +71,7 @@
     "@ai-sdk/perplexity": "^2.0.13",
     "@ai-sdk/togetherai": "^1.0.23",
     "@ai-sdk/xai": "^2.0.26",
+    "@ai-sdk/google-vertex": "^3.0.70",
     "@langchain/core": "^0.3.40",
     "chrome-launcher": "^1.2.0",
     "ollama-ai-provider-v2": "^1.5.0",
