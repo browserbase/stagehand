@@ -101,9 +101,19 @@ await agent.execute("apply for a job at Browserbase")
   Check out the guide on how to use different models with Stagehand Agent.
 </Card>
 
-### Return value of `agent()`?
+### Return value of `agent()`
 
-When you use `agent()`, Stagehand will return a `Promise<AgentResult>` with the following structure:
+`stagehand.agent()` returns an `AgentInstance` with two methods:
+
+```typescript
+const agent = stagehand.agent();
+
+await agent.execute("Fill out the signup form"); // -> Promise<AgentResult>
+
+agent.stop(); // -> boolean (true when an active run was halted)
+```
+
+`agent.execute()` resolves to an `AgentResult` like the example below:
 
 ```typescript
 {

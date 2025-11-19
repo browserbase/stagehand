@@ -39,6 +39,7 @@ export class V3AgentHandler {
 
   public async execute(
     instructionOrOptions: string | AgentExecuteOptions,
+    abortSignal?: AbortSignal,
   ): Promise<AgentResult> {
     const startTime = Date.now();
     const options =
@@ -135,6 +136,7 @@ export class V3AgentHandler {
             currentPageUrl = (await this.v3.context.awaitActivePage()).url();
           }
         },
+        abortSignal,
       });
 
       if (!finalMessage) {
@@ -171,7 +173,15 @@ export class V3AgentHandler {
           : undefined,
       };
     } catch (error) {
-      const errorMessage = error?.message ?? String(error);
+      if (abortSignal?.aborted) {
+        return {
+          success: false,
+          actions,
+          message: "Agent execution aborted",
+          completed: false,
+        };
+      }
+      const errorMessage = error?.message ?? String(error)
       this.logger({
         category: "agent",
         message: `Error executing agent task: ${errorMessage}`,

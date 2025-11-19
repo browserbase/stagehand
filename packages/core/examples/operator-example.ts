@@ -32,16 +32,20 @@ async function main() {
       "https://browserbase.github.io/stagehand-eval-sites/sites/shadow-dom/",
     );
     const agent = stagehand.agent();
-
-    const result = await agent.execute({
+    const agent2 = stagehand.agent();
+    const result =  agent.execute({
       instruction: "click the button",
       maxSteps: 20,
     });
 
+
+
+
+ 
+
     console.log(`${chalk.green("✓")} Execution complete`);
     console.log(`${chalk.yellow("⤷")} Result:`);
     console.log(JSON.stringify(result, null, 2));
-    console.log(chalk.white(result.message));
   } catch (error) {
     console.log(`${chalk.red("✗")} Error: ${error}`);
   } finally {

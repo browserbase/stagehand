@@ -15,6 +15,11 @@ import { ExtractHandler } from "./handlers/extractHandler";
 import { ObserveHandler } from "./handlers/observeHandler";
 import { V3AgentHandler } from "./handlers/v3AgentHandler";
 import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler";
+import {
+  AgentLifecycleManager,
+  createAgentLifecycleManager,
+  createAgentRunManager,
+} from "./agent/lifecycle";
 import { createBrowserbaseSession } from "./launch/browserbase";
 import { launchLocalChrome } from "./launch/local";
 import { LLMClient } from "./llm/LLMClient";
@@ -37,6 +42,7 @@ import {
 import {
   AgentConfig,
   AgentExecuteOptions,
+  AgentInstance,
   AgentResult,
   AVAILABLE_CUA_MODELS,
   LogLine,
@@ -158,6 +164,7 @@ export class V3 {
   private actCache: ActCache;
   private agentCache: AgentCache;
   private apiClient: StagehandAPIClient | null = null;
+  private readonly agentLifecycle: AgentLifecycleManager;
 
   public stagehandMetrics: StagehandMetrics = {
     actPromptTokens: 0,
@@ -291,6 +298,8 @@ export class V3 {
       domSettleTimeoutMs: this.domSettleTimeoutMs,
       act: this.act.bind(this),
     });
+
+    this.agentLifecycle = createAgentLifecycleManager(this.logger);
 
     this.opts = opts;
     // Track instance for global process guard handling
@@ -1234,6 +1243,9 @@ export class V3 {
     // If we're already closing and this isn't a forced close, no-op.
     if (this._isClosing && !opts?.force) return;
     this._isClosing = true;
+    this.agentLifecycle.abortAll(
+      "Agent execution stopped",
+    );
 
     try {
       // Unhook CDP transport close handler if context exists
@@ -1444,11 +1456,7 @@ export class V3 {
    * Create a v3 agent instance (AISDK tool-based) with execute().
    * Mirrors the v2 Stagehand.agent() tool mode (no CUA provider here).
    */
-  agent(options?: AgentConfig): {
-    execute: (
-      instructionOrOptions: string | AgentExecuteOptions,
-    ) => Promise<AgentResult>;
-  } {
+  agent(options?: AgentConfig): AgentInstance {
     this.logger({
       category: "agent",
       message: `Creating v3 agent instance with options: ${JSON.stringify(options)}`,
@@ -1582,15 +1590,24 @@ export class V3 {
               }
             }
           }),
+        stop: () => false,
       };
     }
 
     // Default: AISDK tools-based agent
     const agentConfigSignature = this.agentCache.buildConfigSignature(options);
+    const runManager = createAgentRunManager(this.agentLifecycle);
+    const abortActiveRun = (reason: string) =>
+      runManager.stopActive(reason);
 
     return {
       execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
         withInstanceLogContext(this.instanceId, async () => {
+          const shouldUseApiClient = this.apiClient && !this.experimental;
+          const { abortContext, cleanup: finishRun } = runManager.start({
+            enableAbort: !shouldUseApiClient,
+            sigtermReason: "Agent execution stopped due to SIGTERM",
+          });
           if ((options?.integrations || options?.tools) && !this.experimental) {
             throw new ExperimentalNotConfiguredError(
               "MCP integrations and custom tools",
@@ -1657,7 +1674,7 @@ export class V3 {
           let result: AgentResult;
 
           try {
-            if (this.apiClient && !this.experimental) {
+            if (shouldUseApiClient) {
               const page = await this.ctx!.awaitActivePage();
               result = await this.apiClient.agentExecute(
                 options,
@@ -1665,7 +1682,10 @@ export class V3 {
                 page.mainFrameId(),
               );
             } else {
-              result = await handler.execute(instructionOrOptions);
+              result = await handler.execute(
+                instructionOrOptions,
+                abortContext?.signal,
+              );
             }
             if (recording) {
               agentSteps = this.endAgentReplayRecording();
@@ -1680,11 +1700,13 @@ export class V3 {
             if (recording) this.discardAgentReplayRecording();
             throw err;
           } finally {
+            finishRun();
             if (recording) {
               this.discardAgentReplayRecording();
             }
           }
         }),
+      stop: () => abortActiveRun("Agent execution stopped via agent.stop()"),
     };
   }
 }

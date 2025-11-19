@@ -163,6 +163,11 @@ export interface AgentInstance {
   execute: (
     instructionOrOptions: string | AgentExecuteOptions,
   ) => Promise<AgentResult>;
+  /**
+   * Stops the currently running agent execution (if any).
+   * Returns true when an active run was stopped, false otherwise.
+   */
+  stop: () => boolean;
 }
 
 export type AgentProviderType = AgentType;

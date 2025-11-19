@@ -41,6 +41,7 @@ type AgentModelConfig<TModelName extends string = string> = {
 ```typescript
 interface AgentInstance {
   execute: (instructionOrOptions: string | AgentExecuteOptions) => Promise<AgentResult>;
+  stop: () => boolean;
 }
 ```
 
@@ -124,6 +125,25 @@ interface AgentExecuteOptions {
 </Tab>
 
 </Tabs>
+
+### Stop Method
+
+Use `stop()` to cancel the currently running tool-based agent execution. It returns
+`true` when an active run was halted and `false` when there was nothing to stop.
+Stagehand also wires this stop mechanism to `SIGTERM`, so terminating the process
+gracefully aborts the in-flight run.
+
+```typescript
+const agent = stagehand.agent();
+
+const execution = agent.execute("Plan a trip to Tokyo");
+
+// Later in the lifecycle (e.g., from an API route or CLI signal handler)
+const stopped = agent.stop();
+console.log(stopped ? "Agent stopped." : "No active run.");
+```
+
+> ℹ️ `agent.stop()` currently applies to the standard V3 agent handler. Computer Use Agent (CUA) runs are unaffected.
 
 ### Execute Parameters
 
