@@ -137,8 +137,16 @@ export class V3 {
   private readonly domSettleTimeoutMs?: number;
   private _isClosing = false;
   public browserbaseSessionId?: string;
+  private browserbaseSessionUrl?: string;
+  private browserbaseDebugUrl?: string;
   public get browserbaseSessionID(): string | undefined {
     return this.browserbaseSessionId;
+  }
+  public get browserbaseSessionURL(): string | undefined {
+    return this.browserbaseSessionUrl;
+  }
+  public get browserbaseDebugURL(): string | undefined {
+    return this.browserbaseDebugUrl;
   }
   private _onCdpClosed = (why: string) => {
     // Single place to react to the transport closing
@@ -679,6 +687,7 @@ export class V3 {
               } as unknown as import("chrome-launcher").LaunchedChrome,
               ws: lbo.cdpUrl,
             };
+            this.resetBrowserbaseSessionMetadata();
             // Post-connect settings (downloads and viewport) if provided
             await this._applyPostConnectLocalOptions(lbo);
             return;
@@ -767,7 +776,7 @@ export class V3 {
             createdTempProfile: createdTemp,
             preserveUserDataDir: !!lbo.preserveUserDataDir,
           };
-          this.browserbaseSessionId = undefined;
+          this.resetBrowserbaseSessionMetadata();
 
           // Post-connect settings (downloads and viewport) if provided
           await this._applyPostConnectLocalOptions(lbo);
@@ -841,18 +850,21 @@ export class V3 {
 
           await this._ensureBrowserbaseDownloadsEnabled();
 
+          const resumed = !!this.opts.browserbaseSessionID;
+          let debugUrl: string | undefined;
           try {
-            const resumed = !!this.opts.browserbaseSessionID;
-            let debugUrl: string | undefined;
-            try {
-              const dbg = (await bb.sessions.debug(sessionId)) as unknown as {
-                debuggerUrl?: string;
-              };
-              debugUrl = dbg?.debuggerUrl;
-            } catch {
-              // Ignore debug fetch failures; continue with sessionUrl only
-            }
-            const sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
+            const dbg = (await bb.sessions.debug(sessionId)) as unknown as {
+              debuggerUrl?: string;
+            };
+            debugUrl = dbg?.debuggerUrl;
+          } catch {
+            // Ignore debug fetch failures; continue with sessionUrl only
+          }
+          const sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
+          this.browserbaseSessionUrl = sessionUrl;
+          this.browserbaseDebugUrl = debugUrl;
+
+          try {
             this.logger({
               category: "init",
               message: resumed
@@ -924,6 +936,12 @@ export class V3 {
     } catch {
       // best-effort only
     }
+  }
+
+  private resetBrowserbaseSessionMetadata(): void {
+    this.browserbaseSessionId = undefined;
+    this.browserbaseSessionUrl = undefined;
+    this.browserbaseDebugUrl = undefined;
   }
 
   /**
@@ -1278,7 +1296,7 @@ export class V3 {
       this.state = { kind: "UNINITIALIZED" };
       this.ctx = null;
       this._isClosing = false;
-      this.browserbaseSessionId = undefined;
+      this.resetBrowserbaseSessionMetadata();
       try {
         unbindInstanceLogger(this.instanceId);
       } catch {
