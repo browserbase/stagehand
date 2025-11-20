@@ -12,7 +12,8 @@
     "baseUrl": "../../",
     "paths": {
       "*": ["node_modules/*", "packages/core/lib/types/*"],
-      "@/*": ["./"]
+      "@/*": ["./"],
+      "vitest": ["packages/core/node_modules/vitest"]
     },
     "skipLibCheck": true,
     "declaration": true,
