@@ -1,10 +1,14 @@
 // lib/v3/handlers/extractHandler.ts
 import { extract as runExtract } from "../../inference";
-import { getZodType, injectUrls, transformSchema } from "../../utils";
+import {
+  getZFactory,
+  getZodType,
+  injectUrls,
+  transformSchema,
+} from "../../utils";
 import { v3Logger } from "../logger";
 import { V3FunctionName } from "../types/public/methods";
 import { captureHybridSnapshot } from "../understudy/a11y/snapshot";
-import { z } from "zod";
 import type { ZodTypeAny } from "zod";
 import { LLMClient } from "../llm/LLMClient";
 import { ExtractHandlerParams } from "../types/private/handlers";
@@ -151,10 +155,11 @@ export class ExtractHandler {
       // Ensure we pass an object schema into inference; wrap non-object schemas
       const isObjectSchema = getZodType(baseSchema) === "object";
       const WRAP_KEY = "value" as const;
+      const factory = getZFactory(baseSchema);
       const objectSchema: StagehandZodObject = isObjectSchema
         ? (baseSchema as StagehandZodObject)
-        : (z.object({
-            [WRAP_KEY]: baseSchema as unknown as ZodTypeAny,
+        : (factory.object({
+            [WRAP_KEY]: baseSchema as ZodTypeAny,
           }) as StagehandZodObject);
 
       const [transformedSchema, urlFieldPaths] =

@@ -15,7 +15,7 @@ const zFactories = {
   v3: z3 as unknown as typeof z,
 };
 
-function getZFactory(schema: StagehandZodSchema): typeof z {
+export function getZFactory(schema: StagehandZodSchema): typeof z {
   return isZod4Schema(schema) ? zFactories.v4 : zFactories.v3;
 }
 
