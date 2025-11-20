@@ -1,0 +1,11 @@
+{
+  "name": "@browserbasehq/stagehand-python-sdk",
+  "private": true,
+  "description": "Stagehand thin-client Python SDK stubs",
+  "scripts": {
+    "format": "uv run python -m compileall stagehand",
+    "build": "uv build --sdist --wheel --out-dir dist",
+    "clean": "rm -rf dist",
+    "example": "uv run python examples/basic.py"
+  }
+}
