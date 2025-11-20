@@ -140,7 +140,12 @@ export class V3CuaAgentHandler {
     }
 
     const start = Date.now();
-    const result = await this.agent.execute({ options, logger: this.logger });
+    const result = await this.agent.execute({
+      options,
+      logger: this.logger,
+      onStepStart: options.onStepStart,
+      onStepEnd: options.onStepEnd,
+    });
     const inferenceTimeMs = Date.now() - start;
     if (result.usage) {
       this.v3.updateMetrics(

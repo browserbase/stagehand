@@ -133,6 +133,13 @@ export class AnthropicCUAClient extends AgentClient {
           level: 1,
         });
 
+        if (executionOptions.onStepStart) {
+          await executionOptions.onStepStart({
+            stepNumber: currentStep + 1,
+            maxSteps,
+          });
+        }
+
         const result = await this.executeStep(inputItems, logger);
         totalInputTokens += result.usage.input_tokens;
         totalOutputTokens += result.usage.output_tokens;
@@ -160,6 +167,17 @@ export class AnthropicCUAClient extends AgentClient {
         if (result.message) {
           messageList.push(result.message);
           finalMessage = result.message;
+        }
+
+        if (executionOptions.onStepEnd) {
+          await executionOptions.onStepEnd({
+            stepNumber: currentStep + 1,
+            maxSteps,
+            message: result.message,
+            actionsPerformed: result.actions.length,
+            totalActionsPerformed: actions.length,
+            completed,
+          });
         }
 
         // Increment step counter

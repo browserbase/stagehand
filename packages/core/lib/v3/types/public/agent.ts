@@ -39,6 +39,28 @@ export interface AgentExecuteOptions {
   maxSteps?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   highlightCursor?: boolean;
+  onStepStart?: ({
+    stepNumber,
+    maxSteps,
+  }: {
+    stepNumber: number;
+    maxSteps: number;
+  }) => Promise<void>;
+  onStepEnd?: ({
+    stepNumber,
+    maxSteps,
+    message,
+    actionsPerformed,
+    totalActionsPerformed,
+    completed,
+  }: {
+    stepNumber: number;
+    maxSteps: number;
+    message: string;
+    actionsPerformed: number;
+    totalActionsPerformed: number;
+    completed: boolean;
+  }) => Promise<void>;
 }
 export type AgentType = "openai" | "anthropic" | "google";
 
@@ -58,6 +80,28 @@ export interface AgentExecutionOptions<
 > {
   options: TOptions;
   logger: (message: LogLine) => void;
+  onStepStart?: ({
+    stepNumber,
+    maxSteps,
+  }: {
+    stepNumber: number;
+    maxSteps: number;
+  }) => Promise<void>;
+  onStepEnd?: ({
+    stepNumber,
+    maxSteps,
+    message,
+    actionsPerformed,
+    totalActionsPerformed,
+    completed,
+  }: {
+    stepNumber: number;
+    maxSteps: number;
+    message: string;
+    actionsPerformed: number;
+    totalActionsPerformed: number;
+    completed: boolean;
+  }) => Promise<void>;
   retries?: number;
 }
 

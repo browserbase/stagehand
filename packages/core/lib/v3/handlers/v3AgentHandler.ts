@@ -51,6 +51,7 @@ export class V3AgentHandler {
     let finalMessage = "";
     let completed = false;
     const collectedReasoning: string[] = [];
+    let currentStep = 0;
 
     let currentPageUrl = (await this.v3.context.awaitActivePage()).url();
 
@@ -88,6 +89,17 @@ export class V3AgentHandler {
         temperature: 1,
         toolChoice: "auto",
         onStepFinish: async (event) => {
+          currentStep++;
+
+          if (options.onStepStart) {
+            await options.onStepStart({
+              stepNumber: currentStep,
+              maxSteps,
+            });
+          }
+
+          const stepStartActionsCount = actions.length;
+
           this.logger({
             category: "agent",
             message: `Step finished: ${event.finishReason}`,
@@ -133,6 +145,19 @@ export class V3AgentHandler {
               }
             }
             currentPageUrl = (await this.v3.context.awaitActivePage()).url();
+          }
+
+          // Call onStepEnd at the end of each step
+          if (options.onStepEnd) {
+            const actionsPerformedInStep = actions.length - stepStartActionsCount;
+            await options.onStepEnd({
+              stepNumber: currentStep,
+              maxSteps,
+              message: event.text || "",
+              actionsPerformed: actionsPerformedInStep,
+              totalActionsPerformed: actions.length,
+              completed,
+            });
           }
         },
       });
