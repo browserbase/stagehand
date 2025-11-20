@@ -2,4 +2,4 @@ packages:
   - "packages/core"
   - "packages/evals"
   - "packages/docs"
-  - "packages/sdk"
+  - "packages/ts-sdk"

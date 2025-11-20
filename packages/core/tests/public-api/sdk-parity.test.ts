@@ -1,6 +1,6 @@
 import { describe, it } from "vitest";
 import * as Stagehand from "../../dist/index.js";
-import * as StagehandSDK from "../../../sdk/dist/index.js";
+import * as StagehandSDK from "../../../ts-sdk/dist/index.js";
 
 type AssertNever<T extends never> = T;
 

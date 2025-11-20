@@ -1,4 +1,4 @@
-import StagehandSDKDefaultExport, * as StagehandSDK from "../../../sdk/dist/index.js";
+import StagehandSDKDefaultExport, * as StagehandSDK from "../../../ts-sdk/dist/index.js";
 import { runExportSurfaceSuite } from "../../../../tests/shared/exportSurfaceSuite";
 
 runExportSurfaceSuite(
