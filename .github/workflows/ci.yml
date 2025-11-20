@@ -224,7 +224,7 @@ jobs:
         run: pnpm run build
 
       - name: Run local E2E Tests (Deterministic Playwright)
-        run: pnpm run e2e:local -- --output-logs=stream
+        run: pnpm run e2e:local --log-order=stream
 
   run-e2e-bb-tests:
     needs: [run-lint, run-build]
@@ -260,7 +260,7 @@ jobs:
         run: pnpm run build
 
       - name: Run E2E Tests (browserbase)
-        run: pnpm run e2e:bb -- --output-logs=stream
+        run: pnpm run e2e:bb --log-order=stream
 
   run-regression-evals:
     needs:
