@@ -9,7 +9,6 @@ import {
 import { v3Logger } from "../logger";
 import { V3FunctionName } from "../types/public/methods";
 import { captureHybridSnapshot } from "../understudy/a11y/snapshot";
-import { z } from "zod";
 import type { ZodTypeAny } from "zod";
 import { LLMClient } from "../llm/LLMClient";
 import { ExtractHandlerParams } from "../types/private/handlers";
