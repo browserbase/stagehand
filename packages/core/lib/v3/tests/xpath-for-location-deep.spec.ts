@@ -23,8 +23,8 @@ test.describe("resolveNodeForLocationDeep", () => {
 
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/",
+      { waitUntil: "networkidle" },
     );
-    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     // scroll to the bottom of the page
     await page.evaluate(() => {
