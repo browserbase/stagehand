@@ -60,6 +60,7 @@ export type {
   PuppeteerPage,
   Page,
   AnyPage,
+  PageHandle,
   ConsoleListener,
   LoadState,
 } from "./types/public/page";

@@ -91,7 +91,8 @@ describe("Stagehand public API types", () => {
       | Stagehand.PlaywrightPage
       | Stagehand.PuppeteerPage
       | Stagehand.PatchrightPage
-      | Stagehand.Page;
+      | Stagehand.Page
+      | Stagehand.PageHandle;
 
     it("matches expected type shape", () => {
       expectTypeOf<Stagehand.AnyPage>().toEqualTypeOf<ExpectedAnyPage>();
