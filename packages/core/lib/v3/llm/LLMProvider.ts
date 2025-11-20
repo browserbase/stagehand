@@ -16,6 +16,11 @@ import { GoogleClient } from "./GoogleClient";
 import { GroqClient } from "./GroqClient";
 import { LLMClient } from "./LLMClient";
 import { OpenAIClient } from "./OpenAIClient";
+
+interface ExtendedClientOptions {
+  headers?: Record<string, string>;
+  fetch?: typeof globalThis.fetch;
+}
 import { openai, createOpenAI } from "@ai-sdk/openai";
 import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
 import { google, createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -98,6 +103,8 @@ export function getAISDKLanguageModel(
   subModelName: string,
   apiKey?: string,
   baseURL?: string,
+  headers?: Record<string, string>,
+  fetch?: typeof globalThis.fetch,
 ) {
   if (apiKey) {
     const creator = AISDKProvidersWithAPIKey[subProvider];
@@ -107,15 +114,28 @@ export function getAISDKLanguageModel(
         Object.keys(AISDKProvidersWithAPIKey),
       );
     }
-    // Create the provider instance with the API key and baseURL if provided
-    const providerConfig: { apiKey: string; baseURL?: string } = { apiKey };
+    // Create the provider instance with the API key and custom options
+    const providerConfig: {
+      apiKey: string;
+      baseURL?: string;
+      headers?: Record<string, string>;
+      fetch?: typeof globalThis.fetch;
+    } = { apiKey };
     if (baseURL) {
       providerConfig.baseURL = baseURL;
+    }
+    if (headers) {
+      providerConfig.headers = headers;
+    }
+    if (fetch) {
+      providerConfig.fetch = fetch;
     }
     const provider = creator(providerConfig);
     // Get the specific model from the provider
     return provider(subModelName);
   } else {
+    // When no apiKey is provided, use pre-configured provider (no custom options)
+    // Note: headers and fetch options require explicit apiKey to be forwarded
     const provider = AISDKProviders[subProvider];
     if (!provider) {
       throw new UnsupportedAISDKModelProviderError(
@@ -148,6 +168,8 @@ export class LLMProvider {
         subModelName,
         clientOptions?.apiKey,
         clientOptions?.baseURL,
+        (clientOptions as ExtendedClientOptions)?.headers,
+        (clientOptions as ExtendedClientOptions)?.fetch,
       );
 
       return new AISdkClient({
