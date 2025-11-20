@@ -1,6 +1,11 @@
 // lib/v3/handlers/extractHandler.ts
 import { extract as runExtract } from "../../inference";
-import { getZFactory, getZodType, injectUrls, transformSchema } from "../../utils";
+import {
+  getZFactory,
+  getZodType,
+  injectUrls,
+  transformSchema,
+} from "../../utils";
 import { v3Logger } from "../logger";
 import { V3FunctionName } from "../types/public/methods";
 import { captureHybridSnapshot } from "../understudy/a11y/snapshot";
