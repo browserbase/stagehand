@@ -229,10 +229,6 @@ export class V3Context {
     return targetId ? this.pagesByTarget.get(targetId) : undefined;
   }
 
-  resolvePageByTargetId(targetId: string): Page | undefined {
-    return this.pagesByTarget.get(targetId);
-  }
-
   /**
    * Serialize the full frame tree for a given top-level main frame id.
    */

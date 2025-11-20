@@ -5,15 +5,6 @@ export class StagehandError extends Error {
   }
 }
 
-function defineStagehandError(name: string) {
-  return class extends StagehandError {
-    constructor(message?: string) {
-      super(message);
-      this.name = name;
-    }
-  };
-}
-
 export class AgentScreenshotProviderError extends StagehandError {}
 export class BrowserbaseSessionNotFoundError extends StagehandError {}
 export class CaptchaTimeoutError extends StagehandError {}
