@@ -5,7 +5,7 @@ import path from "path";
 import process from "process";
 import { z } from "zod";
 import type { InferStagehandSchema, StagehandZodSchema } from "./zodCompat";
-import { loadApiKeyFromEnv, getZFactory } from "../utils";
+import { loadApiKeyFromEnv } from "../utils";
 import { StagehandLogger, LoggerOptions } from "../logger";
 import { ActCache } from "./cache/ActCache";
 import { AgentCache } from "./cache/AgentCache";
@@ -162,7 +162,6 @@ export class V3 {
   private readonly instanceId: string;
   private static _processGuardsInstalled = false;
   private static _instances: Set<V3> = new Set();
-  public static getZFactory = getZFactory;
   private cacheStorage: CacheStorage;
   private actCache: ActCache;
   private agentCache: AgentCache;
