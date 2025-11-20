@@ -202,6 +202,21 @@ jobs:
           node-version: "20"
           cache: "pnpm"
 
+      - name: Install stable Chromium
+        run: |
+          set -euo pipefail
+          CHROME_VERSION=$(curl -s https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json | jq -r '.channels.Stable.version')
+          DOWNLOAD_URL="https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chrome-linux64.zip"
+          INSTALL_DIR="${RUNNER_TEMP}/chrome-stable"
+          mkdir -p "$INSTALL_DIR"
+          curl -sSL "$DOWNLOAD_URL" -o "$INSTALL_DIR/chrome-linux64.zip"
+          unzip -q "$INSTALL_DIR/chrome-linux64.zip" -d "$INSTALL_DIR"
+          CHROME_BIN="$INSTALL_DIR/chrome-linux64/chrome"
+          chmod +x "$CHROME_BIN"
+          echo "Installed Chromium version: $CHROME_VERSION"
+          "$CHROME_BIN" --version
+          echo "CHROME_PATH=$CHROME_BIN" >> $GITHUB_ENV
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
