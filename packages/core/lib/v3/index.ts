@@ -43,5 +43,3 @@ export type {
 } from "./zodCompat";
 
 export type { JsonSchema, JsonSchemaProperty } from "../utils";
-
-export * from "./publicTypes";
