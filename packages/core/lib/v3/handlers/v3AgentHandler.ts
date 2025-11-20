@@ -84,7 +84,13 @@ export class V3AgentHandler {
         system: systemPrompt,
         messages,
         tools: allTools,
-        stopWhen: stepCountIs(maxSteps),
+        stopWhen: (result) => {
+          const lastStep = result.steps[result.steps.length - 1];
+          if (lastStep?.toolCalls?.some((tc) => tc.toolName === "close")) {
+            return true;
+          }
+          return stepCountIs(maxSteps)(result);
+        },
         temperature: 1,
         toolChoice: "auto",
         onStepFinish: async (event) => {
