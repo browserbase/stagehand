@@ -19,7 +19,7 @@
     "e2e:bb": "playwright test --config=lib/v3/tests/v3.bb.playwright.config.ts",
     "lint": "cd ../.. && prettier --check packages/core && cd packages/core && eslint .",
     "format": "prettier --write .",
-    "test:vitest": "pnpm run build-js && vitest run --config vitest.config.ts"
+    "test:vitest": "pnpm run build-js && pnpm run typecheck && vitest run --config vitest.config.ts"
   },
   "files": [
     "dist/index.js",
