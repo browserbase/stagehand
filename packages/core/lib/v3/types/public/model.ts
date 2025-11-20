@@ -26,45 +26,47 @@ export type AISDKCustomProvider = (options: {
   apiKey: string;
 }) => AISDKProvider;
 
-export type AvailableModel =
-  | "gpt-4.1"
-  | "gpt-4.1-mini"
-  | "gpt-4.1-nano"
-  | "o4-mini"
-  | "o3"
-  | "o3-mini"
-  | "o1"
-  | "o1-mini"
-  | "gpt-4o"
-  | "gpt-4o-mini"
-  | "gpt-4o-2024-08-06"
-  | "gpt-4.5-preview"
-  | "o1-preview"
-  | "claude-3-5-sonnet-latest"
-  | "claude-3-5-sonnet-20241022"
-  | "claude-3-5-sonnet-20240620"
-  | "claude-3-7-sonnet-latest"
-  | "claude-3-7-sonnet-20250219"
-  | "cerebras-llama-3.3-70b"
-  | "cerebras-llama-3.1-8b"
-  | "groq-llama-3.3-70b-versatile"
-  | "groq-llama-3.3-70b-specdec"
-  | "gemini-1.5-flash"
-  | "gemini-1.5-pro"
-  | "gemini-1.5-flash-8b"
-  | "gemini-2.0-flash-lite"
-  | "gemini-2.0-flash"
-  | "gemini-2.5-flash-preview-04-17"
-  | "gemini-2.5-pro-preview-03-25"
-  | string;
+export const MODEL_PROVIDER_MAP = {
+  "gpt-4.1": "openai",
+  "gpt-4.1-mini": "openai",
+  "gpt-4.1-nano": "openai",
+  "o4-mini": "openai",
+  //prettier-ignore
+  o3: "openai",
+  "o3-mini": "openai",
+  //prettier-ignore
+  o1: "openai",
+  "o1-mini": "openai",
+  "gpt-4o": "openai",
+  "gpt-4o-mini": "openai",
+  "gpt-4o-2024-08-06": "openai",
+  "gpt-4.5-preview": "openai",
+  "o1-preview": "openai",
+  "claude-3-5-sonnet-latest": "anthropic",
+  "claude-3-5-sonnet-20241022": "anthropic",
+  "claude-3-5-sonnet-20240620": "anthropic",
+  "claude-3-7-sonnet-latest": "anthropic",
+  "claude-3-7-sonnet-20250219": "anthropic",
+  "cerebras-llama-3.3-70b": "cerebras",
+  "cerebras-llama-3.1-8b": "cerebras",
+  "groq-llama-3.3-70b-versatile": "groq",
+  "groq-llama-3.3-70b-specdec": "groq",
+  "moonshotai/kimi-k2-instruct": "groq",
+  "gemini-1.5-flash": "google",
+  "gemini-1.5-pro": "google",
+  "gemini-1.5-flash-8b": "google",
+  "gemini-2.0-flash-lite": "google",
+  "gemini-2.0-flash": "google",
+  "gemini-2.5-flash-preview-04-17": "google",
+  "gemini-2.5-pro-preview-03-25": "google",
+} as const;
 
 export type ModelProvider =
-  | "openai"
-  | "anthropic"
-  | "cerebras"
-  | "groq"
-  | "google"
+  | (typeof MODEL_PROVIDER_MAP)[keyof typeof MODEL_PROVIDER_MAP]
   | "aisdk";
+
+export type KnownModel = keyof typeof MODEL_PROVIDER_MAP;
+export type AvailableModel = KnownModel | (string & {});
 
 export type ClientOptions = OpenAIClientOptions | AnthropicClientOptions;
 
