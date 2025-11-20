@@ -7,6 +7,7 @@ export const v3TestConfig: V3Options = {
     headless: true,
     viewport: { width: 1288, height: 711 },
   },
+  selfHeal: false,
   verbose: 0,
   disablePino: true,
   logger: (line: LogLine) => console.log(line),

@@ -28,6 +28,7 @@ export const v3DynamicTestConfig: V3Options =
         apiKey: process.env.BROWSERBASE_API_KEY!,
         projectId: process.env.BROWSERBASE_PROJECT_ID!,
         disableAPI: true,
+        selfHeal: false,
       }
     : {
         ...baseConfig,
