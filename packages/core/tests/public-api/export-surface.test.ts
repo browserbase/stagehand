@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import StagehandDefaultExport, * as Stagehand from "../../dist/index.js";
-import { publicErrorTypes } from "../public-error-types.test.js";
+import { publicErrorTypes } from "./public-error-types.test";
 
 // Type matcher guidelines:
 //
