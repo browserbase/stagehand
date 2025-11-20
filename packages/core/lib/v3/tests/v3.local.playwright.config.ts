@@ -20,6 +20,18 @@ export default defineConfig({
   // Local development can use more workers for faster test runs.
   workers: process.env.CI ? 3 : 5,
   fullyParallel: true,
+  projects: [
+    {
+      name: "default",
+      testIgnore: /shadow-iframe\.spec\.ts$/,
+    },
+    {
+      name: "shadow-iframe",
+      testMatch: /shadow-iframe\.spec\.ts$/,
+      workers: 2,
+      fullyParallel: true,
+    },
+  ],
   reporter: "list",
   use: {
     // we're not launching Playwright browsers in these tests; we connect via Puppeteer/CDP to V3.
