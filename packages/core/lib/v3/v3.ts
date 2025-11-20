@@ -56,7 +56,6 @@ import {
   LocalBrowserLaunchOptions,
   V3Options,
   AnyPage,
-  PageHandle,
   PatchrightPage,
   PlaywrightPage,
   PuppeteerPage,
@@ -1390,15 +1389,6 @@ export class V3 {
     );
   }
 
-  private hasTargetId(p: unknown): p is PageHandle {
-    return (
-      typeof p === "object" &&
-      p !== null &&
-      typeof (p as PageHandle).pageId === "string" &&
-      typeof (p as PageHandle).targetId === "string"
-    );
-  }
-
   private isPlaywrightPage(p: unknown): p is PlaywrightPage {
     return (
       typeof p === "object" &&
@@ -1423,20 +1413,6 @@ export class V3 {
     );
   }
 
-  private resolvePageFromHandle(handle: PageHandle): Page {
-    const ctx = this.ctx;
-    if (!ctx) {
-      throw new StagehandNotInitializedError("resolvePage()");
-    }
-    const page = ctx.resolvePageByTargetId(handle.targetId);
-    if (!page) {
-      throw new StagehandInitError(
-        `Failed to resolve V3 Page from handle targetId=${handle.targetId}.`,
-      );
-    }
-    return page;
-  }
-
   /** Resolve an external page reference or fall back to the active V3 page. */
   private async resolvePage(page?: AnyPage): Promise<Page> {
     if (page) {
@@ -1450,9 +1426,6 @@ export class V3 {
   }
 
   private async normalizeToV3Page(input: AnyPage): Promise<Page> {
-    if (this.hasTargetId(input)) {
-      return this.resolvePageFromHandle(input);
-    }
     if (input instanceof (await import("./understudy/page")).Page) {
       return input as Page;
     }

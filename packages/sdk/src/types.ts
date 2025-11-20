@@ -243,13 +243,7 @@ export interface V3Options {
   browserbaseSessionCreateParams?: Record<string, unknown>;
 }
 
-export interface PageHandle {
-  targetId?: string;
-  sessionId?: string;
-}
-
 export type AnyPage =
-  | PageHandle
   | {
       kind?: string;
       reference?: unknown;

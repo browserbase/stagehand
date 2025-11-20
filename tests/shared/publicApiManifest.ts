@@ -36,9 +36,10 @@ export const PUBLIC_API_EXPORT_KEYS = [
 export type PublicApiExportKey = (typeof PUBLIC_API_EXPORT_KEYS)[number];
 
 export type PublicApiShape<M extends Record<string, unknown>, D> = {
-  [K in PublicApiExportKey | PublicErrorTypeKey | "default"]: K extends "default"
-    ? D
-    : M[K];
+  [K in
+    | PublicApiExportKey
+    | PublicErrorTypeKey
+    | "default"]: K extends "default" ? D : M[K];
 };
 
 export function buildPublicApiShape<M extends Record<string, unknown>, D>(

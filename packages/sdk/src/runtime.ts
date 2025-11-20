@@ -37,7 +37,8 @@ import type {
   ChatCompletionOptions,
   CreateChatCompletionOptions,
   LLMResponse,
-  LLMUsage, AgentClient,
+  LLMUsage,
+  AgentClient,
 } from "./types";
 import {
   AnnotatedScreenshotText,
@@ -276,7 +277,10 @@ export class V3Evaluator {
   }
 
   batchAsk(
-    _instructions: Array<{ instruction: string; options?: Record<string, unknown> }>,
+    _instructions: Array<{
+      instruction: string;
+      options?: Record<string, unknown>;
+    }>,
   ): Promise<unknown> {
     return rejectNotImplemented("V3Evaluator.batchAsk");
   }
@@ -287,11 +291,7 @@ export class V3Evaluator {
 }
 
 export async function connectToMCPServer(
-  _serverConfig:
-    | string
-    | URL
-    | StdioServerConfig
-    | ConnectToMCPServerOptions,
+  _serverConfig: string | URL | StdioServerConfig | ConnectToMCPServerOptions,
 ): Promise<MCPClient> {
   return rejectNotImplemented<MCPClient>("connectToMCPServer");
 }

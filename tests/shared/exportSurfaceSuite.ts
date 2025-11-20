@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildPublicApiShape } from "./publicApiManifest";
 
-export function runExportSurfaceSuite<
-  M extends Record<string, unknown>,
-  D,
->(
+export function runExportSurfaceSuite<M extends Record<string, unknown>, D>(
   label: string,
   moduleExports: M,
   defaultExport: D,
@@ -13,9 +10,7 @@ export function runExportSurfaceSuite<
     const publicApiShape = buildPublicApiShape(moduleExports, defaultExport);
 
     type PublicAPI = {
-      [K in keyof typeof publicApiShape]: K extends "default"
-        ? D
-        : M[K];
+      [K in keyof typeof publicApiShape]: K extends "default" ? D : M[K];
     };
 
     it("public API shape matches module exports", () => {

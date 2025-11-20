@@ -48,7 +48,10 @@ export const pageTextSchema = createSchemaStub({
 });
 
 export function getZodType(schema: StagehandZodSchema): string {
-  return (schema as unknown as { _def?: { typeName?: string } })?._def?.typeName ?? "unknown";
+  return (
+    (schema as unknown as { _def?: { typeName?: string } })?._def?.typeName ??
+    "unknown"
+  );
 }
 
 export function transformSchema(
