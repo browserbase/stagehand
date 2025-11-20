@@ -133,9 +133,7 @@ describe("Stagehand public API types", () => {
     };
 
     it("matches expected type shape", () => {
-      expectTypeOf<Stagehand.ExtractOptions>().toEqualTypeOf<
-        ExpectedExtractOptions
-      >();
+      expectTypeOf<Stagehand.ExtractOptions>().toEqualTypeOf<ExpectedExtractOptions>();
     });
   });
 
@@ -148,9 +146,7 @@ describe("Stagehand public API types", () => {
     };
 
     it("matches expected type shape", () => {
-      expectTypeOf<Stagehand.ObserveOptions>().toEqualTypeOf<
-        ExpectedObserveOptions
-      >();
+      expectTypeOf<Stagehand.ObserveOptions>().toEqualTypeOf<ExpectedObserveOptions>();
     });
   });
 
@@ -185,9 +181,7 @@ describe("Stagehand public API types", () => {
     };
 
     it("matches expected type shape", () => {
-      expectTypeOf<Stagehand.AgentExecuteOptions>().toEqualTypeOf<
-        ExpectedAgentExecuteOptions
-      >();
+      expectTypeOf<Stagehand.AgentExecuteOptions>().toEqualTypeOf<ExpectedAgentExecuteOptions>();
     });
   });
 
@@ -252,9 +246,7 @@ describe("Stagehand public API types", () => {
     };
 
     it("matches expected type shape", () => {
-      expectTypeOf<Stagehand.HistoryEntry>().toEqualTypeOf<
-        ExpectedHistoryEntry
-      >();
+      expectTypeOf<Stagehand.HistoryEntry>().toEqualTypeOf<ExpectedHistoryEntry>();
     });
   });
 });

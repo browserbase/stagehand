@@ -10,12 +10,8 @@ describe("V3 Core public API types", () => {
         input: string | Stagehand.Action,
         options?: Stagehand.ActOptions,
       ) => Promise<Stagehand.ActResult>;
-      extract: (
-        ...args: unknown[]
-      ) => Promise<unknown>;
-      observe: (
-        ...args: unknown[]
-      ) => Promise<Stagehand.Action[]>;
+      extract: (...args: unknown[]) => Promise<unknown>;
+      observe: (...args: unknown[]) => Promise<Stagehand.Action[]>;
       agent: (config?: Stagehand.AgentConfig) => {
         execute: (
           instructionOrOptions: string | Stagehand.AgentExecuteOptions,

@@ -200,7 +200,7 @@ describe("LLM and Agents public API types", () => {
       type ExpectedSignature = (
         options: Stagehand.CreateChatCompletionOptions,
       ) => Promise<Result>;
-      
+
       expectTypeOf<
         LLMClientInstance["createChatCompletion"]
       >().toExtend<ExpectedSignature>();
