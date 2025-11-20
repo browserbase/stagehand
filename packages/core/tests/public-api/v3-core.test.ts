@@ -7,11 +7,15 @@ describe("V3 Core public API types", () => {
       init: () => Promise<void>;
       close: (opts?: { force?: boolean }) => Promise<void>;
       act: (
-        instruction: string,
+        input: string | Stagehand.Action,
         options?: Stagehand.ActOptions,
       ) => Promise<Stagehand.ActResult>;
-      extract: () => Promise<{ pageText: string }>;
-      observe: () => Promise<Stagehand.Action[]>;
+      extract: (
+        ...args: unknown[]
+      ) => Promise<unknown>;
+      observe: (
+        ...args: unknown[]
+      ) => Promise<Stagehand.Action[]>;
       agent: (config?: Stagehand.AgentConfig) => {
         execute: (
           instructionOrOptions: string | Stagehand.AgentExecuteOptions,
@@ -20,7 +24,7 @@ describe("V3 Core public API types", () => {
       connectURL: () => string;
       context: unknown;
       metrics: Promise<Stagehand.StagehandMetrics>;
-      history: Promise<ReadonlyArray<unknown>>;
+      history: Promise<ReadonlyArray<Stagehand.HistoryEntry>>;
       llmClient: Stagehand.LLMClient;
       browserbaseSessionID: string | undefined;
       browserbaseSessionURL: string | undefined;
@@ -29,12 +33,47 @@ describe("V3 Core public API types", () => {
       logInferenceToFile: boolean;
       verbose: 0 | 1 | 2;
       logger: (logLine: Stagehand.LogLine) => void;
+      isAgentReplayActive: () => boolean;
+      recordAgentReplayStep: (step: unknown) => void;
     };
 
     type StagehandInstance = InstanceType<typeof Stagehand.Stagehand>;
 
     it("has correct public interface shape", () => {
       expectTypeOf<StagehandInstance>().toExtend<ExpectedShape>();
+    });
+
+    it("act accepts Action as first parameter", () => {
+      const mockAction = {} as Stagehand.Action;
+      expectTypeOf<StagehandInstance["act"]>().toBeCallableWith(
+        mockAction,
+        {} as Stagehand.ActOptions,
+      );
+    });
+
+    it("extract accepts instruction and schema", () => {
+      const mockSchema = {} as Stagehand.StagehandZodSchema;
+      expectTypeOf<StagehandInstance["extract"]>().toBeCallableWith(
+        "instruction",
+        mockSchema,
+        {} as Stagehand.ExtractOptions,
+      );
+    });
+
+    it("observe accepts instruction and options", () => {
+      expectTypeOf<StagehandInstance["observe"]>().toBeCallableWith(
+        "instruction",
+        {} as Stagehand.ObserveOptions,
+      );
+    });
+
+    it("agent execute accepts page option", () => {
+      type AgentReturn = ReturnType<StagehandInstance["agent"]>;
+      const mockPage = {} as Stagehand.AnyPage;
+      expectTypeOf<AgentReturn["execute"]>().toBeCallableWith({
+        instruction: "test",
+        page: mockPage,
+      } satisfies Stagehand.AgentExecuteOptions);
     });
   });
 
@@ -81,9 +120,22 @@ describe("V3 Core public API types", () => {
   });
 
   describe("V3Evaluator", () => {
-    // TODO: Complex class type - needs detailed contract testing
+    type V3EvaluatorInstance = InstanceType<typeof Stagehand.V3Evaluator>;
+
     it("is exported", () => {
       expect(Stagehand.V3Evaluator).toBeDefined();
+    });
+
+    it("has ask method", () => {
+      expectTypeOf<V3EvaluatorInstance["ask"]>().toExtend<
+        (options: unknown) => Promise<unknown>
+      >();
+    });
+
+    it("has batchAsk method", () => {
+      expectTypeOf<V3EvaluatorInstance["batchAsk"]>().toExtend<
+        (options: unknown) => Promise<unknown[]>
+      >();
     });
   });
 

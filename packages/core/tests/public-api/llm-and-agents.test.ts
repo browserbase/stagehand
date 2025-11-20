@@ -3,9 +3,20 @@ import * as Stagehand from "../../dist/index.js";
 
 describe("LLM and Agents public API types", () => {
   describe("AISdkClient", () => {
-    // TODO: Complex class type - needs detailed contract testing
+    type AISdkClientInstance = InstanceType<typeof Stagehand.AISdkClient>;
+
     it("is exported", () => {
       expect(Stagehand.AISdkClient).toBeDefined();
+    });
+
+    it("extends LLMClient", () => {
+      expectTypeOf<AISdkClientInstance>().toExtend<Stagehand.LLMClient>();
+    });
+
+    it("constructor accepts model parameter", () => {
+      // AISdkClient constructor takes { model: LanguageModelV2 }
+      type CtorParams = ConstructorParameters<typeof Stagehand.AISdkClient>;
+      expectTypeOf<CtorParams["length"]>().toEqualTypeOf<1>();
     });
   });
 
@@ -29,9 +40,22 @@ describe("LLM and Agents public API types", () => {
   });
 
   describe("AgentProvider", () => {
-    // TODO: Complex class type - needs detailed contract testing
+    type AgentProviderInstance = InstanceType<typeof Stagehand.AgentProvider>;
+
     it("is exported", () => {
       expect(Stagehand.AgentProvider).toBeDefined();
+    });
+
+    it("has getClient method", () => {
+      expectTypeOf<AgentProviderInstance["getClient"]>().toBeCallableWith(
+        "test-model",
+      );
+    });
+
+    it("constructor accepts logger parameter", () => {
+      expectTypeOf<
+        ConstructorParameters<typeof Stagehand.AgentProvider>
+      >().toEqualTypeOf<[(message: Stagehand.LogLine) => void]>();
     });
   });
 
@@ -65,6 +89,29 @@ describe("LLM and Agents public API types", () => {
 
     it("has correct public interface shape", () => {
       expectTypeOf<ConsoleMessageInstance>().toExtend<ExpectedShape>();
+    });
+  });
+
+  describe("AgentClient", () => {
+    type AgentProviderInstance = InstanceType<typeof Stagehand.AgentProvider>;
+    type GetClientReturn = ReturnType<AgentProviderInstance["getClient"]>;
+
+    it("getClient returns object with expected methods", () => {
+      type ExpectedShape = {
+        execute: (
+          options: Stagehand.AgentExecutionOptions,
+        ) => Promise<Stagehand.AgentResult>;
+        captureScreenshot: (
+          options?: Record<string, unknown>,
+        ) => Promise<unknown>;
+        setViewport: (width: number, height: number) => void;
+        setCurrentUrl: (url: string) => void;
+        setScreenshotProvider: (provider: () => Promise<string>) => void;
+        setActionHandler: (
+          handler: (action: Stagehand.AgentAction) => Promise<void>,
+        ) => void;
+      };
+      expectTypeOf<GetClientReturn>().toExtend<ExpectedShape>();
     });
   });
 
@@ -147,6 +194,49 @@ describe("LLM and Agents public API types", () => {
         logger: () => {},
       } satisfies ExpectedWithResponseModel);
     });
+
+    it("createChatCompletion supports generic return type", () => {
+      type Result = { custom: string };
+      type ExpectedSignature = (
+        options: Stagehand.CreateChatCompletionOptions,
+      ) => Promise<Result>;
+      
+      expectTypeOf<
+        LLMClientInstance["createChatCompletion"]
+      >().toExtend<ExpectedSignature>();
+    });
+
+    it("has additional methods", () => {
+      // These methods exist on LLMClient but have complex signatures from the 'ai' library
+      // We verify they exist by checking they're functions
+      expectTypeOf<LLMClientInstance["generateText"]>().toExtend<
+        (...args: unknown[]) => unknown
+      >();
+      expectTypeOf<LLMClientInstance["generateObject"]>().toExtend<
+        (...args: unknown[]) => unknown
+      >();
+      expectTypeOf<LLMClientInstance["streamText"]>().toExtend<
+        (...args: unknown[]) => unknown
+      >();
+      expectTypeOf<LLMClientInstance["streamObject"]>().toExtend<
+        (...args: unknown[]) => unknown
+      >();
+      expectTypeOf<LLMClientInstance["generateImage"]>().toExtend<
+        (...args: unknown[]) => unknown
+      >();
+      expectTypeOf<LLMClientInstance["embed"]>().toExtend<
+        (...args: unknown[]) => unknown
+      >();
+      expectTypeOf<LLMClientInstance["embedMany"]>().toExtend<
+        (...args: unknown[]) => unknown
+      >();
+      expectTypeOf<LLMClientInstance["transcribe"]>().toExtend<
+        (...args: unknown[]) => unknown
+      >();
+      expectTypeOf<LLMClientInstance["generateSpeech"]>().toExtend<
+        (...args: unknown[]) => unknown
+      >();
+    });
   });
 
   describe("modelToAgentProviderMap", () => {
@@ -181,6 +271,8 @@ describe("LLM and Agents public API types", () => {
       text: () => Promise<string>;
       json: <T = unknown>() => Promise<T>;
       finished: () => Promise<null | Error>;
+      markFinished: (error: Error | null) => void;
+      applyExtraInfo: (info: unknown) => void;
     };
 
     type ResponseInstance = InstanceType<typeof Stagehand.Response>;
