@@ -70,6 +70,7 @@ import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
 import { resolveModel } from "../modelUtils";
 import { StagehandAPIClient } from "./api";
+import { logTaskProgress, logStepProgress } from "./flowLogger";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
@@ -960,6 +961,11 @@ export class V3 {
 
   async act(input: string | Action, options?: ActOptions): Promise<ActResult> {
     return await withInstanceLogContext(this.instanceId, async () => {
+      logStepProgress({
+        invocation: "stagehand.act",
+        args: [input, options],
+        label: "ACT",
+      });
       if (!this.actHandler) throw new StagehandNotInitializedError("act()");
 
       let actResult: ActResult;
@@ -1107,6 +1113,11 @@ export class V3 {
     c?: ExtractOptions,
   ): Promise<unknown> {
     return await withInstanceLogContext(this.instanceId, async () => {
+      logStepProgress({
+        invocation: "stagehand.extract",
+        args: [a, b, c],
+        label: "EXTRACT",
+      });
       if (!this.extractHandler) {
         throw new StagehandNotInitializedError("extract()");
       }
@@ -1186,6 +1197,11 @@ export class V3 {
     b?: ObserveOptions,
   ): Promise<Action[]> {
     return await withInstanceLogContext(this.instanceId, async () => {
+      logStepProgress({
+        invocation: "stagehand.observe",
+        args: [a, b],
+        label: "OBSERVE",
+      });
       if (!this.observeHandler) {
         throw new StagehandNotInitializedError("observe()");
       }
@@ -1545,6 +1561,10 @@ export class V3 {
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
           withInstanceLogContext(this.instanceId, async () => {
+            logTaskProgress({
+              invocation: "agent.execute",
+              args: [instructionOrOptions],
+            });
             if (options?.integrations && !this.experimental) {
               throw new ExperimentalNotConfiguredError("MCP integrations");
             }
@@ -1641,6 +1661,10 @@ export class V3 {
     return {
       execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
         withInstanceLogContext(this.instanceId, async () => {
+          logTaskProgress({
+            invocation: "agent.execute",
+            args: [instructionOrOptions],
+          });
           if ((options?.integrations || options?.tools) && !this.experimental) {
             throw new ExperimentalNotConfiguredError(
               "MCP integrations and custom tools",
