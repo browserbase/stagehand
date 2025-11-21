@@ -33,8 +33,7 @@ declare global {
 }
 
 export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
-  // hardcoded debug (remove later if desired)
-  const DEBUG = true;
+  const DEBUG = opts.debug ?? false;
 
   type PatchedFn = Element["attachShadow"] & {
     __v3Patched?: boolean;

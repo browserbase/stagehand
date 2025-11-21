@@ -20,8 +20,14 @@ export const amazon_add_to_cart: EvalFunction = async ({
     const expectedUrl =
       "https://browserbase.github.io/stagehand-eval-sites/sites/amazon/sign-in.html";
 
-    console.log("currentUrl", currentUrl);
-    console.log("expectedUrl", expectedUrl);
+    logger.log({
+      message: "URL comparison",
+      level: 1,
+      auxiliary: {
+        currentUrl: { value: currentUrl, type: "string" },
+        expectedUrl: { value: expectedUrl, type: "string" },
+      },
+    });
     return {
       _success: currentUrl === expectedUrl,
       currentUrl,

@@ -384,9 +384,8 @@ const generateFilteredTestcases = (): Testcase[] => {
           return result;
         } catch (error) {
           // Log any errors that occur during task execution
-          console.error(`❌ ${input.name}: Error - ${error}`);
           logger.error({
-            message: `Error in task ${input.name}`,
+            message: `❌ ${input.name}: Error - ${error}`,
             level: 0,
             auxiliary: {
               error: {

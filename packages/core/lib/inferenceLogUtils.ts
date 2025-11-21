@@ -107,8 +107,13 @@ function readSummaryFile<T>(inferenceType: string): Record<string, T[]> {
     ) {
       return parsed;
     }
-  } catch {
+  } catch (error) {
     // If we fail to parse for any reason, fall back to empty array
+    // This is a debug utility file - using console.warn for visibility
+    console.warn(
+      `Failed to parse inference summary file ${summaryPath}:`,
+      error instanceof Error ? error.message : String(error),
+    );
   }
   return { [arrayKey]: [] };
 }
