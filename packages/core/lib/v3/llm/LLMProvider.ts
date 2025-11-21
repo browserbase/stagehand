@@ -16,6 +16,11 @@ import { GoogleClient } from "./GoogleClient";
 import { GroqClient } from "./GroqClient";
 import { LLMClient } from "./LLMClient";
 import { OpenAIClient } from "./OpenAIClient";
+
+interface ExtendedClientOptions {
+  headers?: Record<string, string>;
+  fetch?: typeof globalThis.fetch;
+}
 import { openai, createOpenAI } from "@ai-sdk/openai";
 import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
 import { google, createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -98,33 +103,43 @@ export function getAISDKLanguageModel(
   subModelName: string,
   apiKey?: string,
   baseURL?: string,
+  headers?: Record<string, string>,
+  fetch?: typeof globalThis.fetch,
 ) {
-  if (apiKey) {
-    const creator = AISDKProvidersWithAPIKey[subProvider];
-    if (!creator) {
-      throw new UnsupportedAISDKModelProviderError(
-        subProvider,
-        Object.keys(AISDKProvidersWithAPIKey),
-      );
-    }
-    // Create the provider instance with the API key and baseURL if provided
-    const providerConfig: { apiKey: string; baseURL?: string } = { apiKey };
-    if (baseURL) {
-      providerConfig.baseURL = baseURL;
-    }
-    const provider = creator(providerConfig);
-    // Get the specific model from the provider
-    return provider(subModelName);
-  } else {
-    const provider = AISDKProviders[subProvider];
-    if (!provider) {
-      throw new UnsupportedAISDKModelProviderError(
-        subProvider,
-        Object.keys(AISDKProviders),
-      );
-    }
-    return provider(subModelName);
+  const creator = AISDKProvidersWithAPIKey[subProvider];
+  if (!creator) {
+    throw new UnsupportedAISDKModelProviderError(
+      subProvider,
+      Object.keys(AISDKProvidersWithAPIKey),
+    );
   }
+
+  // Build provider config - all fields are optional
+  // When apiKey is not provided, creator functions automatically use environment variables
+  const providerConfig: {
+    apiKey?: string;
+    baseURL?: string;
+    headers?: Record<string, string>;
+    fetch?: typeof globalThis.fetch;
+  } = {};
+
+  if (apiKey) {
+    providerConfig.apiKey = apiKey;
+  }
+  if (baseURL) {
+    providerConfig.baseURL = baseURL;
+  }
+  if (headers) {
+    providerConfig.headers = headers;
+  }
+  if (fetch) {
+    providerConfig.fetch = fetch;
+  }
+
+  // Type assertion needed: AI SDK types require apiKey, but runtime accepts optional apiKey
+  // At runtime, when apiKey is not provided, creators automatically use environment variables
+  const provider = creator(providerConfig as { apiKey: string });
+  return provider(subModelName);
 }
 
 export class LLMProvider {
@@ -148,6 +163,8 @@ export class LLMProvider {
         subModelName,
         clientOptions?.apiKey,
         clientOptions?.baseURL,
+        (clientOptions as ExtendedClientOptions)?.headers,
+        (clientOptions as ExtendedClientOptions)?.fetch,
       );
 
       return new AISdkClient({
