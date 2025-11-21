@@ -186,6 +186,82 @@ export class V3AgentHandler {
     }
   }
 
+  public async stream(
+    instructionOrOptions: string | AgentExecuteOptions,
+  ) {
+    const options =
+      typeof instructionOrOptions === "string"
+        ? { instruction: instructionOrOptions }
+        : instructionOrOptions;
+
+    const maxSteps = options.maxSteps || 10;
+    // We can track actions locally for logging purposes, but they won't be returned in the stream result directly
+    const collectedReasoning: string[] = [];
+
+    let currentPageUrl = (await this.v3.context.awaitActivePage()).url();
+
+    const systemPrompt = this.buildSystemPrompt(
+      options.instruction,
+      this.systemInstructions,
+    );
+    const tools = this.createTools();
+    const allTools: ToolSet = { ...tools, ...this.mcpTools };
+    const messages: ModelMessage[] = [
+      { role: "user", content: options.instruction },
+    ];
+
+    if (!this.llmClient?.getLanguageModel) {
+      throw new MissingLLMConfigurationError();
+    }
+    const baseModel = this.llmClient.getLanguageModel();
+    const wrappedModel = wrapLanguageModel({
+      model: baseModel,
+      middleware: {
+        transformParams: async ({ params }) => {
+          const { processedPrompt } = processMessages(params);
+          return { ...params, prompt: processedPrompt } as typeof params;
+        },
+      },
+    });
+
+    return this.llmClient.streamText({
+      model: wrappedModel,
+      system: systemPrompt,
+      messages,
+      tools: allTools,
+      stopWhen: stepCountIs(maxSteps),
+      temperature: 1,
+      toolChoice: "auto",
+      onStepFinish: async (event) => {
+        this.logger({
+          category: "agent",
+          message: `Step finished: ${event.finishReason}`,
+          level: 2,
+        });
+
+        if (event.toolCalls && event.toolCalls.length > 0) {
+          for (let i = 0; i < event.toolCalls.length; i++) {
+            const toolCall = event.toolCalls[i];
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const args = toolCall.input as Record<string, unknown>;
+
+            if (event.text && event.text.length > 0) {
+              collectedReasoning.push(event.text);
+              this.logger({
+                category: "agent",
+                message: `reasoning: ${event.text}`,
+                level: 1,
+              });
+            }
+
+            // We don't build the actions array here for return, but we update the page URL
+          }
+          currentPageUrl = (await this.v3.context.awaitActivePage()).url();
+        }
+      },
+    });
+  }
+
   private buildSystemPrompt(
     executionInstruction: string,
     systemInstructions?: string,

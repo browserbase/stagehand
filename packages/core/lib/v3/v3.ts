@@ -66,6 +66,7 @@ import {
   MissingEnvironmentVariableError,
   StagehandInitError,
 } from "./types/public";
+import { StreamTextResult, ToolSet } from "ai";
 import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
 import { resolveModel } from "../modelUtils";
@@ -1498,6 +1499,9 @@ export class V3 {
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
+    stream?: (
+      instructionOrOptions: string | AgentExecuteOptions,
+    ) => Promise<StreamTextResult<ToolSet, never>>;
   } {
     this.logger({
       category: "agent",
@@ -1734,6 +1738,35 @@ export class V3 {
               this.discardAgentReplayRecording();
             }
           }
+        }),
+      stream: async (instructionOrOptions: string | AgentExecuteOptions) =>
+        withInstanceLogContext(this.instanceId, async () => {
+          if ((options?.integrations || options?.tools) && !this.experimental) {
+            throw new ExperimentalNotConfiguredError(
+              "MCP integrations and custom tools",
+            );
+          }
+
+          const tools = options?.integrations
+            ? await resolveTools(options.integrations, options.tools)
+            : (options?.tools ?? {});
+
+          const agentLlmClient = options?.model
+            ? this.resolveLlmClient(options.model)
+            : this.llmClient;
+
+          const handler = new V3AgentHandler(
+            this,
+            this.logger,
+            agentLlmClient,
+            typeof options?.executionModel === "string"
+              ? options.executionModel
+              : options?.executionModel?.modelName,
+            options?.systemPrompt,
+            tools,
+          );
+
+          return handler.stream(instructionOrOptions);
         }),
     };
   }
