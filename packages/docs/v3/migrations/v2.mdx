@@ -101,6 +101,35 @@ const stagehand = new Stagehand({
 });
 ```
 
+#### Changes to return value of `stagehand.init()`
+
+The `init()` used to return `debugUrl`, `sessionUrl` and `sessionId`
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+const result = await stagehand.init();
+console.log(result);
+```
+In `v2`, the returned object contains:
+```
+{
+  debugUrl: 'https://www.browserbase.com/devtools/inspector.html?wss=connect.browserbase.com/debug/f8a21b4a-6fa1-4ab9-9007-fbfe61dc14f0/devtools/page/5474B0E0510C5B6E629BEB06E799CD70?debug=true',
+  sessionUrl: 'https://www.browserbase.com/sessions/f8a21b4a-6fa1-4ab9-9007-fbfe61dc14f0',
+  sessionId: 'f8a21b4a-6fa1-4ab9-9007-fbfe61dc14f0'
+}
+```
+In `v3` the return value is `Promise<void>`. The `sessionId`, `sessionUrl`, and `debugUrl` are now directly accessible via the stagehand object:
+```typescript Stagehand v3 icon="/images/typescript.svg"
+console.log("debugUrl: ", stagehand.browserbaseDebugURL)
+console.log("sessionUrl: ", stagehand.browserbaseSessionURL)
+console.log("sessionId: ", stagehand.browserbaseSessionID)
+```
+Example output:
+```
+debugUrl: 'https://www.browserbase.com/devtools/inspector.html?wss=connect.browserbase.com/debug/f8a21b4a-6fa1-4ab9-9007-fbfe61dc14f0/devtools/page/5474B0E0510C5B6E629BEB06E799CD70?debug=true',
+sessionUrl: 'https://www.browserbase.com/sessions/f8a21b4a-6fa1-4ab9-9007-fbfe61dc14f0',
+sessionId: 'f8a21b4a-6fa1-4ab9-9007-fbfe61dc14f0'
+```
+
 #### Caching Changes
 
 The `enableCaching` boolean has been replaced with a `cacheDir` string for more flexible cache management.

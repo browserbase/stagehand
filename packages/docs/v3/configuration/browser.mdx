@@ -104,37 +104,6 @@ const stagehand = new Stagehand({
     ```
 </Accordion>
 
-#### Initialization Result
-After calling `stagehand.init()`, the method returns configuration information about the initialized session:
-
-```typescript
-const result = await stagehand.init();
-console.log(result);
-```
-
-The returned object contains:
-```Example
-{
-  debugUrl: 'https://www.browserbase.com/devtools/inspector.html?wss=connect.browserbase.com/debug/f8a21b4a-6fa1-4ab9-9007-fbfe61dc14f0/devtools/page/5474B0E0510C5B6E629BEB06E799CD70?debug=true',
-  sessionUrl: 'https://www.browserbase.com/sessions/f8a21b4a-6fa1-4ab9-9007-fbfe61dc14f0',
-  sessionId: 'f8a21b4a-6fa1-4ab9-9007-fbfe61dc14f0'
-}
-```
-
-<AccordionGroup>
-<Accordion title="debugUrl">
-**Open the Browserbase [session live view](https://docs.browserbase.com/features/session-live-view)** to include a human-in-the-loop.
-</Accordion>
-
-<Accordion title="sessionUrl">
-**Open the [session replay](https://docs.browserbase.com/features/session-replay)** to see the full session recording. 
-</Accordion>
-
-<Accordion title="sessionId">
-**Unique identifier** for the [Browserbase session](https://docs.browserbase.com/introduction/what-is-browserbase). This is used to identify the session in the Browserbase dashboard and to connect to the session.
-</Accordion>
-</AccordionGroup>
-
 ### Alternative: Browserbase SDK
 
 If you prefer to manage sessions directly, you can use the Browserbase SDK:
