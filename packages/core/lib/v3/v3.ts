@@ -149,6 +149,10 @@ export class V3 {
     return this.browserbaseDebugUrl;
   }
   private _onCdpClosed = (why: string) => {
+    if (this.state.kind === "BROWSERBASE") {
+      void this._logBrowserbaseSessionStatus();
+    }
+
     // Single place to react to the transport closing
     this._immediateShutdown(`CDP transport closed: ${why}`).catch(() => {});
   };
@@ -1457,6 +1461,33 @@ export class V3 {
       return page;
     }
     throw new StagehandInvalidArgumentError("Unsupported page object.");
+  }
+
+  private async _logBrowserbaseSessionStatus(): Promise<void> {
+    if (this.state.kind !== "BROWSERBASE") {
+      return;
+    }
+
+    try {
+      const snapshot = (await this.state.bb.sessions.retrieve(
+        this.state.sessionId,
+      )) as { id?: string; status?: string };
+      if (!snapshot?.status) return;
+
+      const sessionId = snapshot.id ?? this.state.sessionId;
+      const message =
+        snapshot.status === "TIMED_OUT"
+          ? `Browserbase session timed out (sessionId: ${sessionId})`
+          : `Browserbase session status: ${snapshot.status}`;
+
+      this.logger({
+        category: "v3",
+        message,
+        level: 0,
+      });
+    } catch {
+      // Ignore failures; nothing to log
+    }
   }
 
   /**
