@@ -1,16 +1,13 @@
-import { Page as PatchrightPage } from "patchright-core";
-import { Page as PlaywrightPage } from "playwright-core";
-import { Page as PuppeteerPage } from "puppeteer-core";
 import { z } from "zod";
 import type { InferStagehandSchema, StagehandZodSchema } from "../../zodCompat";
-import { Page } from "../../understudy/page";
 import { ModelConfiguration } from "../public/model";
+import { AnyPage } from "./page";
 
 export interface ActOptions {
   model?: ModelConfiguration;
   variables?: Record<string, string>;
   timeout?: number;
-  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  page?: AnyPage;
 }
 
 export interface ActResult {
@@ -41,7 +38,7 @@ export interface ExtractOptions {
   model?: ModelConfiguration;
   timeout?: number;
   selector?: string;
-  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  page?: AnyPage;
 }
 
 export const defaultExtractSchema = z.object({
@@ -56,7 +53,7 @@ export interface ObserveOptions {
   model?: ModelConfiguration;
   timeout?: number;
   selector?: string;
-  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  page?: AnyPage;
 }
 
 export enum V3FunctionName {

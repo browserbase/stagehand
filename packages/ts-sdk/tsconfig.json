@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": true,
+    "emitDeclarationOnly": false,
+    "types": ["node"],
+    "composite": false,
+    "module": "commonjs"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["dist", "node_modules"]
+}
