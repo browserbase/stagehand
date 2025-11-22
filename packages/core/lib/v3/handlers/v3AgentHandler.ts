@@ -1,7 +1,13 @@
 import { createAgentTools } from "../agent/tools";
 import { LogLine } from "../types/public/logs";
 import { V3 } from "../v3";
-import { ModelMessage, ToolSet, wrapLanguageModel, stepCountIs } from "ai";
+import {
+  ModelMessage,
+  ToolSet,
+  wrapLanguageModel,
+  stepCountIs,
+  type LanguageModelUsage,
+} from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { LLMClient } from "../llm/LLMClient";
 import {
@@ -246,7 +252,7 @@ export class V3AgentHandler {
   private consolidateMetricsAndResult(
     startTime: number,
     state: AgentState,
-    result: { text?: string; usage?: any },
+    result: { text?: string; usage?: LanguageModelUsage },
   ): AgentResult {
     if (!state.finalMessage) {
       const allReasoning = state.collectedReasoning.join(" ").trim();
