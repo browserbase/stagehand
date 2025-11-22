@@ -54,17 +54,36 @@ interface ReplayMetricsResponse {
 }
 
 export class StagehandAPIClient {
-  private apiKey: string;
-  private projectId: string;
+  private apiKey?: string;
+  private projectId?: string;
   private sessionId?: string;
-  private modelApiKey: string;
+  private modelApiKey?: string;
+  private baseUrl: string;
   private logger: (message: LogLine) => void;
   private fetchWithCookies;
 
-  constructor({ apiKey, projectId, logger }: StagehandAPIConstructorParams) {
+  constructor({
+    apiKey,
+    projectId,
+    baseUrl,
+    logger,
+  }: StagehandAPIConstructorParams) {
     this.apiKey = apiKey;
     this.projectId = projectId;
+    this.baseUrl =
+      baseUrl ||
+      process.env.STAGEHAND_API_URL ||
+      "https://api.stagehand.browserbase.com/v1";
     this.logger = logger;
+
+    // Validate: if using cloud API, apiKey and projectId are required
+    if (!baseUrl && (!apiKey || !projectId)) {
+      throw new StagehandAPIError(
+        "apiKey and projectId are required when using the cloud API. " +
+          "Provide a baseUrl to connect to a local Stagehand server instead.",
+      );
+    }
+
     // Create a single cookie jar instance that will persist across all requests
     this.fetchWithCookies = makeFetchCookie(fetch);
   }
@@ -477,30 +496,38 @@ export class StagehandAPIClient {
 
   private async request(path: string, options: RequestInit): Promise<Response> {
     const defaultHeaders: Record<string, string> = {
-      "x-bb-api-key": this.apiKey,
-      "x-bb-project-id": this.projectId,
-      "x-bb-session-id": this.sessionId,
       // we want real-time logs, so we stream the response
       "x-stream-response": "true",
-      "x-model-api-key": this.modelApiKey,
       "x-sent-at": new Date().toISOString(),
       "x-language": "typescript",
       "x-sdk-version": STAGEHAND_VERSION,
     };
+
+    // Only add auth headers if they exist (cloud mode)
+    if (this.apiKey) {
+      defaultHeaders["x-bb-api-key"] = this.apiKey;
+    }
+    if (this.projectId) {
+      defaultHeaders["x-bb-project-id"] = this.projectId;
+    }
+    if (this.sessionId) {
+      defaultHeaders["x-bb-session-id"] = this.sessionId;
+    }
+    if (this.modelApiKey) {
+      defaultHeaders["x-model-api-key"] = this.modelApiKey;
+    }
+
     if (options.method === "POST" && options.body) {
       defaultHeaders["Content-Type"] = "application/json";
     }
 
-    const response = await this.fetchWithCookies(
-      `${process.env.STAGEHAND_API_URL ?? "https://api.stagehand.browserbase.com/v1"}${path}`,
-      {
-        ...options,
-        headers: {
-          ...defaultHeaders,
-          ...options.headers,
-        },
+    const response = await this.fetchWithCookies(`${this.baseUrl}${path}`, {
+      ...options,
+      headers: {
+        ...defaultHeaders,
+        ...options.headers,
       },
-    );
+    });
 
     return response;
   }

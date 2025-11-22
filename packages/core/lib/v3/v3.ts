@@ -961,6 +961,26 @@ export class V3 {
 
   async act(input: string | Action, options?: ActOptions): Promise<ActResult> {
     return await withInstanceLogContext(this.instanceId, async () => {
+      // If connected to remote server, route to API immediately
+      if (this.apiClient) {
+        if (isObserveResult(input)) {
+          // For Action objects, we can send directly to the API
+          return await this.apiClient.act({
+            input,
+            options,
+            frameId: undefined, // Let the server resolve the page
+          });
+        } else {
+          // For string instructions, send to API
+          return await this.apiClient.act({
+            input,
+            options,
+            frameId: undefined,
+          });
+        }
+      }
+
+      // Local execution path
       if (!this.actHandler) throw new StagehandNotInitializedError("act()");
 
       let actResult: ActResult;
@@ -971,21 +991,12 @@ export class V3 {
 
         // Use selector as provided to support XPath, CSS, and other engines
         const selector = input.selector;
-        if (this.apiClient) {
-          actResult = await this.apiClient.act({
-            input,
-            options,
-            frameId: v3Page.mainFrameId(),
-          });
-        } else {
-          actResult = await this.actHandler.actFromObserveResult(
-            { ...input, selector }, // ObserveResult
-            v3Page, // V3 Page
-            this.domSettleTimeoutMs,
-            this.resolveLlmClient(options?.model),
-          );
-        }
-
+        actResult = await this.actHandler.actFromObserveResult(
+          { ...input, selector }, // ObserveResult
+          v3Page, // V3 Page
+          this.domSettleTimeoutMs,
+          this.resolveLlmClient(options?.model),
+        );
         // history: record ObserveResult-based act call
         this.addToHistory(
           "act",
@@ -1048,12 +1059,7 @@ export class V3 {
         timeout: options?.timeout,
         model: options?.model,
       };
-      if (this.apiClient) {
-        const frameId = page.mainFrameId();
-        actResult = await this.apiClient.act({ input, options, frameId });
-      } else {
-        actResult = await this.actHandler.act(handlerParams);
-      }
+      actResult = await this.actHandler.act(handlerParams);
       // history: record instruction-based act call (omit page object)
       this.addToHistory(
         "act",
@@ -1108,10 +1114,6 @@ export class V3 {
     c?: ExtractOptions,
   ): Promise<unknown> {
     return await withInstanceLogContext(this.instanceId, async () => {
-      if (!this.extractHandler) {
-        throw new StagehandNotInitializedError("extract()");
-      }
-
       // Normalize args
       let instruction: string | undefined;
       let schema: StagehandZodSchema | undefined;
@@ -1145,7 +1147,17 @@ export class V3 {
       const effectiveSchema =
         instruction && !schema ? defaultExtractSchema : schema;
 
-      // Resolve page from options or use active page
+      // If connected to remote API (BROWSERBASE or P2P), route there immediately
+      if (this.apiClient) {
+        return await this.apiClient.extract({
+          instruction,
+          schema: effectiveSchema,
+          options,
+          frameId: undefined, // Let server resolve the page
+        });
+      }
+
+      // Local execution path
       const page = await this.resolvePage(options?.page);
 
       const handlerParams: ExtractHandlerParams<StagehandZodSchema> = {
@@ -1156,19 +1168,8 @@ export class V3 {
         selector: options?.selector,
         page,
       };
-      let result: z.infer<typeof effectiveSchema> | { pageText: string };
-      if (this.apiClient) {
-        const frameId = page.mainFrameId();
-        result = await this.apiClient.extract({
-          instruction: handlerParams.instruction,
-          schema: handlerParams.schema,
-          options,
-          frameId,
-        });
-      } else {
-        result =
-          await this.extractHandler.extract<StagehandZodSchema>(handlerParams);
-      }
+      const result =
+        await this.extractHandler.extract<StagehandZodSchema>(handlerParams);
       return result;
     });
   }
@@ -1187,10 +1188,6 @@ export class V3 {
     b?: ObserveOptions,
   ): Promise<Action[]> {
     return await withInstanceLogContext(this.instanceId, async () => {
-      if (!this.observeHandler) {
-        throw new StagehandNotInitializedError("observe()");
-      }
-
       // Normalize args
       let instruction: string | undefined;
       let options: ObserveOptions | undefined;
@@ -1201,7 +1198,27 @@ export class V3 {
         options = a as ObserveOptions | undefined;
       }
 
-      // Resolve to our internal Page type
+      // If connected to remote API (BROWSERBASE or P2P), route there immediately
+      if (this.apiClient) {
+        const results = await this.apiClient.observe({
+          instruction,
+          options,
+          frameId: undefined, // Let server resolve the page
+        });
+
+        // history: record observe call
+        this.addToHistory(
+          "observe",
+          {
+            instruction,
+            timeout: options?.timeout,
+          },
+          results,
+        );
+        return results;
+      }
+
+      // Local execution path
       const page = await this.resolvePage(options?.page);
 
       const handlerParams: ObserveHandlerParams = {
@@ -1212,17 +1229,7 @@ export class V3 {
         page: page!,
       };
 
-      let results: Action[];
-      if (this.apiClient) {
-        const frameId = page.mainFrameId();
-        results = await this.apiClient.observe({
-          instruction,
-          options,
-          frameId,
-        });
-      } else {
-        results = await this.observeHandler.observe(handlerParams);
-      }
+      const results = await this.observeHandler.observe(handlerParams);
 
       // history: record observe call (omit page object)
       this.addToHistory(
@@ -1234,6 +1241,24 @@ export class V3 {
         results,
       );
       return results;
+    });
+  }
+
+  /**
+   * Navigate to a URL. When connected to a remote server, this routes the navigation
+   * to the remote browser. When running locally, it navigates the active page.
+   */
+  async goto(url: string, options?: any): Promise<void> {
+    return await withInstanceLogContext(this.instanceId, async () => {
+      // If connected to remote API (BROWSERBASE or P2P), route there
+      if (this.apiClient) {
+        await this.apiClient.goto(url, options);
+        return;
+      }
+
+      // Local execution path
+      const page = await this.resolvePage();
+      await page.goto(url, options);
     });
   }
 
@@ -1816,6 +1841,105 @@ export class V3 {
           }
         }),
     };
+  }
+
+  /**
+   * Create an HTTP server that handles Stagehand API requests.
+   * This allows other Stagehand instances to connect to this one and execute commands remotely.
+   *
+   * @param options - Server configuration options
+   * @returns StagehandServer instance
+   *
+   * @example
+   * ```typescript
+   * const stagehand = new Stagehand({ env: 'LOCAL' });
+   * await stagehand.init();
+   *
+   * const server = stagehand.createServer({ port: 3000 });
+   * await server.listen();
+   * ```
+   */
+  createServer(
+    options?: import("./server").StagehandServerOptions,
+  ): import("./server").StagehandServer {
+    // Import StagehandServer dynamically to avoid circular dependency
+    const { StagehandServer } = require("./server");
+    return new StagehandServer(options);
+  }
+
+  /**
+   * Connect to a remote Stagehand server and initialize a session.
+   * All act/extract/observe/agent calls will be forwarded to the remote server.
+   *
+   * @param baseUrl - URL of the remote Stagehand server (e.g., "http://localhost:3000")
+   * @param options - Optional configuration for the remote session
+   *
+   * @example
+   * ```typescript
+   * const stagehand = new Stagehand({ env: 'LOCAL' });
+   * await stagehand.connectToRemoteServer('http://machine-a:3000');
+   * await stagehand.act('click button'); // Executes on remote machine
+   * ```
+   */
+  async connectToRemoteServer(
+    baseUrl: string,
+    options?: Partial<V3Options>,
+  ): Promise<void> {
+    if (this.apiClient) {
+      throw new Error(
+        "Already connected to a remote server or API. Cannot connect twice.",
+      );
+    }
+
+    // Ensure baseUrl includes /v1 to match cloud API pattern
+    const normalizedBaseUrl = baseUrl.endsWith('/v1') ? baseUrl : `${baseUrl}/v1`;
+
+    this.apiClient = new StagehandAPIClient({
+      baseUrl: normalizedBaseUrl,
+      logger: this.logger,
+    });
+
+    // Initialize a session on the remote server
+    const sessionConfig: V3Options = {
+      env: options?.env || this.opts.env,
+      model: options?.model || this.opts.model,
+      verbose: options?.verbose !== undefined ? options?.verbose : this.verbose,
+      systemPrompt: options?.systemPrompt || this.opts.systemPrompt,
+      selfHeal: options?.selfHeal !== undefined ? options?.selfHeal : this.opts.selfHeal,
+      domSettleTimeout: options?.domSettleTimeout || this.domSettleTimeoutMs,
+      experimental: options?.experimental !== undefined ? options?.experimental : this.experimental,
+      ...options,
+    };
+
+    // Call /sessions/start on the remote server
+    const response = await fetch(`${baseUrl}/v1/sessions/start`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-stream-response": "false",
+      },
+      body: JSON.stringify(sessionConfig),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to create session on remote server: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    const data = await response.json();
+    if (!data.sessionId) {
+      throw new Error("Remote server did not return a session ID");
+    }
+
+    // Store the session ID in the API client
+    (this.apiClient as any).sessionId = data.sessionId;
+
+    this.logger({
+      category: "init",
+      message: `Connected to remote server at ${baseUrl} (session: ${data.sessionId})`,
+      level: 1,
+    });
   }
 }
 
