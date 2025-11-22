@@ -7,6 +7,7 @@ import {
   wrapLanguageModel,
   stepCountIs,
   type LanguageModelUsage,
+  type StepResult,
 } from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { LLMClient } from "../llm/LLMClient";
@@ -93,7 +94,7 @@ export class V3AgentHandler {
   }
 
   private createStepHandler(state: AgentState) {
-    return async (event: any) => {
+    return async (event: StepResult<ToolSet>) => {
       this.logger({
         category: "agent",
         message: `Step finished: ${event.finishReason}`,
@@ -215,7 +216,7 @@ export class V3AgentHandler {
     const startTime = Date.now();
 
     let resolveResult: (value: AgentResult | PromiseLike<AgentResult>) => void;
-    let rejectResult: (reason?: any) => void;
+    let rejectResult: (reason?: string) => void;
     const resultPromise = new Promise<AgentResult>((resolve, reject) => {
       resolveResult = resolve;
       rejectResult = reject;
