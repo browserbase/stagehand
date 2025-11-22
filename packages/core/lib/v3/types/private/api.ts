@@ -10,8 +10,9 @@ import type { Protocol } from "devtools-protocol";
 import type { StagehandZodSchema } from "../../zodCompat";
 
 export interface StagehandAPIConstructorParams {
-  apiKey: string;
-  projectId: string;
+  apiKey?: string;
+  projectId?: string;
+  baseUrl?: string;
   logger: (message: LogLine) => void;
 }
 
