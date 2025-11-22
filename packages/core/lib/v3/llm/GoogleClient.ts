@@ -1,12 +1,13 @@
 import {
-  GoogleGenAI,
-  HarmCategory,
-  HarmBlockThreshold,
   Content,
-  Part,
-  Tool,
   FunctionCall,
+  GoogleGenAI,
+  GoogleGenAIOptions,
+  HarmBlockThreshold,
+  HarmCategory,
+  Part,
   Schema,
+  Tool,
   Type,
 } from "@google/genai";
 
@@ -60,7 +61,7 @@ const safetySettings = [
 export class GoogleClient extends LLMClient {
   public type = "google" as const;
   private client: GoogleGenAI;
-  public clientOptions: ClientOptions;
+  public clientOptions: GoogleGenAIOptions;
   public hasVision: boolean;
   private logger: (message: LogLine) => void;
 
@@ -78,8 +79,16 @@ export class GoogleClient extends LLMClient {
       // Try to get the API key from the environment variable GOOGLE_API_KEY
       clientOptions.apiKey = loadApiKeyFromEnv("google_legacy", logger);
     }
-    this.clientOptions = clientOptions;
-    this.client = new GoogleGenAI({ apiKey: clientOptions.apiKey });
+    this.clientOptions = clientOptions as GoogleGenAIOptions;
+    this.client = new GoogleGenAI({
+      apiKey: this.clientOptions.apiKey,
+      vertexai: this.clientOptions.vertexai,
+      project: this.clientOptions.project,
+      location: this.clientOptions.location,
+      apiVersion: this.clientOptions.apiVersion,
+      googleAuthOptions: this.clientOptions.googleAuthOptions,
+      httpOptions: this.clientOptions.httpOptions,
+    });
     this.modelName = modelName;
     this.logger = logger;
     // Determine vision capability based on model name (adjust as needed)

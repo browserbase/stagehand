@@ -13,6 +13,7 @@ import { AISdkClient } from "./aisdk";
 import { AnthropicClient } from "./AnthropicClient";
 import { CerebrasClient } from "./CerebrasClient";
 import { GoogleClient } from "./GoogleClient";
+import { GoogleVertexClient } from "./GoogleVertexClient";
 import { GroqClient } from "./GroqClient";
 import { LLMClient } from "./LLMClient";
 import { OpenAIClient } from "./OpenAIClient";
@@ -44,6 +45,15 @@ const AISDKProviders: Record<string, AISDKProvider> = {
   perplexity,
   ollama,
 };
+
+function isVertexAIRequest(clientOptions?: ClientOptions): boolean {
+  return !!(
+    clientOptions &&
+    "vertexai" in clientOptions &&
+    clientOptions.vertexai
+  );
+}
+
 const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   openai: createOpenAI,
   anthropic: createAnthropic,
@@ -98,7 +108,15 @@ export function getAISDKLanguageModel(
   subModelName: string,
   apiKey?: string,
   baseURL?: string,
+  clientOptions?: ClientOptions,
 ) {
+  // If this is a google model with vertex AI configuration, don't use AI SDK
+  if (subProvider === "google" && isVertexAIRequest(clientOptions)) {
+    throw new Error(
+      "Vertex AI models should use GoogleVertexClient, not AI SDK",
+    );
+  }
+
   if (apiKey) {
     const creator = AISDKProvidersWithAPIKey[subProvider];
     if (!creator) {
@@ -143,11 +161,21 @@ export class LLMProvider {
       const subProvider = modelName.substring(0, firstSlashIndex);
       const subModelName = modelName.substring(firstSlashIndex + 1);
 
+      // Check if this is a vertex AI request for google models
+      if (subProvider === "google" && isVertexAIRequest(clientOptions)) {
+        return new GoogleVertexClient({
+          logger: this.logger,
+          modelName: modelName,
+          clientOptions,
+        });
+      }
+
       const languageModel = getAISDKLanguageModel(
         subProvider,
         subModelName,
         clientOptions?.apiKey,
         clientOptions?.baseURL,
+        clientOptions,
       );
 
       return new AISdkClient({
