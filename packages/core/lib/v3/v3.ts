@@ -1499,12 +1499,20 @@ export class V3 {
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
   } {
+    // Auto-detect CUA models if not explicitly set
+    const modelToCheck = options?.model || {
+      modelName: this.modelName,
+      ...this.modelClientOptions,
+    };
+    const { isCua: isModelCua } = resolveModel(modelToCheck);
+    const useCua = options?.cua ?? isModelCua;
+
     this.logger({
       category: "agent",
       message: `Creating v3 agent instance with options: ${JSON.stringify(options)}`,
       level: 1,
       auxiliary: {
-        cua: { value: options?.cua ? "true" : "false", type: "boolean" },
+        cua: { value: useCua ? "true" : "false", type: "boolean" },
         model: options?.model
           ? typeof options?.model === "string"
             ? { value: options.model, type: "string" }
@@ -1521,8 +1529,8 @@ export class V3 {
       },
     });
 
-    // If CUA is enabled, use the computer-use agent path
-    if (options?.cua) {
+    // If CUA is enabled or auto-detected, use the computer-use agent path
+    if (useCua) {
       if ((options?.integrations || options?.tools) && !this.experimental) {
         throw new ExperimentalNotConfiguredError(
           "MCP integrations and custom tools",

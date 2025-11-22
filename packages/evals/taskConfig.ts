@@ -8,6 +8,13 @@
  *
  * The exported objects (`tasksByName`, `MODELS`, `config`) are used by the main evaluation script and other modules
  * to know which tasks and models are available, and to configure the evaluations accordingly.
+ *
+ * Custom OpenAI-Compatible Endpoints:
+ * You can use custom inference endpoints (like vLLM) by setting environment variables:
+ * - CUSTOM_OPENAI_BASE_URL: Base URL of your custom endpoint (e.g., "http://localhost:8000/v1")
+ * - CUSTOM_OPENAI_API_KEY: API key (defaults to "EMPTY" for vLLM)
+ * - CUSTOM_OPENAI_MODEL_NAME: Model name to use with the custom endpoint
+ * See CUSTOM_ENDPOINT_USAGE.md for detailed instructions.
  */
 
 import fs from "fs";

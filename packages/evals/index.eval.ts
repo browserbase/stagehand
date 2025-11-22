@@ -35,13 +35,14 @@ import {
 } from "@browserbasehq/stagehand";
 import { AISdkClientWrapped } from "./lib/AISdkClientWrapped";
 import { getAISDKLanguageModel } from "@browserbasehq/stagehand/lib/v3/llm/LLMProvider";
-import { env } from "./env";
+import { env, customOpenAIConfig } from "./env";
 import dotenv from "dotenv";
 import { initV3 } from "./initV3";
 import { generateSummary } from "./summary";
 import { buildGAIATestcases } from "./suites/gaia";
 import { buildWebVoyagerTestcases } from "./suites/webvoyager";
 import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web";
+import { createOpenAI } from "@ai-sdk/openai";
 
 dotenv.config();
 
@@ -347,7 +348,28 @@ const generateFilteredTestcases = (): Testcase[] => {
             });
           } else {
             let llmClient: LLMClient;
-            if (input.modelName.includes("/")) {
+
+            // Check if custom OpenAI-compatible endpoint is configured
+            if (customOpenAIConfig.baseURL) {
+              console.log(
+                `[EVALS] Using custom OpenAI endpoint: ${customOpenAIConfig.baseURL}`,
+              );
+
+              // Create custom OpenAI provider with configured endpoint
+              const customOpenAI = createOpenAI({
+                baseURL: customOpenAIConfig.baseURL,
+                apiKey: customOpenAIConfig.apiKey,
+              });
+
+              // Use the custom model name if provided, otherwise use input.modelName
+              const modelName = customOpenAIConfig.modelName || input.modelName;
+              const model = customOpenAI(modelName);
+
+              llmClient = new AISdkClientWrapped({
+                model,
+              });
+            } else if (input.modelName.includes("/")) {
+              // Standard AI SDK provider logic
               llmClient = new AISdkClientWrapped({
                 model: getAISDKLanguageModel(
                   input.modelName.split("/")[0],
@@ -370,6 +392,11 @@ const generateFilteredTestcases = (): Testcase[] => {
               v3: v3Input?.v3,
               v3Agent: v3Input?.agent,
               logger: v3Input?.logger,
+              debugUrl: v3Input?.debugUrl || "",
+              sessionUrl: v3Input?.sessionUrl || "",
+              modelName: v3Input?.modelName,
+              agent: v3Input?.agent,
+              input: input,
               v3Input,
             });
             // Log result to console
