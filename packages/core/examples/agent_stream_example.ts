@@ -1,4 +1,3 @@
-
 import { Stagehand } from "../lib/v3";
 import dotenv from "dotenv";
 import chalk from "chalk";
@@ -20,21 +19,17 @@ async function main() {
 
   try {
     const page = stagehand.context.pages()[0];
-    await page.goto(
-      "https://amazon.com",
-    );
+    await page.goto("https://amazon.com");
     const agent = stagehand.agent({
       model: "anthropic/claude-sonnet-4-5-20250929",
       executionModel: "google/gemini-2.5-flash",
-      
     });
 
     const result = await agent.stream({
-      instruction:
-        "go to amazon, and seach for shampoo, stop after searching",
+      instruction: "go to amazon, and seach for shampoo, stop after searching",
       maxSteps: 20,
     });
-     // stream the text 
+    // stream the text
     for await (const delta of result.textStream) {
       process.stdout.write(delta);
     }
@@ -42,7 +37,6 @@ async function main() {
     // for await (const delta of result.fullStream) {
     //   console.log(delta);
     // }
-
 
     const finalResult = await result.result;
     console.log("Final Result:", finalResult);
