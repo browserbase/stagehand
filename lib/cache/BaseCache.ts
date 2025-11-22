@@ -43,34 +43,17 @@ export class BaseCache<T extends CacheEntry> {
   }
 
   private setupProcessHandlers(): void {
-    const releaseLockAndExit = () => {
+    const releaseLockOnExit = () => {
       this.releaseLock();
-      process.exit();
     };
 
-    process.on("exit", releaseLockAndExit);
-    process.on("SIGINT", releaseLockAndExit);
-    process.on("SIGTERM", releaseLockAndExit);
-    process.on("uncaughtException", (err) => {
-      this.logger({
-        category: "base_cache",
-        message: "uncaught exception",
-        level: 2,
-        auxiliary: {
-          error: {
-            value: err.message,
-            type: "string",
-          },
-          trace: {
-            value: err.stack,
-            type: "string",
-          },
-        },
-      });
-      if (this.lockAcquired) {
-        releaseLockAndExit();
-      }
-    });
+    // Passive cleanup on exit - doesn't interfere with signal handling
+    process.on("exit", releaseLockOnExit);
+
+    // Note: We intentionally do NOT handle SIGINT/SIGTERM here.
+    // Applications using Stagehand as a library should manage their own
+    // signal handlers for graceful shutdown, and call cleanup methods
+    // (like releaseLock or a future dispose() method) explicitly.
   }
 
   protected ensureCacheDirectory(): void {

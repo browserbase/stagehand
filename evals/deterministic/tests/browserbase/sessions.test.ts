@@ -23,7 +23,7 @@ test.describe("Browserbase Sessions", () => {
     });
     await bigStagehand.init();
     await bigStagehand.page.goto(
-      "https://docs.stagehand.dev/first-steps/introduction",
+      "https://docs.stagehand.dev/v3/first-steps/introduction",
     );
     sessionId = bigStagehand.browserbaseSessionID;
     if (!sessionId) {
@@ -45,7 +45,7 @@ test.describe("Browserbase Sessions", () => {
     const page = stagehand.page;
 
     expect(page.url()).toBe(
-      "https://docs.stagehand.dev/first-steps/introduction",
+      "https://docs.stagehand.dev/v3/first-steps/introduction",
     );
   });
   test("resumes a session via CDP URL", async () => {
@@ -63,7 +63,7 @@ test.describe("Browserbase Sessions", () => {
     const page = stagehand.page;
 
     expect(page.url()).toBe(
-      "https://docs.stagehand.dev/first-steps/introduction",
+      "https://docs.stagehand.dev/v3/first-steps/introduction",
     );
   });
 });
