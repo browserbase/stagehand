@@ -1,10 +1,28 @@
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { ToolSet } from "ai";
+import { ToolSet, ModelMessage, wrapLanguageModel, StreamTextResult } from "ai";
 import { LogLine } from "./logs";
 import { Page as PlaywrightPage } from "playwright-core";
 import { Page as PuppeteerPage } from "puppeteer-core";
 import { Page as PatchrightPage } from "patchright-core";
 import { Page } from "../../understudy/page";
+
+export interface AgentContext {
+  options: AgentExecuteOptions;
+  maxSteps: number;
+  systemPrompt: string;
+  allTools: ToolSet;
+  messages: ModelMessage[];
+  wrappedModel: ReturnType<typeof wrapLanguageModel>;
+  initialPageUrl: string;
+}
+
+export interface AgentState {
+  collectedReasoning: string[];
+  actions: AgentAction[];
+  finalMessage: string;
+  completed: boolean;
+  currentPageUrl: string;
+}
 
 export interface AgentAction {
   type: string;
@@ -33,6 +51,10 @@ export interface AgentResult {
     inference_time_ms: number;
   };
 }
+
+export type AgentStreamResult = StreamTextResult<ToolSet, never> & {
+  result: Promise<AgentResult>;
+};
 
 export interface AgentExecuteOptions {
   instruction: string;
