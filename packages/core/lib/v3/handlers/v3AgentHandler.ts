@@ -54,7 +54,7 @@ export class V3AgentHandler {
         ? { instruction: instructionOrOptions }
         : instructionOrOptions;
 
-    const maxSteps = options.maxSteps || 10;
+    const maxSteps = options.maxSteps || 20;
 
     const systemPrompt = this.buildSystemPrompt(
       options.instruction,
