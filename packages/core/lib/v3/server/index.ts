@@ -516,23 +516,22 @@ export class StagehandServer {
     }
 
     try {
-      const body = request.body as { url: string; options?: any; frameId?: string };
-
-      if (!body.url) {
-        return reply.status(400).send({ error: "url is required" });
-      }
-
       await createStreamingResponse({
         sessionId,
         sessionManager: this.sessionManager,
         request,
         reply,
-        handler: async (ctx) => {
+        handler: async (ctx, data: any) => {
           const { stagehand } = ctx;
+          const { url, options, frameId } = data;
+
+          if (!url) {
+            throw new Error("url is required");
+          }
 
           // Get the page
-          const page = body.frameId
-            ? stagehand.context.resolvePageByMainFrameId(body.frameId)
+          const page = frameId
+            ? stagehand.context.resolvePageByMainFrameId(frameId)
             : await stagehand.context.awaitActivePage();
 
           if (!page) {
@@ -540,7 +539,7 @@ export class StagehandServer {
           }
 
           // Navigate to the URL
-          const response = await page.goto(body.url, body.options);
+          const response = await page.goto(url, options);
 
           return { result: response };
         },
