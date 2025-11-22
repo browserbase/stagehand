@@ -65,8 +65,8 @@ import {
   StagehandNotInitializedError,
   MissingEnvironmentVariableError,
   StagehandInitError,
+  AgentStreamResult,
 } from "./types/public";
-import { StreamTextResult, ToolSet } from "ai";
 import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
 import { resolveModel } from "../modelUtils";
@@ -1501,7 +1501,7 @@ export class V3 {
     ) => Promise<AgentResult>;
     stream?: (
       instructionOrOptions: string | AgentExecuteOptions,
-    ) => Promise<StreamTextResult<ToolSet, never>>;
+    ) => Promise<AgentStreamResult>;
   } {
     this.logger({
       category: "agent",
@@ -1741,6 +1741,9 @@ export class V3 {
         }),
       stream: async (instructionOrOptions: string | AgentExecuteOptions) =>
         withInstanceLogContext(this.instanceId, async () => {
+          if (!this.experimental) {
+            throw new ExperimentalNotConfiguredError("Agent streaming");
+          }
           if ((options?.integrations || options?.tools) && !this.experimental) {
             throw new ExperimentalNotConfiguredError(
               "MCP integrations and custom tools",

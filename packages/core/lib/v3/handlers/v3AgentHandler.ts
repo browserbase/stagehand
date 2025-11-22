@@ -5,9 +5,11 @@ import { ModelMessage, ToolSet, wrapLanguageModel, stepCountIs } from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { LLMClient } from "../llm/LLMClient";
 import {
-  AgentAction,
   AgentExecuteOptions,
   AgentResult,
+  AgentContext,
+  AgentState,
+  AgentStreamResult,
 } from "../types/public/agent";
 import { V3FunctionName } from "../types/public/methods";
 import { mapToolResultToActions } from "../agent/utils/actionMapping";
@@ -37,168 +39,15 @@ export class V3AgentHandler {
     this.mcpTools = mcpTools;
   }
 
-  public async execute(
+  private async prepareAgent(
     instructionOrOptions: string | AgentExecuteOptions,
-  ): Promise<AgentResult> {
-    const startTime = Date.now();
+  ): Promise<AgentContext> {
     const options =
       typeof instructionOrOptions === "string"
         ? { instruction: instructionOrOptions }
         : instructionOrOptions;
 
     const maxSteps = options.maxSteps || 10;
-    const actions: AgentAction[] = [];
-    let finalMessage = "";
-    let completed = false;
-    const collectedReasoning: string[] = [];
-
-    let currentPageUrl = (await this.v3.context.awaitActivePage()).url();
-
-    try {
-      const systemPrompt = this.buildSystemPrompt(
-        options.instruction,
-        this.systemInstructions,
-      );
-      const tools = this.createTools();
-      const allTools = { ...tools, ...this.mcpTools };
-      const messages: ModelMessage[] = [
-        { role: "user", content: options.instruction },
-      ];
-
-      if (!this.llmClient?.getLanguageModel) {
-        throw new MissingLLMConfigurationError();
-      }
-      const baseModel = this.llmClient.getLanguageModel();
-      const wrappedModel = wrapLanguageModel({
-        model: baseModel,
-        middleware: {
-          transformParams: async ({ params }) => {
-            const { processedPrompt } = processMessages(params);
-            return { ...params, prompt: processedPrompt } as typeof params;
-          },
-        },
-      });
-
-      const result = await this.llmClient.generateText({
-        model: wrappedModel,
-        system: systemPrompt,
-        messages,
-        tools: allTools,
-        stopWhen: stepCountIs(maxSteps),
-        temperature: 1,
-        toolChoice: "auto",
-        onStepFinish: async (event) => {
-          this.logger({
-            category: "agent",
-            message: `Step finished: ${event.finishReason}`,
-            level: 2,
-          });
-
-          if (event.toolCalls && event.toolCalls.length > 0) {
-            for (let i = 0; i < event.toolCalls.length; i++) {
-              const toolCall = event.toolCalls[i];
-              const args = toolCall.input as Record<string, unknown>;
-              const toolResult = event.toolResults?.[i];
-
-              if (event.text.length > 0) {
-                collectedReasoning.push(event.text);
-                this.logger({
-                  category: "agent",
-                  message: `reasoning: ${event.text}`,
-                  level: 1,
-                });
-              }
-
-              if (toolCall.toolName === "close") {
-                completed = true;
-                if (args?.taskComplete) {
-                  const closeReasoning = args.reasoning;
-                  const allReasoning = collectedReasoning.join(" ");
-                  finalMessage = closeReasoning
-                    ? `${allReasoning} ${closeReasoning}`.trim()
-                    : allReasoning || "Task completed successfully";
-                }
-              }
-              const mappedActions = mapToolResultToActions({
-                toolCallName: toolCall.toolName,
-                toolResult,
-                args,
-                reasoning: event.text || undefined,
-              });
-
-              for (const action of mappedActions) {
-                action.pageUrl = currentPageUrl;
-                action.timestamp = Date.now();
-                actions.push(action);
-              }
-            }
-            currentPageUrl = (await this.v3.context.awaitActivePage()).url();
-          }
-        },
-      });
-
-      if (!finalMessage) {
-        const allReasoning = collectedReasoning.join(" ").trim();
-        finalMessage = allReasoning || result.text;
-      }
-
-      const endTime = Date.now();
-      const inferenceTimeMs = endTime - startTime;
-      if (result.usage) {
-        this.v3.updateMetrics(
-          V3FunctionName.AGENT,
-          result.usage.inputTokens || 0,
-          result.usage.outputTokens || 0,
-          result.usage.reasoningTokens || 0,
-          result.usage.cachedInputTokens || 0,
-          inferenceTimeMs,
-        );
-      }
-
-      return {
-        success: completed,
-        message: finalMessage || "Task execution completed",
-        actions,
-        completed,
-        usage: result.usage
-          ? {
-              input_tokens: result.usage.inputTokens || 0,
-              output_tokens: result.usage.outputTokens || 0,
-              reasoning_tokens: result.usage.reasoningTokens || 0,
-              cached_input_tokens: result.usage.cachedInputTokens || 0,
-              inference_time_ms: inferenceTimeMs,
-            }
-          : undefined,
-      };
-    } catch (error) {
-      const errorMessage = error?.message ?? String(error);
-      this.logger({
-        category: "agent",
-        message: `Error executing agent task: ${errorMessage}`,
-        level: 0,
-      });
-      return {
-        success: false,
-        actions,
-        message: `Failed to execute task: ${errorMessage}`,
-        completed: false,
-      };
-    }
-  }
-
-  public async stream(
-    instructionOrOptions: string | AgentExecuteOptions,
-  ) {
-    const options =
-      typeof instructionOrOptions === "string"
-        ? { instruction: instructionOrOptions }
-        : instructionOrOptions;
-
-    const maxSteps = options.maxSteps || 10;
-    // We can track actions locally for logging purposes, but they won't be returned in the stream result directly
-    const collectedReasoning: string[] = [];
-
-    let currentPageUrl = (await this.v3.context.awaitActivePage()).url();
 
     const systemPrompt = this.buildSystemPrompt(
       options.instruction,
@@ -224,42 +73,214 @@ export class V3AgentHandler {
       },
     });
 
-    return this.llmClient.streamText({
+    const initialPageUrl = (await this.v3.context.awaitActivePage()).url();
+
+    return {
+      options,
+      maxSteps,
+      systemPrompt,
+      allTools,
+      messages,
+      wrappedModel,
+      initialPageUrl,
+    };
+  }
+
+  private createStepHandler(state: AgentState) {
+    return async (event: any) => {
+      this.logger({
+        category: "agent",
+        message: `Step finished: ${event.finishReason}`,
+        level: 2,
+      });
+
+      if (event.toolCalls && event.toolCalls.length > 0) {
+        for (let i = 0; i < event.toolCalls.length; i++) {
+          const toolCall = event.toolCalls[i];
+          const args = toolCall.input;
+          const toolResult = event.toolResults?.[i];
+
+          if (event.text && event.text.length > 0) {
+            state.collectedReasoning.push(event.text);
+            this.logger({
+              category: "agent",
+              message: `reasoning: ${event.text}`,
+              level: 1,
+            });
+          }
+
+          if (toolCall.toolName === "close") {
+            state.completed = true;
+            if (args?.taskComplete) {
+              const closeReasoning = args.reasoning;
+              const allReasoning = state.collectedReasoning.join(" ");
+              state.finalMessage = closeReasoning
+                ? `${allReasoning} ${closeReasoning}`.trim()
+                : allReasoning || "Task completed successfully";
+            }
+          }
+          const mappedActions = mapToolResultToActions({
+            toolCallName: toolCall.toolName,
+            toolResult,
+            args,
+            reasoning: event.text || undefined,
+          });
+
+          for (const action of mappedActions) {
+            action.pageUrl = state.currentPageUrl;
+            action.timestamp = Date.now();
+            state.actions.push(action);
+          }
+        }
+        state.currentPageUrl = (await this.v3.context.awaitActivePage()).url();
+      }
+    };
+  }
+
+  public async execute(
+    instructionOrOptions: string | AgentExecuteOptions,
+  ): Promise<AgentResult> {
+    const startTime = Date.now();
+    const {
+      maxSteps,
+      systemPrompt,
+      allTools,
+      messages,
+      wrappedModel,
+      initialPageUrl,
+    } = await this.prepareAgent(instructionOrOptions);
+
+    const state: AgentState = {
+      collectedReasoning: [],
+      actions: [],
+      finalMessage: "",
+      completed: false,
+      currentPageUrl: initialPageUrl,
+    };
+
+    try {
+      const result = await this.llmClient.generateText({
+        model: wrappedModel,
+        system: systemPrompt,
+        messages,
+        tools: allTools,
+        stopWhen: (result) => this.handleStop(result, maxSteps),
+        temperature: 1,
+        toolChoice: "auto",
+        onStepFinish: this.createStepHandler(state),
+      });
+
+      return this.consolidateMetricsAndResult(startTime, state, result);
+    } catch (error) {
+      const errorMessage = error?.message ?? String(error);
+      this.logger({
+        category: "agent",
+        message: `Error executing agent task: ${errorMessage}`,
+        level: 0,
+      });
+      return {
+        success: false,
+        actions: state.actions,
+        message: `Failed to execute task: ${errorMessage}`,
+        completed: false,
+      };
+    }
+  }
+
+  public async stream(
+    instructionOrOptions: string | AgentExecuteOptions,
+  ): Promise<AgentStreamResult> {
+    const {
+      maxSteps,
+      systemPrompt,
+      allTools,
+      messages,
+      wrappedModel,
+      initialPageUrl,
+    } = await this.prepareAgent(instructionOrOptions);
+
+    const state: AgentState = {
+      collectedReasoning: [],
+      actions: [],
+      finalMessage: "",
+      completed: false,
+      currentPageUrl: initialPageUrl,
+    };
+    const startTime = Date.now();
+
+    let resolveResult: (value: AgentResult | PromiseLike<AgentResult>) => void;
+    let rejectResult: (reason?: any) => void;
+    const resultPromise = new Promise<AgentResult>((resolve, reject) => {
+      resolveResult = resolve;
+      rejectResult = reject;
+    });
+
+    const streamResult = this.llmClient.streamText({
       model: wrappedModel,
       system: systemPrompt,
       messages,
       tools: allTools,
-      stopWhen: stepCountIs(maxSteps),
+      stopWhen: (result) => this.handleStop(result, maxSteps),
       temperature: 1,
       toolChoice: "auto",
-      onStepFinish: async (event) => {
-        this.logger({
-          category: "agent",
-          message: `Step finished: ${event.finishReason}`,
-          level: 2,
-        });
-
-        if (event.toolCalls && event.toolCalls.length > 0) {
-          for (let i = 0; i < event.toolCalls.length; i++) {
-            const toolCall = event.toolCalls[i];
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const args = toolCall.input as Record<string, unknown>;
-
-            if (event.text && event.text.length > 0) {
-              collectedReasoning.push(event.text);
-              this.logger({
-                category: "agent",
-                message: `reasoning: ${event.text}`,
-                level: 1,
-              });
-            }
-
-            // We don't build the actions array here for return, but we update the page URL
-          }
-          currentPageUrl = (await this.v3.context.awaitActivePage()).url();
+      onStepFinish: this.createStepHandler(state),
+      onFinish: (event) => {
+        try {
+          const result = this.consolidateMetricsAndResult(
+            startTime,
+            state,
+            event,
+          );
+          resolveResult(result);
+        } catch (error) {
+          rejectResult(error);
         }
       },
     });
+
+    const agentStreamResult = streamResult as AgentStreamResult;
+    agentStreamResult.result = resultPromise;
+    return agentStreamResult;
+  }
+
+  private consolidateMetricsAndResult(
+    startTime: number,
+    state: AgentState,
+    result: { text?: string; usage?: any },
+  ): AgentResult {
+    if (!state.finalMessage) {
+      const allReasoning = state.collectedReasoning.join(" ").trim();
+      state.finalMessage = allReasoning || result.text || "";
+    }
+
+    const endTime = Date.now();
+    const inferenceTimeMs = endTime - startTime;
+    if (result.usage) {
+      this.v3.updateMetrics(
+        V3FunctionName.AGENT,
+        result.usage.inputTokens || 0,
+        result.usage.outputTokens || 0,
+        result.usage.reasoningTokens || 0,
+        result.usage.cachedInputTokens || 0,
+        inferenceTimeMs,
+      );
+    }
+
+    return {
+      success: state.completed,
+      message: state.finalMessage || "Task execution completed",
+      actions: state.actions,
+      completed: state.completed,
+      usage: result.usage
+        ? {
+            input_tokens: result.usage.inputTokens || 0,
+            output_tokens: result.usage.outputTokens || 0,
+            reasoning_tokens: result.usage.reasoningTokens || 0,
+            cached_input_tokens: result.usage.cachedInputTokens || 0,
+            inference_time_ms: inferenceTimeMs,
+          }
+        : undefined,
+    };
   }
 
   private buildSystemPrompt(
@@ -277,5 +298,16 @@ export class V3AgentHandler {
       executionModel: this.executionModel,
       logger: this.logger,
     });
+  }
+
+  private handleStop(
+    result: Parameters<ReturnType<typeof stepCountIs>>[0],
+    maxSteps: number,
+  ): boolean | PromiseLike<boolean> {
+    const lastStep = result.steps[result.steps.length - 1];
+    if (lastStep?.toolCalls?.some((tc) => tc.toolName === "close")) {
+      return true;
+    }
+    return stepCountIs(maxSteps)(result);
   }
 }
