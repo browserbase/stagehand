@@ -35,10 +35,14 @@ async function main() {
     const agent = stagehand.agent({
       cua: true,
       model: {
-        modelName: "accounts/browserbase/deployedModels/dolphin-tp2pne6a",
-        apiKey: process.env.FIREWORKS_API_KEY,
-        baseURL: "https://api.fireworks.ai/inference/v1",
-        provider: "microsoft",
+        modelName: "microsoft/fara-7b",
+        apiKey: process.env.AZURE_API_KEY,
+        baseURL: process.env.AZURE_ENDPOINT,
+        /** Alternative model configuration for Fireworks Deployments */
+        // modelName: "accounts/...",
+        // apiKey: process.env.FIREWORKS_API_KEY,
+        // baseURL: "https://api.fireworks.ai/inference/v1",
+        // provider: "microsoft", // Important: this routes to the MicrosoftCUAClient
       },
       systemPrompt: `You are a helpful assistant that can use a web browser.
       You are currently on the following page: ${page.url()}.
