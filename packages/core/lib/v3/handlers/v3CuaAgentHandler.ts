@@ -22,6 +22,8 @@ export class V3CuaAgentHandler {
   private agentClient: AgentClient;
   private options: AgentHandlerOptions;
   private highlightCursor: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private screenshotCollector?: any;
 
   constructor(
     v3: V3,
@@ -57,7 +59,7 @@ export class V3CuaAgentHandler {
     this.agentClient.setActionHandler(async (action) => {
       action.pageUrl = (await this.v3.context.awaitActivePage()).url();
 
-      const defaultDelay = 1000;
+      const defaultDelay = 500;
       const waitBetween =
         (this.options.clientOptions?.waitBetweenActions as number) ||
         defaultDelay;
@@ -515,6 +517,9 @@ export class V3CuaAgentHandler {
     try {
       const page = await this.v3.context.awaitActivePage();
       const base64Image = await page.screenshot({ fullPage: false });
+      if (this.screenshotCollector) {
+        this.screenshotCollector.addScreenshot(base64Image);
+      }
       const currentUrl = page.url();
       return await this.agentClient.captureScreenshot({
         base64Image,
@@ -537,5 +542,21 @@ export class V3CuaAgentHandler {
     } catch {
       // Best-effort only
     }
+  }
+
+  /**
+   * Set the screenshot collector for this agent handler
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setScreenshotCollector(collector: any): void {
+    this.screenshotCollector = collector;
+  }
+
+  /**
+   * Get the screenshot collector
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getScreenshotCollector(): any {
+    return this.screenshotCollector;
   }
 }
