@@ -94,6 +94,8 @@ export class Page {
     string,
     (evt: Protocol.Runtime.ConsoleAPICalledEvent) => void
   >();
+  /** Document-start scripts installed across every session this page owns. */
+  private readonly initScripts: string[] = [];
 
   private constructor(
     private readonly conn: CdpConnection,
@@ -123,6 +125,37 @@ export class Page {
 
     this.networkManager = new NetworkManager();
     this.networkManager.trackSession(this.mainSession);
+  }
+
+  // Send a single init script to a specific CDP session.
+  private async installInitScriptOnSession(
+    session: CDPSessionLike,
+    source: string,
+  ): Promise<void> {
+    await session.send("Page.addScriptToEvaluateOnNewDocument", { source });
+  }
+
+  // Replay every previously registered init script onto a newly adopted session.
+  private async applyInitScriptsToSession(
+    session: CDPSessionLike,
+  ): Promise<void> {
+    for (const source of this.initScripts) {
+      await this.installInitScriptOnSession(session, source);
+    }
+  }
+
+  // Register a new init script and fan it out to all active sessions for this page.
+  public async registerInitScript(source: string): Promise<void> {
+    if (this.initScripts.includes(source)) return;
+    this.initScripts.push(source);
+
+    const installs: Array<Promise<void>> = [];
+    installs.push(this.installInitScriptOnSession(this.mainSession, source));
+    for (const session of this.sessions.values()) {
+      if (session === this.mainSession) continue;
+      installs.push(this.installInitScriptOnSession(session, source));
+    }
+    await Promise.all(installs);
   }
 
   // --- Optional visual cursor overlay management ---
@@ -370,6 +403,8 @@ export class Page {
     if (childSession.id) this.sessions.set(childSession.id, childSession);
 
     this.networkManager.trackSession(childSession);
+
+    void this.applyInitScriptsToSession(childSession).catch(() => {});
 
     if (this.consoleListeners.size > 0) {
       this.installConsoleTap(childSession);
