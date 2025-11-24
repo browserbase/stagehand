@@ -29,6 +29,7 @@ describe("LLM and Agents public API types", () => {
       "anthropic/claude-sonnet-4-20250514",
       "anthropic/claude-sonnet-4-5-20250929",
       "google/gemini-2.5-computer-use-preview-10-2025",
+      "microsoft/fara-7b",
     ] as const;
 
     it("AvailableCuaModel matches the known literals", () => {

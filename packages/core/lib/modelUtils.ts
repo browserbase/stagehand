@@ -31,11 +31,27 @@ export function resolveModel(model: string | ModelConfiguration): {
           return rest;
         })();
 
-  // Parse the model string
-  const { provider, modelName: parsedModelName } = splitModelName(modelString);
+  // Check if provider is explicitly set in clientOptions
+  const hasExplicitProvider = clientOptions.provider !== undefined;
+
+  // If provider is explicitly set, don't split the model name - pass it through as-is
+  let provider: string;
+  let parsedModelName: string;
+
+  if (hasExplicitProvider) {
+    provider = clientOptions.provider as string;
+    parsedModelName = modelString; // Keep the full model name
+  } else {
+    // Parse the model string normally
+    const split = splitModelName(modelString);
+    provider = split.provider;
+    parsedModelName = split.modelName;
+  }
 
   // Check if it's a CUA model
-  const isCua = AVAILABLE_CUA_MODELS.includes(modelString as AvailableCuaModel);
+  const isCua =
+    hasExplicitProvider ||
+    AVAILABLE_CUA_MODELS.includes(modelString as AvailableCuaModel);
 
   return {
     provider,
