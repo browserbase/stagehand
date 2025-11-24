@@ -9,6 +9,7 @@ import { AgentClient } from "./AgentClient";
 import { AnthropicCUAClient } from "./AnthropicCUAClient";
 import { OpenAICUAClient } from "./OpenAICUAClient";
 import { GoogleCUAClient } from "./GoogleCUAClient";
+import { MicrosoftCUAClient } from "./MicrosoftCUAClient";
 
 // Map model names to their provider types
 export const modelToAgentProviderMap: Record<string, AgentProviderType> = {
@@ -19,6 +20,7 @@ export const modelToAgentProviderMap: Record<string, AgentProviderType> = {
   "claude-sonnet-4-5-20250929": "anthropic",
   "claude-haiku-4-5-20251001": "anthropic",
   "gemini-2.5-computer-use-preview-10-2025": "google",
+  "fara-7b": "microsoft",
 };
 
 /**
@@ -42,10 +44,15 @@ export class AgentProvider {
     userProvidedInstructions?: string,
     tools?: ToolSet,
   ): AgentClient {
-    const type = AgentProvider.getAgentProvider(modelName);
+    // Check if provider is explicitly set in clientOptions
+    const explicitProvider = clientOptions?.provider as
+      | AgentProviderType
+      | undefined;
+    const type = explicitProvider || AgentProvider.getAgentProvider(modelName);
+
     this.logger({
       category: "agent",
-      message: `Getting agent client for type: ${type}, model: ${modelName}`,
+      message: `Getting agent client for type: ${type}, model: ${modelName}${explicitProvider ? " (explicit provider)" : ""}`,
       level: 2,
     });
 
@@ -75,9 +82,16 @@ export class AgentProvider {
             clientOptions,
             tools,
           );
+        case "microsoft":
+          return new MicrosoftCUAClient(
+            type,
+            modelName,
+            userProvidedInstructions,
+            clientOptions,
+          );
         default:
           throw new UnsupportedModelProviderError(
-            ["openai", "anthropic", "google"],
+            ["openai", "anthropic", "google", "microsoft"],
             "Computer Use Agent",
           );
       }
