@@ -486,8 +486,9 @@ For each function call, return a json object with function name and arguments wi
           (args.time as number) || (args.duration as number) || 3.0;
         return {
           ...baseAction,
-          duration: durationSeconds * 1000, // Convert seconds to ms
+          timeMs: durationSeconds * 1000, // Convert seconds to ms
         };
+      }
       }
 
       case "pause_and_memorize_fact": {
