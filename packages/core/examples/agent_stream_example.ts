@@ -26,7 +26,7 @@ async function main() {
     });
 
     const result = await agent.stream({
-      instruction: "go to amazon, and seach for shampoo, stop after searching",
+      instruction: "go to amazon, and search for shampoo, stop after searching",
       maxSteps: 20,
     });
     // stream the text
