@@ -63,9 +63,11 @@ export class V3AgentHandler {
     );
     const tools = this.createTools();
     const allTools: ToolSet = { ...tools, ...this.mcpTools };
-    const messages: ModelMessage[] = [
-      { role: "user", content: options.instruction },
-    ];
+
+    // Use provided messages for continuation, or start fresh with the instruction
+    const messages: ModelMessage[] = options.messages?.length
+      ? [...options.messages, { role: "user", content: options.instruction }]
+      : [{ role: "user", content: options.instruction }];
 
     if (!this.llmClient?.getLanguageModel) {
       throw new MissingLLMConfigurationError();
@@ -191,7 +193,17 @@ export class V3AgentHandler {
         abortSignal: options.abortSignal,
       });
 
-      return this.consolidateMetricsAndResult(startTime, state, result);
+      // Combine input messages with response messages for full conversation history
+      const responseMessages = result.response?.messages || [];
+      const fullMessages: ModelMessage[] = [
+        ...messages,
+        ...responseMessages,
+      ];
+
+      return this.consolidateMetricsAndResult(startTime, state, {
+        ...result,
+        messages: fullMessages,
+      });
     } catch (error) {
       const errorMessage = error?.message ?? String(error);
       this.logger({
@@ -259,10 +271,17 @@ export class V3AgentHandler {
           callbacks.onFinish(event);
         }
         try {
+          // Combine input messages with response messages for full conversation history
+          const responseMessages = event.response?.messages || [];
+          const fullMessages: ModelMessage[] = [
+            ...messages,
+            ...responseMessages,
+          ];
+
           const result = this.consolidateMetricsAndResult(
             startTime,
             state,
-            event,
+            { ...event, messages: fullMessages },
           );
           resolveResult(result);
         } catch (error) {
@@ -279,7 +298,7 @@ export class V3AgentHandler {
   private consolidateMetricsAndResult(
     startTime: number,
     state: AgentState,
-    result: { text?: string; usage?: LanguageModelUsage },
+    result: { text?: string; usage?: LanguageModelUsage; messages?: ModelMessage[] },
   ): AgentResult {
     if (!state.finalMessage) {
       const allReasoning = state.collectedReasoning.join(" ").trim();
@@ -313,6 +332,7 @@ export class V3AgentHandler {
             inference_time_ms: inferenceTimeMs,
           }
         : undefined,
+      messages: result.messages,
     };
   }
 

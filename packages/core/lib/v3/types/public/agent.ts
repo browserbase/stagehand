@@ -63,6 +63,11 @@ export interface AgentResult {
     cached_input_tokens?: number;
     inference_time_ms: number;
   };
+  /**
+   * The conversation messages from this run.
+   * Can be passed to a subsequent run to continue where you left off.
+   */
+  messages?: ModelMessage[];
 }
 
 export type AgentStreamResult = StreamTextResult<ToolSet, never> & {
@@ -139,6 +144,11 @@ export interface AgentExecuteOptions {
    * @internal
    */
   abortSignal?: AbortSignal;
+  /**
+   * Previous conversation messages to continue from.
+   * Pass the `messages` from a previous AgentResult to continue that conversation.
+   */
+  messages?: ModelMessage[];
 }
 
 export interface AgentStreamOptions extends Omit<AgentExecuteOptions, "callbacks"> {
