@@ -19,7 +19,7 @@ import { Page as PatchrightPage } from "patchright-core";
 import { Page } from "../../understudy/page";
 
 export interface AgentContext {
-  options: AgentExecuteOptions | AgentStreamOptions;
+  options: AgentExecuteOptions;
   maxSteps: number;
   systemPrompt: string;
   allTools: ToolSet;
@@ -124,24 +124,32 @@ export interface AgentExecuteCallbacks extends AgentCallbacks {
   onStepFinish?: GenerateTextOnStepFinishCallback<ToolSet>;
 }
 
-export interface AgentExecuteOptions {
+interface AgentBaseOptions {
   instruction: string;
   maxSteps?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   highlightCursor?: boolean;
+}
+
+export interface AgentStandardExecuteOptions extends AgentBaseOptions {
+  mode?: "execute";
   /**
    * Callbacks for the agent execution.
    */
   callbacks?: AgentExecuteCallbacks;
 }
 
-export interface AgentStreamOptions
-  extends Omit<AgentExecuteOptions, "callbacks"> {
+export interface AgentStreamExecuteOptions extends AgentBaseOptions {
+  mode: "stream";
   /**
    * Callbacks for the agent stream.
    */
   callbacks?: AgentStreamCallbacks;
 }
+
+export type AgentExecuteOptions =
+  | AgentStandardExecuteOptions
+  | AgentStreamExecuteOptions;
 export type AgentType = "openai" | "anthropic" | "google";
 
 export const AVAILABLE_CUA_MODELS = [

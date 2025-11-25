@@ -37,8 +37,9 @@ import {
 import {
   AgentConfig,
   AgentExecuteOptions,
-  AgentStreamOptions,
   AgentResult,
+  AgentStandardExecuteOptions,
+  AgentStreamExecuteOptions,
   AVAILABLE_CUA_MODELS,
   LogLine,
   StagehandMetrics,
@@ -79,6 +80,12 @@ const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
 type ResolvedModelConfiguration = {
   modelName: AvailableModel;
   clientOptions?: ClientOptions;
+};
+
+type AgentExecuteFunction = {
+  (instruction: string): Promise<AgentResult>;
+  (options: AgentStandardExecuteOptions): Promise<AgentResult>;
+  (options: AgentStreamExecuteOptions): Promise<AgentStreamResult>;
 };
 
 function resolveModelConfiguration(
@@ -1497,12 +1504,7 @@ export class V3 {
    * Mirrors the v2 Stagehand.agent() tool mode (no CUA provider here).
    */
   agent(options?: AgentConfig): {
-    execute: (
-      instructionOrOptions: string | AgentExecuteOptions,
-    ) => Promise<AgentResult>;
-    stream?: (
-      instructionOrOptions: string | AgentStreamOptions,
-    ) => Promise<AgentStreamResult>;
+    execute: AgentExecuteFunction;
   } {
     this.logger({
       category: "agent",
@@ -1547,129 +1549,28 @@ export class V3 {
 
       const agentConfigSignature =
         this.agentCache.buildConfigSignature(options);
-      return {
-        execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
-          withInstanceLogContext(this.instanceId, async () => {
-            if (options?.integrations && !this.experimental) {
-              throw new ExperimentalNotConfiguredError("MCP integrations");
-            }
-            const tools = options?.integrations
-              ? await resolveTools(options.integrations, options.tools)
-              : (options?.tools ?? {});
 
-            const handler = new V3CuaAgentHandler(
-              this,
-              this.logger,
-              {
-                modelName,
-                clientOptions,
-                userProvidedInstructions:
-                  options.systemPrompt ??
-                  `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
-              },
-              tools,
-            );
-
-            const resolvedOptions: AgentExecuteOptions =
-              typeof instructionOrOptions === "string"
-                ? { instruction: instructionOrOptions }
-                : instructionOrOptions;
-            if (resolvedOptions.page) {
-              const normalizedPage = await this.normalizeToV3Page(
-                resolvedOptions.page,
-              );
-              this.ctx!.setActivePage(normalizedPage);
-            }
-            const instruction = resolvedOptions.instruction.trim();
-            const sanitizedOptions =
-              this.agentCache.sanitizeExecuteOptions(resolvedOptions);
-
-            let cacheContext: AgentCacheContext | null = null;
-            if (this.agentCache.shouldAttemptCache(instruction)) {
-              const startPage = await this.ctx!.awaitActivePage();
-              cacheContext = await this.agentCache.prepareContext({
-                instruction,
-                options: sanitizedOptions,
-                configSignature: agentConfigSignature,
-                page: startPage,
-              });
-              if (cacheContext) {
-                const replayed = await this.agentCache.tryReplay(cacheContext);
-                if (replayed) {
-                  return replayed;
-                }
-              }
-            }
-
-            let agentSteps: AgentReplayStep[] = [];
-            const recording = !!cacheContext;
-            if (recording) {
-              this.beginAgentReplayRecording();
-            }
-
-            let result: AgentResult;
-            try {
-              if (this.apiClient && !this.experimental) {
-                const page = await this.ctx!.awaitActivePage();
-                result = await this.apiClient.agentExecute(
-                  options,
-                  resolvedOptions,
-                  page.mainFrameId(),
-                );
-              } else {
-                result = await handler.execute(instructionOrOptions);
-              }
-              if (recording) {
-                agentSteps = this.endAgentReplayRecording();
-              }
-
-              if (cacheContext && result.success && agentSteps.length > 0) {
-                await this.agentCache.store(cacheContext, agentSteps, result);
-              }
-
-              return result;
-            } catch (err) {
-              if (recording) this.discardAgentReplayRecording();
-              throw err;
-            } finally {
-              if (recording) {
-                this.discardAgentReplayRecording();
-              }
-            }
-          }),
-      };
-    }
-
-    // Default: AISDK tools-based agent
-    const agentConfigSignature = this.agentCache.buildConfigSignature(options);
-
-    return {
-      execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
+      const execute = (async (
+        instructionOrOptions: string | AgentExecuteOptions,
+      ): Promise<AgentResult> =>
         withInstanceLogContext(this.instanceId, async () => {
-          if ((options?.integrations || options?.tools) && !this.experimental) {
-            throw new ExperimentalNotConfiguredError(
-              "MCP integrations and custom tools",
-            );
+          if (options?.integrations && !this.experimental) {
+            throw new ExperimentalNotConfiguredError("MCP integrations");
           }
-
           const tools = options?.integrations
             ? await resolveTools(options.integrations, options.tools)
             : (options?.tools ?? {});
 
-          // Resolve the LLM client for the agent based on the model parameter
-          // Use the agent's model if specified, otherwise fall back to the default
-          const agentLlmClient = options?.model
-            ? this.resolveLlmClient(options.model)
-            : this.llmClient;
-
-          const handler = new V3AgentHandler(
+          const handler = new V3CuaAgentHandler(
             this,
             this.logger,
-            agentLlmClient,
-            typeof options?.executionModel === "string"
-              ? options.executionModel
-              : options?.executionModel?.modelName,
-            options?.systemPrompt,
+            {
+              modelName,
+              clientOptions,
+              userProvidedInstructions:
+                options.systemPrompt ??
+                `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
+            },
             tools,
           );
 
@@ -1677,15 +1578,28 @@ export class V3 {
             typeof instructionOrOptions === "string"
               ? { instruction: instructionOrOptions }
               : instructionOrOptions;
-          if (resolvedOptions.page) {
+
+          if (resolvedOptions.mode === "stream") {
+            throw new StagehandInvalidArgumentError(
+              "Agent streaming is not supported when cua is enabled.",
+            );
+          }
+
+          const trimmedInstruction = resolvedOptions.instruction.trim();
+          const normalizedOptions =
+            trimmedInstruction === resolvedOptions.instruction
+              ? resolvedOptions
+              : { ...resolvedOptions, instruction: trimmedInstruction };
+
+          if (normalizedOptions.page) {
             const normalizedPage = await this.normalizeToV3Page(
-              resolvedOptions.page,
+              normalizedOptions.page,
             );
             this.ctx!.setActivePage(normalizedPage);
           }
-          const instruction = resolvedOptions.instruction.trim();
+          const instruction = trimmedInstruction;
           const sanitizedOptions =
-            this.agentCache.sanitizeExecuteOptions(resolvedOptions);
+            this.agentCache.sanitizeExecuteOptions(normalizedOptions);
 
           let cacheContext: AgentCacheContext | null = null;
           if (this.agentCache.shouldAttemptCache(instruction)) {
@@ -1709,18 +1623,18 @@ export class V3 {
           if (recording) {
             this.beginAgentReplayRecording();
           }
-          let result: AgentResult;
 
+          let result: AgentResult;
           try {
             if (this.apiClient && !this.experimental) {
               const page = await this.ctx!.awaitActivePage();
               result = await this.apiClient.agentExecute(
                 options,
-                resolvedOptions,
+                normalizedOptions,
                 page.mainFrameId(),
               );
             } else {
-              result = await handler.execute(instructionOrOptions);
+              result = await handler.execute(normalizedOptions);
             }
             if (recording) {
               agentSteps = this.endAgentReplayRecording();
@@ -1739,40 +1653,130 @@ export class V3 {
               this.discardAgentReplayRecording();
             }
           }
-        }),
-      stream: async (instructionOrOptions: string | AgentStreamOptions) =>
-        withInstanceLogContext(this.instanceId, async () => {
-          if (!this.experimental) {
-            throw new ExperimentalNotConfiguredError("Agent streaming");
-          }
-          if ((options?.integrations || options?.tools) && !this.experimental) {
-            throw new ExperimentalNotConfiguredError(
-              "MCP integrations and custom tools",
-            );
-          }
+        })) as AgentExecuteFunction;
 
-          const tools = options?.integrations
-            ? await resolveTools(options.integrations, options.tools)
-            : (options?.tools ?? {});
+      return { execute };
+    }
 
-          const agentLlmClient = options?.model
-            ? this.resolveLlmClient(options.model)
-            : this.llmClient;
+    const agentConfigSignature = this.agentCache.buildConfigSignature(options);
 
-          const handler = new V3AgentHandler(
-            this,
-            this.logger,
-            agentLlmClient,
-            typeof options?.executionModel === "string"
-              ? options.executionModel
-              : options?.executionModel?.modelName,
-            options?.systemPrompt,
-            tools,
+    const execute = (async (
+      instructionOrOptions: string | AgentExecuteOptions,
+    ): Promise<AgentResult | AgentStreamResult> =>
+      withInstanceLogContext(this.instanceId, async () => {
+        if ((options?.integrations || options?.tools) && !this.experimental) {
+          throw new ExperimentalNotConfiguredError(
+            "MCP integrations and custom tools",
           );
+        }
 
-          return handler.stream(instructionOrOptions);
-        }),
-    };
+        const tools = options?.integrations
+          ? await resolveTools(options.integrations, options.tools)
+          : (options?.tools ?? {});
+
+        // Resolve the LLM client for the agent based on the model parameter
+        // Use the agent's model if specified, otherwise fall back to the default
+        const agentLlmClient = options?.model
+          ? this.resolveLlmClient(options.model)
+          : this.llmClient;
+
+        const handler = new V3AgentHandler(
+          this,
+          this.logger,
+          agentLlmClient,
+          typeof options?.executionModel === "string"
+            ? options.executionModel
+            : options?.executionModel?.modelName,
+          options?.systemPrompt,
+          tools,
+        );
+
+        const resolvedOptions: AgentExecuteOptions =
+          typeof instructionOrOptions === "string"
+            ? { instruction: instructionOrOptions }
+            : instructionOrOptions;
+
+        const trimmedInstruction = resolvedOptions.instruction.trim();
+        const normalizedOptions =
+          trimmedInstruction === resolvedOptions.instruction
+            ? resolvedOptions
+            : { ...resolvedOptions, instruction: trimmedInstruction };
+
+        if (normalizedOptions.page) {
+          const normalizedPage = await this.normalizeToV3Page(
+            normalizedOptions.page,
+          );
+          this.ctx!.setActivePage(normalizedPage);
+        }
+        const instruction = trimmedInstruction;
+        const isStreamMode = normalizedOptions.mode === "stream";
+
+        if (isStreamMode && !this.experimental) {
+          throw new ExperimentalNotConfiguredError("Agent streaming");
+        }
+
+        if (isStreamMode) {
+          return handler.stream(normalizedOptions as AgentStreamExecuteOptions);
+        }
+
+        const sanitizedOptions =
+          this.agentCache.sanitizeExecuteOptions(normalizedOptions);
+
+        let cacheContext: AgentCacheContext | null = null;
+        if (this.agentCache.shouldAttemptCache(instruction)) {
+          const startPage = await this.ctx!.awaitActivePage();
+          cacheContext = await this.agentCache.prepareContext({
+            instruction,
+            options: sanitizedOptions,
+            configSignature: agentConfigSignature,
+            page: startPage,
+          });
+          if (cacheContext) {
+            const replayed = await this.agentCache.tryReplay(cacheContext);
+            if (replayed) {
+              return replayed;
+            }
+          }
+        }
+
+        let agentSteps: AgentReplayStep[] = [];
+        const recording = !!cacheContext;
+        if (recording) {
+          this.beginAgentReplayRecording();
+        }
+        let result: AgentResult;
+
+        try {
+          if (this.apiClient && !this.experimental) {
+            const page = await this.ctx!.awaitActivePage();
+            result = await this.apiClient.agentExecute(
+              options,
+              normalizedOptions,
+              page.mainFrameId(),
+            );
+          } else {
+            result = await handler.execute(normalizedOptions);
+          }
+          if (recording) {
+            agentSteps = this.endAgentReplayRecording();
+          }
+
+          if (cacheContext && result.success && agentSteps.length > 0) {
+            await this.agentCache.store(cacheContext, agentSteps, result);
+          }
+
+          return result;
+        } catch (err) {
+          if (recording) this.discardAgentReplayRecording();
+          throw err;
+        } finally {
+          if (recording) {
+            this.discardAgentReplayRecording();
+          }
+        }
+      })) as AgentExecuteFunction;
+
+    return { execute };
   }
 }
 

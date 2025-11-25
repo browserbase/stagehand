@@ -13,7 +13,7 @@ import { processMessages } from "../agent/utils/messageProcessing";
 import { LLMClient } from "../llm/LLMClient";
 import {
   AgentExecuteOptions,
-  AgentStreamOptions,
+  AgentStreamExecuteOptions,
   AgentResult,
   AgentContext,
   AgentState,
@@ -48,7 +48,7 @@ export class V3AgentHandler {
   }
 
   private async prepareAgent(
-    instructionOrOptions: string | AgentExecuteOptions | AgentStreamOptions,
+    instructionOrOptions: string | AgentExecuteOptions,
   ): Promise<AgentContext> {
     const options =
       typeof instructionOrOptions === "string"
@@ -208,7 +208,7 @@ export class V3AgentHandler {
   }
 
   public async stream(
-    instructionOrOptions: string | AgentStreamOptions,
+    instructionOrOptions: AgentStreamExecuteOptions,
   ): Promise<AgentStreamResult> {
     const {
       options,
@@ -220,7 +220,7 @@ export class V3AgentHandler {
       initialPageUrl,
     } = await this.prepareAgent(instructionOrOptions);
 
-    const callbacks = (options as AgentStreamOptions).callbacks;
+    const callbacks = (options as AgentStreamExecuteOptions).callbacks;
 
     const state: AgentState = {
       collectedReasoning: [],

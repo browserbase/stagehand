@@ -174,13 +174,23 @@ describe("Stagehand public API types", () => {
   });
 
   describe("AgentExecuteOptions", () => {
-    type ExpectedAgentExecuteOptions = {
-      instruction: string;
-      maxSteps?: number;
-      page?: Stagehand.AnyPage;
-      highlightCursor?: boolean;
-      callbacks?: AgentExecuteCallbacks;
-    };
+    type ExpectedAgentExecuteOptions =
+      | {
+          instruction: string;
+          maxSteps?: number;
+          page?: Stagehand.AnyPage;
+          highlightCursor?: boolean;
+          mode?: "execute";
+          callbacks?: AgentExecuteCallbacks;
+        }
+      | {
+          instruction: string;
+          maxSteps?: number;
+          page?: Stagehand.AnyPage;
+          highlightCursor?: boolean;
+          mode: "stream";
+          callbacks?: Stagehand.AgentStreamCallbacks;
+        };
 
     it("matches expected type shape", () => {
       expectTypeOf<Stagehand.AgentExecuteOptions>().toEqualTypeOf<ExpectedAgentExecuteOptions>();

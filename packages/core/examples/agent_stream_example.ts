@@ -22,12 +22,18 @@ async function main() {
     await page.goto("https://amazon.com");
     const agent = stagehand.agent({
       model: "anthropic/claude-sonnet-4-5-20250929",
-      executionModel: "google/gemini-2.5-flash",
+      executionModel: "anthropic/claude-sonnet-4-5-20250929",
     });
 
-    const result = await agent.stream({
+    const result = await agent.execute({
+      mode: "stream",
       instruction: "go to amazon, and seach for shampoo, stop after searching",
       maxSteps: 20,
+      callbacks: {
+        onFinish: (event) => {
+          console.log(event);
+        },
+      },
     });
     // stream the text
     for await (const delta of result.textStream) {
