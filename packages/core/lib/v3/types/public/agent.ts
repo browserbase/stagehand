@@ -11,7 +11,6 @@ import {
   StreamTextOnErrorCallback,
   StreamTextOnChunkCallback,
   StreamTextOnFinishCallback,
-  ToolCallRepairFunction,
 } from "ai";
 import { LogLine } from "./logs";
 import { Page as PlaywrightPage } from "playwright-core";
@@ -69,7 +68,6 @@ export type AgentStreamResult = StreamTextResult<ToolSet, never> & {
   result: Promise<AgentResult>;
 };
 
-
 export interface AgentCallbacks {
   /**
    * Optional function called before each step to modify settings.
@@ -111,7 +109,9 @@ export interface AgentStreamCallbacks extends AgentCallbacks {
   /**
    * Callback called when the stream is aborted.
    */
-  onAbort?: (event: { steps: Array<StepResult<ToolSet>> }) => PromiseLike<void> | void;
+  onAbort?: (event: {
+    steps: Array<StepResult<ToolSet>>;
+  }) => PromiseLike<void> | void;
 }
 
 /**
@@ -135,7 +135,8 @@ export interface AgentExecuteOptions {
   callbacks?: AgentExecuteCallbacks;
 }
 
-export interface AgentStreamOptions extends Omit<AgentExecuteOptions, "callbacks"> {
+export interface AgentStreamOptions
+  extends Omit<AgentExecuteOptions, "callbacks"> {
   /**
    * Callbacks for the agent stream.
    */
