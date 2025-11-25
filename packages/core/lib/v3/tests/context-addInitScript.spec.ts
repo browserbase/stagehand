@@ -113,4 +113,25 @@ test.describe("context.addInitScript", () => {
     });
     expect(observed).toEqual(payload);
   });
+
+  test("context.addInitScript installs a function callable from page.evaluate", async () => {
+    const page = await ctx.awaitActivePage();
+
+    await ctx.addInitScript(() => {
+      // installed before any navigation
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-expect-error
+      window.sayHelloFromStagehand = () => "hello from stagehand";
+    });
+
+    await page.goto("https://example.com", { waitUntil: "domcontentloaded" });
+
+    const result = await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-expect-error
+      return window.sayHelloFromStagehand();
+    });
+
+    expect(result).toBe("hello from stagehand");
+  });
 });
