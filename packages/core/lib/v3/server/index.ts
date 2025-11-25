@@ -1,6 +1,7 @@
 import Fastify, { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
 import { z } from "zod";
+import { randomUUID } from "crypto";
 import type {
   V3Options,
   ActOptions,
@@ -21,11 +22,22 @@ import {
   agentExecuteSchemaV3,
   navigateSchemaV3,
 } from "./schemas";
+import type {
+  StagehandServerEventMap,
+  StagehandRequestReceivedEvent,
+  StagehandRequestCompletedEvent,
+} from "./events";
+import { StagehandEventBus, createEventBus } from "../eventBus";
+
+// Re-export event types for consumers
+export * from "./events";
 
 export interface StagehandServerOptions {
   port?: number;
   host?: string;
   sessionTTL?: number;
+  /** Optional: shared event bus instance. If not provided, a new one will be created. */
+  eventBus?: StagehandEventBus;
 }
 
 /**
@@ -33,6 +45,8 @@ export interface StagehandServerOptions {
  *
  * This server implements the same API as the cloud Stagehand API, allowing
  * remote Stagehand instances to connect and execute actions on this machine.
+ *
+ * Uses a shared event bus to allow cloud servers to hook into lifecycle events.
  */
 export class StagehandServer {
   private app: FastifyInstance;
@@ -40,17 +54,29 @@ export class StagehandServer {
   private port: number;
   private host: string;
   private isListening: boolean = false;
+  private eventBus: StagehandEventBus;
 
-  constructor(options: StagehandServerOptions = {}) {
+  constructor(options: StagehandServerOptions) {
+    this.eventBus = options.eventBus || createEventBus();
     this.port = options.port || 3000;
     this.host = options.host || "0.0.0.0";
-    this.sessionManager = new SessionManager(options.sessionTTL);
+    this.sessionManager = new SessionManager(options.sessionTTL, this.eventBus);
     this.app = Fastify({
       logger: false, // Disable Fastify's built-in logger for cleaner output
     });
 
     this.setupMiddleware();
     this.setupRoutes();
+  }
+
+  /**
+   * Emit an event and wait for all async listeners to complete
+   */
+  private async emitAsync<K extends keyof StagehandServerEventMap>(
+    event: K,
+    data: StagehandServerEventMap[K],
+  ): Promise<void> {
+    await this.eventBus.emitAsync(event, data);
   }
 
   private setupMiddleware(): void {
@@ -130,18 +156,59 @@ export class StagehandServer {
     request: FastifyRequest,
     reply: FastifyReply,
   ): Promise<void> {
+    const requestId = randomUUID();
+    const startTime = Date.now();
+
     try {
       // Parse V3Options from request body
       const config = request.body as V3Options;
 
-      // Create session
+      // Emit request received event
+      await this.emitAsync("StagehandRequestReceived", {
+        type: "StagehandRequestReceived",
+        timestamp: new Date(),
+        requestId,
+        sessionId: "", // No session yet
+        method: "POST",
+        path: "/v1/sessions/start",
+        headers: {
+          "x-stream-response": request.headers["x-stream-response"] === "true",
+          "x-bb-api-key": request.headers["x-bb-api-key"] as string | undefined,
+          "x-model-api-key": request.headers["x-model-api-key"] as string | undefined,
+          "x-sdk-version": request.headers["x-sdk-version"] as string | undefined,
+          "x-language": request.headers["x-language"] as string | undefined,
+          "x-sent-at": request.headers["x-sent-at"] as string | undefined,
+        },
+        bodySize: JSON.stringify(request.body).length,
+      });
+
+      // Create session (will emit StagehandSessionCreated)
       const sessionId = this.sessionManager.createSession(config);
+
+      // Emit request completed event
+      await this.emitAsync("StagehandRequestCompleted", {
+        type: "StagehandRequestCompleted",
+        timestamp: new Date(),
+        sessionId,
+        requestId,
+        statusCode: 200,
+        durationMs: Date.now() - startTime,
+      });
 
       reply.status(200).send({
         sessionId,
         available: true,
       });
     } catch (error) {
+      await this.emitAsync("StagehandRequestCompleted", {
+        type: "StagehandRequestCompleted",
+        timestamp: new Date(),
+        requestId,
+        sessionId: "",
+        statusCode: 500,
+        durationMs: Date.now() - startTime,
+      });
+
       reply.status(500).send({
         error: error instanceof Error ? error.message : "Failed to create session",
       });
@@ -156,8 +223,37 @@ export class StagehandServer {
     reply: FastifyReply,
   ): Promise<void> {
     const { id: sessionId } = request.params;
+    const requestId = randomUUID();
+    const startTime = Date.now();
+
+    // Emit request received event
+    await this.emitAsync("StagehandRequestReceived", {
+      type: "StagehandRequestReceived",
+      timestamp: new Date(),
+      sessionId,
+      requestId,
+      method: "POST",
+      path: `/v1/sessions/${sessionId}/act`,
+      headers: {
+        "x-stream-response": request.headers["x-stream-response"] === "true",
+        "x-bb-api-key": request.headers["x-bb-api-key"] as string | undefined,
+        "x-model-api-key": request.headers["x-model-api-key"] as string | undefined,
+        "x-sdk-version": request.headers["x-sdk-version"] as string | undefined,
+        "x-language": request.headers["x-language"] as string | undefined,
+        "x-sent-at": request.headers["x-sent-at"] as string | undefined,
+      },
+      bodySize: JSON.stringify(request.body).length,
+    });
 
     if (!this.sessionManager.hasSession(sessionId)) {
+      await this.emitAsync("StagehandRequestCompleted", {
+        type: "StagehandRequestCompleted",
+        timestamp: new Date(),
+        sessionId,
+        requestId,
+        statusCode: 404,
+        durationMs: Date.now() - startTime,
+      });
       return reply.status(404).send({ error: "Session not found" });
     }
 
@@ -167,9 +263,12 @@ export class StagehandServer {
 
       await createStreamingResponse<z.infer<typeof actSchemaV3>>({
         sessionId,
+        requestId,
+        actionType: "act",
         sessionManager: this.sessionManager,
         request,
         reply,
+        eventBus: this.eventBus,
         handler: async (ctx, data) => {
           const { stagehand } = ctx;
           const { frameId } = data;
@@ -207,7 +306,26 @@ export class StagehandServer {
           return { result };
         },
       });
+
+      // Emit request completed event
+      await this.emitAsync("StagehandRequestCompleted", {
+        type: "StagehandRequestCompleted",
+        timestamp: new Date(),
+        sessionId,
+        requestId,
+        statusCode: 200,
+        durationMs: Date.now() - startTime,
+      });
     } catch (error) {
+      await this.emitAsync("StagehandRequestCompleted", {
+        type: "StagehandRequestCompleted",
+        timestamp: new Date(),
+        sessionId,
+        requestId,
+        statusCode: error instanceof z.ZodError ? 400 : 500,
+        durationMs: Date.now() - startTime,
+      });
+
       if (error instanceof z.ZodError) {
         return reply.status(400).send({
           error: "Invalid request body",
@@ -226,8 +344,36 @@ export class StagehandServer {
     reply: FastifyReply,
   ): Promise<void> {
     const { id: sessionId } = request.params;
+    const requestId = randomUUID();
+    const startTime = Date.now();
+
+    await this.emitAsync("StagehandRequestReceived", {
+      type: "StagehandRequestReceived",
+      timestamp: new Date(),
+      sessionId,
+      requestId,
+      method: "POST",
+      path: `/v1/sessions/${sessionId}/extract`,
+      headers: {
+        "x-stream-response": request.headers["x-stream-response"] === "true",
+        "x-bb-api-key": request.headers["x-bb-api-key"] as string | undefined,
+        "x-model-api-key": request.headers["x-model-api-key"] as string | undefined,
+        "x-sdk-version": request.headers["x-sdk-version"] as string | undefined,
+        "x-language": request.headers["x-language"] as string | undefined,
+        "x-sent-at": request.headers["x-sent-at"] as string | undefined,
+      },
+      bodySize: JSON.stringify(request.body).length,
+    });
 
     if (!this.sessionManager.hasSession(sessionId)) {
+      await this.emitAsync("StagehandRequestCompleted", {
+        type: "StagehandRequestCompleted",
+        timestamp: new Date(),
+        sessionId,
+        requestId,
+        statusCode: 404,
+        durationMs: Date.now() - startTime,
+      });
       return reply.status(404).send({ error: "Session not found" });
     }
 
@@ -236,9 +382,12 @@ export class StagehandServer {
 
       await createStreamingResponse<z.infer<typeof extractSchemaV3>>({
         sessionId,
+        requestId,
+        actionType: "extract",
         sessionManager: this.sessionManager,
         request,
         reply,
+        eventBus: this.eventBus,
         handler: async (ctx, data) => {
           const { stagehand } = ctx;
           const { frameId } = data;
@@ -281,7 +430,25 @@ export class StagehandServer {
           return { result };
         },
       });
+
+      await this.emitAsync("StagehandRequestCompleted", {
+        type: "StagehandRequestCompleted",
+        timestamp: new Date(),
+        sessionId,
+        requestId,
+        statusCode: 200,
+        durationMs: Date.now() - startTime,
+      });
     } catch (error) {
+      await this.emitAsync("StagehandRequestCompleted", {
+        type: "StagehandRequestCompleted",
+        timestamp: new Date(),
+        sessionId,
+        requestId,
+        statusCode: error instanceof z.ZodError ? 400 : 500,
+        durationMs: Date.now() - startTime,
+      });
+
       if (error instanceof z.ZodError) {
         return reply.status(400).send({
           error: "Invalid request body",
@@ -300,8 +467,36 @@ export class StagehandServer {
     reply: FastifyReply,
   ): Promise<void> {
     const { id: sessionId } = request.params;
+    const requestId = randomUUID();
+    const startTime = Date.now();
+
+    await this.emitAsync("StagehandRequestReceived", {
+      type: "StagehandRequestReceived",
+      timestamp: new Date(),
+      sessionId,
+      requestId,
+      method: "POST",
+      path: `/v1/sessions/${sessionId}/observe`,
+      headers: {
+        "x-stream-response": request.headers["x-stream-response"] === "true",
+        "x-bb-api-key": request.headers["x-bb-api-key"] as string | undefined,
+        "x-model-api-key": request.headers["x-model-api-key"] as string | undefined,
+        "x-sdk-version": request.headers["x-sdk-version"] as string | undefined,
+        "x-language": request.headers["x-language"] as string | undefined,
+        "x-sent-at": request.headers["x-sent-at"] as string | undefined,
+      },
+      bodySize: JSON.stringify(request.body).length,
+    });
 
     if (!this.sessionManager.hasSession(sessionId)) {
+      await this.emitAsync("StagehandRequestCompleted", {
+        type: "StagehandRequestCompleted",
+        timestamp: new Date(),
+        sessionId,
+        requestId,
+        statusCode: 404,
+        durationMs: Date.now() - startTime,
+      });
       return reply.status(404).send({ error: "Session not found" });
     }
 
@@ -310,9 +505,12 @@ export class StagehandServer {
 
       await createStreamingResponse<z.infer<typeof observeSchemaV3>>({
         sessionId,
+        requestId,
+        actionType: "observe",
         sessionManager: this.sessionManager,
         request,
         reply,
+        eventBus: this.eventBus,
         handler: async (ctx, data) => {
           const { stagehand } = ctx;
           const { frameId } = data;
@@ -349,7 +547,25 @@ export class StagehandServer {
           return { result };
         },
       });
+
+      await this.emitAsync("StagehandRequestCompleted", {
+        type: "StagehandRequestCompleted",
+        timestamp: new Date(),
+        sessionId,
+        requestId,
+        statusCode: 200,
+        durationMs: Date.now() - startTime,
+      });
     } catch (error) {
+      await this.emitAsync("StagehandRequestCompleted", {
+        type: "StagehandRequestCompleted",
+        timestamp: new Date(),
+        sessionId,
+        requestId,
+        statusCode: error instanceof z.ZodError ? 400 : 500,
+        durationMs: Date.now() - startTime,
+      });
+
       if (error instanceof z.ZodError) {
         return reply.status(400).send({
           error: "Invalid request body",
@@ -368,8 +584,36 @@ export class StagehandServer {
     reply: FastifyReply,
   ): Promise<void> {
     const { id: sessionId } = request.params;
+    const requestId = randomUUID();
+    const startTime = Date.now();
+
+    await this.emitAsync("StagehandRequestReceived", {
+      type: "StagehandRequestReceived",
+      timestamp: new Date(),
+      sessionId,
+      requestId,
+      method: "POST",
+      path: `/v1/sessions/${sessionId}/agentExecute`,
+      headers: {
+        "x-stream-response": request.headers["x-stream-response"] === "true",
+        "x-bb-api-key": request.headers["x-bb-api-key"] as string | undefined,
+        "x-model-api-key": request.headers["x-model-api-key"] as string | undefined,
+        "x-sdk-version": request.headers["x-sdk-version"] as string | undefined,
+        "x-language": request.headers["x-language"] as string | undefined,
+        "x-sent-at": request.headers["x-sent-at"] as string | undefined,
+      },
+      bodySize: JSON.stringify(request.body).length,
+    });
 
     if (!this.sessionManager.hasSession(sessionId)) {
+      await this.emitAsync("StagehandRequestCompleted", {
+        type: "StagehandRequestCompleted",
+        timestamp: new Date(),
+        sessionId,
+        requestId,
+        statusCode: 404,
+        durationMs: Date.now() - startTime,
+      });
       return reply.status(404).send({ error: "Session not found" });
     }
 
@@ -378,9 +622,12 @@ export class StagehandServer {
 
       await createStreamingResponse<z.infer<typeof agentExecuteSchemaV3>>({
         sessionId,
+        requestId,
+        actionType: "agentExecute",
         sessionManager: this.sessionManager,
         request,
         reply,
+        eventBus: this.eventBus,
         handler: async (ctx, data) => {
           const { stagehand } = ctx;
           const { agentConfig, executeOptions, frameId } = data;
@@ -405,7 +652,25 @@ export class StagehandServer {
           return { result };
         },
       });
+
+      await this.emitAsync("StagehandRequestCompleted", {
+        type: "StagehandRequestCompleted",
+        timestamp: new Date(),
+        sessionId,
+        requestId,
+        statusCode: 200,
+        durationMs: Date.now() - startTime,
+      });
     } catch (error) {
+      await this.emitAsync("StagehandRequestCompleted", {
+        type: "StagehandRequestCompleted",
+        timestamp: new Date(),
+        sessionId,
+        requestId,
+        statusCode: error instanceof z.ZodError ? 400 : 500,
+        durationMs: Date.now() - startTime,
+      });
+
       if (error instanceof z.ZodError) {
         return reply.status(400).send({
           error: "Invalid request body",
@@ -424,17 +689,48 @@ export class StagehandServer {
     reply: FastifyReply,
   ): Promise<void> {
     const { id: sessionId } = request.params;
+    const requestId = randomUUID();
+    const startTime = Date.now();
+
+    await this.emitAsync("StagehandRequestReceived", {
+      type: "StagehandRequestReceived",
+      timestamp: new Date(),
+      sessionId,
+      requestId,
+      method: "POST",
+      path: `/v1/sessions/${sessionId}/navigate`,
+      headers: {
+        "x-stream-response": request.headers["x-stream-response"] === "true",
+        "x-bb-api-key": request.headers["x-bb-api-key"] as string | undefined,
+        "x-model-api-key": request.headers["x-model-api-key"] as string | undefined,
+        "x-sdk-version": request.headers["x-sdk-version"] as string | undefined,
+        "x-language": request.headers["x-language"] as string | undefined,
+        "x-sent-at": request.headers["x-sent-at"] as string | undefined,
+      },
+      bodySize: JSON.stringify(request.body).length,
+    });
 
     if (!this.sessionManager.hasSession(sessionId)) {
+      await this.emitAsync("StagehandRequestCompleted", {
+        type: "StagehandRequestCompleted",
+        timestamp: new Date(),
+        sessionId,
+        requestId,
+        statusCode: 404,
+        durationMs: Date.now() - startTime,
+      });
       return reply.status(404).send({ error: "Session not found" });
     }
 
     try {
       await createStreamingResponse({
         sessionId,
+        requestId,
+        actionType: "navigate",
         sessionManager: this.sessionManager,
         request,
         reply,
+        eventBus: this.eventBus,
         handler: async (ctx, data: any) => {
           const { stagehand } = ctx;
           const { url, options, frameId } = data;
@@ -458,7 +754,25 @@ export class StagehandServer {
           return { result: response };
         },
       });
+
+      await this.emitAsync("StagehandRequestCompleted", {
+        type: "StagehandRequestCompleted",
+        timestamp: new Date(),
+        sessionId,
+        requestId,
+        statusCode: 200,
+        durationMs: Date.now() - startTime,
+      });
     } catch (error) {
+      await this.emitAsync("StagehandRequestCompleted", {
+        type: "StagehandRequestCompleted",
+        timestamp: new Date(),
+        sessionId,
+        requestId,
+        statusCode: 500,
+        durationMs: Date.now() - startTime,
+      });
+
       if (!reply.sent) {
         reply.status(500).send({
           error: error instanceof Error ? error.message : "Failed to navigate",
@@ -475,11 +789,50 @@ export class StagehandServer {
     reply: FastifyReply,
   ): Promise<void> {
     const { id: sessionId } = request.params;
+    const requestId = randomUUID();
+    const startTime = Date.now();
+
+    await this.emitAsync("StagehandRequestReceived", {
+      type: "StagehandRequestReceived",
+      timestamp: new Date(),
+      sessionId,
+      requestId,
+      method: "POST",
+      path: `/v1/sessions/${sessionId}/end`,
+      headers: {
+        "x-stream-response": request.headers["x-stream-response"] === "true",
+        "x-bb-api-key": request.headers["x-bb-api-key"] as string | undefined,
+        "x-model-api-key": request.headers["x-model-api-key"] as string | undefined,
+        "x-sdk-version": request.headers["x-sdk-version"] as string | undefined,
+        "x-language": request.headers["x-language"] as string | undefined,
+        "x-sent-at": request.headers["x-sent-at"] as string | undefined,
+      },
+      bodySize: JSON.stringify(request.body).length,
+    });
 
     try {
-      await this.sessionManager.endSession(sessionId);
+      await this.sessionManager.endSession(sessionId, "manual");
+
+      await this.emitAsync("StagehandRequestCompleted", {
+        type: "StagehandRequestCompleted",
+        timestamp: new Date(),
+        sessionId,
+        requestId,
+        statusCode: 200,
+        durationMs: Date.now() - startTime,
+      });
+
       reply.status(200).send({ success: true });
     } catch (error) {
+      await this.emitAsync("StagehandRequestCompleted", {
+        type: "StagehandRequestCompleted",
+        timestamp: new Date(),
+        sessionId,
+        requestId,
+        statusCode: 500,
+        durationMs: Date.now() - startTime,
+      });
+
       reply.status(500).send({
         error: error instanceof Error ? error.message : "Failed to end session",
       });
@@ -498,6 +851,21 @@ export class StagehandServer {
         host: this.host,
       });
       this.isListening = true;
+
+      // Emit server started event
+      await this.emitAsync("StagehandServerStarted", {
+        type: "StagehandServerStarted",
+        timestamp: new Date(),
+        port: listenPort,
+        host: this.host,
+      });
+
+      // Emit server ready event
+      await this.emitAsync("StagehandServerReady", {
+        type: "StagehandServerReady",
+        timestamp: new Date(),
+      });
+
       console.log(`Stagehand server listening on http://${this.host}:${listenPort}`);
     } catch (error) {
       console.error("Failed to start server:", error);
@@ -509,6 +877,15 @@ export class StagehandServer {
    * Stop the server and cleanup
    */
   async close(): Promise<void> {
+    const graceful = this.isListening;
+
+    // Emit server shutdown event
+    await this.emitAsync("StagehandServerShutdown", {
+      type: "StagehandServerShutdown",
+      timestamp: new Date(),
+      graceful,
+    });
+
     if (this.isListening) {
       await this.app.close();
       this.isListening = false;

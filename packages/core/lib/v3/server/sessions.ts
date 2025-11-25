@@ -1,6 +1,7 @@
 import type { V3 } from "../v3";
 import type { V3Options, LogLine } from "../types/public";
 import { randomUUID } from "crypto";
+import type { StagehandEventBus } from "../eventBus";
 
 export interface SessionEntry {
   sessionId: string;
@@ -14,10 +15,12 @@ export class SessionManager {
   private sessions: Map<string, SessionEntry>;
   private cleanupInterval: NodeJS.Timeout | null = null;
   private ttlMs: number;
+  private eventBus: StagehandEventBus;
 
-  constructor(ttlMs: number = 30_000) {
+  constructor(ttlMs: number = 30_000, eventBus: StagehandEventBus) {
     this.sessions = new Map();
     this.ttlMs = ttlMs;
+    this.eventBus = eventBus;
     this.startCleanup();
   }
 
@@ -35,6 +38,14 @@ export class SessionManager {
       createdAt: new Date(),
     });
 
+    // Emit session created event (fire and forget - don't await)
+    void this.eventBus.emitAsync("StagehandSessionCreated", {
+      type: "StagehandSessionCreated",
+      timestamp: new Date(),
+      sessionId,
+      config,
+    });
+
     return sessionId;
   }
 
@@ -50,6 +61,14 @@ export class SessionManager {
     if (!entry) {
       throw new Error(`Session not found: ${sessionId}`);
     }
+
+    // Emit session resumed event (fire and forget)
+    void this.eventBus.emitAsync("StagehandSessionResumed", {
+      type: "StagehandSessionResumed",
+      timestamp: new Date(),
+      sessionId,
+      fromCache: entry.stagehand !== null,
+    });
 
     // Update logger reference if provided
     if (logger) {
@@ -78,6 +97,13 @@ export class SessionManager {
 
       entry.stagehand = new V3Class(options);
       await entry.stagehand.init();
+
+      // Emit session initialized event (fire and forget)
+      void this.eventBus.emitAsync("StagehandSessionInitialized", {
+        type: "StagehandSessionInitialized",
+        timestamp: new Date(),
+        sessionId,
+      });
     } else if (logger) {
       // Update logger for existing instance
       entry.loggerRef.current = logger;
@@ -104,7 +130,7 @@ export class SessionManager {
   /**
    * End a session and cleanup
    */
-  async endSession(sessionId: string): Promise<void> {
+  async endSession(sessionId: string, reason: "manual" | "ttl_expired" | "cache_evicted" | "error" = "manual"): Promise<void> {
     const entry = this.sessions.get(sessionId);
 
     if (!entry) {
@@ -121,6 +147,14 @@ export class SessionManager {
     }
 
     this.sessions.delete(sessionId);
+
+    // Emit session ended event (fire and forget)
+    void this.eventBus.emitAsync("StagehandSessionEnded", {
+      type: "StagehandSessionEnded",
+      timestamp: new Date(),
+      sessionId,
+      reason,
+    });
   }
 
   /**
@@ -157,7 +191,7 @@ export class SessionManager {
     // End all expired sessions
     for (const sessionId of expiredSessions) {
       console.log(`Cleaning up expired session: ${sessionId}`);
-      await this.endSession(sessionId);
+      await this.endSession(sessionId, "ttl_expired");
     }
   }
 

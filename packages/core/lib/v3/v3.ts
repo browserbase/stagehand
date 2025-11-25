@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { InferStagehandSchema, StagehandZodSchema } from "./zodCompat";
 import { loadApiKeyFromEnv } from "../utils";
 import { StagehandLogger, LoggerOptions } from "../logger";
+import { StagehandEventBus, createEventBus } from "./eventBus";
 import { ActCache } from "./cache/ActCache";
 import { AgentCache } from "./cache/AgentCache";
 import { CacheStorage } from "./cache/CacheStorage";
@@ -124,6 +125,7 @@ dotenv.config({ path: ".env" });
  * - Provides a stable API surface for downstream code regardless of runtime environment.
  */
 export class V3 {
+  public readonly eventBus: StagehandEventBus;
   private readonly opts: V3Options;
   private state: InitState = { kind: "UNINITIALIZED" };
   private actHandler: ActHandler | null = null;
@@ -171,6 +173,7 @@ export class V3 {
   private actCache: ActCache;
   private agentCache: AgentCache;
   private apiClient: StagehandAPIClient | null = null;
+  private llmEventHandlerCleanup: (() => void) | null = null;
 
   public stagehandMetrics: StagehandMetrics = {
     actPromptTokens: 0,
@@ -201,6 +204,9 @@ export class V3 {
   };
 
   constructor(opts: V3Options) {
+    // Create event bus first - both library and server will use this
+    this.eventBus = opts.eventBus || createEventBus();
+
     V3._installProcessGuards();
     this.externalLogger = opts.logger;
     this.verbose = opts.verbose ?? 1;
@@ -303,6 +309,14 @@ export class V3 {
       getSystemPrompt: () => opts.systemPrompt,
       domSettleTimeoutMs: this.domSettleTimeoutMs,
       act: this.act.bind(this),
+    });
+
+    // Initialize LLM event handler to listen for LLM requests on the event bus
+    const { initializeLLMEventHandler } = require("./llm/llmEventHandler");
+    this.llmEventHandlerCleanup = initializeLLMEventHandler({
+      eventBus: this.eventBus,
+      llmClient: this.llmClient,
+      logger: this.logger,
     });
 
     this.opts = opts;
@@ -1322,6 +1336,16 @@ export class V3 {
         }
       }
     } finally {
+      // Clean up LLM event handler
+      if (this.llmEventHandlerCleanup) {
+        try {
+          this.llmEventHandlerCleanup();
+          this.llmEventHandlerCleanup = null;
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+
       // Reset internal state
       this.state = { kind: "UNINITIALIZED" };
       this.ctx = null;

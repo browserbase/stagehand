@@ -5,10 +5,22 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./server": {
+      "import": "./dist/server.js",
+      "require": "./dist/server.js",
+      "types": "./dist/server.d.ts"
+    }
+  },
   "scripts": {
     "gen-version": "tsx scripts/gen-version.ts",
     "build-dom-scripts": "tsx lib/v3/dom/genDomScripts.ts && tsx lib/v3/dom/genLocatorScripts.ts",
-    "build-js": "tsup --entry.index lib/v3/index.ts --dts",
+    "build-js": "tsup --entry.index lib/v3/index.ts --entry.server lib/v3/server/index.ts --dts",
     "typecheck": "tsc --noEmit",
     "prepare": "pnpm run build",
     "build": "pnpm run gen-version && pnpm run build-dom-scripts && pnpm run build-js && pnpm run typecheck",

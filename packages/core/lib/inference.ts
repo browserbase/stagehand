@@ -12,6 +12,8 @@ import {
 } from "./prompt";
 import { appendSummary, writeTimestampedTxtFile } from "./inferenceLogUtils";
 import type { InferStagehandSchema, StagehandZodObject } from "./v3/zodCompat";
+import { createChatCompletionViaEventBus } from "./v3/llm/llmEventBridge";
+import type { StagehandEventBus } from "./v3/eventBus";
 
 // Re-export for backward compatibility
 export type { LLMParsedResponse, LLMUsage } from "./v3/llm/LLMClient";
@@ -21,6 +23,7 @@ export async function extract<T extends StagehandZodObject>({
   domElements,
   schema,
   llmClient,
+  eventBus,
   logger,
   userProvidedInstructions,
   logInferenceToFile = false,
@@ -29,6 +32,7 @@ export async function extract<T extends StagehandZodObject>({
   domElements: string;
   schema: T;
   llmClient: LLMClient;
+  eventBus: StagehandEventBus;
   userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
   logInferenceToFile?: boolean;
@@ -74,7 +78,7 @@ export async function extract<T extends StagehandZodObject>({
 
   const extractStartTime = Date.now();
   const extractionResponse =
-    await llmClient.createChatCompletion<ExtractionResponse>({
+    await createChatCompletionViaEventBus<ExtractionResponse>(eventBus, {
       options: {
         messages: extractCallMessages,
         response_model: {
@@ -139,7 +143,7 @@ export async function extract<T extends StagehandZodObject>({
 
   const metadataStartTime = Date.now();
   const metadataResponse =
-    await llmClient.createChatCompletion<MetadataResponse>({
+    await createChatCompletionViaEventBus<MetadataResponse>(eventBus, {
       options: {
         messages: metadataCallMessages,
         response_model: {
@@ -224,6 +228,7 @@ export async function observe({
   instruction,
   domElements,
   llmClient,
+  eventBus,
   userProvidedInstructions,
   logger,
   logInferenceToFile = false,
@@ -231,6 +236,7 @@ export async function observe({
   instruction: string;
   domElements: string;
   llmClient: LLMClient;
+  eventBus: StagehandEventBus;
   userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
   logInferenceToFile?: boolean;
@@ -291,20 +297,23 @@ export async function observe({
   }
 
   const start = Date.now();
-  const rawResponse = await llmClient.createChatCompletion<ObserveResponse>({
-    options: {
-      messages,
-      response_model: {
-        schema: observeSchema,
-        name: "Observation",
+  const rawResponse = await createChatCompletionViaEventBus<ObserveResponse>(
+    eventBus,
+    {
+      options: {
+        messages,
+        response_model: {
+          schema: observeSchema,
+          name: "Observation",
+        },
+        temperature: isGPT5 ? 1 : 0.1,
+        top_p: 1,
+        frequency_penalty: 0,
+        presence_penalty: 0,
       },
-      temperature: isGPT5 ? 1 : 0.1,
-      top_p: 1,
-      frequency_penalty: 0,
-      presence_penalty: 0,
+      logger,
     },
-    logger,
-  });
+  );
   const end = Date.now();
   const usageTimeMs = end - start;
 
@@ -364,6 +373,7 @@ export async function act({
   instruction,
   domElements,
   llmClient,
+  eventBus,
   userProvidedInstructions,
   logger,
   logInferenceToFile = false,
@@ -371,6 +381,7 @@ export async function act({
   instruction: string;
   domElements: string;
   llmClient: LLMClient;
+  eventBus: StagehandEventBus;
   userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
   logInferenceToFile?: boolean;
