@@ -37,6 +37,7 @@ import {
 import {
   AgentConfig,
   AgentExecuteOptions,
+  AgentStreamOptions,
   AgentResult,
   AVAILABLE_CUA_MODELS,
   LogLine,
@@ -1500,7 +1501,7 @@ export class V3 {
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
     stream?: (
-      instructionOrOptions: string | AgentExecuteOptions,
+      instructionOrOptions: string | AgentStreamOptions,
     ) => Promise<AgentStreamResult>;
   } {
     this.logger({
@@ -1739,7 +1740,7 @@ export class V3 {
             }
           }
         }),
-      stream: async (instructionOrOptions: string | AgentExecuteOptions) =>
+      stream: async (instructionOrOptions: string | AgentStreamOptions) =>
         withInstanceLogContext(this.instanceId, async () => {
           if (!this.experimental) {
             throw new ExperimentalNotConfiguredError("Agent streaming");

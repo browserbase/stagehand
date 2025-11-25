@@ -1,5 +1,18 @@
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { ToolSet, ModelMessage, wrapLanguageModel, StreamTextResult } from "ai";
+import {
+  ToolSet,
+  ModelMessage,
+  wrapLanguageModel,
+  StreamTextResult,
+  StepResult,
+  PrepareStepFunction,
+  GenerateTextOnStepFinishCallback,
+  StreamTextOnStepFinishCallback,
+  StreamTextOnErrorCallback,
+  StreamTextOnChunkCallback,
+  StreamTextOnFinishCallback,
+  ToolCallRepairFunction,
+} from "ai";
 import { LogLine } from "./logs";
 import { Page as PlaywrightPage } from "playwright-core";
 import { Page as PuppeteerPage } from "puppeteer-core";
@@ -7,7 +20,7 @@ import { Page as PatchrightPage } from "patchright-core";
 import { Page } from "../../understudy/page";
 
 export interface AgentContext {
-  options: AgentExecuteOptions;
+  options: AgentExecuteOptions | AgentStreamOptions;
   maxSteps: number;
   systemPrompt: string;
   allTools: ToolSet;
@@ -56,11 +69,77 @@ export type AgentStreamResult = StreamTextResult<ToolSet, never> & {
   result: Promise<AgentResult>;
 };
 
+
+export interface AgentCallbacks {
+  /**
+   * Optional function called before each step to modify settings.
+   * You can change the model, tool choices, active tools, system prompt,
+   * and input messages for each step.
+   */
+  prepareStep?: PrepareStepFunction<ToolSet>;
+  /**
+   * Callback called when each step (LLM call) is finished.
+   * This is called for intermediate steps as well as the final step.
+   */
+  onStepFinish?:
+    | GenerateTextOnStepFinishCallback<ToolSet>
+    | StreamTextOnStepFinishCallback<ToolSet>;
+}
+
+/**
+ * Callbacks specific to the stream method.
+ */
+export interface AgentStreamCallbacks extends AgentCallbacks {
+  /**
+   * Callback called when each step (LLM call) is finished during streaming.
+   */
+  onStepFinish?: StreamTextOnStepFinishCallback<ToolSet>;
+  /**
+   * Callback called when an error occurs during streaming.
+   * Use this to log errors or handle error states.
+   */
+  onError?: StreamTextOnErrorCallback;
+  /**
+   * Callback called for each chunk of the stream.
+   * Stream processing will pause until the callback promise resolves.
+   */
+  onChunk?: StreamTextOnChunkCallback<ToolSet>;
+  /**
+   * Callback called when the stream finishes.
+   */
+  onFinish?: StreamTextOnFinishCallback<ToolSet>;
+  /**
+   * Callback called when the stream is aborted.
+   */
+  onAbort?: (event: { steps: Array<StepResult<ToolSet>> }) => PromiseLike<void> | void;
+}
+
+/**
+ * Callbacks specific to the execute method.
+ */
+export interface AgentExecuteCallbacks extends AgentCallbacks {
+  /**
+   * Callback called when each step (LLM call) is finished.
+   */
+  onStepFinish?: GenerateTextOnStepFinishCallback<ToolSet>;
+}
+
 export interface AgentExecuteOptions {
   instruction: string;
   maxSteps?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   highlightCursor?: boolean;
+  /**
+   * Callbacks for the agent execution.
+   */
+  callbacks?: AgentExecuteCallbacks;
+}
+
+export interface AgentStreamOptions extends Omit<AgentExecuteOptions, "callbacks"> {
+  /**
+   * Callbacks for the agent stream.
+   */
+  callbacks?: AgentStreamCallbacks;
 }
 export type AgentType = "openai" | "anthropic" | "google";
 
