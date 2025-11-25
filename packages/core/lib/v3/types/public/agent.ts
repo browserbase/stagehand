@@ -24,6 +24,11 @@ export interface AgentResult {
   message: string;
   actions: AgentAction[];
   completed: boolean;
+  /**
+   * True if the agent was stopped via stop() or stagehand.close().
+   * When stopped, actions contains all actions completed before stopping.
+   */
+  stopped?: boolean;
   metadata?: Record<string, unknown>;
   usage?: {
     input_tokens: number;
@@ -39,6 +44,11 @@ export interface AgentExecuteOptions {
   maxSteps?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   highlightCursor?: boolean;
+  /**
+   * An optional abort signal to cancel the agent execution.
+   * @internal Set by the agent instance.
+   */
+  abortSignal?: AbortSignal;
 }
 export type AgentType = "openai" | "anthropic" | "google" | "microsoft";
 

@@ -178,6 +178,7 @@ describe("Stagehand public API types", () => {
       maxSteps?: number;
       page?: Stagehand.AnyPage;
       highlightCursor?: boolean;
+      abortSignal?: AbortSignal;
     };
 
     it("matches expected type shape", () => {
@@ -207,6 +208,7 @@ describe("Stagehand public API types", () => {
       message: string;
       actions: Stagehand.AgentAction[];
       completed: boolean;
+      stopped?: boolean;
       metadata?: Record<string, unknown>;
       usage?: {
         input_tokens: number;

@@ -87,6 +87,7 @@ export class V3AgentHandler {
         stopWhen: stepCountIs(maxSteps),
         temperature: 1,
         toolChoice: "auto",
+        abortSignal: options.abortSignal,
         onStepFinish: async (event) => {
           this.logger({
             category: "agent",
@@ -172,6 +173,35 @@ export class V3AgentHandler {
       };
     } catch (error) {
       const errorMessage = error?.message ?? String(error);
+      const isAborted = error?.name === "AbortError" || errorMessage.includes("aborted");
+
+      if (isAborted) {
+        this.logger({
+          category: "agent",
+          message: `Agent execution stopped. Actions completed: ${actions.length}`,
+          level: 1,
+        });
+
+        const endTime = Date.now();
+        const inferenceTimeMs = endTime - startTime;
+        const allReasoning = collectedReasoning.join(" ").trim();
+
+        return {
+          success: false,
+          actions,
+          message: allReasoning || "Agent execution was stopped",
+          completed: false,
+          stopped: true,
+          usage: {
+            input_tokens: 0,
+            output_tokens: 0,
+            reasoning_tokens: 0,
+            cached_input_tokens: 0,
+            inference_time_ms: inferenceTimeMs,
+          },
+        };
+      }
+
       this.logger({
         category: "agent",
         message: `Error executing agent task: ${errorMessage}`,
