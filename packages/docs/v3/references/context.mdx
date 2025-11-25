@@ -84,6 +84,54 @@ This method:
 - Brings the tab to the foreground (in headed mode)
 - Makes it the default page for subsequent operations
 
+### addInitScript()
+
+Inject JavaScript that runs before any page scripts on every navigation.
+
+```typescript
+await context.addInitScript<Arg>(
+  script: string | { path?: string; content?: string } | ((arg: Arg) => unknown),
+  arg?: Arg,
+): Promise<void>
+```
+
+<ParamField
+  path="script"
+  type="string | { path?: string; content?: string } | (arg: Arg) => unknown"
+  required
+>
+  Provide the script to inject. Pass raw source code, reference a file on disk,
+  or supply a function that Stagehand serializes before sending to the browser.
+</ParamField>
+
+<ParamField path="arg" type="Arg" optional>
+  Extra data that is JSON-serialized and passed to your function. Only supported
+  when `script` is a function.
+</ParamField>
+
+This method:
+- Runs at document start, and installs the script on all currently open pages and replays it on every
+  navigation of those pages
+- Automatically applies the same script to any pages created after calling
+  `context.addInitScript()`
+- Allows referencing preload files via `{ path: "./preloads/dom-hooks.js" }`,
+  mirroring Playwright's `sourceURL` behavior for readable stack traces
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const context = stagehand.context;
+
+// Add some JavaScript to automatically accept alert dialogs
+await context.addInitScript(() => {
+   window.alert = () => {};
+   window.confirm = () => true;
+   window.prompt = () => '';
+ });
+```
+
 ### close()
 
 Close the browser context and all associated pages.
