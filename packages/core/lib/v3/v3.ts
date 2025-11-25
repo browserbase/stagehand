@@ -138,6 +138,7 @@ export class V3 {
   private overrideLlmClients: Map<string, LLMClient> = new Map();
   private readonly domSettleTimeoutMs?: number;
   private _isClosing = false;
+  private activeAgentAbortControllers: Set<AbortController> = new Set();
   public browserbaseSessionId?: string;
   private browserbaseSessionUrl?: string;
   private browserbaseDebugUrl?: string;
@@ -1260,6 +1261,16 @@ export class V3 {
     if (this._isClosing && !opts?.force) return;
     this._isClosing = true;
 
+    // Abort all active agent executions
+    for (const controller of this.activeAgentAbortControllers) {
+      try {
+        controller.abort();
+      } catch {
+        // ignore abort errors
+      }
+    }
+    this.activeAgentAbortControllers.clear();
+
     try {
       // Unhook CDP transport close handler if context exists
       try {
@@ -1503,7 +1514,27 @@ export class V3 {
     stream?: (
       instructionOrOptions: string | AgentStreamOptions,
     ) => Promise<AgentStreamResult>;
+    /**
+     * Stop the currently running agent execution.
+     * This will abort any ongoing stream or execute calls.
+     * Only available for non-CUA agents.
+     */
+    stop?: () => void;
   } {
+    let currentAbortController: AbortController | null = null;
+
+    const stop = () => {
+      if (currentAbortController) {
+        this.logger({
+          category: "agent",
+          message: "Stopping agent execution",
+          level: 1,
+        });
+        currentAbortController.abort();
+        this.activeAgentAbortControllers.delete(currentAbortController);
+        currentAbortController = null;
+      }
+    };
     this.logger({
       category: "agent",
       message: `Creating v3 agent instance with options: ${JSON.stringify(options)}`,
@@ -1644,6 +1675,7 @@ export class V3 {
     const agentConfigSignature = this.agentCache.buildConfigSignature(options);
 
     return {
+      stop,
       execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
         withInstanceLogContext(this.instanceId, async () => {
           if ((options?.integrations || options?.tools) && !this.experimental) {
@@ -1651,6 +1683,9 @@ export class V3 {
               "MCP integrations and custom tools",
             );
           }
+
+          currentAbortController = new AbortController();
+          this.activeAgentAbortControllers.add(currentAbortController);
 
           const tools = options?.integrations
             ? await resolveTools(options.integrations, options.tools)
@@ -1675,8 +1710,8 @@ export class V3 {
 
           const resolvedOptions: AgentExecuteOptions =
             typeof instructionOrOptions === "string"
-              ? { instruction: instructionOrOptions }
-              : instructionOrOptions;
+              ? { instruction: instructionOrOptions, abortSignal: currentAbortController.signal }
+              : { ...instructionOrOptions, abortSignal: currentAbortController.signal };
           if (resolvedOptions.page) {
             const normalizedPage = await this.normalizeToV3Page(
               resolvedOptions.page,
@@ -1738,6 +1773,10 @@ export class V3 {
             if (recording) {
               this.discardAgentReplayRecording();
             }
+            // Clean up abort controller
+            if (currentAbortController) {
+              this.activeAgentAbortControllers.delete(currentAbortController);
+            }
           }
         }),
       stream: async (instructionOrOptions: string | AgentStreamOptions) =>
@@ -1750,6 +1789,10 @@ export class V3 {
               "MCP integrations and custom tools",
             );
           }
+
+          currentAbortController = new AbortController();
+          this.activeAgentAbortControllers.add(currentAbortController);
+          const abortController = currentAbortController;
 
           const tools = options?.integrations
             ? await resolveTools(options.integrations, options.tools)
@@ -1770,7 +1813,19 @@ export class V3 {
             tools,
           );
 
-          return handler.stream(instructionOrOptions);
+          const resolvedOptions: AgentStreamOptions =
+            typeof instructionOrOptions === "string"
+              ? { instruction: instructionOrOptions, abortSignal: abortController.signal }
+              : { ...instructionOrOptions, abortSignal: abortController.signal };
+
+          const streamResult = await handler.stream(resolvedOptions);
+
+          // Clean up abort controller when stream completes
+          streamResult.result.finally(() => {
+            this.activeAgentAbortControllers.delete(abortController);
+          });
+
+          return streamResult;
         }),
     };
   }

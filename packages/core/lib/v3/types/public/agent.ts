@@ -133,6 +133,12 @@ export interface AgentExecuteOptions {
    * Callbacks for the agent execution.
    */
   callbacks?: AgentExecuteCallbacks;
+  /**
+   * An optional abort signal that can be used to cancel the agent execution.
+   * This is set internally by the agent instance when stop() is called.
+   * @internal
+   */
+  abortSignal?: AbortSignal;
 }
 
 export interface AgentStreamOptions extends Omit<AgentExecuteOptions, "callbacks"> {

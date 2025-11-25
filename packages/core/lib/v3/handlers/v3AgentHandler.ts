@@ -188,6 +188,7 @@ export class V3AgentHandler {
         toolChoice: "auto",
         prepareStep: callbacks?.prepareStep,
         onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
+        abortSignal: options.abortSignal,
       });
 
       return this.consolidateMetricsAndResult(startTime, state, result);
@@ -251,6 +252,7 @@ export class V3AgentHandler {
       onError: callbacks?.onError,
       onChunk: callbacks?.onChunk,
       onAbort: callbacks?.onAbort,
+      abortSignal: (options as AgentStreamOptions).abortSignal,
       onFinish: (event) => {
         // Call user-provided onFinish callback first
         if (callbacks?.onFinish) {
