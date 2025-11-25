@@ -5,7 +5,7 @@ A lightweight Python client for the Stagehand browser automation framework.
 Connects to a remote Stagehand server (Node.js) and executes browser automation tasks.
 
 Dependencies:
-    pip install httpx httpx-sse
+    pip install httpx
 
 Usage:
     from stagehand import Stagehand
@@ -24,7 +24,6 @@ Usage:
 import json
 from typing import Any, Dict, List, Optional, Union
 import httpx
-from httpx_sse import aconnect_sse
 
 
 class StagehandError(Exception):
@@ -186,14 +185,14 @@ class Stagehand:
         """
         input_data = instruction.to_dict() if isinstance(instruction, Action) else instruction
 
-        result = await self._execute(
-            method="act",
-            args={
-                "input": input_data,
-                "options": options,
-                "frameId": frame_id,
-            }
-        )
+        # Build request matching server schema
+        request_data = {"input": input_data}
+        if options is not None:
+            request_data["options"] = options
+        if frame_id is not None:
+            request_data["frameId"] = frame_id
+
+        result = await self._execute(method="act", args=request_data)
 
         return ActResult(result)
 
@@ -216,15 +215,18 @@ class Stagehand:
         Returns:
             Extracted data matching the schema (if provided) or default extraction
         """
-        return await self._execute(
-            method="extract",
-            args={
-                "instruction": instruction,
-                "schema": schema,
-                "options": options,
-                "frameId": frame_id,
-            }
-        )
+        # Build request matching server schema
+        request_data = {}
+        if instruction is not None:
+            request_data["instruction"] = instruction
+        if schema is not None:
+            request_data["schema"] = schema
+        if options is not None:
+            request_data["options"] = options
+        if frame_id is not None:
+            request_data["frameId"] = frame_id
+
+        return await self._execute(method="extract", args=request_data)
 
     async def observe(
         self,
@@ -243,14 +245,16 @@ class Stagehand:
         Returns:
             List of Action objects representing possible actions
         """
-        result = await self._execute(
-            method="observe",
-            args={
-                "instruction": instruction,
-                "options": options,
-                "frameId": frame_id,
-            }
-        )
+        # Build request matching server schema
+        request_data = {}
+        if instruction is not None:
+            request_data["instruction"] = instruction
+        if options is not None:
+            request_data["options"] = options
+        if frame_id is not None:
+            request_data["frameId"] = frame_id
+
+        result = await self._execute(method="observe", args=request_data)
 
         return [Action(action) for action in result]
 
@@ -319,21 +323,28 @@ class Stagehand:
 
         url = f"{self.server_url}/v1/sessions/{self.session_id}/{method}"
 
-        # Create a new client for each request to avoid connection reuse issues with SSE
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        # Create a new client for each request with no connection pooling
+        limits = httpx.Limits(max_keepalive_connections=0, max_connections=1)
+        async with httpx.AsyncClient(timeout=self.timeout, limits=limits) as client:
             try:
-                async with aconnect_sse(
-                    client,
+                async with client.stream(
                     "POST",
                     url,
                     json=args,
                     headers={"x-stream-response": "true"},
-                ) as event_source:
+                ) as response:
+                    response.raise_for_status()
+
                     result = None
 
-                    async for sse in event_source.aiter_sse():
+                    async for line in response.aiter_lines():
+                        if not line.strip() or not line.startswith("data: "):
+                            continue
+
+                        # Parse SSE data
+                        data_str = line[6:]  # Remove "data: " prefix
                         try:
-                            event = json.loads(sse.data)
+                            event = json.loads(data_str)
                         except json.JSONDecodeError:
                             continue
 
@@ -367,9 +378,13 @@ class Stagehand:
                     return result
 
             except httpx.HTTPStatusError as e:
-                raise StagehandAPIError(
-                    f"HTTP {e.response.status_code}: {e.response.text}"
-                )
+                error_msg = f"HTTP {e.response.status_code}"
+                try:
+                    error_text = await e.response.aread()
+                    error_msg += f": {error_text.decode()}"
+                except Exception:
+                    pass
+                raise StagehandAPIError(error_msg)
             except httpx.HTTPError as e:
                 raise StagehandConnectionError(f"Connection error: {e}")
 
