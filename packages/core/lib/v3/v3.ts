@@ -1710,8 +1710,14 @@ export class V3 {
 
           const resolvedOptions: AgentExecuteOptions =
             typeof instructionOrOptions === "string"
-              ? { instruction: instructionOrOptions, abortSignal: currentAbortController.signal }
-              : { ...instructionOrOptions, abortSignal: currentAbortController.signal };
+              ? {
+                  instruction: instructionOrOptions,
+                  abortSignal: currentAbortController.signal,
+                }
+              : {
+                  ...instructionOrOptions,
+                  abortSignal: currentAbortController.signal,
+                };
           if (resolvedOptions.page) {
             const normalizedPage = await this.normalizeToV3Page(
               resolvedOptions.page,
@@ -1815,8 +1821,14 @@ export class V3 {
 
           const resolvedOptions: AgentStreamOptions =
             typeof instructionOrOptions === "string"
-              ? { instruction: instructionOrOptions, abortSignal: abortController.signal }
-              : { ...instructionOrOptions, abortSignal: abortController.signal };
+              ? {
+                  instruction: instructionOrOptions,
+                  abortSignal: abortController.signal,
+                }
+              : {
+                  ...instructionOrOptions,
+                  abortSignal: abortController.signal,
+                };
 
           const streamResult = await handler.stream(resolvedOptions);
 

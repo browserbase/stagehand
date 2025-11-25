@@ -19,6 +19,8 @@ import { Page as PuppeteerPage } from "puppeteer-core";
 import { Page as PatchrightPage } from "patchright-core";
 import { Page } from "../../understudy/page";
 
+export type { ModelMessage } from "ai";
+
 export interface AgentContext {
   options: AgentExecuteOptions | AgentStreamOptions;
   maxSteps: number;
@@ -74,7 +76,6 @@ export type AgentStreamResult = StreamTextResult<ToolSet, never> & {
   result: Promise<AgentResult>;
 };
 
-
 export interface AgentCallbacks {
   /**
    * Optional function called before each step to modify settings.
@@ -116,7 +117,9 @@ export interface AgentStreamCallbacks extends AgentCallbacks {
   /**
    * Callback called when the stream is aborted.
    */
-  onAbort?: (event: { steps: Array<StepResult<ToolSet>> }) => PromiseLike<void> | void;
+  onAbort?: (event: {
+    steps: Array<StepResult<ToolSet>>;
+  }) => PromiseLike<void> | void;
 }
 
 /**
@@ -151,7 +154,8 @@ export interface AgentExecuteOptions {
   messages?: ModelMessage[];
 }
 
-export interface AgentStreamOptions extends Omit<AgentExecuteOptions, "callbacks"> {
+export interface AgentStreamOptions
+  extends Omit<AgentExecuteOptions, "callbacks"> {
   /**
    * Callbacks for the agent stream.
    */

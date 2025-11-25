@@ -195,10 +195,7 @@ export class V3AgentHandler {
 
       // Combine input messages with response messages for full conversation history
       const responseMessages = result.response?.messages || [];
-      const fullMessages: ModelMessage[] = [
-        ...messages,
-        ...responseMessages,
-      ];
+      const fullMessages: ModelMessage[] = [...messages, ...responseMessages];
 
       return this.consolidateMetricsAndResult(startTime, state, {
         ...result,
@@ -278,11 +275,10 @@ export class V3AgentHandler {
             ...responseMessages,
           ];
 
-          const result = this.consolidateMetricsAndResult(
-            startTime,
-            state,
-            { ...event, messages: fullMessages },
-          );
+          const result = this.consolidateMetricsAndResult(startTime, state, {
+            ...event,
+            messages: fullMessages,
+          });
           resolveResult(result);
         } catch (error) {
           rejectResult(error);
@@ -298,7 +294,11 @@ export class V3AgentHandler {
   private consolidateMetricsAndResult(
     startTime: number,
     state: AgentState,
-    result: { text?: string; usage?: LanguageModelUsage; messages?: ModelMessage[] },
+    result: {
+      text?: string;
+      usage?: LanguageModelUsage;
+      messages?: ModelMessage[];
+    },
   ): AgentResult {
     if (!state.finalMessage) {
       const allReasoning = state.collectedReasoning.join(" ").trim();

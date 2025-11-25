@@ -178,6 +178,9 @@ describe("Stagehand public API types", () => {
       maxSteps?: number;
       page?: Stagehand.AnyPage;
       highlightCursor?: boolean;
+      callbacks?: Stagehand.AgentExecuteCallbacks;
+      abortSignal?: AbortSignal;
+      messages?: Stagehand.ModelMessage[];
     };
 
     it("matches expected type shape", () => {
@@ -215,6 +218,7 @@ describe("Stagehand public API types", () => {
         cached_input_tokens?: number;
         inference_time_ms: number;
       };
+      messages?: Stagehand.ModelMessage[];
     };
 
     it("matches expected type shape", () => {
