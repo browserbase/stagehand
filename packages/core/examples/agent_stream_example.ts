@@ -9,7 +9,7 @@ async function main() {
   // Initialize Stagehand
   const stagehand = new Stagehand({
     env: "LOCAL",
-    verbose: 2,
+    verbose: 0,
     cacheDir: "stagehand-agent-cache",
     logInferenceToFile: false,
     experimental: true,
