@@ -132,7 +132,10 @@ export class Page {
     session: CDPSessionLike,
     source: string,
   ): Promise<void> {
-    await session.send("Page.addScriptToEvaluateOnNewDocument", { source });
+    await session.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: source,
+      worldName: "v3-world",
+    });
   }
 
   // Replay every previously registered init script onto a newly adopted session.
