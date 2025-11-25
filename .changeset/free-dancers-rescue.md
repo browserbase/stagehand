@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-feat: adding gpt 5.1 to stagehand
+Add support for Microsoft's Fara-7B
