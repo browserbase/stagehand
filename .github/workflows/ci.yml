@@ -188,6 +188,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 50
     env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       HEADLESS: true
     steps:
       - name: Check out repository code

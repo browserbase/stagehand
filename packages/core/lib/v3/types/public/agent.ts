@@ -1,10 +1,28 @@
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { ToolSet } from "ai";
+import { ToolSet, ModelMessage, wrapLanguageModel, StreamTextResult } from "ai";
 import { LogLine } from "./logs";
 import { Page as PlaywrightPage } from "playwright-core";
 import { Page as PuppeteerPage } from "puppeteer-core";
 import { Page as PatchrightPage } from "patchright-core";
 import { Page } from "../../understudy/page";
+
+export interface AgentContext {
+  options: AgentExecuteOptions;
+  maxSteps: number;
+  systemPrompt: string;
+  allTools: ToolSet;
+  messages: ModelMessage[];
+  wrappedModel: ReturnType<typeof wrapLanguageModel>;
+  initialPageUrl: string;
+}
+
+export interface AgentState {
+  collectedReasoning: string[];
+  actions: AgentAction[];
+  finalMessage: string;
+  completed: boolean;
+  currentPageUrl: string;
+}
 
 export interface AgentAction {
   type: string;
@@ -33,6 +51,10 @@ export interface AgentResult {
     inference_time_ms: number;
   };
 }
+
+export type AgentStreamResult = StreamTextResult<ToolSet, never> & {
+  result: Promise<AgentResult>;
+};
 
 export interface AgentExecuteOptions {
   instruction: string;
@@ -199,4 +221,30 @@ export type AgentConfig = {
    * Format: "provider/model" (e.g., "openai/gpt-4o-mini", "google/gemini-2.0-flash-exp")
    */
   executionModel?: string | AgentModelConfig<string>;
+  /**
+   * Enable streaming mode for the agent.
+   * When true, execute() returns AgentStreamResult with textStream for incremental output.
+   * When false (default), execute() returns AgentResult after completion.
+   */
+  stream?: boolean;
 };
+
+/**
+ * Agent instance returned when stream: true is set in AgentConfig.
+ * execute() returns a streaming result that can be consumed incrementally.
+ */
+export interface StreamingAgentInstance {
+  execute: (
+    instructionOrOptions: string | AgentExecuteOptions,
+  ) => Promise<AgentStreamResult>;
+}
+
+/**
+ * Agent instance returned when stream is false or not set in AgentConfig.
+ * execute() returns a result after the agent completes.
+ */
+export interface NonStreamingAgentInstance {
+  execute: (
+    instructionOrOptions: string | AgentExecuteOptions,
+  ) => Promise<AgentResult>;
+}
