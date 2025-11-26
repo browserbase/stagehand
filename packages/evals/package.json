@@ -16,6 +16,7 @@
     "@browserbasehq/stagehand": "workspace:*",
     "ai": "^5.0.0",
     "@ai-sdk/provider": "^2.0.0",
+    "@ai-sdk/openai": "^2.0.53",
     "openai": "^4.87.1",
     "dotenv": "16.4.5",
     "zod": "^4.1.8"

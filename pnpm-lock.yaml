@@ -262,6 +262,9 @@ importers:
 
   packages/evals:
     dependencies:
+      '@ai-sdk/openai':
+        specifier: ^2.0.53
+        version: 2.0.53(zod@4.1.12)
       '@ai-sdk/provider':
         specifier: ^2.0.0
         version: 2.0.0
@@ -6574,6 +6577,12 @@ snapshots:
       '@ai-sdk/provider-utils': 3.0.12(zod@3.25.67)
       zod: 3.25.67
     optional: true
+
+  '@ai-sdk/openai@2.0.53(zod@4.1.12)':
+    dependencies:
+      '@ai-sdk/provider': 2.0.0
+      '@ai-sdk/provider-utils': 3.0.12(zod@4.1.12)
+      zod: 4.1.12
 
   '@ai-sdk/openai@2.0.53(zod@4.1.8)':
     dependencies:
