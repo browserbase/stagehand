@@ -1602,6 +1602,12 @@ export class V3 {
 
     // If CUA is enabled, use the computer-use agent path
     if (options?.cua) {
+      if (options?.stream) {
+        throw new StagehandInvalidArgumentError(
+          "Streaming is not supported with CUA (Computer Use Agent) mode. Remove either 'stream: true' or 'cua: true' from your agent config.",
+        );
+      }
+
       if ((options?.integrations || options?.tools) && !this.experimental) {
         throw new ExperimentalNotConfiguredError(
           "MCP integrations and custom tools",
