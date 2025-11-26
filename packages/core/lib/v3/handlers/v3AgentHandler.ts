@@ -50,48 +50,48 @@ export class V3AgentHandler {
     instructionOrOptions: string | AgentExecuteOptions,
   ): Promise<AgentContext> {
     try {
-    const options =
-      typeof instructionOrOptions === "string"
-        ? { instruction: instructionOrOptions }
-        : instructionOrOptions;
+      const options =
+        typeof instructionOrOptions === "string"
+          ? { instruction: instructionOrOptions }
+          : instructionOrOptions;
 
-    const maxSteps = options.maxSteps || 20;
+      const maxSteps = options.maxSteps || 20;
 
-    const systemPrompt = this.buildSystemPrompt(
-      options.instruction,
-      this.systemInstructions,
-    );
-    const tools = this.createTools();
-    const allTools: ToolSet = { ...tools, ...this.mcpTools };
-    const messages: ModelMessage[] = [
-      { role: "user", content: options.instruction },
-    ];
+      const systemPrompt = this.buildSystemPrompt(
+        options.instruction,
+        this.systemInstructions,
+      );
+      const tools = this.createTools();
+      const allTools: ToolSet = { ...tools, ...this.mcpTools };
+      const messages: ModelMessage[] = [
+        { role: "user", content: options.instruction },
+      ];
 
-    if (!this.llmClient?.getLanguageModel) {
-      throw new MissingLLMConfigurationError();
-    }
-    const baseModel = this.llmClient.getLanguageModel();
-    const wrappedModel = wrapLanguageModel({
-      model: baseModel,
-      middleware: {
-        transformParams: async ({ params }) => {
-          const { processedPrompt } = processMessages(params);
-          return { ...params, prompt: processedPrompt } as typeof params;
+      if (!this.llmClient?.getLanguageModel) {
+        throw new MissingLLMConfigurationError();
+      }
+      const baseModel = this.llmClient.getLanguageModel();
+      const wrappedModel = wrapLanguageModel({
+        model: baseModel,
+        middleware: {
+          transformParams: async ({ params }) => {
+            const { processedPrompt } = processMessages(params);
+            return { ...params, prompt: processedPrompt } as typeof params;
+          },
         },
-      },
-    });
+      });
 
-    const initialPageUrl = (await this.v3.context.awaitActivePage()).url();
+      const initialPageUrl = (await this.v3.context.awaitActivePage()).url();
 
-    return {
-      options,
-      maxSteps,
-      systemPrompt,
-      allTools,
-      messages,
-      wrappedModel,
-      initialPageUrl,
-    };
+      return {
+        options,
+        maxSteps,
+        systemPrompt,
+        allTools,
+        messages,
+        wrappedModel,
+        initialPageUrl,
+      };
     } catch (error) {
       this.logger({
         category: "agent",
