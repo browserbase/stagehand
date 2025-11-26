@@ -1563,12 +1563,16 @@ export class V3 {
    * @overload When stream: true, returns a streaming agent where execute() returns AgentStreamResult
    * @overload When stream is false/undefined, returns a non-streaming agent where execute() returns AgentResult
    */
-  agent(
-    options: AgentConfig & { stream: true },
-  ): { execute: (instructionOrOptions: string | AgentExecuteOptions) => Promise<AgentStreamResult> };
-  agent(
-    options?: AgentConfig & { stream?: false },
-  ): { execute: (instructionOrOptions: string | AgentExecuteOptions) => Promise<AgentResult> };
+  agent(options: AgentConfig & { stream: true }): {
+    execute: (
+      instructionOrOptions: string | AgentExecuteOptions,
+    ) => Promise<AgentStreamResult>;
+  };
+  agent(options?: AgentConfig & { stream?: false }): {
+    execute: (
+      instructionOrOptions: string | AgentExecuteOptions,
+    ) => Promise<AgentResult>;
+  };
   agent(options?: AgentConfig): {
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
@@ -1738,7 +1742,6 @@ export class V3 {
                 return replayed;
               }
             }
-
 
             const streamResult = await handler.stream(instructionOrOptions);
 
