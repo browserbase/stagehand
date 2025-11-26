@@ -19,17 +19,6 @@ test.describe("Stagehand agent streaming behavior", () => {
   });
 
   test.describe("agent({ stream: true })", () => {
-    test("returns an agent with execute that returns AgentStreamResult", async () => {
-      const agent = v3.agent({
-        stream: true,
-        model: "anthropic/claude-haiku-4-5-20251001",
-      });
-
-      // Verify the agent has execute method
-      expect(agent).toHaveProperty("execute");
-      expect(typeof agent.execute).toBe("function");
-    });
-
     test("AgentStreamResult has textStream as async iterable", async () => {
       test.setTimeout(60000);
 
@@ -87,6 +76,7 @@ test.describe("Stagehand agent streaming behavior", () => {
       // Should have received at least some chunks (streaming behavior)
       // The exact content depends on the LLM response
       expect(Array.isArray(chunks)).toBe(true);
+      expect(chunks.length).toBeGreaterThan(0);
     });
 
     test("result promise resolves to AgentResult after stream completes", async () => {
@@ -107,6 +97,7 @@ test.describe("Stagehand agent streaming behavior", () => {
       });
 
       // Consume the stream first
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       for await (const _ of streamResult.textStream) {
         // Just consume
       }
@@ -126,15 +117,6 @@ test.describe("Stagehand agent streaming behavior", () => {
   });
 
   test.describe("agent({ stream: false }) or agent()", () => {
-    test("returns an agent with execute that returns AgentResult directly", async () => {
-      const agent = v3.agent({
-        stream: false,
-        model: "anthropic/claude-haiku-4-5-20251001",
-      });
-
-      expect(agent).toHaveProperty("execute");
-      expect(typeof agent.execute).toBe("function");
-    });
 
     test("execute returns AgentResult without streaming properties", async () => {
       test.setTimeout(60000);
