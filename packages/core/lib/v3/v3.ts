@@ -1492,6 +1492,71 @@ export class V3 {
   }
 
   /**
+   * Prepares shared context for agent execution (both execute and stream).
+   * Extracts duplicated setup logic into a single helper.
+   */
+  private async prepareAgentExecution(
+    options: AgentConfig | undefined,
+    instructionOrOptions: string | AgentExecuteOptions,
+    agentConfigSignature: string,
+  ): Promise<{
+    handler: V3AgentHandler;
+    resolvedOptions: AgentExecuteOptions;
+    instruction: string;
+    cacheContext: AgentCacheContext | null;
+  }> {
+    if ((options?.integrations || options?.tools) && !this.experimental) {
+      throw new ExperimentalNotConfiguredError(
+        "MCP integrations and custom tools",
+      );
+    }
+
+    const tools = options?.integrations
+      ? await resolveTools(options.integrations, options.tools)
+      : (options?.tools ?? {});
+
+    const agentLlmClient = options?.model
+      ? this.resolveLlmClient(options.model)
+      : this.llmClient;
+
+    const handler = new V3AgentHandler(
+      this,
+      this.logger,
+      agentLlmClient,
+      typeof options?.executionModel === "string"
+        ? options.executionModel
+        : options?.executionModel?.modelName,
+      options?.systemPrompt,
+      tools,
+    );
+
+    const resolvedOptions: AgentExecuteOptions =
+      typeof instructionOrOptions === "string"
+        ? { instruction: instructionOrOptions }
+        : instructionOrOptions;
+
+    if (resolvedOptions.page) {
+      const normalizedPage = await this.normalizeToV3Page(resolvedOptions.page);
+      this.ctx!.setActivePage(normalizedPage);
+    }
+
+    const instruction = resolvedOptions.instruction.trim();
+    const sanitizedOptions =
+      this.agentCache.sanitizeExecuteOptions(resolvedOptions);
+
+    const cacheContext = this.agentCache.shouldAttemptCache(instruction)
+      ? await this.agentCache.prepareContext({
+          instruction,
+          options: sanitizedOptions,
+          configSignature: agentConfigSignature,
+          page: await this.ctx!.awaitActivePage(),
+        })
+      : null;
+
+    return { handler, resolvedOptions, instruction, cacheContext };
+  }
+
+  /**
    * Create a v3 agent instance (AISDK tool-based) with execute().
    * Mirrors the v2 Stagehand.agent() tool mode (no CUA provider here).
    */
@@ -1645,61 +1710,17 @@ export class V3 {
     return {
       execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
         withInstanceLogContext(this.instanceId, async () => {
-          if ((options?.integrations || options?.tools) && !this.experimental) {
-            throw new ExperimentalNotConfiguredError(
-              "MCP integrations and custom tools",
+          const { handler, resolvedOptions, cacheContext } =
+            await this.prepareAgentExecution(
+              options,
+              instructionOrOptions,
+              agentConfigSignature,
             );
-          }
 
-          const tools = options?.integrations
-            ? await resolveTools(options.integrations, options.tools)
-            : (options?.tools ?? {});
-
-          // Resolve the LLM client for the agent based on the model parameter
-          // Use the agent's model if specified, otherwise fall back to the default
-          const agentLlmClient = options?.model
-            ? this.resolveLlmClient(options.model)
-            : this.llmClient;
-
-          const handler = new V3AgentHandler(
-            this,
-            this.logger,
-            agentLlmClient,
-            typeof options?.executionModel === "string"
-              ? options.executionModel
-              : options?.executionModel?.modelName,
-            options?.systemPrompt,
-            tools,
-          );
-
-          const resolvedOptions: AgentExecuteOptions =
-            typeof instructionOrOptions === "string"
-              ? { instruction: instructionOrOptions }
-              : instructionOrOptions;
-          if (resolvedOptions.page) {
-            const normalizedPage = await this.normalizeToV3Page(
-              resolvedOptions.page,
-            );
-            this.ctx!.setActivePage(normalizedPage);
-          }
-          const instruction = resolvedOptions.instruction.trim();
-          const sanitizedOptions =
-            this.agentCache.sanitizeExecuteOptions(resolvedOptions);
-
-          let cacheContext: AgentCacheContext | null = null;
-          if (this.agentCache.shouldAttemptCache(instruction)) {
-            const startPage = await this.ctx!.awaitActivePage();
-            cacheContext = await this.agentCache.prepareContext({
-              instruction,
-              options: sanitizedOptions,
-              configSignature: agentConfigSignature,
-              page: startPage,
-            });
-            if (cacheContext) {
-              const replayed = await this.agentCache.tryReplay(cacheContext);
-              if (replayed) {
-                return replayed;
-              }
+          if (cacheContext) {
+            const replayed = await this.agentCache.tryReplay(cacheContext);
+            if (replayed) {
+              return replayed;
             }
           }
 
@@ -1744,55 +1765,14 @@ export class V3 {
           if (!this.experimental) {
             throw new ExperimentalNotConfiguredError("Agent streaming");
           }
-          if ((options?.integrations || options?.tools) && !this.experimental) {
-            throw new ExperimentalNotConfiguredError(
-              "MCP integrations and custom tools",
-            );
-          }
 
-          const tools = options?.integrations
-            ? await resolveTools(options.integrations, options.tools)
-            : (options?.tools ?? {});
-
-          const agentLlmClient = options?.model
-            ? this.resolveLlmClient(options.model)
-            : this.llmClient;
-
-          const handler = new V3AgentHandler(
-            this,
-            this.logger,
-            agentLlmClient,
-            typeof options?.executionModel === "string"
-              ? options.executionModel
-              : options?.executionModel?.modelName,
-            options?.systemPrompt,
-            tools,
+          const { handler, cacheContext } = await this.prepareAgentExecution(
+            options,
+            instructionOrOptions,
+            agentConfigSignature,
           );
 
-          const resolvedOptions: AgentExecuteOptions =
-            typeof instructionOrOptions === "string"
-              ? { instruction: instructionOrOptions }
-              : instructionOrOptions;
-          if (resolvedOptions.page) {
-            const normalizedPage = await this.normalizeToV3Page(
-              resolvedOptions.page,
-            );
-            this.ctx!.setActivePage(normalizedPage);
-          }
-          const instruction = resolvedOptions.instruction.trim();
-          const sanitizedOptions =
-            this.agentCache.sanitizeExecuteOptions(resolvedOptions);
-
           // Try cache replay first
-          const cacheContext = this.agentCache.shouldAttemptCache(instruction)
-            ? await this.agentCache.prepareContext({
-                instruction,
-                options: sanitizedOptions,
-                configSignature: agentConfigSignature,
-                page: await this.ctx!.awaitActivePage(),
-              })
-            : null;
-
           if (cacheContext) {
             const replayed =
               await this.agentCache.tryReplayAsStream(cacheContext);
