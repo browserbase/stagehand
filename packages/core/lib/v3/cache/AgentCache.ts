@@ -221,7 +221,9 @@ export class AgentCache {
    * This approach lets cached responses be transparent to the consumer -
    * they can use the same iteration patterns whether the result is live or cached.
    */
-  private createCachedStreamResult(cachedResult: AgentResult): AgentStreamResult {
+  private createCachedStreamResult(
+    cachedResult: AgentResult,
+  ): AgentStreamResult {
     const message = cachedResult.message ?? "";
 
     async function* textStreamGenerator(): AsyncGenerator<string> {
