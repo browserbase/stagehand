@@ -13,10 +13,14 @@ import { processMessages } from "../agent/utils/messageProcessing";
 import { LLMClient } from "../llm/LLMClient";
 import {
   AgentExecuteOptions,
+  AgentStreamExecuteOptions,
+  AgentExecuteOptionsBase,
   AgentResult,
   AgentContext,
   AgentState,
   AgentStreamResult,
+  AgentExecuteCallbacks,
+  AgentStreamCallbacks,
 } from "../types/public/agent";
 import { V3FunctionName } from "../types/public/methods";
 import { mapToolResultToActions } from "../agent/utils/actionMapping";
@@ -47,7 +51,7 @@ export class V3AgentHandler {
   }
 
   private async prepareAgent(
-    instructionOrOptions: string | AgentExecuteOptions,
+    instructionOrOptions: string | AgentExecuteOptionsBase,
   ): Promise<AgentContext> {
     const options =
       typeof instructionOrOptions === "string"
@@ -93,7 +97,10 @@ export class V3AgentHandler {
     };
   }
 
-  private createStepHandler(state: AgentState) {
+  private createStepHandler(
+    state: AgentState,
+    userCallback?: (event: StepResult<ToolSet>) => PromiseLike<void> | void,
+  ) {
     return async (event: StepResult<ToolSet>) => {
       this.logger({
         category: "agent",
@@ -141,6 +148,10 @@ export class V3AgentHandler {
         }
         state.currentPageUrl = (await this.v3.context.awaitActivePage()).url();
       }
+
+      if (userCallback) {
+        await userCallback(event);
+      }
     };
   }
 
@@ -149,6 +160,7 @@ export class V3AgentHandler {
   ): Promise<AgentResult> {
     const startTime = Date.now();
     const {
+      options,
       maxSteps,
       systemPrompt,
       allTools,
@@ -156,6 +168,10 @@ export class V3AgentHandler {
       wrappedModel,
       initialPageUrl,
     } = await this.prepareAgent(instructionOrOptions);
+
+    const callbacks = (instructionOrOptions as AgentExecuteOptions).callbacks as
+      | AgentExecuteCallbacks
+      | undefined;
 
     const state: AgentState = {
       collectedReasoning: [],
@@ -174,7 +190,8 @@ export class V3AgentHandler {
         stopWhen: (result) => this.handleStop(result, maxSteps),
         temperature: 1,
         toolChoice: "auto",
-        onStepFinish: this.createStepHandler(state),
+        prepareStep: callbacks?.prepareStep,
+        onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
       });
 
       return this.consolidateMetricsAndResult(startTime, state, result);
@@ -195,7 +212,7 @@ export class V3AgentHandler {
   }
 
   public async stream(
-    instructionOrOptions: string | AgentExecuteOptions,
+    instructionOrOptions: string | AgentStreamExecuteOptions,
   ): Promise<AgentStreamResult> {
     const {
       maxSteps,
@@ -205,6 +222,9 @@ export class V3AgentHandler {
       wrappedModel,
       initialPageUrl,
     } = await this.prepareAgent(instructionOrOptions);
+
+    const callbacks = (instructionOrOptions as AgentStreamExecuteOptions)
+      .callbacks as AgentStreamCallbacks | undefined;
 
     const state: AgentState = {
       collectedReasoning: [],
@@ -241,11 +261,19 @@ export class V3AgentHandler {
       stopWhen: (result) => this.handleStop(result, maxSteps),
       temperature: 1,
       toolChoice: "auto",
-      onStepFinish: this.createStepHandler(state),
-      onError: ({ error }) => {
-        handleError(error);
+      prepareStep: callbacks?.prepareStep,
+      onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
+      onError: (event) => {
+        if (callbacks?.onError) {
+          callbacks.onError(event);
+        }
+        handleError(event.error);
       },
+      onChunk: callbacks?.onChunk,
       onFinish: (event) => {
+        if (callbacks?.onFinish) {
+          callbacks.onFinish(event);
+        }
         try {
           const result = this.consolidateMetricsAndResult(
             startTime,

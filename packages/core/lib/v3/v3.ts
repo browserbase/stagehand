@@ -37,6 +37,7 @@ import {
 import {
   AgentConfig,
   AgentExecuteOptions,
+  AgentStreamExecuteOptions,
   AgentResult,
   AVAILABLE_CUA_MODELS,
   LogLine,
@@ -1497,11 +1498,11 @@ export class V3 {
    */
   private async prepareAgentExecution(
     options: AgentConfig | undefined,
-    instructionOrOptions: string | AgentExecuteOptions,
+    instructionOrOptions: string | AgentExecuteOptions | AgentStreamExecuteOptions,
     agentConfigSignature: string,
   ): Promise<{
     handler: V3AgentHandler;
-    resolvedOptions: AgentExecuteOptions;
+    resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions;
     instruction: string;
     cacheContext: AgentCacheContext | null;
   }> {
@@ -1530,7 +1531,7 @@ export class V3 {
       tools,
     );
 
-    const resolvedOptions: AgentExecuteOptions =
+    const resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions =
       typeof instructionOrOptions === "string"
         ? { instruction: instructionOrOptions }
         : instructionOrOptions;
@@ -1565,7 +1566,7 @@ export class V3 {
    */
   agent(options: AgentConfig & { stream: true }): {
     execute: (
-      instructionOrOptions: string | AgentExecuteOptions,
+      instructionOrOptions: string | AgentStreamExecuteOptions,
     ) => Promise<AgentStreamResult>;
   };
   agent(options?: AgentConfig & { stream?: false }): {
@@ -1575,7 +1576,7 @@ export class V3 {
   };
   agent(options?: AgentConfig): {
     execute: (
-      instructionOrOptions: string | AgentExecuteOptions,
+      instructionOrOptions: string | AgentExecuteOptions | AgentStreamExecuteOptions,
     ) => Promise<AgentResult | AgentStreamResult>;
   } {
     this.logger({
@@ -1726,7 +1727,7 @@ export class V3 {
 
     return {
       execute: async (
-        instructionOrOptions: string | AgentExecuteOptions,
+        instructionOrOptions: string | AgentExecuteOptions | AgentStreamExecuteOptions,
       ): Promise<AgentResult | AgentStreamResult> =>
         withInstanceLogContext(this.instanceId, async () => {
           // Streaming mode
@@ -1749,7 +1750,9 @@ export class V3 {
               }
             }
 
-            const streamResult = await handler.stream(instructionOrOptions);
+            const streamResult = await handler.stream(
+              instructionOrOptions as string | AgentStreamExecuteOptions,
+            );
 
             if (cacheContext) {
               return this.agentCache.wrapStreamForCaching(
@@ -1791,11 +1794,13 @@ export class V3 {
               const page = await this.ctx!.awaitActivePage();
               result = await this.apiClient.agentExecute(
                 options,
-                resolvedOptions,
+                resolvedOptions as AgentExecuteOptions,
                 page.mainFrameId(),
               );
             } else {
-              result = await handler.execute(instructionOrOptions);
+              result = await handler.execute(
+                instructionOrOptions as string | AgentExecuteOptions,
+              );
             }
             if (recording) {
               agentSteps = this.endAgentReplayRecording();

@@ -20,7 +20,7 @@ import type {
   AgentResult,
   AgentStreamResult,
   AgentConfig,
-  AgentExecuteOptions,
+  AgentExecuteOptionsBase,
   Logger,
 } from "../types/public";
 import type { Page } from "../understudy/page";
@@ -74,7 +74,7 @@ export class AgentCache {
   }
 
   sanitizeExecuteOptions(
-    options?: AgentExecuteOptions,
+    options?: AgentExecuteOptionsBase,
   ): SanitizedAgentExecuteOptions {
     if (!options) return {};
     const sanitized: SanitizedAgentExecuteOptions = {};
