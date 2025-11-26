@@ -117,7 +117,6 @@ test.describe("Stagehand agent streaming behavior", () => {
   });
 
   test.describe("agent({ stream: false }) or agent()", () => {
-
     test("execute returns AgentResult without streaming properties", async () => {
       test.setTimeout(60000);
 
