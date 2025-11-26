@@ -24,16 +24,15 @@ async function main() {
     // Create a streaming agent with stream: true in the config
     const agent = stagehand.agent({
       model: "anthropic/claude-sonnet-4-5-20250929",
-      executionModel: "google/gemini-2.5-flash",
       stream: true, // This makes execute() return AgentStreamResult
     });
 
-    const result = await agent.execute({
+    const agentRun = await agent.execute({
       instruction: "go to amazon, and search for shampoo, stop after searching",
       maxSteps: 20,
     });
     // stream the text
-    for await (const delta of result.textStream) {
+    for await (const delta of agentRun.textStream) {
       process.stdout.write(delta);
     }
     // stream everything ( toolcalls, messages, etc.)
@@ -41,7 +40,7 @@ async function main() {
     //   console.log(delta);
     // }
 
-    const finalResult = await result.result;
+    const finalResult = await agentRun.result;
     console.log("Final Result:", finalResult);
   } catch (error) {
     console.log(`${chalk.red("✗")} Error: ${error}`);
