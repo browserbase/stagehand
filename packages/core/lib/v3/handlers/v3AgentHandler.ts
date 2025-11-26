@@ -216,11 +216,22 @@ export class V3AgentHandler {
     const startTime = Date.now();
 
     let resolveResult: (value: AgentResult | PromiseLike<AgentResult>) => void;
-    let rejectResult: (reason?: string) => void;
+    let rejectResult: (reason: unknown) => void;
     const resultPromise = new Promise<AgentResult>((resolve, reject) => {
       resolveResult = resolve;
       rejectResult = reject;
     });
+
+    const handleError = (error: unknown) => {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger({
+        category: "agent",
+        message: `Error during streaming: ${errorMessage}`,
+        level: 0,
+      });
+      rejectResult(error);
+    };
 
     const streamResult = this.llmClient.streamText({
       model: wrappedModel,
@@ -231,6 +242,9 @@ export class V3AgentHandler {
       temperature: 1,
       toolChoice: "auto",
       onStepFinish: this.createStepHandler(state),
+      onError: ({ error }) => {
+        handleError(error);
+      },
       onFinish: (event) => {
         try {
           const result = this.consolidateMetricsAndResult(
@@ -240,7 +254,7 @@ export class V3AgentHandler {
           );
           resolveResult(result);
         } catch (error) {
-          rejectResult(error);
+          handleError(error);
         }
       },
     });
