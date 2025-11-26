@@ -266,6 +266,55 @@ export class AgentCache {
     return mockStreamResult;
   }
 
+  /**
+   * Wraps an AgentStreamResult with caching logic.
+   *
+   * This method handles the complexity of caching for streaming responses:
+   * 1. Begins recording agent replay steps
+   * 2. Wraps the stream's result promise to capture completion
+   * 3. On success: ends recording and stores the cache entry
+   * 4. On error: discards the recording
+   *
+   * This keeps the caching orchestration in AgentCache rather than
+   * spreading it across the V3 class.
+   *
+   * @param context - The cache context for this execution
+   * @param streamResult - The stream result from the agent handler
+   * @param beginRecording - Callback to start recording (from V3)
+   * @param endRecording - Callback to end recording and get steps (from V3)
+   * @param discardRecording - Callback to discard recording on error (from V3)
+   * @returns The wrapped stream result with caching enabled
+   */
+  wrapStreamForCaching(
+    context: AgentCacheContext,
+    streamResult: AgentStreamResult,
+    beginRecording: () => void,
+    endRecording: () => AgentReplayStep[],
+    discardRecording: () => void,
+  ): AgentStreamResult {
+    beginRecording();
+
+    const originalResultPromise = streamResult.result;
+    const wrappedResultPromise = originalResultPromise.then(
+      async (result) => {
+        const agentSteps = endRecording();
+
+        if (result.success && agentSteps.length > 0) {
+          await this.store(context, agentSteps, result);
+        }
+
+        return result;
+      },
+      (error) => {
+        discardRecording();
+        throw error;
+      },
+    );
+
+    streamResult.result = wrappedResultPromise;
+    return streamResult;
+  }
+
   async store(
     context: AgentCacheContext,
     steps: AgentReplayStep[],

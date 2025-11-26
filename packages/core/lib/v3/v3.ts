@@ -1783,59 +1783,38 @@ export class V3 {
           const sanitizedOptions =
             this.agentCache.sanitizeExecuteOptions(resolvedOptions);
 
-          let cacheContext: AgentCacheContext | null = null;
-          if (this.agentCache.shouldAttemptCache(instruction)) {
-            const startPage = await this.ctx!.awaitActivePage();
-            cacheContext = await this.agentCache.prepareContext({
-              instruction,
-              options: sanitizedOptions,
-              configSignature: agentConfigSignature,
-              page: startPage,
-            });
-            if (cacheContext) {
-              const replayed =
-                await this.agentCache.tryReplayAsStream(cacheContext);
-              if (replayed) {
-                return replayed;
-              }
+          // Try cache replay first
+          const cacheContext = this.agentCache.shouldAttemptCache(instruction)
+            ? await this.agentCache.prepareContext({
+                instruction,
+                options: sanitizedOptions,
+                configSignature: agentConfigSignature,
+                page: await this.ctx!.awaitActivePage(),
+              })
+            : null;
+
+          if (cacheContext) {
+            const replayed =
+              await this.agentCache.tryReplayAsStream(cacheContext);
+            if (replayed) {
+              return replayed;
             }
           }
 
-          let agentSteps: AgentReplayStep[] = [];
-          const recording = !!cacheContext;
-          if (recording) {
-            this.beginAgentReplayRecording();
-          }
+          // No cache hit - execute and optionally record for caching
+          const streamResult = await handler.stream(instructionOrOptions);
 
-          try {
-            const streamResult = await handler.stream(instructionOrOptions);
-
-            // Wrap the result promise to handle caching on completion
-            const originalResultPromise = streamResult.result;
-            const wrappedResultPromise = originalResultPromise.then(
-              async (result) => {
-                if (recording) {
-                  agentSteps = this.endAgentReplayRecording();
-                }
-
-                if (cacheContext && result.success && agentSteps.length > 0) {
-                  await this.agentCache.store(cacheContext, agentSteps, result);
-                }
-
-                return result;
-              },
-              (error) => {
-                if (recording) this.discardAgentReplayRecording();
-                throw error;
-              },
+          if (cacheContext) {
+            return this.agentCache.wrapStreamForCaching(
+              cacheContext,
+              streamResult,
+              () => this.beginAgentReplayRecording(),
+              () => this.endAgentReplayRecording(),
+              () => this.discardAgentReplayRecording(),
             );
-
-            streamResult.result = wrappedResultPromise;
-            return streamResult;
-          } catch (err) {
-            if (recording) this.discardAgentReplayRecording();
-            throw err;
           }
+
+          return streamResult;
         }),
     };
   }
