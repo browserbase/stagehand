@@ -13,15 +13,20 @@ import { processMessages } from "../agent/utils/messageProcessing";
 import { LLMClient } from "../llm/LLMClient";
 import {
   AgentExecuteOptions,
-  AgentStreamOptions,
   AgentResult,
   AgentContext,
   AgentState,
   AgentStreamResult,
+  STREAM_ONLY_CALLBACKS,
+  AgentStreamCallbacks,
+  AgentBaseCallbacks,
 } from "../types/public/agent";
 import { V3FunctionName } from "../types/public/methods";
 import { mapToolResultToActions } from "../agent/utils/actionMapping";
-import { MissingLLMConfigurationError } from "../types/public/sdkErrors";
+import {
+  MissingLLMConfigurationError,
+  StagehandInvalidArgumentError,
+} from "../types/public/sdkErrors";
 
 export class V3AgentHandler {
   private v3: V3;
@@ -48,7 +53,7 @@ export class V3AgentHandler {
   }
 
   private async prepareAgent(
-    instructionOrOptions: string | AgentExecuteOptions | AgentStreamOptions,
+    instructionOrOptions: string | AgentExecuteOptions,
   ): Promise<AgentContext> {
     const options =
       typeof instructionOrOptions === "string"
@@ -153,10 +158,23 @@ export class V3AgentHandler {
     };
   }
 
+  // Overload signatures for proper return type inference
+  public execute(
+    instructionOrOptions:
+      | string
+      | (AgentExecuteOptions & { stream?: false | undefined }),
+  ): Promise<AgentResult>;
+  public execute(
+    instructionOrOptions: AgentExecuteOptions & { stream: true },
+  ): Promise<AgentStreamResult>;
+  public execute(
+    instructionOrOptions: string | AgentExecuteOptions,
+  ): Promise<AgentResult | AgentStreamResult>;
+
+  // Implementation
   public async execute(
     instructionOrOptions: string | AgentExecuteOptions,
-  ): Promise<AgentResult> {
-    const startTime = Date.now();
+  ): Promise<AgentResult | AgentStreamResult> {
     const {
       options,
       maxSteps,
@@ -168,6 +186,22 @@ export class V3AgentHandler {
     } = await this.prepareAgent(instructionOrOptions);
 
     const callbacks = options.callbacks;
+    const isStreaming = options.stream === true;
+
+    // Validate that stream-only callbacks aren't used without streaming
+    if (!isStreaming && callbacks) {
+      const unusedStreamCallbacks = STREAM_ONLY_CALLBACKS.filter(
+        (key) =>
+          callbacks[key as keyof typeof callbacks] !== undefined,
+      );
+
+      if (unusedStreamCallbacks.length > 0) {
+        throw new StagehandInvalidArgumentError(
+          `The following callbacks require stream: true but streaming is disabled: ${unusedStreamCallbacks.join(", ")}. ` +
+            `Either set stream: true in execute options, or remove these callbacks.`,
+        );
+      }
+    }
 
     const state: AgentState = {
       collectedReasoning: [],
@@ -176,7 +210,43 @@ export class V3AgentHandler {
       completed: false,
       currentPageUrl: initialPageUrl,
     };
+    const startTime = Date.now();
 
+    if (isStreaming) {
+      return this.executeStream(
+        state,
+        startTime,
+        maxSteps,
+        systemPrompt,
+        allTools,
+        messages,
+        wrappedModel,
+        callbacks as AgentStreamCallbacks,
+      );
+    }
+
+    return this.executeBlocking(
+      state,
+      startTime,
+      maxSteps,
+      systemPrompt,
+      allTools,
+      messages,
+      wrappedModel,
+      callbacks as AgentBaseCallbacks | undefined,
+    );
+  }
+
+  private async executeBlocking(
+    state: AgentState,
+    startTime: number,
+    maxSteps: number,
+    systemPrompt: string,
+    allTools: ToolSet,
+    messages: ModelMessage[],
+    wrappedModel: ReturnType<typeof wrapLanguageModel>,
+    callbacks: AgentBaseCallbacks | undefined,
+  ): Promise<AgentResult> {
     try {
       const result = await this.llmClient.generateText({
         model: wrappedModel,
@@ -192,7 +262,8 @@ export class V3AgentHandler {
 
       return this.consolidateMetricsAndResult(startTime, state, result);
     } catch (error) {
-      const errorMessage = error?.message ?? String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       this.logger({
         category: "agent",
         message: `Error executing agent task: ${errorMessage}`,
@@ -207,32 +278,18 @@ export class V3AgentHandler {
     }
   }
 
-  public async stream(
-    instructionOrOptions: string | AgentStreamOptions,
-  ): Promise<AgentStreamResult> {
-    const {
-      options,
-      maxSteps,
-      systemPrompt,
-      allTools,
-      messages,
-      wrappedModel,
-      initialPageUrl,
-    } = await this.prepareAgent(instructionOrOptions);
-
-    const callbacks = (options as AgentStreamOptions).callbacks;
-
-    const state: AgentState = {
-      collectedReasoning: [],
-      actions: [],
-      finalMessage: "",
-      completed: false,
-      currentPageUrl: initialPageUrl,
-    };
-    const startTime = Date.now();
-
+  private executeStream(
+    state: AgentState,
+    startTime: number,
+    maxSteps: number,
+    systemPrompt: string,
+    allTools: ToolSet,
+    messages: ModelMessage[],
+    wrappedModel: ReturnType<typeof wrapLanguageModel>,
+    callbacks: AgentStreamCallbacks | undefined,
+  ): AgentStreamResult {
     let resolveResult: (value: AgentResult | PromiseLike<AgentResult>) => void;
-    let rejectResult: (reason?: string) => void;
+    let rejectResult: (reason?: unknown) => void;
     const resultPromise = new Promise<AgentResult>((resolve, reject) => {
       resolveResult = resolve;
       rejectResult = reject;

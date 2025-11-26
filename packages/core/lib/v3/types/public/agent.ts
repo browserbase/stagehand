@@ -20,7 +20,7 @@ import { Page as PatchrightPage } from "patchright-core";
 import { Page } from "../../understudy/page";
 
 export interface AgentContext {
-  options: AgentExecuteOptions | AgentStreamOptions;
+  options: AgentExecuteOptions;
   maxSteps: number;
   systemPrompt: string;
   allTools: ToolSet;
@@ -70,7 +70,10 @@ export type AgentStreamResult = StreamTextResult<ToolSet, never> & {
 };
 
 
-export interface AgentCallbacks {
+/**
+ * Callbacks available for non-streaming execution.
+ */
+export interface AgentBaseCallbacks {
   /**
    * Optional function called before each step to modify settings.
    * You can change the model, tool choices, active tools, system prompt,
@@ -81,22 +84,25 @@ export interface AgentCallbacks {
    * Callback called when each step (LLM call) is finished.
    * This is called for intermediate steps as well as the final step.
    */
-  onStepFinish?:
-    | GenerateTextOnStepFinishCallback<ToolSet>
-    | StreamTextOnStepFinishCallback<ToolSet>;
+  onStepFinish?: GenerateTextOnStepFinishCallback<ToolSet>;
 }
 
 /**
- * Callbacks specific to the stream method.
+ * Additional callbacks only available for streaming execution.
  */
-export interface AgentStreamCallbacks extends AgentCallbacks {
+export interface AgentStreamCallbacks {
+  /**
+   * Optional function called before each step to modify settings.
+   * You can change the model, tool choices, active tools, system prompt,
+   * and input messages for each step.
+   */
+  prepareStep?: PrepareStepFunction<ToolSet>;
   /**
    * Callback called when each step (LLM call) is finished during streaming.
    */
   onStepFinish?: StreamTextOnStepFinishCallback<ToolSet>;
   /**
    * Callback called when an error occurs during streaming.
-   * Use this to log errors or handle error states.
    */
   onError?: StreamTextOnErrorCallback;
   /**
@@ -111,36 +117,80 @@ export interface AgentStreamCallbacks extends AgentCallbacks {
   /**
    * Callback called when the stream is aborted.
    */
-  onAbort?: (event: { steps: Array<StepResult<ToolSet>> }) => PromiseLike<void> | void;
+  onAbort?: (event: {
+    steps: Array<StepResult<ToolSet>>;
+  }) => PromiseLike<void> | void;
 }
 
 /**
- * Callbacks specific to the execute method.
+ * Combined callbacks type (for internal use).
+ * @deprecated Use AgentBaseCallbacks or AgentStreamCallbacks instead
  */
-export interface AgentExecuteCallbacks extends AgentCallbacks {
-  /**
-   * Callback called when each step (LLM call) is finished.
-   */
-  onStepFinish?: GenerateTextOnStepFinishCallback<ToolSet>;
-}
+export type AgentCallbacks = AgentBaseCallbacks | AgentStreamCallbacks;
 
-export interface AgentExecuteOptions {
+/**
+ * Stream-only callback keys for runtime validation.
+ */
+export const STREAM_ONLY_CALLBACKS = [
+  "onChunk",
+  "onError",
+  "onFinish",
+  "onAbort",
+] as const;
+
+/**
+ * Base options shared by all execute configurations.
+ */
+interface AgentExecuteBaseOptions {
   instruction: string;
   maxSteps?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   highlightCursor?: boolean;
-  /**
-   * Callbacks for the agent execution.
-   */
-  callbacks?: AgentExecuteCallbacks;
 }
 
-export interface AgentStreamOptions extends Omit<AgentExecuteOptions, "callbacks"> {
+/**
+ * Options for non-streaming agent execution.
+ */
+export interface AgentExecuteOptionsNonStreaming extends AgentExecuteBaseOptions {
   /**
-   * Callbacks for the agent stream.
+   * Disable streaming mode (default).
+   */
+  stream?: false;
+  /**
+   * Callbacks for non-streaming execution.
+   * Note: onChunk, onError, onFinish, onAbort are not available without streaming.
+   */
+  callbacks?: AgentBaseCallbacks;
+}
+
+/**
+ * Options for streaming agent execution.
+ */
+export interface AgentExecuteOptionsStreaming extends AgentExecuteBaseOptions {
+  /**
+   * Enable streaming mode. Returns an AgentStreamResult
+   * with textStream and fullStream iterables.
+   */
+  stream: true;
+  /**
+   * Callbacks for streaming execution.
+   * Includes stream-specific callbacks: onChunk, onError, onFinish, onAbort.
    */
   callbacks?: AgentStreamCallbacks;
 }
+
+/**
+ * Options for agent execution.
+ * Use stream: true to enable streaming and access stream-specific callbacks.
+ */
+export type AgentExecuteOptions =
+  | AgentExecuteOptionsNonStreaming
+  | AgentExecuteOptionsStreaming;
+
+/**
+ * @deprecated Use AgentExecuteOptions with stream: true instead
+ */
+export type AgentStreamOptions = AgentExecuteOptions;
 export type AgentType = "openai" | "anthropic" | "google";
 
 export const AVAILABLE_CUA_MODELS = [
@@ -260,10 +310,28 @@ export type ResponseInputItem =
       output: string;
     };
 
+/**
+ * Agent instance with execute method that supports both streaming and non-streaming modes.
+ */
 export interface AgentInstance {
-  execute: (
-    instructionOrOptions: string | AgentExecuteOptions,
-  ) => Promise<AgentResult>;
+  /**
+   * Execute an agent task.
+   * @param instructionOrOptions - The instruction string or options object
+   * @returns Promise<AgentResult> when stream is false/undefined, Promise<AgentStreamResult> when stream is true
+   */
+  execute: {
+    (
+      instructionOrOptions:
+        | string
+        | (AgentExecuteOptions & { stream?: false | undefined }),
+    ): Promise<AgentResult>;
+    (
+      instructionOrOptions: AgentExecuteOptions & { stream: true },
+    ): Promise<AgentStreamResult>;
+    (instructionOrOptions: string | AgentExecuteOptions): Promise<
+      AgentResult | AgentStreamResult
+    >;
+  };
 }
 
 export type AgentProviderType = AgentType;

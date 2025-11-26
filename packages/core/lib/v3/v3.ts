@@ -37,7 +37,6 @@ import {
 import {
   AgentConfig,
   AgentExecuteOptions,
-  AgentStreamOptions,
   AgentResult,
   AVAILABLE_CUA_MODELS,
   LogLine,
@@ -75,6 +74,91 @@ import { StagehandAPIClient } from "./api";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
+
+/**
+ * Creates a fake AgentStreamResult from cached data.
+ * This allows cache hits to return the same interface as live streaming.
+ */
+function createCachedStreamResult(cachedResult: AgentResult): AgentStreamResult {
+  const message = cachedResult.message || "";
+
+  // Create async iterables that yield cached data
+  async function* textStreamGenerator(): AsyncGenerator<string> {
+    yield message;
+  }
+
+  async function* fullStreamGenerator(): AsyncGenerator<{
+    type: string;
+    [key: string]: unknown;
+  }> {
+    yield { type: "text-delta", text: message, id: "cached" };
+    yield { type: "finish", finishReason: "stop" };
+  }
+
+  // Create the result promise that resolves immediately
+  const resultPromise = Promise.resolve({
+    ...cachedResult,
+    metadata: { ...cachedResult.metadata, cacheHit: true },
+  });
+
+  // Build the stream result object
+  // Note: We provide minimal implementation for cache hits
+  // Using 'unknown' cast because we're creating a partial implementation
+  // that satisfies the runtime needs for cache hits
+  const streamResult = {
+    textStream: textStreamGenerator(),
+    fullStream: fullStreamGenerator(),
+    text: Promise.resolve(message),
+    reasoning: Promise.resolve(undefined),
+    reasoningText: Promise.resolve(undefined),
+    sources: Promise.resolve([]),
+    toolCalls: Promise.resolve([]),
+    toolResults: Promise.resolve([]),
+    finishReason: Promise.resolve("stop" as const),
+    usage: Promise.resolve(
+      cachedResult.usage
+        ? {
+            inputTokens: cachedResult.usage.input_tokens,
+            outputTokens: cachedResult.usage.output_tokens,
+            totalTokens:
+              cachedResult.usage.input_tokens +
+              cachedResult.usage.output_tokens,
+          }
+        : { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+    ),
+    request: Promise.resolve({}),
+    response: Promise.resolve({
+      id: "cached",
+      timestamp: new Date(),
+      modelId: "cached",
+      headers: {},
+      body: undefined,
+    }),
+    providerMetadata: Promise.resolve(undefined),
+    steps: Promise.resolve([]),
+    content: Promise.resolve([{ type: "text" as const, text: message }]),
+    warnings: Promise.resolve([]),
+    rawResponse: { headers: {} },
+    responseMessages: [],
+    // Additional properties from StreamTextResult
+    files: Promise.resolve([]),
+    staticToolCalls: Promise.resolve([]),
+    dynamicToolCalls: Promise.resolve([]),
+    staticToolResults: Promise.resolve([]),
+    dynamicToolResults: Promise.resolve([]),
+    experimental_output: Promise.resolve(undefined),
+    // Consume helpers (no-op for cached results)
+    consumeStream: async () => {},
+    pipeTextStreamToResponse: () => {},
+    toDataStream: () => new ReadableStream(),
+    toDataStreamResponse: () => new Response(),
+    toTextStreamResponse: () => new Response(),
+    // Add the result promise
+    result: resultPromise,
+  } as unknown as AgentStreamResult;
+
+  return streamResult;
+}
 
 type ResolvedModelConfiguration = {
   modelName: AvailableModel;
@@ -1497,12 +1581,19 @@ export class V3 {
    * Mirrors the v2 Stagehand.agent() tool mode (no CUA provider here).
    */
   agent(options?: AgentConfig): {
-    execute: (
-      instructionOrOptions: string | AgentExecuteOptions,
-    ) => Promise<AgentResult>;
-    stream?: (
-      instructionOrOptions: string | AgentStreamOptions,
-    ) => Promise<AgentStreamResult>;
+    execute: {
+      (
+        instructionOrOptions:
+          | string
+          | (AgentExecuteOptions & { stream?: false | undefined }),
+      ): Promise<AgentResult>;
+      (
+        instructionOrOptions: AgentExecuteOptions & { stream: true },
+      ): Promise<AgentStreamResult>;
+      (instructionOrOptions: string | AgentExecuteOptions): Promise<
+        AgentResult | AgentStreamResult
+      >;
+    };
   } {
     this.logger({
       category: "agent",
@@ -1547,136 +1638,43 @@ export class V3 {
 
       const agentConfigSignature =
         this.agentCache.buildConfigSignature(options);
-      return {
-        execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
-          withInstanceLogContext(this.instanceId, async () => {
-            if (options?.integrations && !this.experimental) {
-              throw new ExperimentalNotConfiguredError("MCP integrations");
-            }
-            const tools = options?.integrations
-              ? await resolveTools(options.integrations, options.tools)
-              : (options?.tools ?? {});
 
-            const handler = new V3CuaAgentHandler(
-              this,
-              this.logger,
-              {
-                modelName,
-                clientOptions,
-                userProvidedInstructions:
-                  options.systemPrompt ??
-                  `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
-              },
-              tools,
-            );
-
-            const resolvedOptions: AgentExecuteOptions =
-              typeof instructionOrOptions === "string"
-                ? { instruction: instructionOrOptions }
-                : instructionOrOptions;
-            if (resolvedOptions.page) {
-              const normalizedPage = await this.normalizeToV3Page(
-                resolvedOptions.page,
-              );
-              this.ctx!.setActivePage(normalizedPage);
-            }
-            const instruction = resolvedOptions.instruction.trim();
-            const sanitizedOptions =
-              this.agentCache.sanitizeExecuteOptions(resolvedOptions);
-
-            let cacheContext: AgentCacheContext | null = null;
-            if (this.agentCache.shouldAttemptCache(instruction)) {
-              const startPage = await this.ctx!.awaitActivePage();
-              cacheContext = await this.agentCache.prepareContext({
-                instruction,
-                options: sanitizedOptions,
-                configSignature: agentConfigSignature,
-                page: startPage,
-              });
-              if (cacheContext) {
-                const replayed = await this.agentCache.tryReplay(cacheContext);
-                if (replayed) {
-                  return replayed;
-                }
-              }
-            }
-
-            let agentSteps: AgentReplayStep[] = [];
-            const recording = !!cacheContext;
-            if (recording) {
-              this.beginAgentReplayRecording();
-            }
-
-            let result: AgentResult;
-            try {
-              if (this.apiClient && !this.experimental) {
-                const page = await this.ctx!.awaitActivePage();
-                result = await this.apiClient.agentExecute(
-                  options,
-                  resolvedOptions,
-                  page.mainFrameId(),
-                );
-              } else {
-                result = await handler.execute(instructionOrOptions);
-              }
-              if (recording) {
-                agentSteps = this.endAgentReplayRecording();
-              }
-
-              if (cacheContext && result.success && agentSteps.length > 0) {
-                await this.agentCache.store(cacheContext, agentSteps, result);
-              }
-
-              return result;
-            } catch (err) {
-              if (recording) this.discardAgentReplayRecording();
-              throw err;
-            } finally {
-              if (recording) {
-                this.discardAgentReplayRecording();
-              }
-            }
-          }),
-      };
-    }
-
-    // Default: AISDK tools-based agent
-    const agentConfigSignature = this.agentCache.buildConfigSignature(options);
-
-    return {
-      execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
+      const cuaExecuteImpl = async (
+        instructionOrOptions: string | AgentExecuteOptions,
+      ): Promise<AgentResult | AgentStreamResult> =>
         withInstanceLogContext(this.instanceId, async () => {
-          if ((options?.integrations || options?.tools) && !this.experimental) {
-            throw new ExperimentalNotConfiguredError(
-              "MCP integrations and custom tools",
-            );
-          }
-
-          const tools = options?.integrations
-            ? await resolveTools(options.integrations, options.tools)
-            : (options?.tools ?? {});
-
-          // Resolve the LLM client for the agent based on the model parameter
-          // Use the agent's model if specified, otherwise fall back to the default
-          const agentLlmClient = options?.model
-            ? this.resolveLlmClient(options.model)
-            : this.llmClient;
-
-          const handler = new V3AgentHandler(
-            this,
-            this.logger,
-            agentLlmClient,
-            typeof options?.executionModel === "string"
-              ? options.executionModel
-              : options?.executionModel?.modelName,
-            options?.systemPrompt,
-            tools,
-          );
-
           const resolvedOptions: AgentExecuteOptions =
             typeof instructionOrOptions === "string"
               ? { instruction: instructionOrOptions }
               : instructionOrOptions;
+
+          // CUA agents do not support streaming
+          if (resolvedOptions.stream === true) {
+            throw new ExperimentalNotConfiguredError(
+              "Streaming is not supported for CUA agents",
+            );
+          }
+
+          if (options?.integrations && !this.experimental) {
+            throw new ExperimentalNotConfiguredError("MCP integrations");
+          }
+          const tools = options?.integrations
+            ? await resolveTools(options.integrations, options.tools)
+            : (options?.tools ?? {});
+
+          const handler = new V3CuaAgentHandler(
+            this,
+            this.logger,
+            {
+              modelName,
+              clientOptions,
+              userProvidedInstructions:
+                options.systemPrompt ??
+                `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
+            },
+            tools,
+          );
+
           if (resolvedOptions.page) {
             const normalizedPage = await this.normalizeToV3Page(
               resolvedOptions.page,
@@ -1709,8 +1707,8 @@ export class V3 {
           if (recording) {
             this.beginAgentReplayRecording();
           }
-          let result: AgentResult;
 
+          let result: AgentResult;
           try {
             if (this.apiClient && !this.experimental) {
               const page = await this.ctx!.awaitActivePage();
@@ -1720,7 +1718,7 @@ export class V3 {
                 page.mainFrameId(),
               );
             } else {
-              result = await handler.execute(instructionOrOptions);
+              result = await handler.execute(resolvedOptions);
             }
             if (recording) {
               agentSteps = this.endAgentReplayRecording();
@@ -1739,39 +1737,191 @@ export class V3 {
               this.discardAgentReplayRecording();
             }
           }
-        }),
-      stream: async (instructionOrOptions: string | AgentStreamOptions) =>
-        withInstanceLogContext(this.instanceId, async () => {
-          if (!this.experimental) {
-            throw new ExperimentalNotConfiguredError("Agent streaming");
-          }
-          if ((options?.integrations || options?.tools) && !this.experimental) {
-            throw new ExperimentalNotConfiguredError(
-              "MCP integrations and custom tools",
-            );
-          }
+        });
 
-          const tools = options?.integrations
-            ? await resolveTools(options.integrations, options.tools)
-            : (options?.tools ?? {});
+      return {
+        execute: cuaExecuteImpl as {
+          (
+            instructionOrOptions:
+              | string
+              | (AgentExecuteOptions & { stream?: false | undefined }),
+          ): Promise<AgentResult>;
+          (
+            instructionOrOptions: AgentExecuteOptions & { stream: true },
+          ): Promise<AgentStreamResult>;
+          (instructionOrOptions: string | AgentExecuteOptions): Promise<
+            AgentResult | AgentStreamResult
+          >;
+        },
+      };
+    }
 
-          const agentLlmClient = options?.model
-            ? this.resolveLlmClient(options.model)
-            : this.llmClient;
+    // Default: AISDK tools-based agent
+    const agentConfigSignature = this.agentCache.buildConfigSignature(options);
 
-          const handler = new V3AgentHandler(
-            this,
-            this.logger,
-            agentLlmClient,
-            typeof options?.executionModel === "string"
-              ? options.executionModel
-              : options?.executionModel?.modelName,
-            options?.systemPrompt,
-            tools,
+    const executeImpl = async (
+      instructionOrOptions: string | AgentExecuteOptions,
+    ): Promise<AgentResult | AgentStreamResult> =>
+      withInstanceLogContext(this.instanceId, async () => {
+        const resolvedOptions: AgentExecuteOptions =
+          typeof instructionOrOptions === "string"
+            ? { instruction: instructionOrOptions }
+            : instructionOrOptions;
+
+        const isStreaming = resolvedOptions.stream === true;
+
+        // Streaming requires experimental mode
+        if (isStreaming && !this.experimental) {
+          throw new ExperimentalNotConfiguredError("Agent streaming");
+        }
+
+        if ((options?.integrations || options?.tools) && !this.experimental) {
+          throw new ExperimentalNotConfiguredError(
+            "MCP integrations and custom tools",
           );
+        }
 
-          return handler.stream(instructionOrOptions);
-        }),
+        const tools = options?.integrations
+          ? await resolveTools(options.integrations, options.tools)
+          : (options?.tools ?? {});
+
+        // Resolve the LLM client for the agent based on the model parameter
+        // Use the agent's model if specified, otherwise fall back to the default
+        const agentLlmClient = options?.model
+          ? this.resolveLlmClient(options.model)
+          : this.llmClient;
+
+        const handler = new V3AgentHandler(
+          this,
+          this.logger,
+          agentLlmClient,
+          typeof options?.executionModel === "string"
+            ? options.executionModel
+            : options?.executionModel?.modelName,
+          options?.systemPrompt,
+          tools,
+        );
+
+        if (resolvedOptions.page) {
+          const normalizedPage = await this.normalizeToV3Page(
+            resolvedOptions.page,
+          );
+          this.ctx!.setActivePage(normalizedPage);
+        }
+
+        // Shared caching logic for both streaming and non-streaming
+        const instruction = resolvedOptions.instruction.trim();
+        const sanitizedOptions =
+          this.agentCache.sanitizeExecuteOptions(resolvedOptions);
+
+        let cacheContext: AgentCacheContext | null = null;
+        if (this.agentCache.shouldAttemptCache(instruction)) {
+          const startPage = await this.ctx!.awaitActivePage();
+          cacheContext = await this.agentCache.prepareContext({
+            instruction,
+            options: sanitizedOptions,
+            configSignature: agentConfigSignature,
+            page: startPage,
+          });
+          if (cacheContext) {
+            const replayed = await this.agentCache.tryReplay(cacheContext);
+            if (replayed) {
+              // Cache hit - return cached result
+              if (isStreaming) {
+                // For streaming, wrap cached result in a fake stream
+                return createCachedStreamResult(replayed);
+              }
+              return replayed;
+            }
+          }
+        }
+
+        // Cache miss - execute and potentially record for caching
+        let agentSteps: AgentReplayStep[] = [];
+        const recording = !!cacheContext;
+        if (recording) {
+          this.beginAgentReplayRecording();
+        }
+
+        // Streaming path with caching support
+        if (isStreaming) {
+          const streamResult = (await handler.execute(
+            resolvedOptions,
+          )) as AgentStreamResult;
+
+          // If recording, we need to capture the result when streaming finishes
+          if (recording && cacheContext) {
+            const originalResultPromise = streamResult.result;
+            const capturedCacheContext = cacheContext;
+
+            // Wrap the result promise to store cache on completion
+            streamResult.result = originalResultPromise.then(async (result) => {
+              try {
+                const steps = this.endAgentReplayRecording();
+                if (result.success && steps.length > 0) {
+                  await this.agentCache.store(
+                    capturedCacheContext,
+                    steps,
+                    result,
+                  );
+                }
+              } catch {
+                this.discardAgentReplayRecording();
+              }
+              return result;
+            });
+          }
+
+          return streamResult;
+        }
+
+        // Non-streaming path with caching support
+        let result: AgentResult;
+
+        try {
+          if (this.apiClient && !this.experimental) {
+            const page = await this.ctx!.awaitActivePage();
+            result = await this.apiClient.agentExecute(
+              options,
+              resolvedOptions,
+              page.mainFrameId(),
+            );
+          } else {
+            result = (await handler.execute(resolvedOptions)) as AgentResult;
+          }
+          if (recording) {
+            agentSteps = this.endAgentReplayRecording();
+          }
+
+          if (cacheContext && result.success && agentSteps.length > 0) {
+            await this.agentCache.store(cacheContext, agentSteps, result);
+          }
+
+          return result;
+        } catch (err) {
+          if (recording) this.discardAgentReplayRecording();
+          throw err;
+        } finally {
+          if (recording) {
+            this.discardAgentReplayRecording();
+          }
+        }
+      });
+
+    return {
+      execute: executeImpl as {
+        (
+          instructionOrOptions:
+            | string
+            | (AgentExecuteOptions & { stream?: false | undefined }),
+        ): Promise<AgentResult>;
+        (
+          instructionOrOptions: AgentExecuteOptions & { stream: true },
+        ): Promise<AgentStreamResult>;
+        (instructionOrOptions: string | AgentExecuteOptions): Promise<
+          AgentResult | AgentStreamResult
+        >;
+      },
     };
   }
 }
