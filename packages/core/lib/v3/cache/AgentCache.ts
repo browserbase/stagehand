@@ -18,6 +18,7 @@ import type {
 import type {
   AvailableModel,
   AgentResult,
+  AgentStreamResult,
   AgentConfig,
   AgentExecuteOptions,
   Logger,
@@ -183,6 +184,84 @@ export class AgentCache {
     });
 
     return await this.replayAgentCacheEntry(entry);
+  }
+
+  /**
+   * Attempts to replay a cached agent execution and returns it as a stream result.
+   *
+   * This method exists because the agent API exposes two execution modes:
+   * - `execute()` - Returns a Promise<AgentResult> directly
+   * - `stream()` - Returns an AgentStreamResult with async iterables for real-time output
+   *
+   * When a cache hit occurs, we need to return the appropriate type for each mode:
+   * - For `execute()`, we use `tryReplay()` which returns AgentResult
+   * - For `stream()`, we use `tryReplayAsStream()` which wraps the result in a
+   *   stream-compatible interface
+   *
+   * This ensures consumers using `stream()` can still iterate over `textStream`
+   * and await `result` even when the response comes from cache, maintaining
+   * API consistency regardless of whether the result was cached or live.
+   */
+  async tryReplayAsStream(
+    context: AgentCacheContext,
+  ): Promise<AgentStreamResult | null> {
+    const result = await this.tryReplay(context);
+    if (!result) return null;
+    return this.createCachedStreamResult(result);
+  }
+
+  /**
+   * Creates a mock AgentStreamResult that wraps a cached AgentResult.
+   *
+   * AgentStreamResult (from the AI SDK) is a complex type with multiple async
+   * iterables and promises. When serving from cache, we don't have an actual
+   * LLM stream to consume - we just have the final result. This method creates
+   * a "fake" stream
+
+   * This approach lets cached responses be transparent to the consumer -
+   * they can use the same iteration patterns whether the result is live or cached.
+   */
+  private createCachedStreamResult(cachedResult: AgentResult): AgentStreamResult {
+    const message = cachedResult.message ?? "";
+
+    async function* textStreamGenerator(): AsyncGenerator<string> {
+      yield message;
+    }
+
+    async function* fullStreamGenerator(): AsyncGenerator<{
+      type: string;
+      textDelta?: string;
+    }> {
+      yield { type: "text-delta", textDelta: message };
+      yield { type: "finish" };
+    }
+
+    const mockStreamResult = {
+      textStream: textStreamGenerator(),
+      fullStream: fullStreamGenerator(),
+      result: Promise.resolve(cachedResult),
+      text: Promise.resolve(message),
+      usage: Promise.resolve({
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+      }),
+      finishReason: Promise.resolve("stop" as const),
+      experimental_providerMetadata: Promise.resolve(undefined),
+      response: Promise.resolve({
+        id: "cached",
+        timestamp: new Date(),
+        modelId: "cached",
+      }),
+      rawResponse: Promise.resolve({ headers: {} }),
+      warnings: Promise.resolve([]),
+      steps: Promise.resolve([]),
+      toolCalls: Promise.resolve([]),
+      toolResults: Promise.resolve([]),
+      [Symbol.asyncIterator]: () => textStreamGenerator(),
+    } as unknown as AgentStreamResult;
+
+    return mockStreamResult;
   }
 
   async store(
