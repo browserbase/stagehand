@@ -20,12 +20,15 @@ async function main() {
   try {
     const page = stagehand.context.pages()[0];
     await page.goto("https://amazon.com");
+
+    // Create a streaming agent with stream: true in the config
     const agent = stagehand.agent({
       model: "anthropic/claude-sonnet-4-5-20250929",
       executionModel: "google/gemini-2.5-flash",
+      stream: true, // This makes execute() return AgentStreamResult
     });
 
-    const result = await agent.stream({
+    const result = await agent.execute({
       instruction: "go to amazon, and search for shampoo, stop after searching",
       maxSteps: 20,
     });
