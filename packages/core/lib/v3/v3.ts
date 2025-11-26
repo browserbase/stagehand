@@ -1559,14 +1559,20 @@ export class V3 {
   /**
    * Create a v3 agent instance (AISDK tool-based) with execute().
    * Mirrors the v2 Stagehand.agent() tool mode (no CUA provider here).
+   *
+   * @overload When stream: true, returns a streaming agent where execute() returns AgentStreamResult
+   * @overload When stream is false/undefined, returns a non-streaming agent where execute() returns AgentResult
    */
+  agent(
+    options: AgentConfig & { stream: true },
+  ): { execute: (instructionOrOptions: string | AgentExecuteOptions) => Promise<AgentStreamResult> };
+  agent(
+    options?: AgentConfig & { stream?: false },
+  ): { execute: (instructionOrOptions: string | AgentExecuteOptions) => Promise<AgentResult> };
   agent(options?: AgentConfig): {
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
-    ) => Promise<AgentResult>;
-    stream?: (
-      instructionOrOptions: string | AgentExecuteOptions,
-    ) => Promise<AgentStreamResult>;
+    ) => Promise<AgentResult | AgentStreamResult>;
   } {
     this.logger({
       category: "agent",
@@ -1706,10 +1712,50 @@ export class V3 {
 
     // Default: AISDK tools-based agent
     const agentConfigSignature = this.agentCache.buildConfigSignature(options);
+    const isStreaming = options?.stream ?? false;
 
     return {
-      execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
+      execute: async (
+        instructionOrOptions: string | AgentExecuteOptions,
+      ): Promise<AgentResult | AgentStreamResult> =>
         withInstanceLogContext(this.instanceId, async () => {
+          // Streaming mode
+          if (isStreaming) {
+            if (!this.experimental) {
+              throw new ExperimentalNotConfiguredError("Agent streaming");
+            }
+
+            const { handler, cacheContext } = await this.prepareAgentExecution(
+              options,
+              instructionOrOptions,
+              agentConfigSignature,
+            );
+
+            if (cacheContext) {
+              const replayed =
+                await this.agentCache.tryReplayAsStream(cacheContext);
+              if (replayed) {
+                return replayed;
+              }
+            }
+
+
+            const streamResult = await handler.stream(instructionOrOptions);
+
+            if (cacheContext) {
+              return this.agentCache.wrapStreamForCaching(
+                cacheContext,
+                streamResult,
+                () => this.beginAgentReplayRecording(),
+                () => this.endAgentReplayRecording(),
+                () => this.discardAgentReplayRecording(),
+              );
+            }
+
+            return streamResult;
+          }
+
+          // Non-streaming mode (default)
           const { handler, resolvedOptions, cacheContext } =
             await this.prepareAgentExecution(
               options,
@@ -1759,42 +1805,6 @@ export class V3 {
               this.discardAgentReplayRecording();
             }
           }
-        }),
-      stream: async (instructionOrOptions: string | AgentExecuteOptions) =>
-        withInstanceLogContext(this.instanceId, async () => {
-          if (!this.experimental) {
-            throw new ExperimentalNotConfiguredError("Agent streaming");
-          }
-
-          const { handler, cacheContext } = await this.prepareAgentExecution(
-            options,
-            instructionOrOptions,
-            agentConfigSignature,
-          );
-
-          // Try cache replay first
-          if (cacheContext) {
-            const replayed =
-              await this.agentCache.tryReplayAsStream(cacheContext);
-            if (replayed) {
-              return replayed;
-            }
-          }
-
-          // No cache hit - execute and optionally record for caching
-          const streamResult = await handler.stream(instructionOrOptions);
-
-          if (cacheContext) {
-            return this.agentCache.wrapStreamForCaching(
-              cacheContext,
-              streamResult,
-              () => this.beginAgentReplayRecording(),
-              () => this.endAgentReplayRecording(),
-              () => this.discardAgentReplayRecording(),
-            );
-          }
-
-          return streamResult;
         }),
     };
   }

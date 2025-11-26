@@ -221,4 +221,30 @@ export type AgentConfig = {
    * Format: "provider/model" (e.g., "openai/gpt-4o-mini", "google/gemini-2.0-flash-exp")
    */
   executionModel?: string | AgentModelConfig<string>;
+  /**
+   * Enable streaming mode for the agent.
+   * When true, execute() returns AgentStreamResult with textStream for incremental output.
+   * When false (default), execute() returns AgentResult after completion.
+   */
+  stream?: boolean;
 };
+
+/**
+ * Agent instance returned when stream: true is set in AgentConfig.
+ * execute() returns a streaming result that can be consumed incrementally.
+ */
+export interface StreamingAgentInstance {
+  execute: (
+    instructionOrOptions: string | AgentExecuteOptions,
+  ) => Promise<AgentStreamResult>;
+}
+
+/**
+ * Agent instance returned when stream is false or not set in AgentConfig.
+ * execute() returns a result after the agent completes.
+ */
+export interface NonStreamingAgentInstance {
+  execute: (
+    instructionOrOptions: string | AgentExecuteOptions,
+  ) => Promise<AgentResult>;
+}
