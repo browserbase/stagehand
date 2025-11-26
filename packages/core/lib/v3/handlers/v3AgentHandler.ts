@@ -53,6 +53,7 @@ export class V3AgentHandler {
   private async prepareAgent(
     instructionOrOptions: string | AgentExecuteOptionsBase,
   ): Promise<AgentContext> {
+    try { 
     const options =
       typeof instructionOrOptions === "string"
         ? { instruction: instructionOrOptions }
@@ -95,6 +96,14 @@ export class V3AgentHandler {
       wrappedModel,
       initialPageUrl,
     };
+  } catch (error) {
+    this.logger({
+      category: "agent",
+      message: `failed to prepare agent: ${error}`,
+      level: 0,
+    });
+    throw error;
+  }
   }
 
   private createStepHandler(
