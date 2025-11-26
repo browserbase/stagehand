@@ -4,7 +4,9 @@ import type { AvailableModel } from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig";
 import { readJsonlFile, parseJsonlRows, applySampling } from "../utils";
 
-export const buildOnlineMind2WebTestcases = (models: string[]): Testcase[] => {
+export const buildOnlineMind2WebTestcases = (
+  models: (string | { modelName: string; isCUA: boolean })[],
+): Testcase[] => {
   const mind2webFilePath = path.join(
     __dirname,
     "..",
@@ -48,7 +50,11 @@ export const buildOnlineMind2WebTestcases = (models: string[]): Testcase[] => {
   const rows = applySampling(candidates, sampleCount, maxCases);
 
   const allTestcases: Testcase[] = [];
-  for (const model of models) {
+  for (const modelItem of models) {
+    const model =
+      typeof modelItem === "string" ? modelItem : modelItem.modelName;
+    const isCUA = typeof modelItem === "string" ? undefined : modelItem.isCUA;
+
     for (const row of rows) {
       const input: EvalInput = {
         name: "agent/onlineMind2Web",
@@ -59,6 +65,7 @@ export const buildOnlineMind2WebTestcases = (models: string[]): Testcase[] => {
           website: row.website,
           reference_length: row.reference_length,
           level: row.level,
+          isCUA,
         },
       };
       allTestcases.push({
@@ -72,10 +79,12 @@ export const buildOnlineMind2WebTestcases = (models: string[]): Testcase[] => {
           ).map((x) => `category/${x}`),
           `onlineMind2Web/id/${row.task_id}`,
           ...(row.level ? [`onlineMind2Web/level/${row.level}`] : []),
-        ],
+          isCUA !== undefined ? `cua:${isCUA}` : "",
+        ].filter(Boolean),
         metadata: {
           model: model as AvailableModel,
           test: `${input.name}:${row.task_id}`,
+          isCUA,
         },
         expected: true,
       });

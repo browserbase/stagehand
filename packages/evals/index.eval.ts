@@ -21,7 +21,13 @@ import {
 } from "./args";
 import { generateExperimentName } from "./utils";
 import { exactMatch, errorMatch } from "./scoring";
-import { tasksByName, tasksConfig, getModelList } from "./taskConfig";
+import {
+  tasksByName,
+  tasksConfig,
+  getModelList,
+  CUA_AGENT_MODELS,
+  NON_CUA_AGENT_MODELS,
+} from "./taskConfig";
 import { Eval } from "braintrust";
 import { SummaryResult, Testcase, EvalInput } from "./types/evals";
 import { EvalLogger } from "./logger";
@@ -108,7 +114,18 @@ const generateFilteredTestcases = (): Testcase[] => {
   }
 
   // Dynamically determine the MODELS based on the effective category
-  const currentModels = getModelList(effectiveCategory);
+  let currentModels: (string | { modelName: string; isCUA: boolean })[] =
+    getModelList(effectiveCategory);
+
+  if (
+    effectiveCategory === "agent" ||
+    effectiveCategory === "external_agent_benchmarks"
+  ) {
+    currentModels = [
+      ...CUA_AGENT_MODELS.map((m) => ({ modelName: m, isCUA: true })),
+      ...NON_CUA_AGENT_MODELS.map((m) => ({ modelName: m, isCUA: false })),
+    ];
+  }
 
   console.log(
     `Using models for this run (${effectiveCategory || "default"}):`,
@@ -171,23 +188,35 @@ const generateFilteredTestcases = (): Testcase[] => {
   }
 
   // Create a list of all remaining testcases using the determined task names and models
-  const regularTestcases = currentModels.flatMap((model) =>
-    taskNamesToRun.map((testName) => ({
-      input: { name: testName, modelName: model as AvailableModel },
-      name: testName,
-      tags: [
-        model,
-        testName,
-        ...(tasksConfig.find((t) => t.name === testName)?.categories || []).map(
-          (x) => `category/${x}`,
-        ),
-      ],
-      metadata: {
-        model: model as AvailableModel,
-        test: testName,
-      },
-      expected: true,
-    })),
+  const regularTestcases = currentModels.flatMap((modelItem) =>
+    taskNamesToRun.map((testName) => {
+      const model =
+        typeof modelItem === "string" ? modelItem : modelItem.modelName;
+      const isCUA = typeof modelItem === "string" ? undefined : modelItem.isCUA;
+
+      return {
+        input: {
+          name: testName,
+          modelName: model as AvailableModel,
+          params: { isCUA },
+        },
+        name: testName,
+        tags: [
+          model,
+          testName,
+          ...(
+            tasksConfig.find((t) => t.name === testName)?.categories || []
+          ).map((x) => `category/${x}`),
+          isCUA !== undefined ? `cua:${isCUA}` : undefined,
+        ].filter((x): x is string => x !== undefined),
+        metadata: {
+          model: model as AvailableModel,
+          test: testName,
+          isCUA,
+        },
+        expected: true,
+      };
+    }),
   );
 
   allTestcases = [...allTestcases, ...regularTestcases];
@@ -344,6 +373,7 @@ const generateFilteredTestcases = (): Testcase[] => {
               modelName: input.modelName,
               modelClientOptions: { apiKey: apiKey },
               createAgent: isAgentTask,
+              isCUA: input.params?.isCUA as boolean | undefined,
             });
           } else {
             let llmClient: LLMClient;

@@ -4,7 +4,9 @@ import type { AvailableModel } from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig";
 import { readJsonlFile, parseJsonlRows, applySampling } from "../utils";
 
-export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
+export const buildWebVoyagerTestcases = (
+  models: (string | { modelName: string; isCUA: boolean })[],
+): Testcase[] => {
   const voyagerFilePath = path.join(
     __dirname,
     "..",
@@ -47,7 +49,11 @@ export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
   const rows = applySampling(candidates, sampleCount, maxCases);
 
   const allTestcases: Testcase[] = [];
-  for (const model of models) {
+  for (const modelItem of models) {
+    const model =
+      typeof modelItem === "string" ? modelItem : modelItem.modelName;
+    const isCUA = typeof modelItem === "string" ? undefined : modelItem.isCUA;
+
     for (const row of rows) {
       const input: EvalInput = {
         name: "agent/webvoyager",
@@ -57,6 +63,7 @@ export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
           web: row.web,
           ques: row.ques,
           web_name: row.web_name,
+          isCUA,
         },
       };
       allTestcases.push({
@@ -69,10 +76,12 @@ export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
             tasksConfig.find((t) => t.name === input.name)?.categories || []
           ).map((x) => `category/${x}`),
           `webvoyager/id/${row.id}`,
-        ],
+          isCUA !== undefined ? `cua:${isCUA}` : "",
+        ].filter(Boolean),
         metadata: {
           model: model as AvailableModel,
           test: `${input.name}:${row.id}`,
+          isCUA,
         },
         expected: true,
       });

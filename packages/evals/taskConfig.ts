@@ -104,14 +104,21 @@ const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
       "anthropic/claude-haiku-4-5",
     ];
 
+export const CUA_AGENT_MODELS = [
+  "openai/computer-use-preview-2025-03-11",
+  "anthropic/claude-sonnet-4-20250514",
+  "google/gemini-2.5-computer-use-preview-10-2025",
+];
+
+export const NON_CUA_AGENT_MODELS = [
+  "openai/gpt-4o",
+  "anthropic/claude-sonnet-4-20250514",
+  "google/gemini-2.0-flash",
+];
+
 const DEFAULT_AGENT_MODELS = process.env.EVAL_AGENT_MODELS
   ? process.env.EVAL_AGENT_MODELS.split(",")
-  : [
-      "computer-use-preview-2025-03-11",
-      "claude-sonnet-4-20250514",
-      "gemini-2.5-computer-use-preview-10-2025",
-      // "anthropic/claude-sonnet-4-20250514",
-    ];
+  : [...CUA_AGENT_MODELS, ...NON_CUA_AGENT_MODELS];
 
 /**
  * getModelList:

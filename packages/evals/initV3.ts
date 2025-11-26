@@ -23,6 +23,7 @@ import {
 import dotenv from "dotenv";
 import { env } from "./env";
 import { EvalLogger } from "./logger";
+import { CUA_AGENT_MODELS } from "./taskConfig";
 
 dotenv.config();
 
@@ -44,6 +45,7 @@ type InitV3Args = {
   };
   actTimeoutMs?: number; // retained for parity (v3 agent tools don't use this globally)
   modelName: AvailableModel;
+  isCUA?: boolean;
 };
 
 export type V3InitResult = {
@@ -62,9 +64,13 @@ export async function initV3({
   configOverrides,
   modelName,
   createAgent,
+  isCUA: isCUAOverride,
 }: InitV3Args): Promise<V3InitResult> {
   // Determine if the requested model is a CUA model
-  const isCUA = modelName in modelToAgentProviderMap;
+  const isCUA =
+    typeof isCUAOverride === "boolean"
+      ? isCUAOverride
+      : CUA_AGENT_MODELS.includes(modelName);
 
   // If CUA, choose a safe internal AISDK model for V3 handlers based on available API keys
   let internalModel: AvailableModel = modelName;
@@ -130,8 +136,12 @@ export async function initV3({
   let agent: AgentInstance | undefined;
   if (createAgent) {
     if (isCUA) {
+      let provider = modelToAgentProviderMap[modelName];
+      if (!provider && modelName.includes("/")) {
+        provider = modelName.split("/")[0] as any;
+      }
       const apiKey = loadApiKeyFromEnv(
-        modelToAgentProviderMap[modelName],
+        provider,
         logger.log.bind(logger),
       );
 

@@ -52,12 +52,22 @@ export interface Testcase
   extends EvalCase<
     EvalInput,
     unknown,
-    { model: AvailableModel; test: string; categories?: string[] }
+    {
+      model: AvailableModel;
+      test: string;
+      categories?: string[];
+      isCUA?: boolean;
+    }
   > {
   input: EvalInput;
   name: string;
   tags: string[];
-  metadata: { model: AvailableModel; test: string; categories?: string[] };
+  metadata: {
+    model: AvailableModel;
+    test: string;
+    categories?: string[];
+    isCUA?: boolean;
+  };
   expected: unknown;
 }
 

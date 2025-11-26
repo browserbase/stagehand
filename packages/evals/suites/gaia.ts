@@ -4,7 +4,9 @@ import type { AvailableModel } from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig";
 import { readJsonlFile, parseJsonlRows, applySampling } from "../utils";
 
-export const buildGAIATestcases = (models: string[]): Testcase[] => {
+export const buildGAIATestcases = (
+  models: (string | { modelName: string; isCUA: boolean })[],
+): Testcase[] => {
   const gaiaFilePath =
     process.env.EVAL_GAIA_FILE ||
     path.join(__dirname, "..", "datasets", "gaia", "GAIA_web.jsonl");
@@ -52,7 +54,11 @@ export const buildGAIATestcases = (models: string[]): Testcase[] => {
   const gaiaRows = applySampling(filteredCandidates, sampleCount, maxCases);
 
   const allTestcases: Testcase[] = [];
-  for (const model of models) {
+  for (const modelItem of models) {
+    const model =
+      typeof modelItem === "string" ? modelItem : modelItem.modelName;
+    const isCUA = typeof modelItem === "string" ? undefined : modelItem.isCUA;
+
     for (const row of gaiaRows) {
       const finalAnswer = (row as Record<string, unknown>)[
         "Final answer"
@@ -66,6 +72,7 @@ export const buildGAIATestcases = (models: string[]): Testcase[] => {
           web: row.web,
           ques: row.ques,
           expected: typeof finalAnswer === "string" ? finalAnswer : undefined,
+          isCUA,
         },
       };
       allTestcases.push({
@@ -79,10 +86,12 @@ export const buildGAIATestcases = (models: string[]): Testcase[] => {
           ).map((x) => `category/${x}`),
           `gaia/id/${row.id}`,
           row.Level ? `gaia/level/${row.Level}` : "gaia/level/unknown",
-        ],
+          isCUA !== undefined ? `cua:${isCUA}` : "",
+        ].filter(Boolean),
         metadata: {
           model: model as AvailableModel,
           test: `${input.name}:${row.id}`,
+          isCUA,
         },
         expected: true,
       });
