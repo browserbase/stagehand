@@ -1498,7 +1498,10 @@ export class V3 {
    */
   private async prepareAgentExecution(
     options: AgentConfig | undefined,
-    instructionOrOptions: string | AgentExecuteOptions | AgentStreamExecuteOptions,
+    instructionOrOptions:
+      | string
+      | AgentExecuteOptions
+      | AgentStreamExecuteOptions,
     agentConfigSignature: string,
   ): Promise<{
     handler: V3AgentHandler;
@@ -1576,7 +1579,10 @@ export class V3 {
   };
   agent(options?: AgentConfig): {
     execute: (
-      instructionOrOptions: string | AgentExecuteOptions | AgentStreamExecuteOptions,
+      instructionOrOptions:
+        | string
+        | AgentExecuteOptions
+        | AgentStreamExecuteOptions,
     ) => Promise<AgentResult | AgentStreamResult>;
   } {
     this.logger({
@@ -1727,7 +1733,10 @@ export class V3 {
 
     return {
       execute: async (
-        instructionOrOptions: string | AgentExecuteOptions | AgentStreamExecuteOptions,
+        instructionOrOptions:
+          | string
+          | AgentExecuteOptions
+          | AgentStreamExecuteOptions,
       ): Promise<AgentResult | AgentStreamResult> =>
         withInstanceLogContext(this.instanceId, async () => {
           // Streaming mode

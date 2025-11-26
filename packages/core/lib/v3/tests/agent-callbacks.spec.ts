@@ -65,8 +65,7 @@ test.describe("Stagehand agent callbacks behavior", () => {
       await page.goto("https://example.com");
 
       await agent.execute({
-        instruction:
-          "Use close tool with taskComplete: true immediately.",
+        instruction: "Use close tool with taskComplete: true immediately.",
         maxSteps: 3,
         callbacks: {
           prepareStep: async (stepContext) => {
@@ -93,8 +92,7 @@ test.describe("Stagehand agent callbacks behavior", () => {
       await page.goto("https://example.com");
 
       await agent.execute({
-        instruction:
-          "Use the close tool with taskComplete: true immediately.",
+        instruction: "Use the close tool with taskComplete: true immediately.",
         maxSteps: 3,
         callbacks: {
           onStepFinish: async (event) => {
@@ -205,8 +203,7 @@ test.describe("Stagehand agent callbacks behavior", () => {
       await page.goto("https://example.com");
 
       const streamResult = await agent.execute({
-        instruction:
-          "Use close tool with taskComplete: true immediately.",
+        instruction: "Use close tool with taskComplete: true immediately.",
         maxSteps: 3,
         callbacks: {
           onFinish: (event) => {
@@ -243,8 +240,7 @@ test.describe("Stagehand agent callbacks behavior", () => {
       await page.goto("https://example.com");
 
       const streamResult = await agent.execute({
-        instruction:
-          "Use close tool with taskComplete: true immediately.",
+        instruction: "Use close tool with taskComplete: true immediately.",
         maxSteps: 3,
         callbacks: {
           prepareStep: async (stepContext) => {
@@ -282,8 +278,7 @@ test.describe("Stagehand agent callbacks behavior", () => {
       await page.goto("https://example.com");
 
       await agent.execute({
-        instruction:
-          "Use close tool with taskComplete: true immediately.",
+        instruction: "Use close tool with taskComplete: true immediately.",
         maxSteps: 3,
         callbacks: {
           prepareStep: async (stepContext) => {
@@ -354,4 +349,3 @@ test.describe("Stagehand agent callbacks behavior", () => {
     });
   });
 });
-

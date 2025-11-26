@@ -169,10 +169,7 @@ export class V3AgentHandler {
       initialPageUrl,
     } = await this.prepareAgent(instructionOrOptions);
 
-    const callbacks = (instructionOrOptions as AgentExecuteOptions).callbacks as
-      | AgentExecuteCallbacks
-      | undefined;
-
+    const callbacks = (instructionOrOptions as AgentExecuteOptions).callbacks;
     const state: AgentState = {
       collectedReasoning: [],
       actions: [],
