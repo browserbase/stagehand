@@ -8,6 +8,8 @@ import {
   stepCountIs,
   type LanguageModelUsage,
   type StepResult,
+  type GenerateTextOnStepFinishCallback,
+  type StreamTextOnStepFinishCallback,
 } from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { LLMClient } from "../llm/LLMClient";
@@ -108,7 +110,9 @@ export class V3AgentHandler {
 
   private createStepHandler(
     state: AgentState,
-    userCallback?: (event: StepResult<ToolSet>) => PromiseLike<void> | void,
+    userCallback?:
+      | GenerateTextOnStepFinishCallback<ToolSet>
+      | StreamTextOnStepFinishCallback<ToolSet>,
   ) {
     return async (event: StepResult<ToolSet>) => {
       this.logger({
