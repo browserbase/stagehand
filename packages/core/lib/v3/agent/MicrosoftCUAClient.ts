@@ -521,7 +521,7 @@ For each function call, return a json object with function name and arguments wi
     if (!this.screenshotProvider) {
       throw new AgentScreenshotProviderError("Screenshot provider not set");
     }
-
+    await new Promise((resolve) => setTimeout(resolve, 750));
     const base64Screenshot = await this.screenshotProvider();
     return `data:image/png;base64,${base64Screenshot}`;
   }
