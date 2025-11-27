@@ -35,6 +35,7 @@ const claudeCodeModelMap: Record<ClaudeCodeModelName, string> = {
 
 export class ClaudeCodeClient extends LLMClient {
   public type = "claude-code" as const;
+  public hasVision = true;
   private model: LanguageModelV2;
   private logger?: (message: LogLine) => void;
 
@@ -194,8 +195,8 @@ export class ClaudeCodeClient extends LLMClient {
       } catch (err) {
         if (NoObjectGeneratedError.isInstance(err)) {
           this.logger?.({
-            category: "claude-code error",
-            message: err.message,
+            category: "claude-code",
+            message: `error: ${err.message}`,
             level: 0,
             auxiliary: {
               cause: {
