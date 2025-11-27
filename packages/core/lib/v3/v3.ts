@@ -1739,6 +1739,14 @@ export class V3 {
           | AgentStreamExecuteOptions,
       ): Promise<AgentResult | AgentStreamResult> =>
         withInstanceLogContext(this.instanceId, async () => {
+          if (
+            typeof instructionOrOptions === "object" &&
+            instructionOrOptions.callbacks &&
+            !this.experimental
+          ) {
+            throw new ExperimentalNotConfiguredError("Agent callbacks");
+          }
+
           // Streaming mode
           if (isStreaming) {
             if (!this.experimental) {
