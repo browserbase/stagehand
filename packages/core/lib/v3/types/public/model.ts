@@ -46,6 +46,9 @@ export type AvailableModel =
   | "claude-3-5-sonnet-20240620"
   | "claude-3-7-sonnet-latest"
   | "claude-3-7-sonnet-20250219"
+  | "claude-code-opus"
+  | "claude-code-sonnet"
+  | "claude-code-haiku"
   | "cerebras-llama-3.3-70b"
   | "cerebras-llama-3.1-8b"
   | "groq-llama-3.3-70b-versatile"
@@ -65,6 +68,7 @@ export type ModelProvider =
   | "cerebras"
   | "groq"
   | "google"
+  | "claude-code"
   | "aisdk";
 
 export type ClientOptions = (OpenAIClientOptions | AnthropicClientOptions) & {

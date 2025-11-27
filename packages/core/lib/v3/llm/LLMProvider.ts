@@ -12,6 +12,10 @@ import {
 import { AISdkClient } from "./aisdk";
 import { AnthropicClient } from "./AnthropicClient";
 import { CerebrasClient } from "./CerebrasClient";
+import {
+  ClaudeCodeClient,
+  ClaudeCodeModelName,
+} from "./ClaudeCodeClient";
 import { GoogleClient } from "./GoogleClient";
 import { GroqClient } from "./GroqClient";
 import { LLMClient } from "./LLMClient";
@@ -79,6 +83,9 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "claude-3-5-sonnet-20241022": "anthropic",
   "claude-3-7-sonnet-20250219": "anthropic",
   "claude-3-7-sonnet-latest": "anthropic",
+  "claude-code-opus": "claude-code",
+  "claude-code-sonnet": "claude-code",
+  "claude-code-haiku": "claude-code",
   "cerebras-llama-3.3-70b": "cerebras",
   "cerebras-llama-3.1-8b": "cerebras",
   "groq-llama-3.3-70b-versatile": "groq",
@@ -190,6 +197,12 @@ export class LLMProvider {
         return new GoogleClient({
           logger: this.logger,
           modelName: availableModel,
+          clientOptions,
+        });
+      case "claude-code":
+        return new ClaudeCodeClient({
+          logger: this.logger,
+          modelName: availableModel as ClaudeCodeModelName,
           clientOptions,
         });
       default:
