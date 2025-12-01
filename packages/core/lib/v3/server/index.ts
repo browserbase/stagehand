@@ -11,6 +11,7 @@ import type {
   ObserveOptions,
   Action,
   AgentResult,
+  ModelConfiguration,
 } from "../types/public";
 import type { StagehandZodSchema } from "../zodCompat";
 import { SessionManager } from "./sessions";
@@ -285,10 +286,10 @@ export class StagehandServer {
           // Build options
           const safeOptions: ActOptions = {
             model: data.options?.model
-              ? {
+              ? ({
                   ...data.options.model,
                   modelName: data.options.model.model ?? "gpt-4o",
-                }
+                } as ModelConfiguration)
               : undefined,
             variables: data.options?.variables,
             timeout: data.options?.timeout,
@@ -402,10 +403,10 @@ export class StagehandServer {
 
           const safeOptions: ExtractOptions = {
             model: data.options?.model
-              ? {
+              ? ({
                   ...data.options.model,
                   modelName: data.options.model.model ?? "gpt-4o",
-                }
+                } as ModelConfiguration)
               : undefined,
             timeout: data.options?.timeout,
             selector: data.options?.selector,
@@ -526,10 +527,10 @@ export class StagehandServer {
           const safeOptions: ObserveOptions = {
             model:
               data.options?.model && typeof data.options.model.model === "string"
-                ? {
+                ? ({
                     ...data.options.model,
                     modelName: data.options.model.model,
-                  }
+                  } as ModelConfiguration)
                 : undefined,
             timeout: data.options?.timeout,
             selector: data.options?.selector,

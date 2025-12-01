@@ -36,6 +36,8 @@
   "files": [
     "dist/index.js",
     "dist/index.d.ts",
+    "dist/server.js",
+    "dist/server.d.ts",
     "dist/lib",
     "dist/types",
     "dist/stagehand.config.d.ts"

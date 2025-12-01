@@ -13,12 +13,14 @@ import {
   ClientOptions,
   ModelConfiguration,
 } from "../types/public/model";
+import type { StagehandEventBus } from "../eventBus";
 
 export class ObserveHandler {
   private readonly llmClient: LLMClient;
   private readonly defaultModelName: AvailableModel;
   private readonly defaultClientOptions: ClientOptions;
   private readonly resolveLlmClient: (model?: ModelConfiguration) => LLMClient;
+  private readonly eventBus: StagehandEventBus;
   private readonly systemPrompt: string;
   private readonly logInferenceToFile: boolean;
   private readonly experimental: boolean;
@@ -36,6 +38,7 @@ export class ObserveHandler {
     defaultModelName: AvailableModel,
     defaultClientOptions: ClientOptions,
     resolveLlmClient: (model?: ModelConfiguration) => LLMClient,
+    eventBus: StagehandEventBus,
     systemPrompt?: string,
     logInferenceToFile?: boolean,
     experimental?: boolean,
@@ -52,6 +55,7 @@ export class ObserveHandler {
     this.defaultModelName = defaultModelName;
     this.defaultClientOptions = defaultClientOptions;
     this.resolveLlmClient = resolveLlmClient;
+    this.eventBus = eventBus;
     this.systemPrompt = systemPrompt ?? "";
     this.logInferenceToFile = logInferenceToFile ?? false;
     this.experimental = experimental ?? false;
@@ -101,6 +105,7 @@ export class ObserveHandler {
         instruction: effectiveInstruction,
         domElements: combinedTree,
         llmClient,
+        eventBus: this.eventBus,
         userProvidedInstructions: this.systemPrompt,
         logger: v3Logger,
         logInferenceToFile: this.logInferenceToFile,

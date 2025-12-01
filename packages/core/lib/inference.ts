@@ -435,7 +435,7 @@ export async function act({
   }
 
   const start = Date.now();
-  const rawResponse = await llmClient.createChatCompletion<ActResponse>({
+  const rawResponse = await createChatCompletionViaEventBus<ActResponse>(eventBus, {
     options: {
       messages,
       response_model: {
