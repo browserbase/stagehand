@@ -87,7 +87,10 @@
         "playwright-report/**",
         "test-results/**"
       ],
-      "cache": false
+      "cache": false,
+      "env": [
+        "ANTHROPIC_API_KEY"
+      ]
     },
     "e2e:bb": {
       "dependsOn": ["build"],
