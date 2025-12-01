@@ -12,7 +12,8 @@ import {
   messageDesc,
   serviceDesc,
 } from "@bufbuild/protobuf/codegenv2";
-import { file_buf_validate_validate } from "../../buf/validate/validate_pb";
+import type { Timestamp } from "@bufbuild/protobuf/wkt";
+import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
@@ -21,8 +22,8 @@ import type { Message } from "@bufbuild/protobuf";
 export const file_stagehand_v1_ping: GenFile =
   /*@__PURE__*/
   fileDesc(
-    "ChdzdGFnZWhhbmQvdjEvcGluZy5wcm90bxIMc3RhZ2VoYW5kLnYxIjAKC1BpbmdSZXF1ZXN0EiEKEGNsaWVudF9zZW5kX3RpbWUYASABKANCB7pIBCICIAAiVAoMUGluZ1Jlc3BvbnNlEiEKEGNsaWVudF9zZW5kX3RpbWUYASABKANCB7pIBCICIAASIQoQc2VydmVyX3NlbmRfdGltZRgCIAEoA0IHukgEIgIgADJVChRTdGFnZWhhbmRQaW5nU2VydmljZRI9CgRQaW5nEhkuc3RhZ2VoYW5kLnYxLlBpbmdSZXF1ZXN0Ghouc3RhZ2VoYW5kLnYxLlBpbmdSZXNwb25zZWIGcHJvdG8z",
-    [file_buf_validate_validate],
+    "ChdzdGFnZWhhbmQvdjEvcGluZy5wcm90bxIMc3RhZ2VoYW5kLnYxIkMKC1BpbmdSZXF1ZXN0EjQKEGNsaWVudF9zZW5kX3RpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wInoKDFBpbmdSZXNwb25zZRI0ChBjbGllbnRfc2VuZF90aW1lGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBI0ChBzZXJ2ZXJfc2VuZF90aW1lGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcDJVChRTdGFnZWhhbmRQaW5nU2VydmljZRI9CgRQaW5nEhkuc3RhZ2VoYW5kLnYxLlBpbmdSZXF1ZXN0Ghouc3RhZ2VoYW5kLnYxLlBpbmdSZXNwb25zZWIGcHJvdG8z",
+    [file_google_protobuf_timestamp],
   );
 
 /**
@@ -30,11 +31,11 @@ export const file_stagehand_v1_ping: GenFile =
  */
 export type PingRequest = Message<"stagehand.v1.PingRequest"> & {
   /**
-   * Milliseconds since Unix epoch when the client emitted the ping.
+   * Timestamp representing when the client emitted the ping.
    *
-   * @generated from field: int64 client_send_time = 1;
+   * @generated from field: google.protobuf.Timestamp client_send_time = 1;
    */
-  clientSendTime: bigint;
+  clientSendTime?: Timestamp;
 };
 
 /**
@@ -52,16 +53,16 @@ export type PingResponse = Message<"stagehand.v1.PingResponse"> & {
   /**
    * Echo of the client's send time so latency can be derived from RTT.
    *
-   * @generated from field: int64 client_send_time = 1;
+   * @generated from field: google.protobuf.Timestamp client_send_time = 1;
    */
-  clientSendTime: bigint;
+  clientSendTime?: Timestamp;
 
   /**
-   * Milliseconds since Unix epoch when the server crafted the response.
+   * Timestamp representing when the server crafted the response.
    *
-   * @generated from field: int64 server_send_time = 2;
+   * @generated from field: google.protobuf.Timestamp server_send_time = 2;
    */
-  serverSendTime: bigint;
+  serverSendTime?: Timestamp;
 };
 
 /**

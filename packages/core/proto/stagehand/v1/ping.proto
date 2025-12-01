@@ -2,19 +2,19 @@ syntax = "proto3";
 
 package stagehand.v1;
 
-import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
 
 message PingRequest {
-  // Milliseconds since Unix epoch when the client emitted the ping.
-  int64 client_send_time = 1 [(buf.validate.field).int64.gt = 0];
+  // Timestamp representing when the client emitted the ping.
+  google.protobuf.Timestamp client_send_time = 1;
 }
 
 message PingResponse {
   // Echo of the client's send time so latency can be derived from RTT.
-  int64 client_send_time = 1 [(buf.validate.field).int64.gt = 0];
+  google.protobuf.Timestamp client_send_time = 1;
 
-  // Milliseconds since Unix epoch when the server crafted the response.
-  int64 server_send_time = 2 [(buf.validate.field).int64.gt = 0];
+  // Timestamp representing when the server crafted the response.
+  google.protobuf.Timestamp server_send_time = 2;
 }
 
 service StagehandPingService {

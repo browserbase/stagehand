@@ -125,15 +125,9 @@ importers:
       '@browserbasehq/sdk':
         specifier: ^2.4.0
         version: 2.5.0
-      '@bufbuild/buf':
-        specifier: ^1.61.0
-        version: 1.61.0
       '@bufbuild/protobuf':
         specifier: ^2.10.1
         version: 2.10.1
-      '@bufbuild/protoc-gen-es':
-        specifier: ^2.10.1
-        version: 2.10.1(@bufbuild/protobuf@2.10.1)
       '@connectrpc/connect':
         specifier: ^2.1.1
         version: 2.1.1(@bufbuild/protobuf@2.10.1)
@@ -250,6 +244,12 @@ importers:
         specifier: ^22.8.0
         version: 22.15.0(bufferutil@4.0.9)
     devDependencies:
+      '@bufbuild/buf':
+        specifier: ^1.61.0
+        version: 1.61.0
+      '@bufbuild/protoc-gen-es':
+        specifier: ^2.10.1
+        version: 2.10.1(@bufbuild/protobuf@2.10.1)
       '@playwright/test':
         specifier: ^1.42.1
         version: 1.54.2
@@ -10954,7 +10954,7 @@ snapshots:
       isstream: 0.1.2
       jsonwebtoken: 9.0.2
       mime-types: 2.1.35
-      retry-axios: 2.6.0(axios@1.13.0)
+      retry-axios: 2.6.0(axios@1.13.0(debug@4.4.3))
       tough-cookie: 4.1.4
     transitivePeerDependencies:
       - supports-color
@@ -13011,7 +13011,7 @@ snapshots:
       retext-stringify: 4.0.0
       unified: 11.0.5
 
-  retry-axios@2.6.0(axios@1.13.0):
+  retry-axios@2.6.0(axios@1.13.0(debug@4.4.3)):
     dependencies:
       axios: 1.13.0(debug@4.4.3)
 

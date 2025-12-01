@@ -52,9 +52,7 @@
     "@ai-sdk/provider": "^2.0.0",
     "@anthropic-ai/sdk": "0.39.0",
     "@browserbasehq/sdk": "^2.4.0",
-    "@bufbuild/buf": "^1.61.0",
     "@bufbuild/protobuf": "^2.10.1",
-    "@bufbuild/protoc-gen-es": "^2.10.1",
     "@connectrpc/connect": "^2.1.1",
     "@connectrpc/connect-fastify": "^2.1.1",
     "@connectrpc/connect-node": "^2.1.1",
@@ -95,6 +93,8 @@
     "puppeteer-core": "^22.8.0"
   },
   "devDependencies": {
+    "@bufbuild/buf": "^1.61.0",
+    "@bufbuild/protoc-gen-es": "^2.10.1",
     "@playwright/test": "^1.42.1",
     "eslint": "^9.16.0",
     "prettier": "^3.2.5",

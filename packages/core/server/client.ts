@@ -1,7 +1,12 @@
 import { createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-node";
+import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { StagehandPingService } from "../gen/stagehand/v1/ping_pb";
-import { pingRequestSchema, pingResponseSchema } from "./schema/ping";
+import {
+  pingRequestSchema,
+  pingResponseSchema,
+  timestampFromSecondsAndNanos,
+} from "./schema/ping";
 
 async function main() {
   const transport = createConnectTransport({
@@ -12,20 +17,28 @@ async function main() {
   const client = createClient(StagehandPingService, transport);
 
   const t0 = Date.now();
-  const pingRequest = pingRequestSchema.parse({ clientSendTime: BigInt(t0) });
+  const parsedRequest = pingRequestSchema.parse({
+    clientSendTime: timestampFromDate(new Date(t0)),
+  });
+  // Convert Zod-validated plain object back to Timestamp Message for gRPC client
+  const pingRequest = {
+    clientSendTime: timestampFromSecondsAndNanos(parsedRequest.clientSendTime),
+  };
   const rawResponse = await client.ping(pingRequest);
   const pingResponse = pingResponseSchema.parse(rawResponse);
 
   const t3 = Date.now();
   const rtt = t3 - t0;
   const latency = rtt / 2;
-  const offset = Number(pingResponse.serverSendTime) - (t0 + latency);
+  const clientSendTimeMs = timestampDate(pingResponse.clientSendTime).getTime();
+  const serverSendTimeMs = timestampDate(pingResponse.serverSendTime).getTime();
+  const offset = serverSendTimeMs - (t0 + latency);
 
   console.log(
     JSON.stringify(
       {
-        clientSendTime: Number(pingResponse.clientSendTime),
-        serverSendTime: Number(pingResponse.serverSendTime),
+        clientSendTime: clientSendTimeMs,
+        serverSendTime: serverSendTimeMs,
         rtt,
         latency,
         offset,

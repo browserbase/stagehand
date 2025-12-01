@@ -4,6 +4,7 @@ import { createValidateInterceptor } from "@connectrpc/validate";
 import { fastifyConnectPlugin } from "@connectrpc/connect-fastify";
 import { Code, createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-node";
+import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import routes from "../../server/connect";
 import { StagehandPingService } from "../../gen/stagehand/v1/ping_pb";
 
@@ -32,11 +33,15 @@ describe("Stagehand Ping RPC", () => {
       createConnectTransport({ baseUrl, httpVersion: "1.1" }),
     );
     const clientSendTime = Date.now();
-    const response = await client.ping({ clientSendTime: BigInt(clientSendTime) });
-    expect(Number(response.clientSendTime)).toBe(clientSendTime);
-    expect(Number(response.serverSendTime)).toBeGreaterThanOrEqual(
+    const response = await client.ping({
+      clientSendTime: timestampFromDate(new Date(clientSendTime)),
+    });
+    expect(timestampDate(response.clientSendTime).getTime()).toBe(
       clientSendTime,
     );
+    expect(
+      timestampDate(response.serverSendTime).getTime(),
+    ).toBeGreaterThanOrEqual(clientSendTime);
   });
 
   it("rejects invalid payloads", async () => {
@@ -44,7 +49,14 @@ describe("Stagehand Ping RPC", () => {
       StagehandPingService,
       createConnectTransport({ baseUrl, httpVersion: "1.1" }),
     );
-    await expect(client.ping({ clientSendTime: BigInt(-1) })).rejects.toMatchObject({
+    await expect(
+      client.ping({
+        clientSendTime: {
+          seconds: BigInt(0),
+          nanos: 0,
+        },
+      }),
+    ).rejects.toMatchObject({
       code: Code.InvalidArgument,
     });
   });
