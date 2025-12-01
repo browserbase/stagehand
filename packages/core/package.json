@@ -23,7 +23,8 @@
     "test:vitest": "pnpm run build-js && pnpm run typecheck && vitest run --config vitest.config.ts",
     "rpc:deps": "pnpm exec buf dep update",
     "rpc:lint": "pnpm exec buf lint",
-    "rpc:generate": "pnpm exec buf generate"
+    "rpc:generate": "pnpm exec buf generate",
+    "rpc:check": "pnpm run rpc:lint && pnpm run rpc:generate && git diff --exit-code -- gen"
   },
   "files": [
     "dist/index.js",
