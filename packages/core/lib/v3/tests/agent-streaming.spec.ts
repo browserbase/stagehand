@@ -24,10 +24,7 @@ test.describe("Stagehand agent streaming behavior", () => {
 
       const agent = v3.agent({
         stream: true,
-        model: {
-          modelName: "anthropic/claude-haiku-4-5-20251001",
-          apiKey: process.env.ANTHROPIC_API_KEY,
-        },
+        model: "anthropic/claude-haiku-4-5-20251001",
       });
 
       // Navigate to a simple page first
@@ -90,10 +87,7 @@ test.describe("Stagehand agent streaming behavior", () => {
 
       const agent = v3.agent({
         stream: true,
-        model: {
-          modelName: "anthropic/claude-haiku-4-5-20251001",
-          apiKey: process.env.ANTHROPIC_API_KEY,
-        },
+        model: "anthropic/claude-haiku-4-5-20251001",
       });
 
       const page = v3.context.pages()[0];
@@ -130,10 +124,7 @@ test.describe("Stagehand agent streaming behavior", () => {
       test.setTimeout(60000);
 
       const agent = v3.agent({
-        model: {
-          modelName: "anthropic/claude-haiku-4-5-20251001",
-          apiKey: process.env.ANTHROPIC_API_KEY,
-        },
+        model: "anthropic/claude-haiku-4-5-20251001",
       });
 
       const page = v3.context.pages()[0];
@@ -161,10 +152,7 @@ test.describe("Stagehand agent streaming behavior", () => {
         v3.agent({
           cua: true,
           stream: true,
-          model: {
-            modelName: "anthropic/claude-haiku-4-5-20251001",
-            apiKey: process.env.ANTHROPIC_API_KEY,
-          },
+          model: "anthropic/claude-haiku-4-5-20251001",
         });
       }).toThrow("Streaming is not supported with CUA");
     });
@@ -173,10 +161,7 @@ test.describe("Stagehand agent streaming behavior", () => {
       // Should not throw
       const agent = v3.agent({
         cua: true,
-        model: {
-          modelName: "anthropic/claude-haiku-4-5-20251001",
-          apiKey: process.env.ANTHROPIC_API_KEY,
-        },
+        model: "anthropic/claude-haiku-4-5-20251001",
       });
 
       expect(agent).toHaveProperty("execute");
@@ -186,10 +171,7 @@ test.describe("Stagehand agent streaming behavior", () => {
       // Should not throw
       const agent = v3.agent({
         stream: true,
-        model: {
-          modelName: "anthropic/claude-haiku-4-5-20251001",
-          apiKey: process.env.ANTHROPIC_API_KEY,
-        },
+        model: "anthropic/claude-haiku-4-5-20251001",
       });
 
       expect(agent).toHaveProperty("execute");
