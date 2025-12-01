@@ -415,7 +415,9 @@ export class StagehandAPIClient {
 
           if (eventData.type === "system") {
             if (eventData.data.status === "error") {
-              throw new StagehandServerError(eventData.data.error);
+              const { error: errorMsg } = eventData.data;
+              // Throw plain Error to match local SDK behavior (useApi: false)
+              throw new Error(errorMsg);
             }
             if (eventData.data.status === "finished") {
               return eventData.data.result as T;
@@ -424,8 +426,9 @@ export class StagehandAPIClient {
             this.logger(eventData.data.message);
           }
         } catch (e) {
-          // Don't catch and re-throw StagehandServerError
-          if (e instanceof StagehandServerError) {
+          // Let Error instances pass through (server errors thrown above)
+          // Only wrap SyntaxError from JSON.parse as parse errors
+          if (e instanceof Error && !(e instanceof SyntaxError)) {
             throw e;
           }
 
