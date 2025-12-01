@@ -142,11 +142,10 @@ export class ExtractHandler {
 
       v3Logger({
         category: "extraction",
-        message: "Starting extraction using a11y snapshot",
+        message: instruction
+          ? `[extract] ${instruction}`
+          : "[extract] Extracting page text",
         level: 1,
-        auxiliary: instruction
-          ? { instruction: { value: instruction, type: "string" } }
-          : undefined,
       });
 
       // Normalize schema: if instruction provided without schema, use defaultExtractSchema
