@@ -10,6 +10,7 @@ import {
   ToolUseItem,
 } from "../types/public/agent";
 import { LogLine } from "../types/public/logs";
+import { ClientOptions } from "../types/public/model";
 import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
 import Anthropic from "@anthropic-ai/sdk";
 import { ToolSet } from "ai";
@@ -41,7 +42,7 @@ export class AnthropicCUAClient extends AgentClient {
     type: AgentType,
     modelName: string,
     userProvidedInstructions?: string,
-    clientOptions?: Record<string, unknown>,
+    clientOptions?: ClientOptions,
     tools?: ToolSet,
   ) {
     super(type, modelName, userProvidedInstructions);
@@ -65,7 +66,7 @@ export class AnthropicCUAClient extends AgentClient {
     };
 
     if (this.baseURL) {
-      this.clientOptions.baseUrl = this.baseURL;
+      this.clientOptions.baseURL = this.baseURL;
     }
 
     // Initialize the Anthropic client

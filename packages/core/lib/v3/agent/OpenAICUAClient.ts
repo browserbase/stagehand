@@ -10,6 +10,7 @@ import {
   ComputerCallItem,
   FunctionCallItem,
 } from "../types/public/agent";
+import { ClientOptions } from "../types/public/model";
 import { AgentClient } from "./AgentClient";
 import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
 import { ToolSet } from "ai";
@@ -36,7 +37,7 @@ export class OpenAICUAClient extends AgentClient {
     type: AgentType,
     modelName: string,
     userProvidedInstructions?: string,
-    clientOptions?: Record<string, unknown>,
+    clientOptions?: ClientOptions,
     tools?: ToolSet,
   ) {
     super(type, modelName, userProvidedInstructions);

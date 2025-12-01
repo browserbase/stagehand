@@ -6,6 +6,7 @@ import {
   AgentType,
   AgentExecutionOptions,
 } from "../types/public/agent";
+import { ClientOptions } from "../types/public/model";
 import { AgentClient } from "./AgentClient";
 import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
 import { mapKeyToPlaywright } from "./utils/cuaKeyMapping";
@@ -75,7 +76,7 @@ export class MicrosoftCUAClient extends AgentClient {
     type: AgentType,
     modelName: string,
     userProvidedInstructions?: string,
-    clientOptions?: Record<string, unknown>,
+    clientOptions?: ClientOptions,
   ) {
     super(type, modelName || "fara-7b", userProvidedInstructions);
 

@@ -71,7 +71,20 @@ export type ClientOptions = (
   | AnthropicClientOptions
   | GoogleVertexProviderSettings
 ) & {
+  apiKey?: string;
   provider?: AgentProviderType;
+  /** OpenAI organization ID */
+  organization?: string;
+  /** Delay between agent actions in ms */
+  waitBetweenActions?: number;
+  /** Anthropic thinking budget for extended thinking */
+  thinkingBudget?: number;
+  /** Environment type for CUA agents (browser, mac, windows, ubuntu) */
+  environment?: string;
+  /** Max images for Microsoft FARA agent */
+  maxImages?: number;
+  /** Temperature for model inference */
+  temperature?: number;
 };
 
 export type ModelConfiguration =
