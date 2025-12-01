@@ -187,6 +187,9 @@ jobs:
     needs: [run-lint, run-build]
     runs-on: ubuntu-latest
     timeout-minutes: 50
+    if: >
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
     env:
       HEADLESS: true
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
