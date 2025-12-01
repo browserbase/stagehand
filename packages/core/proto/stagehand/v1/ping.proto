@@ -1,17 +1,20 @@
 syntax = "proto3";
 
 package stagehand.v1;
+
 import "buf/validate/validate.proto";
 
 message PingRequest {
-  string message = 1;
+  // Milliseconds since Unix epoch when the client emitted the ping.
+  int64 client_send_time = 1 [(buf.validate.field).int64.gt = 0];
 }
 
 message PingResponse {
-   string message = 1 [
-     (buf.validate.field).string.min_len = 1,
-     (buf.validate.field).string.max_len = 250
-   ];
+  // Echo of the client's send time so latency can be derived from RTT.
+  int64 client_send_time = 1 [(buf.validate.field).int64.gt = 0];
+
+  // Milliseconds since Unix epoch when the server crafted the response.
+  int64 server_send_time = 2 [(buf.validate.field).int64.gt = 0];
 }
 
 service StagehandPingService {

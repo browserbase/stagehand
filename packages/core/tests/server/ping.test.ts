@@ -8,7 +8,7 @@ import routes from "../../server/connect";
 import { StagehandPingService } from "../../gen/stagehand/v1/ping_pb";
 
 const TEST_HOST = "127.0.0.1";
-const TEST_PORT = 7357; // use ephemeral port
+const TEST_PORT = 0; // use ephemeral port
 
 describe("Stagehand Ping RPC", () => {
   const server = fastify();
@@ -26,13 +26,17 @@ describe("Stagehand Ping RPC", () => {
     await server.close();
   });
 
-  it("responds with pong prefix", async () => {
+  it("responds with server timestamp echoing client timestamp", async () => {
     const client = createClient(
       StagehandPingService,
       createConnectTransport({ baseUrl, httpVersion: "1.1" }),
     );
-    const response = await client.ping({ message: "hello" });
-    expect(response).toMatchObject({ message: "pong: hello" });
+    const clientSendTime = Date.now();
+    const response = await client.ping({ clientSendTime: BigInt(clientSendTime) });
+    expect(Number(response.clientSendTime)).toBe(clientSendTime);
+    expect(Number(response.serverSendTime)).toBeGreaterThanOrEqual(
+      clientSendTime,
+    );
   });
 
   it("rejects invalid payloads", async () => {
@@ -40,7 +44,7 @@ describe("Stagehand Ping RPC", () => {
       StagehandPingService,
       createConnectTransport({ baseUrl, httpVersion: "1.1" }),
     );
-    await expect(client.ping({ message: "" })).rejects.toMatchObject({
+    await expect(client.ping({ clientSendTime: BigInt(-1) })).rejects.toMatchObject({
       code: Code.InvalidArgument,
     });
   });

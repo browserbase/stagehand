@@ -3,22 +3,6 @@ import { createConnectTransport } from "@connectrpc/connect-node";
 import { StagehandPingService } from "../gen/stagehand/v1/ping_pb";
 import { pingRequestSchema, pingResponseSchema } from "./schema/ping";
 
-function ensureValidRequest(payload: unknown) {
-  const result = pingRequestSchema.safeParse(payload);
-  if (!result.success) {
-    throw new Error(`Invalid PingRequest: ${result.error.message}`);
-  }
-  return result.data;
-}
-
-function ensureValidResponse(payload: unknown) {
-  const result = pingResponseSchema.safeParse(payload);
-  if (!result.success) {
-    throw new Error(`Invalid PingResponse: ${result.error.message}`);
-  }
-  return result.data;
-}
-
 async function main() {
   const transport = createConnectTransport({
     baseUrl: "http://localhost:8080",
@@ -27,10 +11,29 @@ async function main() {
 
   const client = createClient(StagehandPingService, transport);
 
-  const pingResponse = ensureValidResponse(
-    await client.ping(ensureValidRequest({ message: "hello" })),
+  const t0 = Date.now();
+  const pingRequest = pingRequestSchema.parse({ clientSendTime: BigInt(t0) });
+  const rawResponse = await client.ping(pingRequest);
+  const pingResponse = pingResponseSchema.parse(rawResponse);
+
+  const t3 = Date.now();
+  const rtt = t3 - t0;
+  const latency = rtt / 2;
+  const offset = Number(pingResponse.serverSendTime) - (t0 + latency);
+
+  console.log(
+    JSON.stringify(
+      {
+        clientSendTime: Number(pingResponse.clientSendTime),
+        serverSendTime: Number(pingResponse.serverSendTime),
+        rtt,
+        latency,
+        offset,
+      },
+      null,
+      2,
+    ),
   );
-  console.log("ping ->", pingResponse.message);
 }
 
 main().catch((err) => {

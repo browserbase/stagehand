@@ -1,9 +1,16 @@
 import { z } from "zod";
 
+const timestampSchema = z.coerce
+  .bigint({ error: "timestamp value required"})
+  .refine((value) => value > BigInt(0), {
+    message: "timestamp must be greater than zero milliseconds",
+  });
+
 export const pingRequestSchema = z.object({
-  message: z.string().min(1, "message is required"),
+  clientSendTime: timestampSchema,
 });
 
 export const pingResponseSchema = z.object({
-  message: z.string(),
+  clientSendTime: timestampSchema,
+  serverSendTime: timestampSchema,
 });
