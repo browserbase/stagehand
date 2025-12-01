@@ -55,10 +55,7 @@ test.describe("Stagehand agent streaming behavior", () => {
 
       const agent = v3.agent({
         stream: true,
-        model: {
-          modelName: "anthropic/claude-haiku-4-5-20251001",
-          apiKey: process.env.ANTHROPIC_API_KEY,
-        },
+        model: "anthropic/claude-haiku-4-5-20251001",
       });
 
       const page = v3.context.pages()[0];
