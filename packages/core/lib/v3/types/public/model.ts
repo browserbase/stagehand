@@ -1,4 +1,5 @@
 import type { ClientOptions as AnthropicClientOptions } from "@anthropic-ai/sdk";
+import type { GoogleVertexProviderSettings } from "@ai-sdk/google-vertex";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
 import type { ClientOptions as OpenAIClientOptions } from "openai";
 import type { AgentProviderType } from "./agent";
@@ -23,9 +24,7 @@ export interface LLMTool {
 
 export type AISDKProvider = (modelName: string) => LanguageModelV2;
 // Represents a function that takes options (like apiKey) and returns an AISDKProvider
-export type AISDKCustomProvider = (options: {
-  apiKey: string;
-}) => AISDKProvider;
+export type AISDKCustomProvider = (options: ClientOptions) => AISDKProvider;
 
 export type AvailableModel =
   | "gpt-4.1"
@@ -67,7 +66,11 @@ export type ModelProvider =
   | "google"
   | "aisdk";
 
-export type ClientOptions = (OpenAIClientOptions | AnthropicClientOptions) & {
+export type ClientOptions = (
+  | OpenAIClientOptions
+  | AnthropicClientOptions
+  | GoogleVertexProviderSettings
+) & {
   provider?: AgentProviderType;
 };
 
