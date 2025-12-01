@@ -1,4 +1,15 @@
 import { defineConfig } from "@playwright/test";
+import dotenv from "dotenv";
+import path from "path";
+
+// Load environment variables so agent-streaming tests can reach Anthropic in CI
+dotenv.config();
+const repoRootEnvPath = path.resolve(__dirname, "../../../../../.env");
+dotenv.config({ path: repoRootEnvPath, override: false });
+
+if (!process.env.TEST_ENV) {
+  process.env.TEST_ENV = "LOCAL";
+}
 
 export default defineConfig({
   testDir: ".",
