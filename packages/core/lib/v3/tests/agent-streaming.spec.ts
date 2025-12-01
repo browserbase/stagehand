@@ -19,7 +19,7 @@ test.describe("Stagehand agent streaming behavior", () => {
   });
 
   test.describe("agent({ stream: true })", () => {
-    test("AgentStreamResult has textStream as async iterable", async () => {
+    test("AgentStreamExecutionHandle has textStream as async iterable", async () => {
       test.setTimeout(60000);
 
       const agent = v3.agent({
@@ -31,23 +31,33 @@ test.describe("Stagehand agent streaming behavior", () => {
       const page = v3.context.pages()[0];
       await page.goto("https://example.com");
 
-      const streamResult = await agent.execute({
+      // execute() now returns an execution handle directly (not a Promise)
+      const handle = agent.execute({
         instruction:
           "What is the title of this page? Use the close tool immediately after answering.",
         maxSteps: 3,
       });
 
-      // Verify it's an AgentStreamResult with streaming capabilities
-      expect(streamResult).toHaveProperty("textStream");
-      expect(streamResult).toHaveProperty("result");
+      // Verify it's an AgentStreamExecutionHandle with streaming capabilities
+      expect(handle).toHaveProperty("textStream");
+      expect(handle).toHaveProperty("fullStream");
+      expect(handle).toHaveProperty("result");
+      expect(handle).toHaveProperty("stop");
 
       // textStream should be async iterable
-      expect(typeof streamResult.textStream[Symbol.asyncIterator]).toBe(
-        "function",
-      );
+      expect(typeof handle.textStream[Symbol.asyncIterator]).toBe("function");
 
       // result should be a promise
-      expect(streamResult.result).toBeInstanceOf(Promise);
+      expect(handle.result).toBeInstanceOf(Promise);
+
+      // stop should be a function
+      expect(typeof handle.stop).toBe("function");
+
+      // Consume the stream to complete
+      for await (const _ of handle.textStream) {
+        // consume
+      }
+      await handle.result;
     });
 
     test("textStream yields chunks incrementally", async () => {
@@ -61,7 +71,7 @@ test.describe("Stagehand agent streaming behavior", () => {
       const page = v3.context.pages()[0];
       await page.goto("https://example.com");
 
-      const streamResult = await agent.execute({
+      const handle = agent.execute({
         instruction:
           "Say hello and then use close tool with taskComplete: true",
         maxSteps: 3,
@@ -69,7 +79,7 @@ test.describe("Stagehand agent streaming behavior", () => {
 
       // Collect chunks from the stream
       const chunks: string[] = [];
-      for await (const chunk of streamResult.textStream) {
+      for await (const chunk of handle.textStream) {
         chunks.push(chunk);
       }
 
@@ -77,6 +87,9 @@ test.describe("Stagehand agent streaming behavior", () => {
       // The exact content depends on the LLM response
       expect(Array.isArray(chunks)).toBe(true);
       expect(chunks.length).toBeGreaterThan(0);
+
+      // Wait for result to complete
+      await handle.result;
     });
 
     test("result promise resolves to AgentResult after stream completes", async () => {
@@ -90,7 +103,7 @@ test.describe("Stagehand agent streaming behavior", () => {
       const page = v3.context.pages()[0];
       await page.goto("https://example.com");
 
-      const streamResult = await agent.execute({
+      const handle = agent.execute({
         instruction:
           "What is this page about? Use close tool with taskComplete: true after answering.",
         maxSteps: 5,
@@ -98,12 +111,12 @@ test.describe("Stagehand agent streaming behavior", () => {
 
       // Consume the stream first
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      for await (const _ of streamResult.textStream) {
+      for await (const _ of handle.textStream) {
         // Just consume
       }
 
       // Now get the final result
-      const finalResult: AgentResult = await streamResult.result;
+      const finalResult: AgentResult = await handle.result;
 
       // Verify it's a proper AgentResult
       expect(finalResult).toHaveProperty("success");
@@ -117,7 +130,7 @@ test.describe("Stagehand agent streaming behavior", () => {
   });
 
   test.describe("agent({ stream: false }) or agent()", () => {
-    test("execute returns AgentResult without streaming properties", async () => {
+    test("execute returns AgentExecutionHandle with result and stop", async () => {
       test.setTimeout(60000);
 
       const agent = v3.agent({
@@ -127,19 +140,28 @@ test.describe("Stagehand agent streaming behavior", () => {
       const page = v3.context.pages()[0];
       await page.goto("https://example.com");
 
-      const result = await agent.execute({
+      // execute() returns an execution handle
+      const handle = agent.execute({
         instruction: "What is this page? Use close tool immediately.",
         maxSteps: 3,
       });
 
-      // Should be AgentResult, not AgentStreamResult
+      // Should have result and stop properties
+      expect(handle).toHaveProperty("result");
+      expect(handle).toHaveProperty("stop");
+      expect(handle.result).toBeInstanceOf(Promise);
+      expect(typeof handle.stop).toBe("function");
+
+      // Should NOT have streaming properties
+      expect(handle).not.toHaveProperty("textStream");
+      expect(handle).not.toHaveProperty("fullStream");
+
+      // The result should be an AgentResult
+      const result = await handle.result;
       expect(result).toHaveProperty("success");
       expect(result).toHaveProperty("message");
       expect(result).toHaveProperty("actions");
       expect(result).toHaveProperty("completed");
-
-      // Should NOT have streaming properties
-      expect(result).not.toHaveProperty("textStream");
     });
   });
 

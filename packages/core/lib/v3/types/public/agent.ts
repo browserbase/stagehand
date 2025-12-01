@@ -11,12 +11,16 @@ import {
   StreamTextOnErrorCallback,
   StreamTextOnChunkCallback,
   StreamTextOnFinishCallback,
+  TextStreamPart,
 } from "ai";
 import { LogLine } from "./logs";
 import { Page as PlaywrightPage } from "playwright-core";
 import { Page as PuppeteerPage } from "puppeteer-core";
 import { Page as PatchrightPage } from "patchright-core";
 import { Page } from "../../understudy/page";
+
+// Re-export ModelMessage for consumers who want to use it for conversation continuation
+export type { ModelMessage } from "ai";
 
 export interface AgentContext {
   options: AgentExecuteOptionsBase;
@@ -62,11 +66,48 @@ export interface AgentResult {
     cached_input_tokens?: number;
     inference_time_ms: number;
   };
+  /**
+   * The conversation messages from this run.
+   * Pass these to a subsequent execute() call to continue the conversation.
+   */
+  messages?: ModelMessage[];
 }
 
 export type AgentStreamResult = StreamTextResult<ToolSet, never> & {
   result: Promise<AgentResult>;
 };
+
+/**
+ * Execution handle returned from agent.execute() for non-streaming mode.
+ * Provides a unified API with stop() capability and result promise.
+ */
+export interface AgentExecutionHandle {
+  /**
+   * Stop the currently running agent execution.
+   * This will abort any ongoing LLM calls and tool executions.
+   */
+  stop: () => void;
+  /**
+   * Promise that resolves to the final AgentResult when execution completes.
+   */
+  result: Promise<AgentResult>;
+}
+
+/**
+ * Execution handle returned from agent.execute() for streaming mode.
+ * Extends the base handle with streaming capabilities.
+ */
+export interface AgentStreamExecutionHandle extends AgentExecutionHandle {
+  /**
+   * Async iterable of text chunks from the agent's responses.
+   */
+  textStream: AsyncIterable<string>;
+  /**
+   * Async iterable of the full stream including tool calls, messages, and other events.
+   * Provides access to tool calls, messages, and other streaming data.
+   */
+  fullStream: AsyncIterable<TextStreamPart<ToolSet>>;
+}
 
 /**
  * Base callbacks shared between execute (non-streaming) and streaming modes.
@@ -206,6 +247,17 @@ export interface AgentExecuteOptionsBase {
   maxSteps?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   highlightCursor?: boolean;
+  /**
+   * Previous conversation messages to continue from.
+   * Pass the `messages` from a previous AgentResult to continue that conversation.
+   */
+  messages?: ModelMessage[];
+  /**
+   * An optional abort signal that can be used to cancel the agent execution.
+   * This is set internally by the execution handle when stop() is called.
+   * @internal
+   */
+  abortSignal?: AbortSignal;
 }
 
 /**
@@ -354,7 +406,7 @@ export type ResponseInputItem =
 export interface AgentInstance {
   execute: (
     instructionOrOptions: string | AgentExecuteOptions,
-  ) => Promise<AgentResult>;
+  ) => AgentExecutionHandle;
 }
 
 export type AgentProviderType = AgentType;
@@ -400,22 +452,22 @@ export type AgentConfig = {
 
 /**
  * Agent instance returned when stream: true is set in AgentConfig.
- * execute() returns a streaming result that can be consumed incrementally.
+ * execute() returns an execution handle with streaming capabilities.
  * Accepts AgentStreamExecuteOptions with streaming-specific callbacks.
  */
 export interface StreamingAgentInstance {
   execute: (
     instructionOrOptions: string | AgentStreamExecuteOptions,
-  ) => Promise<AgentStreamResult>;
+  ) => AgentStreamExecutionHandle;
 }
 
 /**
  * Agent instance returned when stream is false or not set in AgentConfig.
- * execute() returns a result after the agent completes.
+ * execute() returns an execution handle that resolves when the agent completes.
  * Accepts AgentExecuteOptions with non-streaming callbacks only.
  */
 export interface NonStreamingAgentInstance {
   execute: (
     instructionOrOptions: string | AgentExecuteOptions,
-  ) => Promise<AgentResult>;
+  ) => AgentExecutionHandle;
 }

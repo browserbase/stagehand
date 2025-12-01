@@ -39,6 +39,8 @@ import {
   AgentExecuteOptions,
   AgentStreamExecuteOptions,
   AgentResult,
+  AgentExecutionHandle,
+  AgentStreamExecutionHandle,
   AVAILABLE_CUA_MODELS,
   LogLine,
   StagehandMetrics,
@@ -138,6 +140,7 @@ export class V3 {
   private overrideLlmClients: Map<string, LLMClient> = new Map();
   private readonly domSettleTimeoutMs?: number;
   private _isClosing = false;
+  private activeAgentAbortControllers: Set<AbortController> = new Set();
   public browserbaseSessionId?: string;
   private browserbaseSessionUrl?: string;
   private browserbaseDebugUrl?: string;
@@ -1260,6 +1263,16 @@ export class V3 {
     if (this._isClosing && !opts?.force) return;
     this._isClosing = true;
 
+    // Abort all active agent executions
+    for (const controller of this.activeAgentAbortControllers) {
+      try {
+        controller.abort();
+      } catch {
+        // ignore abort errors
+      }
+    }
+    this.activeAgentAbortControllers.clear();
+
     try {
       // Unhook CDP transport close handler if context exists
       try {
@@ -1564,18 +1577,18 @@ export class V3 {
    * Create a v3 agent instance (AISDK tool-based) with execute().
    * Mirrors the v2 Stagehand.agent() tool mode (no CUA provider here).
    *
-   * @overload When stream: true, returns a streaming agent where execute() returns AgentStreamResult
-   * @overload When stream is false/undefined, returns a non-streaming agent where execute() returns AgentResult
+   * @overload When stream: true, returns a streaming agent where execute() returns AgentStreamExecutionHandle
+   * @overload When stream is false/undefined, returns a non-streaming agent where execute() returns AgentExecutionHandle
    */
   agent(options: AgentConfig & { stream: true }): {
     execute: (
       instructionOrOptions: string | AgentStreamExecuteOptions,
-    ) => Promise<AgentStreamResult>;
+    ) => AgentStreamExecutionHandle;
   };
   agent(options?: AgentConfig & { stream?: false }): {
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
-    ) => Promise<AgentResult>;
+    ) => AgentExecutionHandle;
   };
   agent(options?: AgentConfig): {
     execute: (
@@ -1583,7 +1596,7 @@ export class V3 {
         | string
         | AgentExecuteOptions
         | AgentStreamExecuteOptions,
-    ) => Promise<AgentResult | AgentStreamResult>;
+    ) => AgentExecutionHandle | AgentStreamExecutionHandle;
   } {
     this.logger({
       category: "agent",
@@ -1635,56 +1648,287 @@ export class V3 {
       const agentConfigSignature =
         this.agentCache.buildConfigSignature(options);
       return {
-        execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
-          withInstanceLogContext(this.instanceId, async () => {
-            if (options?.integrations && !this.experimental) {
-              throw new ExperimentalNotConfiguredError("MCP integrations");
-            }
-            const tools = options?.integrations
-              ? await resolveTools(options.integrations, options.tools)
-              : (options?.tools ?? {});
+        execute: (
+          instructionOrOptions: string | AgentExecuteOptions,
+        ): AgentExecutionHandle => {
+          // CUA doesn't support stop() yet, so we provide a no-op
+          const resultPromise = withInstanceLogContext(
+            this.instanceId,
+            async () => {
+              if (options?.integrations && !this.experimental) {
+                throw new ExperimentalNotConfiguredError("MCP integrations");
+              }
+              const tools = options?.integrations
+                ? await resolveTools(options.integrations, options.tools)
+                : (options?.tools ?? {});
 
-            const handler = new V3CuaAgentHandler(
-              this,
-              this.logger,
-              {
-                modelName,
-                clientOptions,
-                userProvidedInstructions:
-                  options.systemPrompt ??
-                  `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
-              },
-              tools,
-            );
-
-            const resolvedOptions: AgentExecuteOptions =
-              typeof instructionOrOptions === "string"
-                ? { instruction: instructionOrOptions }
-                : instructionOrOptions;
-            if (resolvedOptions.page) {
-              const normalizedPage = await this.normalizeToV3Page(
-                resolvedOptions.page,
+              const handler = new V3CuaAgentHandler(
+                this,
+                this.logger,
+                {
+                  modelName,
+                  clientOptions,
+                  userProvidedInstructions:
+                    options.systemPrompt ??
+                    `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
+                },
+                tools,
               );
-              this.ctx!.setActivePage(normalizedPage);
-            }
-            const instruction = resolvedOptions.instruction.trim();
-            const sanitizedOptions =
-              this.agentCache.sanitizeExecuteOptions(resolvedOptions);
 
-            let cacheContext: AgentCacheContext | null = null;
-            if (this.agentCache.shouldAttemptCache(instruction)) {
-              const startPage = await this.ctx!.awaitActivePage();
-              cacheContext = await this.agentCache.prepareContext({
-                instruction,
-                options: sanitizedOptions,
-                configSignature: agentConfigSignature,
-                page: startPage,
+              const resolvedOptions: AgentExecuteOptions =
+                typeof instructionOrOptions === "string"
+                  ? { instruction: instructionOrOptions }
+                  : instructionOrOptions;
+              if (resolvedOptions.page) {
+                const normalizedPage = await this.normalizeToV3Page(
+                  resolvedOptions.page,
+                );
+                this.ctx!.setActivePage(normalizedPage);
+              }
+              const instruction = resolvedOptions.instruction.trim();
+              const sanitizedOptions =
+                this.agentCache.sanitizeExecuteOptions(resolvedOptions);
+
+              let cacheContext: AgentCacheContext | null = null;
+              if (this.agentCache.shouldAttemptCache(instruction)) {
+                const startPage = await this.ctx!.awaitActivePage();
+                cacheContext = await this.agentCache.prepareContext({
+                  instruction,
+                  options: sanitizedOptions,
+                  configSignature: agentConfigSignature,
+                  page: startPage,
+                });
+                if (cacheContext) {
+                  const replayed =
+                    await this.agentCache.tryReplay(cacheContext);
+                  if (replayed) {
+                    return replayed;
+                  }
+                }
+              }
+
+              let agentSteps: AgentReplayStep[] = [];
+              const recording = !!cacheContext;
+              if (recording) {
+                this.beginAgentReplayRecording();
+              }
+
+              let result: AgentResult;
+              try {
+                if (this.apiClient && !this.experimental) {
+                  const page = await this.ctx!.awaitActivePage();
+                  result = await this.apiClient.agentExecute(
+                    options,
+                    resolvedOptions,
+                    page.mainFrameId(),
+                  );
+                } else {
+                  result = await handler.execute(instructionOrOptions);
+                }
+                if (recording) {
+                  agentSteps = this.endAgentReplayRecording();
+                }
+
+                if (cacheContext && result.success && agentSteps.length > 0) {
+                  await this.agentCache.store(cacheContext, agentSteps, result);
+                }
+
+                return result;
+              } catch (err) {
+                if (recording) this.discardAgentReplayRecording();
+                throw err;
+              } finally {
+                if (recording) {
+                  this.discardAgentReplayRecording();
+                }
+              }
+            },
+          );
+
+          return {
+            stop: () => {
+              this.logger({
+                category: "agent",
+                message:
+                  "stop() is not supported for CUA agents - the agent will continue running",
+                level: 1,
               });
+            },
+            result: resultPromise,
+          };
+        },
+      };
+    }
+
+    // Default: AISDK tools-based agent
+    const agentConfigSignature = this.agentCache.buildConfigSignature(options);
+    const isStreaming = options?.stream ?? false;
+
+    return {
+      execute: (
+        instructionOrOptions:
+          | string
+          | AgentExecuteOptions
+          | AgentStreamExecuteOptions,
+      ): AgentExecutionHandle | AgentStreamExecutionHandle => {
+        const abortController = new AbortController();
+        this.activeAgentAbortControllers.add(abortController);
+
+        const stop = () => {
+          this.logger({
+            category: "agent",
+            message: "Stopping agent execution",
+            level: 1,
+          });
+          abortController.abort();
+          this.activeAgentAbortControllers.delete(abortController);
+        };
+
+        // Streaming mode
+        if (isStreaming) {
+          // Create a promise that resolves to the stream execution handle internals
+          const streamExecution = withInstanceLogContext(
+            this.instanceId,
+            async () => {
+              if (
+                typeof instructionOrOptions === "object" &&
+                instructionOrOptions.callbacks &&
+                !this.experimental
+              ) {
+                throw new ExperimentalNotConfiguredError("Agent callbacks");
+              }
+
+              if (!this.experimental) {
+                throw new ExperimentalNotConfiguredError("Agent streaming");
+              }
+
+              // Inject abort signal into options - explicitly construct to avoid type conflicts
+              const baseOptions =
+                typeof instructionOrOptions === "string"
+                  ? { instruction: instructionOrOptions }
+                  : {
+                      instruction: instructionOrOptions.instruction,
+                      maxSteps: instructionOrOptions.maxSteps,
+                      page: instructionOrOptions.page,
+                      highlightCursor: instructionOrOptions.highlightCursor,
+                      messages: instructionOrOptions.messages,
+                      callbacks: (
+                        instructionOrOptions as AgentStreamExecuteOptions
+                      ).callbacks,
+                    };
+              const optionsWithAbort: AgentStreamExecuteOptions = {
+                ...baseOptions,
+                abortSignal: abortController.signal,
+              };
+
+              const { handler, cacheContext } =
+                await this.prepareAgentExecution(
+                  options,
+                  optionsWithAbort,
+                  agentConfigSignature,
+                );
+
               if (cacheContext) {
-                const replayed = await this.agentCache.tryReplay(cacheContext);
+                const replayed =
+                  await this.agentCache.tryReplayAsStream(cacheContext);
                 if (replayed) {
+                  this.activeAgentAbortControllers.delete(abortController);
                   return replayed;
                 }
+              }
+
+              const streamResult = await handler.stream(optionsWithAbort);
+
+              // Clean up abort controller when stream completes
+              streamResult.result.finally(() => {
+                this.activeAgentAbortControllers.delete(abortController);
+              });
+
+              if (cacheContext) {
+                return this.agentCache.wrapStreamForCaching(
+                  cacheContext,
+                  streamResult,
+                  () => this.beginAgentReplayRecording(),
+                  () => this.endAgentReplayRecording(),
+                  () => this.discardAgentReplayRecording(),
+                );
+              }
+
+              return streamResult;
+            },
+          );
+
+          // Create async iterables that wait for the stream to be ready
+          const createTextStream = async function* (
+            execution: Promise<AgentStreamResult>,
+          ) {
+            const stream = await execution;
+            for await (const chunk of stream.textStream) {
+              yield chunk;
+            }
+          };
+
+          const createFullStream = async function* (
+            execution: Promise<AgentStreamResult>,
+          ) {
+            const stream = await execution;
+            for await (const chunk of stream.fullStream) {
+              yield chunk;
+            }
+          };
+
+          // Create result promise that waits for stream to complete
+          const resultPromise = streamExecution.then((stream) => stream.result);
+
+          return {
+            stop,
+            result: resultPromise,
+            textStream: createTextStream(streamExecution),
+            fullStream: createFullStream(streamExecution),
+          } as AgentStreamExecutionHandle;
+        }
+
+        // Non-streaming mode (default)
+        const resultPromise = withInstanceLogContext(
+          this.instanceId,
+          async () => {
+            if (
+              typeof instructionOrOptions === "object" &&
+              instructionOrOptions.callbacks &&
+              !this.experimental
+            ) {
+              throw new ExperimentalNotConfiguredError("Agent callbacks");
+            }
+
+            // Inject abort signal into options - explicitly construct to avoid type conflicts
+            const baseOptions =
+              typeof instructionOrOptions === "string"
+                ? { instruction: instructionOrOptions }
+                : {
+                    instruction: instructionOrOptions.instruction,
+                    maxSteps: instructionOrOptions.maxSteps,
+                    page: instructionOrOptions.page,
+                    highlightCursor: instructionOrOptions.highlightCursor,
+                    messages: instructionOrOptions.messages,
+                    callbacks: (instructionOrOptions as AgentExecuteOptions)
+                      .callbacks,
+                  };
+            const optionsWithAbort: AgentExecuteOptions = {
+              ...baseOptions,
+              abortSignal: abortController.signal,
+            };
+
+            const { handler, resolvedOptions, cacheContext } =
+              await this.prepareAgentExecution(
+                options,
+                optionsWithAbort,
+                agentConfigSignature,
+              );
+
+            if (cacheContext) {
+              const replayed = await this.agentCache.tryReplay(cacheContext);
+              if (replayed) {
+                return replayed;
               }
             }
 
@@ -1693,18 +1937,18 @@ export class V3 {
             if (recording) {
               this.beginAgentReplayRecording();
             }
-
             let result: AgentResult;
+
             try {
               if (this.apiClient && !this.experimental) {
                 const page = await this.ctx!.awaitActivePage();
                 result = await this.apiClient.agentExecute(
                   options,
-                  resolvedOptions,
+                  resolvedOptions as AgentExecuteOptions,
                   page.mainFrameId(),
                 );
               } else {
-                result = await handler.execute(instructionOrOptions);
+                result = await handler.execute(optionsWithAbort);
               }
               if (recording) {
                 agentSteps = this.endAgentReplayRecording();
@@ -1722,121 +1966,16 @@ export class V3 {
               if (recording) {
                 this.discardAgentReplayRecording();
               }
+              this.activeAgentAbortControllers.delete(abortController);
             }
-          }),
-      };
-    }
+          },
+        );
 
-    // Default: AISDK tools-based agent
-    const agentConfigSignature = this.agentCache.buildConfigSignature(options);
-    const isStreaming = options?.stream ?? false;
-
-    return {
-      execute: async (
-        instructionOrOptions:
-          | string
-          | AgentExecuteOptions
-          | AgentStreamExecuteOptions,
-      ): Promise<AgentResult | AgentStreamResult> =>
-        withInstanceLogContext(this.instanceId, async () => {
-          if (
-            typeof instructionOrOptions === "object" &&
-            instructionOrOptions.callbacks &&
-            !this.experimental
-          ) {
-            throw new ExperimentalNotConfiguredError("Agent callbacks");
-          }
-
-          // Streaming mode
-          if (isStreaming) {
-            if (!this.experimental) {
-              throw new ExperimentalNotConfiguredError("Agent streaming");
-            }
-
-            const { handler, cacheContext } = await this.prepareAgentExecution(
-              options,
-              instructionOrOptions,
-              agentConfigSignature,
-            );
-
-            if (cacheContext) {
-              const replayed =
-                await this.agentCache.tryReplayAsStream(cacheContext);
-              if (replayed) {
-                return replayed;
-              }
-            }
-
-            const streamResult = await handler.stream(
-              instructionOrOptions as string | AgentStreamExecuteOptions,
-            );
-
-            if (cacheContext) {
-              return this.agentCache.wrapStreamForCaching(
-                cacheContext,
-                streamResult,
-                () => this.beginAgentReplayRecording(),
-                () => this.endAgentReplayRecording(),
-                () => this.discardAgentReplayRecording(),
-              );
-            }
-
-            return streamResult;
-          }
-
-          // Non-streaming mode (default)
-          const { handler, resolvedOptions, cacheContext } =
-            await this.prepareAgentExecution(
-              options,
-              instructionOrOptions,
-              agentConfigSignature,
-            );
-
-          if (cacheContext) {
-            const replayed = await this.agentCache.tryReplay(cacheContext);
-            if (replayed) {
-              return replayed;
-            }
-          }
-
-          let agentSteps: AgentReplayStep[] = [];
-          const recording = !!cacheContext;
-          if (recording) {
-            this.beginAgentReplayRecording();
-          }
-          let result: AgentResult;
-
-          try {
-            if (this.apiClient && !this.experimental) {
-              const page = await this.ctx!.awaitActivePage();
-              result = await this.apiClient.agentExecute(
-                options,
-                resolvedOptions as AgentExecuteOptions,
-                page.mainFrameId(),
-              );
-            } else {
-              result = await handler.execute(
-                instructionOrOptions as string | AgentExecuteOptions,
-              );
-            }
-            if (recording) {
-              agentSteps = this.endAgentReplayRecording();
-            }
-
-            if (cacheContext && result.success && agentSteps.length > 0) {
-              await this.agentCache.store(cacheContext, agentSteps, result);
-            }
-
-            return result;
-          } catch (err) {
-            if (recording) this.discardAgentReplayRecording();
-            throw err;
-          } finally {
-            if (recording) {
-              this.discardAgentReplayRecording();
-            }
-          }
-        }),
+        return {
+          stop,
+          result: resultPromise,
+        };
+      },
     };
   }
 }
