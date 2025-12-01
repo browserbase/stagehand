@@ -171,7 +171,7 @@ importers:
         specifier: ^16.4.5
         version: 16.5.0
       fastify:
-        specifier: ^5.6.2
+        specifier: ^5.2.4
         version: 5.6.2
       fetch-cookie:
         specifier: ^3.1.0
@@ -10954,7 +10954,7 @@ snapshots:
       isstream: 0.1.2
       jsonwebtoken: 9.0.2
       mime-types: 2.1.35
-      retry-axios: 2.6.0(axios@1.13.0(debug@4.4.3))
+      retry-axios: 2.6.0(axios@1.13.0)
       tough-cookie: 4.1.4
     transitivePeerDependencies:
       - supports-color
@@ -13011,7 +13011,7 @@ snapshots:
       retext-stringify: 4.0.0
       unified: 11.0.5
 
-  retry-axios@2.6.0(axios@1.13.0(debug@4.4.3)):
+  retry-axios@2.6.0(axios@1.13.0):
     dependencies:
       axios: 1.13.0(debug@4.4.3)
 

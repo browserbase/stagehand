@@ -21,6 +21,7 @@
     "lint": "cd ../.. && prettier --check packages/core && cd packages/core && eslint .",
     "format": "prettier --write .",
     "test:vitest": "pnpm run build-js && pnpm run typecheck && vitest run --config vitest.config.ts",
+    "rpc:deps": "pnpm exec buf dep update",
     "rpc:lint": "pnpm exec buf lint",
     "rpc:generate": "pnpm exec buf generate"
   },

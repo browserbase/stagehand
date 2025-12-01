@@ -1,13 +1,17 @@
 syntax = "proto3";
 
 package stagehand.v1;
+import "buf/validate/validate.proto";
 
 message PingRequest {
   string message = 1;
 }
 
 message PingResponse {
-  string message = 1;
+   string message = 1 [
+     (buf.validate.field).string.min_len = 1,
+     (buf.validate.field).string.max_len = 250
+   ];
 }
 
 service StagehandPingService {

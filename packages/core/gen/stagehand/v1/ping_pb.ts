@@ -2,26 +2,16 @@
 // @generated from file stagehand/v1/ping.proto (package stagehand.v1, syntax proto3)
 /* eslint-disable */
 
-import type {
-  GenFile,
-  GenMessage,
-  GenService,
-} from "@bufbuild/protobuf/codegenv2";
-import {
-  fileDesc,
-  messageDesc,
-  serviceDesc,
-} from "@bufbuild/protobuf/codegenv2";
+import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import { file_buf_validate_validate } from "../../buf/validate/validate_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file stagehand/v1/ping.proto.
  */
-export const file_stagehand_v1_ping: GenFile =
-  /*@__PURE__*/
-  fileDesc(
-    "ChdzdGFnZWhhbmQvdjEvcGluZy5wcm90bxIMc3RhZ2VoYW5kLnYxIh4KC1BpbmdSZXF1ZXN0Eg8KB21lc3NhZ2UYASABKAkiHwoMUGluZ1Jlc3BvbnNlEg8KB21lc3NhZ2UYASABKAkyVQoUU3RhZ2VoYW5kUGluZ1NlcnZpY2USPQoEUGluZxIZLnN0YWdlaGFuZC52MS5QaW5nUmVxdWVzdBoaLnN0YWdlaGFuZC52MS5QaW5nUmVzcG9uc2ViBnByb3RvMw",
-  );
+export const file_stagehand_v1_ping: GenFile = /*@__PURE__*/
+  fileDesc("ChdzdGFnZWhhbmQvdjEvcGluZy5wcm90bxIMc3RhZ2VoYW5kLnYxIh4KC1BpbmdSZXF1ZXN0Eg8KB21lc3NhZ2UYASABKAkiKwoMUGluZ1Jlc3BvbnNlEhsKB21lc3NhZ2UYASABKAlCCrpIB3IFEAEY+gEyVQoUU3RhZ2VoYW5kUGluZ1NlcnZpY2USPQoEUGluZxIZLnN0YWdlaGFuZC52MS5QaW5nUmVxdWVzdBoaLnN0YWdlaGFuZC52MS5QaW5nUmVzcG9uc2ViBnByb3RvMw", [file_buf_validate_validate]);
 
 /**
  * @generated from message stagehand.v1.PingRequest
@@ -37,8 +27,7 @@ export type PingRequest = Message<"stagehand.v1.PingRequest"> & {
  * Describes the message stagehand.v1.PingRequest.
  * Use `create(PingRequestSchema)` to create a new message.
  */
-export const PingRequestSchema: GenMessage<PingRequest> =
-  /*@__PURE__*/
+export const PingRequestSchema: GenMessage<PingRequest> = /*@__PURE__*/
   messageDesc(file_stagehand_v1_ping, 0);
 
 /**
@@ -55,8 +44,7 @@ export type PingResponse = Message<"stagehand.v1.PingResponse"> & {
  * Describes the message stagehand.v1.PingResponse.
  * Use `create(PingResponseSchema)` to create a new message.
  */
-export const PingResponseSchema: GenMessage<PingResponse> =
-  /*@__PURE__*/
+export const PingResponseSchema: GenMessage<PingResponse> = /*@__PURE__*/
   messageDesc(file_stagehand_v1_ping, 1);
 
 /**
@@ -70,5 +58,7 @@ export const StagehandPingService: GenService<{
     methodKind: "unary";
     input: typeof PingRequestSchema;
     output: typeof PingResponseSchema;
-  };
-}> = /*@__PURE__*/ serviceDesc(file_stagehand_v1_ping, 0);
+  },
+}> = /*@__PURE__*/
+  serviceDesc(file_stagehand_v1_ping, 0);
+
