@@ -423,6 +423,11 @@ export class StagehandAPIClient {
               return eventData.data.result as T;
             }
           } else if (eventData.type === "log") {
+            const msg = eventData.data.message;
+            // Skip server-side internal logs that don't apply to API mode
+            if (msg?.message === "Connecting to local browser") {
+              continue;
+            }
             this.logger(eventData.data.message);
           }
         } catch (e) {
