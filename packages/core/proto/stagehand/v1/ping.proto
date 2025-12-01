@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package stagehand.v1;
+
+message PingRequest {
+  string message = 1;
+}
+
+message PingResponse {
+  string message = 1;
+}
+
+service StagehandPingService {
+  rpc Ping(PingRequest) returns (PingResponse);
+}
