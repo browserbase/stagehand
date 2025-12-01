@@ -1,14 +1,4 @@
 import { defineConfig } from "@playwright/test";
-import dotenv from "dotenv";
-import path from "path";
-
-dotenv.config();
-const repoRootEnvPath = path.resolve(__dirname, "../../../../../.env");
-dotenv.config({ path: repoRootEnvPath, override: false });
-
-if (!process.env.TEST_ENV) {
-  process.env.TEST_ENV = "LOCAL";
-}
 
 export default defineConfig({
   testDir: ".",
