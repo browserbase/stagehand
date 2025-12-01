@@ -6,7 +6,8 @@ const timestampShape = z.object({
   nanos: z
     .number({ message: "timestamp nanos required" })
     .int({ message: "timestamp nanos must be an integer" })
-    .gte(0, { message: "timestamp nanos must be >= 0" }),
+    .gte(0, { message: "timestamp nanos must be >= 0" })
+    .lte(999_999_999, { message: "timestamp nanos must be < 1,000,000,000" }),
 });
 
 const preprocessTimestamp = (value: unknown) => {
