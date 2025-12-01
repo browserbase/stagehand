@@ -10,6 +10,7 @@ lib/v3/dom/build/
 packages/core/dist/
 packages/core/lib/dom/build/
 packages/core/lib/v3/dom/build/
+packages/core/gen/
 packages/evals/dist/
 packages/docs/
 *.min.js

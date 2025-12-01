@@ -12,6 +12,7 @@ export default [
       "**/node_modules/**",
       "packages/core/lib/dom/build/**",
       "packages/core/lib/v3/dom/build/**",
+      "packages/core/gen/**",
       "**/*.config.js",
       "**/*.config.mjs",
     ],
