@@ -530,29 +530,34 @@ export class V3 {
       await Promise.all(instances.map((i) => i._immediateShutdown(reason)));
     };
 
-    const handleSignal = async (signal: string) => {
+    process.once("SIGINT", () => {
       v3Logger({
         category: "v3",
-        message: `${signal}: initiating shutdown`,
+        message: "SIGINT: initiating shutdown",
         level: 0,
       });
-
-      // In API mode, let the server handle cleanup - don't close locally
       for (const instance of V3._instances) {
         if (instance.apiClient) {
-          const timeout = new Promise((r) => setTimeout(r, 5000));
-          await Promise.race([
-            instance.apiClient.end().catch(() => {}),
-            timeout,
-          ]);
+          void instance.apiClient.end();
           return;
         }
       }
-      await shutdownAllImmediate(`signal ${signal}`);
-    };
-
-    process.once("SIGINT", () => void handleSignal("SIGINT"));
-    process.once("SIGTERM", () => void handleSignal("SIGTERM"));
+      void shutdownAllImmediate("signal SIGINT");
+    });
+    process.once("SIGTERM", () => {
+      v3Logger({
+        category: "v3",
+        message: "SIGTERM: initiating shutdown",
+        level: 0,
+      });
+      for (const instance of V3._instances) {
+        if (instance.apiClient) {
+          void instance.apiClient.end();
+          return;
+        }
+      }
+      void shutdownAllImmediate("signal SIGTERM");
+    });
     process.once("uncaughtException", (err: unknown) => {
       v3Logger({
         category: "v3",
