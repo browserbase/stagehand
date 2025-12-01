@@ -21,7 +21,6 @@ import {
   AgentContext,
   AgentState,
   AgentStreamResult,
-  AgentExecuteCallbacks,
   AgentStreamCallbacks,
 } from "../types/public/agent";
 import { V3FunctionName } from "../types/public/methods";
@@ -173,7 +172,6 @@ export class V3AgentHandler {
   ): Promise<AgentResult> {
     const startTime = Date.now();
     const {
-      options,
       maxSteps,
       systemPrompt,
       allTools,
