@@ -10,6 +10,7 @@
     "build-dom-scripts": "tsx lib/v3/dom/genDomScripts.ts && tsx lib/v3/dom/genLocatorScripts.ts",
     "build-js": "tsup --entry.index lib/v3/index.ts --dts",
     "typecheck": "tsc --noEmit",
+    "prepare": "pnpm run build",
     "build": "pnpm run gen-version && pnpm run build-dom-scripts && pnpm run build-js && pnpm run typecheck",
     "dev": "tsx server/server.ts",
     "client": "tsx server/client.ts",
