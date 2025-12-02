@@ -40,7 +40,7 @@ export type GoogleVertexProviderSettings = Pick<
 
 export type GoogleGenAIClientOptions = Pick<
   GoogleGenAIOptionsBase,
-  "vertexai" | "project" | "location" | "apiKey"
+  "vertexai" | "project" | "location" | "apiKey" | "httpOptions"
 > & {
   googleAuthOptions?: {
     credentials?: GoogleServiceAccountCredentials;

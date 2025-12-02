@@ -6,7 +6,6 @@ import {
   FunctionCall,
   GenerateContentConfig,
   Tool,
-  GoogleGenAIOptions,
 } from "@google/genai";
 import { LogLine } from "../types/public/logs";
 import {
@@ -15,7 +14,7 @@ import {
   AgentType,
   AgentExecutionOptions,
 } from "../types/public/agent";
-import { ClientOptions } from "../types/public/model";
+import { ClientOptions, GoogleGenAIClientOptions } from "../types/public/model";
 import { AgentClient } from "./AgentClient";
 import {
   AgentScreenshotProviderError,
@@ -57,16 +56,12 @@ export class GoogleCUAClient extends AgentClient {
     super(type, modelName, userProvidedInstructions);
 
     this.tools = tools;
-    // Process client options
     clientOptions = clientOptions || {};
-    clientOptions.apiKey =
-      (clientOptions.apiKey as string) ||
-      process.env.GEMINI_API_KEY ||
-      process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-      undefined;
 
     // Initialize the Google Generative AI client
-    this.client = new GoogleGenAI(clientOptions);
+    this.client = new GoogleGenAI(
+      this.buildGenAIOptions(clientOptions),
+    );
 
     // Get environment if specified
     if (
@@ -121,6 +116,20 @@ export class GoogleCUAClient extends AgentClient {
   setTools(tools: ToolSet): void {
     this.tools = tools;
     this.updateGenerateContentConfig();
+  }
+
+  // Vertex AI and Gemini API Key auth are mutually exclusiv, if we use vertex ai, we don't need to provide an api key
+  private buildGenAIOptions(clientOptions: ClientOptions): GoogleGenAIClientOptions {
+    const isVertexAI = "vertexai" in clientOptions && clientOptions.vertexai;
+    const apiKey = isVertexAI
+      ? undefined
+      : clientOptions.apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    // if base url is provided, we need to add it to the http options to ensure backward compatibility / consistency across codebase
+    return {
+      ...clientOptions,
+      ...(apiKey && { apiKey }),
+      ...(clientOptions.baseURL && { httpOptions: { baseUrl: clientOptions.baseURL } }),
+    };
   }
 
   /**
