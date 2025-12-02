@@ -13,7 +13,6 @@
     "prepare": "pnpm run build",
     "build": "pnpm run gen-version && pnpm run build-dom-scripts && pnpm run build-js && pnpm run typecheck",
     "dev": "tsx server/server.ts",
-    "client": "tsx server/client.ts",
     "example": "node --import tsx -e \"const args=process.argv.slice(1).filter(a=>a!=='--'); const [p]=args; const n=(p||'example').replace(/^\\.\\//,'').replace(/\\.ts$/i,''); import(new URL(require('node:path').resolve('examples', n + '.ts'), 'file:'));\" --",
     "test": "playwright test --config=lib/v3/tests/v3.playwright.config.ts",
     "e2e": "playwright test --config=lib/v3/tests/v3.local.playwright.config.ts",
