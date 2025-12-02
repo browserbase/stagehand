@@ -25,7 +25,7 @@ npm install @browserbasehq/stagehand@latest
 
 Stagehand v3 introduces significant improvements to the API design and functionality:
 
-- **Removing Playwright Dependency**: Stagehand v3 is now a standalone library that does not depend on Playwright. **You can still use Stagehand with Playwright, check out our [Playwright integration](/integrations/playwright) for more details.**
+- **Removing Playwright Dependency**: Stagehand v3 is now a standalone library that does not depend on Playwright. **You can still use Stagehand with Playwright, check out our [Playwright integration](/v3/integrations/playwright) for more details.**
 - **Simplified Method Signatures**: Cleaner, more intuitive parameter structures.
 - **Unified Model Configuration**: Model configuration is now consolidated into a single `model` parameter.
 - **Automatic iframe & Shadow DOM Support**: No more manual flags required.
@@ -101,6 +101,35 @@ const stagehand = new Stagehand({
 });
 ```
 
+#### Changes to return value of `stagehand.init()`
+
+The `init()` used to return `debugUrl`, `sessionUrl` and `sessionId`
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+const result = await stagehand.init();
+console.log(result);
+```
+In `v2`, the returned object contains:
+```
+{
+  debugUrl: 'https://www.browserbase.com/devtools/inspector.html?wss=connect.browserbase.com/debug/f8a21b4a-6fa1-4ab9-9007-fbfe61dc14f0/devtools/page/5474B0E0510C5B6E629BEB06E799CD70?debug=true',
+  sessionUrl: 'https://www.browserbase.com/sessions/f8a21b4a-6fa1-4ab9-9007-fbfe61dc14f0',
+  sessionId: 'f8a21b4a-6fa1-4ab9-9007-fbfe61dc14f0'
+}
+```
+In `v3` the return value is `Promise<void>`. The `sessionId`, `sessionUrl`, and `debugUrl` are now directly accessible via the stagehand object:
+```typescript Stagehand v3 icon="/images/typescript.svg"
+console.log("debugUrl: ", stagehand.browserbaseDebugURL)
+console.log("sessionUrl: ", stagehand.browserbaseSessionURL)
+console.log("sessionId: ", stagehand.browserbaseSessionID)
+```
+Example output:
+```
+debugUrl: 'https://www.browserbase.com/devtools/inspector.html?wss=connect.browserbase.com/debug/f8a21b4a-6fa1-4ab9-9007-fbfe61dc14f0/devtools/page/5474B0E0510C5B6E629BEB06E799CD70?debug=true',
+sessionUrl: 'https://www.browserbase.com/sessions/f8a21b4a-6fa1-4ab9-9007-fbfe61dc14f0',
+sessionId: 'f8a21b4a-6fa1-4ab9-9007-fbfe61dc14f0'
+```
+
 #### Caching Changes
 
 The `enableCaching` boolean has been replaced with a `cacheDir` string for more flexible cache management.
@@ -140,8 +169,8 @@ await stagehand.init();
 const page = stagehand.context.pages()[0];
 await page.goto("https://example.com");
 
-// Or use the convenience getter
-const page = stagehand.page;
+// Or `await` the active page
+const page = stagehand.context.awaitActivePage();
 await page.goto("https://example.com");
 ```
 
@@ -173,8 +202,8 @@ const newPage = await stagehand.context.newPage();
 // Set active page
 stagehand.context.setActivePage(newPage);
 
-// Now stagehand.page returns newPage
-await stagehand.act("click button");  // Acts on newPage
+// implicitly takes action on newPage
+await stagehand.act("click button");
 ```
 
 ### act() Method Changes
@@ -650,7 +679,7 @@ const result = await agent.execute("Complete the checkout process");
 v3 agents can now specify which page to operate on.
 
 ```typescript Stagehand v3 icon="/images/typescript.svg"
-const page1 = stagehand.page;
+const page1 = stagehand.context.pages()[0]
 const page2 = await stagehand.context.newPage();
 
 const agent = stagehand.agent({
@@ -885,16 +914,16 @@ await stagehand.close();
 
 ### Error: Cannot find property 'page' on Stagehand instance
 
-**Problem**: Direct `stagehand.page` access may not work immediately after init.
+**Problem**: Direct `stagehand.page` is not supported in Stagehand v3.
 
-**Solution**: Use the Context API or ensure you're using the getter method:
+**Solution**: Use the Context API or `await` the active page:
 
 ```typescript
 // Use context API (recommended)
 const page = stagehand.context.pages()[0];
 
-// Or use the convenience getter
-const page = stagehand.page;
+// Or grab the active page
+const page = await stagehand.context.awaitActivePage();
 ```
 
 ### Error: act() method not found on page

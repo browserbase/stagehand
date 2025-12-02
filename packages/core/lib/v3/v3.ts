@@ -3,8 +3,8 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import process from "process";
-import type { ZodTypeAny } from "zod/v3";
-import { z } from "zod/v3";
+import { z } from "zod";
+import type { InferStagehandSchema, StagehandZodSchema } from "./zodCompat";
 import { loadApiKeyFromEnv } from "../utils";
 import { StagehandLogger, LoggerOptions } from "../logger";
 import { ActCache } from "./cache/ActCache";
@@ -59,6 +59,13 @@ import {
   PatchrightPage,
   PlaywrightPage,
   PuppeteerPage,
+  ExperimentalNotConfiguredError,
+  CuaModelRequiredError,
+  StagehandInvalidArgumentError,
+  StagehandNotInitializedError,
+  MissingEnvironmentVariableError,
+  StagehandInitError,
+  AgentStreamResult,
 } from "./types/public";
 import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
@@ -87,7 +94,7 @@ function resolveModelConfiguration(
   if (model && typeof model === "object") {
     const { modelName, ...clientOptions } = model;
     if (!modelName) {
-      throw new Error(
+      throw new StagehandInvalidArgumentError(
         "model.modelName is required when providing client options.",
       );
     }
@@ -131,7 +138,22 @@ export class V3 {
   private readonly domSettleTimeoutMs?: number;
   private _isClosing = false;
   public browserbaseSessionId?: string;
+  private browserbaseSessionUrl?: string;
+  private browserbaseDebugUrl?: string;
+  public get browserbaseSessionID(): string | undefined {
+    return this.browserbaseSessionId;
+  }
+  public get browserbaseSessionURL(): string | undefined {
+    return this.browserbaseSessionUrl;
+  }
+  public get browserbaseDebugURL(): string | undefined {
+    return this.browserbaseDebugUrl;
+  }
   private _onCdpClosed = (why: string) => {
+    if (this.state.kind === "BROWSERBASE") {
+      void this._logBrowserbaseSessionStatus();
+    }
+
     // Single place to react to the transport closing
     this._immediateShutdown(`CDP transport closed: ${why}`).catch(() => {});
   };
@@ -153,18 +175,28 @@ export class V3 {
   public stagehandMetrics: StagehandMetrics = {
     actPromptTokens: 0,
     actCompletionTokens: 0,
+    actReasoningTokens: 0,
+    actCachedInputTokens: 0,
     actInferenceTimeMs: 0,
     extractPromptTokens: 0,
     extractCompletionTokens: 0,
+    extractReasoningTokens: 0,
+    extractCachedInputTokens: 0,
     extractInferenceTimeMs: 0,
     observePromptTokens: 0,
     observeCompletionTokens: 0,
+    observeReasoningTokens: 0,
+    observeCachedInputTokens: 0,
     observeInferenceTimeMs: 0,
     agentPromptTokens: 0,
     agentCompletionTokens: 0,
+    agentReasoningTokens: 0,
+    agentCachedInputTokens: 0,
     agentInferenceTimeMs: 0,
     totalPromptTokens: 0,
     totalCompletionTokens: 0,
+    totalReasoningTokens: 0,
+    totalCachedInputTokens: 0,
     totalInferenceTimeMs: 0,
   };
 
@@ -213,12 +245,14 @@ export class V3 {
     this.llmProvider = new LLMProvider(this.logger);
     this.domSettleTimeoutMs = opts.domSettleTimeout;
     this.disableAPI = opts.disableAPI ?? false;
+
     const baseClientOptions: ClientOptions = clientOptions
       ? ({ ...clientOptions } as ClientOptions)
       : ({} as ClientOptions);
     if (opts.llmClient) {
       this.llmClient = opts.llmClient;
       this.modelClientOptions = baseClientOptions;
+      this.disableAPI = true;
     } else {
       // Ensure API key is set
       let apiKey = (baseClientOptions as { apiKey?: string }).apiKey;
@@ -278,9 +312,22 @@ export class V3 {
 
   /**
    * Async property for metrics so callers can `await v3.metrics`.
-   * Returning a Promise future-proofs async aggregation/storage.
+   * When using API mode, fetches metrics from the API. Otherwise returns local metrics.
    */
   public get metrics(): Promise<StagehandMetrics> {
+    if (this.apiClient) {
+      // Fetch metrics from the API
+      return this.apiClient.getReplayMetrics().catch((error) => {
+        this.logger({
+          category: "metrics",
+          message: `Failed to fetch metrics from API: ${error}`,
+          level: 0,
+        });
+        // Fall back to local metrics on error
+        return this.stagehandMetrics;
+      });
+    }
+    // Return local metrics wrapped in a Promise for consistency
     return Promise.resolve(this.stagehandMetrics);
   }
 
@@ -391,43 +438,63 @@ export class V3 {
     functionName: V3FunctionName,
     promptTokens: number,
     completionTokens: number,
+    reasoningTokens: number,
+    cachedInputTokens: number,
     inferenceTimeMs: number,
   ): void {
     switch (functionName) {
       case V3FunctionName.ACT:
         this.stagehandMetrics.actPromptTokens += promptTokens;
         this.stagehandMetrics.actCompletionTokens += completionTokens;
+        this.stagehandMetrics.actReasoningTokens += reasoningTokens;
+        this.stagehandMetrics.actCachedInputTokens += cachedInputTokens;
         this.stagehandMetrics.actInferenceTimeMs += inferenceTimeMs;
         break;
 
       case V3FunctionName.EXTRACT:
         this.stagehandMetrics.extractPromptTokens += promptTokens;
         this.stagehandMetrics.extractCompletionTokens += completionTokens;
+        this.stagehandMetrics.extractReasoningTokens += reasoningTokens;
+        this.stagehandMetrics.extractCachedInputTokens += cachedInputTokens;
         this.stagehandMetrics.extractInferenceTimeMs += inferenceTimeMs;
         break;
 
       case V3FunctionName.OBSERVE:
         this.stagehandMetrics.observePromptTokens += promptTokens;
         this.stagehandMetrics.observeCompletionTokens += completionTokens;
+        this.stagehandMetrics.observeReasoningTokens += reasoningTokens;
+        this.stagehandMetrics.observeCachedInputTokens += cachedInputTokens;
         this.stagehandMetrics.observeInferenceTimeMs += inferenceTimeMs;
         break;
 
       case V3FunctionName.AGENT:
         this.stagehandMetrics.agentPromptTokens += promptTokens;
         this.stagehandMetrics.agentCompletionTokens += completionTokens;
+        this.stagehandMetrics.agentReasoningTokens += reasoningTokens;
+        this.stagehandMetrics.agentCachedInputTokens += cachedInputTokens;
         this.stagehandMetrics.agentInferenceTimeMs += inferenceTimeMs;
         break;
     }
-    this.updateTotalMetrics(promptTokens, completionTokens, inferenceTimeMs);
+    this.updateTotalMetrics(
+      promptTokens,
+      completionTokens,
+      reasoningTokens,
+      cachedInputTokens,
+      inferenceTimeMs,
+    );
   }
 
   private updateTotalMetrics(
     promptTokens: number,
     completionTokens: number,
+    reasoningTokens: number,
+    cachedInputTokens: number,
     inferenceTimeMs: number,
   ): void {
     this.stagehandMetrics.totalPromptTokens += promptTokens;
     this.stagehandMetrics.totalCompletionTokens += completionTokens;
+    this.stagehandMetrics.totalReasoningTokens += reasoningTokens;
+    this.stagehandMetrics.totalCachedInputTokens += cachedInputTokens;
     this.stagehandMetrics.totalInferenceTimeMs += inferenceTimeMs;
   }
 
@@ -524,11 +591,20 @@ export class V3 {
           this.opts.systemPrompt ?? "",
           this.logInferenceToFile,
           this.opts.selfHeal ?? true,
-          (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
+          (
+            functionName,
+            promptTokens,
+            completionTokens,
+            reasoningTokens,
+            cachedInputTokens,
+            inferenceTimeMs,
+          ) =>
             this.updateMetrics(
               functionName,
               promptTokens,
               completionTokens,
+              reasoningTokens,
+              cachedInputTokens,
               inferenceTimeMs,
             ),
           this.domSettleTimeoutMs,
@@ -541,11 +617,20 @@ export class V3 {
           this.opts.systemPrompt ?? "",
           this.logInferenceToFile,
           this.experimental,
-          (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
+          (
+            functionName,
+            promptTokens,
+            completionTokens,
+            reasoningTokens,
+            cachedInputTokens,
+            inferenceTimeMs,
+          ) =>
             this.updateMetrics(
               functionName,
               promptTokens,
               completionTokens,
+              reasoningTokens,
+              cachedInputTokens,
               inferenceTimeMs,
             ),
         );
@@ -557,11 +642,20 @@ export class V3 {
           this.opts.systemPrompt ?? "",
           this.logInferenceToFile,
           this.experimental,
-          (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
+          (
+            functionName,
+            promptTokens,
+            completionTokens,
+            reasoningTokens,
+            cachedInputTokens,
+            inferenceTimeMs,
+          ) =>
             this.updateMetrics(
               functionName,
               promptTokens,
               completionTokens,
+              reasoningTokens,
+              cachedInputTokens,
               inferenceTimeMs,
             ),
         );
@@ -598,6 +692,7 @@ export class V3 {
               } as unknown as import("chrome-launcher").LaunchedChrome,
               ws: lbo.cdpUrl,
             };
+            this.resetBrowserbaseSessionMetadata();
             // Post-connect settings (downloads and viewport) if provided
             await this._applyPostConnectLocalOptions(lbo);
             return;
@@ -686,7 +781,7 @@ export class V3 {
             createdTempProfile: createdTemp,
             preserveUserDataDir: !!lbo.preserveUserDataDir,
           };
-          this.browserbaseSessionId = undefined;
+          this.resetBrowserbaseSessionMetadata();
 
           // Post-connect settings (downloads and viewport) if provided
           await this._applyPostConnectLocalOptions(lbo);
@@ -696,8 +791,9 @@ export class V3 {
         if (this.opts.env === "BROWSERBASE") {
           const { apiKey, projectId } = this.requireBrowserbaseCreds();
           if (!apiKey || !projectId) {
-            throw new Error(
-              "BROWSERBASE credentials missing. Provide in your v3 constructor, or set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your .env",
+            throw new MissingEnvironmentVariableError(
+              "BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID",
+              "Browserbase environment",
             );
           }
           this.logger({
@@ -759,18 +855,21 @@ export class V3 {
 
           await this._ensureBrowserbaseDownloadsEnabled();
 
+          const resumed = !!this.opts.browserbaseSessionID;
+          let debugUrl: string | undefined;
           try {
-            const resumed = !!this.opts.browserbaseSessionID;
-            let debugUrl: string | undefined;
-            try {
-              const dbg = (await bb.sessions.debug(sessionId)) as unknown as {
-                debuggerUrl?: string;
-              };
-              debugUrl = dbg?.debuggerUrl;
-            } catch {
-              // Ignore debug fetch failures; continue with sessionUrl only
-            }
-            const sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
+            const dbg = (await bb.sessions.debug(sessionId)) as unknown as {
+              debuggerUrl?: string;
+            };
+            debugUrl = dbg?.debuggerUrl;
+          } catch {
+            // Ignore debug fetch failures; continue with sessionUrl only
+          }
+          const sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
+          this.browserbaseSessionUrl = sessionUrl;
+          this.browserbaseDebugUrl = debugUrl;
+
+          try {
             this.logger({
               category: "init",
               message: resumed
@@ -794,7 +893,7 @@ export class V3 {
         }
 
         const neverEnv: never = this.opts.env;
-        throw new Error(`Unsupported env: ${neverEnv}`);
+        throw new StagehandInitError(`Unsupported env: ${neverEnv}`);
       });
     } catch (error) {
       // Cleanup instanceLoggers map on init failure to prevent memory leak
@@ -844,6 +943,12 @@ export class V3 {
     }
   }
 
+  private resetBrowserbaseSessionMetadata(): void {
+    this.browserbaseSessionId = undefined;
+    this.browserbaseSessionUrl = undefined;
+    this.browserbaseDebugUrl = undefined;
+  }
+
   /**
    * Run an "act" instruction through the ActHandler.
    *
@@ -856,8 +961,7 @@ export class V3 {
 
   async act(input: string | Action, options?: ActOptions): Promise<ActResult> {
     return await withInstanceLogContext(this.instanceId, async () => {
-      if (!this.actHandler)
-        throw new Error("V3 not initialized. Call init() before act().");
+      if (!this.actHandler) throw new StagehandNotInitializedError("act()");
 
       let actResult: ActResult;
 
@@ -894,7 +998,7 @@ export class V3 {
       }
       // instruction path
       if (typeof input !== "string" || !input.trim()) {
-        throw new Error(
+        throw new StagehandInvalidArgumentError(
           "act(): instruction string is required unless passing an Action",
         );
       }
@@ -992,36 +1096,36 @@ export class V3 {
     instruction: string,
     options?: ExtractOptions,
   ): Promise<z.infer<typeof defaultExtractSchema>>;
-  async extract<T extends ZodTypeAny>(
+  async extract<T extends StagehandZodSchema>(
     instruction: string,
     schema: T,
     options?: ExtractOptions,
-  ): Promise<z.infer<T>>;
+  ): Promise<InferStagehandSchema<T>>;
 
   async extract(
     a?: string | ExtractOptions,
-    b?: ZodTypeAny | ExtractOptions,
+    b?: StagehandZodSchema | ExtractOptions,
     c?: ExtractOptions,
   ): Promise<unknown> {
     return await withInstanceLogContext(this.instanceId, async () => {
       if (!this.extractHandler) {
-        throw new Error("V3 not initialized. Call init() before extract().");
+        throw new StagehandNotInitializedError("extract()");
       }
 
       // Normalize args
       let instruction: string | undefined;
-      let schema: ZodTypeAny | undefined;
+      let schema: StagehandZodSchema | undefined;
       let options: ExtractOptions | undefined;
 
       if (typeof a === "string") {
         instruction = a;
-        const isZodSchema = (val: unknown): val is ZodTypeAny =>
+        const isZodSchema = (val: unknown): val is StagehandZodSchema =>
           !!val &&
           typeof val === "object" &&
           "parse" in val &&
           "safeParse" in val;
         if (isZodSchema(b)) {
-          schema = b as ZodTypeAny;
+          schema = b as StagehandZodSchema;
           options = c as ExtractOptions | undefined;
         } else {
           options = b as ExtractOptions | undefined;
@@ -1032,7 +1136,9 @@ export class V3 {
       }
 
       if (!instruction && schema) {
-        throw new Error("extract(): schema provided without instruction");
+        throw new StagehandInvalidArgumentError(
+          "extract(): schema provided without instruction",
+        );
       }
 
       // If instruction without schema → defaultExtractSchema
@@ -1042,9 +1148,9 @@ export class V3 {
       // Resolve page from options or use active page
       const page = await this.resolvePage(options?.page);
 
-      const handlerParams: ExtractHandlerParams<ZodTypeAny> = {
+      const handlerParams: ExtractHandlerParams<StagehandZodSchema> = {
         instruction,
-        schema: effectiveSchema as unknown as ZodTypeAny | undefined,
+        schema: effectiveSchema as StagehandZodSchema | undefined,
         model: options?.model,
         timeout: options?.timeout,
         selector: options?.selector,
@@ -1060,7 +1166,8 @@ export class V3 {
           frameId,
         });
       } else {
-        result = await this.extractHandler.extract<ZodTypeAny>(handlerParams);
+        result =
+          await this.extractHandler.extract<StagehandZodSchema>(handlerParams);
       }
       return result;
     });
@@ -1081,7 +1188,7 @@ export class V3 {
   ): Promise<Action[]> {
     return await withInstanceLogContext(this.instanceId, async () => {
       if (!this.observeHandler) {
-        throw new Error("V3 not initialized. Call init() before observe().");
+        throw new StagehandNotInitializedError("observe()");
       }
 
       // Normalize args
@@ -1133,7 +1240,7 @@ export class V3 {
   /** Return the browser-level CDP WebSocket endpoint. */
   connectURL(): string {
     if (this.state.kind === "UNINITIALIZED") {
-      throw new Error("V3 not initialized. Call await v3.init() first.");
+      throw new StagehandNotInitializedError("connectURL()");
     }
     return this.state.ws;
   }
@@ -1194,7 +1301,7 @@ export class V3 {
       this.state = { kind: "UNINITIALIZED" };
       this.ctx = null;
       this._isClosing = false;
-      this.browserbaseSessionId = undefined;
+      this.resetBrowserbaseSessionMetadata();
       try {
         unbindInstanceLogger(this.instanceId);
       } catch {
@@ -1221,10 +1328,9 @@ export class V3 {
       const missing: string[] = [];
       if (!apiKey) missing.push("BROWSERBASE_API_KEY");
       if (!projectId) missing.push("BROWSERBASE_PROJECT_ID");
-      throw new Error(
-        `BROWSERBASE credentials missing. Provide in your v3 constructor, or set ${missing.join(
-          ", ",
-        )} in your .env`,
+      throw new MissingEnvironmentVariableError(
+        missing.join(", "),
+        "Browserbase",
       );
     }
 
@@ -1283,7 +1389,9 @@ export class V3 {
       return frameTree.frame.id;
     }
 
-    throw new Error("Unsupported page object passed to V3.act()");
+    throw new StagehandInvalidArgumentError(
+      "Unsupported page object passed to V3.act()",
+    );
   }
 
   private isPlaywrightPage(p: unknown): p is PlaywrightPage {
@@ -1317,9 +1425,7 @@ export class V3 {
     }
     const ctx = this.ctx;
     if (!ctx) {
-      throw new Error(
-        "V3 context not initialized. Call init() before resolving pages.",
-      );
+      throw new StagehandNotInitializedError("resolvePage()");
     }
     return await ctx.awaitActivePage();
   }
@@ -1332,34 +1438,145 @@ export class V3 {
       const frameId = await this.resolveTopFrameId(input);
       const page = this.ctx!.resolvePageByMainFrameId(frameId);
       if (!page)
-        throw new Error("Failed to resolve V3 Page from Playwright page.");
+        throw new StagehandInitError(
+          "Failed to resolve V3 Page from Playwright page.",
+        );
       return page;
     }
     if (this.isPatchrightPage(input)) {
       const frameId = await this.resolveTopFrameId(input);
       const page = this.ctx!.resolvePageByMainFrameId(frameId);
       if (!page)
-        throw new Error("Failed to resolve V3 Page from Playwright page.");
+        throw new StagehandInitError(
+          "Failed to resolve V3 Page from Patchright page.",
+        );
       return page;
     }
     if (this.isPuppeteerPage(input)) {
       const frameId = await this.resolveTopFrameId(input);
       const page = this.ctx!.resolvePageByMainFrameId(frameId);
       if (!page)
-        throw new Error("Failed to resolve V3 Page from Puppeteer page.");
+        throw new StagehandInitError(
+          "Failed to resolve V3 Page from Puppeteer page.",
+        );
       return page;
     }
-    throw new Error("Unsupported page object.");
+    throw new StagehandInvalidArgumentError("Unsupported page object.");
+  }
+
+  private async _logBrowserbaseSessionStatus(): Promise<void> {
+    if (this.state.kind !== "BROWSERBASE") {
+      return;
+    }
+
+    try {
+      const snapshot = (await this.state.bb.sessions.retrieve(
+        this.state.sessionId,
+      )) as { id?: string; status?: string };
+      if (!snapshot?.status) return;
+
+      const sessionId = snapshot.id ?? this.state.sessionId;
+      const message =
+        snapshot.status === "TIMED_OUT"
+          ? `Browserbase session timed out (sessionId: ${sessionId})`
+          : `Browserbase session status: ${snapshot.status}`;
+
+      this.logger({
+        category: "v3",
+        message,
+        level: 0,
+      });
+    } catch {
+      // Ignore failures; nothing to log
+    }
+  }
+
+  /**
+   * Prepares shared context for agent execution (both execute and stream).
+   * Extracts duplicated setup logic into a single helper.
+   */
+  private async prepareAgentExecution(
+    options: AgentConfig | undefined,
+    instructionOrOptions: string | AgentExecuteOptions,
+    agentConfigSignature: string,
+  ): Promise<{
+    handler: V3AgentHandler;
+    resolvedOptions: AgentExecuteOptions;
+    instruction: string;
+    cacheContext: AgentCacheContext | null;
+  }> {
+    if ((options?.integrations || options?.tools) && !this.experimental) {
+      throw new ExperimentalNotConfiguredError(
+        "MCP integrations and custom tools",
+      );
+    }
+
+    const tools = options?.integrations
+      ? await resolveTools(options.integrations, options.tools)
+      : (options?.tools ?? {});
+
+    const agentLlmClient = options?.model
+      ? this.resolveLlmClient(options.model)
+      : this.llmClient;
+
+    const handler = new V3AgentHandler(
+      this,
+      this.logger,
+      agentLlmClient,
+      typeof options?.executionModel === "string"
+        ? options.executionModel
+        : options?.executionModel?.modelName,
+      options?.systemPrompt,
+      tools,
+    );
+
+    const resolvedOptions: AgentExecuteOptions =
+      typeof instructionOrOptions === "string"
+        ? { instruction: instructionOrOptions }
+        : instructionOrOptions;
+
+    if (resolvedOptions.page) {
+      const normalizedPage = await this.normalizeToV3Page(resolvedOptions.page);
+      this.ctx!.setActivePage(normalizedPage);
+    }
+
+    const instruction = resolvedOptions.instruction.trim();
+    const sanitizedOptions =
+      this.agentCache.sanitizeExecuteOptions(resolvedOptions);
+
+    const cacheContext = this.agentCache.shouldAttemptCache(instruction)
+      ? await this.agentCache.prepareContext({
+          instruction,
+          options: sanitizedOptions,
+          configSignature: agentConfigSignature,
+          page: await this.ctx!.awaitActivePage(),
+        })
+      : null;
+
+    return { handler, resolvedOptions, instruction, cacheContext };
   }
 
   /**
    * Create a v3 agent instance (AISDK tool-based) with execute().
    * Mirrors the v2 Stagehand.agent() tool mode (no CUA provider here).
+   *
+   * @overload When stream: true, returns a streaming agent where execute() returns AgentStreamResult
+   * @overload When stream is false/undefined, returns a non-streaming agent where execute() returns AgentResult
    */
-  agent(options?: AgentConfig): {
+  agent(options: AgentConfig & { stream: true }): {
+    execute: (
+      instructionOrOptions: string | AgentExecuteOptions,
+    ) => Promise<AgentStreamResult>;
+  };
+  agent(options?: AgentConfig & { stream?: false }): {
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
+  };
+  agent(options?: AgentConfig): {
+    execute: (
+      instructionOrOptions: string | AgentExecuteOptions,
+    ) => Promise<AgentResult | AgentStreamResult>;
   } {
     this.logger({
       category: "agent",
@@ -1385,9 +1602,15 @@ export class V3 {
 
     // If CUA is enabled, use the computer-use agent path
     if (options?.cua) {
+      if (options?.stream) {
+        throw new StagehandInvalidArgumentError(
+          "Streaming is not supported with CUA (Computer Use Agent) mode. Remove either 'stream: true' or 'cua: true' from your agent config.",
+        );
+      }
+
       if ((options?.integrations || options?.tools) && !this.experimental) {
-        throw new Error(
-          "MCP integrations and custom tools are experimental. Enable experimental: true in V3 options.",
+        throw new ExperimentalNotConfiguredError(
+          "MCP integrations and custom tools",
         );
       }
 
@@ -1399,10 +1622,7 @@ export class V3 {
       const { modelName, isCua, clientOptions } = resolveModel(modelToUse);
 
       if (!isCua) {
-        throw new Error(
-          "To use the computer use agent, please provide a CUA model in the agent constructor or stagehand config. Try one of our supported CUA models: " +
-            AVAILABLE_CUA_MODELS.join(", "),
-        );
+        throw new CuaModelRequiredError(AVAILABLE_CUA_MODELS);
       }
 
       const agentConfigSignature =
@@ -1411,9 +1631,7 @@ export class V3 {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
           withInstanceLogContext(this.instanceId, async () => {
             if (options?.integrations && !this.experimental) {
-              throw new Error(
-                "MCP integrations are experimental. Enable experimental: true in V3 options.",
-              );
+              throw new ExperimentalNotConfiguredError("MCP integrations");
             }
             const tools = options?.integrations
               ? await resolveTools(options.integrations, options.tools)
@@ -1504,65 +1722,60 @@ export class V3 {
 
     // Default: AISDK tools-based agent
     const agentConfigSignature = this.agentCache.buildConfigSignature(options);
+    const isStreaming = options?.stream ?? false;
 
     return {
-      execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
+      execute: async (
+        instructionOrOptions: string | AgentExecuteOptions,
+      ): Promise<AgentResult | AgentStreamResult> =>
         withInstanceLogContext(this.instanceId, async () => {
-          if ((options?.integrations || options?.tools) && !this.experimental) {
-            throw new Error(
-              "MCP integrations and custom tools are experimental. Enable experimental: true in V3 options.",
+          // Streaming mode
+          if (isStreaming) {
+            if (!this.experimental) {
+              throw new ExperimentalNotConfiguredError("Agent streaming");
+            }
+
+            const { handler, cacheContext } = await this.prepareAgentExecution(
+              options,
+              instructionOrOptions,
+              agentConfigSignature,
             );
-          }
 
-          const tools = options?.integrations
-            ? await resolveTools(options.integrations, options.tools)
-            : (options?.tools ?? {});
-
-          // Resolve the LLM client for the agent based on the model parameter
-          // Use the agent's model if specified, otherwise fall back to the default
-          const agentLlmClient = options?.model
-            ? this.resolveLlmClient(options.model)
-            : this.llmClient;
-
-          const handler = new V3AgentHandler(
-            this,
-            this.logger,
-            agentLlmClient,
-            typeof options?.executionModel === "string"
-              ? options.executionModel
-              : options?.executionModel?.modelName,
-            options?.systemPrompt,
-            tools,
-          );
-
-          const resolvedOptions: AgentExecuteOptions =
-            typeof instructionOrOptions === "string"
-              ? { instruction: instructionOrOptions }
-              : instructionOrOptions;
-          if (resolvedOptions.page) {
-            const normalizedPage = await this.normalizeToV3Page(
-              resolvedOptions.page,
-            );
-            this.ctx!.setActivePage(normalizedPage);
-          }
-          const instruction = resolvedOptions.instruction.trim();
-          const sanitizedOptions =
-            this.agentCache.sanitizeExecuteOptions(resolvedOptions);
-
-          let cacheContext: AgentCacheContext | null = null;
-          if (this.agentCache.shouldAttemptCache(instruction)) {
-            const startPage = await this.ctx!.awaitActivePage();
-            cacheContext = await this.agentCache.prepareContext({
-              instruction,
-              options: sanitizedOptions,
-              configSignature: agentConfigSignature,
-              page: startPage,
-            });
             if (cacheContext) {
-              const replayed = await this.agentCache.tryReplay(cacheContext);
+              const replayed =
+                await this.agentCache.tryReplayAsStream(cacheContext);
               if (replayed) {
                 return replayed;
               }
+            }
+
+            const streamResult = await handler.stream(instructionOrOptions);
+
+            if (cacheContext) {
+              return this.agentCache.wrapStreamForCaching(
+                cacheContext,
+                streamResult,
+                () => this.beginAgentReplayRecording(),
+                () => this.endAgentReplayRecording(),
+                () => this.discardAgentReplayRecording(),
+              );
+            }
+
+            return streamResult;
+          }
+
+          // Non-streaming mode (default)
+          const { handler, resolvedOptions, cacheContext } =
+            await this.prepareAgentExecution(
+              options,
+              instructionOrOptions,
+              agentConfigSignature,
+            );
+
+          if (cacheContext) {
+            const replayed = await this.agentCache.tryReplay(cacheContext);
+            if (replayed) {
+              return replayed;
             }
           }
 

@@ -5,7 +5,7 @@
  */
 
 import dotenv from "dotenv";
-import { z } from "zod/v3";
+import { z } from "zod";
 import type { AvailableModel, ClientOptions } from "./v3/types/public/model";
 import type {
   EvaluateOptions,
@@ -17,6 +17,7 @@ import { LLMResponse, LLMClient } from "./v3/llm/LLMClient";
 import { LogLine } from "./v3/types/public/logs";
 import { V3 } from "./v3/v3";
 import { LLMProvider } from "./v3/llm/LLMProvider.js";
+import { StagehandInvalidArgumentError } from "./v3/types/public/sdkErrors";
 
 dotenv.config();
 
@@ -63,9 +64,14 @@ export class V3Evaluator {
       screenshotDelayMs = 250,
       agentReasoning,
     } = options;
-    if (!question) throw new Error("Question cannot be an empty string");
+    if (!question)
+      throw new StagehandInvalidArgumentError(
+        "Question cannot be an empty string",
+      );
     if (!answer && !screenshot)
-      throw new Error("Either answer (text) or screenshot must be provided");
+      throw new StagehandInvalidArgumentError(
+        "Either answer (text) or screenshot must be provided",
+      );
 
     if (Array.isArray(screenshot)) {
       return this._evaluateWithMultipleScreenshots({
@@ -145,7 +151,10 @@ export class V3Evaluator {
       systemPrompt = "You are an expert evaluator that returns YES or NO with a concise reasoning.",
       screenshotDelayMs = 250,
     } = options;
-    if (!questions?.length) throw new Error("Questions array cannot be empty");
+    if (!questions?.length)
+      throw new StagehandInvalidArgumentError(
+        "Questions array cannot be empty",
+      );
 
     await new Promise((r) => setTimeout(r, screenshotDelayMs));
     let imageBuffer: Buffer | undefined;
@@ -233,9 +242,14 @@ export class V3Evaluator {
         Today's date is ${new Date().toLocaleDateString()}`,
     } = options;
 
-    if (!question) throw new Error("Question cannot be an empty string");
+    if (!question)
+      throw new StagehandInvalidArgumentError(
+        "Question cannot be an empty string",
+      );
     if (!screenshots || screenshots.length === 0)
-      throw new Error("At least one screenshot must be provided");
+      throw new StagehandInvalidArgumentError(
+        "At least one screenshot must be provided",
+      );
 
     const llmClient = this.getClient();
 

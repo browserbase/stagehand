@@ -2,6 +2,7 @@
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp";
 import { Locator } from "./locator";
+import { StagehandEvalError } from "../types/public/sdkErrors";
 
 interface FrameManager {
   session: CDPSessionLike;
@@ -25,8 +26,14 @@ export class Frame implements FrameManager {
     public session: CDPSessionLike,
     public frameId: string,
     public pageId: string,
+    private readonly remoteBrowser: boolean,
   ) {
     this.sessionId = this.session.id ?? null;
+  }
+
+  /** True when the controlled browser runs on a different machine. */
+  public isBrowserRemote(): boolean {
+    return this.remoteBrowser;
   }
 
   /** DOM.getNodeForLocation → DOM.describeNode */
@@ -150,7 +157,9 @@ export class Frame implements FrameManager {
       },
     );
     if (res.exceptionDetails) {
-      throw new Error(res.exceptionDetails.text ?? "Evaluation failed");
+      throw new StagehandEvalError(
+        res.exceptionDetails.text ?? "Evaluation failed",
+      );
     }
     return res.result.value as R;
   }
@@ -159,13 +168,45 @@ export class Frame implements FrameManager {
   async screenshot(options?: {
     fullPage?: boolean;
     clip?: { x: number; y: number; width: number; height: number };
+    type?: "png" | "jpeg";
+    quality?: number;
+    scale?: number;
   }): Promise<Buffer> {
     await this.session.send("Page.enable");
-    const params: Protocol.Page.CaptureScreenshotRequest = {
-      format: "png",
-      captureBeyondViewport: options?.fullPage,
-    };
-    if (options?.clip) params.clip = { ...options.clip, scale: 1 };
+    const format = options?.type ?? "png";
+    const params: Protocol.Page.CaptureScreenshotRequest & { scale?: number } =
+      {
+        format,
+        fromSurface: true,
+        captureBeyondViewport: options?.fullPage,
+      };
+
+    const clampScale = (value: number): number =>
+      Math.min(2, Math.max(0.1, value));
+
+    const normalizedScale =
+      typeof options?.scale === "number"
+        ? clampScale(options.scale)
+        : undefined;
+
+    if (options?.clip) {
+      const clip = {
+        x: options.clip.x,
+        y: options.clip.y,
+        width: options.clip.width,
+        height: options.clip.height,
+        scale: normalizedScale ?? 1,
+      };
+      params.clip = clip;
+    } else if (normalizedScale !== undefined && normalizedScale !== 1) {
+      params.scale = normalizedScale;
+    }
+
+    if (format === "jpeg" && typeof options?.quality === "number") {
+      const q = Math.round(options.quality);
+      params.quality = Math.min(100, Math.max(0, q));
+    }
+
     const { data } =
       await this.session.send<Protocol.Page.CaptureScreenshotResponse>(
         "Page.captureScreenshot",
@@ -183,7 +224,14 @@ export class Frame implements FrameManager {
 
     const collect = (tree: Protocol.Page.FrameTree) => {
       if (tree.frame.parentId === this.frameId) {
-        frames.push(new Frame(this.session, tree.frame.id, this.pageId));
+        frames.push(
+          new Frame(
+            this.session,
+            tree.frame.id,
+            this.pageId,
+            this.remoteBrowser,
+          ),
+        );
       }
       tree.childFrames?.forEach(collect);
     };
@@ -195,16 +243,45 @@ export class Frame implements FrameManager {
   /** Wait for a lifecycle state (load/domcontentloaded/networkidle) */
   async waitForLoadState(
     state: "load" | "domcontentloaded" | "networkidle" = "load",
+    timeoutMs: number = 15_000,
   ): Promise<void> {
     await this.session.send("Page.enable");
-    await new Promise<void>((resolve) => {
+    const targetState = state.toLowerCase();
+    const timeout = Math.max(0, timeoutMs);
+    await new Promise<void>((resolve, reject) => {
+      let done = false;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        this.session.off("Page.lifecycleEvent", handler);
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        resolve();
+      };
       const handler = (evt: Protocol.Page.LifecycleEventEvent) => {
-        if (evt.frameId === this.frameId && evt.name === state) {
-          this.session.off("Page.lifecycleEvent", handler);
-          resolve();
+        const sameFrame = evt.frameId === this.frameId;
+        // need to normalize here because CDP lifecycle names look like 'DOMContentLoaded'
+        // but we accept 'domcontentloaded'
+        const lifecycleName = String(evt.name ?? "").toLowerCase();
+        if (sameFrame && lifecycleName === targetState) {
+          finish();
         }
       };
       this.session.on("Page.lifecycleEvent", handler);
+
+      timer = setTimeout(() => {
+        if (done) return;
+        done = true;
+        this.session.off("Page.lifecycleEvent", handler);
+        reject(
+          new Error(
+            `waitForLoadState(${state}) timed out after ${timeout}ms for frame ${this.frameId}`,
+          ),
+        );
+      }, timeout);
     });
   }
 

@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-evals",
-  "version": "1.1.1",
+  "version": "1.1.4",
   "private": true,
   "description": "Evaluation suite for Stagehand",
   "main": "./",
@@ -18,7 +18,7 @@
     "@ai-sdk/provider": "^2.0.0",
     "openai": "^4.87.1",
     "dotenv": "16.4.5",
-    "zod": "3.25.67"
+    "zod": "^4.1.8"
   },
   "devDependencies": {
     "tsx": "^4.10.5"

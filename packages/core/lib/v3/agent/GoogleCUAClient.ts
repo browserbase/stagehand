@@ -6,6 +6,7 @@ import {
   FunctionCall,
   GenerateContentConfig,
   Tool,
+  GoogleGenAIOptions,
 } from "@google/genai";
 import { LogLine } from "../types/public/logs";
 import {
@@ -14,8 +15,12 @@ import {
   AgentType,
   AgentExecutionOptions,
 } from "../types/public/agent";
+import { ClientOptions } from "../types/public/model";
 import { AgentClient } from "./AgentClient";
-import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
+import {
+  AgentScreenshotProviderError,
+  LLMResponseError,
+} from "../types/public/sdkErrors";
 import { buildGoogleCUASystemPrompt } from "../../prompt";
 import { compressGoogleConversationImages } from "./utils/imageCompression";
 import { mapKeyToPlaywright } from "./utils/cuaKeyMapping";
@@ -41,11 +46,12 @@ export class GoogleCUAClient extends AgentClient {
     "ENVIRONMENT_BROWSER";
   private generateContentConfig: GenerateContentConfig;
   private tools?: ToolSet;
+  private baseURL?: string;
   constructor(
     type: AgentType,
     modelName: string,
     userProvidedInstructions?: string,
-    clientOptions?: Record<string, unknown>,
+    clientOptions?: ClientOptions,
     tools?: ToolSet,
   ) {
     super(type, modelName, userProvidedInstructions);
@@ -308,7 +314,7 @@ export class GoogleCUAClient extends AgentClient {
 
           // Check if we have valid response content
           if (!response.candidates || response.candidates.length === 0) {
-            throw new Error("Response has no candidates!");
+            throw new LLMResponseError("agent", "Response has no candidates!");
           }
 
           // Success - we have a valid response

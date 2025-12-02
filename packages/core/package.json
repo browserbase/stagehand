@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand",
-  "version": "3.0.1",
+  "version": "3.0.5",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -18,7 +18,8 @@
     "e2e:local": "playwright test --config=lib/v3/tests/v3.local.playwright.config.ts",
     "e2e:bb": "playwright test --config=lib/v3/tests/v3.bb.playwright.config.ts",
     "lint": "cd ../.. && prettier --check packages/core && cd packages/core && eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test:vitest": "pnpm run build-js && pnpm run typecheck && vitest run --config vitest.config.ts"
   },
   "files": [
     "dist/index.js",
@@ -39,7 +40,7 @@
   "peerDependencies": {
     "deepmerge": "^4.3.1",
     "dotenv": "^16.4.5",
-    "zod": "3.25.67"
+    "zod": "^3.25.76 || ^4.1.8"
   },
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",
@@ -56,7 +57,7 @@
     "pino-pretty": "^13.0.0",
     "playwright": "^1.52.0",
     "ws": "^8.18.0",
-    "zod-to-json-schema": "^3.23.5"
+    "zod-to-json-schema": "^3.25.0"
   },
   "optionalDependencies": {
     "@ai-sdk/anthropic": "^2.0.34",
@@ -64,6 +65,7 @@
     "@ai-sdk/cerebras": "^1.0.25",
     "@ai-sdk/deepseek": "^1.0.23",
     "@ai-sdk/google": "^2.0.23",
+    "@ai-sdk/google-vertex": "^3.0.70",
     "@ai-sdk/groq": "^2.0.24",
     "@ai-sdk/mistral": "^2.0.19",
     "@ai-sdk/openai": "^2.0.53",
@@ -71,6 +73,7 @@
     "@ai-sdk/togetherai": "^1.0.23",
     "@ai-sdk/xai": "^2.0.26",
     "@langchain/core": "^0.3.40",
+    "bufferutil": "^4.0.9",
     "chrome-launcher": "^1.2.0",
     "ollama-ai-provider-v2": "^1.5.0",
     "patchright-core": "^1.55.2",
@@ -83,7 +86,9 @@
     "prettier": "^3.2.5",
     "tsup": "^8.2.1",
     "tsx": "^4.10.5",
-    "typescript": "^5.2.2"
+    "typescript": "^5.2.2",
+    "vitest": "^4.0.8",
+    "zod": "^3.25.76 || ^4.1.8"
   },
   "repository": {
     "type": "git",

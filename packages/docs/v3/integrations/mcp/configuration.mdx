@@ -40,7 +40,6 @@ Your Browserbase project ID
 | `--persist [boolean]` | Whether to persist the Browserbase context (default: true) |
 | `--port <port>` | Port to listen on for HTTP/SHTTP transport |
 | `--host <host>` | Host to bind server to (default: localhost, use 0.0.0.0 for all interfaces) |
-| `--cookies [json]` | JSON array of cookies to inject into the browser |
 | `--browserWidth <width>` | Browser viewport width (default: 1024) |
 | `--browserHeight <height>` | Browser viewport height (default: 768) |
 | `--modelName <model>` | The model to use for Stagehand (default: gemini-2.0-flash) |
@@ -211,7 +210,7 @@ Use persistent browser contexts to maintain authentication and state across sess
 
 <Tabs>
 <Tab title="Viewport Sizing">
-Customize browser window dimensions. Default is 1024x768. Recommended aspect ratios: 16:9.
+Customize browser window dimensions. Default is 1288x711. Recommended aspect ratios: 16:9.
 
 ```json
 {
@@ -239,33 +238,6 @@ Customize browser window dimensions. Default is 1024x768. Recommended aspect rat
 - Tablet: 768x1024 (iPad)
 </Tab>
 
-<Tab title="Cookie Injection">
-Inject session cookies for authentication. Useful when persistent contexts don't handle session cookies.
-
-<Panel>
-Cookies must be in [Playwright Cookie format](https://playwright.dev/docs/api/class-browsercontext#browser-context-cookies).
-</Panel>
-
-```json
-{
-  "mcpServers": {
-    "browserbase": {
-      "command": "npx",
-      "args": [
-        "@browserbasehq/mcp-server-browserbase",
-        "--cookies",
-        "[{\"name\": \"session\", \"value\": \"abc123\", \"domain\": \".example.com\", \"path\": \"/\", \"httpOnly\": true, \"secure\": true}]"
-      ],
-      "env": {
-        "BROWSERBASE_API_KEY": "your_api_key",
-        "BROWSERBASE_PROJECT_ID": "your_project_id",
-        "GEMINI_API_KEY": "your_gemini_api_key"
-      }
-    }
-  }
-}
-```
-</Tab>
 </Tabs>
 
 ## Model Configuration
@@ -279,22 +251,22 @@ When using any custom model (non-default), you must provide your own API key for
 <Tabs>
 <Tab title="Available Models">
 **Google Gemini** (Default)
-- `google/gemini-2.0-flash` (default)
-- `google/gemini-1.5-pro`
-- `google/gemini-1.5-flash`
+- `gemini-2.0-flash` (default)
+- `gemini-2.5-pro`
+- `gemini-2.5-flash`
+- `gemini-2.5-flash-lite`
 
 **OpenAI**
-- `openai/gpt-4o`
-- `openai/gpt-4o-mini`
-- `openai/o1-mini`
-- `openai/o1-preview`
-- `openai/o3-mini`
+- `gpt-5-2025-08-07`
+- `gpt-4.1-2025-04-14`
+- `gpt-4o`
+- `gpt-4o-mini`
 
 **Anthropic Claude**
-- `anthropic/claude-3-5-sonnet-latest`
-- `anthropic/claude-3-7-sonnet-latest`
+- `claude-sonnet-4-5`
+- `claude-haiku-4-5`
 
-[View full list of supported models](https://docs.stagehand.dev/examples/custom_llms#supported-llms)
+[View full list of supported models](https://docs.stagehand.dev/v3/configuration/models#models)
 </Tab>
 
 <Tab title="Configuration Examples">
@@ -306,7 +278,7 @@ When using any custom model (non-default), you must provide your own API key for
       "command": "npx",
       "args": [
         "@browserbasehq/mcp-server-browserbase",
-        "--modelName", "openai/gpt-4o",
+        "--modelName", "gpt-4o",
         "--modelApiKey", "your_openai_api_key"
       ],
       "env": {
@@ -325,7 +297,7 @@ When using any custom model (non-default), you must provide your own API key for
       "command": "npx",
       "args": [
         "@browserbasehq/mcp-server-browserbase",
-        "--modelName", "anthropic/claude-3-5-sonnet-latest",
+        "--modelName", "claude-3-5-sonnet-latest",
         "--modelApiKey", "your_anthropic_api_key"
       ],
       "env": {
@@ -343,27 +315,6 @@ When using any custom model (non-default), you must provide your own API key for
 ## Development Configuration
 
 <Tabs>
-<Tab title="Debug Mode">
-Enable detailed logging for troubleshooting and development.
-
-```json
-{
-  "mcpServers": {
-    "browserbase": {
-      "command": "npx",
-      "args": ["@browserbasehq/mcp-server-browserbase"],
-      "env": {
-        "BROWSERBASE_API_KEY": "your_api_key",
-        "BROWSERBASE_PROJECT_ID": "your_project_id",
-        "GEMINI_API_KEY": "your_gemini_api_key",
-        "DEBUG": "true"
-      }
-    }
-  }
-}
-```
-</Tab>
-
 <Tab title="Custom Host/Port">
 Configure custom host and port for SHTTP transport.
 

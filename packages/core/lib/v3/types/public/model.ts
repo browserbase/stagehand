@@ -1,7 +1,43 @@
-import type { ClientOptions as AnthropicClientOptions } from "@anthropic-ai/sdk";
+import type { ClientOptions as AnthropicClientOptionsBase } from "@anthropic-ai/sdk";
+import type { GoogleVertexProviderSettings as GoogleVertexProviderSettingsBase } from "@ai-sdk/google-vertex";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { GoogleGenAIOptions as GoogleGenAIClientOptions } from "@google/genai";
 import type { ClientOptions as OpenAIClientOptions } from "openai";
+import type { ClientOptions as OpenAIClientOptionsBase } from "openai";
+import type { AgentProviderType } from "./agent";
+
+export type OpenAIClientOptions = Pick<
+  OpenAIClientOptionsBase,
+  "baseURL" | "apiKey"
+>;
+
+export type AnthropicClientOptions = Pick<
+  AnthropicClientOptionsBase,
+  "baseURL" | "apiKey"
+>;
+
+export interface GoogleServiceAccountCredentials {
+  type?: string;
+  project_id?: string;
+  private_key_id?: string;
+  private_key?: string;
+  client_email?: string;
+  client_id?: string;
+  auth_uri?: string;
+  token_uri?: string;
+  auth_provider_x509_cert_url?: string;
+  client_x509_cert_url?: string;
+  universe_domain?: string;
+}
+
+export type GoogleVertexProviderSettings = Pick<
+  GoogleVertexProviderSettingsBase,
+  "project" | "location"
+> & {
+  googleAuthOptions?: {
+    credentials?: GoogleServiceAccountCredentials;
+  };
+};
 
 export type AnthropicJsonSchemaObject = {
   definitions?: {
@@ -23,9 +59,7 @@ export interface LLMTool {
 
 export type AISDKProvider = (modelName: string) => LanguageModelV2;
 // Represents a function that takes options (like apiKey) and returns an AISDKProvider
-export type AISDKCustomProvider = (options: {
-  apiKey: string;
-}) => AISDKProvider;
+export type AISDKCustomProvider = (options: ClientOptions) => AISDKProvider;
 
 export type AvailableModel =
   | "gpt-4.1"
@@ -77,6 +111,24 @@ export type ClientOptions = (
     apiKey?: string;
     baseURL?: string;
   };
+  | GoogleVertexProviderSettings
+) & {
+  apiKey?: string;
+  provider?: AgentProviderType;
+  baseURL?: string;
+  /** OpenAI organization ID */
+  organization?: string;
+  /** Delay between agent actions in ms */
+  waitBetweenActions?: number;
+  /** Anthropic thinking budget for extended thinking */
+  thinkingBudget?: number;
+  /** Environment type for CUA agents (browser, mac, windows, ubuntu) */
+  environment?: string;
+  /** Max images for Microsoft FARA agent */
+  maxImages?: number;
+  /** Temperature for model inference */
+  temperature?: number;
+};
 
 export type ModelConfiguration =
   | AvailableModel

@@ -3,6 +3,7 @@ import type { Frame } from "./frame";
 import type { Page } from "./page";
 import { v3Logger } from "../logger";
 import { FrameLocator, frameLocatorFromFrame } from "./frameLocator";
+import { StagehandInvalidArgumentError } from "../types/public/sdkErrors";
 
 /**
  * Recognize iframe steps like "iframe" or "iframe[2]" in an XPath.
@@ -240,7 +241,9 @@ export class DeepLocatorDelegate {
   nth(index: number): DeepLocatorDelegate {
     const value = Number(index);
     if (!Number.isFinite(value) || value < 0) {
-      throw new Error("deepLocator().nth() expects a non-negative index");
+      throw new StagehandInvalidArgumentError(
+        "deepLocator().nth() expects a non-negative index",
+      );
     }
 
     const nextIndex = Math.floor(value);

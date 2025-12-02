@@ -1,5 +1,4 @@
 import Browserbase from "@browserbasehq/sdk";
-import { ZodTypeAny } from "zod/v3";
 import {
   Action,
   ActOptions,
@@ -7,6 +6,8 @@ import {
   LogLine,
   ObserveOptions,
 } from "../public";
+import type { Protocol } from "devtools-protocol";
+import type { StagehandZodSchema } from "../../zodCompat";
 
 export interface StagehandAPIConstructorParams {
   apiKey: string;
@@ -59,7 +60,7 @@ export interface APIActParameters {
 
 export interface APIExtractParameters {
   instruction?: string;
-  schema?: ZodTypeAny;
+  schema?: StagehandZodSchema;
   options?: ExtractOptions;
   frameId?: string;
 }
@@ -68,4 +69,15 @@ export interface APIObserveParameters {
   instruction?: string;
   options?: ObserveOptions;
   frameId?: string;
+}
+
+export interface SerializableResponse {
+  requestId: string;
+  frameId?: string;
+  loaderId?: string;
+  response: Protocol.Network.Response;
+  fromServiceWorkerFlag?: boolean;
+  finishedSettled?: boolean;
+  extraInfoHeaders?: Protocol.Network.Headers | null;
+  extraInfoHeadersText?: string;
 }

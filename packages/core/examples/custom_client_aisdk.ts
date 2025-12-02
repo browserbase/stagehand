@@ -7,7 +7,7 @@
  */
 import { Stagehand } from "../lib/v3";
 import { AISdkClient } from "./external_clients/aisdk";
-import { z } from "zod/v3";
+import { z } from "zod";
 import { openai } from "@ai-sdk/openai";
 
 async function example() {

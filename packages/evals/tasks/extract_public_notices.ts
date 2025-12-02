@@ -1,5 +1,5 @@
 import { EvalFunction } from "../types/evals";
-import { z } from "zod/v3";
+import { z } from "zod";
 import { compareStrings } from "../utils";
 
 export const extract_public_notices: EvalFunction = async ({

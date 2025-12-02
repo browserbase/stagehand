@@ -5,8 +5,8 @@ icon: 'hand-horns'
 ---
 
 <CardGroup cols={1}>
-<Card title="Getting Started" icon="rocket" href="/v3/getting-started">
-  Learn how to initialize and use Stagehand
+<Card title="Getting Started" icon="rocket" href="/v3/first-steps/quickstart">
+  The fastest way to start using Stagehand
 </Card>
 </CardGroup>
 
@@ -317,34 +317,44 @@ Get usage metrics for AI operations.
 const metrics = await stagehand.metrics;
 ```
 
-**Returns:** `Promise<V3Metrics>`
+**Returns:** `Promise<StagehandMetrics>`
 
-**V3Metrics Interface:**
+**StagehandMetrics Interface:**
 ```typescript
-interface V3Metrics {
+interface StagehandMetrics {
   // Act metrics
   actPromptTokens: number;
   actCompletionTokens: number;
+  actReasoningTokens: number;
+  actCachedInputTokens: number;
   actInferenceTimeMs: number;
 
   // Extract metrics
   extractPromptTokens: number;
   extractCompletionTokens: number;
+  extractReasoningTokens: number;
+  extractCachedInputTokens: number;
   extractInferenceTimeMs: number;
 
   // Observe metrics
   observePromptTokens: number;
   observeCompletionTokens: number;
+  observeReasoningTokens: number;
+  observeCachedInputTokens: number;
   observeInferenceTimeMs: number;
 
   // Agent metrics
   agentPromptTokens: number;
   agentCompletionTokens: number;
+  agentReasoningTokens: number;
+  agentCachedInputTokens: number;
   agentInferenceTimeMs: number;
 
   // Totals
   totalPromptTokens: number;
   totalCompletionTokens: number;
+  totalReasoningTokens: number;
+  totalCachedInputTokens: number;
   totalInferenceTimeMs: number;
 }
 ```
@@ -368,6 +378,36 @@ interface HistoryEntry {
   timestamp: string;
 }
 ```
+
+### browserbaseSessionID
+
+Browserbase session identifier for the active Browserbase run.
+
+```typescript
+const sessionId = stagehand.browserbaseSessionID;
+```
+
+**Type:** `string | undefined` — undefined for LOCAL runs or before `init()`.
+
+### browserbaseSessionURL
+
+Shareable link to the active Browserbase session dashboard.
+
+```typescript
+const sessionUrl = stagehand.browserbaseSessionURL;
+```
+
+**Type:** `string | undefined` — undefined until a Browserbase session is active.
+
+### browserbaseDebugURL
+
+Debugger URL returned by Browserbase for direct CDP inspection.
+
+```typescript
+const debugUrl = stagehand.browserbaseDebugURL;
+```
+
+**Type:** `string | undefined` — undefined for LOCAL runs or if Browserbase doesn’t provide one.
 
 ## Code Examples
 

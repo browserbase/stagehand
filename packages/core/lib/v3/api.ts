@@ -1,6 +1,4 @@
 import makeFetchCookie from "fetch-cookie";
-import zodToJsonSchema from "zod-to-json-schema";
-import z from "zod/v3";
 import { Action } from "./types/public";
 import { STAGEHAND_VERSION } from "../version";
 import {
@@ -20,13 +18,40 @@ import {
   AgentResult,
   ExtractResult,
   LogLine,
+  StagehandMetrics,
   StagehandAPIError,
   StagehandAPIUnauthorizedError,
   StagehandHttpError,
   StagehandResponseBodyError,
   StagehandResponseParseError,
   StagehandServerError,
+  ExperimentalNotConfiguredError,
 } from "./types/public";
+import type { SerializableResponse } from "./types/private";
+import { toJsonSchema } from "./zodCompat";
+import type { StagehandZodSchema } from "./zodCompat";
+
+/**
+ * API response structure for replay metrics endpoint
+ */
+interface ReplayMetricsResponse {
+  success: boolean;
+  data?: {
+    pages?: Array<{
+      actions?: Array<{
+        method?: string;
+        tokenUsage?: {
+          inputTokens?: number;
+          outputTokens?: number;
+          reasoningTokens?: number;
+          cachedInputTokens?: number;
+          timeMs?: number;
+        };
+      }>;
+    }>;
+  };
+  error?: string;
+}
 
 export class StagehandAPIClient {
   private apiKey: string;
@@ -132,13 +157,13 @@ export class StagehandAPIClient {
     });
   }
 
-  async extract<T extends z.AnyZodObject>({
+  async extract<T extends StagehandZodSchema>({
     instruction,
     schema: zodSchema,
     options,
     frameId,
   }: APIExtractParameters): Promise<ExtractResult<T>> {
-    const jsonSchema = zodSchema ? zodToJsonSchema(zodSchema) : undefined;
+    const jsonSchema = zodSchema ? toJsonSchema(zodSchema) : undefined;
 
     const args: Record<string, unknown> = {
       schema: jsonSchema,
@@ -188,8 +213,8 @@ export class StagehandAPIClient {
     url: string,
     options?: { waitUntil?: "load" | "domcontentloaded" | "networkidle" },
     frameId?: string,
-  ): Promise<void> {
-    return this.execute<void>({
+  ): Promise<SerializableResponse | null> {
+    return this.execute<SerializableResponse | null>({
       method: "navigate",
       args: { url, options, frameId },
     });
@@ -202,9 +227,7 @@ export class StagehandAPIClient {
   ): Promise<AgentResult> {
     // Check if integrations are being used in API mode
     if (agentConfig.integrations && agentConfig.integrations.length > 0) {
-      throw new StagehandAPIError(
-        "MCP integrations are not supported in API mode. Set experimental: true to use MCP integrations.",
-      );
+      throw new ExperimentalNotConfiguredError("MCP integrations");
     }
     if (typeof executeOptions === "object") {
       if (executeOptions.page) {
@@ -225,6 +248,121 @@ export class StagehandAPIClient {
       method: "POST",
     });
     return response;
+  }
+
+  async getReplayMetrics(): Promise<StagehandMetrics> {
+    if (!this.sessionId) {
+      throw new StagehandAPIError("sessionId is required to fetch metrics.");
+    }
+
+    const response = await this.request(`/sessions/${this.sessionId}/replay`, {
+      method: "GET",
+    });
+
+    if (response.status !== 200) {
+      const errorText = await response.text();
+      this.logger({
+        category: "api",
+        message: `Failed to fetch metrics. Status ${response.status}: ${errorText}`,
+        level: 0,
+      });
+      throw new StagehandHttpError(
+        `Failed to fetch metrics with status ${response.status}: ${errorText}`,
+      );
+    }
+
+    const data = (await response.json()) as ReplayMetricsResponse;
+
+    if (!data.success) {
+      throw new StagehandAPIError(
+        `Failed to fetch metrics: ${data.error || "Unknown error"}`,
+      );
+    }
+
+    // Parse the API data into StagehandMetrics format
+    const apiData = data.data || {};
+    const metrics: StagehandMetrics = {
+      actPromptTokens: 0,
+      actCompletionTokens: 0,
+      actReasoningTokens: 0,
+      actCachedInputTokens: 0,
+      actInferenceTimeMs: 0,
+      extractPromptTokens: 0,
+      extractCompletionTokens: 0,
+      extractReasoningTokens: 0,
+      extractCachedInputTokens: 0,
+      extractInferenceTimeMs: 0,
+      observePromptTokens: 0,
+      observeCompletionTokens: 0,
+      observeReasoningTokens: 0,
+      observeCachedInputTokens: 0,
+      observeInferenceTimeMs: 0,
+      agentPromptTokens: 0,
+      agentCompletionTokens: 0,
+      agentReasoningTokens: 0,
+      agentCachedInputTokens: 0,
+      agentInferenceTimeMs: 0,
+      totalPromptTokens: 0,
+      totalCompletionTokens: 0,
+      totalReasoningTokens: 0,
+      totalCachedInputTokens: 0,
+      totalInferenceTimeMs: 0,
+    };
+
+    // Parse pages and their actions
+    const pages = apiData.pages || [];
+    for (const page of pages) {
+      const actions = page.actions || [];
+      for (const action of actions) {
+        // Get method name and token usage
+        const method = (action.method || "").toLowerCase();
+        const tokenUsage = action.tokenUsage;
+
+        if (tokenUsage) {
+          const inputTokens = tokenUsage.inputTokens || 0;
+          const outputTokens = tokenUsage.outputTokens || 0;
+          const reasoningTokens = tokenUsage.reasoningTokens || 0;
+          const cachedInputTokens = tokenUsage.cachedInputTokens || 0;
+          const timeMs = tokenUsage.timeMs || 0;
+
+          // Map method to metrics fields
+          if (method === "act") {
+            metrics.actPromptTokens += inputTokens;
+            metrics.actCompletionTokens += outputTokens;
+            metrics.actReasoningTokens += reasoningTokens;
+            metrics.actCachedInputTokens += cachedInputTokens;
+            metrics.actInferenceTimeMs += timeMs;
+          } else if (method === "extract") {
+            metrics.extractPromptTokens += inputTokens;
+            metrics.extractCompletionTokens += outputTokens;
+            metrics.extractReasoningTokens += reasoningTokens;
+            metrics.extractCachedInputTokens += cachedInputTokens;
+            metrics.extractInferenceTimeMs += timeMs;
+          } else if (method === "observe") {
+            metrics.observePromptTokens += inputTokens;
+            metrics.observeCompletionTokens += outputTokens;
+            metrics.observeReasoningTokens += reasoningTokens;
+            metrics.observeCachedInputTokens += cachedInputTokens;
+            metrics.observeInferenceTimeMs += timeMs;
+          } else if (method === "agent") {
+            metrics.agentPromptTokens += inputTokens;
+            metrics.agentCompletionTokens += outputTokens;
+            metrics.agentReasoningTokens += reasoningTokens;
+            metrics.agentCachedInputTokens += cachedInputTokens;
+            metrics.agentInferenceTimeMs += timeMs;
+          }
+
+          // Always update totals for any method with token usage
+          metrics.totalPromptTokens += inputTokens;
+          metrics.totalCompletionTokens += outputTokens;
+          metrics.totalReasoningTokens += reasoningTokens;
+          metrics.totalCachedInputTokens += cachedInputTokens;
+          metrics.totalInferenceTimeMs += timeMs;
+        }
+      }
+    }
+
+    return metrics;
   }
 
   private async execute<T>({

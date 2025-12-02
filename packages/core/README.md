@@ -2,8 +2,8 @@
   <ul style="list-style: none; margin: 0; padding: 0;">
     <a href="https://stagehand.dev">
       <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="media/dark_logo.png" />
-        <img alt="Stagehand" src="media/light_logo.png" width="200" style="margin-right: 30px;" />
+        <source media="(prefers-color-scheme: dark)" srcset="../../media/dark_logo.png" />
+        <img alt="Stagehand" src="../../media/light_logo.png" width="200" style="margin-right: 30px;" />
       </picture>
     </a>
   </ul>
@@ -16,20 +16,26 @@
 <p align="center">
   <a href="https://github.com/browserbase/stagehand/tree/main?tab=MIT-1-ov-file#MIT-1-ov-file">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="media/dark_license.svg" />
-      <img alt="MIT License" src="media/light_license.svg" />
+      <source media="(prefers-color-scheme: dark)" srcset="../../media/dark_license.svg" />
+      <img alt="MIT License" src="../../media/light_license.svg" />
     </picture>
   </a>
-  <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-38khc8iv5-T2acb50_0OILUaX7lxeBOg">
+  <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-3hgv6bwqu-s7MXXgPd7_rD53aViGo1MQ">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="media/dark_slack.svg" />
-      <img alt="Slack Community" src="media/light_slack.svg" />
+      <source media="(prefers-color-scheme: dark)" srcset="../../media/dark_slack.svg" />
+      <img alt="Slack Community" src="../../media/light_slack.svg" />
     </picture>
   </a>
 </p>
 
 <p align="center">
 	<a href="https://trendshift.io/repositories/12122" target="_blank"><img src="https://trendshift.io/api/badge/repositories/12122" alt="browserbase%2Fstagehand | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+</p>
+
+<p align="center">
+  <a href="https://deepwiki.com/browserbase/stagehand">
+    <img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg" />
+  </a>
 </p>
 
 <p align="center">
@@ -45,7 +51,7 @@ If you're looking for the Python implementation, you can find it
   </a>
   <span> </span>
   <picture>
-    <img alt="Director" src="media/director_icon.svg" width="25" />
+    <img alt="Director" src="../../media/director_icon.svg" width="25" />
   </picture>
 </div>
 
@@ -118,12 +124,22 @@ cp .env.example .env
 nano .env # Edit the .env file to add API keys
 ```
 
+### Installing from a branch
+
+You can install and build Stagehand directly from a github branch using [gitpkg](https://github.com/EqualMa/gitpkg)
+
+In your project's `package.json` set:
+
+```json
+"@browserbasehq/stagehand": "https://gitpkg.now.sh/browserbase/stagehand/packages/core?<branchName>",
+```
+
 ## Contributing
 
 > [!NOTE]  
-> We highly value contributions to Stagehand! For questions or support, please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-38khc8iv5-T2acb50_0OILUaX7lxeBOg).
+> We highly value contributions to Stagehand! For questions or support, please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-3hgv6bwqu-s7MXXgPd7_rD53aViGo1MQ).
 
-At a high level, we're focused on improving reliability, extensibility, speed, and cost in that order of priority. If you're interested in contributing, **bug fixes and small improvements are the best way to get started**. For more involved features, we strongly recommend reaching out to [Miguel Gonzalez](https://x.com/miguel_gonzf) or [Paul Klein](https://x.com/pk_iv) in our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-38khc8iv5-T2acb50_0OILUaX7lxeBOg) before starting to ensure that your contribution aligns with our goals.
+At a high level, we're focused on improving reliability, extensibility, speed, and cost in that order of priority. If you're interested in contributing, **bug fixes and small improvements are the best way to get started**. For more involved features, we strongly recommend reaching out to [Miguel Gonzalez](https://x.com/miguel_gonzf) or [Paul Klein](https://x.com/pk_iv) in our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-3hgv6bwqu-s7MXXgPd7_rD53aViGo1MQ) before starting to ensure that your contribution aligns with our goals.
 
 <!-- For more information, please see our [Contributing Guide](https://docs.stagehand.dev/examples/contributing). -->
 
