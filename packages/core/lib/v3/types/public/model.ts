@@ -1,8 +1,41 @@
-import type { ClientOptions as AnthropicClientOptions } from "@anthropic-ai/sdk";
-import type { GoogleVertexProviderSettings } from "@ai-sdk/google-vertex";
+import type { ClientOptions as AnthropicClientOptionsBase } from "@anthropic-ai/sdk";
+import type { GoogleVertexProviderSettings as GoogleVertexProviderSettingsBase } from "@ai-sdk/google-vertex";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
-import type { ClientOptions as OpenAIClientOptions } from "openai";
+import type { ClientOptions as OpenAIClientOptionsBase } from "openai";
 import type { AgentProviderType } from "./agent";
+
+export type OpenAIClientOptions = Omit<
+  OpenAIClientOptionsBase,
+  "httpAgent" | "fetch" | "defaultHeaders" | "dangerouslyAllowBrowser"
+>;
+
+export type AnthropicClientOptions = Omit<
+  AnthropicClientOptionsBase,
+  "httpAgent" | "fetch" | "defaultHeaders" | "dangerouslyAllowBrowser"
+>;
+
+export interface GoogleServiceAccountCredentials {
+  type?: string;
+  project_id?: string;
+  private_key_id?: string;
+  private_key?: string;
+  client_email?: string;
+  client_id?: string;
+  auth_uri?: string;
+  token_uri?: string;
+  auth_provider_x509_cert_url?: string;
+  client_x509_cert_url?: string;
+  universe_domain?: string;
+}
+
+export type GoogleVertexProviderSettings = Omit<
+  GoogleVertexProviderSettingsBase,
+  "headers" | "fetch" | "googleAuthOptions"
+> & {
+  googleAuthOptions?: {
+    credentials?: GoogleServiceAccountCredentials;
+  };
+};
 
 export type AnthropicJsonSchemaObject = {
   definitions?: {
