@@ -14,6 +14,7 @@ import type {
   ModelConfiguration,
 } from "../types/public";
 import type { StagehandZodSchema } from "../zodCompat";
+import { jsonSchemaToZod, type JsonSchema } from "../../utils";
 import { SessionManager } from "./sessions";
 import { createStreamingResponse } from "./stream";
 import {
@@ -417,10 +418,15 @@ export class StagehandServer {
 
           if (data.instruction) {
             if (data.schema) {
-              // Convert JSON schema to Zod schema
-              // For simplicity, we'll just pass the data through
-              // The cloud API does jsonSchemaToZod conversion but that's complex
-              result = await stagehand.extract(data.instruction, safeOptions);
+              // Convert JSON schema (sent by StagehandAPIClient) back to a Zod schema
+              const zodSchema = jsonSchemaToZod(
+                data.schema as unknown as JsonSchema,
+              ) as StagehandZodSchema;
+              result = await stagehand.extract(
+                data.instruction,
+                zodSchema,
+                safeOptions,
+              );
             } else {
               result = await stagehand.extract(data.instruction, safeOptions);
             }
