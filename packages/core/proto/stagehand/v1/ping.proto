@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package stagehand.v1;
+
+import "google/protobuf/timestamp.proto";
+
+message PingRequest {
+  // Timestamp representing when the client emitted the ping.
+  google.protobuf.Timestamp client_send_time = 1;
+}
+
+message PingResponse {
+  // Echo of the client's send time so latency can be derived from RTT.
+  google.protobuf.Timestamp client_send_time = 1;
+
+  // Timestamp representing when the server crafted the response.
+  google.protobuf.Timestamp server_send_time = 2;
+}
+
+service StagehandPingService {
+  rpc Ping(PingRequest) returns (PingResponse);
+}
