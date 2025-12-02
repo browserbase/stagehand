@@ -1,8 +1,7 @@
 import type { ClientOptions as AnthropicClientOptionsBase } from "@anthropic-ai/sdk";
 import type { GoogleVertexProviderSettings as GoogleVertexProviderSettingsBase } from "@ai-sdk/google-vertex";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
-import { GoogleGenAIOptions as GoogleGenAIClientOptions } from "@google/genai";
-import type { ClientOptions as OpenAIClientOptions } from "openai";
+import type { GoogleGenAIOptions as GoogleGenAIOptionsBase } from "@google/genai";
 import type { ClientOptions as OpenAIClientOptionsBase } from "openai";
 import type { AgentProviderType } from "./agent";
 
@@ -33,6 +32,15 @@ export interface GoogleServiceAccountCredentials {
 export type GoogleVertexProviderSettings = Pick<
   GoogleVertexProviderSettingsBase,
   "project" | "location"
+> & {
+  googleAuthOptions?: {
+    credentials?: GoogleServiceAccountCredentials;
+  };
+};
+
+export type GoogleGenAIClientOptions = Pick<
+  GoogleGenAIOptionsBase,
+  "vertexai" | "project" | "location" | "apiKey"
 > & {
   googleAuthOptions?: {
     credentials?: GoogleServiceAccountCredentials;
@@ -105,12 +113,6 @@ export type ClientOptions = (
   | OpenAIClientOptions
   | AnthropicClientOptions
   | GoogleGenAIClientOptions
-) &
-  // aisdk client language model options
-  {
-    apiKey?: string;
-    baseURL?: string;
-  };
   | GoogleVertexProviderSettings
 ) & {
   apiKey?: string;
