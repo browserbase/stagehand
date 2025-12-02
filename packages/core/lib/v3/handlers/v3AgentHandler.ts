@@ -22,6 +22,7 @@ import {
   AgentState,
   AgentStreamResult,
   AgentStreamCallbacks,
+  AgentToolName,
 } from "../types/public/agent";
 import { V3FunctionName } from "../types/public/methods";
 import { mapToolResultToActions } from "../agent/utils/actionMapping";
@@ -34,6 +35,7 @@ export class V3AgentHandler {
   private executionModel?: string;
   private systemInstructions?: string;
   private mcpTools?: ToolSet;
+  private excludeTools?: AgentToolName[];
 
   constructor(
     v3: V3,
@@ -42,6 +44,7 @@ export class V3AgentHandler {
     executionModel?: string,
     systemInstructions?: string,
     mcpTools?: ToolSet,
+    excludeTools?: AgentToolName[],
   ) {
     this.v3 = v3;
     this.logger = logger;
@@ -49,6 +52,7 @@ export class V3AgentHandler {
     this.executionModel = executionModel;
     this.systemInstructions = systemInstructions;
     this.mcpTools = mcpTools;
+    this.excludeTools = excludeTools;
   }
 
   private async prepareAgent(
@@ -374,13 +378,43 @@ export class V3AgentHandler {
     if (systemInstructions) {
       return `${systemInstructions}\nYour current goal: ${executionInstruction} when the task is complete, use the "close" tool with taskComplete: true`;
     }
-    return `You are a web automation assistant using browser automation tools to accomplish the user's goal.\n\nYour task: ${executionInstruction}\n\nYou have access to various browser automation tools. Use them step by step to complete the task.\n\nIMPORTANT GUIDELINES:\n1. Always start by understanding the current page state\n2. Use the screenshot tool to verify page state when needed\n3. Use appropriate tools for each action\n4. When the task is complete, use the "close" tool with taskComplete: true\n5. If the task cannot be completed, use "close" with taskComplete: false\n\nTOOLS OVERVIEW:\n- screenshot: Take a PNG screenshot for quick visual context (use sparingly)\n- ariaTree: Get an accessibility (ARIA) hybrid tree for full page context\n- act: Perform a specific atomic action (click, type, etc.)\n- extract: Extract structured data\n- goto: Navigate to a URL\n- wait/navback/refresh: Control timing and navigation\n- scroll: Scroll the page x pixels up or down\n\nSTRATEGY:\n- Prefer ariaTree to understand the page before acting; use screenshot for confirmation.\n- Keep actions atomic and verify outcomes before proceeding.`;
+
+    const toolsOverview = this.buildToolsOverview();
+
+    return `You are a web automation assistant using browser automation tools to accomplish the user's goal.\n\nYour task: ${executionInstruction}\n\nYou have access to various browser automation tools. Use them step by step to complete the task.\n\nIMPORTANT GUIDELINES:\n1. Always start by understanding the current page state\n2. Use the screenshot tool to verify page state when needed\n3. Use appropriate tools for each action\n4. When the task is complete, use the "close" tool with taskComplete: true\n5. If the task cannot be completed, use "close" with taskComplete: false\n\nTOOLS OVERVIEW:\n${toolsOverview}\n\nSTRATEGY:\n- Prefer ariaTree to understand the page before acting; use screenshot for confirmation.\n- Keep actions atomic and verify outcomes before proceeding.`;
+  }
+
+  private buildToolsOverview(): string {
+    const toolDescriptions: Record<AgentToolName, string> = {
+      screenshot:
+        "screenshot: Take a PNG screenshot for quick visual context (use sparingly)",
+      ariaTree:
+        "ariaTree: Get an accessibility (ARIA) hybrid tree for full page context",
+      act: "act: Perform a specific atomic action (click, type, etc.)",
+      extract: "extract: Extract structured data",
+      goto: "goto: Navigate to a URL",
+      wait: "wait: Wait for a specified amount of time",
+      navback: "navback: Navigate back to the previous page",
+      scroll: "scroll: Scroll the page x pixels up or down",
+      fillForm: "fillForm: Fill in form fields with provided data",
+      close:
+        "close: Complete the task (use with taskComplete: true when done, false if unable to complete)",
+    };
+
+    const excludeSet = new Set(this.excludeTools ?? []);
+    const availableTools = (Object.keys(toolDescriptions) as AgentToolName[])
+      .filter((tool) => !excludeSet.has(tool))
+      .map((tool) => `- ${toolDescriptions[tool]}`)
+      .join("\n");
+
+    return availableTools;
   }
 
   private createTools() {
     return createAgentTools(this.v3, {
       executionModel: this.executionModel,
       logger: this.logger,
+      excludeTools: this.excludeTools,
     });
   }
 

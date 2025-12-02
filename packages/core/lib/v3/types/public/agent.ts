@@ -415,6 +415,22 @@ export type AgentModelConfig<TModelName extends string = string> = {
   modelName: TModelName;
 } & Record<string, unknown>;
 
+/**
+ * Available built-in agent tool names.
+ * Use these names with excludeTools to filter out specific tools.
+ */
+export type AgentToolName =
+  | "act"
+  | "ariaTree"
+  | "close"
+  | "extract"
+  | "fillForm"
+  | "goto"
+  | "navback"
+  | "screenshot"
+  | "scroll"
+  | "wait";
+
 export type AgentConfig = {
   /**
    * Custom system prompt to provide to the agent. Overrides the default system prompt.
@@ -448,6 +464,12 @@ export type AgentConfig = {
    * When false (default), execute() returns AgentResult after completion.
    */
   stream?: boolean;
+  /**
+   * Array of built-in tool names to exclude from the agent.
+   * These tools will not be available to the agent during execution.
+   * @example excludeTools: ["screenshot", "scroll"]
+   */
+  excludeTools?: AgentToolName[];
 };
 
 /**

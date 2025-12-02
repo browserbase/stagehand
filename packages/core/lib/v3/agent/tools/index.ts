@@ -10,16 +10,19 @@ import { createScrollTool } from "./v3-scroll";
 import { createExtractTool } from "./v3-extract";
 import type { V3 } from "../../v3";
 import type { LogLine } from "../../types/public/logs";
+import type { AgentToolName } from "../../types/public/agent";
 
 export interface V3AgentToolOptions {
   executionModel?: string;
   logger?: (message: LogLine) => void;
+  excludeTools?: AgentToolName[];
 }
 
 export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const executionModel = options?.executionModel;
+  const excludeTools = new Set(options?.excludeTools ?? []);
 
-  return {
+  const allTools = {
     act: createActTool(v3, executionModel),
     ariaTree: createAriaTreeTool(v3),
     close: createCloseTool(),
@@ -31,6 +34,15 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     scroll: createScrollTool(v3),
     wait: createWaitTool(v3),
   };
+
+  // Filter out excluded tools
+  const filteredTools = Object.fromEntries(
+    Object.entries(allTools).filter(
+      ([name]) => !excludeTools.has(name as AgentToolName),
+    ),
+  ) as Partial<typeof allTools>;
+
+  return filteredTools;
 }
 
 export type AgentTools = ReturnType<typeof createAgentTools>;

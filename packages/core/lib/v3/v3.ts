@@ -1545,6 +1545,7 @@ export class V3 {
         : options?.executionModel?.modelName,
       options?.systemPrompt,
       tools,
+      options?.excludeTools,
     );
 
     const resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions =
