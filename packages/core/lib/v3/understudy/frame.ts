@@ -3,6 +3,7 @@ import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp";
 import { Locator } from "./locator";
 import { StagehandEvalError } from "../types/public/sdkErrors";
+import { executionContexts } from "./executionContextRegistry";
 
 interface FrameManager {
   session: CDPSessionLike;
@@ -116,7 +117,7 @@ export class Frame implements FrameManager {
   }
 
   /**
-   * Evaluate a function or expression in this frame's isolated world.
+   * Evaluate a function or expression in this frame's main world.
    * - If a string is provided, treated as a JS expression.
    * - If a function is provided, it is stringified and invoked with the optional argument.
    */
@@ -125,7 +126,7 @@ export class Frame implements FrameManager {
     arg?: Arg,
   ): Promise<R> {
     await this.session.send("Runtime.enable").catch(() => {});
-    const contextId = await this.getExecutionContextId();
+    const contextId = await this.getMainWorldExecutionContextId();
 
     const isString = typeof pageFunctionOrExpression === "string";
     let expression: string;
@@ -293,16 +294,8 @@ export class Frame implements FrameManager {
     return new Locator(this, selector, options);
   }
 
-  /** Create/get an isolated world for this frame and return its executionContextId */
-  private async getExecutionContextId(): Promise<number> {
-    await this.session.send("Page.enable");
-    await this.session.send("Runtime.enable");
-    const { executionContextId } = await this.session.send<{
-      executionContextId: number;
-    }>("Page.createIsolatedWorld", {
-      frameId: this.frameId,
-      worldName: "v3-world",
-    });
-    return executionContextId;
+  /** Resolve the main-world execution context id for this frame. */
+  private async getMainWorldExecutionContextId(): Promise<number> {
+    return executionContexts.waitForMainWorld(this.session, this.frameId, 1000);
   }
 }
