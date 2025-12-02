@@ -1,0 +1,24 @@
+{
+  "name": "@browserbasehq/stagehand-sdk",
+  "version": "0.0.0",
+  "description": "Stagehand thin-client SDK stubs",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "stagehand",
+    "sdk",
+    "browserbase"
+  ],
+  "author": "Browserbase",
+  "license": "MIT"
+}

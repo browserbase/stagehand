@@ -1,10 +1,7 @@
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { ToolSet, ModelMessage, wrapLanguageModel, StreamTextResult } from "ai";
 import { LogLine } from "./logs";
-import { Page as PlaywrightPage } from "playwright-core";
-import { Page as PuppeteerPage } from "puppeteer-core";
-import { Page as PatchrightPage } from "patchright-core";
-import { Page } from "../../understudy/page";
+import { AnyPage } from "./page";
 
 export interface AgentContext {
   options: AgentExecuteOptions;
@@ -59,7 +56,7 @@ export type AgentStreamResult = StreamTextResult<ToolSet, never> & {
 export interface AgentExecuteOptions {
   instruction: string;
   maxSteps?: number;
-  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  page?: AnyPage;
   highlightCursor?: boolean;
 }
 export type AgentType = "openai" | "anthropic" | "google" | "microsoft";
