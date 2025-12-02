@@ -477,7 +477,7 @@ export class GoogleCUAClient extends AgentClient {
                 level: 2,
               });
 
-              const screenshot = await this.captureScreenshot();
+              const screenshot = await this.captureScreenshot(logger);
               const base64Data = screenshot.replace(
                 /^data:image\/png;base64,/,
                 "",
@@ -511,10 +511,15 @@ export class GoogleCUAClient extends AgentClient {
                 functionResponses.push(functionResponsePart);
               }
             } catch (error) {
+              const errorMessage =
+                error instanceof Error ? error.message : String(error);
               logger({
                 category: "agent",
-                message: `Error capturing screenshot: ${error}`,
+                message: `Error capturing screenshot: ${errorMessage}`,
                 level: 0,
+                auxiliary: {
+                  error: { value: errorMessage, type: "string" },
+                },
               });
             }
           }
@@ -609,7 +614,10 @@ export class GoogleCUAClient extends AgentClient {
         });
 
         // Convert function call to action(s)
-        const action = this.convertFunctionCallToAction(part.functionCall);
+        const action = this.convertFunctionCallToAction(
+          part.functionCall,
+          logger,
+        );
         if (action) {
           // Special handling for type_text_at - we need to click first
           if (
@@ -688,6 +696,7 @@ export class GoogleCUAClient extends AgentClient {
    */
   private convertFunctionCallToAction(
     functionCall: FunctionCall,
+    logger: (message: LogLine) => void,
   ): AgentAction | null {
     const { name, args } = functionCall;
 
@@ -857,7 +866,11 @@ export class GoogleCUAClient extends AgentClient {
             pageUrl: this.currentUrl,
           };
         }
-        console.warn(`Unsupported Google CUA function: ${name}`);
+        logger({
+          category: "agent",
+          message: `Unsupported Google CUA function: ${name}`,
+          level: 1,
+        });
         return null;
     }
   }
@@ -874,10 +887,13 @@ export class GoogleCUAClient extends AgentClient {
     };
   }
 
-  async captureScreenshot(options?: {
-    base64Image?: string;
-    currentUrl?: string;
-  }): Promise<string> {
+  async captureScreenshot(
+    logger: (message: LogLine) => void,
+    options?: {
+      base64Image?: string;
+      currentUrl?: string;
+    },
+  ): Promise<string> {
     // Update current URL if provided
     if (options?.currentUrl) {
       this.currentUrl = options.currentUrl;
@@ -894,7 +910,20 @@ export class GoogleCUAClient extends AgentClient {
         const base64Image = await this.screenshotProvider();
         return `data:image/png;base64,${base64Image}`;
       } catch (error) {
-        console.error("Error capturing screenshot:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        logger({
+          category: "agent",
+          message: `Error capturing screenshot: ${errorMessage}`,
+          level: 0,
+          auxiliary: {
+            error: { value: errorMessage, type: "string" },
+            stack: {
+              value: error instanceof Error ? error.stack || "" : "",
+              type: "string",
+            },
+          },
+        });
         throw error;
       }
     }

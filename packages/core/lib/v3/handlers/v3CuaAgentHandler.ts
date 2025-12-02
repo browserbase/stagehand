@@ -521,7 +521,7 @@ export class V3CuaAgentHandler {
         this.screenshotCollector.addScreenshot(base64Image);
       }
       const currentUrl = page.url();
-      return await this.agentClient.captureScreenshot({
+      return await this.agentClient.captureScreenshot(this.logger, {
         base64Image,
         currentUrl,
       });
