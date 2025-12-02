@@ -8,6 +8,7 @@ import { FrameLocator } from "./frameLocator";
 import { deepLocatorFromPage } from "./deepLocator";
 import { resolveXpathForLocation } from "./a11y/snapshot";
 import { FrameRegistry } from "./frameRegistry";
+import { executionContexts } from "./executionContextRegistry";
 import { LoadState } from "../types/public/page";
 import { NetworkManager } from "./networkManager";
 import { LifecycleWatcher } from "./lifecycleWatcher";
@@ -132,7 +133,9 @@ export class Page {
     session: CDPSessionLike,
     source: string,
   ): Promise<void> {
-    await session.send("Page.addScriptToEvaluateOnNewDocument", { source });
+    await session.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: source,
+    });
   }
 
   // Replay every previously registered init script onto a newly adopted session.
@@ -975,7 +978,7 @@ export class Page {
   async title(): Promise<string> {
     try {
       await this.mainSession.send("Runtime.enable").catch(() => {});
-      const ctxId = await this.createIsolatedWorldForCurrentMain();
+      const ctxId = await this.mainWorldExecutionContextId();
       const { result } =
         await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
           "Runtime.evaluate",
@@ -1157,7 +1160,7 @@ export class Page {
   }
 
   /**
-   * Evaluate a function or expression in the current main frame's isolated world.
+   * Evaluate a function or expression in the current main frame's main world.
    * - If a string is provided, it is treated as a JS expression.
    * - If a function is provided, it is stringified and invoked with the optional argument.
    * - The return value should be JSON-serializable. Non-serializable objects will
@@ -1168,7 +1171,7 @@ export class Page {
     arg?: Arg,
   ): Promise<R> {
     await this.mainSession.send("Runtime.enable").catch(() => {});
-    const ctxId = await this.createIsolatedWorldForCurrentMain();
+    const ctxId = await this.mainWorldExecutionContextId();
 
     const isString = typeof pageFunctionOrExpression === "string";
     let expression: string;
@@ -1979,18 +1982,13 @@ export class Page {
 
   // ---- Page-level lifecycle waiter that follows main frame id swaps ----
 
-  /**
-   * Create an isolated world for the **current** main frame and return its context id.
-   */
-  private async createIsolatedWorldForCurrentMain(): Promise<number> {
-    await this.mainSession.send("Runtime.enable").catch(() => {});
-    const { executionContextId } = await this.mainSession.send<{
-      executionContextId: number;
-    }>("Page.createIsolatedWorld", {
-      frameId: this.mainFrameId(),
-      worldName: "v3-world",
-    });
-    return executionContextId;
+  /** Resolve the main-world execution context for the current main frame. */
+  private async mainWorldExecutionContextId(): Promise<number> {
+    return executionContexts.waitForMainWorld(
+      this.mainSession,
+      this.mainFrameId(),
+      1000,
+    );
   }
 
   /**
@@ -2009,7 +2007,7 @@ export class Page {
 
     // Fast path: check the *current* main frame's readyState.
     try {
-      const ctxId = await this.createIsolatedWorldForCurrentMain();
+      const ctxId = await this.mainWorldExecutionContextId();
       const { result } =
         await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
           "Runtime.evaluate",
