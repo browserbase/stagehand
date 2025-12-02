@@ -106,6 +106,7 @@ export type ClientOptions = (
 ) & {
   apiKey?: string;
   provider?: AgentProviderType;
+  baseURL?: string;
   /** OpenAI organization ID */
   organization?: string;
   /** Delay between agent actions in ms */
