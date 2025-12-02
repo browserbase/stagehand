@@ -1,0 +1,33 @@
+CUA Handler Primitives
+======================
+
+Mouse/Touch Actions
+-------------------
+- click - Click at coordinates (x, y) with optional button and clickCount
+- double_click / doubleClick - Double-click at coordinates (x, y)
+- tripleClick - Triple-click at coordinates (x, y)
+- drag - Drag and drop along a path array
+- move - Cursor move (no-op, visualization handled by overlay)
+
+Keyboard Actions
+----------------
+- type - Type text into the currently active/focused element
+- keypress - Press one or more keyboard keys (supports array)
+
+Navigation Actions
+------------------
+- scroll - Scroll the page with optional anchor point and delta values
+- goto - Navigate to a URL (waits for page load)
+- back - Navigate back in browser history
+- forward - Navigate forward in browser history
+
+Utility Actions
+---------------
+- wait - Wait for a specified duration (default: 1000ms)
+- screenshot - Capture screenshot (handled automatically around actions)
+- open_web_browser - No-op (browser already open)
+
+Custom Actions
+--------------
+- custom_tool - Custom tool execution (handled by agent client directly)
+
