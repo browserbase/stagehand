@@ -4,14 +4,14 @@ import type { LanguageModelV2 } from "@ai-sdk/provider";
 import type { ClientOptions as OpenAIClientOptionsBase } from "openai";
 import type { AgentProviderType } from "./agent";
 
-export type OpenAIClientOptions = Omit<
+export type OpenAIClientOptions = Pick<
   OpenAIClientOptionsBase,
-  "httpAgent" | "fetch" | "defaultHeaders" | "dangerouslyAllowBrowser"
+  "baseURL" | "apiKey"
 >;
 
-export type AnthropicClientOptions = Omit<
+export type AnthropicClientOptions = Pick<
   AnthropicClientOptionsBase,
-  "httpAgent" | "fetch" | "defaultHeaders" | "dangerouslyAllowBrowser"
+  "baseURL" | "apiKey"
 >;
 
 export interface GoogleServiceAccountCredentials {
@@ -28,9 +28,9 @@ export interface GoogleServiceAccountCredentials {
   universe_domain?: string;
 }
 
-export type GoogleVertexProviderSettings = Omit<
+export type GoogleVertexProviderSettings = Pick<
   GoogleVertexProviderSettingsBase,
-  "headers" | "fetch" | "googleAuthOptions"
+  "project" | "location"
 > & {
   googleAuthOptions?: {
     credentials?: GoogleServiceAccountCredentials;
