@@ -118,7 +118,8 @@ export class GoogleCUAClient extends AgentClient {
     this.updateGenerateContentConfig();
   }
 
-  // Vertex AI and Gemini API Key auth are mutually exclusiv, if we use vertex ai, we don't need to provide an api key
+  // Vertex AI and Gemini API Key auth are mutually exclusive, if we use vertex ai, 
+  // we need to make sure no api key is passed with vertex options, as it will throw an error
   private buildGenAIOptions(clientOptions: ClientOptions): GoogleGenAIClientOptions {
     const isVertexAI = "vertexai" in clientOptions && clientOptions.vertexai;
     const apiKey = isVertexAI
