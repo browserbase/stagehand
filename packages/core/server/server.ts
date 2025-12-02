@@ -1,6 +1,4 @@
-import {
-  type ConnectRouter,
-} from "@connectrpc/connect";
+import { type ConnectRouter } from "@connectrpc/connect";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import { createValidateInterceptor } from "@connectrpc/validate";
 import { fastify } from "fastify";

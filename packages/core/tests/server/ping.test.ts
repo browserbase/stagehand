@@ -2,7 +2,7 @@ import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { fastify } from "fastify";
 import { createValidateInterceptor } from "@connectrpc/validate";
 import { fastifyConnectPlugin } from "@connectrpc/connect-fastify";
-import {Code, createClient} from "@connectrpc/connect";
+import { Code, createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-node";
 import { timestampFromMs, timestampMs } from "@bufbuild/protobuf/wkt";
 import { routes } from "../../server/server";
