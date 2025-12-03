@@ -1,6 +1,10 @@
 import Fastify, { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
-import { z } from "zod";
+import {
+  serializerCompiler,
+  validatorCompiler,
+  type ZodTypeProvider,
+} from "fastify-type-provider-zod";
 import type {
   ActOptions,
   ActResult,
@@ -21,8 +25,17 @@ import {
   extractSchemaV3,
   observeSchemaV3,
   agentExecuteSchemaV3,
+  navigateSchemaV3,
+  startSessionRequestSchema,
+  sessionIdParamsSchema,
+  type StartSessionRequest,
+  type ActRequest,
+  type ExtractRequest,
+  type ObserveRequest,
+  type AgentExecuteRequest,
+  type NavigateRequest,
+  type SessionIdParams,
 } from "./schemas";
-import type { StartSessionParams } from "../types/private/api";
 
 // =============================================================================
 // Generic HTTP interfaces for cross-version Fastify compatibility
@@ -99,6 +112,10 @@ export class StagehandServer {
       logger: false,
     });
 
+    // Set up Zod type provider for automatic request/response validation
+    this.app.setValidatorCompiler(validatorCompiler);
+    this.app.setSerializerCompiler(serializerCompiler);
+
     this.setupMiddleware();
     this.setupRoutes();
   }
@@ -120,59 +137,104 @@ export class StagehandServer {
   }
 
   private setupRoutes(): void {
+    const app = this.app.withTypeProvider<ZodTypeProvider>();
+
     // Health check
-    this.app.get("/health", async () => {
+    app.get("/health", async () => {
       return { status: "ok" };
     });
 
     // Start session
-    this.app.post("/v1/sessions/start", async (request, reply) => {
-      return this.handleStartSession(request, reply);
-    });
+    app.post(
+      "/v1/sessions/start",
+      {
+        schema: {
+          body: startSessionRequestSchema,
+        },
+      },
+      async (request, reply) => {
+        return this.handleStartSession(request, reply);
+      },
+    );
 
     // Act endpoint
-    this.app.post<{ Params: { id: string } }>(
+    app.post(
       "/v1/sessions/:id/act",
+      {
+        schema: {
+          params: sessionIdParamsSchema,
+          body: actSchemaV3,
+        },
+      },
       async (request, reply) => {
         return this.handleAct(request, reply);
       },
     );
 
     // Extract endpoint
-    this.app.post<{ Params: { id: string } }>(
+    app.post(
       "/v1/sessions/:id/extract",
+      {
+        schema: {
+          params: sessionIdParamsSchema,
+          body: extractSchemaV3,
+        },
+      },
       async (request, reply) => {
         return this.handleExtract(request, reply);
       },
     );
 
     // Observe endpoint
-    this.app.post<{ Params: { id: string } }>(
+    app.post(
       "/v1/sessions/:id/observe",
+      {
+        schema: {
+          params: sessionIdParamsSchema,
+          body: observeSchemaV3,
+        },
+      },
       async (request, reply) => {
         return this.handleObserve(request, reply);
       },
     );
 
     // Agent execute endpoint
-    this.app.post<{ Params: { id: string } }>(
+    app.post(
       "/v1/sessions/:id/agentExecute",
+      {
+        schema: {
+          params: sessionIdParamsSchema,
+          body: agentExecuteSchemaV3,
+        },
+      },
       async (request, reply) => {
         return this.handleAgentExecute(request, reply);
       },
     );
 
     // Navigate endpoint
-    this.app.post<{ Params: { id: string } }>(
+    app.post(
       "/v1/sessions/:id/navigate",
+      {
+        schema: {
+          params: sessionIdParamsSchema,
+          body: navigateSchemaV3,
+        },
+      },
       async (request, reply) => {
         return this.handleNavigate(request, reply);
       },
     );
 
     // End session
-    this.app.post<{ Params: { id: string } }>(
+    app.post(
       "/v1/sessions/:id/end",
+      {
+        schema: {
+          params: sessionIdParamsSchema,
+        },
+      },
       async (request, reply) => {
         return this.handleEndSession(request, reply);
       },
@@ -181,17 +243,18 @@ export class StagehandServer {
 
   /**
    * Handle /sessions/start - Create new session
+   * Body is pre-validated by Fastify using startSessionRequestSchema
    */
   async handleStartSession(
     request: StagehandHttpRequest,
     reply: StagehandHttpReply,
   ): Promise<void> {
     try {
-      const body = request.body as StartSessionParams;
+      const body = request.body as StartSessionRequest;
 
       const createParams: CreateSessionParams = {
         modelName: body.modelName,
-        verbose: body.verbose as 0 | 1 | 2,
+        verbose: body.verbose,
         systemPrompt: body.systemPrompt,
         selfHeal: body.selfHeal,
         domSettleTimeoutMs: body.domSettleTimeoutMs,
@@ -226,353 +289,299 @@ export class StagehandServer {
 
   /**
    * Handle /sessions/:id/act - Execute act command
+   * Body is pre-validated by Fastify using actSchemaV3
    */
   async handleAct(
     request: StagehandHttpRequest,
     reply: StagehandHttpReply,
   ): Promise<void> {
-    const { id: sessionId } = request.params as { id: string };
+    const { id: sessionId } = request.params as SessionIdParams;
 
     if (!(await this.sessionStore.hasSession(sessionId))) {
       reply.status(404).send({ error: "Session not found" });
       return;
     }
 
-    try {
-      actSchemaV3.parse(request.body); // Validate request body
-      const ctx: RequestContext = {
-        modelApiKey: request.headers["x-model-api-key"] as string | undefined,
-      };
+    const ctx: RequestContext = {
+      modelApiKey: request.headers["x-model-api-key"] as string | undefined,
+    };
 
-      await createStreamingResponse<z.infer<typeof actSchemaV3>>({
-        sessionId,
-        sessionStore: this.sessionStore,
-        requestContext: ctx,
-        request,
-        reply,
-        handler: async (handlerCtx, data) => {
-          const stagehand = handlerCtx.stagehand as any;
-          const { frameId } = data;
+    await createStreamingResponse<ActRequest>({
+      sessionId,
+      sessionStore: this.sessionStore,
+      requestContext: ctx,
+      request,
+      reply,
+      handler: async (handlerCtx, data) => {
+        const stagehand = handlerCtx.stagehand as any;
+        const { frameId } = data;
 
-          const page = frameId
-            ? stagehand.context.resolvePageByMainFrameId(frameId)
-            : await stagehand.context.awaitActivePage();
+        const page = frameId
+          ? stagehand.context.resolvePageByMainFrameId(frameId)
+          : await stagehand.context.awaitActivePage();
 
-          if (!page) {
-            throw new Error("Page not found");
-          }
+        if (!page) {
+          throw new Error("Page not found");
+        }
 
-          const safeOptions: ActOptions = {
-            model: data.options?.model
-              ? ({
-                  ...data.options.model,
-                  modelName: data.options.model.model ?? "gpt-4o",
-                } as ModelConfiguration)
-              : undefined,
-            variables: data.options?.variables,
-            timeout: data.options?.timeout,
-            page,
-          };
+        const safeOptions: ActOptions = {
+          model: data.options?.model
+            ? ({
+                ...data.options.model,
+                modelName: data.options.model.model ?? "gpt-4o",
+              } as ModelConfiguration)
+            : undefined,
+          variables: data.options?.variables,
+          timeout: data.options?.timeout,
+          page,
+        };
 
-          let result: ActResult;
-          if (typeof data.input === "string") {
-            result = await stagehand.act(data.input, safeOptions);
-          } else {
-            result = await stagehand.act(data.input as Action, safeOptions);
-          }
+        let result: ActResult;
+        if (typeof data.input === "string") {
+          result = await stagehand.act(data.input, safeOptions);
+        } else {
+          result = await stagehand.act(data.input as Action, safeOptions);
+        }
 
-          return { result };
-        },
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        reply.status(400).send({
-          error: "Invalid request body",
-          details: error.issues,
-        });
-        return;
-      }
-      throw error;
-    }
+        return { result };
+      },
+    });
   }
 
   /**
    * Handle /sessions/:id/extract - Execute extract command
+   * Body is pre-validated by Fastify using extractSchemaV3
    */
   async handleExtract(
     request: StagehandHttpRequest,
     reply: StagehandHttpReply,
   ): Promise<void> {
-    const { id: sessionId } = request.params as { id: string };
+    const { id: sessionId } = request.params as SessionIdParams;
 
     if (!(await this.sessionStore.hasSession(sessionId))) {
       reply.status(404).send({ error: "Session not found" });
       return;
     }
 
-    try {
-      extractSchemaV3.parse(request.body); // Validate request body
-      const ctx: RequestContext = {
-        modelApiKey: request.headers["x-model-api-key"] as string | undefined,
-      };
+    const ctx: RequestContext = {
+      modelApiKey: request.headers["x-model-api-key"] as string | undefined,
+    };
 
-      await createStreamingResponse<z.infer<typeof extractSchemaV3>>({
-        sessionId,
-        sessionStore: this.sessionStore,
-        requestContext: ctx,
-        request,
-        reply,
-        handler: async (handlerCtx, data) => {
-          const stagehand = handlerCtx.stagehand as any;
-          const { frameId } = data;
+    await createStreamingResponse<ExtractRequest>({
+      sessionId,
+      sessionStore: this.sessionStore,
+      requestContext: ctx,
+      request,
+      reply,
+      handler: async (handlerCtx, data) => {
+        const stagehand = handlerCtx.stagehand as any;
+        const { frameId } = data;
 
-          const page = frameId
-            ? stagehand.context.resolvePageByMainFrameId(frameId)
-            : await stagehand.context.awaitActivePage();
+        const page = frameId
+          ? stagehand.context.resolvePageByMainFrameId(frameId)
+          : await stagehand.context.awaitActivePage();
 
-          if (!page) {
-            throw new Error("Page not found");
-          }
+        if (!page) {
+          throw new Error("Page not found");
+        }
 
-          const safeOptions: ExtractOptions = {
-            model: data.options?.model
-              ? ({
-                  ...data.options.model,
-                  modelName: data.options.model.model ?? "gpt-4o",
-                } as ModelConfiguration)
-              : undefined,
-            timeout: data.options?.timeout,
-            selector: data.options?.selector,
-            page,
-          };
+        const safeOptions: ExtractOptions = {
+          model: data.options?.model
+            ? ({
+                ...data.options.model,
+                modelName: data.options.model.model ?? "gpt-4o",
+              } as ModelConfiguration)
+            : undefined,
+          timeout: data.options?.timeout,
+          selector: data.options?.selector,
+          page,
+        };
 
-          let result: ExtractResult<StagehandZodSchema>;
+        let result: ExtractResult<StagehandZodSchema>;
 
-          if (data.instruction) {
-            if (data.schema) {
-              const zodSchema = jsonSchemaToZod(
-                data.schema as unknown as JsonSchema,
-              ) as StagehandZodSchema;
-              result = await stagehand.extract(data.instruction, zodSchema, safeOptions);
-            } else {
-              result = await stagehand.extract(data.instruction, safeOptions);
-            }
+        if (data.instruction) {
+          if (data.schema) {
+            const zodSchema = jsonSchemaToZod(
+              data.schema as unknown as JsonSchema,
+            ) as StagehandZodSchema;
+            result = await stagehand.extract(data.instruction, zodSchema, safeOptions);
           } else {
-            result = await stagehand.extract(safeOptions);
+            result = await stagehand.extract(data.instruction, safeOptions);
           }
+        } else {
+          result = await stagehand.extract(safeOptions);
+        }
 
-          return { result };
-        },
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        reply.status(400).send({
-          error: "Invalid request body",
-          details: error.issues,
-        });
-        return;
-      }
-      throw error;
-    }
+        return { result };
+      },
+    });
   }
 
   /**
    * Handle /sessions/:id/observe - Execute observe command
+   * Body is pre-validated by Fastify using observeSchemaV3
    */
   async handleObserve(
     request: StagehandHttpRequest,
     reply: StagehandHttpReply,
   ): Promise<void> {
-    const { id: sessionId } = request.params as { id: string };
+    const { id: sessionId } = request.params as SessionIdParams;
 
     if (!(await this.sessionStore.hasSession(sessionId))) {
       reply.status(404).send({ error: "Session not found" });
       return;
     }
 
-    try {
-      observeSchemaV3.parse(request.body); // Validate request body
-      const ctx: RequestContext = {
-        modelApiKey: request.headers["x-model-api-key"] as string | undefined,
-      };
+    const ctx: RequestContext = {
+      modelApiKey: request.headers["x-model-api-key"] as string | undefined,
+    };
 
-      await createStreamingResponse<z.infer<typeof observeSchemaV3>>({
-        sessionId,
-        sessionStore: this.sessionStore,
-        requestContext: ctx,
-        request,
-        reply,
-        handler: async (handlerCtx, data) => {
-          const stagehand = handlerCtx.stagehand as any;
-          const { frameId } = data;
+    await createStreamingResponse<ObserveRequest>({
+      sessionId,
+      sessionStore: this.sessionStore,
+      requestContext: ctx,
+      request,
+      reply,
+      handler: async (handlerCtx, data) => {
+        const stagehand = handlerCtx.stagehand as any;
+        const { frameId } = data;
 
-          const page = frameId
-            ? stagehand.context.resolvePageByMainFrameId(frameId)
-            : await stagehand.context.awaitActivePage();
+        const page = frameId
+          ? stagehand.context.resolvePageByMainFrameId(frameId)
+          : await stagehand.context.awaitActivePage();
 
-          if (!page) {
-            throw new Error("Page not found");
-          }
+        if (!page) {
+          throw new Error("Page not found");
+        }
 
-          const safeOptions: ObserveOptions = {
-            model:
-              data.options?.model && typeof data.options.model.model === "string"
-                ? ({
-                    ...data.options.model,
-                    modelName: data.options.model.model,
-                  } as ModelConfiguration)
-                : undefined,
-            timeout: data.options?.timeout,
-            selector: data.options?.selector,
-            page,
-          };
+        const safeOptions: ObserveOptions = {
+          model:
+            data.options?.model && typeof data.options.model.model === "string"
+              ? ({
+                  ...data.options.model,
+                  modelName: data.options.model.model,
+                } as ModelConfiguration)
+              : undefined,
+          timeout: data.options?.timeout,
+          selector: data.options?.selector,
+          page,
+        };
 
-          let result: Action[];
+        let result: Action[];
 
-          if (data.instruction) {
-            result = await stagehand.observe(data.instruction, safeOptions);
-          } else {
-            result = await stagehand.observe(safeOptions);
-          }
+        if (data.instruction) {
+          result = await stagehand.observe(data.instruction, safeOptions);
+        } else {
+          result = await stagehand.observe(safeOptions);
+        }
 
-          return { result };
-        },
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        reply.status(400).send({
-          error: "Invalid request body",
-          details: error.issues,
-        });
-        return;
-      }
-      throw error;
-    }
+        return { result };
+      },
+    });
   }
 
   /**
    * Handle /sessions/:id/agentExecute - Execute agent command
+   * Body is pre-validated by Fastify using agentExecuteSchemaV3
    */
   async handleAgentExecute(
     request: StagehandHttpRequest,
     reply: StagehandHttpReply,
   ): Promise<void> {
-    const { id: sessionId } = request.params as { id: string };
+    const { id: sessionId } = request.params as SessionIdParams;
 
     if (!(await this.sessionStore.hasSession(sessionId))) {
       reply.status(404).send({ error: "Session not found" });
       return;
     }
 
-    try {
-      agentExecuteSchemaV3.parse(request.body); // Validate request body
-      const ctx: RequestContext = {
-        modelApiKey: request.headers["x-model-api-key"] as string | undefined,
-      };
+    const ctx: RequestContext = {
+      modelApiKey: request.headers["x-model-api-key"] as string | undefined,
+    };
 
-      await createStreamingResponse<z.infer<typeof agentExecuteSchemaV3>>({
-        sessionId,
-        sessionStore: this.sessionStore,
-        requestContext: ctx,
-        request,
-        reply,
-        handler: async (handlerCtx, data) => {
-          const stagehand = handlerCtx.stagehand as any;
-          const { agentConfig, executeOptions, frameId } = data;
+    await createStreamingResponse<AgentExecuteRequest>({
+      sessionId,
+      sessionStore: this.sessionStore,
+      requestContext: ctx,
+      request,
+      reply,
+      handler: async (handlerCtx, data) => {
+        const stagehand = handlerCtx.stagehand as any;
+        const { agentConfig, executeOptions, frameId } = data;
 
-          const page = frameId
-            ? stagehand.context.resolvePageByMainFrameId(frameId)
-            : await stagehand.context.awaitActivePage();
+        const page = frameId
+          ? stagehand.context.resolvePageByMainFrameId(frameId)
+          : await stagehand.context.awaitActivePage();
 
-          if (!page) {
-            throw new Error("Page not found");
-          }
+        if (!page) {
+          throw new Error("Page not found");
+        }
 
-          const fullExecuteOptions = {
-            ...executeOptions,
-            page,
-          };
+        const fullExecuteOptions = {
+          ...executeOptions,
+          page,
+        };
 
-          const result: AgentResult = await stagehand.agent(agentConfig).execute(fullExecuteOptions);
+        const result: AgentResult = await stagehand.agent(agentConfig).execute(fullExecuteOptions);
 
-          return { result };
-        },
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        reply.status(400).send({
-          error: "Invalid request body",
-          details: error.issues,
-        });
-        return;
-      }
-      throw error;
-    }
+        return { result };
+      },
+    });
   }
 
   /**
    * Handle /sessions/:id/navigate - Navigate to URL
+   * Body is pre-validated by Fastify using navigateSchemaV3
    */
   async handleNavigate(
     request: StagehandHttpRequest,
     reply: StagehandHttpReply,
   ): Promise<void> {
-    const { id: sessionId } = request.params as { id: string };
+    const { id: sessionId } = request.params as SessionIdParams;
 
     if (!(await this.sessionStore.hasSession(sessionId))) {
       reply.status(404).send({ error: "Session not found" });
       return;
     }
 
-    try {
-      const ctx: RequestContext = {
-        modelApiKey: request.headers["x-model-api-key"] as string | undefined,
-      };
+    const ctx: RequestContext = {
+      modelApiKey: request.headers["x-model-api-key"] as string | undefined,
+    };
 
-      await createStreamingResponse({
-        sessionId,
-        sessionStore: this.sessionStore,
-        requestContext: ctx,
-        request,
-        reply,
-        handler: async (handlerCtx, data: any) => {
-          const stagehand = handlerCtx.stagehand as any;
-          const { url, options, frameId } = data;
+    await createStreamingResponse<NavigateRequest>({
+      sessionId,
+      sessionStore: this.sessionStore,
+      requestContext: ctx,
+      request,
+      reply,
+      handler: async (handlerCtx, data) => {
+        const stagehand = handlerCtx.stagehand as any;
+        const { url, options, frameId } = data;
 
-          if (!url) {
-            throw new Error("url is required");
-          }
+        const page = frameId
+          ? stagehand.context.resolvePageByMainFrameId(frameId)
+          : await stagehand.context.awaitActivePage();
 
-          const page = frameId
-            ? stagehand.context.resolvePageByMainFrameId(frameId)
-            : await stagehand.context.awaitActivePage();
+        if (!page) {
+          throw new Error("Page not found");
+        }
 
-          if (!page) {
-            throw new Error("Page not found");
-          }
+        const response = await page.goto(url, options);
 
-          const response = await page.goto(url, options);
-
-          return { result: response };
-        },
-      });
-    } catch (error) {
-      if (!reply.sent) {
-        reply.status(500).send({
-          error: error instanceof Error ? error.message : "Failed to navigate",
-        });
-      }
-    }
+        return { result: response };
+      },
+    });
   }
 
   /**
    * Handle /sessions/:id/end - End session and cleanup
+   * Params are pre-validated by Fastify using sessionIdParamsSchema
    */
   async handleEndSession(
     request: StagehandHttpRequest,
     reply: StagehandHttpReply,
   ): Promise<void> {
-    const { id: sessionId } = request.params as { id: string };
+    const { id: sessionId } = request.params as SessionIdParams;
 
     try {
       await this.sessionStore.endSession(sessionId);

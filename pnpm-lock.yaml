@@ -19,7 +19,7 @@ importers:
         version: 9.25.1
       '@langchain/community':
         specifier: ^1.0.0
-        version: 1.0.0(@browserbasehq/sdk@2.5.0)(@browserbasehq/stagehand@3.0.3(bufferutil@4.0.9)(deepmerge@4.3.1)(dotenv@16.5.0)(zod@3.25.67))(@ibm-cloud/watsonx-ai@1.7.0)(@langchain/core@0.3.50(openai@6.7.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.67)))(@opentelemetry/api@1.9.0)(cheerio@1.0.0)(google-auth-library@9.15.1)(ibm-cloud-sdk-core@5.4.3)(ignore@5.3.2)(jsonwebtoken@9.0.2)(lodash@4.17.21)(openai@6.7.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.67))(playwright@1.54.2)(puppeteer@22.15.0(bufferutil@4.0.9)(typescript@5.8.3))(ws@8.18.3(bufferutil@4.0.9))
+        version: 1.0.0(@browserbasehq/sdk@2.5.0)(@browserbasehq/stagehand@3.0.5(deepmerge@4.3.1)(dotenv@16.5.0)(zod@3.25.67))(@ibm-cloud/watsonx-ai@1.7.0)(@langchain/core@0.3.50(openai@6.7.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.67)))(@opentelemetry/api@1.9.0)(cheerio@1.0.0)(google-auth-library@9.15.1)(ibm-cloud-sdk-core@5.4.3)(ignore@5.3.2)(jsonwebtoken@9.0.2)(lodash@4.17.21)(openai@6.7.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.67))(playwright@1.54.2)(puppeteer@22.15.0(bufferutil@4.0.9)(typescript@5.8.3))(ws@8.18.3(bufferutil@4.0.9))
       '@langchain/core':
         specifier: ^0.3.40
         version: 0.3.50(openai@6.7.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.67))
@@ -152,6 +152,9 @@ importers:
       fastify:
         specifier: ^5.2.4
         version: 5.6.2
+      fastify-type-provider-zod:
+        specifier: ^6.1.0
+        version: 6.1.0(@fastify/swagger@9.6.1)(fastify@5.6.2)(openapi-types@12.1.3)(zod@4.1.8)
       fetch-cookie:
         specifier: ^3.1.0
         version: 3.1.0
@@ -431,12 +434,12 @@ packages:
   '@browserbasehq/sdk@2.5.0':
     resolution: {integrity: sha512-bcnbYZvm5Ht1nrHUfWDK4crspiTy1ESJYMApsMiOTUnlKOan0ocRD6m7hZH34iSC2c2XWsoryR80cwsYgCBWzQ==}
 
-  '@browserbasehq/stagehand@3.0.3':
-    resolution: {integrity: sha512-O/9VgmOmIX4ZYuu2hgQ+7BmK8wkSgPX/kLzGQ/SJLCNYRW9yuU6/b4NRdFU5uJ7OlCKdEOcV1u4Cc4PhY67S0w==}
+  '@browserbasehq/stagehand@3.0.5':
+    resolution: {integrity: sha512-89QPlRKpfq8kJd8oGgodo5I39xDjEPwVIEvdjaICcU33X4yAtkvoR4lM2tEwGiiDu/BPQznB27JFgoGlMjUsTA==}
     peerDependencies:
       deepmerge: ^4.3.1
       dotenv: ^16.4.5
-      zod: 3.25.67
+      zod: 3.25.76 || 4.1.8
 
   '@cfworker/json-schema@4.1.1':
     resolution: {integrity: sha512-gAmrUZSGtKc3AiBL71iNWxDsyUC5uMaKKGdvzYsBoTW/xi42JQHl7eKV2OYzCUqvc+D2RCcf7EXY2iCyFIk6og==}
@@ -1007,6 +1010,9 @@ packages:
 
   '@fastify/proxy-addr@5.1.0':
     resolution: {integrity: sha512-INS+6gh91cLUjB+PVHfu1UqcB76Sqtpyp7bnL+FYojhjygvOPA9ctiD/JDKsyD9Xgu4hUhCSJBPig/w7duNajw==}
+
+  '@fastify/swagger@9.6.1':
+    resolution: {integrity: sha512-fKlpJqFMWoi4H3EdUkDaMteEYRCfQMEkK0HJJ0eaf4aRlKd8cbq0pVkOfXDXmtvMTXYcnx3E+l023eFDBsA1HA==}
 
   '@google/genai@1.24.0':
     resolution: {integrity: sha512-e3jZF9Dx3dDaDCzygdMuYByHI2xJZ0PaD3r2fRgHZe2IOwBnmJ/Tu5Lt/nefTCxqr1ZnbcbQK9T13d8U/9UMWg==}
@@ -1774,6 +1780,7 @@ packages:
   '@mintlify/cli@4.0.682':
     resolution: {integrity: sha512-91XL+qCw9hm2KpMgKsNASIfUHYLhYwSmeoMRkE6p5Iy7P5dPAxJd+PUFPXdh4EGhMNALGRLHzm9rUoNvthM89w==}
     engines: {node: '>=18.0.0'}
+    deprecated: This version is deprecated. Please upgrade to version 4.0.423 or later.
     hasBin: true
 
   '@mintlify/common@1.0.496':
@@ -3540,6 +3547,14 @@ packages:
   fastify-plugin@5.1.0:
     resolution: {integrity: sha512-FAIDA8eovSt5qcDgcBvDuX/v0Cjz0ohGhENZ/wpc3y+oZCY2afZ9Baqql3g/lC+OHRnciQol4ww7tuthOb9idw==}
 
+  fastify-type-provider-zod@6.1.0:
+    resolution: {integrity: sha512-Sl19VZFSX4W/+AFl3hkL5YgWk3eDXZ4XYOdrq94HunK+o7GQBCAqgk7+3gPXoWkF0bNxOiIgfnFGJJ3i9a2BtQ==}
+    peerDependencies:
+      '@fastify/swagger': '>=9.5.1'
+      fastify: ^5.5.0
+      openapi-types: ^12.1.3
+      zod: '>=4.1.5'
+
   fastify@5.6.2:
     resolution: {integrity: sha512-dPugdGnsvYkBlENLhCgX8yhyGCsCPrpA8lFWbTNU428l+YOnLgYHR69hzV8HWPC79n536EqzqQtvhtdaCE0dKg==}
 
@@ -4276,6 +4291,10 @@ packages:
   json-schema-ref-resolver@3.0.0:
     resolution: {integrity: sha512-hOrZIVL5jyYFjzk7+y7n5JDzGlU8rfWDuYyHwGa2WA8/pcmMHezp2xsVwxrebD/Q9t8Nc5DboieySDpCp4WG4A==}
 
+  json-schema-resolver@3.0.0:
+    resolution: {integrity: sha512-HqMnbz0tz2DaEJ3ntsqtx3ezzZyDE7G56A/pPY/NGmrPu76UzsWquOpHFRAf5beTNXoH2LU5cQePVvRli1nchA==}
+    engines: {node: '>=20'}
+
   json-schema-traverse@0.4.1:
     resolution: {integrity: sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==}
 
@@ -4733,6 +4752,7 @@ packages:
   mintlify@4.2.78:
     resolution: {integrity: sha512-g3naXSI7RsmxUNJ87mKzRefKaMdqbAhxfaPaMkApwmeDB0TROwwUO0CS6ZDsbV5Qq3Sm5kH4mEDieEpAE6JG8A==}
     engines: {node: '>=18.0.0'}
+    deprecated: This version is deprecated. Please upgrade to version 4.0.423 or later.
     hasBin: true
 
   mitt@3.0.1:
@@ -6842,7 +6862,7 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@browserbasehq/stagehand@3.0.3(bufferutil@4.0.9)(deepmerge@4.3.1)(dotenv@16.5.0)(zod@3.25.67)':
+  '@browserbasehq/stagehand@3.0.5(deepmerge@4.3.1)(dotenv@16.5.0)(zod@3.25.67)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
       '@anthropic-ai/sdk': 0.39.0
@@ -6875,6 +6895,7 @@ snapshots:
       '@ai-sdk/togetherai': 1.0.23(zod@3.25.67)
       '@ai-sdk/xai': 2.0.26(zod@3.25.67)
       '@langchain/core': 0.3.50(openai@4.96.2(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.67))
+      bufferutil: 4.0.9
       chrome-launcher: 1.2.0
       ollama-ai-provider-v2: 1.5.0(zod@3.25.67)
       patchright-core: 1.55.2
@@ -6882,7 +6903,6 @@ snapshots:
       puppeteer-core: 22.15.0(bufferutil@4.0.9)
     transitivePeerDependencies:
       - bare-buffer
-      - bufferutil
       - encoding
       - supports-color
       - utf-8-validate
@@ -7345,6 +7365,16 @@ snapshots:
       '@fastify/forwarded': 3.0.1
       ipaddr.js: 2.2.0
 
+  '@fastify/swagger@9.6.1':
+    dependencies:
+      fastify-plugin: 5.1.0
+      json-schema-resolver: 3.0.0
+      openapi-types: 12.1.3
+      rfdc: 1.4.1
+      yaml: 2.7.1
+    transitivePeerDependencies:
+      - supports-color
+
   '@google/genai@1.24.0(@modelcontextprotocol/sdk@1.17.2)(bufferutil@4.0.9)':
     dependencies:
       google-auth-library: 9.15.1
@@ -7641,9 +7671,9 @@ snapshots:
       - openai
       - ws
 
-  '@langchain/community@1.0.0(@browserbasehq/sdk@2.5.0)(@browserbasehq/stagehand@3.0.3(bufferutil@4.0.9)(deepmerge@4.3.1)(dotenv@16.5.0)(zod@3.25.67))(@ibm-cloud/watsonx-ai@1.7.0)(@langchain/core@0.3.50(openai@6.7.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.67)))(@opentelemetry/api@1.9.0)(cheerio@1.0.0)(google-auth-library@9.15.1)(ibm-cloud-sdk-core@5.4.3)(ignore@5.3.2)(jsonwebtoken@9.0.2)(lodash@4.17.21)(openai@6.7.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.67))(playwright@1.54.2)(puppeteer@22.15.0(bufferutil@4.0.9)(typescript@5.8.3))(ws@8.18.3(bufferutil@4.0.9))':
+  '@langchain/community@1.0.0(@browserbasehq/sdk@2.5.0)(@browserbasehq/stagehand@3.0.5(deepmerge@4.3.1)(dotenv@16.5.0)(zod@3.25.67))(@ibm-cloud/watsonx-ai@1.7.0)(@langchain/core@0.3.50(openai@6.7.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.67)))(@opentelemetry/api@1.9.0)(cheerio@1.0.0)(google-auth-library@9.15.1)(ibm-cloud-sdk-core@5.4.3)(ignore@5.3.2)(jsonwebtoken@9.0.2)(lodash@4.17.21)(openai@6.7.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.67))(playwright@1.54.2)(puppeteer@22.15.0(bufferutil@4.0.9)(typescript@5.8.3))(ws@8.18.3(bufferutil@4.0.9))':
     dependencies:
-      '@browserbasehq/stagehand': 3.0.3(bufferutil@4.0.9)(deepmerge@4.3.1)(dotenv@16.5.0)(zod@3.25.67)
+      '@browserbasehq/stagehand': 3.0.5(deepmerge@4.3.1)(dotenv@16.5.0)(zod@3.25.67)
       '@ibm-cloud/watsonx-ai': 1.7.0
       '@langchain/classic': 1.0.0(@langchain/core@0.3.50(openai@6.7.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.67)))(@opentelemetry/api@1.9.0)(cheerio@1.0.0)(openai@6.7.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.67))(ws@8.18.3(bufferutil@4.0.9))
       '@langchain/core': 0.3.50(openai@6.7.0(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.67))
@@ -10103,6 +10133,14 @@ snapshots:
 
   fastify-plugin@5.1.0: {}
 
+  fastify-type-provider-zod@6.1.0(@fastify/swagger@9.6.1)(fastify@5.6.2)(openapi-types@12.1.3)(zod@4.1.8):
+    dependencies:
+      '@fastify/error': 4.2.0
+      '@fastify/swagger': 9.6.1
+      fastify: 5.6.2
+      openapi-types: 12.1.3
+      zod: 4.1.8
+
   fastify@5.6.2:
     dependencies:
       '@fastify/ajv-compiler': 4.0.5
@@ -10725,7 +10763,7 @@ snapshots:
       isstream: 0.1.2
       jsonwebtoken: 9.0.2
       mime-types: 2.1.35
-      retry-axios: 2.6.0(axios@1.13.0(debug@4.4.3))
+      retry-axios: 2.6.0(axios@1.13.0)
       tough-cookie: 4.1.4
     transitivePeerDependencies:
       - supports-color
@@ -11046,6 +11084,14 @@ snapshots:
   json-schema-ref-resolver@3.0.0:
     dependencies:
       dequal: 2.0.3
+
+  json-schema-resolver@3.0.0:
+    dependencies:
+      debug: 4.4.3
+      fast-uri: 3.0.6
+      rfdc: 1.4.1
+    transitivePeerDependencies:
+      - supports-color
 
   json-schema-traverse@0.4.1: {}
 
@@ -12782,7 +12828,7 @@ snapshots:
       retext-stringify: 4.0.0
       unified: 11.0.5
 
-  retry-axios@2.6.0(axios@1.13.0(debug@4.4.3)):
+  retry-axios@2.6.0(axios@1.13.0):
     dependencies:
       axios: 1.13.0(debug@4.4.3)
 

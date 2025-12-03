@@ -67,6 +67,7 @@
     "ai": "^5.0.0",
     "devtools-protocol": "^0.0.1464554",
     "fastify": "^5.2.4",
+    "fastify-type-provider-zod": "^6.1.0",
     "fetch-cookie": "^3.1.0",
     "openai": "^4.87.1",
     "pino": "^9.6.0",
