@@ -38,6 +38,7 @@ export function combineAbortSignals(
 
   for (const signal of validSignals) {
     if (signal.aborted) {
+      cleanup(); // Remove handlers added to previous signals in this loop
       controller.abort(signal.reason);
       return controller.signal;
     }

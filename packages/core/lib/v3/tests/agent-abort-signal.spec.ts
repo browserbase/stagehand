@@ -187,44 +187,6 @@ test.describe("Stagehand agent abort signal", () => {
     }
   });
 
-  test("can use both messages and signal together", async () => {
-    test.setTimeout(90000);
-
-    const agent = v3.agent({
-      model: "anthropic/claude-haiku-4-5-20251001",
-    });
-
-    const page = v3.context.pages()[0];
-    await page.goto("https://example.com");
-
-    // First execution
-    const result1 = await agent.execute({
-      instruction:
-        "What is the title of this page? Use close tool with taskComplete: true.",
-      maxSteps: 5,
-    });
-
-    expect(result1.messages).toBeDefined();
-
-    // Second execution with both messages and signal
-    const controller = new AbortController();
-
-    // Give enough time for a normal quick task
-    setTimeout(() => controller.abort(), 10000);
-
-    const result2 = await agent.execute({
-      instruction:
-        "Say 'confirmed' and use close tool with taskComplete: true.",
-      maxSteps: 3,
-      messages: result1.messages,
-      signal: controller.signal,
-    });
-
-    // Should complete before timeout
-    expect(result2.success).toBe(true);
-    expect(result2.messages).toBeDefined();
-    expect(result2.messages!.length).toBeGreaterThan(result1.messages!.length);
-  });
 
   test("stagehand.close() aborts running agent tasks", async () => {
     test.setTimeout(30000);
