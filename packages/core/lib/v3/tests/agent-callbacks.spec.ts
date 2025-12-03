@@ -279,7 +279,8 @@ test.describe("Stagehand agent callbacks behavior", () => {
           callbacks: {
             onChunk: (() => {}) as never,
           },
-        });        throw new Error("Expected error to be thrown");
+        });
+        throw new Error("Expected error to be thrown");
       } catch (error) {
         expect(error).toBeInstanceOf(StreamingCallbacksInNonStreamingModeError);
         expect(
