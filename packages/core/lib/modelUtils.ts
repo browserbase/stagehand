@@ -1,4 +1,4 @@
-import { ModelConfiguration } from "./v3/types/public/model";
+import { ClientOptions, ModelConfiguration } from "./v3/types/public/model";
 import {
   AVAILABLE_CUA_MODELS,
   AvailableCuaModel,
@@ -17,7 +17,7 @@ export function splitModelName(model: string): {
 export function resolveModel(model: string | ModelConfiguration): {
   provider: string;
   modelName: string;
-  clientOptions: Record<string, unknown>;
+  clientOptions: ClientOptions;
   isCua: boolean;
 } {
   // Extract the model string and client options

@@ -1,6 +1,7 @@
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { ToolSet, ModelMessage, wrapLanguageModel, StreamTextResult } from "ai";
 import { LogLine } from "./logs";
+import { ClientOptions } from "./model";
 import { Page as PlaywrightPage } from "playwright-core";
 import { Page as PuppeteerPage } from "puppeteer-core";
 import { Page as PatchrightPage } from "patchright-core";
@@ -86,7 +87,7 @@ export interface AgentExecutionOptions<
 
 export interface AgentHandlerOptions {
   modelName: string;
-  clientOptions?: Record<string, unknown>;
+  clientOptions?: ClientOptions;
   userProvidedInstructions?: string;
   experimental?: boolean;
 }

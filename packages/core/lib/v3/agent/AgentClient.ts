@@ -4,6 +4,7 @@ import {
   AgentType,
   AgentExecutionOptions,
 } from "../types/public/agent";
+import { ClientOptions } from "../types/public/model";
 
 /**
  * Abstract base class for agent clients
@@ -12,7 +13,7 @@ import {
 export abstract class AgentClient {
   public type: AgentType;
   public modelName: string;
-  public clientOptions: Record<string, unknown>;
+  public clientOptions: ClientOptions;
   public userProvidedInstructions?: string;
 
   constructor(
