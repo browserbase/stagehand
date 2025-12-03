@@ -46,7 +46,6 @@ jobs:
       - name: Publish Canary
         if: github.ref == 'refs/heads/main'
         run: |
-          pnpm config set //registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}
           git checkout main
           pnpm run release-canary
         env:
