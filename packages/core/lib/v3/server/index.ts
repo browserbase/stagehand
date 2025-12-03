@@ -234,11 +234,12 @@ export class StagehandServer {
     const { id: sessionId } = request.params as { id: string };
 
     if (!(await this.sessionStore.hasSession(sessionId))) {
-      return reply.status(404).send({ error: "Session not found" });
+      reply.status(404).send({ error: "Session not found" });
+      return;
     }
 
     try {
-      const data = actSchemaV3.parse(request.body);
+      actSchemaV3.parse(request.body); // Validate request body
       const ctx: RequestContext = {
         modelApiKey: request.headers["x-model-api-key"] as string | undefined,
       };
@@ -285,10 +286,11 @@ export class StagehandServer {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return reply.status(400).send({
+        reply.status(400).send({
           error: "Invalid request body",
           details: error.issues,
         });
+        return;
       }
       throw error;
     }
@@ -304,11 +306,12 @@ export class StagehandServer {
     const { id: sessionId } = request.params as { id: string };
 
     if (!(await this.sessionStore.hasSession(sessionId))) {
-      return reply.status(404).send({ error: "Session not found" });
+      reply.status(404).send({ error: "Session not found" });
+      return;
     }
 
     try {
-      const data = extractSchemaV3.parse(request.body);
+      extractSchemaV3.parse(request.body); // Validate request body
       const ctx: RequestContext = {
         modelApiKey: request.headers["x-model-api-key"] as string | undefined,
       };
@@ -363,10 +366,11 @@ export class StagehandServer {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return reply.status(400).send({
+        reply.status(400).send({
           error: "Invalid request body",
           details: error.issues,
         });
+        return;
       }
       throw error;
     }
@@ -382,11 +386,12 @@ export class StagehandServer {
     const { id: sessionId } = request.params as { id: string };
 
     if (!(await this.sessionStore.hasSession(sessionId))) {
-      return reply.status(404).send({ error: "Session not found" });
+      reply.status(404).send({ error: "Session not found" });
+      return;
     }
 
     try {
-      const data = observeSchemaV3.parse(request.body);
+      observeSchemaV3.parse(request.body); // Validate request body
       const ctx: RequestContext = {
         modelApiKey: request.headers["x-model-api-key"] as string | undefined,
       };
@@ -435,10 +440,11 @@ export class StagehandServer {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return reply.status(400).send({
+        reply.status(400).send({
           error: "Invalid request body",
           details: error.issues,
         });
+        return;
       }
       throw error;
     }
@@ -454,11 +460,12 @@ export class StagehandServer {
     const { id: sessionId } = request.params as { id: string };
 
     if (!(await this.sessionStore.hasSession(sessionId))) {
-      return reply.status(404).send({ error: "Session not found" });
+      reply.status(404).send({ error: "Session not found" });
+      return;
     }
 
     try {
-      const data = agentExecuteSchemaV3.parse(request.body);
+      agentExecuteSchemaV3.parse(request.body); // Validate request body
       const ctx: RequestContext = {
         modelApiKey: request.headers["x-model-api-key"] as string | undefined,
       };
@@ -493,10 +500,11 @@ export class StagehandServer {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return reply.status(400).send({
+        reply.status(400).send({
           error: "Invalid request body",
           details: error.issues,
         });
+        return;
       }
       throw error;
     }
@@ -512,7 +520,8 @@ export class StagehandServer {
     const { id: sessionId } = request.params as { id: string };
 
     if (!(await this.sessionStore.hasSession(sessionId))) {
-      return reply.status(404).send({ error: "Session not found" });
+      reply.status(404).send({ error: "Session not found" });
+      return;
     }
 
     try {

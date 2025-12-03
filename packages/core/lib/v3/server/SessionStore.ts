@@ -1,4 +1,4 @@
-import type { V3Options, LogLine } from "../types/public";
+import type { LogLine } from "../types/public";
 import type { V3 } from "../v3";
 
 /**

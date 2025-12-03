@@ -78,7 +78,7 @@ export async function createStreamingResponse<T>({
 
   // Set up SSE response if streaming
   if (shouldStream) {
-    reply.raw.writeHead(200, {
+    reply.raw.writeHead?.(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
       "Connection": "keep-alive",
