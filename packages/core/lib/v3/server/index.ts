@@ -12,10 +12,12 @@ import type {
   Action,
   AgentResult,
   ModelConfiguration,
+  LogLine,
 } from "../types/public";
 import type { StagehandZodSchema } from "../zodCompat";
 import { jsonSchemaToZod, type JsonSchema } from "../../utils";
-import { SessionManager } from "./sessions";
+import type { SessionStore, RequestContext, CreateSessionParams, SessionCacheConfig } from "./SessionStore";
+import { InMemorySessionStore } from "./InMemorySessionStore";
 import { createStreamingResponse } from "./stream";
 import {
   actSchemaV3,
@@ -32,13 +34,60 @@ import type {
 } from "./events";
 import { StagehandEventBus, createEventBus } from "../eventBus";
 
+// =============================================================================
+// Generic HTTP interfaces for cross-version Fastify compatibility
+// =============================================================================
+
+/**
+ * Generic HTTP request interface.
+ * Structurally compatible with FastifyRequest from any version.
+ */
+export interface StagehandHttpRequest {
+  headers: Record<string, string | string[] | undefined>;
+  body: unknown;
+  params: unknown;
+}
+
+/**
+ * Generic HTTP reply interface.
+ * Structurally compatible with FastifyReply from any version.
+ */
+export interface StagehandHttpReply {
+  status(code: number): StagehandHttpReply;
+  send(payload: unknown): Promise<unknown> | unknown;
+  raw: {
+    write(chunk: string | Buffer): boolean;
+    end(): void;
+    on(event: string, handler: (...args: unknown[]) => void): unknown;
+  };
+  sent: boolean;
+  hijack(): void;
+}
+
 // Re-export event types for consumers
 export * from "./events";
+
+// Re-export SessionStore types
+export type { SessionStore, RequestContext, CreateSessionParams, SessionCacheConfig, StartSessionResult } from "./SessionStore";
+export { InMemorySessionStore } from "./InMemorySessionStore";
+
+// Re-export API schemas and types for consumers
+export * from "./schemas";
 
 export interface StagehandServerOptions {
   port?: number;
   host?: string;
-  sessionTTL?: number;
+  /**
+   * Session store for managing session lifecycle and V3 instances.
+   * Defaults to InMemorySessionStore if not provided.
+   * Cloud environments should provide a database-backed implementation.
+   */
+  sessionStore?: SessionStore;
+  /**
+   * Cache configuration for the default InMemorySessionStore.
+   * Ignored if a custom sessionStore is provided.
+   */
+  cacheConfig?: SessionCacheConfig;
   /** Optional: shared event bus instance. If not provided, a new one will be created. */
   eventBus?: StagehandEventBus;
 }
@@ -49,11 +98,14 @@ export interface StagehandServerOptions {
  * This server implements the same API as the cloud Stagehand API, allowing
  * remote Stagehand instances to connect and execute actions on this machine.
  *
+ * Uses a SessionStore interface for session management, allowing cloud environments
+ * to provide database-backed implementations for stateless pod architectures.
+ *
  * Uses a shared event bus to allow cloud servers to hook into lifecycle events.
  */
 export class StagehandServer {
   private app: FastifyInstance;
-  private sessionManager: SessionManager;
+  private sessionStore: SessionStore;
   private port: number;
   private host: string;
   private isListening: boolean = false;
@@ -63,13 +115,20 @@ export class StagehandServer {
     this.eventBus = options.eventBus || createEventBus();
     this.port = options.port || 3000;
     this.host = options.host || "0.0.0.0";
-    this.sessionManager = new SessionManager(options.sessionTTL, this.eventBus);
+    this.sessionStore = options.sessionStore ?? new InMemorySessionStore(options.cacheConfig);
     this.app = Fastify({
       logger: false, // Disable Fastify's built-in logger for cleaner output
     });
 
     this.setupMiddleware();
     this.setupRoutes();
+  }
+
+  /**
+   * Get the session store instance
+   */
+  getSessionStore(): SessionStore {
+    return this.sessionStore;
   }
 
   /**
@@ -95,7 +154,7 @@ export class StagehandServer {
   private setupRoutes(): void {
     // Health check
     this.app.get("/health", async () => {
-      return { status: "ok", sessions: this.sessionManager.getActiveSessions().length };
+      return { status: "ok" };
     });
 
     // Start session - creates a new V3 instance
@@ -156,8 +215,8 @@ export class StagehandServer {
    * Handle /sessions/start - Create new session
    */
   async handleStartSession(
-    request: FastifyRequest,
-    reply: FastifyReply,
+    request: StagehandHttpRequest,
+    reply: StagehandHttpReply,
   ): Promise<void> {
     const requestId = randomUUID();
     const startTime = Date.now();
@@ -183,38 +242,39 @@ export class StagehandServer {
         bodySize: JSON.stringify(request.body).length,
       });
 
-      const params = request.body as StartSessionParams;
+      const body = request.body as StartSessionParams;
 
-      // Derive V3Options from StartSessionParams — this mirrors what the
-      // cloud API does, and makes the P2P server a drop-in replacement.
-      const modelConfig: ModelConfiguration = {
-        modelName: params.modelName as any,
-        apiKey: params.modelApiKey,
+      // Build session params from body + headers
+      // Body contains most params, headers provide credentials and metadata
+      const createParams: CreateSessionParams = {
+        // Core params from body
+        modelName: body.modelName,
+        verbose: body.verbose as 0 | 1 | 2,
+        systemPrompt: body.systemPrompt,
+        selfHeal: body.selfHeal,
+        domSettleTimeoutMs: body.domSettleTimeoutMs,
+        experimental: body.experimental,
+        waitForCaptchaSolves: body.waitForCaptchaSolves,
+        browserbaseSessionID: body.browserbaseSessionID ?? body.sessionId,
+        browserbaseSessionCreateParams: body.browserbaseSessionCreateParams,
+        debugDom: body.debugDom,
+        actTimeoutMs: body.actTimeoutMs,
+        // Credentials from headers
+        browserbaseApiKey: request.headers["x-bb-api-key"] as string | undefined,
+        browserbaseProjectId: request.headers["x-bb-project-id"] as string | undefined,
+        // Metadata from headers
+        clientLanguage: request.headers["x-language"] as string | undefined,
+        sdkVersion: request.headers["x-sdk-version"] as string | undefined,
       };
 
-      const v3Config: V3Options = {
-        env: "LOCAL",
-        model: modelConfig,
-        systemPrompt: params.systemPrompt,
-        domSettleTimeout: params.domSettleTimeoutMs,
-        verbose: params.verbose as 0 | 1 | 2,
-        selfHeal: params.selfHeal,
-      };
-
-      // If an external sessionId is provided (e.g. from a cloud session store),
-      // use it as the in-memory key so cloud and library share the same ID.
-      const externalSessionId = params.sessionId ?? params.browserbaseSessionID;
-
-      const sessionId = this.sessionManager.createSession(
-        v3Config,
-        externalSessionId,
-      );
+      // Start session via the store (handles platform-specific logic)
+      const result = await this.sessionStore.startSession(createParams);
 
       // Emit request completed event
       await this.emitAsync("StagehandRequestCompleted", {
         type: "StagehandRequestCompleted",
         timestamp: new Date(),
-        sessionId,
+        sessionId: result.sessionId,
         requestId,
         statusCode: 200,
         durationMs: Date.now() - startTime,
@@ -224,8 +284,8 @@ export class StagehandServer {
       reply.status(200).send({
         success: true,
         data: {
-          sessionId,
-          available: true,
+          sessionId: result.sessionId,
+          available: result.available,
         },
       });
     } catch (error) {
@@ -250,10 +310,10 @@ export class StagehandServer {
    * Handle /sessions/:id/act - Execute act command
    */
   async handleAct(
-    request: FastifyRequest<{ Params: { id: string } }>,
-    reply: FastifyReply,
+    request: StagehandHttpRequest,
+    reply: StagehandHttpReply,
   ): Promise<void> {
-    const { id: sessionId } = request.params;
+    const { id: sessionId } = request.params as { id: string };
     const requestId = randomUUID();
     const startTime = Date.now();
 
@@ -276,7 +336,7 @@ export class StagehandServer {
       bodySize: JSON.stringify(request.body).length,
     });
 
-    if (!this.sessionManager.hasSession(sessionId)) {
+    if (!(await this.sessionStore.hasSession(sessionId))) {
       await this.emitAsync("StagehandRequestCompleted", {
         type: "StagehandRequestCompleted",
         timestamp: new Date(),
@@ -292,16 +352,22 @@ export class StagehandServer {
       // Validate request body
       const data = actSchemaV3.parse(request.body);
 
+      // Build request context
+      const ctx: RequestContext = {
+        modelApiKey: request.headers["x-model-api-key"] as string | undefined,
+      };
+
       await createStreamingResponse<z.infer<typeof actSchemaV3>>({
         sessionId,
         requestId,
         actionType: "act",
-        sessionManager: this.sessionManager,
+        sessionStore: this.sessionStore,
+        requestContext: ctx,
         request,
         reply,
         eventBus: this.eventBus,
-        handler: async (ctx, data) => {
-          const stagehand = ctx.stagehand as any;
+        handler: async (handlerCtx, data) => {
+          const stagehand = handlerCtx.stagehand as any;
           const { frameId } = data;
 
           // Get the page
@@ -371,10 +437,10 @@ export class StagehandServer {
    * Handle /sessions/:id/extract - Execute extract command
    */
   async handleExtract(
-    request: FastifyRequest<{ Params: { id: string } }>,
-    reply: FastifyReply,
+    request: StagehandHttpRequest,
+    reply: StagehandHttpReply,
   ): Promise<void> {
-    const { id: sessionId } = request.params;
+    const { id: sessionId } = request.params as { id: string };
     const requestId = randomUUID();
     const startTime = Date.now();
 
@@ -396,7 +462,7 @@ export class StagehandServer {
       bodySize: JSON.stringify(request.body).length,
     });
 
-    if (!this.sessionManager.hasSession(sessionId)) {
+    if (!(await this.sessionStore.hasSession(sessionId))) {
       await this.emitAsync("StagehandRequestCompleted", {
         type: "StagehandRequestCompleted",
         timestamp: new Date(),
@@ -411,16 +477,21 @@ export class StagehandServer {
     try {
       const data = extractSchemaV3.parse(request.body);
 
+      const ctx: RequestContext = {
+        modelApiKey: request.headers["x-model-api-key"] as string | undefined,
+      };
+
       await createStreamingResponse<z.infer<typeof extractSchemaV3>>({
         sessionId,
         requestId,
         actionType: "extract",
-        sessionManager: this.sessionManager,
+        sessionStore: this.sessionStore,
+        requestContext: ctx,
         request,
         reply,
         eventBus: this.eventBus,
-        handler: async (ctx, data) => {
-          const stagehand = ctx.stagehand as any;
+        handler: async (handlerCtx, data) => {
+          const stagehand = handlerCtx.stagehand as any;
           const { frameId } = data;
 
           const page = frameId
@@ -499,10 +570,10 @@ export class StagehandServer {
    * Handle /sessions/:id/observe - Execute observe command
    */
   async handleObserve(
-    request: FastifyRequest<{ Params: { id: string } }>,
-    reply: FastifyReply,
+    request: StagehandHttpRequest,
+    reply: StagehandHttpReply,
   ): Promise<void> {
-    const { id: sessionId } = request.params;
+    const { id: sessionId } = request.params as { id: string };
     const requestId = randomUUID();
     const startTime = Date.now();
 
@@ -524,7 +595,7 @@ export class StagehandServer {
       bodySize: JSON.stringify(request.body).length,
     });
 
-    if (!this.sessionManager.hasSession(sessionId)) {
+    if (!(await this.sessionStore.hasSession(sessionId))) {
       await this.emitAsync("StagehandRequestCompleted", {
         type: "StagehandRequestCompleted",
         timestamp: new Date(),
@@ -539,16 +610,21 @@ export class StagehandServer {
     try {
       const data = observeSchemaV3.parse(request.body);
 
+      const ctx: RequestContext = {
+        modelApiKey: request.headers["x-model-api-key"] as string | undefined,
+      };
+
       await createStreamingResponse<z.infer<typeof observeSchemaV3>>({
         sessionId,
         requestId,
         actionType: "observe",
-        sessionManager: this.sessionManager,
+        sessionStore: this.sessionStore,
+        requestContext: ctx,
         request,
         reply,
         eventBus: this.eventBus,
-        handler: async (ctx, data) => {
-          const stagehand = ctx.stagehand as any;
+        handler: async (handlerCtx, data) => {
+          const stagehand = handlerCtx.stagehand as any;
           const { frameId } = data;
 
           const page = frameId
@@ -616,10 +692,10 @@ export class StagehandServer {
    * Handle /sessions/:id/agentExecute - Execute agent command
    */
   async handleAgentExecute(
-    request: FastifyRequest<{ Params: { id: string } }>,
-    reply: FastifyReply,
+    request: StagehandHttpRequest,
+    reply: StagehandHttpReply,
   ): Promise<void> {
-    const { id: sessionId } = request.params;
+    const { id: sessionId } = request.params as { id: string };
     const requestId = randomUUID();
     const startTime = Date.now();
 
@@ -641,7 +717,7 @@ export class StagehandServer {
       bodySize: JSON.stringify(request.body).length,
     });
 
-    if (!this.sessionManager.hasSession(sessionId)) {
+    if (!(await this.sessionStore.hasSession(sessionId))) {
       await this.emitAsync("StagehandRequestCompleted", {
         type: "StagehandRequestCompleted",
         timestamp: new Date(),
@@ -656,16 +732,21 @@ export class StagehandServer {
     try {
       const data = agentExecuteSchemaV3.parse(request.body);
 
+      const ctx: RequestContext = {
+        modelApiKey: request.headers["x-model-api-key"] as string | undefined,
+      };
+
       await createStreamingResponse<z.infer<typeof agentExecuteSchemaV3>>({
         sessionId,
         requestId,
         actionType: "agentExecute",
-        sessionManager: this.sessionManager,
+        sessionStore: this.sessionStore,
+        requestContext: ctx,
         request,
         reply,
         eventBus: this.eventBus,
-        handler: async (ctx, data) => {
-          const stagehand = ctx.stagehand as any;
+        handler: async (handlerCtx, data) => {
+          const stagehand = handlerCtx.stagehand as any;
           const { agentConfig, executeOptions, frameId } = data;
 
           const page = frameId
@@ -721,10 +802,10 @@ export class StagehandServer {
    * Handle /sessions/:id/navigate - Navigate to URL
    */
   async handleNavigate(
-    request: FastifyRequest<{ Params: { id: string } }>,
-    reply: FastifyReply,
+    request: StagehandHttpRequest,
+    reply: StagehandHttpReply,
   ): Promise<void> {
-    const { id: sessionId } = request.params;
+    const { id: sessionId } = request.params as { id: string };
     const requestId = randomUUID();
     const startTime = Date.now();
 
@@ -746,7 +827,7 @@ export class StagehandServer {
       bodySize: JSON.stringify(request.body).length,
     });
 
-    if (!this.sessionManager.hasSession(sessionId)) {
+    if (!(await this.sessionStore.hasSession(sessionId))) {
       await this.emitAsync("StagehandRequestCompleted", {
         type: "StagehandRequestCompleted",
         timestamp: new Date(),
@@ -759,16 +840,21 @@ export class StagehandServer {
     }
 
     try {
+      const ctx: RequestContext = {
+        modelApiKey: request.headers["x-model-api-key"] as string | undefined,
+      };
+
       await createStreamingResponse({
         sessionId,
         requestId,
         actionType: "navigate",
-        sessionManager: this.sessionManager,
+        sessionStore: this.sessionStore,
+        requestContext: ctx,
         request,
         reply,
         eventBus: this.eventBus,
-        handler: async (ctx, data: any) => {
-          const stagehand = ctx.stagehand as any;
+        handler: async (handlerCtx, data: any) => {
+          const stagehand = handlerCtx.stagehand as any;
           const { url, options, frameId } = data;
 
           if (!url) {
@@ -821,10 +907,10 @@ export class StagehandServer {
    * Handle /sessions/:id/end - End session and cleanup
    */
   async handleEndSession(
-    request: FastifyRequest<{ Params: { id: string } }>,
-    reply: FastifyReply,
+    request: StagehandHttpRequest,
+    reply: StagehandHttpReply,
   ): Promise<void> {
-    const { id: sessionId } = request.params;
+    const { id: sessionId } = request.params as { id: string };
     const requestId = randomUUID();
     const startTime = Date.now();
 
@@ -847,7 +933,16 @@ export class StagehandServer {
     });
 
     try {
-      await this.sessionManager.endSession(sessionId, "manual");
+      // End session (handles platform cleanup + cache eviction)
+      await this.sessionStore.endSession(sessionId);
+
+      // Emit session ended event
+      await this.eventBus.emitAsync("StagehandSessionEnded", {
+        type: "StagehandSessionEnded",
+        timestamp: new Date(),
+        sessionId,
+        reason: "manual",
+      });
 
       await this.emitAsync("StagehandRequestCompleted", {
         type: "StagehandRequestCompleted",
@@ -926,7 +1021,9 @@ export class StagehandServer {
       await this.app.close();
       this.isListening = false;
     }
-    await this.sessionManager.destroy();
+
+    // Cleanup session store
+    await this.sessionStore.destroy();
   }
 
   /**
@@ -940,9 +1037,12 @@ export class StagehandServer {
   }
 
   /**
-   * Get active session count
+   * Subscribe to server events
    */
-  getActiveSessionCount(): number {
-    return this.sessionManager.getActiveSessions().length;
+  on<K extends keyof StagehandServerEventMap>(
+    event: K,
+    listener: (data: StagehandServerEventMap[K]) => void | Promise<void>,
+  ): void {
+    this.eventBus.on(event, listener);
   }
 }

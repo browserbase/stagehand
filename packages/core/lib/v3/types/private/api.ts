@@ -42,6 +42,13 @@ export interface StartSessionParams extends Partial<V3Options> {
   > & { projectId?: string };
   selfHeal?: boolean;
   browserbaseSessionID?: string;
+  waitForCaptchaSolves?: boolean;
+  experimental?: boolean;
+  // Cloud-specific metadata fields
+  debugDom?: boolean;
+  actTimeoutMs?: number;
+  clientLanguage?: string;
+  sdkVersion?: string;
 }
 
 export interface StartSessionResult {

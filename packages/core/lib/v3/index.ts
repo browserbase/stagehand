@@ -10,8 +10,13 @@ export * from "./server/events";
 // Server exports for P2P functionality
 export { StagehandServer } from "./server";
 export type { StagehandServerOptions } from "./server";
-export { SessionManager } from "./server/sessions";
-export type { SessionEntry } from "./server/sessions";
+export { InMemorySessionStore } from "./server/InMemorySessionStore";
+export type {
+  SessionStore,
+  CreateSessionParams,
+  RequestContext,
+  SessionCacheConfig,
+} from "./server/SessionStore";
 export { AnnotatedScreenshotText, LLMClient } from "./llm/LLMClient";
 
 export { AgentProvider, modelToAgentProviderMap } from "./agent/AgentProvider";

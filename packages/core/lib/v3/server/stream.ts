@@ -1,7 +1,6 @@
-import type { FastifyReply, FastifyRequest } from "fastify";
 import { randomUUID } from "crypto";
 import type { V3 } from "../v3";
-import type { SessionManager } from "./sessions";
+import type { SessionStore, RequestContext } from "./SessionStore";
 import type { StagehandEventBus } from "../eventBus";
 import type {
   StagehandActionStartedEvent,
@@ -13,6 +12,29 @@ import type {
   StagehandActionProgressEvent,
 } from "./events";
 
+/**
+ * Generic HTTP request interface for streaming.
+ * Structurally compatible with FastifyRequest from any version.
+ */
+export interface StreamingHttpRequest {
+  headers: Record<string, string | string[] | undefined>;
+  body: unknown;
+}
+
+/**
+ * Generic HTTP reply interface for streaming.
+ * Structurally compatible with FastifyReply from any version.
+ */
+export interface StreamingHttpReply {
+  status(code: number): StreamingHttpReply;
+  send(payload: unknown): Promise<unknown> | unknown;
+  raw: {
+    writeHead(statusCode: number, headers: Record<string, string>): void;
+    write(chunk: string | Buffer): boolean;
+    end(): void;
+  };
+}
+
 export interface StreamingHandlerResult {
   result: unknown;
 }
@@ -21,7 +43,7 @@ export interface StreamingHandlerContext {
   stagehand: V3;
   sessionId: string;
   requestId: string;
-  request: FastifyRequest;
+  request: StreamingHttpRequest;
   actionType: "act" | "extract" | "observe" | "agentExecute" | "navigate";
   eventBus: StagehandEventBus;
 }
@@ -30,9 +52,10 @@ export interface StreamingResponseOptions<T> {
   sessionId: string;
   requestId: string;
   actionType: "act" | "extract" | "observe" | "agentExecute" | "navigate";
-  sessionManager: SessionManager;
-  request: FastifyRequest;
-  reply: FastifyReply;
+  sessionStore: SessionStore;
+  requestContext: RequestContext;
+  request: StreamingHttpRequest;
+  reply: StreamingHttpReply;
   eventBus: StagehandEventBus;
   handler: (ctx: StreamingHandlerContext, data: T) => Promise<StreamingHandlerResult>;
 }
@@ -41,7 +64,7 @@ export interface StreamingResponseOptions<T> {
  * Sends an SSE (Server-Sent Events) message to the client
  */
 async function sendSSE(
-  reply: FastifyReply,
+  reply: StreamingHttpReply,
   data: object,
   eventBus: StagehandEventBus,
   sessionId: string,
@@ -72,7 +95,8 @@ export async function createStreamingResponse<T>({
   sessionId,
   requestId,
   actionType,
-  sessionManager,
+  sessionStore,
+  requestContext,
   request,
   reply,
   eventBus,
@@ -126,10 +150,10 @@ export async function createStreamingResponse<T>({
   let actionId: string | undefined = undefined;
 
   try {
-    // Get or create the Stagehand instance with dynamic logger
-    const stagehand = await sessionManager.getStagehand(
-      sessionId,
-      shouldStream
+    // Build request context with streaming logger if needed
+    const ctxWithLogger: RequestContext = {
+      ...requestContext,
+      logger: shouldStream
         ? async (message) => {
             await sendSSE(
               reply,
@@ -157,7 +181,10 @@ export async function createStreamingResponse<T>({
             });
           }
         : undefined,
-    );
+    };
+
+    // Get or create the Stagehand instance from the session store
+    const stagehand = await sessionStore.getOrCreateStagehand(sessionId, ctxWithLogger);
 
     if (shouldStream) {
       await sendSSE(
