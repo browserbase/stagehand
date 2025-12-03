@@ -187,7 +187,6 @@ test.describe("Stagehand agent abort signal", () => {
     }
   });
 
-
   test("stagehand.close() aborts running agent tasks", async () => {
     test.setTimeout(30000);
 
