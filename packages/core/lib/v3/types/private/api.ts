@@ -51,8 +51,8 @@ export interface StartSessionParams extends Partial<V3Options> {
   sdkVersion?: string;
 }
 
-// Re-export StartSessionResult from schemas (defined as Zod schema)
-export type { StartSessionResult } from "../../server/schemas";
+// Re-export SessionStartResult from schemas (defined as Zod schema)
+export type { SessionStartResult } from "../../server/schemas";
 
 export interface SuccessResponse<T> {
   success: true;

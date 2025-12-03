@@ -9,7 +9,7 @@ import {
   ExecuteActionParams,
   StagehandAPIConstructorParams,
   StartSessionParams,
-  StartSessionResult,
+  SessionStartResult,
 } from "./types/private";
 import {
   ActResult,
@@ -103,7 +103,7 @@ export class StagehandAPIClient {
     selfHeal,
     browserbaseSessionCreateParams,
     browserbaseSessionID,
-  }: StartSessionParams): Promise<StartSessionResult> {
+  }: StartSessionParams): Promise<SessionStartResult> {
     if (!modelApiKey) {
       throw new StagehandAPIError("modelApiKey is required");
     }
@@ -146,7 +146,7 @@ export class StagehandAPIClient {
     }
 
     const sessionResponseBody =
-      (await sessionResponse.json()) as ApiResponse<StartSessionResult>;
+      (await sessionResponse.json()) as ApiResponse<SessionStartResult>;
 
     if (sessionResponseBody.success === false) {
       throw new StagehandAPIError(sessionResponseBody.message);
