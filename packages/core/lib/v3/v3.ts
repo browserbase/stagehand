@@ -1792,7 +1792,7 @@ export class V3 {
             if (this.apiClient && !this.experimental) {
               const page = await this.ctx!.awaitActivePage();
               result = await this.apiClient.agentExecute(
-                options,
+                options ?? {},
                 resolvedOptions,
                 page.mainFrameId(),
               );
