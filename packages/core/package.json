@@ -83,6 +83,11 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.42.1",
+    "@types/adm-zip": "^0.5.7",
+    "@types/node": "^20.11.30",
+    "adm-zip": "^0.5.16",
+    "chalk": "^5.4.1",
+    "esbuild": "^0.21.4",
     "eslint": "^9.16.0",
     "prettier": "^3.2.5",
     "tsup": "^8.2.1",

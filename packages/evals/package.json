@@ -21,6 +21,8 @@
     "zod": "^4.1.8"
   },
   "devDependencies": {
+    "braintrust": "^0.4.7",
+    "string-comparison": "^1.3.0",
     "tsx": "^4.10.5"
   }
 }
