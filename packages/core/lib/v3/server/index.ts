@@ -71,7 +71,7 @@ export interface StagehandHttpReply {
 export * from "./events";
 
 // Re-export SessionStore types
-export type { SessionStore, RequestContext, CreateSessionParams, StartSessionResult } from "./SessionStore";
+export type { SessionStore, RequestContext, CreateSessionParams, SessionStartResult } from "./SessionStore";
 export { InMemorySessionStore } from "./InMemorySessionStore";
 
 // Re-export API schemas and types for consumers

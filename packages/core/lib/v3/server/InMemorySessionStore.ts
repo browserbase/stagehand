@@ -6,7 +6,7 @@ import type {
   CreateSessionParams,
   RequestContext,
   SessionCacheConfig,
-  StartSessionResult,
+  SessionStartResult,
 } from "./SessionStore";
 
 const DEFAULT_MAX_CAPACITY = 100;
@@ -117,7 +117,7 @@ export class InMemorySessionStore implements SessionStore {
     await this.deleteSession(lruNode.sessionId);
   }
 
-  async startSession(params: CreateSessionParams): Promise<StartSessionResult> {
+  async startSession(params: CreateSessionParams): Promise<SessionStartResult> {
     // Generate session ID or use provided browserbase session ID
     const sessionId = params.browserbaseSessionID ?? randomUUID();
 
