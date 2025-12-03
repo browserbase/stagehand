@@ -52,6 +52,7 @@ type ExpectedExportedTypes = {
   AgentStreamCallbacks: Stagehand.AgentStreamCallbacks;
   AgentExecuteOptionsBase: Stagehand.AgentExecuteOptionsBase;
   AgentStreamExecuteOptions: Stagehand.AgentStreamExecuteOptions;
+  ModelMessage: Stagehand.ModelMessage;
   // Types from logs.ts
   LogLevel: Stagehand.LogLevel;
   LogLine: Stagehand.LogLine;

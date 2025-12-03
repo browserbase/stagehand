@@ -104,7 +104,6 @@ test.describe("Stagehand agent abort signal", () => {
     const signal = AbortSignal.timeout(2000); // 2 second timeout
 
     const startTime = Date.now();
-    let caughtError: unknown = null;
 
     try {
       const streamResult = await agent.execute({
@@ -120,16 +119,22 @@ test.describe("Stagehand agent abort signal", () => {
         // Just consume - abort should interrupt this
       }
       await streamResult.result;
+
+      // If we reach here without throwing, the test failed to verify abort behavior
+      throw new Error("Expected AgentAbortError to be thrown due to timeout");
     } catch (error) {
-      caughtError = error;
+      if (
+        error instanceof Error &&
+        error.message === "Expected AgentAbortError to be thrown due to timeout"
+      ) {
+        throw error; // Re-throw our own error
+      }
+      // Should throw AgentAbortError
+      expect(error).toBeInstanceOf(AgentAbortError);
     }
 
     const elapsed = Date.now() - startTime;
 
-    // Should have thrown AgentAbortError (or completed very quickly)
-    if (caughtError) {
-      expect(caughtError).toBeInstanceOf(AgentAbortError);
-    }
     // Should have stopped within reasonable time (not running all 50 steps)
     expect(elapsed).toBeLessThan(30000);
   });

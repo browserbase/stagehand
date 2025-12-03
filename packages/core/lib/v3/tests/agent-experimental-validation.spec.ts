@@ -380,18 +380,23 @@ test.describe("Stagehand agent experimental feature validation", () => {
       ).not.toThrow();
     });
 
-    test("allows basic agent without experimental features", () => {
+    test("allows basic agent without experimental features", async () => {
       const v3NonExperimental = new V3({
         ...v3TestConfig,
         experimental: false,
       });
+      await v3NonExperimental.init();
 
-      // This should work - just creating a basic agent with no experimental features
-      expect(() =>
-        v3NonExperimental.agent({
-          model: "anthropic/claude-sonnet-4-20250514",
-        }),
-      ).not.toThrow();
+      try {
+        // This should work - just creating a basic agent with no experimental features
+        expect(() =>
+          v3NonExperimental.agent({
+            model: "anthropic/claude-sonnet-4-20250514",
+          }),
+        ).not.toThrow();
+      } finally {
+        await v3NonExperimental.close();
+      }
     });
   });
 });

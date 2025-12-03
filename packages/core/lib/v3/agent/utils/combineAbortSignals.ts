@@ -27,19 +27,28 @@ export function combineAbortSignals(
   // Fallback for older environments
   const controller = new AbortController();
 
+  // Track abort handlers so we can clean them up when one signal aborts
+  const handlers: Array<{ signal: AbortSignal; handler: () => void }> = [];
+
+  const cleanup = () => {
+    for (const { signal, handler } of handlers) {
+      signal.removeEventListener("abort", handler);
+    }
+  };
+
   for (const signal of validSignals) {
     if (signal.aborted) {
       controller.abort(signal.reason);
       return controller.signal;
     }
 
-    signal.addEventListener(
-      "abort",
-      () => {
-        controller.abort(signal.reason);
-      },
-      { once: true },
-    );
+    const handler = () => {
+      cleanup(); // Remove all listeners to prevent memory leak
+      controller.abort(signal.reason);
+    };
+
+    handlers.push({ signal, handler });
+    signal.addEventListener("abort", handler, { once: true });
   }
 
   return controller.signal;

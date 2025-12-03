@@ -6,7 +6,8 @@ import { AgentAbortError } from "../../types/public/sdkErrors";
 export function extractAbortSignal(
   instructionOrOptions: string | { signal?: AbortSignal },
 ): AbortSignal | undefined {
-  return typeof instructionOrOptions === "object"
+  return typeof instructionOrOptions === "object" &&
+    instructionOrOptions !== null
     ? instructionOrOptions.signal
     : undefined;
 }

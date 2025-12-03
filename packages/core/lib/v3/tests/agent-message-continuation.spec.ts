@@ -95,11 +95,28 @@ test.describe("Stagehand agent message continuation", () => {
 
     expect(result.messages).toBeDefined();
 
-    // Should have assistant messages with tool calls
-    const hasAssistantMessage = result.messages!.some(
+    // Verify there are assistant messages
+    const assistantMessages = result.messages!.filter(
       (m: ModelMessage) => m.role === "assistant",
     );
-    expect(hasAssistantMessage).toBe(true);
+    expect(assistantMessages.length).toBeGreaterThan(0);
+
+    // Verify at least one assistant message contains tool calls
+    const hasToolCalls = assistantMessages.some((m: ModelMessage) => {
+      if (Array.isArray(m.content)) {
+        return m.content.some(
+          (part) => typeof part === "object" && part.type === "tool-call",
+        );
+      }
+      return false;
+    });
+    expect(hasToolCalls).toBe(true);
+
+    // Verify there are tool result messages
+    const hasToolResults = result.messages!.some(
+      (m: ModelMessage) => m.role === "tool",
+    );
+    expect(hasToolResults).toBe(true);
   });
 
   test("streaming mode also returns messages", async () => {

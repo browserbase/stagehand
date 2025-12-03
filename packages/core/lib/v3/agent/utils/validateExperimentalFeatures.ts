@@ -58,8 +58,12 @@ export function validateExperimentalFeatures(
 
   const features: string[] = [];
 
-  // Check agent config features
-  if (agentConfig?.integrations || agentConfig?.tools) {
+  // Check agent config features (check array length to avoid false positives for empty arrays)
+  const hasIntegrations =
+    agentConfig?.integrations && agentConfig.integrations.length > 0;
+  const hasTools =
+    agentConfig?.tools && Object.keys(agentConfig.tools).length > 0;
+  if (hasIntegrations || hasTools) {
     features.push("MCP integrations and custom tools");
   }
 
