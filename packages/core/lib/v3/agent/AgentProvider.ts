@@ -1,6 +1,7 @@
 import { ToolSet } from "ai/dist";
 import { AgentProviderType } from "../types/public/agent";
 import { LogLine } from "../types/public/logs";
+import { ClientOptions } from "../types/public/model";
 import {
   UnsupportedModelError,
   UnsupportedModelProviderError,
@@ -40,7 +41,7 @@ export class AgentProvider {
 
   getClient(
     modelName: string,
-    clientOptions?: Record<string, unknown>,
+    clientOptions?: ClientOptions,
     userProvidedInstructions?: string,
     tools?: ToolSet,
   ): AgentClient {

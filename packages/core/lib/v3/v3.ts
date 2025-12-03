@@ -281,6 +281,7 @@ export class V3 {
       this.llmClient = this.llmProvider.getClient(
         this.modelName,
         this.modelClientOptions,
+        { experimental: this.experimental, disableAPI: this.disableAPI },
       );
     }
 
@@ -384,6 +385,7 @@ export class V3 {
     const client = this.llmProvider.getClient(
       modelName as AvailableModel,
       mergedOptions,
+      { experimental: this.experimental, disableAPI: this.disableAPI },
     );
 
     this.overrideLlmClients.set(cacheKey, client);
@@ -1810,7 +1812,7 @@ export class V3 {
             if (this.apiClient && !this.experimental) {
               const page = await this.ctx!.awaitActivePage();
               result = await this.apiClient.agentExecute(
-                options,
+                options ?? {},
                 resolvedOptions as AgentExecuteOptions,
                 page.mainFrameId(),
               );
