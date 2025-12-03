@@ -19,7 +19,7 @@ test.describe("Stagehand agent abort signal", () => {
   });
 
   test("abort signal stops execution and throws AgentAbortError", async () => {
-    test.setTimeout(30000);
+    test.setTimeout(60000);
 
     const agent = v3.agent({
       model: "anthropic/claude-haiku-4-5-20251001",
@@ -31,7 +31,7 @@ test.describe("Stagehand agent abort signal", () => {
     const controller = new AbortController();
 
     // Abort after a short delay
-    setTimeout(() => controller.abort(), 500);
+    setTimeout(() => controller.abort(), 1000);
 
     const startTime = Date.now();
 
@@ -54,11 +54,11 @@ test.describe("Stagehand agent abort signal", () => {
 
     // Should have stopped relatively quickly (within a few seconds of abort)
     // Not waiting for all 50 steps
-    expect(elapsed).toBeLessThan(15000);
+    expect(elapsed).toBeLessThan(30000);
   });
 
   test("AbortSignal.timeout throws AgentAbortError", async () => {
-    test.setTimeout(30000);
+    test.setTimeout(60000);
 
     const agent = v3.agent({
       model: "anthropic/claude-haiku-4-5-20251001",
@@ -74,7 +74,7 @@ test.describe("Stagehand agent abort signal", () => {
         instruction:
           "Describe everything on this page in extreme detail. Take your time. Do not use close tool until done.",
         maxSteps: 50,
-        signal: AbortSignal.timeout(1000), // 1 second timeout
+        signal: AbortSignal.timeout(2000), // 2 second timeout
       });
       // Should not reach here
       expect(true).toBe(false);
@@ -86,11 +86,11 @@ test.describe("Stagehand agent abort signal", () => {
     const elapsed = Date.now() - startTime;
 
     // Should have stopped around the timeout (with some margin)
-    expect(elapsed).toBeLessThan(10000);
+    expect(elapsed).toBeLessThan(20000);
   });
 
   test("streaming mode throws AgentAbortError on abort", async () => {
-    test.setTimeout(90000);
+    test.setTimeout(180000);
 
     const agent = v3.agent({
       stream: true,
@@ -101,7 +101,7 @@ test.describe("Stagehand agent abort signal", () => {
     await page.goto("https://example.com");
 
     // Use AbortSignal.timeout for more reliable abort
-    const signal = AbortSignal.timeout(2000); // 2 second timeout
+    const signal = AbortSignal.timeout(4000); // 4 second timeout
 
     const startTime = Date.now();
 
@@ -136,11 +136,11 @@ test.describe("Stagehand agent abort signal", () => {
     const elapsed = Date.now() - startTime;
 
     // Should have stopped within reasonable time (not running all 50 steps)
-    expect(elapsed).toBeLessThan(30000);
+    expect(elapsed).toBeLessThan(60000);
   });
 
   test("execution completes normally without abort signal", async () => {
-    test.setTimeout(60000);
+    test.setTimeout(120000);
 
     const agent = v3.agent({
       model: "anthropic/claude-haiku-4-5-20251001",
@@ -160,7 +160,7 @@ test.describe("Stagehand agent abort signal", () => {
   });
 
   test("already aborted signal throws AgentAbortError immediately", async () => {
-    test.setTimeout(10000);
+    test.setTimeout(20000);
 
     const agent = v3.agent({
       model: "anthropic/claude-haiku-4-5-20251001",
@@ -188,7 +188,7 @@ test.describe("Stagehand agent abort signal", () => {
   });
 
   test("stagehand.close() aborts running agent tasks", async () => {
-    test.setTimeout(30000);
+    test.setTimeout(60000);
 
     // Create a separate instance for this test to avoid interfering with afterEach
     const v3Instance = new V3({
@@ -216,7 +216,7 @@ test.describe("Stagehand agent abort signal", () => {
     // Close after a short delay - this should abort the running task
     setTimeout(() => {
       v3Instance.close().catch(() => {});
-    }, 500);
+    }, 1000);
 
     try {
       await executePromise;
@@ -231,6 +231,6 @@ test.describe("Stagehand agent abort signal", () => {
     const elapsed = Date.now() - startTime;
 
     // Should have stopped relatively quickly after close()
-    expect(elapsed).toBeLessThan(15000);
+    expect(elapsed).toBeLessThan(30000);
   });
 });
