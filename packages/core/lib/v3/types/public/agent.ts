@@ -1,5 +1,17 @@
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { ToolSet, ModelMessage, wrapLanguageModel, StreamTextResult } from "ai";
+import {
+  ToolSet,
+  ModelMessage,
+  wrapLanguageModel,
+  StreamTextResult,
+  StepResult,
+  PrepareStepFunction,
+  GenerateTextOnStepFinishCallback,
+  StreamTextOnStepFinishCallback,
+  StreamTextOnErrorCallback,
+  StreamTextOnChunkCallback,
+  StreamTextOnFinishCallback,
+} from "ai";
 import { LogLine } from "./logs";
 import { ClientOptions } from "./model";
 import { Page as PlaywrightPage } from "playwright-core";
@@ -8,7 +20,7 @@ import { Page as PatchrightPage } from "patchright-core";
 import { Page } from "../../understudy/page";
 
 export interface AgentContext {
-  options: AgentExecuteOptions;
+  options: AgentExecuteOptionsBase;
   maxSteps: number;
   systemPrompt: string;
   allTools: ToolSet;
@@ -57,11 +69,168 @@ export type AgentStreamResult = StreamTextResult<ToolSet, never> & {
   result: Promise<AgentResult>;
 };
 
-export interface AgentExecuteOptions {
+/**
+ * Base callbacks shared between execute (non-streaming) and streaming modes.
+ */
+export interface AgentCallbacks {
+  /**
+   * Optional function called before each step to modify settings.
+   * You can change the model, tool choices, active tools, system prompt,
+   * and input messages for each step.
+   */
+  prepareStep?: PrepareStepFunction<ToolSet>;
+  /**
+   * Callback called when each step (LLM call) is finished.
+   * This is called for intermediate steps as well as the final step.
+   */
+  onStepFinish?:
+    | GenerateTextOnStepFinishCallback<ToolSet>
+    | StreamTextOnStepFinishCallback<ToolSet>;
+}
+
+/**
+ * Error message type for streaming-only callbacks used in non-streaming mode.
+ * This provides a clear error message when users try to use streaming callbacks without stream: true.
+ */
+type StreamingCallbackNotAvailable =
+  "This callback requires 'stream: true' in AgentConfig. Set stream: true to use streaming callbacks like onChunk, onFinish, onError, and onAbort.";
+
+/**
+ * Callbacks specific to the non-streaming execute method.
+ */
+export interface AgentExecuteCallbacks extends AgentCallbacks {
+  /**
+   * Callback called when each step (LLM call) is finished.
+   */
+  onStepFinish?: GenerateTextOnStepFinishCallback<ToolSet>;
+
+  /**
+   * NOT AVAILABLE in non-streaming mode.
+   * This callback requires `stream: true` in AgentConfig.
+   *
+   * @example
+   * ```typescript
+   * // Enable streaming to use onChunk:
+   * const agent = stagehand.agent({ stream: true });
+   * await agent.execute({
+   *   instruction: "...",
+   *   callbacks: { onChunk: async (chunk) => console.log(chunk) }
+   * });
+   * ```
+   */
+  onChunk?: StreamingCallbackNotAvailable;
+
+  /**
+   * NOT AVAILABLE in non-streaming mode.
+   * This callback requires `stream: true` in AgentConfig.
+   *
+   * @example
+   * ```typescript
+   * // Enable streaming to use onFinish:
+   * const agent = stagehand.agent({ stream: true });
+   * await agent.execute({
+   *   instruction: "...",
+   *   callbacks: { onFinish: (event) => console.log("Done!", event) }
+   * });
+   * ```
+   */
+  onFinish?: StreamingCallbackNotAvailable;
+
+  /**
+   * NOT AVAILABLE in non-streaming mode.
+   * This callback requires `stream: true` in AgentConfig.
+   *
+   * @example
+   * ```typescript
+   * // Enable streaming to use onError:
+   * const agent = stagehand.agent({ stream: true });
+   * await agent.execute({
+   *   instruction: "...",
+   *   callbacks: { onError: ({ error }) => console.error(error) }
+   * });
+   * ```
+   */
+  onError?: StreamingCallbackNotAvailable;
+
+  /**
+   * NOT AVAILABLE in non-streaming mode.
+   * This callback requires `stream: true` in AgentConfig.
+   *
+   * @example
+   * ```typescript
+   * // Enable streaming to use onAbort:
+   * const agent = stagehand.agent({ stream: true });
+   * await agent.execute({
+   *   instruction: "...",
+   *   callbacks: { onAbort: (event) => console.log("Aborted", event.steps) }
+   * });
+   * ```
+   */
+  onAbort?: StreamingCallbackNotAvailable;
+}
+
+/**
+ * Callbacks specific to the streaming mode.
+ */
+export interface AgentStreamCallbacks extends AgentCallbacks {
+  /**
+   * Callback called when each step (LLM call) is finished during streaming.
+   */
+  onStepFinish?: StreamTextOnStepFinishCallback<ToolSet>;
+  /**
+   * Callback called when an error occurs during streaming.
+   * Use this to log errors or handle error states.
+   */
+  onError?: StreamTextOnErrorCallback;
+  /**
+   * Callback called for each chunk of the stream.
+   * Stream processing will pause until the callback promise resolves.
+   */
+  onChunk?: StreamTextOnChunkCallback<ToolSet>;
+  /**
+   * Callback called when the stream finishes.
+   */
+  onFinish?: StreamTextOnFinishCallback<ToolSet>;
+  /**
+   * Callback called when the stream is aborted.
+   */
+  onAbort?: (event: {
+    steps: Array<StepResult<ToolSet>>;
+  }) => PromiseLike<void> | void;
+}
+
+/**
+ * Base options for agent execution (without callbacks).
+ */
+export interface AgentExecuteOptionsBase {
   instruction: string;
   maxSteps?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   highlightCursor?: boolean;
+}
+
+/**
+ * Options for non-streaming agent execution.
+ * Only accepts AgentExecuteCallbacks (no streaming-specific callbacks like onChunk, onFinish).
+ */
+export interface AgentExecuteOptions extends AgentExecuteOptionsBase {
+  /**
+   * Callbacks for non-streaming agent execution.
+   * For streaming callbacks (onChunk, onFinish, onError, onAbort), use stream: true in AgentConfig.
+   */
+  callbacks?: AgentExecuteCallbacks;
+}
+
+/**
+ * Options for streaming agent execution.
+ * Accepts AgentStreamCallbacks including onChunk, onFinish, onError, and onAbort.
+ */
+export interface AgentStreamExecuteOptions extends AgentExecuteOptionsBase {
+  /**
+   * Callbacks for streaming agent execution.
+   * Includes streaming-specific callbacks: onChunk, onFinish, onError, onAbort.
+   */
+  callbacks?: AgentStreamCallbacks;
 }
 export type AgentType = "openai" | "anthropic" | "google" | "microsoft";
 
@@ -233,16 +402,18 @@ export type AgentConfig = {
 /**
  * Agent instance returned when stream: true is set in AgentConfig.
  * execute() returns a streaming result that can be consumed incrementally.
+ * Accepts AgentStreamExecuteOptions with streaming-specific callbacks.
  */
 export interface StreamingAgentInstance {
   execute: (
-    instructionOrOptions: string | AgentExecuteOptions,
+    instructionOrOptions: string | AgentStreamExecuteOptions,
   ) => Promise<AgentStreamResult>;
 }
 
 /**
  * Agent instance returned when stream is false or not set in AgentConfig.
  * execute() returns a result after the agent completes.
+ * Accepts AgentExecuteOptions with non-streaming callbacks only.
  */
 export interface NonStreamingAgentInstance {
   execute: (
