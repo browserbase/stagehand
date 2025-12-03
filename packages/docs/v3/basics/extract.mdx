@@ -9,12 +9,12 @@ description: Extract structured data from a webpage
 await stagehand.extract("extract the name of the repository");
 ```
 
-`extract` grabs structured data from a webpage. You can define your schema with [zod](https://github.com/colinhacks/zod) (TypeScript) or JSON. If you do not want to define a schema, you can also call `extract` with just a [natural language prompt](#extract-with-just-a-prompt), or call `extract` [with no parameters](#extract-with-no-parameters).
+`extract()` grabs structured data from a webpage. You can define your schema with [Zod](https://github.com/colinhacks/zod) (TypeScript) or JSON. If you don't want to define a schema, you can also call `extract` with just a [natural language prompt](#instruction-only), or call `extract` [with no parameters](#no-parameters).
 
 ## Why use `extract()`?
 
 <CardGroup cols={2}>
-  <Card title="Structured" icon="brackets-curly" href="#list-of-objects-extraction">
+  <Card title="Structured" icon="brackets-curly" href="#basic-schema">
     Turn messy webpage data into clean objects that follow a schema.
   </Card>
   <Card title="Resilient" icon="dumbbell" href="#extract-with-context">
@@ -22,15 +22,7 @@ await stagehand.extract("extract the name of the repository");
   </Card>
 </CardGroup>
 
-## Using `extract()`
-
-You can use `extract()` to extract structured data from a webpage. You can define your schema with [zod](https://github.com/colinhacks/zod) (TypeScript) or JSON. If you do not want to define a schema, you can also call `extract` with just a natural language prompt, or call `extract` with no parameters.
-
-```typescript
-const result = await stagehand.extract("extract the product details");
-```
-
-### Return value of `extract()`?
+## Return value
 
 When you use `extract()`, Stagehand will return a `Promise<ExtractResult>` with the following structure:
 <Tabs>
