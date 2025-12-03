@@ -60,7 +60,6 @@ import {
   PatchrightPage,
   PlaywrightPage,
   PuppeteerPage,
-  ExperimentalNotConfiguredError,
   CuaModelRequiredError,
   StagehandInvalidArgumentError,
   StagehandNotInitializedError,
@@ -72,6 +71,7 @@ import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
 import { resolveModel } from "../modelUtils";
 import { StagehandAPIClient } from "./api";
+import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
@@ -1511,12 +1511,7 @@ export class V3 {
     instruction: string;
     cacheContext: AgentCacheContext | null;
   }> {
-    if ((options?.integrations || options?.tools) && !this.experimental) {
-      throw new ExperimentalNotConfiguredError(
-        "MCP integrations and custom tools",
-      );
-    }
-
+    // Note: experimental validation is done at the call site before this method
     const tools = options?.integrations
       ? await resolveTools(options.integrations, options.tools)
       : (options?.tools ?? {});
@@ -1611,17 +1606,11 @@ export class V3 {
 
     // If CUA is enabled, use the computer-use agent path
     if (options?.cua) {
-      if (options?.stream) {
-        throw new StagehandInvalidArgumentError(
-          "Streaming is not supported with CUA (Computer Use Agent) mode. Remove either 'stream: true' or 'cua: true' from your agent config.",
-        );
-      }
-
-      if ((options?.integrations || options?.tools) && !this.experimental) {
-        throw new ExperimentalNotConfiguredError(
-          "MCP integrations and custom tools",
-        );
-      }
+      // Validate agent config at creation time (includes CUA+streaming conflict check)
+      validateExperimentalFeatures({
+        isExperimental: this.experimental,
+        agentConfig: options,
+      });
 
       const modelToUse = options?.model || {
         modelName: this.modelName,
@@ -1639,9 +1628,15 @@ export class V3 {
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
           withInstanceLogContext(this.instanceId, async () => {
-            if (options?.integrations && !this.experimental) {
-              throw new ExperimentalNotConfiguredError("MCP integrations");
-            }
+            validateExperimentalFeatures({
+              isExperimental: this.experimental,
+              agentConfig: options,
+              executeOptions:
+                typeof instructionOrOptions === "object"
+                  ? instructionOrOptions
+                  : null,
+            });
+
             const tools = options?.integrations
               ? await resolveTools(options.integrations, options.tools)
               : (options?.tools ?? {});
@@ -1741,20 +1736,18 @@ export class V3 {
           | AgentStreamExecuteOptions,
       ): Promise<AgentResult | AgentStreamResult> =>
         withInstanceLogContext(this.instanceId, async () => {
-          if (
-            typeof instructionOrOptions === "object" &&
-            instructionOrOptions.callbacks &&
-            !this.experimental
-          ) {
-            throw new ExperimentalNotConfiguredError("Agent callbacks");
-          }
+          validateExperimentalFeatures({
+            isExperimental: this.experimental,
+            agentConfig: options,
+            executeOptions:
+              typeof instructionOrOptions === "object"
+                ? instructionOrOptions
+                : null,
+            isStreaming,
+          });
 
           // Streaming mode
           if (isStreaming) {
-            if (!this.experimental) {
-              throw new ExperimentalNotConfiguredError("Agent streaming");
-            }
-
             const { handler, cacheContext } = await this.prepareAgentExecution(
               options,
               instructionOrOptions,

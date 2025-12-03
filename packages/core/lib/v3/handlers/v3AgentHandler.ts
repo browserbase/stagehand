@@ -28,6 +28,7 @@ import { mapToolResultToActions } from "../agent/utils/actionMapping";
 import {
   MissingLLMConfigurationError,
   StreamingCallbacksInNonStreamingModeError,
+  AgentAbortError,
 } from "../types/public/sdkErrors";
 
 export class V3AgentHandler {
@@ -71,9 +72,11 @@ export class V3AgentHandler {
       );
       const tools = this.createTools();
       const allTools: ToolSet = { ...tools, ...this.mcpTools };
-      const messages: ModelMessage[] = [
-        { role: "user", content: options.instruction },
-      ];
+
+      // Use provided messages for continuation, or start fresh with the instruction
+      const messages: ModelMessage[] = options.messages?.length
+        ? [...options.messages, { role: "user", content: options.instruction }]
+        : [{ role: "user", content: options.instruction }];
 
       if (!this.llmClient?.getLanguageModel) {
         throw new MissingLLMConfigurationError();
@@ -175,6 +178,7 @@ export class V3AgentHandler {
   ): Promise<AgentResult> {
     const startTime = Date.now();
     const {
+      options,
       maxSteps,
       systemPrompt,
       allTools,
@@ -184,6 +188,7 @@ export class V3AgentHandler {
     } = await this.prepareAgent(instructionOrOptions);
 
     const callbacks = (instructionOrOptions as AgentExecuteOptions).callbacks;
+    const abortSignal = options.signal;
 
     if (callbacks) {
       const streamingOnlyCallbacks = [
@@ -219,9 +224,15 @@ export class V3AgentHandler {
         toolChoice: "auto",
         prepareStep: callbacks?.prepareStep,
         onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
+        abortSignal,
       });
 
-      return this.consolidateMetricsAndResult(startTime, state, result);
+      return this.consolidateMetricsAndResult(
+        startTime,
+        state,
+        messages,
+        result,
+      );
     } catch (error) {
       const errorMessage = error?.message ?? String(error);
       this.logger({
@@ -229,11 +240,18 @@ export class V3AgentHandler {
         message: `Error executing agent task: ${errorMessage}`,
         level: 0,
       });
+
+      // Check if this is an abort error and re-throw as AgentAbortError
+      if (AgentAbortError.isAbortError(error)) {
+        throw new AgentAbortError(errorMessage);
+      }
+
       return {
         success: false,
         actions: state.actions,
         message: `Failed to execute task: ${errorMessage}`,
         completed: false,
+        messages, // Include messages even on error for conversation context
       };
     }
   }
@@ -242,6 +260,7 @@ export class V3AgentHandler {
     instructionOrOptions: string | AgentStreamExecuteOptions,
   ): Promise<AgentStreamResult> {
     const {
+      options,
       maxSteps,
       systemPrompt,
       allTools,
@@ -252,6 +271,7 @@ export class V3AgentHandler {
 
     const callbacks = (instructionOrOptions as AgentStreamExecuteOptions)
       .callbacks as AgentStreamCallbacks | undefined;
+    const abortSignal = options.signal;
 
     const state: AgentState = {
       collectedReasoning: [],
@@ -272,12 +292,18 @@ export class V3AgentHandler {
     const handleError = (error: unknown) => {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      this.logger({
-        category: "agent",
-        message: `Error during streaming: ${errorMessage}`,
-        level: 0,
-      });
-      rejectResult(error);
+
+      // Wrap abort errors in AgentAbortError
+      if (AgentAbortError.isAbortError(error)) {
+        rejectResult(new AgentAbortError(errorMessage));
+      } else {
+        this.logger({
+          category: "agent",
+          message: `Error during streaming: ${errorMessage}`,
+          level: 0,
+        });
+        rejectResult(error);
+      }
     };
 
     const streamResult = this.llmClient.streamText({
@@ -305,6 +331,7 @@ export class V3AgentHandler {
           const result = this.consolidateMetricsAndResult(
             startTime,
             state,
+            messages,
             event,
           );
           resolveResult(result);
@@ -312,6 +339,7 @@ export class V3AgentHandler {
           handleError(error);
         }
       },
+      abortSignal,
     });
 
     const agentStreamResult = streamResult as AgentStreamResult;
@@ -322,7 +350,12 @@ export class V3AgentHandler {
   private consolidateMetricsAndResult(
     startTime: number,
     state: AgentState,
-    result: { text?: string; usage?: LanguageModelUsage },
+    inputMessages: ModelMessage[],
+    result: {
+      text?: string;
+      usage?: LanguageModelUsage;
+      response?: { messages?: ModelMessage[] };
+    },
   ): AgentResult {
     if (!state.finalMessage) {
       const allReasoning = state.collectedReasoning.join(" ").trim();
@@ -342,6 +375,13 @@ export class V3AgentHandler {
       );
     }
 
+    // Combine input messages with response messages for full conversation history
+    const responseMessages = result.response?.messages || [];
+    const fullMessages: ModelMessage[] = [
+      ...inputMessages,
+      ...responseMessages,
+    ];
+
     return {
       success: state.completed,
       message: state.finalMessage || "Task execution completed",
@@ -356,6 +396,7 @@ export class V3AgentHandler {
             inference_time_ms: inferenceTimeMs,
           }
         : undefined,
+      messages: fullMessages,
     };
   }
 

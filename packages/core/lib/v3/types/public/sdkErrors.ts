@@ -331,3 +331,32 @@ export class StreamingCallbacksInNonStreamingModeError extends StagehandError {
     this.invalidCallbacks = invalidCallbacks;
   }
 }
+
+export class AgentAbortError extends StagehandError {
+  public readonly reason: string;
+
+  constructor(reason?: string) {
+    const message = reason
+      ? `Agent execution was aborted: ${reason}`
+      : "Agent execution was aborted";
+    super(message);
+    this.reason = reason || "aborted";
+  }
+
+  /**
+   * Check if an error is an abort-related error (either AgentAbortError or native AbortError)
+   */
+  static isAbortError(error: unknown): boolean {
+    if (error instanceof AgentAbortError) {
+      return true;
+    }
+    if (error instanceof Error) {
+      return (
+        error.name === "AbortError" ||
+        error.message.includes("aborted") ||
+        error.message.includes("abort")
+      );
+    }
+    return false;
+  }
+}
