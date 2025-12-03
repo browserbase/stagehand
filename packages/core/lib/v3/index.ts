@@ -2,6 +2,16 @@ export { V3 } from "./v3";
 export { V3 as Stagehand } from "./v3";
 
 export * from "./types/public";
+
+// Event bus - shared by library and server
+export { StagehandEventBus, createEventBus } from "./eventBus";
+export * from "./server/events";
+
+// Server exports for P2P functionality
+export { StagehandServer } from "./server";
+export type { StagehandServerOptions } from "./server";
+export { SessionManager } from "./server/sessions";
+export type { SessionEntry } from "./server/sessions";
 export { AnnotatedScreenshotText, LLMClient } from "./llm/LLMClient";
 
 export { AgentProvider, modelToAgentProviderMap } from "./agent/AgentProvider";

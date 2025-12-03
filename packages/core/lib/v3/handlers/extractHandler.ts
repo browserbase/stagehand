@@ -25,6 +25,7 @@ import type {
   StagehandZodObject,
   StagehandZodSchema,
 } from "../zodCompat";
+import type { StagehandEventBus } from "../eventBus";
 
 /**
  * Scans the provided Zod schema for any `z.string().url()` fields and
@@ -60,6 +61,7 @@ export class ExtractHandler {
   private readonly defaultModelName: AvailableModel;
   private readonly defaultClientOptions: ClientOptions;
   private readonly resolveLlmClient: (model?: ModelConfiguration) => LLMClient;
+  private readonly eventBus: StagehandEventBus;
   private readonly systemPrompt: string;
   private readonly logInferenceToFile: boolean;
   private readonly experimental: boolean;
@@ -77,6 +79,7 @@ export class ExtractHandler {
     defaultModelName: AvailableModel,
     defaultClientOptions: ClientOptions,
     resolveLlmClient: (model?: ModelConfiguration) => LLMClient,
+    eventBus: StagehandEventBus,
     systemPrompt?: string,
     logInferenceToFile?: boolean,
     experimental?: boolean,
@@ -93,6 +96,7 @@ export class ExtractHandler {
     this.defaultModelName = defaultModelName;
     this.defaultClientOptions = defaultClientOptions;
     this.resolveLlmClient = resolveLlmClient;
+    this.eventBus = eventBus;
     this.systemPrompt = systemPrompt ?? "";
     this.logInferenceToFile = logInferenceToFile ?? false;
     this.experimental = experimental ?? false;
@@ -171,6 +175,7 @@ export class ExtractHandler {
           domElements: combinedTree,
           schema: transformedSchema as StagehandZodObject,
           llmClient,
+          eventBus: this.eventBus,
           userProvidedInstructions: this.systemPrompt,
           logger: v3Logger,
           logInferenceToFile: this.logInferenceToFile,

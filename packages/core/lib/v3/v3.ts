@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { InferStagehandSchema, StagehandZodSchema } from "./zodCompat";
 import { loadApiKeyFromEnv } from "../utils";
 import { StagehandLogger, LoggerOptions } from "../logger";
+import { StagehandEventBus, createEventBus } from "./eventBus";
 import { ActCache } from "./cache/ActCache";
 import { AgentCache } from "./cache/AgentCache";
 import { CacheStorage } from "./cache/CacheStorage";
@@ -124,6 +125,7 @@ dotenv.config({ path: ".env" });
  * - Provides a stable API surface for downstream code regardless of runtime environment.
  */
 export class V3 {
+  public readonly eventBus: StagehandEventBus;
   private readonly opts: V3Options;
   private state: InitState = { kind: "UNINITIALIZED" };
   private actHandler: ActHandler | null = null;
@@ -159,7 +161,6 @@ export class V3 {
   };
   public readonly experimental: boolean = false;
   public readonly logInferenceToFile: boolean = false;
-  public readonly disableAPI: boolean = false;
   private externalLogger?: (logLine: LogLine) => void;
   public verbose: 0 | 1 | 2 = 1;
   private stagehandLogger: StagehandLogger;
@@ -171,6 +172,7 @@ export class V3 {
   private actCache: ActCache;
   private agentCache: AgentCache;
   private apiClient: StagehandAPIClient | null = null;
+  private llmEventHandlerCleanup: (() => void) | null = null;
 
   public stagehandMetrics: StagehandMetrics = {
     actPromptTokens: 0,
@@ -201,6 +203,9 @@ export class V3 {
   };
 
   constructor(opts: V3Options) {
+    // Create event bus first - both library and server will use this
+    this.eventBus = opts.eventBus || createEventBus();
+
     V3._installProcessGuards();
     this.externalLogger = opts.logger;
     this.verbose = opts.verbose ?? 1;
@@ -244,7 +249,6 @@ export class V3 {
     this.logInferenceToFile = opts.logInferenceToFile ?? false;
     this.llmProvider = new LLMProvider(this.logger);
     this.domSettleTimeoutMs = opts.domSettleTimeout;
-    this.disableAPI = opts.disableAPI ?? false;
 
     const baseClientOptions: ClientOptions = clientOptions
       ? ({ ...clientOptions } as ClientOptions)
@@ -252,7 +256,6 @@ export class V3 {
     if (opts.llmClient) {
       this.llmClient = opts.llmClient;
       this.modelClientOptions = baseClientOptions;
-      this.disableAPI = true;
     } else {
       // Ensure API key is set
       let apiKey = (baseClientOptions as { apiKey?: string }).apiKey;
@@ -303,6 +306,14 @@ export class V3 {
       getSystemPrompt: () => opts.systemPrompt,
       domSettleTimeoutMs: this.domSettleTimeoutMs,
       act: this.act.bind(this),
+    });
+
+    // Initialize LLM event handler to listen for LLM requests on the event bus
+    const { initializeLLMEventHandler } = require("./llm/llmEventHandler");
+    this.llmEventHandlerCleanup = initializeLLMEventHandler({
+      eventBus: this.eventBus,
+      llmClient: this.llmClient,
+      logger: this.logger,
     });
 
     this.opts = opts;
@@ -588,6 +599,7 @@ export class V3 {
           this.modelName,
           this.modelClientOptions,
           (model) => this.resolveLlmClient(model),
+          this.eventBus,
           this.opts.systemPrompt ?? "",
           this.logInferenceToFile,
           this.opts.selfHeal ?? true,
@@ -614,6 +626,7 @@ export class V3 {
           this.modelName,
           this.modelClientOptions,
           (model) => this.resolveLlmClient(model),
+          this.eventBus,
           this.opts.systemPrompt ?? "",
           this.logInferenceToFile,
           this.experimental,
@@ -639,6 +652,7 @@ export class V3 {
           this.modelName,
           this.modelClientOptions,
           (model) => this.resolveLlmClient(model),
+          this.eventBus,
           this.opts.systemPrompt ?? "",
           this.logInferenceToFile,
           this.experimental,
@@ -659,6 +673,7 @@ export class V3 {
               inferenceTimeMs,
             ),
         );
+
         if (this.opts.env === "LOCAL") {
           // chrome-launcher conditionally adds --headless when the environment variable
           // HEADLESS is set, without parsing its value.
@@ -789,111 +804,63 @@ export class V3 {
         }
 
         if (this.opts.env === "BROWSERBASE") {
-          const { apiKey, projectId } = this.requireBrowserbaseCreds();
-          if (!apiKey || !projectId) {
-            throw new MissingEnvironmentVariableError(
-              "BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID",
-              "Browserbase environment",
-            );
-          }
+          // In BROWSERBASE mode, always use the HTTP API client.
+          // STAGEHAND_API_URL controls which remote server we talk to:
+          // - default: Stagehand cloud API
+          // - custom: P2P or self-hosted Stagehand server
+          const apiKey =
+            this.opts.apiKey ?? process.env.BROWSERBASE_API_KEY ?? "";
+          const projectId =
+            this.opts.projectId ?? process.env.BROWSERBASE_PROJECT_ID ?? "";
+
           this.logger({
             category: "init",
-            message: "Starting browserbase session",
+            message: "Connecting to remote Stagehand API (BROWSERBASE env)",
             level: 1,
           });
-          if (!this.disableAPI && !this.experimental) {
-            this.apiClient = new StagehandAPIClient({
-              apiKey,
-              projectId,
-              logger: this.logger,
-            });
-            const createSessionPayload = {
-              projectId:
-                this.opts.browserbaseSessionCreateParams?.projectId ??
-                projectId,
-              ...this.opts.browserbaseSessionCreateParams,
-              browserSettings: {
-                ...(this.opts.browserbaseSessionCreateParams?.browserSettings ??
-                  {}),
-                viewport: this.opts.browserbaseSessionCreateParams
-                  ?.browserSettings?.viewport ?? { width: 1288, height: 711 },
-              },
-              userMetadata: {
-                ...(this.opts.browserbaseSessionCreateParams?.userMetadata ??
-                  {}),
-                stagehand: "true",
-              },
-            };
-            const { sessionId, available } = await this.apiClient.init({
-              modelName: this.modelName,
-              modelApiKey: this.modelClientOptions.apiKey,
-              domSettleTimeoutMs: this.domSettleTimeoutMs,
-              verbose: this.verbose,
-              systemPrompt: this.opts.systemPrompt,
-              selfHeal: this.opts.selfHeal,
-              browserbaseSessionCreateParams: createSessionPayload,
-              browserbaseSessionID: this.opts.browserbaseSessionID,
-            });
-            if (!available) {
-              this.apiClient = null;
-            }
-            this.opts.browserbaseSessionID = sessionId;
-          }
-          const { ws, sessionId, bb } = await createBrowserbaseSession(
+
+          this.apiClient = new StagehandAPIClient({
             apiKey,
             projectId,
-            this.opts.browserbaseSessionCreateParams,
-            this.opts.browserbaseSessionID,
-          );
-          this.ctx = await V3Context.create(ws, {
-            env: "BROWSERBASE",
-            apiClient: this.apiClient,
+            // baseUrl is resolved inside StagehandAPIClient from
+            // STAGEHAND_API_URL or defaults to the cloud API.
+            logger: this.logger,
           });
-          this.ctx.conn.onTransportClosed(this._onCdpClosed);
-          this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
-          this.browserbaseSessionId = sessionId;
 
-          await this._ensureBrowserbaseDownloadsEnabled();
+          const createSessionPayload = {
+            projectId:
+              this.opts.browserbaseSessionCreateParams?.projectId ??
+              projectId,
+            ...this.opts.browserbaseSessionCreateParams,
+            browserSettings: {
+              ...(this.opts.browserbaseSessionCreateParams?.browserSettings ??
+                {}),
+              viewport: this.opts.browserbaseSessionCreateParams
+                ?.browserSettings?.viewport ?? { width: 1288, height: 711 },
+            },
+            userMetadata: {
+              ...(this.opts.browserbaseSessionCreateParams?.userMetadata ??
+                {}),
+              stagehand: "true",
+            },
+          };
 
-          const resumed = !!this.opts.browserbaseSessionID;
-          let debugUrl: string | undefined;
-          try {
-            const dbg = (await bb.sessions.debug(sessionId)) as unknown as {
-              debuggerUrl?: string;
-            };
-            debugUrl = dbg?.debuggerUrl;
-          } catch {
-            // Ignore debug fetch failures; continue with sessionUrl only
-          }
-          const sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
-          this.browserbaseSessionUrl = sessionUrl;
-          this.browserbaseDebugUrl = debugUrl;
+          await this.apiClient.init({
+            modelName: this.modelName,
+            modelApiKey: this.modelClientOptions.apiKey!,
+            domSettleTimeoutMs: this.domSettleTimeoutMs ?? 10_000,
+            verbose: this.verbose,
+            systemPrompt: this.opts.systemPrompt,
+            selfHeal: this.opts.selfHeal,
+            browserbaseSessionCreateParams: createSessionPayload,
+            browserbaseSessionID: this.opts.browserbaseSessionID,
+          });
 
-          try {
-            this.logger({
-              category: "init",
-              message: resumed
-                ? this.apiClient
-                  ? "Browserbase session started"
-                  : "Browserbase session resumed"
-                : "Browserbase session started",
-              level: 1,
-              auxiliary: {
-                sessionUrl: { value: sessionUrl, type: "string" },
-                ...(debugUrl && {
-                  debugUrl: { value: debugUrl, type: "string" },
-                }),
-                sessionId: { value: sessionId, type: "string" },
-              },
-            });
-          } catch {
-            // best-effort logging — ignore failures
-          }
+          // In pure API mode we don't create a local CDP context here;
+          // all operations will be proxied via this.apiClient.
+          this.resetBrowserbaseSessionMetadata();
           return;
         }
-
-        const neverEnv: never = this.opts.env;
-        throw new StagehandInitError(`Unsupported env: ${neverEnv}`);
       });
     } catch (error) {
       // Cleanup instanceLoggers map on init failure to prevent memory leak
@@ -961,6 +928,26 @@ export class V3 {
 
   async act(input: string | Action, options?: ActOptions): Promise<ActResult> {
     return await withInstanceLogContext(this.instanceId, async () => {
+      // If connected to remote server, route to API immediately
+      if (this.apiClient) {
+        if (isObserveResult(input)) {
+          // For Action objects, we can send directly to the API
+          return await this.apiClient.act({
+            input,
+            options,
+            frameId: undefined, // Let the server resolve the page
+          });
+        } else {
+          // For string instructions, send to API
+          return await this.apiClient.act({
+            input,
+            options,
+            frameId: undefined,
+          });
+        }
+      }
+
+      // Local execution path
       if (!this.actHandler) throw new StagehandNotInitializedError("act()");
 
       let actResult: ActResult;
@@ -971,21 +958,12 @@ export class V3 {
 
         // Use selector as provided to support XPath, CSS, and other engines
         const selector = input.selector;
-        if (this.apiClient) {
-          actResult = await this.apiClient.act({
-            input,
-            options,
-            frameId: v3Page.mainFrameId(),
-          });
-        } else {
-          actResult = await this.actHandler.actFromObserveResult(
-            { ...input, selector }, // ObserveResult
-            v3Page, // V3 Page
-            this.domSettleTimeoutMs,
-            this.resolveLlmClient(options?.model),
-          );
-        }
-
+        actResult = await this.actHandler.actFromObserveResult(
+          { ...input, selector }, // ObserveResult
+          v3Page, // V3 Page
+          this.domSettleTimeoutMs,
+          this.resolveLlmClient(options?.model),
+        );
         // history: record ObserveResult-based act call
         this.addToHistory(
           "act",
@@ -1048,12 +1026,7 @@ export class V3 {
         timeout: options?.timeout,
         model: options?.model,
       };
-      if (this.apiClient) {
-        const frameId = page.mainFrameId();
-        actResult = await this.apiClient.act({ input, options, frameId });
-      } else {
-        actResult = await this.actHandler.act(handlerParams);
-      }
+      actResult = await this.actHandler.act(handlerParams);
       // history: record instruction-based act call (omit page object)
       this.addToHistory(
         "act",
@@ -1108,10 +1081,6 @@ export class V3 {
     c?: ExtractOptions,
   ): Promise<unknown> {
     return await withInstanceLogContext(this.instanceId, async () => {
-      if (!this.extractHandler) {
-        throw new StagehandNotInitializedError("extract()");
-      }
-
       // Normalize args
       let instruction: string | undefined;
       let schema: StagehandZodSchema | undefined;
@@ -1145,7 +1114,17 @@ export class V3 {
       const effectiveSchema =
         instruction && !schema ? defaultExtractSchema : schema;
 
-      // Resolve page from options or use active page
+      // If connected to remote API (BROWSERBASE or P2P), route there immediately
+      if (this.apiClient) {
+        return await this.apiClient.extract({
+          instruction,
+          schema: effectiveSchema,
+          options,
+          frameId: undefined, // Let server resolve the page
+        });
+      }
+
+      // Local execution path
       const page = await this.resolvePage(options?.page);
 
       const handlerParams: ExtractHandlerParams<StagehandZodSchema> = {
@@ -1156,19 +1135,8 @@ export class V3 {
         selector: options?.selector,
         page,
       };
-      let result: z.infer<typeof effectiveSchema> | { pageText: string };
-      if (this.apiClient) {
-        const frameId = page.mainFrameId();
-        result = await this.apiClient.extract({
-          instruction: handlerParams.instruction,
-          schema: handlerParams.schema,
-          options,
-          frameId,
-        });
-      } else {
-        result =
-          await this.extractHandler.extract<StagehandZodSchema>(handlerParams);
-      }
+      const result =
+        await this.extractHandler.extract<StagehandZodSchema>(handlerParams);
       return result;
     });
   }
@@ -1187,10 +1155,6 @@ export class V3 {
     b?: ObserveOptions,
   ): Promise<Action[]> {
     return await withInstanceLogContext(this.instanceId, async () => {
-      if (!this.observeHandler) {
-        throw new StagehandNotInitializedError("observe()");
-      }
-
       // Normalize args
       let instruction: string | undefined;
       let options: ObserveOptions | undefined;
@@ -1201,7 +1165,27 @@ export class V3 {
         options = a as ObserveOptions | undefined;
       }
 
-      // Resolve to our internal Page type
+      // If connected to remote API (BROWSERBASE or P2P), route there immediately
+      if (this.apiClient) {
+        const results = await this.apiClient.observe({
+          instruction,
+          options,
+          frameId: undefined, // Let server resolve the page
+        });
+
+        // history: record observe call
+        this.addToHistory(
+          "observe",
+          {
+            instruction,
+            timeout: options?.timeout,
+          },
+          results,
+        );
+        return results;
+      }
+
+      // Local execution path
       const page = await this.resolvePage(options?.page);
 
       const handlerParams: ObserveHandlerParams = {
@@ -1212,17 +1196,7 @@ export class V3 {
         page: page!,
       };
 
-      let results: Action[];
-      if (this.apiClient) {
-        const frameId = page.mainFrameId();
-        results = await this.apiClient.observe({
-          instruction,
-          options,
-          frameId,
-        });
-      } else {
-        results = await this.observeHandler.observe(handlerParams);
-      }
+      const results = await this.observeHandler.observe(handlerParams);
 
       // history: record observe call (omit page object)
       this.addToHistory(
@@ -1234,6 +1208,24 @@ export class V3 {
         results,
       );
       return results;
+    });
+  }
+
+  /**
+   * Navigate to a URL. When connected to a remote server, this routes the navigation
+   * to the remote browser. When running locally, it navigates the active page.
+   */
+  async goto(url: string, options?: any): Promise<void> {
+    return await withInstanceLogContext(this.instanceId, async () => {
+      // If connected to remote API (BROWSERBASE or P2P), route there
+      if (this.apiClient) {
+        await this.apiClient.goto(url, options);
+        return;
+      }
+
+      // Local execution path
+      const page = await this.resolvePage();
+      await page.goto(url, options);
     });
   }
 
@@ -1297,6 +1289,16 @@ export class V3 {
         }
       }
     } finally {
+      // Clean up LLM event handler
+      if (this.llmEventHandlerCleanup) {
+        try {
+          this.llmEventHandlerCleanup();
+          this.llmEventHandlerCleanup = null;
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+
       // Reset internal state
       this.state = { kind: "UNINITIALIZED" };
       this.ctx = null;
@@ -1817,6 +1819,31 @@ export class V3 {
         }),
     };
   }
+
+  /**
+   * Create an HTTP server that handles Stagehand API requests.
+   * This allows other Stagehand instances to connect to this one and execute commands remotely.
+   *
+   * @param options - Server configuration options
+   * @returns StagehandServer instance
+   *
+   * @example
+   * ```typescript
+   * const stagehand = new Stagehand({ env: 'LOCAL' });
+   * await stagehand.init();
+   *
+   * const server = stagehand.createServer({ port: 3000 });
+   * await server.listen();
+   * ```
+   */
+  createServer(
+    options?: import("./server").StagehandServerOptions,
+  ): import("./server").StagehandServer {
+    // Import StagehandServer dynamically to avoid circular dependency
+    const { StagehandServer } = require("./server");
+    return new StagehandServer(options);
+  }
+
 }
 
 function isObserveResult(v: unknown): v is Action {
