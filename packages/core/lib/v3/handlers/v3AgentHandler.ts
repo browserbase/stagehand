@@ -188,7 +188,7 @@ export class V3AgentHandler {
         "onFinish",
         "onError",
         "onAbort",
-      ] as const;
+      ];
       const invalidCallbacks = streamingOnlyCallbacks.filter(
         (name) => callbacks[name as keyof typeof callbacks] != null,
       );
