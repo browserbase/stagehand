@@ -4,6 +4,10 @@ import { z } from "zod";
  * Shared Zod schemas for Stagehand Server API
  * These schemas define the complete API contract between SDK clients and the server.
  * Used for runtime validation, type inference, and OpenAPI generation.
+ *
+ * Naming convention:
+ * - Schemas: TitleCase with Schema suffix (e.g., ActRequestSchema, ActResponseSchema)
+ * - Types: TitleCase matching schema name without Schema suffix (e.g., ActRequest, ActResponse)
  */
 
 // =============================================================================
@@ -11,26 +15,22 @@ import { z } from "zod";
 // =============================================================================
 
 /** Standard API success response wrapper */
-export const successResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
+export const SuccessResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
   z.object({
     success: z.literal(true),
     data: dataSchema,
   });
 
 /** Model configuration for LLM calls (used in action options) */
-export const modelConfigSchema = z.object({
+export const ModelConfigSchema = z.object({
   provider: z.string().optional(),
   model: z.string().optional(),
   apiKey: z.string().optional(),
   baseURL: z.string().url().optional(),
 });
 
-// =============================================================================
-// Request Headers Schema
-// =============================================================================
-
 /** Headers expected on API requests */
-export const requestHeadersSchema = z.object({
+export const RequestHeadersSchema = z.object({
   "x-bb-api-key": z.string().optional(),
   "x-bb-project-id": z.string().optional(),
   "x-model-api-key": z.string().optional(),
@@ -40,12 +40,26 @@ export const requestHeadersSchema = z.object({
   "x-sent-at": z.string().optional(),
 });
 
+/** Route params for /sessions/:id/* routes */
+export const SessionIdParamsSchema = z.object({
+  id: z.string(),
+});
+
+/** Action schema - represents a single observable action */
+export const ActionSchema = z.object({
+  selector: z.string(),
+  description: z.string(),
+  backendNodeId: z.number().optional(),
+  method: z.string().optional(),
+  arguments: z.array(z.string()).optional(),
+});
+
 // =============================================================================
-// Session Schemas
+// Session Start
 // =============================================================================
 
 /** POST /v1/sessions/start - Request body */
-export const startSessionRequestSchema = z.object({
+export const SessionStartRequestSchema = z.object({
   modelName: z.string(),
   domSettleTimeoutMs: z.number().optional(),
   verbose: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
@@ -61,31 +75,35 @@ export const startSessionRequestSchema = z.object({
 });
 
 /** Internal result from SessionStore.startSession() - sessionId always present */
-export const startSessionResultSchema = z.object({
+export const SessionStartResultSchema = z.object({
   sessionId: z.string(),
   available: z.boolean(),
 });
 
 /** POST /v1/sessions/start - HTTP response data (sessionId can be null when unavailable) */
-export const startSessionResponseDataSchema = z.object({
+export const SessionStartResponseDataSchema = z.object({
   sessionId: z.string().nullable(),
   available: z.boolean(),
 });
 
 /** POST /v1/sessions/start - Full HTTP response */
-export const startSessionResponseSchema = successResponseSchema(startSessionResponseDataSchema);
+export const SessionStartResponseSchema = SuccessResponseSchema(SessionStartResponseDataSchema);
+
+// =============================================================================
+// Session End
+// =============================================================================
 
 /** POST /v1/sessions/:id/end - Response */
-export const endSessionResponseSchema = z.object({
+export const SessionEndResponseSchema = z.object({
   success: z.literal(true),
 });
 
 // =============================================================================
-// Action Request Schemas (V3 API)
+// Act
 // =============================================================================
 
-// Zod schemas for V3 API (we only support V3 in the library server)
-export const actSchemaV3 = z.object({
+/** POST /v1/sessions/:id/act - Request body */
+export const ActRequestSchema = z.object({
   input: z.string().or(
     z.object({
       selector: z.string(),
@@ -97,7 +115,7 @@ export const actSchemaV3 = z.object({
   ),
   options: z
     .object({
-      model: modelConfigSchema.optional(),
+      model: ModelConfigSchema.optional(),
       variables: z.record(z.string(), z.string()).optional(),
       timeout: z.number().optional(),
     })
@@ -105,12 +123,24 @@ export const actSchemaV3 = z.object({
   frameId: z.string().optional(),
 });
 
-export const extractSchemaV3 = z.object({
+/** POST /v1/sessions/:id/act - Response */
+export const ActResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string().optional(),
+  action: z.string().optional(),
+});
+
+// =============================================================================
+// Extract
+// =============================================================================
+
+/** POST /v1/sessions/:id/extract - Request body */
+export const ExtractRequestSchema = z.object({
   instruction: z.string().optional(),
   schema: z.record(z.string(), z.unknown()).optional(),
   options: z
     .object({
-      model: modelConfigSchema.optional(),
+      model: ModelConfigSchema.optional(),
       timeout: z.number().optional(),
       selector: z.string().optional(),
     })
@@ -118,11 +148,19 @@ export const extractSchemaV3 = z.object({
   frameId: z.string().optional(),
 });
 
-export const observeSchemaV3 = z.object({
+/** POST /v1/sessions/:id/extract - Response (dynamic based on user's schema) */
+export const ExtractResponseSchema = z.record(z.string(), z.unknown());
+
+// =============================================================================
+// Observe
+// =============================================================================
+
+/** POST /v1/sessions/:id/observe - Request body */
+export const ObserveRequestSchema = z.object({
   instruction: z.string().optional(),
   options: z
     .object({
-      model: modelConfigSchema.optional(),
+      model: ModelConfigSchema.optional(),
       timeout: z.number().optional(),
       selector: z.string().optional(),
     })
@@ -130,7 +168,15 @@ export const observeSchemaV3 = z.object({
   frameId: z.string().optional(),
 });
 
-export const agentExecuteSchemaV3 = z.object({
+/** POST /v1/sessions/:id/observe - Response (array of actions) */
+export const ObserveResponseSchema = z.array(ActionSchema);
+
+// =============================================================================
+// Agent Execute
+// =============================================================================
+
+/** POST /v1/sessions/:id/agentExecute - Request body */
+export const AgentExecuteRequestSchema = z.object({
   agentConfig: z.object({
     provider: z.enum(["openai", "anthropic", "google"]).optional(),
     model: z
@@ -156,7 +202,20 @@ export const agentExecuteSchemaV3 = z.object({
   frameId: z.string().optional(),
 });
 
-export const navigateSchemaV3 = z.object({
+/** POST /v1/sessions/:id/agentExecute - Response */
+export const AgentExecuteResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string().optional(),
+  actions: z.array(z.unknown()).optional(),
+  completed: z.boolean().optional(),
+});
+
+// =============================================================================
+// Navigate
+// =============================================================================
+
+/** POST /v1/sessions/:id/navigate - Request body */
+export const NavigateRequestSchema = z.object({
   url: z.string(),
   options: z
     .object({
@@ -166,79 +225,44 @@ export const navigateSchemaV3 = z.object({
   frameId: z.string().optional(),
 });
 
-// =============================================================================
-// Action Response Schemas
-// =============================================================================
-
-/** Action schema - represents a single observable action */
-export const actionSchema = z.object({
-  selector: z.string(),
-  description: z.string(),
-  backendNodeId: z.number().optional(),
-  method: z.string().optional(),
-  arguments: z.array(z.string()).optional(),
-});
-
-/** Act result schema */
-export const actResultSchema = z.object({
-  success: z.boolean(),
-  message: z.string().optional(),
-  action: z.string().optional(),
-});
-
-/** Extract result schema - dynamic based on user's schema */
-export const extractResultSchema = z.record(z.string(), z.unknown());
-
-/** Observe result schema - array of actions */
-export const observeResultSchema = z.array(actionSchema);
-
-/** Agent result schema */
-export const agentResultSchema = z.object({
-  success: z.boolean(),
-  message: z.string().optional(),
-  actions: z.array(z.unknown()).optional(),
-  completed: z.boolean().optional(),
-});
-
-/** Navigate result schema */
-export const navigateResultSchema = z.object({
+/** POST /v1/sessions/:id/navigate - Response */
+export const NavigateResponseSchema = z.object({
   url: z.string().optional(),
   status: z.number().optional(),
-});
-
-// =============================================================================
-// Route Parameter Schemas
-// =============================================================================
-
-/** Route params for /sessions/:id/* routes */
-export const sessionIdParamsSchema = z.object({
-  id: z.string(),
 });
 
 // =============================================================================
 // Inferred Types
 // =============================================================================
 
-// Request types
-export type StartSessionRequest = z.infer<typeof startSessionRequestSchema>;
-export type ActRequest = z.infer<typeof actSchemaV3>;
-export type ExtractRequest = z.infer<typeof extractSchemaV3>;
-export type ObserveRequest = z.infer<typeof observeSchemaV3>;
-export type AgentExecuteRequest = z.infer<typeof agentExecuteSchemaV3>;
-export type NavigateRequest = z.infer<typeof navigateSchemaV3>;
+// Common types
+export type ModelConfig = z.infer<typeof ModelConfigSchema>;
+export type RequestHeaders = z.infer<typeof RequestHeadersSchema>;
+export type SessionIdParams = z.infer<typeof SessionIdParamsSchema>;
+export type Action = z.infer<typeof ActionSchema>;
 
-// Response types
-export type StartSessionResult = z.infer<typeof startSessionResultSchema>;
-export type StartSessionResponseData = z.infer<typeof startSessionResponseDataSchema>;
-export type ActResult = z.infer<typeof actResultSchema>;
-export type ExtractResult = z.infer<typeof extractResultSchema>;
-export type ObserveResult = z.infer<typeof observeResultSchema>;
-export type AgentResult = z.infer<typeof agentResultSchema>;
-export type NavigateResult = z.infer<typeof navigateResultSchema>;
-export type Action = z.infer<typeof actionSchema>;
+// Session types
+export type SessionStartRequest = z.infer<typeof SessionStartRequestSchema>;
+export type SessionStartResult = z.infer<typeof SessionStartResultSchema>;
+export type SessionStartResponseData = z.infer<typeof SessionStartResponseDataSchema>;
+export type SessionEndResponse = z.infer<typeof SessionEndResponseSchema>;
 
-// Header types
-export type RequestHeaders = z.infer<typeof requestHeadersSchema>;
+// Act types
+export type ActRequest = z.infer<typeof ActRequestSchema>;
+export type ActResponse = z.infer<typeof ActResponseSchema>;
 
-// Route param types
-export type SessionIdParams = z.infer<typeof sessionIdParamsSchema>;
+// Extract types
+export type ExtractRequest = z.infer<typeof ExtractRequestSchema>;
+export type ExtractResponse = z.infer<typeof ExtractResponseSchema>;
+
+// Observe types
+export type ObserveRequest = z.infer<typeof ObserveRequestSchema>;
+export type ObserveResponse = z.infer<typeof ObserveResponseSchema>;
+
+// Agent Execute types
+export type AgentExecuteRequest = z.infer<typeof AgentExecuteRequestSchema>;
+export type AgentExecuteResponse = z.infer<typeof AgentExecuteResponseSchema>;
+
+// Navigate types
+export type NavigateRequest = z.infer<typeof NavigateRequestSchema>;
+export type NavigateResponse = z.infer<typeof NavigateResponseSchema>;

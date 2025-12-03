@@ -21,14 +21,14 @@ import type { SessionStore, RequestContext, CreateSessionParams } from "./Sessio
 import { InMemorySessionStore } from "./InMemorySessionStore";
 import { createStreamingResponse } from "./stream";
 import {
-  actSchemaV3,
-  extractSchemaV3,
-  observeSchemaV3,
-  agentExecuteSchemaV3,
-  navigateSchemaV3,
-  startSessionRequestSchema,
-  sessionIdParamsSchema,
-  type StartSessionRequest,
+  ActRequestSchema,
+  ExtractRequestSchema,
+  ObserveRequestSchema,
+  AgentExecuteRequestSchema,
+  NavigateRequestSchema,
+  SessionStartRequestSchema,
+  SessionIdParamsSchema,
+  type SessionStartRequest,
   type ActRequest,
   type ExtractRequest,
   type ObserveRequest,
@@ -149,7 +149,7 @@ export class StagehandServer {
       "/v1/sessions/start",
       {
         schema: {
-          body: startSessionRequestSchema,
+          body: SessionStartRequestSchema,
         },
       },
       async (request, reply) => {
@@ -162,8 +162,8 @@ export class StagehandServer {
       "/v1/sessions/:id/act",
       {
         schema: {
-          params: sessionIdParamsSchema,
-          body: actSchemaV3,
+          params: SessionIdParamsSchema,
+          body: ActRequestSchema,
         },
       },
       async (request, reply) => {
@@ -176,8 +176,8 @@ export class StagehandServer {
       "/v1/sessions/:id/extract",
       {
         schema: {
-          params: sessionIdParamsSchema,
-          body: extractSchemaV3,
+          params: SessionIdParamsSchema,
+          body: ExtractRequestSchema,
         },
       },
       async (request, reply) => {
@@ -190,8 +190,8 @@ export class StagehandServer {
       "/v1/sessions/:id/observe",
       {
         schema: {
-          params: sessionIdParamsSchema,
-          body: observeSchemaV3,
+          params: SessionIdParamsSchema,
+          body: ObserveRequestSchema,
         },
       },
       async (request, reply) => {
@@ -204,8 +204,8 @@ export class StagehandServer {
       "/v1/sessions/:id/agentExecute",
       {
         schema: {
-          params: sessionIdParamsSchema,
-          body: agentExecuteSchemaV3,
+          params: SessionIdParamsSchema,
+          body: AgentExecuteRequestSchema,
         },
       },
       async (request, reply) => {
@@ -218,8 +218,8 @@ export class StagehandServer {
       "/v1/sessions/:id/navigate",
       {
         schema: {
-          params: sessionIdParamsSchema,
-          body: navigateSchemaV3,
+          params: SessionIdParamsSchema,
+          body: NavigateRequestSchema,
         },
       },
       async (request, reply) => {
@@ -232,7 +232,7 @@ export class StagehandServer {
       "/v1/sessions/:id/end",
       {
         schema: {
-          params: sessionIdParamsSchema,
+          params: SessionIdParamsSchema,
         },
       },
       async (request, reply) => {
@@ -243,14 +243,14 @@ export class StagehandServer {
 
   /**
    * Handle /sessions/start - Create new session
-   * Body is pre-validated by Fastify using startSessionRequestSchema
+   * Body is pre-validated by Fastify using SessionStartRequestSchema
    */
   async handleStartSession(
     request: StagehandHttpRequest,
     reply: StagehandHttpReply,
   ): Promise<void> {
     try {
-      const body = request.body as StartSessionRequest;
+      const body = request.body as SessionStartRequest;
 
       const createParams: CreateSessionParams = {
         modelName: body.modelName,
@@ -289,7 +289,7 @@ export class StagehandServer {
 
   /**
    * Handle /sessions/:id/act - Execute act command
-   * Body is pre-validated by Fastify using actSchemaV3
+   * Body is pre-validated by Fastify using ActRequestSchema
    */
   async handleAct(
     request: StagehandHttpRequest,
@@ -350,7 +350,7 @@ export class StagehandServer {
 
   /**
    * Handle /sessions/:id/extract - Execute extract command
-   * Body is pre-validated by Fastify using extractSchemaV3
+   * Body is pre-validated by Fastify using ExtractRequestSchema
    */
   async handleExtract(
     request: StagehandHttpRequest,
@@ -419,7 +419,7 @@ export class StagehandServer {
 
   /**
    * Handle /sessions/:id/observe - Execute observe command
-   * Body is pre-validated by Fastify using observeSchemaV3
+   * Body is pre-validated by Fastify using ObserveRequestSchema
    */
   async handleObserve(
     request: StagehandHttpRequest,
@@ -482,7 +482,7 @@ export class StagehandServer {
 
   /**
    * Handle /sessions/:id/agentExecute - Execute agent command
-   * Body is pre-validated by Fastify using agentExecuteSchemaV3
+   * Body is pre-validated by Fastify using AgentExecuteRequestSchema
    */
   async handleAgentExecute(
     request: StagehandHttpRequest,
@@ -531,7 +531,7 @@ export class StagehandServer {
 
   /**
    * Handle /sessions/:id/navigate - Navigate to URL
-   * Body is pre-validated by Fastify using navigateSchemaV3
+   * Body is pre-validated by Fastify using NavigateRequestSchema
    */
   async handleNavigate(
     request: StagehandHttpRequest,
@@ -575,7 +575,7 @@ export class StagehandServer {
 
   /**
    * Handle /sessions/:id/end - End session and cleanup
-   * Params are pre-validated by Fastify using sessionIdParamsSchema
+   * Params are pre-validated by Fastify using SessionIdParamsSchema
    */
   async handleEndSession(
     request: StagehandHttpRequest,

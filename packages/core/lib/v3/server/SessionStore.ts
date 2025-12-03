@@ -1,8 +1,8 @@
 import type { LogLine } from "../types/public";
 import type { V3 } from "../v3";
-import type { StartSessionResult } from "./schemas";
+import type { SessionStartResult } from "./schemas";
 
-export type { StartSessionResult };
+export type { SessionStartResult };
 
 /**
  * Parameters for creating a new session.
@@ -97,7 +97,7 @@ export interface SessionStore {
    * @param params - Session configuration
    * @returns Session ID and availability status
    */
-  startSession(params: CreateSessionParams): Promise<StartSessionResult>;
+  startSession(params: CreateSessionParams): Promise<SessionStartResult>;
 
   /**
    * End a session and cleanup all resources.
