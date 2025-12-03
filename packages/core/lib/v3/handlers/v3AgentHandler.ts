@@ -25,7 +25,10 @@ import {
 } from "../types/public/agent";
 import { V3FunctionName } from "../types/public/methods";
 import { mapToolResultToActions } from "../agent/utils/actionMapping";
-import { MissingLLMConfigurationError } from "../types/public/sdkErrors";
+import {
+  MissingLLMConfigurationError,
+  StreamingCallbacksInNonStreamingModeError,
+} from "../types/public/sdkErrors";
 
 export class V3AgentHandler {
   private v3: V3;
@@ -193,10 +196,7 @@ export class V3AgentHandler {
         (name) => callbacks[name as keyof typeof callbacks] != null,
       );
       if (invalidCallbacks.length > 0) {
-        throw new Error(
-          `Streaming-only callback(s) "${invalidCallbacks.join('", "')}" cannot be used in non-streaming mode. ` +
-            `Set 'stream: true' in AgentConfig to use these callbacks.`,
-        );
+        throw new StreamingCallbacksInNonStreamingModeError(invalidCallbacks);
       }
     }
 
