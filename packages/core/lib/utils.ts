@@ -683,6 +683,7 @@ export const providerEnvVarMap: Partial<
   openai: "OPENAI_API_KEY",
   anthropic: "ANTHROPIC_API_KEY",
   google: ["GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
+  vertex: "GOOGLE_VERTEX_AI_API_KEY",
   groq: "GROQ_API_KEY",
   cerebras: "CEREBRAS_API_KEY",
   togetherai: "TOGETHER_AI_API_KEY",
