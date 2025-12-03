@@ -9,9 +9,7 @@
 export function combineAbortSignals(
   ...signals: (AbortSignal | undefined)[]
 ): AbortSignal | undefined {
-  const validSignals = signals.filter(
-    (s): s is AbortSignal => s !== undefined,
-  );
+  const validSignals = signals.filter((s): s is AbortSignal => s !== undefined);
 
   if (validSignals.length === 0) {
     return undefined;
