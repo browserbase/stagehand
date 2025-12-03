@@ -1,16 +1,6 @@
 import { randomUUID } from "crypto";
 import type { V3 } from "../v3";
 import type { SessionStore, RequestContext } from "./SessionStore";
-import type { StagehandEventBus } from "../eventBus";
-import type {
-  StagehandActionStartedEvent,
-  StagehandActionCompletedEvent,
-  StagehandActionErroredEvent,
-  StagehandStreamStartedEvent,
-  StagehandStreamMessageSentEvent,
-  StagehandStreamEndedEvent,
-  StagehandActionProgressEvent,
-} from "./events";
 
 /**
  * Generic HTTP request interface for streaming.
@@ -29,10 +19,13 @@ export interface StreamingHttpReply {
   status(code: number): StreamingHttpReply;
   send(payload: unknown): Promise<unknown> | unknown;
   raw: {
-    writeHead(statusCode: number, headers: Record<string, string>): void;
+    writeHead?(statusCode: number, headers: Record<string, string>): void;
     write(chunk: string | Buffer): boolean;
     end(): void;
+    on?(event: string, handler: (...args: unknown[]) => void): unknown;
   };
+  sent?: boolean;
+  hijack?(): void;
 }
 
 export interface StreamingHandlerResult {
@@ -42,68 +35,40 @@ export interface StreamingHandlerResult {
 export interface StreamingHandlerContext {
   stagehand: V3;
   sessionId: string;
-  requestId: string;
   request: StreamingHttpRequest;
-  actionType: "act" | "extract" | "observe" | "agentExecute" | "navigate";
-  eventBus: StagehandEventBus;
 }
 
 export interface StreamingResponseOptions<T> {
   sessionId: string;
-  requestId: string;
-  actionType: "act" | "extract" | "observe" | "agentExecute" | "navigate";
   sessionStore: SessionStore;
   requestContext: RequestContext;
   request: StreamingHttpRequest;
   reply: StreamingHttpReply;
-  eventBus: StagehandEventBus;
   handler: (ctx: StreamingHandlerContext, data: T) => Promise<StreamingHandlerResult>;
 }
 
 /**
  * Sends an SSE (Server-Sent Events) message to the client
  */
-async function sendSSE(
-  reply: StreamingHttpReply,
-  data: object,
-  eventBus: StagehandEventBus,
-  sessionId: string,
-  requestId: string,
-): Promise<void> {
+function sendSSE(reply: StreamingHttpReply, data: object): void {
   const message = {
     id: randomUUID(),
     ...data,
   };
   reply.raw.write(`data: ${JSON.stringify(message)}\n\n`);
-
-  // Emit stream message event
-  await eventBus.emitAsync("StagehandStreamMessageSent", {
-    type: "StagehandStreamMessageSent",
-    timestamp: new Date(),
-    sessionId,
-    requestId,
-    messageType: (data as any).type || "unknown",
-    data: (data as any).data,
-  });
 }
 
 /**
  * Creates a streaming response handler that sends events via SSE
- * Ported from cloud API but without DB/LaunchDarkly dependencies
  */
 export async function createStreamingResponse<T>({
   sessionId,
-  requestId,
-  actionType,
   sessionStore,
   requestContext,
   request,
   reply,
-  eventBus,
   handler,
 }: StreamingResponseOptions<T>): Promise<void> {
-  const startTime = Date.now();
-
   // Check if streaming is requested
   const streamHeader = request.headers["x-stream-response"];
   const shouldStream = streamHeader === "true";
@@ -125,29 +90,14 @@ export async function createStreamingResponse<T>({
       "Access-Control-Allow-Credentials": "true",
     });
 
-    // Emit stream started event
-    await eventBus.emitAsync("StagehandStreamStarted", {
-      type: "StagehandStreamStarted",
-      timestamp: new Date(),
-      sessionId,
-      requestId,
+    sendSSE(reply, {
+      type: "system",
+      data: { status: "starting" },
     });
-
-    await sendSSE(
-      reply,
-      {
-        type: "system",
-        data: { status: "starting" },
-      },
-      eventBus,
-      sessionId,
-      requestId,
-    );
   }
 
   let result: StreamingHandlerResult | null = null;
   let handlerError: Error | null = null;
-  let actionId: string | undefined = undefined;
 
   try {
     // Build request context with streaming logger if needed
@@ -155,29 +105,12 @@ export async function createStreamingResponse<T>({
       ...requestContext,
       logger: shouldStream
         ? async (message) => {
-            await sendSSE(
-              reply,
-              {
-                type: "log",
-                data: {
-                  status: "running",
-                  message,
-                },
+            sendSSE(reply, {
+              type: "log",
+              data: {
+                status: "running",
+                message,
               },
-              eventBus,
-              sessionId,
-              requestId,
-            );
-
-            // Emit action progress event
-            await eventBus.emitAsync("StagehandActionProgress", {
-              type: "StagehandActionProgress",
-              timestamp: new Date(),
-              sessionId,
-              requestId,
-              actionId,
-              actionType,
-              message,
             });
           }
         : undefined,
@@ -187,82 +120,22 @@ export async function createStreamingResponse<T>({
     const stagehand = await sessionStore.getOrCreateStagehand(sessionId, ctxWithLogger);
 
     if (shouldStream) {
-      await sendSSE(
-        reply,
-        {
-          type: "system",
-          data: { status: "connected" },
-        },
-        eventBus,
-        sessionId,
-        requestId,
-      );
+      sendSSE(reply, {
+        type: "system",
+        data: { status: "connected" },
+      });
     }
-
-    // Emit action started event
-    const page = await stagehand.context.awaitActivePage();
-    const actionStartedEvent: StagehandActionStartedEvent = {
-      type: "StagehandActionStarted",
-      timestamp: new Date(),
-      sessionId,
-      requestId,
-      actionType,
-      input: (data as any).input || (data as any).instruction || (data as any).url || "",
-      options: (data as any).options || {},
-      url: page?.url() || "",
-      frameId: (data as any).frameId,
-    };
-    await eventBus.emitAsync("StagehandActionStarted", actionStartedEvent);
-    // Cloud listeners can set actionId on the event
-    actionId = actionStartedEvent.actionId;
 
     // Execute the handler
     const ctx: StreamingHandlerContext = {
       stagehand,
       sessionId,
-      requestId,
       request,
-      actionType,
-      eventBus,
     };
 
     result = await handler(ctx, data);
-
-    // Emit action completed event
-    await eventBus.emitAsync("StagehandActionCompleted", {
-      type: "StagehandActionCompleted",
-      timestamp: new Date(),
-      sessionId,
-      requestId,
-      actionId,
-      actionType,
-      result: result?.result,
-      metrics: (stagehand as any).metrics
-        ? {
-            promptTokens: (stagehand as any).metrics.totalPromptTokens || 0,
-            completionTokens: (stagehand as any).metrics.totalCompletionTokens || 0,
-            inferenceTimeMs: 0,
-          }
-        : undefined,
-      durationMs: Date.now() - startTime,
-    });
   } catch (err) {
     handlerError = err instanceof Error ? err : new Error("Unknown error occurred");
-
-    // Emit action error event
-    await eventBus.emitAsync("StagehandActionErrored", {
-      type: "StagehandActionErrored",
-      timestamp: new Date(),
-      sessionId,
-      requestId,
-      actionId,
-      actionType,
-      error: {
-        message: handlerError.message,
-        stack: handlerError.stack,
-      },
-      durationMs: Date.now() - startTime,
-    });
   }
 
   // Handle error case
@@ -270,28 +143,13 @@ export async function createStreamingResponse<T>({
     const errorMessage = handlerError.message || "An unexpected error occurred";
 
     if (shouldStream) {
-      await sendSSE(
-        reply,
-        {
-          type: "system",
-          data: {
-            status: "error",
-            error: errorMessage,
-          },
+      sendSSE(reply, {
+        type: "system",
+        data: {
+          status: "error",
+          error: errorMessage,
         },
-        eventBus,
-        sessionId,
-        requestId,
-      );
-
-      // Emit stream ended event
-      await eventBus.emitAsync("StagehandStreamEnded", {
-        type: "StagehandStreamEnded",
-        timestamp: new Date(),
-        sessionId,
-        requestId,
       });
-
       reply.raw.end();
     } else {
       reply.status(500).send({
@@ -303,28 +161,13 @@ export async function createStreamingResponse<T>({
 
   // Handle success case
   if (shouldStream) {
-    await sendSSE(
-      reply,
-      {
-        type: "system",
-        data: {
-          status: "finished",
-          result: result?.result,
-        },
+    sendSSE(reply, {
+      type: "system",
+      data: {
+        status: "finished",
+        result: result?.result,
       },
-      eventBus,
-      sessionId,
-      requestId,
-    );
-
-    // Emit stream ended event
-    await eventBus.emitAsync("StagehandStreamEnded", {
-      type: "StagehandStreamEnded",
-      timestamp: new Date(),
-      sessionId,
-      requestId,
     });
-
     reply.raw.end();
   } else {
     reply.status(200).send({

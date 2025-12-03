@@ -1,7 +1,6 @@
-import Fastify, { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import Fastify, { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import { z } from "zod";
-import { randomUUID } from "crypto";
 import type {
   ActOptions,
   ActResult,
@@ -22,15 +21,8 @@ import {
   extractSchemaV3,
   observeSchemaV3,
   agentExecuteSchemaV3,
-  navigateSchemaV3,
 } from "./schemas";
 import type { StartSessionParams } from "../types/private/api";
-import type {
-  StagehandServerEventMap,
-  StagehandRequestReceivedEvent,
-  StagehandRequestCompletedEvent,
-} from "./events";
-import { StagehandEventBus, createEventBus } from "../eventBus";
 
 // =============================================================================
 // Generic HTTP interfaces for cross-version Fastify compatibility
@@ -62,7 +54,7 @@ export interface StagehandHttpReply {
   hijack(): void;
 }
 
-// Re-export event types for consumers
+// Re-export event types for consumers (only LLM events are actually used)
 export * from "./events";
 
 // Re-export SessionStore types
@@ -81,8 +73,6 @@ export interface StagehandServerOptions {
    * Cloud environments should provide a database-backed implementation.
    */
   sessionStore?: SessionStore;
-  /** Optional: shared event bus instance. If not provided, a new one will be created. */
-  eventBus?: StagehandEventBus;
 }
 
 /**
@@ -93,8 +83,6 @@ export interface StagehandServerOptions {
  *
  * Uses a SessionStore interface for session management, allowing cloud environments
  * to provide database-backed implementations for stateless pod architectures.
- *
- * Uses a shared event bus to allow cloud servers to hook into lifecycle events.
  */
 export class StagehandServer {
   private app: FastifyInstance;
@@ -102,15 +90,13 @@ export class StagehandServer {
   private port: number;
   private host: string;
   private isListening: boolean = false;
-  private eventBus: StagehandEventBus;
 
   constructor(options: StagehandServerOptions = {}) {
-    this.eventBus = options.eventBus || createEventBus();
     this.port = options.port || 3000;
     this.host = options.host || "0.0.0.0";
     this.sessionStore = options.sessionStore ?? new InMemorySessionStore();
     this.app = Fastify({
-      logger: false, // Disable Fastify's built-in logger for cleaner output
+      logger: false,
     });
 
     this.setupMiddleware();
@@ -124,18 +110,7 @@ export class StagehandServer {
     return this.sessionStore;
   }
 
-  /**
-   * Emit an event and wait for all async listeners to complete
-   */
-  private async emitAsync<K extends keyof StagehandServerEventMap>(
-    event: K,
-    data: StagehandServerEventMap[K],
-  ): Promise<void> {
-    await this.eventBus.emitAsync(event, data);
-  }
-
   private setupMiddleware(): void {
-    // CORS support
     this.app.register(cors, {
       origin: "*",
       methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -150,7 +125,7 @@ export class StagehandServer {
       return { status: "ok" };
     });
 
-    // Start session - creates a new V3 instance
+    // Start session
     this.app.post("/v1/sessions/start", async (request, reply) => {
       return this.handleStartSession(request, reply);
     });
@@ -187,7 +162,7 @@ export class StagehandServer {
       },
     );
 
-    // Navigate endpoint - navigate to URL
+    // Navigate endpoint
     this.app.post<{ Params: { id: string } }>(
       "/v1/sessions/:id/navigate",
       async (request, reply) => {
@@ -211,36 +186,10 @@ export class StagehandServer {
     request: StagehandHttpRequest,
     reply: StagehandHttpReply,
   ): Promise<void> {
-    const requestId = randomUUID();
-    const startTime = Date.now();
-
     try {
-      // Emit request received event
-      await this.emitAsync("StagehandRequestReceived", {
-        type: "StagehandRequestReceived",
-        timestamp: new Date(),
-        requestId,
-        sessionId: "",
-        // No session yet
-        method: "POST",
-        path: "/v1/sessions/start",
-        headers: {
-          "x-stream-response": request.headers["x-stream-response"] === "true",
-          "x-bb-api-key": request.headers["x-bb-api-key"] as string | undefined,
-          "x-model-api-key": request.headers["x-model-api-key"] as string | undefined,
-          "x-sdk-version": request.headers["x-sdk-version"] as string | undefined,
-          "x-language": request.headers["x-language"] as string | undefined,
-          "x-sent-at": request.headers["x-sent-at"] as string | undefined,
-        },
-        bodySize: JSON.stringify(request.body).length,
-      });
-
       const body = request.body as StartSessionParams;
 
-      // Build session params from body + headers
-      // Body contains most params, headers provide credentials and metadata
       const createParams: CreateSessionParams = {
-        // Core params from body
         modelName: body.modelName,
         verbose: body.verbose as 0 | 1 | 2,
         systemPrompt: body.systemPrompt,
@@ -252,28 +201,14 @@ export class StagehandServer {
         browserbaseSessionCreateParams: body.browserbaseSessionCreateParams,
         debugDom: body.debugDom,
         actTimeoutMs: body.actTimeoutMs,
-        // Credentials from headers
         browserbaseApiKey: request.headers["x-bb-api-key"] as string | undefined,
         browserbaseProjectId: request.headers["x-bb-project-id"] as string | undefined,
-        // Metadata from headers
         clientLanguage: request.headers["x-language"] as string | undefined,
         sdkVersion: request.headers["x-sdk-version"] as string | undefined,
       };
 
-      // Start session via the store (handles platform-specific logic)
       const result = await this.sessionStore.startSession(createParams);
 
-      // Emit request completed event
-      await this.emitAsync("StagehandRequestCompleted", {
-        type: "StagehandRequestCompleted",
-        timestamp: new Date(),
-        sessionId: result.sessionId,
-        requestId,
-        statusCode: 200,
-        durationMs: Date.now() - startTime,
-      });
-
-      // Match cloud API shape: { success: true, data: { sessionId, available } }
       reply.status(200).send({
         success: true,
         data: {
@@ -282,19 +217,9 @@ export class StagehandServer {
         },
       });
     } catch (error) {
-      await this.emitAsync("StagehandRequestCompleted", {
-        type: "StagehandRequestCompleted",
-        timestamp: new Date(),
-        requestId,
-        sessionId: "",
-        statusCode: 500,
-        durationMs: Date.now() - startTime,
-      });
-
       reply.status(500).send({
         success: false,
-        message:
-          error instanceof Error ? error.message : "Failed to create session",
+        message: error instanceof Error ? error.message : "Failed to create session",
       });
     }
   }
@@ -307,63 +232,27 @@ export class StagehandServer {
     reply: StagehandHttpReply,
   ): Promise<void> {
     const { id: sessionId } = request.params as { id: string };
-    const requestId = randomUUID();
-    const startTime = Date.now();
-
-    // Emit request received event
-    await this.emitAsync("StagehandRequestReceived", {
-      type: "StagehandRequestReceived",
-      timestamp: new Date(),
-      sessionId,
-      requestId,
-      method: "POST",
-      path: `/v1/sessions/${sessionId}/act`,
-      headers: {
-        "x-stream-response": request.headers["x-stream-response"] === "true",
-        "x-bb-api-key": request.headers["x-bb-api-key"] as string | undefined,
-        "x-model-api-key": request.headers["x-model-api-key"] as string | undefined,
-        "x-sdk-version": request.headers["x-sdk-version"] as string | undefined,
-        "x-language": request.headers["x-language"] as string | undefined,
-        "x-sent-at": request.headers["x-sent-at"] as string | undefined,
-      },
-      bodySize: JSON.stringify(request.body).length,
-    });
 
     if (!(await this.sessionStore.hasSession(sessionId))) {
-      await this.emitAsync("StagehandRequestCompleted", {
-        type: "StagehandRequestCompleted",
-        timestamp: new Date(),
-        sessionId,
-        requestId,
-        statusCode: 404,
-        durationMs: Date.now() - startTime,
-      });
       return reply.status(404).send({ error: "Session not found" });
     }
 
     try {
-      // Validate request body
       const data = actSchemaV3.parse(request.body);
-
-      // Build request context
       const ctx: RequestContext = {
         modelApiKey: request.headers["x-model-api-key"] as string | undefined,
       };
 
       await createStreamingResponse<z.infer<typeof actSchemaV3>>({
         sessionId,
-        requestId,
-        actionType: "act",
         sessionStore: this.sessionStore,
         requestContext: ctx,
         request,
         reply,
-        eventBus: this.eventBus,
         handler: async (handlerCtx, data) => {
           const stagehand = handlerCtx.stagehand as any;
           const { frameId } = data;
 
-          // Get the page
           const page = frameId
             ? stagehand.context.resolvePageByMainFrameId(frameId)
             : await stagehand.context.awaitActivePage();
@@ -372,7 +261,6 @@ export class StagehandServer {
             throw new Error("Page not found");
           }
 
-          // Build options
           const safeOptions: ActOptions = {
             model: data.options?.model
               ? ({
@@ -385,7 +273,6 @@ export class StagehandServer {
             page,
           };
 
-          // Execute act
           let result: ActResult;
           if (typeof data.input === "string") {
             result = await stagehand.act(data.input, safeOptions);
@@ -396,26 +283,7 @@ export class StagehandServer {
           return { result };
         },
       });
-
-      // Emit request completed event
-      await this.emitAsync("StagehandRequestCompleted", {
-        type: "StagehandRequestCompleted",
-        timestamp: new Date(),
-        sessionId,
-        requestId,
-        statusCode: 200,
-        durationMs: Date.now() - startTime,
-      });
     } catch (error) {
-      await this.emitAsync("StagehandRequestCompleted", {
-        type: "StagehandRequestCompleted",
-        timestamp: new Date(),
-        sessionId,
-        requestId,
-        statusCode: error instanceof z.ZodError ? 400 : 500,
-        durationMs: Date.now() - startTime,
-      });
-
       if (error instanceof z.ZodError) {
         return reply.status(400).send({
           error: "Invalid request body",
@@ -434,55 +302,23 @@ export class StagehandServer {
     reply: StagehandHttpReply,
   ): Promise<void> {
     const { id: sessionId } = request.params as { id: string };
-    const requestId = randomUUID();
-    const startTime = Date.now();
-
-    await this.emitAsync("StagehandRequestReceived", {
-      type: "StagehandRequestReceived",
-      timestamp: new Date(),
-      sessionId,
-      requestId,
-      method: "POST",
-      path: `/v1/sessions/${sessionId}/extract`,
-      headers: {
-        "x-stream-response": request.headers["x-stream-response"] === "true",
-        "x-bb-api-key": request.headers["x-bb-api-key"] as string | undefined,
-        "x-model-api-key": request.headers["x-model-api-key"] as string | undefined,
-        "x-sdk-version": request.headers["x-sdk-version"] as string | undefined,
-        "x-language": request.headers["x-language"] as string | undefined,
-        "x-sent-at": request.headers["x-sent-at"] as string | undefined,
-      },
-      bodySize: JSON.stringify(request.body).length,
-    });
 
     if (!(await this.sessionStore.hasSession(sessionId))) {
-      await this.emitAsync("StagehandRequestCompleted", {
-        type: "StagehandRequestCompleted",
-        timestamp: new Date(),
-        sessionId,
-        requestId,
-        statusCode: 404,
-        durationMs: Date.now() - startTime,
-      });
       return reply.status(404).send({ error: "Session not found" });
     }
 
     try {
       const data = extractSchemaV3.parse(request.body);
-
       const ctx: RequestContext = {
         modelApiKey: request.headers["x-model-api-key"] as string | undefined,
       };
 
       await createStreamingResponse<z.infer<typeof extractSchemaV3>>({
         sessionId,
-        requestId,
-        actionType: "extract",
         sessionStore: this.sessionStore,
         requestContext: ctx,
         request,
         reply,
-        eventBus: this.eventBus,
         handler: async (handlerCtx, data) => {
           const stagehand = handlerCtx.stagehand as any;
           const { frameId } = data;
@@ -511,15 +347,10 @@ export class StagehandServer {
 
           if (data.instruction) {
             if (data.schema) {
-              // Convert JSON schema (sent by StagehandAPIClient) back to a Zod schema
               const zodSchema = jsonSchemaToZod(
                 data.schema as unknown as JsonSchema,
               ) as StagehandZodSchema;
-              result = await stagehand.extract(
-                data.instruction,
-                zodSchema,
-                safeOptions,
-              );
+              result = await stagehand.extract(data.instruction, zodSchema, safeOptions);
             } else {
               result = await stagehand.extract(data.instruction, safeOptions);
             }
@@ -530,25 +361,7 @@ export class StagehandServer {
           return { result };
         },
       });
-
-      await this.emitAsync("StagehandRequestCompleted", {
-        type: "StagehandRequestCompleted",
-        timestamp: new Date(),
-        sessionId,
-        requestId,
-        statusCode: 200,
-        durationMs: Date.now() - startTime,
-      });
     } catch (error) {
-      await this.emitAsync("StagehandRequestCompleted", {
-        type: "StagehandRequestCompleted",
-        timestamp: new Date(),
-        sessionId,
-        requestId,
-        statusCode: error instanceof z.ZodError ? 400 : 500,
-        durationMs: Date.now() - startTime,
-      });
-
       if (error instanceof z.ZodError) {
         return reply.status(400).send({
           error: "Invalid request body",
@@ -567,55 +380,23 @@ export class StagehandServer {
     reply: StagehandHttpReply,
   ): Promise<void> {
     const { id: sessionId } = request.params as { id: string };
-    const requestId = randomUUID();
-    const startTime = Date.now();
-
-    await this.emitAsync("StagehandRequestReceived", {
-      type: "StagehandRequestReceived",
-      timestamp: new Date(),
-      sessionId,
-      requestId,
-      method: "POST",
-      path: `/v1/sessions/${sessionId}/observe`,
-      headers: {
-        "x-stream-response": request.headers["x-stream-response"] === "true",
-        "x-bb-api-key": request.headers["x-bb-api-key"] as string | undefined,
-        "x-model-api-key": request.headers["x-model-api-key"] as string | undefined,
-        "x-sdk-version": request.headers["x-sdk-version"] as string | undefined,
-        "x-language": request.headers["x-language"] as string | undefined,
-        "x-sent-at": request.headers["x-sent-at"] as string | undefined,
-      },
-      bodySize: JSON.stringify(request.body).length,
-    });
 
     if (!(await this.sessionStore.hasSession(sessionId))) {
-      await this.emitAsync("StagehandRequestCompleted", {
-        type: "StagehandRequestCompleted",
-        timestamp: new Date(),
-        sessionId,
-        requestId,
-        statusCode: 404,
-        durationMs: Date.now() - startTime,
-      });
       return reply.status(404).send({ error: "Session not found" });
     }
 
     try {
       const data = observeSchemaV3.parse(request.body);
-
       const ctx: RequestContext = {
         modelApiKey: request.headers["x-model-api-key"] as string | undefined,
       };
 
       await createStreamingResponse<z.infer<typeof observeSchemaV3>>({
         sessionId,
-        requestId,
-        actionType: "observe",
         sessionStore: this.sessionStore,
         requestContext: ctx,
         request,
         reply,
-        eventBus: this.eventBus,
         handler: async (handlerCtx, data) => {
           const stagehand = handlerCtx.stagehand as any;
           const { frameId } = data;
@@ -652,25 +433,7 @@ export class StagehandServer {
           return { result };
         },
       });
-
-      await this.emitAsync("StagehandRequestCompleted", {
-        type: "StagehandRequestCompleted",
-        timestamp: new Date(),
-        sessionId,
-        requestId,
-        statusCode: 200,
-        durationMs: Date.now() - startTime,
-      });
     } catch (error) {
-      await this.emitAsync("StagehandRequestCompleted", {
-        type: "StagehandRequestCompleted",
-        timestamp: new Date(),
-        sessionId,
-        requestId,
-        statusCode: error instanceof z.ZodError ? 400 : 500,
-        durationMs: Date.now() - startTime,
-      });
-
       if (error instanceof z.ZodError) {
         return reply.status(400).send({
           error: "Invalid request body",
@@ -689,55 +452,23 @@ export class StagehandServer {
     reply: StagehandHttpReply,
   ): Promise<void> {
     const { id: sessionId } = request.params as { id: string };
-    const requestId = randomUUID();
-    const startTime = Date.now();
-
-    await this.emitAsync("StagehandRequestReceived", {
-      type: "StagehandRequestReceived",
-      timestamp: new Date(),
-      sessionId,
-      requestId,
-      method: "POST",
-      path: `/v1/sessions/${sessionId}/agentExecute`,
-      headers: {
-        "x-stream-response": request.headers["x-stream-response"] === "true",
-        "x-bb-api-key": request.headers["x-bb-api-key"] as string | undefined,
-        "x-model-api-key": request.headers["x-model-api-key"] as string | undefined,
-        "x-sdk-version": request.headers["x-sdk-version"] as string | undefined,
-        "x-language": request.headers["x-language"] as string | undefined,
-        "x-sent-at": request.headers["x-sent-at"] as string | undefined,
-      },
-      bodySize: JSON.stringify(request.body).length,
-    });
 
     if (!(await this.sessionStore.hasSession(sessionId))) {
-      await this.emitAsync("StagehandRequestCompleted", {
-        type: "StagehandRequestCompleted",
-        timestamp: new Date(),
-        sessionId,
-        requestId,
-        statusCode: 404,
-        durationMs: Date.now() - startTime,
-      });
       return reply.status(404).send({ error: "Session not found" });
     }
 
     try {
       const data = agentExecuteSchemaV3.parse(request.body);
-
       const ctx: RequestContext = {
         modelApiKey: request.headers["x-model-api-key"] as string | undefined,
       };
 
       await createStreamingResponse<z.infer<typeof agentExecuteSchemaV3>>({
         sessionId,
-        requestId,
-        actionType: "agentExecute",
         sessionStore: this.sessionStore,
         requestContext: ctx,
         request,
         reply,
-        eventBus: this.eventBus,
         handler: async (handlerCtx, data) => {
           const stagehand = handlerCtx.stagehand as any;
           const { agentConfig, executeOptions, frameId } = data;
@@ -755,32 +486,12 @@ export class StagehandServer {
             page,
           };
 
-          const result: AgentResult = await stagehand
-            .agent(agentConfig)
-            .execute(fullExecuteOptions);
+          const result: AgentResult = await stagehand.agent(agentConfig).execute(fullExecuteOptions);
 
           return { result };
         },
       });
-
-      await this.emitAsync("StagehandRequestCompleted", {
-        type: "StagehandRequestCompleted",
-        timestamp: new Date(),
-        sessionId,
-        requestId,
-        statusCode: 200,
-        durationMs: Date.now() - startTime,
-      });
     } catch (error) {
-      await this.emitAsync("StagehandRequestCompleted", {
-        type: "StagehandRequestCompleted",
-        timestamp: new Date(),
-        sessionId,
-        requestId,
-        statusCode: error instanceof z.ZodError ? 400 : 500,
-        durationMs: Date.now() - startTime,
-      });
-
       if (error instanceof z.ZodError) {
         return reply.status(400).send({
           error: "Invalid request body",
@@ -799,36 +510,8 @@ export class StagehandServer {
     reply: StagehandHttpReply,
   ): Promise<void> {
     const { id: sessionId } = request.params as { id: string };
-    const requestId = randomUUID();
-    const startTime = Date.now();
-
-    await this.emitAsync("StagehandRequestReceived", {
-      type: "StagehandRequestReceived",
-      timestamp: new Date(),
-      sessionId,
-      requestId,
-      method: "POST",
-      path: `/v1/sessions/${sessionId}/navigate`,
-      headers: {
-        "x-stream-response": request.headers["x-stream-response"] === "true",
-        "x-bb-api-key": request.headers["x-bb-api-key"] as string | undefined,
-        "x-model-api-key": request.headers["x-model-api-key"] as string | undefined,
-        "x-sdk-version": request.headers["x-sdk-version"] as string | undefined,
-        "x-language": request.headers["x-language"] as string | undefined,
-        "x-sent-at": request.headers["x-sent-at"] as string | undefined,
-      },
-      bodySize: JSON.stringify(request.body).length,
-    });
 
     if (!(await this.sessionStore.hasSession(sessionId))) {
-      await this.emitAsync("StagehandRequestCompleted", {
-        type: "StagehandRequestCompleted",
-        timestamp: new Date(),
-        sessionId,
-        requestId,
-        statusCode: 404,
-        durationMs: Date.now() - startTime,
-      });
       return reply.status(404).send({ error: "Session not found" });
     }
 
@@ -839,13 +522,10 @@ export class StagehandServer {
 
       await createStreamingResponse({
         sessionId,
-        requestId,
-        actionType: "navigate",
         sessionStore: this.sessionStore,
         requestContext: ctx,
         request,
         reply,
-        eventBus: this.eventBus,
         handler: async (handlerCtx, data: any) => {
           const stagehand = handlerCtx.stagehand as any;
           const { url, options, frameId } = data;
@@ -854,7 +534,6 @@ export class StagehandServer {
             throw new Error("url is required");
           }
 
-          // Get the page
           const page = frameId
             ? stagehand.context.resolvePageByMainFrameId(frameId)
             : await stagehand.context.awaitActivePage();
@@ -863,31 +542,12 @@ export class StagehandServer {
             throw new Error("Page not found");
           }
 
-          // Navigate to the URL
           const response = await page.goto(url, options);
 
           return { result: response };
         },
       });
-
-      await this.emitAsync("StagehandRequestCompleted", {
-        type: "StagehandRequestCompleted",
-        timestamp: new Date(),
-        sessionId,
-        requestId,
-        statusCode: 200,
-        durationMs: Date.now() - startTime,
-      });
     } catch (error) {
-      await this.emitAsync("StagehandRequestCompleted", {
-        type: "StagehandRequestCompleted",
-        timestamp: new Date(),
-        sessionId,
-        requestId,
-        statusCode: 500,
-        durationMs: Date.now() - startTime,
-      });
-
       if (!reply.sent) {
         reply.status(500).send({
           error: error instanceof Error ? error.message : "Failed to navigate",
@@ -904,59 +564,11 @@ export class StagehandServer {
     reply: StagehandHttpReply,
   ): Promise<void> {
     const { id: sessionId } = request.params as { id: string };
-    const requestId = randomUUID();
-    const startTime = Date.now();
-
-    await this.emitAsync("StagehandRequestReceived", {
-      type: "StagehandRequestReceived",
-      timestamp: new Date(),
-      sessionId,
-      requestId,
-      method: "POST",
-      path: `/v1/sessions/${sessionId}/end`,
-      headers: {
-        "x-stream-response": request.headers["x-stream-response"] === "true",
-        "x-bb-api-key": request.headers["x-bb-api-key"] as string | undefined,
-        "x-model-api-key": request.headers["x-model-api-key"] as string | undefined,
-        "x-sdk-version": request.headers["x-sdk-version"] as string | undefined,
-        "x-language": request.headers["x-language"] as string | undefined,
-        "x-sent-at": request.headers["x-sent-at"] as string | undefined,
-      },
-      bodySize: JSON.stringify(request.body).length,
-    });
 
     try {
-      // End session (handles platform cleanup + cache eviction)
       await this.sessionStore.endSession(sessionId);
-
-      // Emit session ended event
-      await this.eventBus.emitAsync("StagehandSessionEnded", {
-        type: "StagehandSessionEnded",
-        timestamp: new Date(),
-        sessionId,
-        reason: "manual",
-      });
-
-      await this.emitAsync("StagehandRequestCompleted", {
-        type: "StagehandRequestCompleted",
-        timestamp: new Date(),
-        sessionId,
-        requestId,
-        statusCode: 200,
-        durationMs: Date.now() - startTime,
-      });
-
       reply.status(200).send({ success: true });
     } catch (error) {
-      await this.emitAsync("StagehandRequestCompleted", {
-        type: "StagehandRequestCompleted",
-        timestamp: new Date(),
-        sessionId,
-        requestId,
-        statusCode: 500,
-        durationMs: Date.now() - startTime,
-      });
-
       reply.status(500).send({
         error: error instanceof Error ? error.message : "Failed to end session",
       });
@@ -975,21 +587,6 @@ export class StagehandServer {
         host: this.host,
       });
       this.isListening = true;
-
-      // Emit server started event
-      await this.emitAsync("StagehandServerStarted", {
-        type: "StagehandServerStarted",
-        timestamp: new Date(),
-        port: listenPort,
-        host: this.host,
-      });
-
-      // Emit server ready event
-      await this.emitAsync("StagehandServerReady", {
-        type: "StagehandServerReady",
-        timestamp: new Date(),
-      });
-
       console.log(`Stagehand server listening on http://${this.host}:${listenPort}`);
     } catch (error) {
       console.error("Failed to start server:", error);
@@ -1001,21 +598,10 @@ export class StagehandServer {
    * Stop the server and cleanup
    */
   async close(): Promise<void> {
-    const graceful = this.isListening;
-
-    // Emit server shutdown event
-    await this.emitAsync("StagehandServerShutdown", {
-      type: "StagehandServerShutdown",
-      timestamp: new Date(),
-      graceful,
-    });
-
     if (this.isListening) {
       await this.app.close();
       this.isListening = false;
     }
-
-    // Cleanup session store
     await this.sessionStore.destroy();
   }
 
@@ -1027,15 +613,5 @@ export class StagehandServer {
       throw new Error("Server is not listening");
     }
     return `http://${this.host}:${this.port}`;
-  }
-
-  /**
-   * Subscribe to server events
-   */
-  on<K extends keyof StagehandServerEventMap>(
-    event: K,
-    listener: (data: StagehandServerEventMap[K]) => void | Promise<void>,
-  ): void {
-    this.eventBus.on(event, listener);
   }
 }
