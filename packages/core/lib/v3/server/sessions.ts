@@ -27,8 +27,12 @@ export class SessionManager {
   /**
    * Create a new session with the given config
    */
-  createSession(config: V3Options): string {
-    const sessionId = randomUUID();
+  createSession(config: V3Options, sessionIdOverride?: string): string {
+    const sessionId = sessionIdOverride ?? randomUUID();
+
+    if (this.sessions.has(sessionId)) {
+      throw new Error(`Session already exists with id: ${sessionId}`);
+    }
 
     this.sessions.set(sessionId, {
       sessionId,
@@ -36,14 +40,6 @@ export class SessionManager {
       config,
       loggerRef: {},
       createdAt: new Date(),
-    });
-
-    // Emit session created event (fire and forget - don't await)
-    void this.eventBus.emitAsync("StagehandSessionCreated", {
-      type: "StagehandSessionCreated",
-      timestamp: new Date(),
-      sessionId,
-      config,
     });
 
     return sessionId;

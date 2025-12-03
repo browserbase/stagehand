@@ -5,6 +5,7 @@ import {
   ExtractOptions,
   LogLine,
   ObserveOptions,
+  V3Options,
 } from "../public";
 import type { Protocol } from "devtools-protocol";
 import type { StagehandZodSchema } from "../../zodCompat";
@@ -22,11 +23,18 @@ export interface ExecuteActionParams {
   params?: unknown;
 }
 
-export interface StartSessionParams {
+export interface StartSessionParams extends Partial<V3Options> {
+  /**
+   * Optional external session identifier.
+   * When provided, StagehandServer will use this as the in-memory session id
+   * instead of generating a new UUID. This allows cloud environments to align
+   * library sessions with their own persisted session IDs (e.g. Browserbase).
+   */
+  sessionId?: string;
   modelName: string;
   modelApiKey: string;
   domSettleTimeoutMs: number;
-  verbose: number;
+  verbose: 0 | 1 | 2;
   systemPrompt?: string;
   browserbaseSessionCreateParams?: Omit<
     Browserbase.Sessions.SessionCreateParams,

@@ -29,12 +29,6 @@ export interface StagehandServerShutdownEvent extends StagehandServerEvent {
 
 // ===== SESSION LIFECYCLE EVENTS =====
 
-export interface StagehandSessionCreatedEvent extends StagehandServerEvent {
-  type: "StagehandSessionCreated";
-  sessionId: string;
-  config: V3Options;
-}
-
 export interface StagehandSessionResumedEvent extends StagehandServerEvent {
   type: "StagehandSessionResumed";
   sessionId: string;
@@ -256,7 +250,6 @@ export type StagehandServerEventType =
   | StagehandServerStartedEvent
   | StagehandServerReadyEvent
   | StagehandServerShutdownEvent
-  | StagehandSessionCreatedEvent
   | StagehandSessionResumedEvent
   | StagehandSessionInitializedEvent
   | StagehandSessionEndedEvent
@@ -282,7 +275,6 @@ export interface StagehandServerEventMap {
   StagehandServerStarted: StagehandServerStartedEvent;
   StagehandServerReady: StagehandServerReadyEvent;
   StagehandServerShutdown: StagehandServerShutdownEvent;
-  StagehandSessionCreated: StagehandSessionCreatedEvent;
   StagehandSessionResumed: StagehandSessionResumedEvent;
   StagehandSessionInitialized: StagehandSessionInitializedEvent;
   StagehandSessionEnded: StagehandSessionEndedEvent;

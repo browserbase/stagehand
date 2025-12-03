@@ -155,7 +155,7 @@ export class StagehandServer {
   /**
    * Handle /sessions/start - Create new session
    */
-  private async handleStartSession(
+  async handleStartSession(
     request: FastifyRequest,
     reply: FastifyReply,
   ): Promise<void> {
@@ -183,34 +183,32 @@ export class StagehandServer {
         bodySize: JSON.stringify(request.body).length,
       });
 
-      const body = request.body as unknown;
+      const params = request.body as StartSessionParams;
 
-      let v3Config: V3Options;
+      // Derive V3Options from StartSessionParams — this mirrors what the
+      // cloud API does, and makes the P2P server a drop-in replacement.
+      const modelConfig: ModelConfiguration = {
+        modelName: params.modelName as any,
+        apiKey: params.modelApiKey,
+      };
 
-      if (body && typeof body === "object" && "env" in (body as any)) {
-        // Backwards-compatible path: accept full V3Options directly
-        v3Config = body as V3Options;
-      } else {
-        // Cloud-compatible path: accept StartSessionParams and derive V3Options
-        const params = body as StartSessionParams;
+      const v3Config: V3Options = {
+        env: "LOCAL",
+        model: modelConfig,
+        systemPrompt: params.systemPrompt,
+        domSettleTimeout: params.domSettleTimeoutMs,
+        verbose: params.verbose as 0 | 1 | 2,
+        selfHeal: params.selfHeal,
+      };
 
-        const modelConfig: ModelConfiguration = {
-          modelName: params.modelName as any,
-          apiKey: params.modelApiKey,
-        };
+      // If an external sessionId is provided (e.g. from a cloud session store),
+      // use it as the in-memory key so cloud and library share the same ID.
+      const externalSessionId = params.sessionId ?? params.browserbaseSessionID;
 
-        v3Config = {
-          env: "LOCAL",
-          model: modelConfig,
-          systemPrompt: params.systemPrompt,
-          domSettleTimeout: params.domSettleTimeoutMs,
-          verbose: params.verbose as 0 | 1 | 2,
-          selfHeal: params.selfHeal,
-        };
-      }
-
-      // Create session (will emit StagehandSessionCreated)
-      const sessionId = this.sessionManager.createSession(v3Config);
+      const sessionId = this.sessionManager.createSession(
+        v3Config,
+        externalSessionId,
+      );
 
       // Emit request completed event
       await this.emitAsync("StagehandRequestCompleted", {
@@ -251,7 +249,7 @@ export class StagehandServer {
   /**
    * Handle /sessions/:id/act - Execute act command
    */
-  private async handleAct(
+  async handleAct(
     request: FastifyRequest<{ Params: { id: string } }>,
     reply: FastifyReply,
   ): Promise<void> {
@@ -372,7 +370,7 @@ export class StagehandServer {
   /**
    * Handle /sessions/:id/extract - Execute extract command
    */
-  private async handleExtract(
+  async handleExtract(
     request: FastifyRequest<{ Params: { id: string } }>,
     reply: FastifyReply,
   ): Promise<void> {
@@ -500,7 +498,7 @@ export class StagehandServer {
   /**
    * Handle /sessions/:id/observe - Execute observe command
    */
-  private async handleObserve(
+  async handleObserve(
     request: FastifyRequest<{ Params: { id: string } }>,
     reply: FastifyReply,
   ): Promise<void> {
@@ -617,7 +615,7 @@ export class StagehandServer {
   /**
    * Handle /sessions/:id/agentExecute - Execute agent command
    */
-  private async handleAgentExecute(
+  async handleAgentExecute(
     request: FastifyRequest<{ Params: { id: string } }>,
     reply: FastifyReply,
   ): Promise<void> {
@@ -722,7 +720,7 @@ export class StagehandServer {
   /**
    * Handle /sessions/:id/navigate - Navigate to URL
    */
-  private async handleNavigate(
+  async handleNavigate(
     request: FastifyRequest<{ Params: { id: string } }>,
     reply: FastifyReply,
   ): Promise<void> {
@@ -822,7 +820,7 @@ export class StagehandServer {
   /**
    * Handle /sessions/:id/end - End session and cleanup
    */
-  private async handleEndSession(
+  async handleEndSession(
     request: FastifyRequest<{ Params: { id: string } }>,
     reply: FastifyReply,
   ): Promise<void> {
