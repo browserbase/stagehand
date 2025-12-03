@@ -1,5 +1,8 @@
 import type { LogLine } from "../types/public";
 import type { V3 } from "../v3";
+import type { StartSessionResult } from "./schemas";
+
+export type { StartSessionResult };
 
 /**
  * Parameters for creating a new session.
@@ -67,8 +70,6 @@ export interface SessionCacheConfig {
   ttlMs?: number;
 }
 
-// Re-export StartSessionResult from schemas (defined as Zod schema)
-export type { StartSessionResult } from "./schemas";
 
 /**
  * SessionStore interface for managing session lifecycle and V3 instances.
