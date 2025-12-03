@@ -151,7 +151,7 @@ test.describe("Stagehand agent streaming behavior", () => {
           stream: true,
           model: "anthropic/claude-haiku-4-5-20251001",
         });
-      }).toThrow("Streaming is not supported with CUA");
+      }).toThrow("streaming is not supported with CUA");
     });
 
     test("allows cua: true without stream", () => {

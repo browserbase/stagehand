@@ -220,4 +220,51 @@ test.describe("Stagehand agent abort signal", () => {
     expect(result2.messages).toBeDefined();
     expect(result2.messages!.length).toBeGreaterThan(result1.messages!.length);
   });
+
+  test("stagehand.close() aborts running agent tasks", async () => {
+    test.setTimeout(30000);
+
+    // Create a separate instance for this test to avoid interfering with afterEach
+    const v3Instance = new V3({
+      ...v3TestConfig,
+      experimental: true,
+    });
+    await v3Instance.init();
+
+    const agent = v3Instance.agent({
+      model: "anthropic/claude-haiku-4-5-20251001",
+    });
+
+    const page = v3Instance.context.pages()[0];
+    await page.goto("https://example.com");
+
+    const startTime = Date.now();
+
+    // Start a long-running task and close() after a short delay
+    const executePromise = agent.execute({
+      instruction:
+        "Describe everything on this page in extreme detail. Take your time and be very thorough. Do not use close tool until you have described every single element.",
+      maxSteps: 50,
+    });
+
+    // Close after a short delay - this should abort the running task
+    setTimeout(() => {
+      v3Instance.close().catch(() => {});
+    }, 500);
+
+    try {
+      await executePromise;
+      // Should not reach here
+      expect(true).toBe(false);
+    } catch (error) {
+      // Should throw AgentAbortError due to close()
+      expect(error).toBeInstanceOf(AgentAbortError);
+      expect((error as AgentAbortError).reason).toContain("closing");
+    }
+
+    const elapsed = Date.now() - startTime;
+
+    // Should have stopped relatively quickly after close()
+    expect(elapsed).toBeLessThan(15000);
+  });
 });

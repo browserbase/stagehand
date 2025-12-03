@@ -30,6 +30,11 @@ import {
   StreamingCallbacksInNonStreamingModeError,
   AgentAbortError,
 } from "../types/public/sdkErrors";
+import {
+  extractAbortSignal,
+  getErrorMessage,
+  getAbortErrorReason,
+} from "../agent/utils/errorHandling";
 
 export class V3AgentHandler {
   private v3: V3;
@@ -177,43 +182,59 @@ export class V3AgentHandler {
     instructionOrOptions: string | AgentExecuteOptions,
   ): Promise<AgentResult> {
     const startTime = Date.now();
-    const {
-      options,
-      maxSteps,
-      systemPrompt,
-      allTools,
-      messages,
-      wrappedModel,
-      initialPageUrl,
-    } = await this.prepareAgent(instructionOrOptions);
 
-    const callbacks = (instructionOrOptions as AgentExecuteOptions).callbacks;
-    const abortSignal = options.signal;
-
-    if (callbacks) {
-      const streamingOnlyCallbacks = [
-        "onChunk",
-        "onFinish",
-        "onError",
-        "onAbort",
-      ];
-      const invalidCallbacks = streamingOnlyCallbacks.filter(
-        (name) => callbacks[name as keyof typeof callbacks] != null,
-      );
-      if (invalidCallbacks.length > 0) {
-        throw new StreamingCallbacksInNonStreamingModeError(invalidCallbacks);
-      }
-    }
+    // Extract abort signal early so we can check it in error handling.
+    // This is needed because when stagehand.close() is called, the abort signal
+    // is triggered but the resulting error might be something else (e.g., null context).
+    // By having the signal reference, we can detect abort-related errors regardless
+    // of their actual error type.
+    const abortSignal = extractAbortSignal(instructionOrOptions);
 
     const state: AgentState = {
       collectedReasoning: [],
       actions: [],
       finalMessage: "",
       completed: false,
-      currentPageUrl: initialPageUrl,
+      currentPageUrl: "",
     };
 
+    let messages: ModelMessage[] = [];
+
+    // Wrap everything in try-catch to handle abort signals properly.
+    // When close() aborts the signal, errors can occur at any point (during
+    // prepareAgent, generateText, etc.). We catch all errors and check if
+    // the abort signal was the root cause.
     try {
+      const {
+        options,
+        maxSteps,
+        systemPrompt,
+        allTools,
+        messages: preparedMessages,
+        wrappedModel,
+        initialPageUrl,
+      } = await this.prepareAgent(instructionOrOptions);
+
+      messages = preparedMessages;
+      state.currentPageUrl = initialPageUrl;
+
+      const callbacks = (instructionOrOptions as AgentExecuteOptions).callbacks;
+
+      if (callbacks) {
+        const streamingOnlyCallbacks = [
+          "onChunk",
+          "onFinish",
+          "onError",
+          "onAbort",
+        ];
+        const invalidCallbacks = streamingOnlyCallbacks.filter(
+          (name) => callbacks[name as keyof typeof callbacks] != null,
+        );
+        if (invalidCallbacks.length > 0) {
+          throw new StreamingCallbacksInNonStreamingModeError(invalidCallbacks);
+        }
+      }
+
       const result = await this.llmClient.generateText({
         model: wrappedModel,
         system: systemPrompt,
@@ -224,7 +245,7 @@ export class V3AgentHandler {
         toolChoice: "auto",
         prepareStep: callbacks?.prepareStep,
         onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
-        abortSignal,
+        abortSignal: options.signal,
       });
 
       return this.consolidateMetricsAndResult(
@@ -234,24 +255,34 @@ export class V3AgentHandler {
         result,
       );
     } catch (error) {
-      const errorMessage = error?.message ?? String(error);
+      // Re-throw validation errors that should propagate to the caller
+      if (error instanceof StreamingCallbacksInNonStreamingModeError) {
+        throw error;
+      }
+
+      const errorMessage = getErrorMessage(error);
       this.logger({
         category: "agent",
         message: `Error executing agent task: ${errorMessage}`,
         level: 0,
       });
 
-      // Check if this is an abort error and re-throw as AgentAbortError
-      if (AgentAbortError.isAbortError(error)) {
-        throw new AgentAbortError(errorMessage);
+      // Check if this error was caused by an abort signal (either directly or indirectly).
+      // When stagehand.close() is called, it aborts the signal which may cause various
+      // errors (e.g., "Cannot read properties of null" when context is nullified).
+      // We detect these by checking if the signal is aborted and wrap them in AgentAbortError.
+      const abortReason = getAbortErrorReason(error, abortSignal);
+      if (abortReason) {
+        throw new AgentAbortError(abortReason);
       }
 
+      // For non-abort errors, return a failure result instead of throwing
       return {
         success: false,
         actions: state.actions,
         message: `Failed to execute task: ${errorMessage}`,
         completed: false,
-        messages, // Include messages even on error for conversation context
+        messages,
       };
     }
   }
@@ -259,19 +290,35 @@ export class V3AgentHandler {
   public async stream(
     instructionOrOptions: string | AgentStreamExecuteOptions,
   ): Promise<AgentStreamResult> {
+    // Extract abort signal early so we can check it in error handling.
+    // See execute() for detailed explanation of why this is needed.
+    const abortSignal = extractAbortSignal(instructionOrOptions);
+    // Wrap prepareAgent in try-catch to handle abort signals during preparation.
+    // When stagehand.close() is called, the context may be nullified before
+    // prepareAgent completes, causing errors like "Cannot read properties of null".
+    // We catch these and check if the abort signal was the root cause.
+    let preparedAgent: Awaited<ReturnType<typeof this.prepareAgent>>;
+    try {
+      preparedAgent = await this.prepareAgent(instructionOrOptions);
+    } catch (error) {
+      const abortReason = getAbortErrorReason(error, abortSignal);
+      if (abortReason) {
+        throw new AgentAbortError(abortReason);
+      }
+      throw error;
+    }
+
     const {
-      options,
       maxSteps,
       systemPrompt,
       allTools,
       messages,
       wrappedModel,
       initialPageUrl,
-    } = await this.prepareAgent(instructionOrOptions);
+    } = preparedAgent;
 
     const callbacks = (instructionOrOptions as AgentStreamExecuteOptions)
       .callbacks as AgentStreamCallbacks | undefined;
-    const abortSignal = options.signal;
 
     const state: AgentState = {
       collectedReasoning: [],
@@ -289,17 +336,16 @@ export class V3AgentHandler {
       rejectResult = reject;
     });
 
+    // Handle errors during streaming, converting abort-related errors to AgentAbortError.
+    // This ensures consistent error handling whether abort happens during streaming or preparation.
     const handleError = (error: unknown) => {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-
-      // Wrap abort errors in AgentAbortError
-      if (AgentAbortError.isAbortError(error)) {
-        rejectResult(new AgentAbortError(errorMessage));
+      const abortReason = getAbortErrorReason(error, abortSignal);
+      if (abortReason) {
+        rejectResult(new AgentAbortError(abortReason));
       } else {
         this.logger({
           category: "agent",
-          message: `Error during streaming: ${errorMessage}`,
+          message: `Error during streaming: ${getErrorMessage(error)}`,
           level: 0,
         });
         rejectResult(error);

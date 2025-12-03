@@ -72,6 +72,7 @@ import { Page } from "./understudy/page";
 import { resolveModel } from "../modelUtils";
 import { StagehandAPIClient } from "./api";
 import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures";
+import { combineAbortSignals } from "./agent/utils/combineAbortSignals";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
@@ -172,6 +173,7 @@ export class V3 {
   private actCache: ActCache;
   private agentCache: AgentCache;
   private apiClient: StagehandAPIClient | null = null;
+  private _agentAbortController: AbortController = new AbortController();
 
   public stagehandMetrics: StagehandMetrics = {
     actPromptTokens: 0,
@@ -1262,6 +1264,13 @@ export class V3 {
     if (this._isClosing && !opts?.force) return;
     this._isClosing = true;
 
+    // Abort any running agent tasks
+    try {
+      this._agentAbortController.abort("Stagehand instance is closing");
+    } catch {
+      // ignore abort errors
+    }
+
     try {
       // Unhook CDP transport close handler if context exists
       try {
@@ -1305,6 +1314,8 @@ export class V3 {
       this.ctx = null;
       this._isClosing = false;
       this.resetBrowserbaseSessionMetadata();
+      // Reset the abort controller for potential reuse
+      this._agentAbortController = new AbortController();
       try {
         unbindInstanceLogger(this.instanceId);
       } catch {
@@ -1531,10 +1542,21 @@ export class V3 {
       tools,
     );
 
-    const resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions =
+    const baseOptions: AgentExecuteOptions | AgentStreamExecuteOptions =
       typeof instructionOrOptions === "string"
         ? { instruction: instructionOrOptions }
         : instructionOrOptions;
+
+    // Combine user's signal with instance abort controller for graceful shutdown
+    const combinedSignal = combineAbortSignals(
+      this._agentAbortController.signal,
+      baseOptions.signal,
+    );
+
+    const resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions = {
+      ...baseOptions,
+      signal: combinedSignal,
+    };
 
     if (resolvedOptions.page) {
       const normalizedPage = await this.normalizeToV3Page(resolvedOptions.page);
@@ -1748,11 +1770,12 @@ export class V3 {
 
           // Streaming mode
           if (isStreaming) {
-            const { handler, cacheContext } = await this.prepareAgentExecution(
-              options,
-              instructionOrOptions,
-              agentConfigSignature,
-            );
+            const { handler, resolvedOptions, cacheContext } =
+              await this.prepareAgentExecution(
+                options,
+                instructionOrOptions,
+                agentConfigSignature,
+              );
 
             if (cacheContext) {
               const replayed =
@@ -1763,7 +1786,7 @@ export class V3 {
             }
 
             const streamResult = await handler.stream(
-              instructionOrOptions as string | AgentStreamExecuteOptions,
+              resolvedOptions as AgentStreamExecuteOptions,
             );
 
             if (cacheContext) {
@@ -1811,7 +1834,7 @@ export class V3 {
               );
             } else {
               result = await handler.execute(
-                instructionOrOptions as string | AgentExecuteOptions,
+                resolvedOptions as AgentExecuteOptions,
               );
             }
             if (recording) {
