@@ -319,3 +319,15 @@ export class ConnectionTimeoutError extends StagehandError {
     super(`Connection timeout: ${message}`);
   }
 }
+
+export class StreamingCallbacksInNonStreamingModeError extends StagehandError {
+  public readonly invalidCallbacks: string[];
+
+  constructor(invalidCallbacks: string[]) {
+    super(
+      `Streaming-only callback(s) "${invalidCallbacks.join('", "')}" cannot be used in non-streaming mode. ` +
+        `Set 'stream: true' in AgentConfig to use these callbacks.`,
+    );
+    this.invalidCallbacks = invalidCallbacks;
+  }
+}

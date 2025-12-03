@@ -47,6 +47,11 @@ type ExpectedExportedTypes = {
   AgentProviderType: Stagehand.AgentProviderType;
   AgentModelConfig: Stagehand.AgentModelConfig;
   AgentConfig: Stagehand.AgentConfig;
+  AgentCallbacks: Stagehand.AgentCallbacks;
+  AgentExecuteCallbacks: Stagehand.AgentExecuteCallbacks;
+  AgentStreamCallbacks: Stagehand.AgentStreamCallbacks;
+  AgentExecuteOptionsBase: Stagehand.AgentExecuteOptionsBase;
+  AgentStreamExecuteOptions: Stagehand.AgentStreamExecuteOptions;
   // Types from logs.ts
   LogLevel: Stagehand.LogLevel;
   LogLine: Stagehand.LogLine;
@@ -178,10 +183,25 @@ describe("Stagehand public API types", () => {
       maxSteps?: number;
       page?: Stagehand.AnyPage;
       highlightCursor?: boolean;
+      callbacks?: Stagehand.AgentExecuteCallbacks;
     };
 
     it("matches expected type shape", () => {
       expectTypeOf<Stagehand.AgentExecuteOptions>().toEqualTypeOf<ExpectedAgentExecuteOptions>();
+    });
+  });
+
+  describe("AgentStreamExecuteOptions", () => {
+    type ExpectedAgentStreamExecuteOptions = {
+      instruction: string;
+      maxSteps?: number;
+      page?: Stagehand.AnyPage;
+      highlightCursor?: boolean;
+      callbacks?: Stagehand.AgentStreamCallbacks;
+    };
+
+    it("matches expected type shape", () => {
+      expectTypeOf<Stagehand.AgentStreamExecuteOptions>().toEqualTypeOf<ExpectedAgentStreamExecuteOptions>();
     });
   });
 
