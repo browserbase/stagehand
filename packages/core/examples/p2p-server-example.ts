@@ -70,7 +70,12 @@ async function main() {
   console.log("\nTo connect from another terminal, run:");
   console.log("  npx tsx examples/p2p-client-example.ts");
   console.log("\nOr from code:");
-  console.log(`  stagehand.connectToRemoteServer('${server.getUrl()}')`);
+  console.log("  // In your client process:");
+  console.log(`  process.env.STAGEHAND_API_URL = '${server.getUrl()}/v1';`);
+  console.log(
+    "  const stagehand = new Stagehand({ env: 'LOCAL', verbose: 1 });",
+  );
+  console.log("  await stagehand.init();");
   console.log("\nPress Ctrl+C to stop the server");
   console.log("=".repeat(60));
 

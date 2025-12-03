@@ -39,17 +39,18 @@ describe("P2P Server/Client Integration", () => {
     // Give the server a moment to fully start
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    // Create the client-side Stagehand instance
+    // Point the client at the P2P server via STAGEHAND_API_URL so that it
+    // uses the HTTP API instead of launching a local browser.
+    process.env.STAGEHAND_API_URL = `${SERVER_URL}/v1`;
+
+    // Create the client-side Stagehand instance configured to talk to the remote server
     clientStagehand = new Stagehand({
-      env: "LOCAL",
+      env: "BROWSERBASE",
       verbose: 0,
     });
 
-    // Connect the client to the server
-    clientStagehand.connectToRemoteServer(SERVER_URL);
-
-    // Initialize a session on the server by calling /sessions/start
-    // This is done automatically when we make our first RPC call
+    // Initialize the client, which connects to the remote server
+    await clientStagehand.init();
   }, 30000); // 30 second timeout for setup
 
   afterAll(async () => {

@@ -24,6 +24,7 @@ import {
   agentExecuteSchemaV3,
   navigateSchemaV3,
 } from "./schemas";
+import type { StartSessionParams } from "../types/private/api";
 import type {
   StagehandServerEventMap,
   StagehandRequestReceivedEvent,
@@ -162,15 +163,13 @@ export class StagehandServer {
     const startTime = Date.now();
 
     try {
-      // Parse V3Options from request body
-      const config = request.body as V3Options;
-
       // Emit request received event
       await this.emitAsync("StagehandRequestReceived", {
         type: "StagehandRequestReceived",
         timestamp: new Date(),
         requestId,
-        sessionId: "", // No session yet
+        sessionId: "",
+        // No session yet
         method: "POST",
         path: "/v1/sessions/start",
         headers: {
@@ -184,8 +183,34 @@ export class StagehandServer {
         bodySize: JSON.stringify(request.body).length,
       });
 
+      const body = request.body as unknown;
+
+      let v3Config: V3Options;
+
+      if (body && typeof body === "object" && "env" in (body as any)) {
+        // Backwards-compatible path: accept full V3Options directly
+        v3Config = body as V3Options;
+      } else {
+        // Cloud-compatible path: accept StartSessionParams and derive V3Options
+        const params = body as StartSessionParams;
+
+        const modelConfig: ModelConfiguration = {
+          modelName: params.modelName as any,
+          apiKey: params.modelApiKey,
+        };
+
+        v3Config = {
+          env: "LOCAL",
+          model: modelConfig,
+          systemPrompt: params.systemPrompt,
+          domSettleTimeout: params.domSettleTimeoutMs,
+          verbose: params.verbose as 0 | 1 | 2,
+          selfHeal: params.selfHeal,
+        };
+      }
+
       // Create session (will emit StagehandSessionCreated)
-      const sessionId = this.sessionManager.createSession(config);
+      const sessionId = this.sessionManager.createSession(v3Config);
 
       // Emit request completed event
       await this.emitAsync("StagehandRequestCompleted", {
@@ -197,9 +222,13 @@ export class StagehandServer {
         durationMs: Date.now() - startTime,
       });
 
+      // Match cloud API shape: { success: true, data: { sessionId, available } }
       reply.status(200).send({
-        sessionId,
-        available: true,
+        success: true,
+        data: {
+          sessionId,
+          available: true,
+        },
       });
     } catch (error) {
       await this.emitAsync("StagehandRequestCompleted", {
@@ -212,7 +241,9 @@ export class StagehandServer {
       });
 
       reply.status(500).send({
-        error: error instanceof Error ? error.message : "Failed to create session",
+        success: false,
+        message:
+          error instanceof Error ? error.message : "Failed to create session",
       });
     }
   }
@@ -272,7 +303,7 @@ export class StagehandServer {
         reply,
         eventBus: this.eventBus,
         handler: async (ctx, data) => {
-          const { stagehand } = ctx;
+          const stagehand = ctx.stagehand as any;
           const { frameId } = data;
 
           // Get the page
@@ -391,7 +422,7 @@ export class StagehandServer {
         reply,
         eventBus: this.eventBus,
         handler: async (ctx, data) => {
-          const { stagehand } = ctx;
+          const stagehand = ctx.stagehand as any;
           const { frameId } = data;
 
           const page = frameId
@@ -519,7 +550,7 @@ export class StagehandServer {
         reply,
         eventBus: this.eventBus,
         handler: async (ctx, data) => {
-          const { stagehand } = ctx;
+          const stagehand = ctx.stagehand as any;
           const { frameId } = data;
 
           const page = frameId
@@ -636,7 +667,7 @@ export class StagehandServer {
         reply,
         eventBus: this.eventBus,
         handler: async (ctx, data) => {
-          const { stagehand } = ctx;
+          const stagehand = ctx.stagehand as any;
           const { agentConfig, executeOptions, frameId } = data;
 
           const page = frameId
@@ -739,7 +770,7 @@ export class StagehandServer {
         reply,
         eventBus: this.eventBus,
         handler: async (ctx, data: any) => {
-          const { stagehand } = ctx;
+          const stagehand = ctx.stagehand as any;
           const { url, options, frameId } = data;
 
           if (!url) {

@@ -70,17 +70,23 @@ export class StagehandAPIClient {
   }: StagehandAPIConstructorParams) {
     this.apiKey = apiKey;
     this.projectId = projectId;
-    this.baseUrl =
+    const resolvedBaseUrl =
       baseUrl ||
       process.env.STAGEHAND_API_URL ||
       "https://api.stagehand.browserbase.com/v1";
+    this.baseUrl = resolvedBaseUrl;
     this.logger = logger;
 
-    // Validate: if using cloud API, apiKey and projectId are required
-    if (!baseUrl && (!apiKey || !projectId)) {
+    // Validate: if using the default cloud API (no explicit override),
+    // apiKey and projectId are required. When STAGEHAND_API_URL or an
+    // explicit baseUrl is provided, we allow missing keys so the same
+    // client can talk to both cloud and P2P servers.
+    const usingDefaultCloud =
+      !baseUrl && !process.env.STAGEHAND_API_URL;
+    if (usingDefaultCloud && (!apiKey || !projectId)) {
       throw new StagehandAPIError(
         "apiKey and projectId are required when using the cloud API. " +
-          "Provide a baseUrl to connect to a local Stagehand server instead.",
+          "Set STAGEHAND_API_URL or provide a baseUrl to connect to a local Stagehand server instead.",
       );
     }
 
@@ -504,18 +510,14 @@ export class StagehandAPIClient {
     };
 
     // Only add auth headers if they exist (cloud mode)
-    if (this.apiKey) {
-      defaultHeaders["x-bb-api-key"] = this.apiKey;
-    }
-    if (this.projectId) {
-      defaultHeaders["x-bb-project-id"] = this.projectId;
-    }
+    // Always send auth-related headers; servers that don't require them
+    // (e.g. P2P or self-hosted) will simply ignore empty values.
+    defaultHeaders["x-bb-api-key"] = this.apiKey ?? "";
+    defaultHeaders["x-bb-project-id"] = this.projectId ?? "";
     if (this.sessionId) {
       defaultHeaders["x-bb-session-id"] = this.sessionId;
     }
-    if (this.modelApiKey) {
-      defaultHeaders["x-model-api-key"] = this.modelApiKey;
-    }
+    defaultHeaders["x-model-api-key"] = this.modelApiKey ?? "";
 
     if (options.method === "POST" && options.body) {
       defaultHeaders["Content-Type"] = "application/json";

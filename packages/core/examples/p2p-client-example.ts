@@ -22,14 +22,19 @@ async function main() {
   console.log("=".repeat(60));
   console.log(`Connecting to server at ${SERVER_URL}...`);
 
-  // Create a Stagehand instance
+  // When STAGEHAND_API_URL is set to the P2P server URL
+  // (e.g. "http://localhost:3000/v1"), Stagehand will use the HTTP API
+  // instead of launching a local browser.
+  if (!process.env.STAGEHAND_API_URL) {
+    process.env.STAGEHAND_API_URL = `${SERVER_URL}/v1`;
+  }
+
   const stagehand = new Stagehand({
-    env: "LOCAL", // Required but won't be used since we're connecting to remote
+    env: "BROWSERBASE",
     verbose: 1,
   });
 
-  // Connect to the remote server and create a session
-  await stagehand.connectToRemoteServer(SERVER_URL);
+  await stagehand.init();
   console.log("✓ Connected to remote server\n");
 
   // Navigate to a test page first

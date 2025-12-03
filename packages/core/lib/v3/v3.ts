@@ -161,7 +161,6 @@ export class V3 {
   };
   public readonly experimental: boolean = false;
   public readonly logInferenceToFile: boolean = false;
-  public readonly disableAPI: boolean = false;
   private externalLogger?: (logLine: LogLine) => void;
   public verbose: 0 | 1 | 2 = 1;
   private stagehandLogger: StagehandLogger;
@@ -250,7 +249,6 @@ export class V3 {
     this.logInferenceToFile = opts.logInferenceToFile ?? false;
     this.llmProvider = new LLMProvider(this.logger);
     this.domSettleTimeoutMs = opts.domSettleTimeout;
-    this.disableAPI = opts.disableAPI ?? false;
 
     const baseClientOptions: ClientOptions = clientOptions
       ? ({ ...clientOptions } as ClientOptions)
@@ -258,7 +256,6 @@ export class V3 {
     if (opts.llmClient) {
       this.llmClient = opts.llmClient;
       this.modelClientOptions = baseClientOptions;
-      this.disableAPI = true;
     } else {
       // Ensure API key is set
       let apiKey = (baseClientOptions as { apiKey?: string }).apiKey;
@@ -676,6 +673,7 @@ export class V3 {
               inferenceTimeMs,
             ),
         );
+
         if (this.opts.env === "LOCAL") {
           // chrome-launcher conditionally adds --headless when the environment variable
           // HEADLESS is set, without parsing its value.
@@ -806,111 +804,63 @@ export class V3 {
         }
 
         if (this.opts.env === "BROWSERBASE") {
-          const { apiKey, projectId } = this.requireBrowserbaseCreds();
-          if (!apiKey || !projectId) {
-            throw new MissingEnvironmentVariableError(
-              "BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID",
-              "Browserbase environment",
-            );
-          }
+          // In BROWSERBASE mode, always use the HTTP API client.
+          // STAGEHAND_API_URL controls which remote server we talk to:
+          // - default: Stagehand cloud API
+          // - custom: P2P or self-hosted Stagehand server
+          const apiKey =
+            this.opts.apiKey ?? process.env.BROWSERBASE_API_KEY ?? "";
+          const projectId =
+            this.opts.projectId ?? process.env.BROWSERBASE_PROJECT_ID ?? "";
+
           this.logger({
             category: "init",
-            message: "Starting browserbase session",
+            message: "Connecting to remote Stagehand API (BROWSERBASE env)",
             level: 1,
           });
-          if (!this.disableAPI && !this.experimental) {
-            this.apiClient = new StagehandAPIClient({
-              apiKey,
-              projectId,
-              logger: this.logger,
-            });
-            const createSessionPayload = {
-              projectId:
-                this.opts.browserbaseSessionCreateParams?.projectId ??
-                projectId,
-              ...this.opts.browserbaseSessionCreateParams,
-              browserSettings: {
-                ...(this.opts.browserbaseSessionCreateParams?.browserSettings ??
-                  {}),
-                viewport: this.opts.browserbaseSessionCreateParams
-                  ?.browserSettings?.viewport ?? { width: 1288, height: 711 },
-              },
-              userMetadata: {
-                ...(this.opts.browserbaseSessionCreateParams?.userMetadata ??
-                  {}),
-                stagehand: "true",
-              },
-            };
-            const { sessionId, available } = await this.apiClient.init({
-              modelName: this.modelName,
-              modelApiKey: this.modelClientOptions.apiKey,
-              domSettleTimeoutMs: this.domSettleTimeoutMs,
-              verbose: this.verbose,
-              systemPrompt: this.opts.systemPrompt,
-              selfHeal: this.opts.selfHeal,
-              browserbaseSessionCreateParams: createSessionPayload,
-              browserbaseSessionID: this.opts.browserbaseSessionID,
-            });
-            if (!available) {
-              this.apiClient = null;
-            }
-            this.opts.browserbaseSessionID = sessionId;
-          }
-          const { ws, sessionId, bb } = await createBrowserbaseSession(
+
+          this.apiClient = new StagehandAPIClient({
             apiKey,
             projectId,
-            this.opts.browserbaseSessionCreateParams,
-            this.opts.browserbaseSessionID,
-          );
-          this.ctx = await V3Context.create(ws, {
-            env: "BROWSERBASE",
-            apiClient: this.apiClient,
+            // baseUrl is resolved inside StagehandAPIClient from
+            // STAGEHAND_API_URL or defaults to the cloud API.
+            logger: this.logger,
           });
-          this.ctx.conn.onTransportClosed(this._onCdpClosed);
-          this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
-          this.browserbaseSessionId = sessionId;
 
-          await this._ensureBrowserbaseDownloadsEnabled();
+          const createSessionPayload = {
+            projectId:
+              this.opts.browserbaseSessionCreateParams?.projectId ??
+              projectId,
+            ...this.opts.browserbaseSessionCreateParams,
+            browserSettings: {
+              ...(this.opts.browserbaseSessionCreateParams?.browserSettings ??
+                {}),
+              viewport: this.opts.browserbaseSessionCreateParams
+                ?.browserSettings?.viewport ?? { width: 1288, height: 711 },
+            },
+            userMetadata: {
+              ...(this.opts.browserbaseSessionCreateParams?.userMetadata ??
+                {}),
+              stagehand: "true",
+            },
+          };
 
-          const resumed = !!this.opts.browserbaseSessionID;
-          let debugUrl: string | undefined;
-          try {
-            const dbg = (await bb.sessions.debug(sessionId)) as unknown as {
-              debuggerUrl?: string;
-            };
-            debugUrl = dbg?.debuggerUrl;
-          } catch {
-            // Ignore debug fetch failures; continue with sessionUrl only
-          }
-          const sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
-          this.browserbaseSessionUrl = sessionUrl;
-          this.browserbaseDebugUrl = debugUrl;
+          await this.apiClient.init({
+            modelName: this.modelName,
+            modelApiKey: this.modelClientOptions.apiKey!,
+            domSettleTimeoutMs: this.domSettleTimeoutMs ?? 10_000,
+            verbose: this.verbose,
+            systemPrompt: this.opts.systemPrompt,
+            selfHeal: this.opts.selfHeal,
+            browserbaseSessionCreateParams: createSessionPayload,
+            browserbaseSessionID: this.opts.browserbaseSessionID,
+          });
 
-          try {
-            this.logger({
-              category: "init",
-              message: resumed
-                ? this.apiClient
-                  ? "Browserbase session started"
-                  : "Browserbase session resumed"
-                : "Browserbase session started",
-              level: 1,
-              auxiliary: {
-                sessionUrl: { value: sessionUrl, type: "string" },
-                ...(debugUrl && {
-                  debugUrl: { value: debugUrl, type: "string" },
-                }),
-                sessionId: { value: sessionId, type: "string" },
-              },
-            });
-          } catch {
-            // best-effort logging — ignore failures
-          }
+          // In pure API mode we don't create a local CDP context here;
+          // all operations will be proxied via this.apiClient.
+          this.resetBrowserbaseSessionMetadata();
           return;
         }
-
-        const neverEnv: never = this.opts.env;
-        throw new StagehandInitError(`Unsupported env: ${neverEnv}`);
       });
     } catch (error) {
       // Cleanup instanceLoggers map on init failure to prevent memory leak
@@ -1894,80 +1844,6 @@ export class V3 {
     return new StagehandServer(options);
   }
 
-  /**
-   * Connect to a remote Stagehand server and initialize a session.
-   * All act/extract/observe/agent calls will be forwarded to the remote server.
-   *
-   * @param baseUrl - URL of the remote Stagehand server (e.g., "http://localhost:3000")
-   * @param options - Optional configuration for the remote session
-   *
-   * @example
-   * ```typescript
-   * const stagehand = new Stagehand({ env: 'LOCAL' });
-   * await stagehand.connectToRemoteServer('http://machine-a:3000');
-   * await stagehand.act('click button'); // Executes on remote machine
-   * ```
-   */
-  async connectToRemoteServer(
-    baseUrl: string,
-    options?: Partial<V3Options>,
-  ): Promise<void> {
-    if (this.apiClient) {
-      throw new Error(
-        "Already connected to a remote server or API. Cannot connect twice.",
-      );
-    }
-
-    // Ensure baseUrl includes /v1 to match cloud API pattern
-    const normalizedBaseUrl = baseUrl.endsWith('/v1') ? baseUrl : `${baseUrl}/v1`;
-
-    this.apiClient = new StagehandAPIClient({
-      baseUrl: normalizedBaseUrl,
-      logger: this.logger,
-    });
-
-    // Initialize a session on the remote server
-    const sessionConfig: V3Options = {
-      env: options?.env || this.opts.env,
-      model: options?.model || this.opts.model,
-      verbose: options?.verbose !== undefined ? options?.verbose : this.verbose,
-      systemPrompt: options?.systemPrompt || this.opts.systemPrompt,
-      selfHeal: options?.selfHeal !== undefined ? options?.selfHeal : this.opts.selfHeal,
-      domSettleTimeout: options?.domSettleTimeout || this.domSettleTimeoutMs,
-      experimental: options?.experimental !== undefined ? options?.experimental : this.experimental,
-      ...options,
-    };
-
-    // Call /sessions/start on the remote server
-    const response = await fetch(`${baseUrl}/v1/sessions/start`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-stream-response": "false",
-      },
-      body: JSON.stringify(sessionConfig),
-    });
-
-    if (!response.ok) {
-      throw new Error(
-        `Failed to create session on remote server: ${response.status} ${response.statusText}`,
-      );
-    }
-
-    const data = await response.json();
-    if (!data.sessionId) {
-      throw new Error("Remote server did not return a session ID");
-    }
-
-    // Store the session ID in the API client
-    (this.apiClient as any).sessionId = data.sessionId;
-
-    this.logger({
-      category: "init",
-      message: `Connected to remote server at ${baseUrl} (session: ${data.sessionId})`,
-      level: 1,
-    });
-  }
 }
 
 function isObserveResult(v: unknown): v is Action {
