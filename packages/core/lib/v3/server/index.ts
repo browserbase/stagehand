@@ -3,7 +3,6 @@ import cors from "@fastify/cors";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import type {
-  V3Options,
   ActOptions,
   ActResult,
   ExtractResult,
@@ -12,11 +11,10 @@ import type {
   Action,
   AgentResult,
   ModelConfiguration,
-  LogLine,
 } from "../types/public";
 import type { StagehandZodSchema } from "../zodCompat";
 import { jsonSchemaToZod, type JsonSchema } from "../../utils";
-import type { SessionStore, RequestContext, CreateSessionParams, SessionCacheConfig } from "./SessionStore";
+import type { SessionStore, RequestContext, CreateSessionParams } from "./SessionStore";
 import { InMemorySessionStore } from "./InMemorySessionStore";
 import { createStreamingResponse } from "./stream";
 import {
@@ -68,7 +66,7 @@ export interface StagehandHttpReply {
 export * from "./events";
 
 // Re-export SessionStore types
-export type { SessionStore, RequestContext, CreateSessionParams, SessionCacheConfig, StartSessionResult } from "./SessionStore";
+export type { SessionStore, RequestContext, CreateSessionParams, StartSessionResult } from "./SessionStore";
 export { InMemorySessionStore } from "./InMemorySessionStore";
 
 // Re-export API schemas and types for consumers
@@ -83,11 +81,6 @@ export interface StagehandServerOptions {
    * Cloud environments should provide a database-backed implementation.
    */
   sessionStore?: SessionStore;
-  /**
-   * Cache configuration for the default InMemorySessionStore.
-   * Ignored if a custom sessionStore is provided.
-   */
-  cacheConfig?: SessionCacheConfig;
   /** Optional: shared event bus instance. If not provided, a new one will be created. */
   eventBus?: StagehandEventBus;
 }
@@ -111,11 +104,11 @@ export class StagehandServer {
   private isListening: boolean = false;
   private eventBus: StagehandEventBus;
 
-  constructor(options: StagehandServerOptions) {
+  constructor(options: StagehandServerOptions = {}) {
     this.eventBus = options.eventBus || createEventBus();
     this.port = options.port || 3000;
     this.host = options.host || "0.0.0.0";
-    this.sessionStore = options.sessionStore ?? new InMemorySessionStore(options.cacheConfig);
+    this.sessionStore = options.sessionStore ?? new InMemorySessionStore();
     this.app = Fastify({
       logger: false, // Disable Fastify's built-in logger for cleaner output
     });

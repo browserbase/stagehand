@@ -17,13 +17,7 @@ export const successResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
     data: dataSchema,
   });
 
-/** Standard API error response */
-export const errorResponseSchema = z.object({
-  success: z.literal(false),
-  message: z.string(),
-});
-
-/** Model configuration for LLM calls */
+/** Model configuration for LLM calls (used in action options) */
 export const modelConfigSchema = z.object({
   provider: z.string().optional(),
   model: z.string().optional(),
@@ -66,13 +60,19 @@ export const startSessionRequestSchema = z.object({
   actTimeoutMs: z.number().optional(),
 });
 
-/** POST /v1/sessions/start - Response data */
+/** Internal result from SessionStore.startSession() - sessionId always present */
+export const startSessionResultSchema = z.object({
+  sessionId: z.string(),
+  available: z.boolean(),
+});
+
+/** POST /v1/sessions/start - HTTP response data (sessionId can be null when unavailable) */
 export const startSessionResponseDataSchema = z.object({
   sessionId: z.string().nullable(),
   available: z.boolean(),
 });
 
-/** POST /v1/sessions/start - Full response */
+/** POST /v1/sessions/start - Full HTTP response */
 export const startSessionResponseSchema = successResponseSchema(startSessionResponseDataSchema);
 
 /** POST /v1/sessions/:id/end - Response */
@@ -97,14 +97,7 @@ export const actSchemaV3 = z.object({
   ),
   options: z
     .object({
-      model: z
-        .object({
-          provider: z.string().optional(),
-          model: z.string().optional(),
-          apiKey: z.string().optional(),
-          baseURL: z.string().url().optional(),
-        })
-        .optional(),
+      model: modelConfigSchema.optional(),
       variables: z.record(z.string(), z.string()).optional(),
       timeout: z.number().optional(),
     })
@@ -117,14 +110,7 @@ export const extractSchemaV3 = z.object({
   schema: z.record(z.string(), z.unknown()).optional(),
   options: z
     .object({
-      model: z
-        .object({
-          provider: z.string().optional(),
-          model: z.string().optional(),
-          apiKey: z.string().optional(),
-          baseURL: z.string().url().optional(),
-        })
-        .optional(),
+      model: modelConfigSchema.optional(),
       timeout: z.number().optional(),
       selector: z.string().optional(),
     })
@@ -136,14 +122,7 @@ export const observeSchemaV3 = z.object({
   instruction: z.string().optional(),
   options: z
     .object({
-      model: z
-        .object({
-          provider: z.string().optional(),
-          model: z.string().optional(),
-          apiKey: z.string().optional(),
-          baseURL: z.string().url().optional(),
-        })
-        .optional(),
+      model: modelConfigSchema.optional(),
       timeout: z.number().optional(),
       selector: z.string().optional(),
     })
@@ -249,6 +228,7 @@ export type AgentExecuteRequest = z.infer<typeof agentExecuteSchemaV3>;
 export type NavigateRequest = z.infer<typeof navigateSchemaV3>;
 
 // Response types
+export type StartSessionResult = z.infer<typeof startSessionResultSchema>;
 export type StartSessionResponseData = z.infer<typeof startSessionResponseDataSchema>;
 export type ActResult = z.infer<typeof actResultSchema>;
 export type ExtractResult = z.infer<typeof extractResultSchema>;

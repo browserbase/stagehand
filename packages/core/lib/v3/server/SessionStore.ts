@@ -67,15 +67,8 @@ export interface SessionCacheConfig {
   ttlMs?: number;
 }
 
-/**
- * Result of starting a session.
- */
-export interface StartSessionResult {
-  /** The session ID (may be generated or provided) */
-  sessionId: string;
-  /** Whether the session is available for use */
-  available: boolean;
-}
+// Re-export StartSessionResult from schemas (defined as Zod schema)
+export type { StartSessionResult } from "./schemas";
 
 /**
  * SessionStore interface for managing session lifecycle and V3 instances.
