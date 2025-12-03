@@ -263,6 +263,109 @@ test.describe("Stagehand agent callbacks behavior", () => {
     });
   });
 
+  test.describe("Streaming-only callbacks runtime validation", () => {
+    test("throws error when onChunk is used in non-streaming mode", async () => {
+      const agent = v3.agent({
+        model: "anthropic/claude-haiku-4-5-20251001",
+      });
+
+      const page = v3.context.pages()[0];
+      await page.goto("https://example.com");
+
+      await expect(
+        agent.execute({
+          instruction: "test",
+          callbacks: {
+            onChunk: (() => {}) as never,
+          },
+        }),
+      ).rejects.toThrow(
+        /Streaming-only callback\(s\) "onChunk" cannot be used in non-streaming mode/,
+      );
+    });
+
+    test("throws error when onFinish is used in non-streaming mode", async () => {
+      const agent = v3.agent({
+        model: "anthropic/claude-haiku-4-5-20251001",
+      });
+
+      const page = v3.context.pages()[0];
+      await page.goto("https://example.com");
+
+      await expect(
+        agent.execute({
+          instruction: "test",
+          callbacks: {
+            onFinish: (() => {}) as never,
+          },
+        }),
+      ).rejects.toThrow(
+        /Streaming-only callback\(s\) "onFinish" cannot be used in non-streaming mode/,
+      );
+    });
+
+    test("throws error when onError is used in non-streaming mode", async () => {
+      const agent = v3.agent({
+        model: "anthropic/claude-haiku-4-5-20251001",
+      });
+
+      const page = v3.context.pages()[0];
+      await page.goto("https://example.com");
+
+      await expect(
+        agent.execute({
+          instruction: "test",
+          callbacks: {
+            onError: (() => {}) as never,
+          },
+        }),
+      ).rejects.toThrow(
+        /Streaming-only callback\(s\) "onError" cannot be used in non-streaming mode/,
+      );
+    });
+
+    test("throws error when onAbort is used in non-streaming mode", async () => {
+      const agent = v3.agent({
+        model: "anthropic/claude-haiku-4-5-20251001",
+      });
+
+      const page = v3.context.pages()[0];
+      await page.goto("https://example.com");
+
+      await expect(
+        agent.execute({
+          instruction: "test",
+          callbacks: {
+            onAbort: (() => {}) as never,
+          },
+        }),
+      ).rejects.toThrow(
+        /Streaming-only callback\(s\) "onAbort" cannot be used in non-streaming mode/,
+      );
+    });
+
+    test("throws error listing multiple streaming-only callbacks", async () => {
+      const agent = v3.agent({
+        model: "anthropic/claude-haiku-4-5-20251001",
+      });
+
+      const page = v3.context.pages()[0];
+      await page.goto("https://example.com");
+
+      await expect(
+        agent.execute({
+          instruction: "test",
+          callbacks: {
+            onChunk: (() => {}) as never,
+            onFinish: (() => {}) as never,
+          },
+        }),
+      ).rejects.toThrow(
+        /Streaming-only callback\(s\) "onChunk", "onFinish" cannot be used in non-streaming mode/,
+      );
+    });
+  });
+
   test.describe("Combined callbacks", () => {
     test("multiple callbacks can be used together", async () => {
       test.setTimeout(60000);

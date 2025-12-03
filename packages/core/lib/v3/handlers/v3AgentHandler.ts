@@ -181,6 +181,25 @@ export class V3AgentHandler {
     } = await this.prepareAgent(instructionOrOptions);
 
     const callbacks = (instructionOrOptions as AgentExecuteOptions).callbacks;
+
+    if (callbacks) {
+      const streamingOnlyCallbacks = [
+        "onChunk",
+        "onFinish",
+        "onError",
+        "onAbort",
+      ] as const;
+      const invalidCallbacks = streamingOnlyCallbacks.filter(
+        (name) => callbacks[name as keyof typeof callbacks] != null,
+      );
+      if (invalidCallbacks.length > 0) {
+        throw new Error(
+          `Streaming-only callback(s) "${invalidCallbacks.join('", "')}" cannot be used in non-streaming mode. ` +
+            `Set 'stream: true' in AgentConfig to use these callbacks.`,
+        );
+      }
+    }
+
     const state: AgentState = {
       collectedReasoning: [],
       actions: [],
