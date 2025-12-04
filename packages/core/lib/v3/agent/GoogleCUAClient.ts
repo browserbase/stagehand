@@ -294,8 +294,8 @@ export class GoogleCUAClient extends AgentClient {
       const compressedHistory = compressedResult.items;
 
       // Use the SDK's generateContent method with retry logic (matching Python's get_model_response)
-      const maxRetries = 5;
-      const baseDelayS = 1;
+      const maxRetries = 20;
+      const delayMs = 1000;
       let lastError: Error | null = null;
       let response: GenerateContentResponse | null = null;
 
@@ -303,13 +303,12 @@ export class GoogleCUAClient extends AgentClient {
         try {
           // Add exponential backoff delay for retries
           if (attempt > 0) {
-            const delay = baseDelayS * Math.pow(2, attempt) * 1000; // Convert to ms
             logger({
               category: "agent",
-              message: `Generating content failed on attempt ${attempt + 1}. Retrying in ${delay / 1000} seconds...`,
+              message: `Generating content failed on attempt ${attempt + 1}/${maxRetries}. Retrying in 1 second...`,
               level: 2,
             });
-            await new Promise((resolve) => setTimeout(resolve, delay));
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
           }
 
           // Use the SDK's generateContent method - following Python SDK pattern
@@ -322,6 +321,14 @@ export class GoogleCUAClient extends AgentClient {
           // Check if we have valid response content
           if (!response.candidates || response.candidates.length === 0) {
             throw new LLMResponseError("agent", "Response has no candidates!");
+          }
+
+          const candidate = response.candidates[0];
+          if (!candidate.content?.parts) {
+            throw new LLMResponseError(
+              "agent",
+              "Response candidate has malformed content structure (missing content.parts)"
+            );
           }
 
           // Success - we have a valid response
