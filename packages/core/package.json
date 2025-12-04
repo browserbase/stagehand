@@ -22,7 +22,6 @@
     "build-dom-scripts": "tsx lib/v3/dom/genDomScripts.ts && tsx lib/v3/dom/genLocatorScripts.ts",
     "build-js": "tsup --entry.index lib/v3/index.ts --entry.server lib/v3/server/index.ts --dts",
     "typecheck": "tsc --noEmit",
-    "prepare": "pnpm run build",
     "build": "pnpm run gen-version && pnpm run build-dom-scripts && pnpm run build-js && pnpm run typecheck",
     "example": "node --import tsx -e \"const args=process.argv.slice(1).filter(a=>a!=='--'); const [p]=args; const n=(p||'example').replace(/^\\.\\//,'').replace(/\\.ts$/i,''); import(new URL(require('node:path').resolve('examples', n + '.ts'), 'file:'));\" --",
     "test": "playwright test --config=lib/v3/tests/v3.playwright.config.ts",
@@ -103,6 +102,7 @@
     "tsup": "^8.2.1",
     "tsx": "^4.10.5",
     "typescript": "^5.2.2",
+    "vite": "^5.4.10",
     "vitest": "^4.0.8",
     "zod": "3.25.76 || 4.1.8"
   },
