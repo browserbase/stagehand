@@ -1,4 +1,5 @@
 import { Stagehand } from "../lib/v3";
+import { getSessionFileLogger } from "../lib/v3/flowLogger";
 
 async function run(): Promise<void> {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -7,6 +8,9 @@ async function run(): Promise<void> {
       "Set OPENAI_API_KEY to a valid OpenAI key before running this demo.",
     );
   }
+
+  // Set custom config dir if desired
+  // process.env.BROWSERBASE_CONFIG_DIR = "/tmp/my-stagehand-logs";
 
   const stagehand = new Stagehand({
     env: "LOCAL",
@@ -21,6 +25,18 @@ async function run(): Promise<void> {
 
   try {
     await stagehand.init();
+
+    // Get the session file logger to see where logs are being written
+    const fileLogger = getSessionFileLogger();
+    if (fileLogger) {
+      console.log("\n🗂️  Session logs are being written to:");
+      console.log("   ", fileLogger.getSessionDir());
+      console.log("   └── agent_events.log");
+      console.log("   └── stagehand_events.log");
+      console.log("   └── understudy_events.log");
+      console.log("   └── cdp_events.log");
+      console.log("   └── session.json\n");
+    }
 
     const [page] = stagehand.context.pages();
     await page.goto("https://example.com/", { waitUntil: "load" });

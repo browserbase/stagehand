@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { v3Logger } from "./logger";
+import type { SessionFileLogger } from "./sessionFileLogger";
 
 type FlowPrefixOptions = {
   includeAction?: boolean;
@@ -14,6 +15,7 @@ let currentStepId: string | null = null;
 let currentActionId: string | null = null;
 let currentStepLabel: string | null = null;
 let currentActionLabel: string | null = null;
+let sessionFileLogger: SessionFileLogger | null = null;
 
 function generateId(label: string): string {
   try {
@@ -145,6 +147,20 @@ function buildPrefix({
   return parts.join(" ");
 }
 
+/**
+ * Set the session file logger for writing logs to files
+ */
+export function setSessionFileLogger(logger: SessionFileLogger | null): void {
+  sessionFileLogger = logger;
+}
+
+/**
+ * Get the current session file logger
+ */
+export function getSessionFileLogger(): SessionFileLogger | null {
+  return sessionFileLogger;
+}
+
 export function logTaskProgress({
   invocation,
   args,
@@ -164,6 +180,13 @@ export function logTaskProgress({
     includeStep: false,
     includeAction: false,
   })} ${call}`;
+
+  // Write to file if available
+  if (sessionFileLogger) {
+    sessionFileLogger.writeAgentLog(message);
+  }
+
+  // Also log via v3Logger for backwards compatibility
   v3Logger({
     category: "flow",
     message,
@@ -193,6 +216,13 @@ export function logStepProgress({
     includeStep: true,
     includeAction: false,
   })} ${call}`;
+
+  // Write to file if available
+  if (sessionFileLogger) {
+    sessionFileLogger.writeStagehandLog(message);
+  }
+
+  // Also log via v3Logger for backwards compatibility
   v3Logger({
     category: "flow",
     message,
@@ -228,6 +258,13 @@ export function logActionProgress({
     includeStep: true,
     includeAction: true,
   })} ${details.join(" ")}`;
+
+  // Write to file if available
+  if (sessionFileLogger) {
+    sessionFileLogger.writeUnderstudyLog(message);
+  }
+
+  // Also log via v3Logger for backwards compatibility
   v3Logger({
     category: "flow",
     message,
@@ -255,6 +292,13 @@ export function logCdpMessage({
   const rawMessage = `${prefix} ${formatCdpTag(sessionId)} ${call}`;
   const message =
     rawMessage.length > 120 ? `${rawMessage.slice(0, 117)}...` : rawMessage;
+
+  // Write to file if available
+  if (sessionFileLogger) {
+    sessionFileLogger.writeCdpLog(message);
+  }
+
+  // Also log via v3Logger for backwards compatibility
   v3Logger({
     category: "flow",
     message,
