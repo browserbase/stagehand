@@ -9,7 +9,7 @@ import {
   ExecuteActionParams,
   StagehandAPIConstructorParams,
   StartSessionParams,
-  StartSessionResult,
+  SessionStartResult,
 } from "./types/private";
 import {
   ActResult,
@@ -54,17 +54,42 @@ interface ReplayMetricsResponse {
 }
 
 export class StagehandAPIClient {
-  private apiKey: string;
-  private projectId: string;
+  private apiKey?: string;
+  private projectId?: string;
   private sessionId?: string;
-  private modelApiKey: string;
+  private modelApiKey?: string;
+  private baseUrl: string;
   private logger: (message: LogLine) => void;
   private fetchWithCookies;
 
-  constructor({ apiKey, projectId, logger }: StagehandAPIConstructorParams) {
+  constructor({
+    apiKey,
+    projectId,
+    baseUrl,
+    logger,
+  }: StagehandAPIConstructorParams) {
     this.apiKey = apiKey;
     this.projectId = projectId;
+    const resolvedBaseUrl =
+      baseUrl ||
+      process.env.STAGEHAND_API_URL ||
+      "https://api.stagehand.browserbase.com/v1";
+    this.baseUrl = resolvedBaseUrl;
     this.logger = logger;
+
+    // Validate: if using the default cloud API (no explicit override),
+    // apiKey and projectId are required. When STAGEHAND_API_URL or an
+    // explicit baseUrl is provided, we allow missing keys so the same
+    // client can talk to both cloud and P2P servers.
+    const usingDefaultCloud =
+      !baseUrl && !process.env.STAGEHAND_API_URL;
+    if (usingDefaultCloud && (!apiKey || !projectId)) {
+      throw new StagehandAPIError(
+        "apiKey and projectId are required when using the cloud API. " +
+          "Set STAGEHAND_API_URL or provide a baseUrl to connect to a local Stagehand server instead.",
+      );
+    }
+
     // Create a single cookie jar instance that will persist across all requests
     this.fetchWithCookies = makeFetchCookie(fetch);
   }
@@ -78,7 +103,7 @@ export class StagehandAPIClient {
     selfHeal,
     browserbaseSessionCreateParams,
     browserbaseSessionID,
-  }: StartSessionParams): Promise<StartSessionResult> {
+  }: StartSessionParams): Promise<SessionStartResult> {
     if (!modelApiKey) {
       throw new StagehandAPIError("modelApiKey is required");
     }
@@ -121,7 +146,7 @@ export class StagehandAPIClient {
     }
 
     const sessionResponseBody =
-      (await sessionResponse.json()) as ApiResponse<StartSessionResult>;
+      (await sessionResponse.json()) as ApiResponse<SessionStartResult>;
 
     if (sessionResponseBody.success === false) {
       throw new StagehandAPIError(sessionResponseBody.message);
@@ -477,30 +502,34 @@ export class StagehandAPIClient {
 
   private async request(path: string, options: RequestInit): Promise<Response> {
     const defaultHeaders: Record<string, string> = {
-      "x-bb-api-key": this.apiKey,
-      "x-bb-project-id": this.projectId,
-      "x-bb-session-id": this.sessionId,
       // we want real-time logs, so we stream the response
       "x-stream-response": "true",
-      "x-model-api-key": this.modelApiKey,
       "x-sent-at": new Date().toISOString(),
       "x-language": "typescript",
       "x-sdk-version": STAGEHAND_VERSION,
     };
+
+    // Only add auth headers if they exist (cloud mode)
+    // Always send auth-related headers; servers that don't require them
+    // (e.g. P2P or self-hosted) will simply ignore empty values.
+    defaultHeaders["x-bb-api-key"] = this.apiKey ?? "";
+    defaultHeaders["x-bb-project-id"] = this.projectId ?? "";
+    if (this.sessionId) {
+      defaultHeaders["x-bb-session-id"] = this.sessionId;
+    }
+    defaultHeaders["x-model-api-key"] = this.modelApiKey ?? "";
+
     if (options.method === "POST" && options.body) {
       defaultHeaders["Content-Type"] = "application/json";
     }
 
-    const response = await this.fetchWithCookies(
-      `${process.env.STAGEHAND_API_URL ?? "https://api.stagehand.browserbase.com/v1"}${path}`,
-      {
-        ...options,
-        headers: {
-          ...defaultHeaders,
-          ...options.headers,
-        },
+    const response = await this.fetchWithCookies(`${this.baseUrl}${path}`, {
+      ...options,
+      headers: {
+        ...defaultHeaders,
+        ...options.headers,
       },
-    );
+    });
 
     return response;
   }

@@ -5,13 +5,15 @@ import {
   ExtractOptions,
   LogLine,
   ObserveOptions,
+  V3Options,
 } from "../public";
 import type { Protocol } from "devtools-protocol";
 import type { StagehandZodSchema } from "../../zodCompat";
 
 export interface StagehandAPIConstructorParams {
-  apiKey: string;
-  projectId: string;
+  apiKey?: string;
+  projectId?: string;
+  baseUrl?: string;
   logger: (message: LogLine) => void;
 }
 
@@ -21,11 +23,18 @@ export interface ExecuteActionParams {
   params?: unknown;
 }
 
-export interface StartSessionParams {
+export interface StartSessionParams extends Partial<V3Options> {
+  /**
+   * Optional external session identifier.
+   * When provided, StagehandServer will use this as the in-memory session id
+   * instead of generating a new UUID. This allows cloud environments to align
+   * library sessions with their own persisted session IDs (e.g. Browserbase).
+   */
+  sessionId?: string;
   modelName: string;
   modelApiKey: string;
   domSettleTimeoutMs: number;
-  verbose: number;
+  verbose: 0 | 1 | 2;
   systemPrompt?: string;
   browserbaseSessionCreateParams?: Omit<
     Browserbase.Sessions.SessionCreateParams,
@@ -33,12 +42,17 @@ export interface StartSessionParams {
   > & { projectId?: string };
   selfHeal?: boolean;
   browserbaseSessionID?: string;
+  waitForCaptchaSolves?: boolean;
+  experimental?: boolean;
+  // Cloud-specific metadata fields
+  debugDom?: boolean;
+  actTimeoutMs?: number;
+  clientLanguage?: string;
+  sdkVersion?: string;
 }
 
-export interface StartSessionResult {
-  sessionId: string;
-  available?: boolean;
-}
+// Re-export SessionStartResult from schemas (defined as Zod schema)
+export type { SessionStartResult } from "../../server/schemas";
 
 export interface SuccessResponse<T> {
   success: true;
