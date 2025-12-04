@@ -1,4 +1,4 @@
-import Fastify, { FastifyInstance } from "fastify";
+import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import cors from "@fastify/cors";
 import {
   serializerCompiler,
@@ -22,12 +22,19 @@ import { InMemorySessionStore } from "./InMemorySessionStore";
 import { createStreamingResponse } from "./stream";
 import {
   ActRequestSchema,
+  ActResponseSchema,
   ExtractRequestSchema,
+  ExtractResponseSchema,
   ObserveRequestSchema,
+  ObserveResponseSchema,
   AgentExecuteRequestSchema,
+  AgentExecuteResponseSchema,
   NavigateRequestSchema,
+  NavigateResponseSchema,
   SessionStartRequestSchema,
+  SessionStartResponseSchema,
   SessionIdParamsSchema,
+  SessionEndResponseSchema,
   type SessionStartRequest,
   type ActRequest,
   type ExtractRequest,
@@ -44,11 +51,18 @@ import {
 /**
  * Generic HTTP request interface.
  * Structurally compatible with FastifyRequest from any version.
+ * @template TBody - Type of the request body (defaults to unknown for backwards compatibility)
+ * @template TParams - Type of the route params (defaults to unknown for backwards compatibility)
  */
-export interface StagehandHttpRequest {
+export interface StagehandHttpRequest<TBody = unknown, TParams = unknown> {
   headers: Record<string, string | string[] | undefined>;
-  body: unknown;
-  params: unknown;
+  body: TBody;
+  params: TParams;
+  /**
+   * The validated session ID, set by sessionValidationPreHandler.
+   * Only available on routes that use the preHandler.
+   */
+  validatedSessionId?: string;
 }
 
 /**
@@ -76,6 +90,84 @@ export { InMemorySessionStore } from "./InMemorySessionStore";
 
 // Re-export API schemas and types for consumers
 export * from "./schemas";
+
+// =============================================================================
+// Standalone PreHandler Factory Functions
+// =============================================================================
+
+/**
+ * Generic preHandler request interface that works across Fastify versions.
+ * Uses structural typing to be compatible with any Fastify version.
+ */
+export interface PreHandlerRequest {
+  params: unknown;
+}
+
+/**
+ * Generic preHandler reply interface that works across Fastify versions.
+ * Uses structural typing to be compatible with any Fastify version.
+ */
+export interface PreHandlerReply {
+  status(code: number): PreHandlerReply;
+  send(payload: unknown): unknown;
+}
+
+/**
+ * Type for a session validation preHandler function.
+ * Generic to work across different Fastify versions.
+ */
+export type SessionValidationPreHandler = (
+  request: PreHandlerRequest,
+  reply: PreHandlerReply,
+) => Promise<void>;
+
+/**
+ * Creates a preHandler that validates the session ID param exists and session is found in SessionStore.
+ * Attaches the validated session ID to request.validatedSessionId for downstream use.
+ *
+ * This factory function can be used by external servers (e.g., cloud API) that want to
+ * share the same validation logic as the StagehandServer.
+ *
+ * @param sessionStore - The SessionStore instance to use for validation
+ * @returns A preHandler function compatible with any Fastify version
+ *
+ * @example
+ * ```typescript
+ * import { createSessionValidationPreHandler, DBSessionStore } from '@browserbasehq/stagehand/server';
+ *
+ * const sessionStore = new DBSessionStore();
+ * const sessionValidationPreHandler = createSessionValidationPreHandler(sessionStore);
+ *
+ * app.post('/sessions/:id/act', {
+ *   preHandler: [sessionValidationPreHandler],
+ * }, handler);
+ * ```
+ */
+export function createSessionValidationPreHandler(
+  sessionStore: SessionStore,
+): SessionValidationPreHandler {
+  return async (request: PreHandlerRequest, reply: PreHandlerReply): Promise<void> => {
+    const { id } = request.params as { id?: string };
+
+    if (!id?.length) {
+      reply.status(400).send({
+        error: "Missing session id",
+      });
+      return;
+    }
+
+    const hasSession = await sessionStore.hasSession(id);
+    if (!hasSession) {
+      reply.status(404).send({
+        error: "Session not found",
+      });
+      return;
+    }
+
+    // Attach validated session ID to request for downstream handlers
+    (request as unknown as StagehandHttpRequest).validatedSessionId = id;
+  };
+}
 
 export interface StagehandServerOptions {
   port?: number;
@@ -136,8 +228,18 @@ export class StagehandServer {
     });
   }
 
+  /**
+   * Creates a preHandler that validates the session ID param exists and session is found in SessionStore.
+   * Attaches the validated session ID to request.validatedSessionId for downstream use.
+   * This is also exported as a standalone factory function for use by external servers (e.g., cloud API).
+   */
+  private createSessionValidationPreHandler(): SessionValidationPreHandler {
+    return createSessionValidationPreHandler(this.sessionStore);
+  }
+
   private setupRoutes(): void {
     const app = this.app.withTypeProvider<ZodTypeProvider>();
+    const sessionValidationPreHandler = this.createSessionValidationPreHandler();
 
     // Health check
     app.get("/health", async () => {
@@ -150,6 +252,9 @@ export class StagehandServer {
       {
         schema: {
           body: SessionStartRequestSchema,
+          response: {
+            200: SessionStartResponseSchema,
+          },
         },
       },
       async (request, reply) => {
@@ -164,7 +269,11 @@ export class StagehandServer {
         schema: {
           params: SessionIdParamsSchema,
           body: ActRequestSchema,
+          response: {
+            200: ActResponseSchema,
+          },
         },
+        preHandler: [sessionValidationPreHandler],
       },
       async (request, reply) => {
         return this.handleAct(request, reply);
@@ -178,7 +287,11 @@ export class StagehandServer {
         schema: {
           params: SessionIdParamsSchema,
           body: ExtractRequestSchema,
+          response: {
+            200: ExtractResponseSchema,
+          },
         },
+        preHandler: [sessionValidationPreHandler],
       },
       async (request, reply) => {
         return this.handleExtract(request, reply);
@@ -192,7 +305,11 @@ export class StagehandServer {
         schema: {
           params: SessionIdParamsSchema,
           body: ObserveRequestSchema,
+          response: {
+            200: ObserveResponseSchema,
+          },
         },
+        preHandler: [sessionValidationPreHandler],
       },
       async (request, reply) => {
         return this.handleObserve(request, reply);
@@ -206,7 +323,11 @@ export class StagehandServer {
         schema: {
           params: SessionIdParamsSchema,
           body: AgentExecuteRequestSchema,
+          response: {
+            200: AgentExecuteResponseSchema,
+          },
         },
+        preHandler: [sessionValidationPreHandler],
       },
       async (request, reply) => {
         return this.handleAgentExecute(request, reply);
@@ -220,7 +341,11 @@ export class StagehandServer {
         schema: {
           params: SessionIdParamsSchema,
           body: NavigateRequestSchema,
+          response: {
+            200: NavigateResponseSchema,
+          },
         },
+        preHandler: [sessionValidationPreHandler],
       },
       async (request, reply) => {
         return this.handleNavigate(request, reply);
@@ -233,7 +358,11 @@ export class StagehandServer {
       {
         schema: {
           params: SessionIdParamsSchema,
+          response: {
+            200: SessionEndResponseSchema,
+          },
         },
+        preHandler: [sessionValidationPreHandler],
       },
       async (request, reply) => {
         return this.handleEndSession(request, reply);
@@ -246,11 +375,11 @@ export class StagehandServer {
    * Body is pre-validated by Fastify using SessionStartRequestSchema
    */
   async handleStartSession(
-    request: StagehandHttpRequest,
+    request: StagehandHttpRequest<SessionStartRequest>,
     reply: StagehandHttpReply,
   ): Promise<void> {
     try {
-      const body = request.body as SessionStartRequest;
+      const { body } = request;
 
       const createParams: CreateSessionParams = {
         modelName: body.modelName,
@@ -290,17 +419,14 @@ export class StagehandServer {
   /**
    * Handle /sessions/:id/act - Execute act command
    * Body is pre-validated by Fastify using ActRequestSchema
+   * Session is pre-validated by sessionValidationPreHandler
    */
   async handleAct(
-    request: StagehandHttpRequest,
+    request: StagehandHttpRequest<ActRequest, SessionIdParams>,
     reply: StagehandHttpReply,
   ): Promise<void> {
-    const { id: sessionId } = request.params as SessionIdParams;
-
-    if (!(await this.sessionStore.hasSession(sessionId))) {
-      reply.status(404).send({ error: "Session not found" });
-      return;
-    }
+    // Session ID is validated by preHandler, use validatedSessionId if available, fallback to params
+    const sessionId = request.validatedSessionId ?? request.params.id;
 
     const ctx: RequestContext = {
       modelApiKey: request.headers["x-model-api-key"] as string | undefined,
@@ -351,17 +477,14 @@ export class StagehandServer {
   /**
    * Handle /sessions/:id/extract - Execute extract command
    * Body is pre-validated by Fastify using ExtractRequestSchema
+   * Session is pre-validated by sessionValidationPreHandler
    */
   async handleExtract(
-    request: StagehandHttpRequest,
+    request: StagehandHttpRequest<ExtractRequest, SessionIdParams>,
     reply: StagehandHttpReply,
   ): Promise<void> {
-    const { id: sessionId } = request.params as SessionIdParams;
-
-    if (!(await this.sessionStore.hasSession(sessionId))) {
-      reply.status(404).send({ error: "Session not found" });
-      return;
-    }
+    // Session ID is validated by preHandler, use validatedSessionId if available, fallback to params
+    const sessionId = request.validatedSessionId ?? request.params.id;
 
     const ctx: RequestContext = {
       modelApiKey: request.headers["x-model-api-key"] as string | undefined,
@@ -420,17 +543,14 @@ export class StagehandServer {
   /**
    * Handle /sessions/:id/observe - Execute observe command
    * Body is pre-validated by Fastify using ObserveRequestSchema
+   * Session is pre-validated by sessionValidationPreHandler
    */
   async handleObserve(
-    request: StagehandHttpRequest,
+    request: StagehandHttpRequest<ObserveRequest, SessionIdParams>,
     reply: StagehandHttpReply,
   ): Promise<void> {
-    const { id: sessionId } = request.params as SessionIdParams;
-
-    if (!(await this.sessionStore.hasSession(sessionId))) {
-      reply.status(404).send({ error: "Session not found" });
-      return;
-    }
+    // Session ID is validated by preHandler, use validatedSessionId if available, fallback to params
+    const sessionId = request.validatedSessionId ?? request.params.id;
 
     const ctx: RequestContext = {
       modelApiKey: request.headers["x-model-api-key"] as string | undefined,
@@ -483,17 +603,14 @@ export class StagehandServer {
   /**
    * Handle /sessions/:id/agentExecute - Execute agent command
    * Body is pre-validated by Fastify using AgentExecuteRequestSchema
+   * Session is pre-validated by sessionValidationPreHandler
    */
   async handleAgentExecute(
-    request: StagehandHttpRequest,
+    request: StagehandHttpRequest<AgentExecuteRequest, SessionIdParams>,
     reply: StagehandHttpReply,
   ): Promise<void> {
-    const { id: sessionId } = request.params as SessionIdParams;
-
-    if (!(await this.sessionStore.hasSession(sessionId))) {
-      reply.status(404).send({ error: "Session not found" });
-      return;
-    }
+    // Session ID is validated by preHandler, use validatedSessionId if available, fallback to params
+    const sessionId = request.validatedSessionId ?? request.params.id;
 
     const ctx: RequestContext = {
       modelApiKey: request.headers["x-model-api-key"] as string | undefined,
@@ -532,17 +649,14 @@ export class StagehandServer {
   /**
    * Handle /sessions/:id/navigate - Navigate to URL
    * Body is pre-validated by Fastify using NavigateRequestSchema
+   * Session is pre-validated by sessionValidationPreHandler
    */
   async handleNavigate(
-    request: StagehandHttpRequest,
+    request: StagehandHttpRequest<NavigateRequest, SessionIdParams>,
     reply: StagehandHttpReply,
   ): Promise<void> {
-    const { id: sessionId } = request.params as SessionIdParams;
-
-    if (!(await this.sessionStore.hasSession(sessionId))) {
-      reply.status(404).send({ error: "Session not found" });
-      return;
-    }
+    // Session ID is validated by preHandler, use validatedSessionId if available, fallback to params
+    const sessionId = request.validatedSessionId ?? request.params.id;
 
     const ctx: RequestContext = {
       modelApiKey: request.headers["x-model-api-key"] as string | undefined,
@@ -576,12 +690,14 @@ export class StagehandServer {
   /**
    * Handle /sessions/:id/end - End session and cleanup
    * Params are pre-validated by Fastify using SessionIdParamsSchema
+   * Session is pre-validated by sessionValidationPreHandler
    */
   async handleEndSession(
-    request: StagehandHttpRequest,
+    request: StagehandHttpRequest<unknown, SessionIdParams>,
     reply: StagehandHttpReply,
   ): Promise<void> {
-    const { id: sessionId } = request.params as SessionIdParams;
+    // Session ID is validated by preHandler, use validatedSessionId if available, fallback to params
+    const sessionId = request.validatedSessionId ?? request.params.id;
 
     try {
       await this.sessionStore.endSession(sessionId);

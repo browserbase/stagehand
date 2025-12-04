@@ -93,6 +93,9 @@ export const SessionStartResponseSchema = SuccessResponseSchema(SessionStartResp
 // Session End
 // =============================================================================
 
+/** POST /v1/sessions/:id/end - Request body (empty, session ID comes from params) */
+export const SessionEndRequestSchema = z.object({});
+
 /** POST /v1/sessions/:id/end - Response */
 export const SessionEndResponseSchema = z.object({
   success: z.literal(true),
@@ -245,6 +248,7 @@ export type Action = z.infer<typeof ActionSchema>;
 export type SessionStartRequest = z.infer<typeof SessionStartRequestSchema>;
 export type SessionStartResult = z.infer<typeof SessionStartResultSchema>;
 export type SessionStartResponseData = z.infer<typeof SessionStartResponseDataSchema>;
+export type SessionEndRequest = z.infer<typeof SessionEndRequestSchema>;
 export type SessionEndResponse = z.infer<typeof SessionEndResponseSchema>;
 
 // Act types
