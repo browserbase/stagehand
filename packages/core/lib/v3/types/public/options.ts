@@ -2,6 +2,7 @@ import Browserbase from "@browserbasehq/sdk";
 import { LLMClient } from "../../llm/LLMClient";
 import { ModelConfiguration } from "./model";
 import { LogLine } from "./logs";
+import type { StagehandEventBus } from "../../eventBus";
 
 export type V3Env = "LOCAL" | "BROWSERBASE";
 
@@ -85,5 +86,6 @@ export interface V3Options {
   /** Directory used to persist cached actions for act(). */
   cacheDir?: string;
   domSettleTimeout?: number;
-  disableAPI?: boolean;
+  /** Optional shared event bus. If not provided, a new one will be created. */
+  eventBus?: StagehandEventBus;
 }

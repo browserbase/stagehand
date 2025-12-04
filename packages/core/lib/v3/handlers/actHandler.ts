@@ -22,6 +22,7 @@ import {
   performUnderstudyMethod,
   waitForDomNetworkQuiet,
 } from "./handlerUtils/actHandlerUtils";
+import type { StagehandEventBus } from "../eventBus";
 
 export class ActHandler {
   private readonly llmClient: LLMClient;
@@ -40,12 +41,14 @@ export class ActHandler {
     inferenceTimeMs: number,
   ) => void;
   private readonly defaultDomSettleTimeoutMs?: number;
+  private readonly eventBus: StagehandEventBus;
 
   constructor(
     llmClient: LLMClient,
     defaultModelName: AvailableModel,
     defaultClientOptions: ClientOptions,
     resolveLlmClient: (model?: ModelConfiguration) => LLMClient,
+    eventBus: StagehandEventBus,
     systemPrompt?: string,
     logInferenceToFile?: boolean,
     selfHeal?: boolean,
@@ -63,6 +66,7 @@ export class ActHandler {
     this.defaultModelName = defaultModelName;
     this.defaultClientOptions = defaultClientOptions;
     this.resolveLlmClient = resolveLlmClient;
+    this.eventBus = eventBus;
     this.systemPrompt = systemPrompt ?? "";
     this.logInferenceToFile = logInferenceToFile ?? false;
     this.selfHeal = !!selfHeal;
@@ -100,6 +104,7 @@ export class ActHandler {
         instruction: observeActInstruction,
         domElements: combinedTree,
         llmClient,
+        eventBus: this.eventBus,
         userProvidedInstructions: this.systemPrompt,
         logger: v3Logger,
         logInferenceToFile: this.logInferenceToFile,
@@ -230,6 +235,7 @@ export class ActHandler {
         instruction: stepTwoInstructions,
         domElements: diffedTree,
         llmClient,
+        eventBus: this.eventBus,
         userProvidedInstructions: this.systemPrompt,
         logger: v3Logger,
         logInferenceToFile: this.logInferenceToFile,
@@ -422,6 +428,7 @@ export class ActHandler {
             instruction,
             domElements: combinedTree,
             llmClient: effectiveClient,
+            eventBus: this.eventBus,
             userProvidedInstructions: this.systemPrompt,
             logger: v3Logger,
             logInferenceToFile: this.logInferenceToFile,
