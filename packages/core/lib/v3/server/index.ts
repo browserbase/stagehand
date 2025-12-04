@@ -19,7 +19,11 @@ import type { StagehandZodSchema } from "../zodCompat";
 import { jsonSchemaToZod, type JsonSchema } from "../../utils";
 import type { SessionStore, RequestContext, CreateSessionParams } from "./SessionStore";
 import { InMemorySessionStore } from "./InMemorySessionStore";
-import { createStreamingResponse } from "./stream";
+import { createStreamingResponse, mapStagehandError } from "./stream";
+
+// Re-export error handling utilities for consumers
+export { StagehandErrorCode, mapStagehandError } from "./stream";
+export type { StagehandErrorResponse } from "./stream";
 import {
   ActRequestSchema,
   ActResponseSchema,
@@ -60,11 +64,6 @@ export interface StagehandHttpRequest<TBody = unknown, TParams = unknown> {
   headers: Record<string, string | string[] | undefined>;
   body: TBody;
   params: TParams;
-  /**
-   * The validated session ID, set by sessionValidationPreHandler.
-   * Only available on routes that use the preHandler.
-   */
-  validatedSessionId?: string;
 }
 
 /**
@@ -99,7 +98,6 @@ export * from "./schemas";
 
 /**
  * Validates the session ID param exists and session is found in SessionStore.
- * Attaches the validated session ID to request.validatedSessionId for downstream use.
  *
  * This is the core validation logic that can be used by external servers (e.g., cloud API)
  * to share the same validation as the StagehandServer.
@@ -131,14 +129,11 @@ export async function validateSession(
     return false;
   }
 
-  // Attach validated session ID to request for downstream handlers
-  (request as StagehandHttpRequest).validatedSessionId = id;
   return true;
 }
 
 /**
  * Creates a preHandler that validates the session ID param exists and session is found in SessionStore.
- * Attaches the validated session ID to request.validatedSessionId for downstream use.
  *
  * This factory function can be used by external servers (e.g., cloud API) that want to
  * share the same validation logic as the StagehandServer.
@@ -404,9 +399,14 @@ export class StagehandServer {
         },
       });
     } catch (error) {
-      reply.status(500).send({
+      const mappedError = mapStagehandError(
+        error instanceof Error ? error : new Error("Failed to create session"),
+        "startSession",
+      );
+      reply.status(mappedError.statusCode).send({
         success: false,
-        message: error instanceof Error ? error.message : "Failed to create session",
+        error: mappedError.error,
+        code: mappedError.code,
       });
     }
   }
@@ -420,19 +420,12 @@ export class StagehandServer {
     request: StagehandHttpRequest<ActRequest, SessionIdParams>,
     reply: StagehandHttpReply,
   ): Promise<void> {
-    // Session ID is validated by preHandler, use validatedSessionId if available, fallback to params
-    const sessionId = request.validatedSessionId ?? request.params.id;
-
-    const ctx: RequestContext = {
-      modelApiKey: request.headers["x-model-api-key"] as string | undefined,
-    };
-
     await createStreamingResponse<ActRequest>({
-      sessionId,
+      sessionId: request.params.id,
       sessionStore: this.sessionStore,
-      requestContext: ctx,
       request,
       reply,
+      operation: "act",
       handler: async (handlerCtx, data) => {
         const stagehand = handlerCtx.stagehand as any;
         const { frameId } = data;
@@ -478,19 +471,12 @@ export class StagehandServer {
     request: StagehandHttpRequest<ExtractRequest, SessionIdParams>,
     reply: StagehandHttpReply,
   ): Promise<void> {
-    // Session ID is validated by preHandler, use validatedSessionId if available, fallback to params
-    const sessionId = request.validatedSessionId ?? request.params.id;
-
-    const ctx: RequestContext = {
-      modelApiKey: request.headers["x-model-api-key"] as string | undefined,
-    };
-
     await createStreamingResponse<ExtractRequest>({
-      sessionId,
+      sessionId: request.params.id,
       sessionStore: this.sessionStore,
-      requestContext: ctx,
       request,
       reply,
+      operation: "extract",
       handler: async (handlerCtx, data) => {
         const stagehand = handlerCtx.stagehand as any;
         const { frameId } = data;
@@ -544,19 +530,12 @@ export class StagehandServer {
     request: StagehandHttpRequest<ObserveRequest, SessionIdParams>,
     reply: StagehandHttpReply,
   ): Promise<void> {
-    // Session ID is validated by preHandler, use validatedSessionId if available, fallback to params
-    const sessionId = request.validatedSessionId ?? request.params.id;
-
-    const ctx: RequestContext = {
-      modelApiKey: request.headers["x-model-api-key"] as string | undefined,
-    };
-
     await createStreamingResponse<ObserveRequest>({
-      sessionId,
+      sessionId: request.params.id,
       sessionStore: this.sessionStore,
-      requestContext: ctx,
       request,
       reply,
+      operation: "observe",
       handler: async (handlerCtx, data) => {
         const stagehand = handlerCtx.stagehand as any;
         const { frameId } = data;
@@ -604,19 +583,12 @@ export class StagehandServer {
     request: StagehandHttpRequest<AgentExecuteRequest, SessionIdParams>,
     reply: StagehandHttpReply,
   ): Promise<void> {
-    // Session ID is validated by preHandler, use validatedSessionId if available, fallback to params
-    const sessionId = request.validatedSessionId ?? request.params.id;
-
-    const ctx: RequestContext = {
-      modelApiKey: request.headers["x-model-api-key"] as string | undefined,
-    };
-
     await createStreamingResponse<AgentExecuteRequest>({
-      sessionId,
+      sessionId: request.params.id,
       sessionStore: this.sessionStore,
-      requestContext: ctx,
       request,
       reply,
+      operation: "agentExecute",
       handler: async (handlerCtx, data) => {
         const stagehand = handlerCtx.stagehand as any;
         const { agentConfig, executeOptions, frameId } = data;
@@ -650,19 +622,12 @@ export class StagehandServer {
     request: StagehandHttpRequest<NavigateRequest, SessionIdParams>,
     reply: StagehandHttpReply,
   ): Promise<void> {
-    // Session ID is validated by preHandler, use validatedSessionId if available, fallback to params
-    const sessionId = request.validatedSessionId ?? request.params.id;
-
-    const ctx: RequestContext = {
-      modelApiKey: request.headers["x-model-api-key"] as string | undefined,
-    };
-
     await createStreamingResponse<NavigateRequest>({
-      sessionId,
+      sessionId: request.params.id,
       sessionStore: this.sessionStore,
-      requestContext: ctx,
       request,
       reply,
+      operation: "navigate",
       handler: async (handlerCtx, data) => {
         const stagehand = handlerCtx.stagehand as any;
         const { url, options, frameId } = data;
@@ -691,15 +656,17 @@ export class StagehandServer {
     request: StagehandHttpRequest<SessionEndRequest, SessionIdParams>,
     reply: StagehandHttpReply,
   ): Promise<void> {
-    // Session ID is validated by preHandler, use validatedSessionId if available, fallback to params
-    const sessionId = request.validatedSessionId ?? request.params.id;
-
     try {
-      await this.sessionStore.endSession(sessionId);
+      await this.sessionStore.endSession(request.params.id);
       reply.status(200).send({ success: true });
     } catch (error) {
-      reply.status(500).send({
-        error: error instanceof Error ? error.message : "Failed to end session",
+      const mappedError = mapStagehandError(
+        error instanceof Error ? error : new Error("Failed to end session"),
+        "endSession",
+      );
+      reply.status(mappedError.statusCode).send({
+        error: mappedError.error,
+        code: mappedError.code,
       });
     }
   }
