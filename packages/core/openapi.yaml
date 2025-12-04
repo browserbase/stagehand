@@ -1,0 +1,711 @@
+openapi: 3.0.3
+info:
+  title: Stagehand P2P Server API
+  description: |
+    HTTP API for remote Stagehand browser automation. This API allows clients to
+    connect to a Stagehand server and execute browser automation tasks remotely.
+
+    All endpoints except /sessions/start require an active session ID.
+    Responses are streamed using Server-Sent Events (SSE) when the
+    `x-stream-response: true` header is provided.
+  version: 3.0.0
+  contact:
+    name: Browserbase
+    url: https://browserbase.com
+
+servers:
+  - url: http://localhost:3000/v1
+    description: Local P2P server
+  - url: https://api.stagehand.browserbase.com/v1
+    description: Cloud API (for reference)
+
+paths:
+  /sessions/start:
+    post:
+      summary: Create a new browser session
+      description: |
+        Initializes a new Stagehand session with a browser instance.
+        Returns a session ID that must be used for all subsequent requests.
+      operationId: createSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionConfig'
+            examples:
+              local:
+                summary: Local browser session
+                value:
+                  env: LOCAL
+                  verbose: 1
+              browserbase:
+                summary: Browserbase session
+                value:
+                  env: BROWSERBASE
+                  apiKey: bb_api_key_123
+                  projectId: proj_123
+                  verbose: 1
+      responses:
+        '200':
+          description: Session created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - sessionId
+                  - available
+                properties:
+                  sessionId:
+                    type: string
+                    format: uuid
+                    description: Unique identifier for the session
+                  available:
+                    type: boolean
+                    description: Whether the session is ready to use
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /sessions/{sessionId}/act:
+    post:
+      summary: Execute an action on the page
+      description: |
+        Performs a browser action based on natural language instruction or
+        a specific action object returned by observe().
+      operationId: act
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/StreamResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActRequest'
+            examples:
+              stringInstruction:
+                summary: Natural language instruction
+                value:
+                  input: "click the sign in button"
+              actionObject:
+                summary: Execute observed action
+                value:
+                  input:
+                    selector: "#login-btn"
+                    description: "Sign in button"
+                    method: "click"
+                    arguments: []
+      responses:
+        '200':
+          description: Action executed successfully
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/SSEResponse'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/SessionNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /sessions/{sessionId}/extract:
+    post:
+      summary: Extract structured data from the page
+      description: |
+        Extracts data from the current page using natural language instructions
+        and optional JSON schema for structured output.
+      operationId: extract
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/StreamResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtractRequest'
+            examples:
+              simple:
+                summary: Simple extraction
+                value:
+                  instruction: "extract the page title"
+              withSchema:
+                summary: Structured extraction
+                value:
+                  instruction: "extract all product listings"
+                  schema:
+                    type: object
+                    properties:
+                      products:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            price:
+                              type: string
+      responses:
+        '200':
+          description: Data extracted successfully
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/SSEResponse'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/SessionNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /sessions/{sessionId}/observe:
+    post:
+      summary: Observe possible actions on the page
+      description: |
+        Returns a list of candidate actions that can be performed on the page,
+        optionally filtered by natural language instruction.
+      operationId: observe
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/StreamResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ObserveRequest'
+            examples:
+              allActions:
+                summary: Observe all actions
+                value: {}
+              filtered:
+                summary: Observe specific actions
+                value:
+                  instruction: "find all buttons"
+      responses:
+        '200':
+          description: Actions observed successfully
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/SSEResponse'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObserveResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/SessionNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /sessions/{sessionId}/agentExecute:
+    post:
+      summary: Execute a multi-step agent task
+      description: |
+        Runs an autonomous agent that can perform multiple actions to
+        complete a complex task.
+      operationId: agentExecute
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/StreamResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentExecuteRequest'
+            examples:
+              basic:
+                summary: Basic agent task
+                value:
+                  agentConfig:
+                    model: "openai/gpt-4o"
+                  executeOptions:
+                    instruction: "Find and click the first product"
+                    maxSteps: 10
+      responses:
+        '200':
+          description: Agent task completed
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/SSEResponse'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/SessionNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /sessions/{sessionId}/navigate:
+    post:
+      summary: Navigate to a URL
+      description: |
+        Navigates the browser to the specified URL and waits for page load.
+      operationId: navigate
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/StreamResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NavigateRequest'
+            examples:
+              simple:
+                summary: Simple navigation
+                value:
+                  url: "https://example.com"
+              withOptions:
+                summary: Navigation with options
+                value:
+                  url: "https://example.com"
+                  options:
+                    waitUntil: "networkidle"
+      responses:
+        '200':
+          description: Navigation completed
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/SSEResponse'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NavigateResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/SessionNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /sessions/{sessionId}/end:
+    post:
+      summary: End the session and cleanup resources
+      description: |
+        Closes the browser and cleans up all resources associated with the session.
+      operationId: endSession
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Session ended successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  parameters:
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      description: The session ID returned by /sessions/start
+      schema:
+        type: string
+        format: uuid
+
+    StreamResponse:
+      name: x-stream-response
+      in: header
+      description: Enable Server-Sent Events streaming for real-time logs
+      schema:
+        type: string
+        enum: ["true", "false"]
+        default: "true"
+
+  schemas:
+    SessionConfig:
+      type: object
+      required:
+        - env
+      properties:
+        env:
+          type: string
+          enum: [LOCAL, BROWSERBASE]
+          description: Environment to run the browser in
+        verbose:
+          type: integer
+          minimum: 0
+          maximum: 2
+          default: 0
+          description: Logging verbosity level
+        model:
+          type: string
+          description: AI model to use for actions
+          example: "openai/gpt-4o"
+        apiKey:
+          type: string
+          description: API key for Browserbase (required when env=BROWSERBASE)
+        projectId:
+          type: string
+          description: Project ID for Browserbase (required when env=BROWSERBASE)
+        systemPrompt:
+          type: string
+          description: Custom system prompt for AI actions
+        domSettleTimeout:
+          type: integer
+          description: Timeout in ms to wait for DOM to settle
+        selfHeal:
+          type: boolean
+          description: Enable self-healing for failed actions
+        localBrowserLaunchOptions:
+          type: object
+          description: Options for local browser launch
+          properties:
+            headless:
+              type: boolean
+              default: true
+
+    ActRequest:
+      type: object
+      required:
+        - input
+      properties:
+        input:
+          oneOf:
+            - type: string
+              description: Natural language instruction
+            - $ref: '#/components/schemas/Action'
+        options:
+          $ref: '#/components/schemas/ActionOptions'
+        frameId:
+          type: string
+          description: Frame ID to act on (optional)
+
+    Action:
+      type: object
+      required:
+        - selector
+        - description
+        - method
+        - arguments
+      properties:
+        selector:
+          type: string
+          description: CSS or XPath selector for the element
+        description:
+          type: string
+          description: Human-readable description of the action
+        backendNodeId:
+          type: integer
+          description: CDP backend node ID
+        method:
+          type: string
+          description: Method to execute (e.g., "click", "fill")
+        arguments:
+          type: array
+          items:
+            type: string
+          description: Arguments for the method
+
+    ActionOptions:
+      type: object
+      properties:
+        model:
+          $ref: '#/components/schemas/ModelConfig'
+        variables:
+          type: object
+          additionalProperties:
+            type: string
+          description: Template variables for instruction
+        timeout:
+          type: integer
+          description: Timeout in milliseconds
+
+    ModelConfig:
+      type: object
+      properties:
+        provider:
+          type: string
+          enum: [openai, anthropic, google]
+        model:
+          type: string
+          description: Model name
+        apiKey:
+          type: string
+          description: API key for the model provider
+        baseURL:
+          type: string
+          format: uri
+          description: Custom base URL for API
+
+    ExtractRequest:
+      type: object
+      properties:
+        instruction:
+          type: string
+          description: Natural language instruction for extraction
+        schema:
+          type: object
+          description: JSON Schema for structured output
+          additionalProperties: true
+        options:
+          type: object
+          properties:
+            model:
+              $ref: '#/components/schemas/ModelConfig'
+            timeout:
+              type: integer
+            selector:
+              type: string
+              description: Extract only from elements matching this selector
+        frameId:
+          type: string
+          description: Frame ID to extract from
+
+    ObserveRequest:
+      type: object
+      properties:
+        instruction:
+          type: string
+          description: Natural language instruction to filter actions
+        options:
+          type: object
+          properties:
+            model:
+              $ref: '#/components/schemas/ModelConfig'
+            timeout:
+              type: integer
+            selector:
+              type: string
+              description: Observe only elements matching this selector
+        frameId:
+          type: string
+          description: Frame ID to observe
+
+    AgentExecuteRequest:
+      type: object
+      required:
+        - agentConfig
+        - executeOptions
+      properties:
+        agentConfig:
+          type: object
+          properties:
+            provider:
+              type: string
+              enum: [openai, anthropic, google]
+            model:
+              oneOf:
+                - type: string
+                - $ref: '#/components/schemas/ModelConfig'
+            systemPrompt:
+              type: string
+            cua:
+              type: boolean
+              description: Enable Computer Use Agent mode
+        executeOptions:
+          type: object
+          required:
+            - instruction
+          properties:
+            instruction:
+              type: string
+              description: Task for the agent to complete
+            maxSteps:
+              type: integer
+              default: 20
+              description: Maximum number of steps the agent can take
+            highlightCursor:
+              type: boolean
+              description: Visually highlight the cursor during actions
+        frameId:
+          type: string
+
+    NavigateRequest:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          description: URL to navigate to
+        options:
+          type: object
+          properties:
+            waitUntil:
+              type: string
+              enum: [load, domcontentloaded, networkidle]
+              default: load
+              description: When to consider navigation complete
+        frameId:
+          type: string
+
+    ActResult:
+      type: object
+      required:
+        - success
+        - message
+        - actions
+      properties:
+        success:
+          type: boolean
+          description: Whether the action succeeded
+        message:
+          type: string
+          description: Result message
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Action'
+          description: Actions that were executed
+
+    ExtractResult:
+      oneOf:
+        - type: object
+          description: Default extraction result
+          properties:
+            extraction:
+              type: string
+        - type: object
+          description: Structured data matching provided schema
+          additionalProperties: true
+
+    ObserveResult:
+      type: array
+      items:
+        $ref: '#/components/schemas/Action'
+      description: List of observed actions
+
+    AgentResult:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Final message from the agent
+        steps:
+          type: array
+          items:
+            type: object
+          description: Steps taken by the agent
+
+    NavigateResult:
+      type: object
+      nullable: true
+      description: Navigation response (may be null)
+      properties:
+        ok:
+          type: boolean
+        status:
+          type: integer
+        url:
+          type: string
+
+    SSEResponse:
+      description: |
+        Server-Sent Events stream. Each event is prefixed with "data: "
+        and contains a JSON object with type and data fields.
+      type: object
+      required:
+        - id
+        - type
+        - data
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique event ID
+        type:
+          type: string
+          enum: [system, log]
+          description: Event type
+        data:
+          oneOf:
+            - $ref: '#/components/schemas/SystemEvent'
+            - $ref: '#/components/schemas/LogEvent'
+
+    SystemEvent:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [starting, connected, finished, error]
+          description: System status
+        result:
+          description: Result data (present when status=finished)
+        error:
+          type: string
+          description: Error message (present when status=error)
+
+    LogEvent:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          const: running
+        message:
+          type: object
+          required:
+            - category
+            - message
+            - level
+          properties:
+            category:
+              type: string
+              description: Log category
+            message:
+              type: string
+              description: Log message
+            level:
+              type: integer
+              minimum: 0
+              maximum: 2
+              description: Log level (0=error, 1=info, 2=debug)
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+        details:
+          description: Additional error details
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    SessionNotFound:
+      description: Session ID not found or expired
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
