@@ -183,8 +183,10 @@ export async function buildBackendIdMaps(
           if (n.contentDocument && locate(n.contentDocument)) return true;
           return false;
         } else {
-          if (n.backendNodeId === backendNodeId)
-            return ((iframeNode = n), true);
+          if (n.backendNodeId === backendNodeId) {
+            iframeNode = n;
+            return true;
+          }
           return (
             (n.children?.some(locate) ?? false) ||
             (n.contentDocument ? locate(n.contentDocument) : false)
@@ -202,6 +204,7 @@ export async function buildBackendIdMaps(
     // 3. DFS walk: fill maps
     const tagNameMap: Record<EncodedId, string> = {};
     const xpathMap: Record<EncodedId, string> = {};
+    const scrollableBackendIds = new Set<number>();
 
     interface StackEntry {
       node: DOMNode;
@@ -218,12 +221,22 @@ export async function buildBackendIdMaps(
       const { node, path, fid } = stack.pop()!;
 
       if (!node.backendNodeId) continue;
+      const backendId = node.backendNodeId;
       const enc = sp.encodeWithFrameId(fid, node.backendNodeId);
       if (seen.has(enc)) continue;
       seen.add(enc);
 
       tagNameMap[enc] = lc(String(node.nodeName));
       xpathMap[enc] = path;
+
+      // Record scrollability based on CDP's DOM.getDocument tree
+      if (node.isScrollable === true) {
+        scrollableBackendIds.add(backendId);
+      }
+
+      if (lc(String(node.nodeName)) === "html") {
+        scrollableBackendIds.add(backendId);
+      }
 
       // recurse into sub-document if <iframe>
       if (lc(node.nodeName) === "iframe" && node.contentDocument) {
@@ -275,7 +288,7 @@ export async function buildBackendIdMaps(
       }
     }
 
-    return { tagNameMap, xpathMap };
+    return { tagNameMap, xpathMap, scrollableBackendIds };
   } finally {
     await sp.disableCDP(
       "DOM",
@@ -527,11 +540,8 @@ export async function getAccessibilityTree(
   targetFrame?: Frame,
 ): Promise<TreeResult> {
   // 0. DOM helpers (maps, xpath)
-  const { tagNameMap, xpathMap } = await buildBackendIdMaps(
-    experimental,
-    stagehandPage,
-    targetFrame,
-  );
+  const { tagNameMap, xpathMap, scrollableBackendIds } =
+    await buildBackendIdMaps(experimental, stagehandPage, targetFrame);
 
   await stagehandPage.enableCDP("Accessibility", targetFrame);
 
@@ -570,12 +580,6 @@ export async function getAccessibilityTree(
       nodes: AXNode[];
     }>("Accessibility.getFullAXTree", params, sessionFrame);
 
-    // 3. Scrollable detection
-    const scrollableIds = await findScrollableElementIds(
-      stagehandPage,
-      targetFrame,
-    );
-
     // 4. Filter by xpath if one is given
     let nodes = fullNodes;
     if (selector) {
@@ -590,7 +594,7 @@ export async function getAccessibilityTree(
     // 5. Build hierarchical tree
     const start = Date.now();
     const tree = await buildHierarchicalTree(
-      decorateRoles(nodes, scrollableIds),
+      decorateRoles(nodes, scrollableBackendIds),
       tagNameMap,
       logger,
       xpathMap,
@@ -677,7 +681,10 @@ function decorateRoles(
     let role = n.role?.value ?? "";
 
     // Prepend "scrollable" to roles of nodes identified as scrollable
-    if (scrollables.has(n.backendDOMNodeId!)) {
+    if (
+      n.role?.value !== "RootWebArea" &&
+      scrollables.has(n.backendDOMNodeId!)
+    ) {
       role =
         role && role !== "generic" && role !== "none"
           ? `scrollable, ${role}`
@@ -1071,56 +1078,6 @@ export async function getAccessibilityTreeWithFrames(
     : (snapshots[0]?.tree ?? "");
 
   return { combinedTree, combinedXpathMap, combinedUrlMap };
-}
-
-/**
- * `findScrollableElementIds` is a function that identifies elements in
- * the browser that are deemed "scrollable". At a high level, it does the
- * following:
- * - Calls the browser-side `window.getScrollableElementXpaths()` function,
- *   which returns a list of XPaths for scrollable containers.
- * - Iterates over the returned list of XPaths, locating each element in the DOM
- *   using `stagehandPage.sendCDP(...)`
- *     - During each iteration, we call `Runtime.evaluate` to run `document.evaluate(...)`
- *       with each XPath, obtaining a `RemoteObject` reference if it exists.
- *     - Then, for each valid object reference, we call `DOM.describeNode` to retrieve
- *       the element’s `backendNodeId`.
- * - Collects all resulting `backendNodeId`s in a Set and returns them.
- *
- * @param stagehandPage - A StagehandPage instance with built-in CDP helpers.
- * @returns A Promise that resolves to a Set of unique `backendNodeId`s corresponding
- *          to scrollable elements in the DOM.
- */
-export async function findScrollableElementIds(
-  stagehandPage: StagehandPage,
-  targetFrame?: Frame,
-): Promise<Set<number>> {
-  // JS runs inside the right browsing context
-  const xpaths: string[] = targetFrame
-    ? await targetFrame.evaluate(() => window.getScrollableElementXpaths())
-    : await stagehandPage.page.evaluate(() =>
-        window.getScrollableElementXpaths(),
-      );
-
-  const backendIds = new Set<number>();
-
-  for (const xpath of xpaths) {
-    if (!xpath) continue;
-
-    const objectId = await resolveObjectIdForXPath(
-      stagehandPage,
-      xpath,
-      targetFrame,
-    );
-
-    if (objectId) {
-      const { node } = await stagehandPage.sendCDP<{
-        node?: { backendNodeId?: number };
-      }>("DOM.describeNode", { objectId }, targetFrame);
-      if (node?.backendNodeId) backendIds.add(node.backendNodeId);
-    }
-  }
-  return backendIds;
 }
 
 /**
