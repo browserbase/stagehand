@@ -385,6 +385,16 @@ export class V3AgentHandler {
           handleError(error);
         }
       },
+      onAbort: (event) => {
+        if (callbacks?.onAbort) {
+          callbacks.onAbort(event);
+        }
+        // Reject the result promise with AgentAbortError when stream is aborted
+        const reason = abortSignal?.reason
+          ? String(abortSignal.reason)
+          : "Stream was aborted";
+        rejectResult(new AgentAbortError(reason));
+      },
       abortSignal,
     });
 
