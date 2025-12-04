@@ -415,6 +415,7 @@ export class V3Context {
 
     const targets = await this.conn.getTargets();
     for (const t of targets) {
+      if (t.attached) continue; // auto-attach already handled this target
       try {
         await this.conn.attachToTarget(t.targetId);
       } catch {
