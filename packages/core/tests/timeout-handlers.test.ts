@@ -178,7 +178,7 @@ describe("ActHandler timeout guard", () => {
         page: fakePage,
         timeout: timeoutMs,
       });
-      expect.fail("Expected ActTimeoutError to be thrown");
+      throw new Error("Expected ActTimeoutError to be thrown");
     } catch (error) {
       expect(error).toBeInstanceOf(ActTimeoutError);
       expect((error as ActTimeoutError).message).toContain("act()");
@@ -532,7 +532,7 @@ describe("ExtractHandler timeout guard", () => {
         page: fakePage,
         timeout: timeoutMs,
       });
-      expect.fail("Expected ExtractTimeoutError to be thrown");
+      throw new Error("Expected ExtractTimeoutError to be thrown");
     } catch (error) {
       expect(error).toBeInstanceOf(ExtractTimeoutError);
       expect((error as ExtractTimeoutError).message).toContain("extract()");
@@ -698,7 +698,7 @@ describe("ObserveHandler timeout guard", () => {
         page: fakePage,
         timeout: timeoutMs,
       });
-      expect.fail("Expected ObserveTimeoutError to be thrown");
+      throw new Error("Expected ObserveTimeoutError to be thrown");
     } catch (error) {
       expect(error).toBeInstanceOf(ObserveTimeoutError);
       expect((error as ObserveTimeoutError).message).toContain("observe()");
