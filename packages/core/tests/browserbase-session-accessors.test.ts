@@ -65,7 +65,6 @@ describe("browserbase accessors", () => {
   it("exposes Browserbase session and debug URLs after init", async () => {
     const v3 = new V3({
       env: "BROWSERBASE",
-      disableAPI: true,
       verbose: 0,
     });
 
@@ -82,7 +81,6 @@ describe("browserbase accessors", () => {
   it("clears stored URLs after close", async () => {
     const v3 = new V3({
       env: "BROWSERBASE",
-      disableAPI: true,
       verbose: 0,
     });
 
@@ -98,7 +96,6 @@ describe("local accessors", () => {
   it("stay empty for LOCAL environments", async () => {
     const v3 = new V3({
       env: "LOCAL",
-      disableAPI: true,
       verbose: 0,
       localBrowserLaunchOptions: {
         cdpUrl: "ws://local-existing-session",

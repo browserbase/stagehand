@@ -113,7 +113,6 @@ export async function initV3({
     browserbaseSessionID: configOverrides?.browserbaseSessionID,
     selfHeal: true,
     disablePino: true,
-    disableAPI: process.env.USE_API !== "true", // Negate: USE_API=true → disableAPI=false
     logger: logger.log.bind(logger),
   };
 

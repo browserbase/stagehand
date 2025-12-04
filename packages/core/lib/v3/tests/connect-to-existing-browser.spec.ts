@@ -17,7 +17,6 @@ test.describe("connect to existing Browserbase session", () => {
 
     const initialStagehand = new V3({
       ...v3BBTestConfig,
-      disableAPI: true,
     });
     await initialStagehand.init();
 
@@ -44,7 +43,6 @@ test.describe("connect to existing Browserbase session", () => {
         env: "LOCAL",
         verbose: 0,
         disablePino: true,
-        disableAPI: true,
         logger: v3BBTestConfig.logger,
         localBrowserLaunchOptions: {
           cdpUrl: sessionUrl,
