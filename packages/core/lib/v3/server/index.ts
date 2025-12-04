@@ -34,8 +34,10 @@ import {
   SessionStartRequestSchema,
   SessionStartResponseSchema,
   SessionIdParamsSchema,
+  SessionEndRequestSchema,
   SessionEndResponseSchema,
   type SessionStartRequest,
+  type SessionEndRequest,
   type ActRequest,
   type ExtractRequest,
   type ObserveRequest,
@@ -358,6 +360,7 @@ export class StagehandServer {
       {
         schema: {
           params: SessionIdParamsSchema,
+          body: SessionEndRequestSchema,
           response: {
             200: SessionEndResponseSchema,
           },
@@ -693,7 +696,7 @@ export class StagehandServer {
    * Session is pre-validated by sessionValidationPreHandler
    */
   async handleEndSession(
-    request: StagehandHttpRequest<unknown, SessionIdParams>,
+    request: StagehandHttpRequest<SessionEndRequest, SessionIdParams>,
     reply: StagehandHttpReply,
   ): Promise<void> {
     // Session ID is validated by preHandler, use validatedSessionId if available, fallback to params
