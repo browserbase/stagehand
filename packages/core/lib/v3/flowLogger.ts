@@ -100,13 +100,24 @@ function formatTag(label: string, id: string | null): string {
 }
 
 function formatCdpTag(sessionId?: string | null): string {
-  if (!sessionId) return "[CDP]";
+  if (!sessionId) return "[CDP #????]";
   return `[CDP #${shortId(sessionId).toUpperCase()}]`;
 }
 
 function shortId(id: string | null): string {
   if (!id) return "-";
   return id.slice(-4);
+}
+
+function formatTimestamp(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const hours = String(now.getHours()).padStart(2, "0");
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  const seconds = String(now.getSeconds()).padStart(2, "0");
+  return `[${year}-${month}-${day} ${hours}:${minutes}:${seconds}]`;
 }
 
 function sanitizeOptions(options: V3Options): Record<string, unknown> {
@@ -309,7 +320,7 @@ export class SessionFileLogger {
 
   private static ensureTaskContext(ctx: FlowLoggerContext): void {
     if (!ctx.taskId) {
-      ctx.taskId = generateId("task");
+      ctx.taskId = generateId("sesh");
     }
   }
 
@@ -355,7 +366,7 @@ export class SessionFileLogger {
     const parts: string[] = [];
     if (includeTask) {
       SessionFileLogger.ensureTaskContext(ctx);
-      parts.push(formatTag("TASK", ctx.taskId));
+      parts.push(formatTag("SESH", ctx.taskId));
     }
     if (includeStep) {
       SessionFileLogger.ensureStepContext(ctx);
@@ -365,6 +376,7 @@ export class SessionFileLogger {
       SessionFileLogger.ensureActionContext(ctx);
       parts.push(formatTag(ctx.actionLabel ?? "ACTION", ctx.actionId));
     }
+    parts[parts.length - 1] = parts[parts.length - 1].replace("[", "<").replace("]", ">");
     return parts.join(" ");
   }
 
@@ -381,7 +393,7 @@ export class SessionFileLogger {
 
   // --- Logging methods ---
 
-  static logTaskProgress({
+  static logTaskProgress({    // log agent/session-level events like: Start, End, Execute
     invocation,
     args,
   }: {
@@ -389,27 +401,28 @@ export class SessionFileLogger {
     args?: unknown | unknown[];
   }): string {
     const ctx = loggerContext.getStore();
-    if (!ctx) return generateId("task");
+    if (!ctx) return generateId("sesh");
 
-    ctx.taskId = generateId("task");
+    ctx.taskId = generateId("sesh");
     ctx.stepId = null;
     ctx.actionId = null;
     ctx.stepLabel = null;
     ctx.actionLabel = null;
 
     const call = `${invocation}(${formatArgs(args)})`;
-    const message = `${SessionFileLogger.buildPrefix(ctx, {
+    const prefix = SessionFileLogger.buildPrefix(ctx, {
       includeTask: true,
       includeStep: false,
       includeAction: false,
-    })} ${call}`;
+    });
+    const message = `${formatTimestamp()} ${prefix} ${call}`;
 
     SessionFileLogger.writeToFile(ctx.logFiles.agent, message).then();
 
     return ctx.taskId;
   }
 
-  static logStepProgress({
+  static logStepProgress({        // log stagehand-level high-level API calls like: Act, Observe, Extract, Navigate
     invocation,
     args,
     label,
@@ -428,18 +441,19 @@ export class SessionFileLogger {
     ctx.actionLabel = null;
 
     const call = `${invocation}(${formatArgs(args)})`;
-    const message = `${SessionFileLogger.buildPrefix(ctx, {
+    const prefix = SessionFileLogger.buildPrefix(ctx, {
       includeTask: true,
       includeStep: true,
       includeAction: false,
-    })} ${call}`;
+    });
+    const message = `${formatTimestamp()} ${prefix} ${call}`;
 
     SessionFileLogger.writeToFile(ctx.logFiles.stagehand, message).then();
 
     return ctx.stepId;
   }
 
-  static logActionProgress({
+  static logActionProgress({     // log understudy-level browser action calls like: Click, Type, Scroll
     actionType,
     target,
     args,
@@ -465,18 +479,19 @@ export class SessionFileLogger {
       details.push(`args=[${argString}]`);
     }
 
-    const message = `${SessionFileLogger.buildPrefix(ctx, {
+    const prefix = SessionFileLogger.buildPrefix(ctx, {
       includeTask: true,
       includeStep: true,
       includeAction: true,
-    })} ${details.join(" ")}`;
+    });
+    const message = `${formatTimestamp()} ${prefix} ${details.join(" ")}`;
 
     SessionFileLogger.writeToFile(ctx.logFiles.understudy, message).then();
 
     return ctx.actionId;
   }
 
-  static logCdpMessage({
+  static logCdpMessage({      // log low-level CDP browser calls and events like: Page.getDocument, Runtime.evaluate, etc.
     method,
     params,
     sessionId,
@@ -488,16 +503,17 @@ export class SessionFileLogger {
     const ctx = loggerContext.getStore();
     if (!ctx) return;
 
-    const args = params ? formatArgs(params) : "";
-    const call = args ? `${method}(${args})` : `${method}()`;
+    const argsStr = params ? formatArgs(params) : "";
+    const call = argsStr ? `${method}(${argsStr})` : `${method}()`;
     const prefix = SessionFileLogger.buildPrefix(ctx, {
       includeTask: true,
       includeStep: true,
       includeAction: true,
     });
-    const rawMessage = `${prefix} ${formatCdpTag(sessionId)} ${call}`;
+    const timestamp = formatTimestamp();
+    const rawMessage = `${timestamp} ${prefix} ${formatCdpTag(sessionId)} ${call}`;
     const message =
-      rawMessage.length > 120 ? `${rawMessage.slice(0, 117)}...` : rawMessage;
+      rawMessage.length > 140 ? `${rawMessage.slice(0, 137)}...` : rawMessage;
 
     SessionFileLogger.writeToFile(ctx.logFiles.cdp, message).then();
   }
