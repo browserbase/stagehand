@@ -72,7 +72,15 @@ import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
 import { resolveModel } from "../modelUtils";
 import { StagehandAPIClient } from "./api";
-import { logTaskProgress, logStepProgress } from "./flowLogger";
+import {
+  logTaskProgress,
+  logStepProgress,
+  setSessionFileLogger,
+} from "./flowLogger";
+import {
+  createSessionFileLogger,
+  SessionFileLogger,
+} from "./sessionFileLogger";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard";
 import { ActTimeoutError } from "./types/public/sdkErrors";
 
@@ -175,6 +183,7 @@ export class V3 {
   private actCache: ActCache;
   private agentCache: AgentCache;
   private apiClient: StagehandAPIClient | null = null;
+  private sessionFileLogger: SessionFileLogger | null = null;
 
   public stagehandMetrics: StagehandMetrics = {
     actPromptTokens: 0,
@@ -311,6 +320,11 @@ export class V3 {
     });
 
     this.opts = opts;
+
+    // Initialize session file logger
+    this.sessionFileLogger = createSessionFileLogger(this.instanceId, opts);
+    setSessionFileLogger(this.sessionFileLogger);
+
     // Track instance for global process guard handling
     V3._instances.add(this);
   }
@@ -1290,6 +1304,17 @@ export class V3 {
     this._isClosing = true;
 
     try {
+      // Close session file logger
+      if (this.sessionFileLogger) {
+        try {
+          await this.sessionFileLogger.close();
+          setSessionFileLogger(null);
+          this.sessionFileLogger = null;
+        } catch {
+          // Fail silently
+        }
+      }
+
       // Unhook CDP transport close handler if context exists
       try {
         if (this.ctx?.conn && this._onCdpClosed) {
