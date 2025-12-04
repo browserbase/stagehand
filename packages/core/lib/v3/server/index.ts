@@ -98,30 +98,43 @@ export * from "./schemas";
 // =============================================================================
 
 /**
- * Generic preHandler request interface that works across Fastify versions.
- * Uses structural typing to be compatible with any Fastify version.
+ * Validates the session ID param exists and session is found in SessionStore.
+ * Attaches the validated session ID to request.validatedSessionId for downstream use.
+ *
+ * This is the core validation logic that can be used by external servers (e.g., cloud API)
+ * to share the same validation as the StagehandServer.
+ *
+ * @param sessionStore - The SessionStore instance to use for validation
+ * @param request - The request object (must have params with id)
+ * @param reply - The reply object (must have status and send methods)
+ * @returns true if validation passed, false if response was sent
  */
-export interface PreHandlerRequest {
-  params: unknown;
-}
+export async function validateSession(
+  sessionStore: SessionStore,
+  request: { params: unknown },
+  reply: { status(code: number): { send(payload: unknown): unknown } },
+): Promise<boolean> {
+  const { id } = request.params as { id?: string };
 
-/**
- * Generic preHandler reply interface that works across Fastify versions.
- * Uses structural typing to be compatible with any Fastify version.
- */
-export interface PreHandlerReply {
-  status(code: number): PreHandlerReply;
-  send(payload: unknown): unknown;
-}
+  if (!id?.length) {
+    reply.status(400).send({
+      error: "Missing session id",
+    });
+    return false;
+  }
 
-/**
- * Type for a session validation preHandler function.
- * Generic to work across different Fastify versions.
- */
-export type SessionValidationPreHandler = (
-  request: PreHandlerRequest,
-  reply: PreHandlerReply,
-) => Promise<void>;
+  const hasSession = await sessionStore.hasSession(id);
+  if (!hasSession) {
+    reply.status(404).send({
+      error: "Session not found",
+    });
+    return false;
+  }
+
+  // Attach validated session ID to request for downstream handlers
+  (request as StagehandHttpRequest).validatedSessionId = id;
+  return true;
+}
 
 /**
  * Creates a preHandler that validates the session ID param exists and session is found in SessionStore.
@@ -147,27 +160,15 @@ export type SessionValidationPreHandler = (
  */
 export function createSessionValidationPreHandler(
   sessionStore: SessionStore,
-): SessionValidationPreHandler {
-  return async (request: PreHandlerRequest, reply: PreHandlerReply): Promise<void> => {
-    const { id } = request.params as { id?: string };
-
-    if (!id?.length) {
-      reply.status(400).send({
-        error: "Missing session id",
-      });
-      return;
-    }
-
-    const hasSession = await sessionStore.hasSession(id);
-    if (!hasSession) {
-      reply.status(404).send({
-        error: "Session not found",
-      });
-      return;
-    }
-
-    // Attach validated session ID to request for downstream handlers
-    (request as unknown as StagehandHttpRequest).validatedSessionId = id;
+): (
+  request: { params: unknown },
+  reply: { status(code: number): { send(payload: unknown): unknown } },
+) => Promise<void> {
+  return async (
+    request: { params: unknown },
+    reply: { status(code: number): { send(payload: unknown): unknown } },
+  ): Promise<void> => {
+    await validateSession(sessionStore, request, reply);
   };
 }
 
@@ -230,18 +231,9 @@ export class StagehandServer {
     });
   }
 
-  /**
-   * Creates a preHandler that validates the session ID param exists and session is found in SessionStore.
-   * Attaches the validated session ID to request.validatedSessionId for downstream use.
-   * This is also exported as a standalone factory function for use by external servers (e.g., cloud API).
-   */
-  private createSessionValidationPreHandler(): SessionValidationPreHandler {
-    return createSessionValidationPreHandler(this.sessionStore);
-  }
-
   private setupRoutes(): void {
     const app = this.app.withTypeProvider<ZodTypeProvider>();
-    const sessionValidationPreHandler = this.createSessionValidationPreHandler();
+    const sessionValidationPreHandler = createSessionValidationPreHandler(this.sessionStore);
 
     // Health check
     app.get("/health", async () => {
