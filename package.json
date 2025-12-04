@@ -11,7 +11,6 @@
     "prettier": "prettier --write .",
     "eslint": "eslint .",
     "test": "turbo run test",
-    "test:vitest": "turbo run build && pnpm --filter @browserbasehq/stagehand test:vitest",
     "e2e": "turbo run e2e",
     "e2e:bb": "turbo run e2e:bb",
     "e2e:local": "turbo run e2e:local",
