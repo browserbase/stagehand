@@ -1048,4 +1048,7 @@ export * from "../types/stagehandApiErrors";
 export * from "../types/stagehandErrors";
 export * from "./llm/LLMClient";
 export * from "./llm/aisdk";
+export type { TreeResult } from "../types/context";
 export { connectToMCPServer };
+/** @deprecated Direct AX access is not part of the stable API. Prefer extract(). */
+export { getAccessibilityTree } from "./a11y/utils";

@@ -526,6 +526,9 @@ export async function getCDPFrameId(
  * Retrieve and build a cleaned accessibility tree for a document or specific iframe.
  * Prunes, formats, and optionally filters by XPath, including scrollable role decoration.
  *
+ * @deprecated This helper is an escape hatch intended for troubleshooting. Prefer
+ * extract() for supported usage and reach for this only
+ * when absolutely necessary.
  * @param stagehandPage - The StagehandPage instance for Playwright and CDP interaction.
  * @param logger - Logging function for diagnostics and performance metrics.
  * @param selector - Optional XPath to filter the AX tree to a specific subtree.
