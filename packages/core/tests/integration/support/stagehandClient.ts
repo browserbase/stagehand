@@ -1,5 +1,12 @@
 import { inject } from "vitest";
 import * as Stagehand from "../../../dist/index.js";
+import {
+  ensureTestEnvLoaded,
+  getStagehandEnvVar,
+  requireStagehandEnvVar,
+} from "../../support/testEnv";
+
+ensureTestEnvLoaded();
 
 type TestTarget = "remote" | "local";
 
@@ -24,7 +31,7 @@ export function getMissingClientEnvVars(target: TestTarget): string[] {
   const required =
     target === "remote" ? REMOTE_REQUIRED_VARS : LOCAL_REQUIRED_VARS;
   return required.filter((name) => {
-    const value = process.env[name];
+    const value = getStagehandEnvVar(name, { scope: "client" });
     return !value || value.length === 0;
   });
 }
@@ -37,34 +44,47 @@ export function createStagehandHarness(target?: TestTarget) {
   }
 
   const normalizedBaseUrl = providedBaseUrl.endsWith("/v1")
-      ? providedBaseUrl
-      : `${providedBaseUrl.replace(/\/$/, "")}/v1`;
+    ? providedBaseUrl
+    : `${providedBaseUrl.replace(/\/$/, "")}/v1`;
 
   process.env.STAGEHAND_API_URL = normalizedBaseUrl;
 
-  const stagehandOptions: Record<string, unknown> = {};
+  const clientApiKey = requireStagehandEnvVar("OPENAI_API_KEY", {
+    scope: "client",
+    consumer: `${activeTarget} Stagehand client`,
+  });
+
+  const stagehandOptions: Stagehand.V3Options = {
+    env: activeTarget === "local" ? "LOCAL" : "BROWSERBASE",
+    verbose: 0,
+    experimental: false,
+    logInferenceToFile: false,
+    model: {
+      modelName: "openai/gpt-5-mini",
+      apiKey: clientApiKey,
+    },
+  };
 
   if (activeTarget === "local") {
-    const clientApiKey = process.env.OPENAI_API_KEY;
-    if (!clientApiKey) {
-      throw new Error(
-          "Missing OPENAI_API_KEY for local client.",
-      );
-    }
-
-    const stagehand = new Stagehand.Stagehand({
-      env: "BROWSERBASE",
-      verbose: 0,
-      model: {
-        modelName: "openai/gpt-5-mini",
-        apiKey: clientApiKey,
-      },
-      experimental: false,
-      logInferenceToFile: false,
+    stagehandOptions.localBrowserLaunchOptions = {
+      headless: process.env.STAGEHAND_CLIENT_HEADLESS !== "false",
+    };
+  } else {
+    stagehandOptions.apiKey = requireStagehandEnvVar("BROWSERBASE_API_KEY", {
+      scope: "client",
+      consumer: "remote Stagehand client",
     });
-
-    const apiRootUrl = normalizedBaseUrl.replace(/\/v1\/?$/, "");
-
-    return {stagehand, apiRootUrl, target: activeTarget};
+    stagehandOptions.projectId = requireStagehandEnvVar(
+      "BROWSERBASE_PROJECT_ID",
+      {
+        scope: "client",
+        consumer: "remote Stagehand client",
+      },
+    );
   }
+
+  const stagehand = new Stagehand.Stagehand(stagehandOptions);
+  const apiRootUrl = normalizedBaseUrl.replace(/\/v1\/?$/, "");
+
+  return { stagehand, apiRootUrl, target: activeTarget };
 }

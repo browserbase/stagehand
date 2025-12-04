@@ -1,4 +1,8 @@
 import type { ProvidedContext } from "vitest";
+import {
+  ensureTestEnvLoaded,
+  requireStagehandEnvVar,
+} from "./support/testEnv";
 
 const DEFAULT_REMOTE_URL = "https://api.stagehand.browserbase.com/v1";
 const DEFAULT_LOCAL_PORT = 43123;
@@ -15,19 +19,17 @@ let localServer: { close: () => Promise<void>; getUrl: () => string } | null =
 let localServerStagehand: { close: () => Promise<void> } | null = null;
 
 async function startLocalServer() {
+  ensureTestEnvLoaded();
   const { Stagehand } = await import("../dist/index.js");
 
   const host = process.env.STAGEHAND_LOCAL_HOST ?? "127.0.0.1";
   const port = Number(process.env.STAGEHAND_LOCAL_PORT ?? DEFAULT_LOCAL_PORT);
   const serverModel =
     process.env.STAGEHAND_SERVER_MODEL ?? "openai/gpt-4o-mini";
-  const serverApiKey = process.env.OPENAI_API_KEY;
-
-  if (!serverApiKey) {
-    throw new Error(
-      "Missing OPENAI_API_KEY for local Stagehand server.",
-    );
-  }
+  const serverApiKey = requireStagehandEnvVar("OPENAI_API_KEY", {
+    scope: "server",
+    consumer: "local Stagehand server",
+  });
 
   const stagehand = new Stagehand({
     env: "LOCAL",
@@ -57,6 +59,7 @@ async function startLocalServer() {
 }
 
 export async function setup(ctx: StagehandGlobalSetupContext) {
+  ensureTestEnvLoaded();
   const target = (process.env.STAGEHAND_TEST_TARGET ?? "local").toLowerCase();
   const normalizedTarget = target === "local" ? "local" : "remote";
   ctx.provide("STAGEHAND_TEST_TARGET", normalizedTarget);

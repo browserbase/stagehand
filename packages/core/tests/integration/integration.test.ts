@@ -6,6 +6,9 @@ import {
   getMissingClientEnvVars,
   resolveTestTarget,
 } from "./support/stagehandClient";
+import { ensureTestEnvLoaded } from "../support/testEnv";
+
+ensureTestEnvLoaded();
 
 const testSite =
   process.env.STAGEHAND_EVAL_URL ??
