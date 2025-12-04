@@ -69,6 +69,7 @@ test.describe("Stagehand agent abort signal", () => {
     // Handle both stream consumption and result promise together
     // The result promise will reject with AgentAbortError when aborted
     const consumeStream = async () => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       for await (const _ of streamResult.textStream) {
         // Just consume chunks until stream ends
       }
@@ -174,6 +175,7 @@ test.describe("Stagehand agent abort signal", () => {
 
     // Handle both stream consumption and result promise together
     const consumeStream = async () => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       for await (const _ of streamResult.textStream) {
         // Just consume chunks until stream ends
       }
@@ -230,6 +232,7 @@ test.describe("Stagehand agent abort signal", () => {
     });
 
     // Consume the stream first
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     for await (const _ of streamResult.textStream) {
       // Just consume
     }
