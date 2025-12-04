@@ -235,7 +235,7 @@ describe("ActHandler two-step timeout", () => {
 
     // Timeout fires after step 1 completes, during step 2 snapshot
     // ensureTimeRemaining calls: 1=before wait, 2=after wait/before snap1, 3=before LLM1,
-    // 4=before action1, 5=inside takeDeterministicAction, 6=performUndertudy,
+    // 4=before action1, 5=inside takeDeterministicAction, 6=performUnderstudy,
     // 7=before snap2 (this one should throw)
     let callCount = 0;
     vi.mocked(createTimeoutGuard).mockImplementation(
