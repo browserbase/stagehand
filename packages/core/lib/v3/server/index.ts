@@ -426,8 +426,7 @@ export class StagehandServer {
       request,
       reply,
       operation: "act",
-      handler: async (handlerCtx, data) => {
-        const stagehand = handlerCtx.stagehand as any;
+      handler: async ({ stagehand }, data) => {
         const { frameId } = data;
 
         const page = frameId
@@ -477,8 +476,7 @@ export class StagehandServer {
       request,
       reply,
       operation: "extract",
-      handler: async (handlerCtx, data) => {
-        const stagehand = handlerCtx.stagehand as any;
+      handler: async ({ stagehand }, data) => {
         const { frameId } = data;
 
         const page = frameId
@@ -536,8 +534,7 @@ export class StagehandServer {
       request,
       reply,
       operation: "observe",
-      handler: async (handlerCtx, data) => {
-        const stagehand = handlerCtx.stagehand as any;
+      handler: async ({ stagehand }, data) => {
         const { frameId } = data;
 
         const page = frameId
@@ -589,8 +586,7 @@ export class StagehandServer {
       request,
       reply,
       operation: "agentExecute",
-      handler: async (handlerCtx, data) => {
-        const stagehand = handlerCtx.stagehand as any;
+      handler: async ({ stagehand }, data) => {
         const { agentConfig, executeOptions, frameId } = data;
 
         const page = frameId
@@ -628,8 +624,7 @@ export class StagehandServer {
       request,
       reply,
       operation: "navigate",
-      handler: async (handlerCtx, data) => {
-        const stagehand = handlerCtx.stagehand as any;
+      handler: async ({ stagehand }, data) => {
         const { url, options, frameId } = data;
 
         const page = frameId
