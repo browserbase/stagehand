@@ -63,11 +63,19 @@ export async function initV3({
   modelName,
   createAgent,
 }: InitV3Args): Promise<V3InitResult> {
-  // Determine if the requested model is a CUA model
-  const isCUA = modelName in modelToAgentProviderMap;
+  // Check for /cua suffix to determine if CUA mode should be used
+  // e.g., "anthropic/claude-sonnet-4-20250514/cua" -> use CUA mode
+  // e.g., "anthropic/claude-sonnet-4-20250514" -> use non-CUA agent mode
+  const useCua = modelName.endsWith("/cua");
+  const actualModelName = useCua
+    ? (modelName.slice(0, -4) as AvailableModel)
+    : modelName;
+
+  // isCUA is true only when explicitly requested via /cua suffix
+  const isCUA = useCua;
 
   // If CUA, choose a safe internal AISDK model for V3 handlers based on available API keys
-  let internalModel: AvailableModel = modelName;
+  let internalModel: AvailableModel = actualModelName;
   if (isCUA) {
     if (process.env.OPENAI_API_KEY)
       internalModel = "openai/gpt-4.1-mini" as AvailableModel;
@@ -129,19 +137,23 @@ export async function initV3({
 
   let agent: AgentInstance | undefined;
   if (createAgent) {
-    if (isCUA) {
+    if (useCua) {
+      // Extract short model name from full model name (e.g., "openai/computer-use-preview" -> "computer-use-preview")
+      const shortModelName = actualModelName.includes("/")
+        ? actualModelName.split("/")[1]
+        : actualModelName;
       const apiKey = loadApiKeyFromEnv(
-        modelToAgentProviderMap[modelName],
+        modelToAgentProviderMap[shortModelName],
         logger.log.bind(logger),
       );
 
       const cuaModel: AvailableCuaModel | AgentModelConfig<AvailableCuaModel> =
         apiKey && apiKey.length > 0
           ? {
-              modelName: modelName as AvailableCuaModel,
+              modelName: actualModelName as AvailableCuaModel,
               apiKey,
             }
-          : (modelName as AvailableCuaModel);
+          : (actualModelName as AvailableCuaModel);
 
       agent = v3.agent({
         cua: true,
@@ -150,7 +162,7 @@ export async function initV3({
       });
     } else {
       agent = v3.agent({
-        model: modelName,
+        model: actualModelName,
         executionModel: "google/gemini-2.5-flash",
       });
     }
