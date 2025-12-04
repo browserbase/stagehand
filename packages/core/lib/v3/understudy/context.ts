@@ -1,5 +1,4 @@
 // lib/v3/understudy/context.ts
-import { promises as fs } from "fs";
 import type { Protocol } from "devtools-protocol";
 import { v3Logger } from "../logger";
 import { CdpConnection, CDPSessionLike } from "./cdp";
@@ -8,69 +7,14 @@ import { installV3PiercerIntoSession } from "./piercer";
 import { executionContexts } from "./executionContextRegistry";
 import type { StagehandAPIClient } from "../api";
 import { LocalBrowserLaunchOptions } from "../types/public";
-import {
-  StagehandInvalidArgumentError,
-  TimeoutError,
-  PageNotFoundError,
-} from "../types/public/sdkErrors";
+import { InitScriptSource } from "../types/private";
+import { normalizeInitScriptSource } from "./initScripts";
+import { TimeoutError, PageNotFoundError } from "../types/public/sdkErrors";
 
 type TargetId = string;
 type SessionId = string;
 
 type TargetType = "page" | "iframe" | string;
-
-type InitScriptSource<Arg> =
-  | string
-  | { path?: string; content?: string }
-  | ((arg: Arg) => unknown);
-
-async function normalizeInitScriptSource<Arg>(
-  script: InitScriptSource<Arg>,
-  arg?: Arg,
-): Promise<string> {
-  if (typeof script === "function") {
-    const argString = Object.is(arg, undefined)
-      ? "undefined"
-      : JSON.stringify(arg);
-    return `(${script.toString()})(${argString})`;
-  }
-
-  if (!Object.is(arg, undefined)) {
-    throw new StagehandInvalidArgumentError(
-      "context.addInitScript: 'arg' is only supported when passing a function.",
-    );
-  }
-
-  if (typeof script === "string") {
-    return script;
-  }
-
-  if (!script || typeof script !== "object") {
-    throw new StagehandInvalidArgumentError(
-      "context.addInitScript: provide a string, function, or an object with path/content.",
-    );
-  }
-
-  if (typeof script.content === "string") {
-    return script.content;
-  }
-
-  if (typeof script.path === "string" && script.path.trim()) {
-    const raw = await fs.readFile(script.path, "utf8");
-    return appendSourceURL(raw, script.path);
-  }
-
-  throw new StagehandInvalidArgumentError(
-    "context.addInitScript: provide a string, function, or an object with path/content.",
-  );
-}
-
-// Chrome surfaces injected scripts using a //# sourceURL tag; mirroring Playwright keeps
-// stack traces and console errors pointing back to the preload file when path is used.
-function appendSourceURL(source: string, filePath: string): string {
-  const sanitized = filePath.replace(/\n/g, "");
-  return `${source}\n//# sourceURL=${sanitized}`;
-}
 
 function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
   const ti = info as unknown as { subtype?: string };

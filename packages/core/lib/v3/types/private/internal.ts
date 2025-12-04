@@ -32,3 +32,8 @@ export interface ZodPathSegments {
    */
   segments: Array<string | number>;
 }
+
+export type InitScriptSource<Arg> =
+  | string
+  | { path?: string; content?: string }
+  | ((arg: Arg) => unknown);

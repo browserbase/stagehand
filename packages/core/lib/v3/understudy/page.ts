@@ -22,6 +22,7 @@ import {
   StagehandInvalidArgumentError,
   StagehandEvalError,
 } from "../types/public/sdkErrors";
+import { normalizeInitScriptSource } from "./initScripts";
 import type {
   ScreenshotAnimationsOption,
   ScreenshotCaretOption,
@@ -41,6 +42,7 @@ import {
   withScreenshotTimeout,
   type ScreenshotCleanup,
 } from "./screenshotUtils";
+import { InitScriptSource } from "../types/private";
 /**
  * Page
  *
@@ -255,6 +257,18 @@ export class Page {
     } catch {
       //
     }
+  }
+
+  public async addInitScript<Arg>(
+    script: InitScriptSource<Arg>,
+    arg?: Arg,
+  ): Promise<void> {
+    const source = await normalizeInitScriptSource(
+      script,
+      arg,
+      "page.addInitScript",
+    );
+    await this.registerInitScript(source);
   }
 
   /**
