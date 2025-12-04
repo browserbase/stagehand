@@ -364,7 +364,6 @@ export class AISdkClient extends LLMClient {
       },
     } as T;
 
-
     this.logger?.({
       category: "aisdk",
       message: "response",

@@ -54,12 +54,14 @@ export type DOMNode = {
   contentDocument?: DOMNode;
   nodeType: number;
   frameId?: string;
+  isScrollable?: boolean;
 };
 
 export type BackendIdMaps = {
   tagNameMap: Record<number, string>;
   xpathMap: Record<number, string>;
   iframeXPath?: string;
+  scrollableBackendIds: Set<number>;
 };
 
 export interface EnhancedContext
