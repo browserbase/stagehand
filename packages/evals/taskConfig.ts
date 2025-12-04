@@ -107,6 +107,7 @@ const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
 const DEFAULT_AGENT_MODELS = process.env.EVAL_AGENT_MODELS
   ? process.env.EVAL_AGENT_MODELS.split(",")
   : [
+      "anthropic/claude-sonnet-4-20250514",
       "openai/computer-use-preview-2025-03-11/cua",
       "anthropic/claude-sonnet-4-20250514/cua",
       "google/gemini-2.5-computer-use-preview-10-2025/cua",
