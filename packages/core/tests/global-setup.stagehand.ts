@@ -21,12 +21,11 @@ async function startLocalServer() {
   const port = Number(process.env.STAGEHAND_LOCAL_PORT ?? DEFAULT_LOCAL_PORT);
   const serverModel =
     process.env.STAGEHAND_SERVER_MODEL ?? "openai/gpt-4o-mini";
-  const serverApiKey =
-    process.env.STAGEHAND_SERVER_MODEL_API_KEY ?? process.env.OPENAI_API_KEY;
+  const serverApiKey = process.env.OPENAI_API_KEY;
 
   if (!serverApiKey) {
     throw new Error(
-      "Missing STAGEHAND_SERVER_MODEL_API_KEY or OPENAI_API_KEY for local Stagehand server.",
+      "Missing OPENAI_API_KEY for local Stagehand server.",
     );
   }
 
@@ -36,7 +35,10 @@ async function startLocalServer() {
     localBrowserLaunchOptions: {
       headless: process.env.STAGEHAND_LOCAL_HEADLESS !== "false",
     },
-    model: serverModel,
+    model: {
+      modelName: serverModel,
+      apiKey: serverApiKey,
+    },
   });
 
   await stagehand.init();

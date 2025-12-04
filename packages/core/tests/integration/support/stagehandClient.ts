@@ -37,41 +37,34 @@ export function createStagehandHarness(target?: TestTarget) {
   }
 
   const normalizedBaseUrl = providedBaseUrl.endsWith("/v1")
-    ? providedBaseUrl
-    : `${providedBaseUrl.replace(/\/$/, "")}/v1`;
+      ? providedBaseUrl
+      : `${providedBaseUrl.replace(/\/$/, "")}/v1`;
 
   process.env.STAGEHAND_API_URL = normalizedBaseUrl;
 
-  const stagehandOptions: Record<string, unknown> = {
-    env: "BROWSERBASE",
-    verbose: 0,
-    disableAPI: false,
-    experimental: false,
-    logInferenceToFile: false,
-  };
+  const stagehandOptions: Record<string, unknown> = {};
 
   if (activeTarget === "local") {
-    const clientApiKey =
-      process.env.STAGEHAND_CLIENT_MODEL_API_KEY ?? process.env.OPENAI_API_KEY;
+    const clientApiKey = process.env.OPENAI_API_KEY;
     if (!clientApiKey) {
       throw new Error(
-        "Missing STAGEHAND_CLIENT_MODEL_API_KEY or OPENAI_API_KEY for local client.",
+          "Missing OPENAI_API_KEY for local client.",
       );
     }
 
-    stagehandOptions.model =
-      process.env.STAGEHAND_CLIENT_MODEL ??
-      process.env.STAGEHAND_SERVER_MODEL ??
-      "openai/gpt-4o-mini";
-    stagehandOptions.modelClientOptions = {
-      apiKey: clientApiKey,
-      baseURL: process.env.STAGEHAND_CLIENT_MODEL_BASE_URL,
-    };
+    const stagehand = new Stagehand.Stagehand({
+      env: "BROWSERBASE",
+      verbose: 0,
+      model: {
+        modelName: "openai/gpt-5-mini",
+        apiKey: clientApiKey,
+      },
+      experimental: false,
+      logInferenceToFile: false,
+    });
+
+    const apiRootUrl = normalizedBaseUrl.replace(/\/v1\/?$/, "");
+
+    return {stagehand, apiRootUrl, target: activeTarget};
   }
-
-  const stagehand = new Stagehand.Stagehand(stagehandOptions);
-
-  const apiRootUrl = normalizedBaseUrl.replace(/\/v1\/?$/, "");
-
-  return { stagehand, apiRootUrl, target: activeTarget };
 }
