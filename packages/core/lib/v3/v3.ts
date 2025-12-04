@@ -183,7 +183,6 @@ export class V3 {
   private actCache: ActCache;
   private agentCache: AgentCache;
   private apiClient: StagehandAPIClient | null = null;
-  private sessionFileLogger: SessionFileLogger | null = null;
 
   public stagehandMetrics: StagehandMetrics = {
     actPromptTokens: 0,
@@ -322,8 +321,7 @@ export class V3 {
     this.opts = opts;
 
     // Initialize session file logger
-    this.sessionFileLogger = createSessionFileLogger(this.instanceId, opts);
-    setSessionFileLogger(this.sessionFileLogger);
+    SessionFileLogger.init(this.instanceId, opts);
 
     // Track instance for global process guard handling
     V3._instances.add(this);
@@ -981,7 +979,7 @@ export class V3 {
 
   async act(input: string | Action, options?: ActOptions): Promise<ActResult> {
     return await withInstanceLogContext(this.instanceId, async () => {
-      logStepProgress({
+      SessionFileLogger.logStepProgress({
         invocation: "stagehand.act",
         args: [input, options],
         label: "ACT",
@@ -1142,7 +1140,7 @@ export class V3 {
     c?: ExtractOptions,
   ): Promise<unknown> {
     return await withInstanceLogContext(this.instanceId, async () => {
-      logStepProgress({
+      SessionFileLogger.logStepProgress({
         invocation: "stagehand.extract",
         args: [a, b, c],
         label: "EXTRACT",
@@ -1226,7 +1224,7 @@ export class V3 {
     b?: ObserveOptions,
   ): Promise<Action[]> {
     return await withInstanceLogContext(this.instanceId, async () => {
-      logStepProgress({
+      SessionFileLogger.logStepProgress({
         invocation: "stagehand.observe",
         args: [a, b],
         label: "OBSERVE",
@@ -1305,14 +1303,10 @@ export class V3 {
 
     try {
       // Close session file logger
-      if (this.sessionFileLogger) {
-        try {
-          await this.sessionFileLogger.close();
-          setSessionFileLogger(null);
-          this.sessionFileLogger = null;
-        } catch {
-          // Fail silently
-        }
+      try {
+        await SessionFileLogger.close();
+      } catch {
+        // Fail silently
       }
 
       // Unhook CDP transport close handler if context exists
@@ -1691,7 +1685,7 @@ export class V3 {
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
           withInstanceLogContext(this.instanceId, async () => {
-            logTaskProgress({
+            SessionFileLogger.logTaskProgress({
               invocation: "agent.execute",
               args: [instructionOrOptions],
             });
@@ -1797,7 +1791,7 @@ export class V3 {
           | AgentStreamExecuteOptions,
       ): Promise<AgentResult | AgentStreamResult> =>
         withInstanceLogContext(this.instanceId, async () => {
-          logTaskProgress({
+          SessionFileLogger.logTaskProgress({
             invocation: "agent.execute",
             args: [instructionOrOptions],
           });

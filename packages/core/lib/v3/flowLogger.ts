@@ -1,21 +1,37 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
-import { v3Logger } from "./logger";
-import type { SessionFileLogger } from "./sessionFileLogger";
-
-type FlowPrefixOptions = {
-  includeAction?: boolean;
-  includeStep?: boolean;
-  includeTask?: boolean;
-};
+import fs from "node:fs";
+import path from "node:path";
+import type { V3Options } from "./types/public";
 
 const MAX_ARG_LENGTH = 500;
 
-let currentTaskId: string | null = null;
-let currentStepId: string | null = null;
-let currentActionId: string | null = null;
-let currentStepLabel: string | null = null;
-let currentActionLabel: string | null = null;
-let sessionFileLogger: SessionFileLogger | null = null;
+interface LogFile {
+  path: string;
+  stream: fs.WriteStream | null;
+}
+
+interface FlowLoggerContext {
+  sessionId: string;
+  sessionDir: string;
+  configDir: string;
+  logFiles: {
+    agent: LogFile;
+    stagehand: LogFile;
+    understudy: LogFile;
+    cdp: LogFile;
+  };
+  initPromise: Promise<void>;
+  initialized: boolean;
+  // Flow context
+  taskId: string | null;
+  stepId: string | null;
+  actionId: string | null;
+  stepLabel: string | null;
+  actionLabel: string | null;
+}
+
+const loggerContext = new AsyncLocalStorage<FlowLoggerContext>();
 
 function generateId(label: string): string {
   try {
@@ -90,226 +106,399 @@ function formatCdpTag(sessionId?: string | null): string {
 
 function shortId(id: string | null): string {
   if (!id) return "-";
-  const trimmed = id.slice(-4);
-  return trimmed;
+  return id.slice(-4);
 }
 
-function ensureTaskContext(): void {
-  if (!currentTaskId) {
-    currentTaskId = generateId("task");
-  }
-}
+function sanitizeOptions(options: V3Options): Record<string, unknown> {
+  const sensitiveKeys = [
+    "apiKey",
+    "api_key",
+    "apikey",
+    "key",
+    "secret",
+    "token",
+    "password",
+    "passwd",
+    "pwd",
+    "credential",
+    "credentials",
+    "auth",
+    "authorization",
+  ];
 
-function ensureStepContext(defaultLabel?: string): void {
-  if (defaultLabel) {
-    currentStepLabel = defaultLabel.toUpperCase();
-  }
-  if (!currentStepLabel) {
-    currentStepLabel = "STEP";
-  }
-  if (!currentStepId) {
-    currentStepId = generateId("step");
-  }
-}
+  const sanitizeValue = (obj: unknown): unknown => {
+    if (typeof obj !== "object" || obj === null) {
+      return obj;
+    }
 
-function ensureActionContext(defaultLabel?: string): void {
-  if (defaultLabel) {
-    currentActionLabel = defaultLabel.toUpperCase();
-  }
-  if (!currentActionLabel) {
-    currentActionLabel = "ACTION";
-  }
-  if (!currentActionId) {
-    currentActionId = generateId("action");
-  }
-}
+    if (Array.isArray(obj)) {
+      return obj.map(sanitizeValue);
+    }
 
-function buildPrefix({
-  includeAction = true,
-  includeStep = true,
-  includeTask = true,
-}: FlowPrefixOptions = {}): string {
-  const parts: string[] = [];
-  if (includeTask) {
-    ensureTaskContext();
-    parts.push(formatTag("TASK", currentTaskId));
-  }
-  if (includeStep) {
-    ensureStepContext();
-    const label = currentStepLabel ?? "STEP";
-    parts.push(formatTag(label, currentStepId));
-  }
-  if (includeAction) {
-    ensureActionContext();
-    const actionLabel = currentActionLabel ?? "ACTION";
-    parts.push(formatTag(actionLabel, currentActionId));
-  }
-  return parts.join(" ");
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      const lowerKey = key.toLowerCase();
+      if (sensitiveKeys.some((sk) => lowerKey.includes(sk))) {
+        result[key] = "******";
+      } else if (typeof value === "object" && value !== null) {
+        result[key] = sanitizeValue(value);
+      } else {
+        result[key] = value;
+      }
+    }
+    return result;
+  };
+
+  return sanitizeValue({ ...options }) as Record<string, unknown>;
 }
 
 /**
- * Set the session file logger for writing logs to files
+ * Get the config directory from environment or use default
  */
-export function setSessionFileLogger(logger: SessionFileLogger | null): void {
-  sessionFileLogger = logger;
+export function getConfigDir(): string {
+  const fromEnv = process.env.BROWSERBASE_CONFIG_DIR;
+  if (fromEnv) {
+    return path.resolve(fromEnv);
+  }
+  return path.resolve(process.cwd(), ".browserbase");
 }
 
 /**
- * Get the current session file logger
+ * SessionFileLogger - static methods for flow logging with AsyncLocalStorage context
  */
-export function getSessionFileLogger(): SessionFileLogger | null {
-  return sessionFileLogger;
-}
+export class SessionFileLogger {
+  /**
+   * Initialize a new logging context. Call this at the start of a session.
+   */
+  static init(sessionId: string, v3Options?: V3Options): void {
+    const configDir = getConfigDir();
+    const sessionDir = path.join(configDir, "sessions", sessionId);
 
-export function logTaskProgress({
-  invocation,
-  args,
-}: {
-  invocation: string;
-  args?: unknown | unknown[];
-}): string {
-  currentTaskId = generateId("task");
-  currentStepId = null;
-  currentActionId = null;
-  currentStepLabel = null;
-  currentActionLabel = null;
+    const ctx: FlowLoggerContext = {
+      sessionId,
+      sessionDir,
+      configDir,
+      logFiles: {
+        agent: { path: path.join(sessionDir, "agent_events.log"), stream: null },
+        stagehand: { path: path.join(sessionDir, "stagehand_events.log"), stream: null },
+        understudy: { path: path.join(sessionDir, "understudy_events.log"), stream: null },
+        cdp: { path: path.join(sessionDir, "cdp_events.log"), stream: null },
+      },
+      initPromise: Promise.resolve(),
+      initialized: false,
+      taskId: null,
+      stepId: null,
+      actionId: null,
+      stepLabel: null,
+      actionLabel: null,
+    };
 
-  const call = `${invocation}(${formatArgs(args)})`;
-  const message = `${buildPrefix({
-    includeTask: true,
-    includeStep: false,
-    includeAction: false,
-  })} ${call}`;
+    // Store init promise for awaiting in writeToFile
+    ctx.initPromise = SessionFileLogger.initAsync(ctx, v3Options);
 
-  // Write to file if available
-  if (sessionFileLogger) {
-    sessionFileLogger.writeAgentLog(message);
+    loggerContext.enterWith(ctx);
   }
 
-  // Also log via v3Logger for backwards compatibility
-  v3Logger({
-    category: "flow",
-    message,
-    level: 2,
-  });
-  return currentTaskId;
-}
+  private static async initAsync(
+    ctx: FlowLoggerContext,
+    v3Options?: V3Options,
+  ): Promise<void> {
+    try {
+      await fs.promises.mkdir(ctx.sessionDir, { recursive: true });
 
-export function logStepProgress({
-  invocation,
-  args,
-  label,
-}: {
-  invocation: string;
-  args?: unknown | unknown[];
-  label: string;
-}): string {
-  ensureTaskContext();
-  currentStepId = generateId("step");
-  currentStepLabel = label.toUpperCase();
-  currentActionId = null;
-  currentActionLabel = null;
+      if (v3Options) {
+        const sanitizedOptions = sanitizeOptions(v3Options);
+        const sessionJsonPath = path.join(ctx.sessionDir, "session.json");
+        await fs.promises.writeFile(
+          sessionJsonPath,
+          JSON.stringify(sanitizedOptions, null, 2),
+          "utf-8",
+        );
+      }
 
-  const call = `${invocation}(${formatArgs(args)})`;
-  const message = `${buildPrefix({
-    includeTask: true,
-    includeStep: true,
-    includeAction: false,
-  })} ${call}`;
+      // Create symlink to latest session
+      const latestLink = path.join(ctx.configDir, "sessions", "latest");
+      try {
+        try {
+          await fs.promises.unlink(latestLink);
+        } catch {
+          // Ignore if doesn't exist
+        }
+        await fs.promises.symlink(ctx.sessionId, latestLink, "dir");
+      } catch {
+        // Symlink creation can fail on Windows or due to permissions
+      }
 
-  // Write to file if available
-  if (sessionFileLogger) {
-    sessionFileLogger.writeStagehandLog(message);
+      for (const logFile of Object.values(ctx.logFiles)) {
+        try {
+          logFile.stream = fs.createWriteStream(logFile.path, { flags: "a" });
+        } catch {
+          // Fail silently
+        }
+      }
+
+      ctx.initialized = true;
+    } catch {
+      // Fail silently
+    }
   }
 
-  // Also log via v3Logger for backwards compatibility
-  v3Logger({
-    category: "flow",
-    message,
-    level: 2,
-  });
-  return currentStepId;
-}
+  private static async writeToFile(
+    logFile: LogFile,
+    message: string,
+  ): Promise<void> {
+    const ctx = loggerContext.getStore();
+    if (!ctx) return;
 
-export function logActionProgress({
-  actionType,
-  target,
-  args,
-}: {
-  actionType: string;
-  target?: string;
-  args?: unknown | unknown[];
-}): string {
-  ensureTaskContext();
-  ensureStepContext();
-  currentActionId = generateId("action");
-  currentActionLabel = actionType.toUpperCase();
-  const details: string[] = [`${actionType}`];
-  if (target) {
-    details.push(`target=${target}`);
-  }
-  const argString = formatArgs(args);
-  if (argString) {
-    details.push(`args=[${argString}]`);
+    await ctx.initPromise;
+
+    if (!ctx.initialized || !logFile.stream) {
+      return;
+    }
+
+    try {
+      logFile.stream.write(message + "\n", (err) => {
+        if (err) {
+          // Fail silently
+        }
+      });
+    } catch {
+      // Fail silently
+    }
   }
 
-  const message = `${buildPrefix({
-    includeTask: true,
-    includeStep: true,
-    includeAction: true,
-  })} ${details.join(" ")}`;
+  static async close(): Promise<void> {
+    const ctx = loggerContext.getStore();
+    if (!ctx) return;
 
-  // Write to file if available
-  if (sessionFileLogger) {
-    sessionFileLogger.writeUnderstudyLog(message);
+    await ctx.initPromise;
+
+    const closePromises: Promise<void>[] = [];
+
+    for (const logFile of Object.values(ctx.logFiles)) {
+      if (logFile.stream) {
+        closePromises.push(
+          new Promise((resolve) => {
+            logFile.stream!.end(() => {
+              logFile.stream = null;
+              resolve();
+            });
+          }),
+        );
+      }
+    }
+
+    try {
+      await Promise.all(closePromises);
+    } catch {
+      // Fail silently
+    }
+
+    SessionFileLogger.clearFlowContext();
   }
 
-  // Also log via v3Logger for backwards compatibility
-  v3Logger({
-    category: "flow",
-    message,
-    level: 2,
-  });
-  return currentActionId;
-}
-
-export function logCdpMessage({
-  method,
-  params,
-  sessionId,
-}: {
-  method: string;
-  params?: object;
-  sessionId?: string | null;
-}): void {
-  const args = params ? formatArgs(params) : "";
-  const call = args ? `${method}(${args})` : `${method}()`;
-  const prefix = buildPrefix({
-    includeTask: true,
-    includeStep: true,
-    includeAction: true,
-  });
-  const rawMessage = `${prefix} ${formatCdpTag(sessionId)} ${call}`;
-  const message =
-    rawMessage.length > 120 ? `${rawMessage.slice(0, 117)}...` : rawMessage;
-
-  // Write to file if available
-  if (sessionFileLogger) {
-    sessionFileLogger.writeCdpLog(message);
+  static get sessionId(): string | null {
+    return loggerContext.getStore()?.sessionId ?? null;
   }
 
-  // Also log via v3Logger for backwards compatibility
-  v3Logger({
-    category: "flow",
-    message,
-    level: 2,
-  });
-}
+  static get sessionDir(): string | null {
+    return loggerContext.getStore()?.sessionDir ?? null;
+  }
 
-export function clearFlowContext(): void {
-  currentTaskId = null;
-  currentStepId = null;
-  currentActionId = null;
-  currentStepLabel = null;
-  currentActionLabel = null;
+  // --- Flow context methods ---
+
+  private static ensureTaskContext(ctx: FlowLoggerContext): void {
+    if (!ctx.taskId) {
+      ctx.taskId = generateId("task");
+    }
+  }
+
+  private static ensureStepContext(
+    ctx: FlowLoggerContext,
+    defaultLabel?: string,
+  ): void {
+    if (defaultLabel) {
+      ctx.stepLabel = defaultLabel.toUpperCase();
+    }
+    if (!ctx.stepLabel) {
+      ctx.stepLabel = "STEP";
+    }
+    if (!ctx.stepId) {
+      ctx.stepId = generateId("step");
+    }
+  }
+
+  private static ensureActionContext(
+    ctx: FlowLoggerContext,
+    defaultLabel?: string,
+  ): void {
+    if (defaultLabel) {
+      ctx.actionLabel = defaultLabel.toUpperCase();
+    }
+    if (!ctx.actionLabel) {
+      ctx.actionLabel = "ACTION";
+    }
+    if (!ctx.actionId) {
+      ctx.actionId = generateId("action");
+    }
+  }
+
+  private static buildPrefix(
+    ctx: FlowLoggerContext,
+    options: {
+      includeAction?: boolean;
+      includeStep?: boolean;
+      includeTask?: boolean;
+    } = {},
+  ): string {
+    const { includeAction = true, includeStep = true, includeTask = true } = options;
+    const parts: string[] = [];
+    if (includeTask) {
+      SessionFileLogger.ensureTaskContext(ctx);
+      parts.push(formatTag("TASK", ctx.taskId));
+    }
+    if (includeStep) {
+      SessionFileLogger.ensureStepContext(ctx);
+      parts.push(formatTag(ctx.stepLabel ?? "STEP", ctx.stepId));
+    }
+    if (includeAction) {
+      SessionFileLogger.ensureActionContext(ctx);
+      parts.push(formatTag(ctx.actionLabel ?? "ACTION", ctx.actionId));
+    }
+    return parts.join(" ");
+  }
+
+  static clearFlowContext(): void {
+    const ctx = loggerContext.getStore();
+    if (ctx) {
+      ctx.taskId = null;
+      ctx.stepId = null;
+      ctx.actionId = null;
+      ctx.stepLabel = null;
+      ctx.actionLabel = null;
+    }
+  }
+
+  // --- Logging methods ---
+
+  static logTaskProgress({
+    invocation,
+    args,
+  }: {
+    invocation: string;
+    args?: unknown | unknown[];
+  }): string {
+    const ctx = loggerContext.getStore();
+    if (!ctx) return generateId("task");
+
+    ctx.taskId = generateId("task");
+    ctx.stepId = null;
+    ctx.actionId = null;
+    ctx.stepLabel = null;
+    ctx.actionLabel = null;
+
+    const call = `${invocation}(${formatArgs(args)})`;
+    const message = `${SessionFileLogger.buildPrefix(ctx, {
+      includeTask: true,
+      includeStep: false,
+      includeAction: false,
+    })} ${call}`;
+
+    SessionFileLogger.writeToFile(ctx.logFiles.agent, message).then();
+
+    return ctx.taskId;
+  }
+
+  static logStepProgress({
+    invocation,
+    args,
+    label,
+  }: {
+    invocation: string;
+    args?: unknown | unknown[];
+    label: string;
+  }): string {
+    const ctx = loggerContext.getStore();
+    if (!ctx) return generateId("step");
+
+    SessionFileLogger.ensureTaskContext(ctx);
+    ctx.stepId = generateId("step");
+    ctx.stepLabel = label.toUpperCase();
+    ctx.actionId = null;
+    ctx.actionLabel = null;
+
+    const call = `${invocation}(${formatArgs(args)})`;
+    const message = `${SessionFileLogger.buildPrefix(ctx, {
+      includeTask: true,
+      includeStep: true,
+      includeAction: false,
+    })} ${call}`;
+
+    SessionFileLogger.writeToFile(ctx.logFiles.stagehand, message).then();
+
+    return ctx.stepId;
+  }
+
+  static logActionProgress({
+    actionType,
+    target,
+    args,
+  }: {
+    actionType: string;
+    target?: string;
+    args?: unknown | unknown[];
+  }): string {
+    const ctx = loggerContext.getStore();
+    if (!ctx) return generateId("action");
+
+    SessionFileLogger.ensureTaskContext(ctx);
+    SessionFileLogger.ensureStepContext(ctx);
+    ctx.actionId = generateId("action");
+    ctx.actionLabel = actionType.toUpperCase();
+
+    const details: string[] = [actionType];
+    if (target) {
+      details.push(`target=${target}`);
+    }
+    const argString = formatArgs(args);
+    if (argString) {
+      details.push(`args=[${argString}]`);
+    }
+
+    const message = `${SessionFileLogger.buildPrefix(ctx, {
+      includeTask: true,
+      includeStep: true,
+      includeAction: true,
+    })} ${details.join(" ")}`;
+
+    SessionFileLogger.writeToFile(ctx.logFiles.understudy, message).then();
+
+    return ctx.actionId;
+  }
+
+  static logCdpMessage({
+    method,
+    params,
+    sessionId,
+  }: {
+    method: string;
+    params?: object;
+    sessionId?: string | null;
+  }): void {
+    const ctx = loggerContext.getStore();
+    if (!ctx) return;
+
+    const args = params ? formatArgs(params) : "";
+    const call = args ? `${method}(${args})` : `${method}()`;
+    const prefix = SessionFileLogger.buildPrefix(ctx, {
+      includeTask: true,
+      includeStep: true,
+      includeAction: true,
+    });
+    const rawMessage = `${prefix} ${formatCdpTag(sessionId)} ${call}`;
+    const message =
+      rawMessage.length > 120 ? `${rawMessage.slice(0, 117)}...` : rawMessage;
+
+    SessionFileLogger.writeToFile(ctx.logFiles.cdp, message).then();
+  }
 }

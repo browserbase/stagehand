@@ -13,7 +13,7 @@ import {
 } from "../types/public/agent";
 import { LogLine } from "../types/public/logs";
 import { type Action, V3FunctionName } from "../types/public/methods";
-import { logActionProgress } from "../flowLogger";
+import { SessionFileLogger } from "../flowLogger";
 
 export class V3CuaAgentHandler {
   private v3: V3;
@@ -173,7 +173,7 @@ export class V3CuaAgentHandler {
             : typeof action.description === "string"
               ? action.description
               : undefined;
-    logActionProgress({
+    SessionFileLogger.logActionProgress({
       actionType: action.type,
       target: pointerTarget,
       args: [action],
