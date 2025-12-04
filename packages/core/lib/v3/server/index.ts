@@ -1,4 +1,4 @@
-import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import Fastify, { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import {
   serializerCompiler,
@@ -17,7 +17,7 @@ import type {
 } from "../types/public";
 import type { StagehandZodSchema } from "../zodCompat";
 import { jsonSchemaToZod, type JsonSchema } from "../../utils";
-import type { SessionStore, RequestContext, CreateSessionParams } from "./SessionStore";
+import type { SessionStore, CreateSessionParams } from "./SessionStore";
 import { InMemorySessionStore } from "./InMemorySessionStore";
 import { createStreamingResponse, mapStagehandError } from "./stream";
 
@@ -86,7 +86,12 @@ export interface StagehandHttpReply {
 export * from "./events";
 
 // Re-export SessionStore types
-export type { SessionStore, RequestContext, CreateSessionParams, SessionStartResult } from "./SessionStore";
+export type {
+  SessionStore,
+  RequestContext,
+  CreateSessionParams,
+  SessionStartResult,
+} from "./SessionStore";
 export { InMemorySessionStore } from "./InMemorySessionStore";
 
 // Re-export API schemas and types for consumers
@@ -228,7 +233,9 @@ export class StagehandServer {
 
   private setupRoutes(): void {
     const app = this.app.withTypeProvider<ZodTypeProvider>();
-    const sessionValidationPreHandler = createSessionValidationPreHandler(this.sessionStore);
+    const sessionValidationPreHandler = createSessionValidationPreHandler(
+      this.sessionStore,
+    );
 
     // Health check
     app.get("/health", async () => {
@@ -383,8 +390,12 @@ export class StagehandServer {
         browserbaseSessionCreateParams: body.browserbaseSessionCreateParams,
         debugDom: body.debugDom,
         actTimeoutMs: body.actTimeoutMs,
-        browserbaseApiKey: request.headers["x-bb-api-key"] as string | undefined,
-        browserbaseProjectId: request.headers["x-bb-project-id"] as string | undefined,
+        browserbaseApiKey: request.headers["x-bb-api-key"] as
+          | string
+          | undefined,
+        browserbaseProjectId: request.headers["x-bb-project-id"] as
+          | string
+          | undefined,
         clientLanguage: request.headers["x-language"] as string | undefined,
         sdkVersion: request.headers["x-sdk-version"] as string | undefined,
       };
@@ -506,7 +517,11 @@ export class StagehandServer {
             const zodSchema = jsonSchemaToZod(
               data.schema as unknown as JsonSchema,
             ) as StagehandZodSchema;
-            result = await stagehand.extract(data.instruction, zodSchema, safeOptions);
+            result = await stagehand.extract(
+              data.instruction,
+              zodSchema,
+              safeOptions,
+            );
           } else {
             result = await stagehand.extract(data.instruction, safeOptions);
           }
@@ -602,7 +617,9 @@ export class StagehandServer {
           page,
         };
 
-        const result: AgentResult = await stagehand.agent(agentConfig).execute(fullExecuteOptions);
+        const result: AgentResult = await stagehand
+          .agent(agentConfig)
+          .execute(fullExecuteOptions);
 
         return { result };
       },
@@ -678,7 +695,9 @@ export class StagehandServer {
         host: this.host,
       });
       this.isListening = true;
-      console.log(`Stagehand server listening on http://${this.host}:${listenPort}`);
+      console.log(
+        `Stagehand server listening on http://${this.host}:${listenPort}`,
+      );
     } catch (error) {
       console.error("Failed to start server:", error);
       throw error;
