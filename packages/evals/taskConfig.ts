@@ -104,14 +104,22 @@ const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
       "anthropic/claude-haiku-4-5",
     ];
 
+// Non-CUA agent models (standard agent models)
+const DEFAULT_AGENT_MODELS_NON_CUA: string[] = [
+  "anthropic/claude-sonnet-4-20250514",
+];
+
+// CUA agent models (Computer Use Agent models)
+const DEFAULT_AGENT_MODELS_CUA: string[] = [
+  "openai/computer-use-preview-2025-03-11",
+  "anthropic/claude-sonnet-4-20250514",
+  "google/gemini-2.5-computer-use-preview-10-2025",
+];
+
+// Combined agent models for backward compatibility
 const DEFAULT_AGENT_MODELS = process.env.EVAL_AGENT_MODELS
   ? process.env.EVAL_AGENT_MODELS.split(",")
-  : [
-      "anthropic/claude-sonnet-4-20250514",
-      "openai/computer-use-preview-2025-03-11/cua",
-      "anthropic/claude-sonnet-4-20250514/cua",
-      "google/gemini-2.5-computer-use-preview-10-2025/cua",
-    ];
+  : [...DEFAULT_AGENT_MODELS_NON_CUA, ...DEFAULT_AGENT_MODELS_CUA];
 
 /**
  * getModelList:
@@ -167,4 +175,19 @@ const MODELS: AvailableModel[] = getModelList().map((model) => {
   return model as AvailableModel;
 });
 
-export { tasksByName, MODELS, tasksConfig, getModelList };
+/**
+ * Check if a model is a CUA model
+ */
+const isModelCUA = (modelName: string): boolean => {
+  return DEFAULT_AGENT_MODELS_CUA.includes(modelName);
+};
+
+export {
+  tasksByName,
+  MODELS,
+  tasksConfig,
+  getModelList,
+  isModelCUA,
+  DEFAULT_AGENT_MODELS_NON_CUA,
+  DEFAULT_AGENT_MODELS_CUA,
+};

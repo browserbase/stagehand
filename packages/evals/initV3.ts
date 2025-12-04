@@ -23,6 +23,7 @@ import {
 import dotenv from "dotenv";
 import { env } from "./env";
 import { EvalLogger } from "./logger";
+import { isModelCUA } from "./taskConfig";
 
 dotenv.config();
 
@@ -63,16 +64,10 @@ export async function initV3({
   modelName,
   createAgent,
 }: InitV3Args): Promise<V3InitResult> {
-  // Check for /cua suffix to determine if CUA mode should be used
-  // e.g., "anthropic/claude-sonnet-4-20250514/cua" -> use CUA mode
-  // e.g., "anthropic/claude-sonnet-4-20250514" -> use non-CUA agent mode
-  const useCua = modelName.endsWith("/cua");
-  const actualModelName = useCua
-    ? (modelName.slice(0, -4) as AvailableModel)
-    : modelName;
-
-  // isCUA is true only when explicitly requested via /cua suffix
-  const isCUA = useCua;
+  // Check if the model is a CUA model based on configuration
+  // CUA models are defined in DEFAULT_AGENT_MODELS_CUA in taskConfig.ts
+  const isCUA = isModelCUA(modelName);
+  const actualModelName = modelName;
 
   // If CUA, choose a safe internal AISDK model for V3 handlers based on available API keys
   let internalModel: AvailableModel = actualModelName;
@@ -137,11 +132,19 @@ export async function initV3({
 
   let agent: AgentInstance | undefined;
   if (createAgent) {
-    if (useCua) {
+    if (isCUA) {
       // Extract short model name from full model name (e.g., "openai/computer-use-preview" -> "computer-use-preview")
       const shortModelName = actualModelName.includes("/")
         ? actualModelName.split("/")[1]
         : actualModelName;
+
+      // Validate that the model exists in the map before lookup
+      if (!modelToAgentProviderMap[shortModelName]) {
+        throw new Error(
+          `Model "${shortModelName}" is not found in modelToAgentProviderMap. Available models: ${Object.keys(modelToAgentProviderMap).join(", ")}`
+        );
+      }
+
       const apiKey = loadApiKeyFromEnv(
         modelToAgentProviderMap[shortModelName],
         logger.log.bind(logger),
