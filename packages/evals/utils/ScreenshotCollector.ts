@@ -1,10 +1,10 @@
-import { ScreenshotCapablePage } from "../types/screenshotCollector";
-import { ScreenshotCollectorOptions } from "../types/screenshotCollector";
+import { Page } from "@browserbasehq/stagehand";
 import sharp from "sharp";
+import { ScreenshotCollectorOptions } from "../types/screenshotCollector";
 
 export class ScreenshotCollector {
   private screenshots: Buffer[] = [];
-  private page: ScreenshotCapablePage;
+  private page: Page;
   private interval: number;
   private maxScreenshots: number;
   private captureOnNavigation: boolean;
@@ -15,10 +15,7 @@ export class ScreenshotCollector {
   private ssimThreshold: number = 0.75;
   private mseThreshold: number = 30;
 
-  constructor(
-    page: ScreenshotCapablePage,
-    options: ScreenshotCollectorOptions = {},
-  ) {
+  constructor(page: Page, options: ScreenshotCollectorOptions = {}) {
     this.page = page;
     this.interval = options.interval || 5000;
     this.maxScreenshots = options.maxScreenshots || 10;
@@ -32,40 +29,44 @@ export class ScreenshotCollector {
 
     // Set up time-based screenshot capture
     this.intervalId = setInterval(() => {
-      this.captureScreenshot("interval").catch(() => {});
+      this.captureScreenshot("interval").catch((error) => {
+        console.error("Interval screenshot failed:", error);
+      });
     }, this.interval);
 
-    if (this.captureOnNavigation && this.page.on && this.page.off) {
-      const loadListener = async () => {
-        await this.captureScreenshot("load").catch(() => {});
-      };
-      const domContentListener = async () => {
-        await this.captureScreenshot("domcontentloaded").catch(() => {});
-      };
+    // TODO: V3 pages don't support page.on() events yet
+    // if (this.captureOnNavigation) {
+    //   const loadListener = async () => {
+    //     try {
+    //       await this.captureScreenshot("load");
+    //     } catch (error) {
+    //       console.error("Navigation screenshot failed (load):", error);
+    //     }
+    //   };
+    //   const domContentListener = async () => {
+    //     try {
+    //       await this.captureScreenshot("domcontentloaded");
+    //     } catch (error) {
+    //       console.error(
+    //         "Navigation screenshot failed (domcontentloaded):",
+    //         error,
+    //       );
+    //     }
+    //   };
 
-      // Wrap in try-catch since some page implementations (like V3 Page)
-      // may not support these events and throw an error
-      try {
-        this.page.on("load", loadListener);
-        this.navigationListeners.push(() =>
-          this.page.off!("load", loadListener),
-        );
-      } catch {
-        // Event not supported, skip
-      }
+    //   this.page.on("load", loadListener);
+    //   this.page.on("domcontentloaded", domContentListener);
 
-      try {
-        this.page.on("domcontentloaded", domContentListener);
-        this.navigationListeners.push(() =>
-          this.page.off!("domcontentloaded", domContentListener),
-        );
-      } catch {
-        // Event not supported, skip
-      }
-    }
+    //   this.navigationListeners = [
+    //     () => this.page.off("load", loadListener),
+    //     () => this.page.off("domcontentloaded", domContentListener),
+    //   ];
+    // }
 
     // Capture initial screenshot without blocking
-    this.captureScreenshot("initial").catch(() => {});
+    this.captureScreenshot("initial").catch((error) => {
+      console.error("Failed to capture initial screenshot:", error);
+    });
   }
 
   stop(): Buffer[] {
@@ -78,11 +79,9 @@ export class ScreenshotCollector {
     this.navigationListeners = [];
 
     // Capture final screenshot without blocking
-    this.captureScreenshot("final").catch(() => {});
-
-    console.log(
-      `[ScreenshotCollector] Finished - total screenshots: ${this.screenshots.length}`,
-    );
+    this.captureScreenshot("final").catch((error) => {
+      console.error("Failed to capture final screenshot:", error);
+    });
     return this.getScreenshots();
   }
 
@@ -93,11 +92,7 @@ export class ScreenshotCollector {
     this.isCapturing = true;
 
     try {
-      const rawScreenshot = await this.page.screenshot();
-      const screenshot =
-        typeof rawScreenshot === "string"
-          ? Buffer.from(rawScreenshot, "base64")
-          : (rawScreenshot as Buffer);
+      const screenshot = await this.page.screenshot();
 
       // Check if we should keep this screenshot based on image diff
       let shouldKeep = true;
@@ -106,6 +101,7 @@ export class ScreenshotCollector {
           // First do a quick MSE check
           const mse = await this.calculateMSE(this.lastScreenshot, screenshot);
           if (mse < this.mseThreshold) {
+            // Very similar, skip
             shouldKeep = false;
           } else {
             // Significant difference detected, verify with SSIM
@@ -115,8 +111,9 @@ export class ScreenshotCollector {
             );
             shouldKeep = ssim < this.ssimThreshold;
           }
-        } catch {
+        } catch (error) {
           // If comparison fails, keep the screenshot
+          console.error("Image comparison failed:", error);
           shouldKeep = true;
         }
       }
@@ -128,13 +125,9 @@ export class ScreenshotCollector {
         if (this.screenshots.length > this.maxScreenshots) {
           this.screenshots.shift();
         }
-
-        console.log(
-          `[ScreenshotCollector] Screenshot captured (${trigger}) - total: ${this.screenshots.length}`,
-        );
       }
-    } catch {
-      // Failed to capture, skip silently
+    } catch (error) {
+      console.error(`Failed to capture screenshot (${trigger}):`, error);
     } finally {
       this.isCapturing = false;
     }
@@ -157,6 +150,7 @@ export class ScreenshotCollector {
    * @param screenshot The screenshot buffer to add
    */
   async addScreenshot(screenshot: Buffer): Promise<void> {
+    // Prevent concurrent processing
     if (this.isCapturing) {
       return;
     }
@@ -170,6 +164,7 @@ export class ScreenshotCollector {
           // First do a quick MSE check
           const mse = await this.calculateMSE(this.lastScreenshot, screenshot);
           if (mse < this.mseThreshold) {
+            // Very similar, skip
             shouldKeep = false;
           } else {
             // Significant difference detected, verify with SSIM
@@ -179,8 +174,9 @@ export class ScreenshotCollector {
             );
             shouldKeep = ssim < this.ssimThreshold;
           }
-        } catch {
+        } catch (error) {
           // If comparison fails, keep the screenshot
+          console.error("Image comparison failed:", error);
           shouldKeep = true;
         }
       }
@@ -192,10 +188,6 @@ export class ScreenshotCollector {
         if (this.screenshots.length > this.maxScreenshots) {
           this.screenshots.shift();
         }
-
-        console.log(
-          `[ScreenshotCollector] Screenshot added - total: ${this.screenshots.length}`,
-        );
       }
     } finally {
       this.isCapturing = false;
@@ -239,23 +231,23 @@ export class ScreenshotCollector {
 
       let sum1 = 0,
         sum2 = 0,
-        sum1Sq = 0,
-        sum2Sq = 0,
+        sum1_sq = 0,
+        sum2_sq = 0,
         sum12 = 0;
       const N = gray1.length;
 
       for (let i = 0; i < N; i++) {
         sum1 += gray1[i];
         sum2 += gray2[i];
-        sum1Sq += gray1[i] * gray1[i];
-        sum2Sq += gray2[i] * gray2[i];
+        sum1_sq += gray1[i] * gray1[i];
+        sum2_sq += gray2[i] * gray2[i];
         sum12 += gray1[i] * gray2[i];
       }
 
       const mean1 = sum1 / N;
       const mean2 = sum2 / N;
-      const var1 = sum1Sq / N - mean1 * mean1;
-      const var2 = sum2Sq / N - mean2 * mean2;
+      const var1 = sum1_sq / N - mean1 * mean1;
+      const var2 = sum2_sq / N - mean2 * mean2;
       const cov12 = sum12 / N - mean1 * mean2;
 
       const numerator = (2 * mean1 * mean2 + c1) * (2 * cov12 + c2);
