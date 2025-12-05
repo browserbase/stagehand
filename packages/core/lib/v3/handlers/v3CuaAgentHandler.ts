@@ -276,7 +276,6 @@ export class V3CuaAgentHandler {
         return { success: true };
       }
       case "keypress": {
-        console.log("keypress", action);
         const { keys } = action;
         const keyList = Array.isArray(keys) ? keys : [keys];
         const stagehandActions: Action[] = [];
