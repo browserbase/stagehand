@@ -72,6 +72,8 @@ import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
 import { resolveModel } from "../modelUtils";
 import { StagehandAPIClient } from "./api";
+import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard";
+import { ActTimeoutError } from "./types/public/sdkErrors";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
@@ -981,11 +983,20 @@ export class V3 {
             frameId: v3Page.mainFrameId(),
           });
         } else {
+          const effectiveTimeoutMs =
+            typeof options?.timeout === "number" && options.timeout > 0
+              ? options.timeout
+              : undefined;
+          const ensureTimeRemaining = createTimeoutGuard(
+            effectiveTimeoutMs,
+            (ms) => new ActTimeoutError(ms),
+          );
           actResult = await this.actHandler.takeDeterministicAction(
-            { ...input, selector }, // ObserveResult
-            v3Page, // V3 Page
+            { ...input, selector },
+            v3Page,
             this.domSettleTimeoutMs,
             this.resolveLlmClient(options?.model),
+            ensureTimeRemaining,
           );
         }
 
