@@ -196,10 +196,6 @@ export class V3AgentHandler {
 
     let messages: ModelMessage[] = [];
 
-    // Wrap everything in try-catch to handle abort signals properly.
-    // When close() aborts the signal, errors can occur at any point (during
-    // prepareAgent, generateText, etc.). We catch all errors and check if
-    // the abort signal was the root cause.
     try {
       const {
         options,
