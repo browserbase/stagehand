@@ -557,7 +557,7 @@ export class AgentCache {
     if (actions.length > 0) {
       const page = await ctx.awaitActivePage();
       for (const action of actions) {
-        await handler.actFromObserveResult(
+        await handler.takeDeterministicAction(
           action,
           page,
           this.domSettleTimeoutMs,
@@ -581,7 +581,7 @@ export class AgentCache {
     if (!Array.isArray(actions) || actions.length === 0) return;
     const page = await ctx.awaitActivePage();
     for (const action of actions) {
-      await handler.actFromObserveResult(
+      await handler.takeDeterministicAction(
         action,
         page,
         this.domSettleTimeoutMs,

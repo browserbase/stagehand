@@ -171,7 +171,7 @@ export class ActCache {
     const execute = async (): Promise<ActResult> => {
       const actionResults: ActResult[] = [];
       for (const action of entry.actions) {
-        const result = await handler.actFromObserveResult(
+        const result = await handler.takeDeterministicAction(
           action,
           page,
           this.domSettleTimeoutMs,
