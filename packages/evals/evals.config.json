@@ -548,6 +548,22 @@
     {
       "name": "agent/onlineMind2Web",
       "categories": ["external_agent_benchmarks"]
+    },
+    {
+      "name": "agent/trailhead_superbadge",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/alibaba_supplier_search",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/columbia_tuition",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/flipkart_laptops",
+      "categories": ["agent"]
     }
   ]
 }
