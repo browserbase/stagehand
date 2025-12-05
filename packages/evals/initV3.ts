@@ -32,6 +32,7 @@ type InitV3Args = {
   domSettleTimeoutMs?: number; // retained for parity; v3 handlers accept timeouts per-call
   logger: EvalLogger;
   createAgent?: boolean; // only create an agent for agent tasks
+  isCUA?: boolean;
   configOverrides?: {
     localBrowserLaunchOptions?: Partial<
       Pick<LocalBrowserLaunchOptions, "headless" | "args">
@@ -62,10 +63,8 @@ export async function initV3({
   configOverrides,
   modelName,
   createAgent,
+  isCUA,
 }: InitV3Args): Promise<V3InitResult> {
-  // Determine if the requested model is a CUA model
-  const isCUA = modelName in modelToAgentProviderMap;
-
   // If CUA, choose a safe internal AISDK model for V3 handlers based on available API keys
   let internalModel: AvailableModel = modelName;
   if (isCUA) {
@@ -130,10 +129,19 @@ export async function initV3({
   let agent: AgentInstance | undefined;
   if (createAgent) {
     if (isCUA) {
-      const apiKey = loadApiKeyFromEnv(
-        modelToAgentProviderMap[modelName],
-        logger.log.bind(logger),
-      );
+      const shortModelName = modelName.includes("/")
+        ? modelName.split("/")[1]
+        : modelName;
+
+      const providerType = modelToAgentProviderMap[shortModelName];
+      if (!providerType) {
+        throw new Error(
+          `CUA model "${shortModelName}" not found in modelToAgentProviderMap. ` +
+            `Available: ${Object.keys(modelToAgentProviderMap).join(", ")}`,
+        );
+      }
+
+      const apiKey = loadApiKeyFromEnv(providerType, logger.log.bind(logger));
 
       const cuaModel: AvailableCuaModel | AgentModelConfig<AvailableCuaModel> =
         apiKey && apiKey.length > 0

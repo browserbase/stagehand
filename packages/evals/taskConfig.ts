@@ -14,6 +14,7 @@ import fs from "fs";
 import path from "path";
 import { AvailableModel } from "@browserbasehq/stagehand";
 import { filterByEvalName } from "./args";
+import { AgentModelEntry } from "./types/evals";
 
 const ALL_EVAL_MODELS = [
   // GOOGLE
@@ -104,14 +105,26 @@ const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
       "anthropic/claude-haiku-4-5",
     ];
 
-const DEFAULT_AGENT_MODELS = process.env.EVAL_AGENT_MODELS
+// Standard agent models - these run with stagehand.agent()
+const AGENT_MODELS = process.env.EVAL_AGENT_MODELS
   ? process.env.EVAL_AGENT_MODELS.split(",")
+  : ["anthropic/claude-sonnet-4-20250514"];
+
+// CUA agent models - these run with stagehand.agent({ cua: true })
+const AGENT_MODELS_CUA = process.env.EVAL_AGENT_MODELS_CUA
+  ? process.env.EVAL_AGENT_MODELS_CUA.split(",")
   : [
-      "computer-use-preview-2025-03-11",
-      "claude-sonnet-4-20250514",
-      "gemini-2.5-computer-use-preview-10-2025",
-      // "anthropic/claude-sonnet-4-20250514",
+      "openai/computer-use-preview-2025-03-11",
+      "anthropic/claude-sonnet-4-20250514",
+      "google/gemini-2.5-computer-use-preview-10-2025",
     ];
+
+const AGENT_MODEL_ENTRIES: AgentModelEntry[] = [
+  ...AGENT_MODELS.map((m) => ({ modelName: m, cua: false })),
+  ...AGENT_MODELS_CUA.map((m) => ({ modelName: m, cua: true })),
+];
+
+const DEFAULT_AGENT_MODELS = AGENT_MODEL_ENTRIES.map((e) => e.modelName);
 
 /**
  * getModelList:
@@ -167,4 +180,10 @@ const MODELS: AvailableModel[] = getModelList().map((model) => {
   return model as AvailableModel;
 });
 
-export { tasksByName, MODELS, tasksConfig, getModelList };
+/**
+ * Get agent model entries with CUA flag for test case generation.
+ */
+const getAgentModelEntries = (): AgentModelEntry[] => AGENT_MODEL_ENTRIES;
+
+export { tasksByName, MODELS, tasksConfig, getModelList, getAgentModelEntries };
+export type { AgentModelEntry };

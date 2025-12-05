@@ -308,6 +308,27 @@ export class TimeoutError extends StagehandError {
   }
 }
 
+export class ActTimeoutError extends TimeoutError {
+  constructor(timeoutMs: number) {
+    super("act()", timeoutMs);
+    this.name = "ActTimeoutError";
+  }
+}
+
+export class ExtractTimeoutError extends TimeoutError {
+  constructor(timeoutMs: number) {
+    super("extract()", timeoutMs);
+    this.name = "ExtractTimeoutError";
+  }
+}
+
+export class ObserveTimeoutError extends TimeoutError {
+  constructor(timeoutMs: number) {
+    super("observe()", timeoutMs);
+    this.name = "ObserveTimeoutError";
+  }
+}
+
 export class PageNotFoundError extends StagehandError {
   constructor(identifier: string) {
     super(`No Page found for ${identifier}`);

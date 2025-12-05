@@ -19,7 +19,11 @@ import {
   ClientOptions,
   ModelConfiguration,
 } from "../types/public/model";
-import { StagehandInvalidArgumentError } from "../types/public/sdkErrors";
+import {
+  StagehandInvalidArgumentError,
+  ExtractTimeoutError,
+} from "../types/public/sdkErrors";
+import { createTimeoutGuard } from "./handlerUtils/timeoutGuard";
 import type {
   InferStagehandSchema,
   StagehandZodObject,
@@ -106,146 +110,135 @@ export class ExtractHandler {
 
     const llmClient = this.resolveLlmClient(model);
 
-    const doExtract = async (): Promise<
-      InferStagehandSchema<T> | { pageText: string }
-    > => {
-      // No-args → page text (parity with v2)
-      const noArgs = !instruction && !schema;
-      if (noArgs) {
-        const focusSelector = selector?.replace(/^xpath=/i, "") ?? "";
-        const snap = await captureHybridSnapshot(page, {
-          experimental: this.experimental,
-          focusSelector: focusSelector || undefined,
-        });
+    const effectiveTimeoutMs =
+      typeof timeout === "number" && timeout > 0 ? timeout : undefined;
+    const ensureTimeRemaining = createTimeoutGuard(
+      effectiveTimeoutMs,
+      (ms) => new ExtractTimeoutError(ms),
+    );
 
-        const result = { pageText: snap.combinedTree };
-        // Validate via the same schema used in v2
-        return pageTextSchema.parse(result);
-      }
-
-      if (!instruction && schema) {
-        throw new StagehandInvalidArgumentError(
-          "extract() requires an instruction when a schema is provided.",
-        );
-      }
-
-      const focusSelector = selector?.replace(/^xpath=/, "") ?? "";
-
-      // Build the hybrid snapshot (includes combinedTree; combinedUrlMap optional)
-      const { combinedTree, combinedUrlMap } = await captureHybridSnapshot(
-        page,
-        {
-          experimental: this.experimental,
-          focusSelector: focusSelector,
-        },
-      );
-
-      v3Logger({
-        category: "extraction",
-        message: "Starting extraction using a11y snapshot",
-        level: 1,
-        auxiliary: instruction
-          ? { instruction: { value: instruction, type: "string" } }
-          : undefined,
+    // No-args → page text (parity with v2)
+    const noArgs = !instruction && !schema;
+    if (noArgs) {
+      const focusSelector = selector?.replace(/^xpath=/i, "") ?? "";
+      ensureTimeRemaining();
+      const snap = await captureHybridSnapshot(page, {
+        experimental: this.experimental,
+        focusSelector: focusSelector || undefined,
       });
 
-      // Normalize schema: if instruction provided without schema, use defaultExtractSchema
-      const baseSchema: StagehandZodSchema = (schema ??
-        defaultExtractSchema) as StagehandZodSchema;
-      // Ensure we pass an object schema into inference; wrap non-object schemas
-      const isObjectSchema = getZodType(baseSchema) === "object";
-      const WRAP_KEY = "value" as const;
-      const factory = getZFactory(baseSchema);
-      const objectSchema: StagehandZodObject = isObjectSchema
-        ? (baseSchema as StagehandZodObject)
-        : (factory.object({
-            [WRAP_KEY]: baseSchema as ZodTypeAny,
-          }) as StagehandZodObject);
+      const result = { pageText: snap.combinedTree };
+      // Validate via the same schema used in v2
+      return pageTextSchema.parse(result);
+    }
 
-      const [transformedSchema, urlFieldPaths] =
-        transformUrlStringsToNumericIds(objectSchema);
+    if (!instruction && schema) {
+      throw new StagehandInvalidArgumentError(
+        "extract() requires an instruction when a schema is provided.",
+      );
+    }
 
-      const extractionResponse: ExtractionResponse<StagehandZodObject> =
-        await runExtract<StagehandZodObject>({
-          instruction,
-          domElements: combinedTree,
-          schema: transformedSchema as StagehandZodObject,
-          llmClient,
-          userProvidedInstructions: this.systemPrompt,
-          logger: v3Logger,
-          logInferenceToFile: this.logInferenceToFile,
-        });
+    const focusSelector = selector?.replace(/^xpath=/, "") ?? "";
 
-      const {
-        metadata: { completed },
-        prompt_tokens,
-        completion_tokens,
-        reasoning_tokens = 0,
-        cached_input_tokens = 0,
-        inference_time_ms,
-        ...rest
-      } = extractionResponse;
-      let output = rest as InferStagehandSchema<StagehandZodObject>;
+    // Build the hybrid snapshot (includes combinedTree; combinedUrlMap optional)
+    ensureTimeRemaining();
+    const { combinedTree, combinedUrlMap } = await captureHybridSnapshot(page, {
+      experimental: this.experimental,
+      focusSelector: focusSelector,
+    });
 
-      v3Logger({
-        category: "extraction",
-        message: completed
-          ? "Extraction completed successfully"
-          : "Extraction incomplete after processing all data",
-        level: 1,
-        auxiliary: {
-          prompt_tokens: { value: String(prompt_tokens), type: "string" },
-          completion_tokens: {
-            value: String(completion_tokens),
-            type: "string",
-          },
-          inference_time_ms: {
-            value: String(inference_time_ms),
-            type: "string",
-          },
-        },
+    v3Logger({
+      category: "extraction",
+      message: "Starting extraction using a11y snapshot",
+      level: 1,
+      auxiliary: instruction
+        ? { instruction: { value: instruction, type: "string" } }
+        : undefined,
+    });
+
+    // Normalize schema: if instruction provided without schema, use defaultExtractSchema
+    const baseSchema: StagehandZodSchema = (schema ??
+      defaultExtractSchema) as StagehandZodSchema;
+    // Ensure we pass an object schema into inference; wrap non-object schemas
+    const isObjectSchema = getZodType(baseSchema) === "object";
+    const WRAP_KEY = "value" as const;
+    const factory = getZFactory(baseSchema);
+    const objectSchema: StagehandZodObject = isObjectSchema
+      ? (baseSchema as StagehandZodObject)
+      : (factory.object({
+          [WRAP_KEY]: baseSchema as ZodTypeAny,
+        }) as StagehandZodObject);
+
+    const [transformedSchema, urlFieldPaths] =
+      transformUrlStringsToNumericIds(objectSchema);
+
+    ensureTimeRemaining();
+    const extractionResponse: ExtractionResponse<StagehandZodObject> =
+      await runExtract<StagehandZodObject>({
+        instruction,
+        domElements: combinedTree,
+        schema: transformedSchema as StagehandZodObject,
+        llmClient,
+        userProvidedInstructions: this.systemPrompt,
+        logger: v3Logger,
+        logInferenceToFile: this.logInferenceToFile,
       });
 
-      // Update EXTRACT metrics from the LLM calls
-      this.onMetrics?.(
-        V3FunctionName.EXTRACT,
-        prompt_tokens,
-        completion_tokens,
-        reasoning_tokens,
-        cached_input_tokens,
-        inference_time_ms,
-      );
+    const {
+      metadata: { completed },
+      prompt_tokens,
+      completion_tokens,
+      reasoning_tokens = 0,
+      cached_input_tokens = 0,
+      inference_time_ms,
+      ...rest
+    } = extractionResponse;
+    let output = rest as InferStagehandSchema<StagehandZodObject>;
 
-      // Re-inject URLs for any url() fields we temporarily converted to number()
-      const idToUrl: Record<EncodedId, string> = (combinedUrlMap ??
-        {}) as Record<EncodedId, string>;
-      for (const { segments } of urlFieldPaths) {
-        injectUrls(
-          output as Record<string, unknown>,
-          segments,
-          idToUrl as unknown as Record<string, string>,
-        );
-      }
-
-      // If we wrapped a non-object schema, unwrap the value
-      if (!isObjectSchema && output && typeof output === "object") {
-        output = (output as Record<string, unknown>)[WRAP_KEY];
-      }
-
-      return output as InferStagehandSchema<T>;
-    };
-    if (!timeout) return doExtract();
-
-    return await Promise.race([
-      doExtract(),
-      new Promise<InferStagehandSchema<T> | { pageText: string }>(
-        (_, reject) => {
-          setTimeout(
-            () => reject(new Error(`extract() timed out after ${timeout}ms`)),
-            timeout,
-          );
+    v3Logger({
+      category: "extraction",
+      message: completed
+        ? "Extraction completed successfully"
+        : "Extraction incomplete after processing all data",
+      level: 1,
+      auxiliary: {
+        prompt_tokens: { value: String(prompt_tokens), type: "string" },
+        completion_tokens: { value: String(completion_tokens), type: "string" },
+        inference_time_ms: {
+          value: String(inference_time_ms),
+          type: "string",
         },
-      ),
-    ]);
+      },
+    });
+
+    // Update EXTRACT metrics from the LLM calls
+    this.onMetrics?.(
+      V3FunctionName.EXTRACT,
+      prompt_tokens,
+      completion_tokens,
+      reasoning_tokens,
+      cached_input_tokens,
+      inference_time_ms,
+    );
+
+    // Re-inject URLs for any url() fields we temporarily converted to number()
+    const idToUrl: Record<EncodedId, string> = (combinedUrlMap ?? {}) as Record<
+      EncodedId,
+      string
+    >;
+    for (const { segments } of urlFieldPaths) {
+      injectUrls(
+        output as Record<string, unknown>,
+        segments,
+        idToUrl as unknown as Record<string, string>,
+      );
+    }
+
+    // If we wrapped a non-object schema, unwrap the value
+    if (!isObjectSchema && output && typeof output === "object") {
+      output = (output as Record<string, unknown>)[WRAP_KEY];
+    }
+
+    return output as InferStagehandSchema<T>;
   }
 }

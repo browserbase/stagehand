@@ -54,6 +54,9 @@ export const publicErrorTypes = {
   UnsupportedModelProviderError: Stagehand.UnsupportedModelProviderError,
   XPathResolutionError: Stagehand.XPathResolutionError,
   ZodSchemaValidationError: Stagehand.ZodSchemaValidationError,
+  ActTimeoutError: Stagehand.ActTimeoutError,
+  ObserveTimeoutError: Stagehand.ObserveTimeoutError,
+  ExtractTimeoutError: Stagehand.ExtractTimeoutError,
 } as const;
 
 const errorTypes = Object.keys(publicErrorTypes) as Array<

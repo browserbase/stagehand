@@ -5,6 +5,7 @@ import { trimTrailingTextNode } from "../../utils";
 import { v3Logger } from "../logger";
 import { ActHandlerParams } from "../types/private/handlers";
 import { ActResult, Action, V3FunctionName } from "../types/public/methods";
+import { ActTimeoutError } from "../types/public/sdkErrors";
 import {
   captureHybridSnapshot,
   diffCombinedTrees,
@@ -22,6 +23,16 @@ import {
   performUnderstudyMethod,
   waitForDomNetworkQuiet,
 } from "./handlerUtils/actHandlerUtils";
+import { createTimeoutGuard } from "./handlerUtils/timeoutGuard";
+
+type ActInferenceElement = {
+  elementId?: string;
+  description: string;
+  method?: string;
+  arguments?: string[];
+};
+
+type ActInferenceResponse = Awaited<ReturnType<typeof actInference>>;
 
 export class ActHandler {
   private readonly llmClient: LLMClient;
@@ -70,270 +81,209 @@ export class ActHandler {
     this.defaultDomSettleTimeoutMs = defaultDomSettleTimeoutMs;
   }
 
+  private recordActMetrics(response: ActInferenceResponse): void {
+    this.onMetrics?.(
+      V3FunctionName.ACT,
+      response.prompt_tokens ?? 0,
+      response.completion_tokens ?? 0,
+      response.reasoning_tokens ?? 0,
+      response.cached_input_tokens ?? 0,
+      response.inference_time_ms ?? 0,
+    );
+  }
+
+  private async getActionFromLLM({
+    instruction,
+    domElements,
+    xpathMap,
+    llmClient,
+    variables,
+    requireMethodAndArguments = true,
+  }: {
+    instruction: string;
+    domElements: string;
+    xpathMap: Record<string, string>;
+    llmClient: LLMClient;
+    variables?: Record<string, string>;
+    requireMethodAndArguments?: boolean;
+  }): Promise<{ action?: Action; response: ActInferenceResponse }> {
+    const response = await actInference({
+      instruction,
+      domElements,
+      llmClient,
+      userProvidedInstructions: this.systemPrompt,
+      logger: v3Logger,
+      logInferenceToFile: this.logInferenceToFile,
+    });
+
+    this.recordActMetrics(response);
+
+    const normalized = normalizeActInferenceElement(
+      response.element as ActInferenceElement | undefined,
+      xpathMap,
+      requireMethodAndArguments,
+    );
+
+    if (!normalized) {
+      return { response };
+    }
+
+    const action: Action = {
+      ...normalized,
+      arguments: substituteVariablesInArguments(
+        normalized.arguments,
+        variables,
+      ),
+    } as Action;
+
+    return {
+      action,
+      response,
+    };
+  }
+
   async act(params: ActHandlerParams): Promise<ActResult> {
     const { instruction, page, variables, timeout, model } = params;
 
     const llmClient = this.resolveLlmClient(model);
+    const effectiveTimeoutMs =
+      typeof timeout === "number" && timeout > 0 ? timeout : undefined;
 
-    const doObserveAndAct = async (): Promise<ActResult> => {
-      await waitForDomNetworkQuiet(
-        page.mainFrame(),
-        this.defaultDomSettleTimeoutMs,
-      );
-      const snapshot = await captureHybridSnapshot(page as Page, {
-        experimental: true,
-      });
-      const combinedTree = snapshot.combinedTree;
-      const combinedXpathMap = (snapshot.combinedXpathMap ?? {}) as Record<
-        EncodedId,
-        string
-      >;
+    const ensureTimeRemaining = createTimeoutGuard(
+      effectiveTimeoutMs,
+      (ms) => new ActTimeoutError(ms),
+    );
 
-      const observeActInstruction = buildActPrompt(
-        instruction,
-        Object.values(SupportedPlaywrightAction),
-        variables,
-      );
+    ensureTimeRemaining();
+    await waitForDomNetworkQuiet(
+      page.mainFrame(),
+      this.defaultDomSettleTimeoutMs,
+    );
+    ensureTimeRemaining();
+    const { combinedTree, combinedXpathMap } = await captureHybridSnapshot(
+      page,
+      { experimental: true },
+    );
 
-      // Always ask for an action
-      const actInferenceResponse = await actInference({
-        instruction: observeActInstruction,
+    const actInstruction = buildActPrompt(
+      instruction,
+      Object.values(SupportedPlaywrightAction),
+      variables,
+    );
+
+    ensureTimeRemaining();
+    const { action: firstAction, response: actInferenceResponse } =
+      await this.getActionFromLLM({
+        instruction: actInstruction,
         domElements: combinedTree,
+        xpathMap: combinedXpathMap,
         llmClient,
-        userProvidedInstructions: this.systemPrompt,
-        logger: v3Logger,
-        logInferenceToFile: this.logInferenceToFile,
-      });
-
-      // Update ACT metrics from the LLM observation call
-      const actPromptTokens = actInferenceResponse.prompt_tokens ?? 0;
-      const actCompletionTokens = actInferenceResponse.completion_tokens ?? 0;
-      const actReasoningTokens = actInferenceResponse.reasoning_tokens ?? 0;
-      const actCachedInputTokens =
-        actInferenceResponse.cached_input_tokens ?? 0;
-      const actInferenceTimeMs = actInferenceResponse.inference_time_ms ?? 0;
-      this.onMetrics?.(
-        V3FunctionName.ACT,
-        actPromptTokens,
-        actCompletionTokens,
-        actReasoningTokens,
-        actCachedInputTokens,
-        actInferenceTimeMs,
-      );
-
-      // Normalize single LLM element → Action
-      const raw = actInferenceResponse.element as
-        | {
-            elementId: string;
-            description: string;
-            method: string;
-            arguments: string[];
-          }
-        | undefined;
-
-      const result: Action | undefined = (() => {
-        if (!raw) return undefined;
-        const { elementId, description, method, arguments: args } = raw;
-        if (!method || method === "not-supported" || !Array.isArray(args)) {
-          return undefined;
-        }
-        if (typeof elementId === "string" && elementId.includes("-")) {
-          const xp = combinedXpathMap[elementId as EncodedId];
-          const trimmed = trimTrailingTextNode(xp);
-          if (!trimmed) return undefined;
-          return {
-            description,
-            method,
-            arguments: args,
-            selector: `xpath=${trimmed}`,
-          } as Action;
-        }
-        // shadow-root path not supported here (match old behavior)
-        return undefined;
-      })();
-
-      if (!result) {
-        v3Logger({
-          category: "action",
-          message: "no actionable element returned by LLM",
-          level: 1,
-        });
-        return {
-          success: false,
-          message: "Failed to perform act: No action found",
-          actionDescription: instruction,
-          actions: [],
-        };
-      }
-
-      // Use the first observed element and substitute variables
-      const chosen: Action = { ...result } as Action;
-      if (variables && Array.isArray(chosen.arguments)) {
-        chosen.arguments = chosen.arguments.map((arg: string) => {
-          let out = arg;
-          for (const [k, v] of Object.entries(variables)) {
-            const token = `%${k}%`;
-            out = out.split(token).join(String(v));
-          }
-          return out;
-        });
-      }
-
-      // First action (self-heal aware path)
-      const firstResult = await this.actFromObserveResult(
-        chosen,
-        page as Page,
-        this.defaultDomSettleTimeoutMs,
-        llmClient,
-      );
-
-      // If not two-step, return the first action result
-      const twoStep = !!(
-        actInferenceResponse as unknown as { twoStep?: boolean }
-      ).twoStep;
-      if (!twoStep) {
-        return firstResult;
-      }
-
-      // Take a new focused snapshot and observe again
-      const secondSnapshot = await captureHybridSnapshot(page as Page, {
-        experimental: true,
-      });
-      const combinedTree2 = secondSnapshot.combinedTree;
-
-      let diffedTree = diffCombinedTrees(combinedTree, combinedTree2);
-      if (!diffedTree.trim()) {
-        // Fallback: if no diff detected, use the fresh tree to avoid empty context
-        diffedTree = combinedTree2;
-      }
-
-      const combinedXpathMap2 = (secondSnapshot.combinedXpathMap ??
-        {}) as Record<EncodedId, string>;
-
-      const previousAction = `method: ${chosen.method}, description: ${chosen.description}, arguments: ${chosen.arguments}`;
-
-      const stepTwoInstructions = buildStepTwoPrompt(
-        instruction,
-        previousAction,
-        Object.values(SupportedPlaywrightAction).filter(
-          (
-            action,
-          ): action is Exclude<
-            SupportedPlaywrightAction,
-            SupportedPlaywrightAction.SELECT_OPTION_FROM_DROPDOWN
-          > => action !== SupportedPlaywrightAction.SELECT_OPTION_FROM_DROPDOWN,
-        ),
         variables,
-      );
-
-      const action2 = await actInference({
-        instruction: stepTwoInstructions,
-        domElements: diffedTree,
-        llmClient,
-        userProvidedInstructions: this.systemPrompt,
-        logger: v3Logger,
-        logInferenceToFile: this.logInferenceToFile,
       });
-      // Update ACT metrics for the second observation call
-      this.onMetrics?.(
-        V3FunctionName.ACT,
-        action2.prompt_tokens ?? 0,
-        action2.completion_tokens ?? 0,
-        action2.reasoning_tokens ?? 0,
-        action2.cached_input_tokens ?? 0,
-        action2.inference_time_ms ?? 0,
-      );
 
-      const raw2 = action2.element as
-        | {
-            elementId: string;
-            description: string;
-            method?: string;
-            arguments?: string[];
-          }
-        | undefined;
-
-      const result2: Action | undefined = (() => {
-        if (!raw2) return undefined;
-        const { elementId, description, method, arguments: args } = raw2;
-        if (!method || method === "not-supported" || !Array.isArray(args)) {
-          return undefined;
-        }
-        if (typeof elementId === "string" && elementId.includes("-")) {
-          const xp = combinedXpathMap2[elementId as EncodedId];
-          const trimmed = trimTrailingTextNode(xp);
-          if (!trimmed) return undefined;
-          return {
-            description,
-            method,
-            arguments: args,
-            selector: `xpath=${trimmed}`,
-          } as Action;
-        }
-        return undefined;
-      })();
-
-      if (!result2) {
-        // No second action found — return first result as-is
-        return firstResult;
-      }
-
-      const chosen2: Action = { ...result2 } as Action;
-      // Carry forward variables substitution for step 2 as well
-      if (variables && Array.isArray(chosen2.arguments)) {
-        chosen2.arguments = chosen2.arguments.map((arg: string) => {
-          let out = arg;
-          for (const [k, v] of Object.entries(variables)) {
-            const token = `%${k}%`;
-            out = out.split(token).join(String(v));
-          }
-          return out;
-        });
-      }
-
-      const secondResult = await this.actFromObserveResult(
-        chosen2,
-        page as Page,
-        this.defaultDomSettleTimeoutMs,
-        llmClient,
-      );
-
-      // Combine results
+    if (!firstAction) {
+      v3Logger({
+        category: "action",
+        message: "no actionable element returned by LLM",
+        level: 1,
+      });
       return {
-        success: firstResult.success && secondResult.success,
-        message: secondResult.success
-          ? `${firstResult.message} → ${secondResult.message}`
-          : `${firstResult.message} → ${secondResult.message}`,
-        actionDescription: firstResult.actionDescription,
-        actions: [
-          ...(firstResult.actions || []),
-          ...(secondResult.actions || []),
-        ],
+        success: false,
+        message: "Failed to perform act: No action found",
+        actionDescription: instruction,
+        actions: [],
       };
-    };
-
-    // Hard timeout for entire act() call → reject on timeout (align with extract/observe)
-    if (!timeout) {
-      return doObserveAndAct();
     }
 
-    return await Promise.race([
-      doObserveAndAct(),
-      new Promise<ActResult>((_, reject) => {
-        setTimeout(
-          () => reject(new Error(`act() timed out after ${timeout}ms`)),
-          timeout,
-        );
-      }),
-    ]);
+    // First action (self-heal aware path)
+    ensureTimeRemaining();
+    const firstResult = await this.takeDeterministicAction(
+      firstAction,
+      page,
+      this.defaultDomSettleTimeoutMs,
+      llmClient,
+      ensureTimeRemaining,
+    );
+
+    // If not two-step, return the first action result
+    if (actInferenceResponse?.twoStep !== true) {
+      return firstResult;
+    }
+
+    // Take a new focused snapshot and observe again
+    ensureTimeRemaining();
+    const { combinedTree: combinedTree2, combinedXpathMap: combinedXpathMap2 } =
+      await captureHybridSnapshot(page, {
+        experimental: true,
+      });
+
+    let diffedTree = diffCombinedTrees(combinedTree, combinedTree2);
+    if (!diffedTree.trim()) {
+      // Fallback: if no diff detected, use the fresh tree to avoid empty context
+      diffedTree = combinedTree2;
+    }
+
+    const previousAction = `method: ${firstAction.method}, description: ${firstAction.description}, arguments: ${firstAction.arguments}`;
+
+    const stepTwoInstructions = buildStepTwoPrompt(
+      instruction,
+      previousAction,
+      Object.values(SupportedPlaywrightAction).filter(
+        (
+          action,
+        ): action is Exclude<
+          SupportedPlaywrightAction,
+          SupportedPlaywrightAction.SELECT_OPTION_FROM_DROPDOWN
+        > => action !== SupportedPlaywrightAction.SELECT_OPTION_FROM_DROPDOWN,
+      ),
+      variables,
+    );
+
+    ensureTimeRemaining();
+    const { action: secondAction } = await this.getActionFromLLM({
+      instruction: stepTwoInstructions,
+      domElements: diffedTree,
+      xpathMap: combinedXpathMap2,
+      llmClient,
+      variables,
+    });
+
+    if (!secondAction) {
+      // No second action found — return first result as-is
+      return firstResult;
+    }
+
+    ensureTimeRemaining();
+    const secondResult = await this.takeDeterministicAction(
+      secondAction,
+      page,
+      this.defaultDomSettleTimeoutMs,
+      llmClient,
+      ensureTimeRemaining,
+    );
+
+    // Combine results
+    return {
+      success: firstResult.success && secondResult.success,
+      message: secondResult.success
+        ? `${firstResult.message} → ${secondResult.message}`
+        : `${firstResult.message} → ${secondResult.message}`,
+      actionDescription: firstResult.actionDescription,
+      actions: [
+        ...(firstResult.actions || []),
+        ...(secondResult.actions || []),
+      ],
+    };
   }
 
-  async actFromObserveResult(
+  async takeDeterministicAction(
     action: Action,
     page: Page,
     domSettleTimeoutMs?: number,
     llmClientOverride?: LLMClient,
+    ensureTimeRemaining?: () => void,
   ): Promise<ActResult> {
+    ensureTimeRemaining?.();
     const settleTimeout = domSettleTimeoutMs ?? this.defaultDomSettleTimeoutMs;
     const effectiveClient = llmClientOverride ?? this.llmClient;
     const method = action.method?.trim();
@@ -358,6 +308,7 @@ export class ActHandler {
     const args = Array.isArray(action.arguments) ? action.arguments : [];
 
     try {
+      ensureTimeRemaining?.();
       await performUnderstudyMethod(
         page,
         page.mainFrame(),
@@ -380,6 +331,9 @@ export class ActHandler {
         ],
       };
     } catch (err) {
+      if (err instanceof ActTimeoutError) {
+        throw err;
+      }
       const msg = err instanceof Error ? err.message : String(err);
 
       // Attempt self-heal: rerun actInference and retry with updated selector
@@ -407,10 +361,11 @@ export class ActHandler {
             : method;
 
           // Take a fresh snapshot and ask for a new actionable element
-          const snapshot = await captureHybridSnapshot(page as Page, {
-            experimental: true,
-          });
-          const combinedTree = snapshot.combinedTree;
+          ensureTimeRemaining?.();
+          const { combinedTree, combinedXpathMap } =
+            await captureHybridSnapshot(page, {
+              experimental: true,
+            });
 
           const instruction = buildActPrompt(
             actCommand,
@@ -418,27 +373,18 @@ export class ActHandler {
             {},
           );
 
-          const actInferenceResponse = await actInference({
-            instruction,
-            domElements: combinedTree,
-            llmClient: effectiveClient,
-            userProvidedInstructions: this.systemPrompt,
-            logger: v3Logger,
-            logInferenceToFile: this.logInferenceToFile,
-          });
+          ensureTimeRemaining?.();
+          const { action: fallbackAction, response: fallbackResponse } =
+            await this.getActionFromLLM({
+              instruction,
+              domElements: combinedTree,
+              xpathMap: combinedXpathMap,
+              llmClient: effectiveClient,
+              requireMethodAndArguments: false,
+            });
 
-          // Update ACT metrics with the retry observation
-          this.onMetrics?.(
-            V3FunctionName.ACT,
-            actInferenceResponse.prompt_tokens ?? 0,
-            actInferenceResponse.completion_tokens ?? 0,
-            actInferenceResponse.reasoning_tokens ?? 0,
-            actInferenceResponse.cached_input_tokens ?? 0,
-            actInferenceResponse.inference_time_ms ?? 0,
-          );
-
-          const fallback = actInferenceResponse.element;
-          if (!fallback) {
+          const fallbackElement = fallbackResponse.element;
+          if (!fallbackElement) {
             return {
               success: false,
               message:
@@ -450,13 +396,11 @@ export class ActHandler {
 
           // Retry with original method/args but new selector from fallback
           let newSelector = action.selector;
-          if (typeof fallback.elementId === "string") {
-            const enc = fallback.elementId as EncodedId;
-            const rawXp = (snapshot.combinedXpathMap ?? {})[enc];
-            const trimmed = trimTrailingTextNode(rawXp);
-            if (trimmed) newSelector = `xpath=${trimmed}`;
+          if (fallbackAction?.selector) {
+            newSelector = fallbackAction.selector;
           }
 
+          ensureTimeRemaining?.();
           await performUnderstudyMethod(
             page,
             page.mainFrame(),
@@ -480,6 +424,9 @@ export class ActHandler {
             ],
           };
         } catch (retryErr) {
+          if (retryErr instanceof ActTimeoutError) {
+            throw retryErr;
+          }
           const retryMsg =
             retryErr instanceof Error ? retryErr.message : String(retryErr);
           return {
@@ -499,4 +446,58 @@ export class ActHandler {
       };
     }
   }
+}
+
+function normalizeActInferenceElement(
+  element: ActInferenceElement | undefined,
+  xpathMap: Record<string, string>,
+  requireMethodAndArguments = true,
+): Action | undefined {
+  if (!element) {
+    return undefined;
+  }
+  const { elementId, description, method, arguments: args } = element;
+  const hasArgs = Array.isArray(args);
+
+  if (
+    requireMethodAndArguments &&
+    (!method || method === "not-supported" || !hasArgs)
+  ) {
+    return undefined;
+  }
+
+  if (typeof elementId !== "string" || !elementId.includes("-")) {
+    return undefined;
+  }
+
+  const xp = xpathMap[elementId as EncodedId];
+  const trimmed = trimTrailingTextNode(xp);
+  if (!trimmed) {
+    return undefined;
+  }
+
+  return {
+    description,
+    method,
+    arguments: hasArgs ? args : undefined,
+    selector: `xpath=${trimmed}`,
+  } as Action;
+}
+
+function substituteVariablesInArguments(
+  args: string[] | undefined,
+  variables?: Record<string, string>,
+): string[] | undefined {
+  if (!variables || !Array.isArray(args)) {
+    return args;
+  }
+
+  return args.map((arg: string) => {
+    let out = arg;
+    for (const [key, value] of Object.entries(variables)) {
+      const token = `%${key}%`;
+      out = out.split(token).join(String(value));
+    }
+    return out;
+  });
 }
