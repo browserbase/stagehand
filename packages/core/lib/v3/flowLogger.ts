@@ -215,6 +215,126 @@ export function getConfigDir(): string {
 }
 
 /**
+ * Format a prompt preview from LLM messages for logging.
+ * Extracts the last user message and formats it for display.
+ * Accepts generic message arrays to avoid tight coupling with specific LLM client types.
+ */
+export function formatLlmPromptPreview(
+  messages: Array<{ role: string; content: unknown }>,
+  options?: { toolCount?: number; hasSchema?: boolean },
+): string | undefined {
+  const lastUserMsg = messages.filter((m) => m.role === "user").pop();
+  if (!lastUserMsg) return undefined;
+
+  let preview: string;
+  if (typeof lastUserMsg.content === "string") {
+    preview = lastUserMsg.content
+      .replace("instruction: ", "")
+      .replace("Instruction: ", "");
+  } else if (Array.isArray(lastUserMsg.content)) {
+    preview = lastUserMsg.content
+      .map((c: unknown) => {
+        const item = c as { text?: string };
+        return item.text ? item.text : "[img]";
+      })
+      .join(" ");
+  } else {
+    return undefined;
+  }
+
+  // Add suffix for tools/schema
+  const suffixes: string[] = [];
+  if (options?.hasSchema) {
+    suffixes.push("schema");
+  }
+  if (options?.toolCount && options.toolCount > 0) {
+    suffixes.push(`${options.toolCount} tools`);
+  }
+
+  if (suffixes.length > 0) {
+    return `${preview} +{${suffixes.join(", ")}}`;
+  }
+  return preview;
+}
+
+/**
+ * Extract a text preview from CUA-style messages (Anthropic, OpenAI, Google formats).
+ * Returns the last user message content truncated to maxLen characters.
+ */
+export function formatCuaPromptPreview(
+  messages: Array<{ role?: string; content?: unknown; parts?: unknown[] }>,
+  maxLen = 100,
+): string | undefined {
+  const lastUserMsg = messages.filter((m) => m.role === "user").pop();
+  if (!lastUserMsg) return undefined;
+
+  let text: string | undefined;
+
+  // Handle string content directly
+  if (typeof lastUserMsg.content === "string") {
+    text = lastUserMsg.content;
+  }
+  // Handle Google-style parts array
+  else if (Array.isArray(lastUserMsg.parts)) {
+    const firstPart = lastUserMsg.parts[0] as { text?: string } | undefined;
+    text = firstPart?.text;
+  }
+  // Handle array content (Anthropic/OpenAI multipart)
+  else if (Array.isArray(lastUserMsg.content)) {
+    text = "[multipart message]";
+  }
+
+  if (!text) return undefined;
+  return text.length > maxLen ? text.slice(0, maxLen) : text;
+}
+
+/**
+ * Format CUA response output for logging.
+ * Handles multiple formats flexibly:
+ * - Anthropic/OpenAI: Array of { type, text?, name? }
+ * - Google: { candidates: [{ content: { parts: [...] } }] }
+ * - Or direct array of parts
+ */
+export function formatCuaResponsePreview(
+  output: unknown,
+  maxLen = 100,
+): string {
+  // Handle Google-style response with candidates
+  const googleParts = (
+    output as {
+      candidates?: Array<{
+        content?: { parts?: unknown[] };
+      }>;
+    }
+  )?.candidates?.[0]?.content?.parts;
+
+  const items: unknown[] = googleParts ?? (Array.isArray(output) ? output : []);
+
+  const preview = items
+    .map((item) => {
+      const i = item as {
+        type?: string;
+        text?: string;
+        name?: string;
+        functionCall?: { name?: string };
+      };
+      // Text content (various formats)
+      if (i.text) return i.text.slice(0, 50);
+      if (i.type === "text" && typeof i.text === "string")
+        return i.text.slice(0, 50);
+      // Tool/function calls (various formats)
+      if (i.functionCall?.name) return `fn:${i.functionCall.name}`;
+      if (i.type === "tool_use" && i.name) return `tool_use:${i.name}`;
+      // Fallback to type if available
+      if (i.type) return `[${i.type}]`;
+      return "[item]";
+    })
+    .join(" ");
+
+  return preview.length > maxLen ? preview.slice(0, maxLen) : preview;
+}
+
+/**
  * SessionFileLogger - static methods for flow logging with AsyncLocalStorage context
  */
 export class SessionFileLogger {
@@ -463,13 +583,16 @@ export class SessionFileLogger {
    * Log task completion with metrics summary. Call this after agent.execute() completes.
    * Sets taskId back to null.
    */
-  static logAgentTaskCompleted(): void {
+  static logAgentTaskCompleted(options?: { cacheHit?: boolean }): void {
     const ctx = loggerContext.getStore();
     if (ctx && ctx.agentTaskStartTime) {
       const durationMs = Date.now() - ctx.agentTaskStartTime;
       const durationSec = (durationMs / 1000).toFixed(1);
 
-      const details = `✓ Agent.execute() DONE in ${durationSec}s | ${ctx.agentTaskLlmRequests} LLM calls ꜛ${ctx.agentTaskLlmInputTokens} ꜜ${ctx.agentTaskLlmOutputTokens} tokens | ${ctx.agentTaskCdpEvents} CDP msgs`;
+      const llmStats = options?.cacheHit
+        ? `${ctx.agentTaskLlmRequests} LLM calls [CACHE HIT, NO LLM NEEDED]`
+        : `${ctx.agentTaskLlmRequests} LLM calls ꜛ${ctx.agentTaskLlmInputTokens} ꜜ${ctx.agentTaskLlmOutputTokens} tokens`;
+      const details = `✓ Agent.execute() DONE in ${durationSec}s | ${llmStats} | ${ctx.agentTaskCdpEvents} CDP msgs`;
 
       const message = SessionFileLogger.buildLogLine(
         ctx,
@@ -711,12 +834,11 @@ export class SessionFileLogger {
       // log outgoing LLM API requests
       requestId,
       model,
-      operation,
       prompt,
     }: {
       requestId: string;
       model: string;
-      operation: string;
+      operation: string; // reserved for future use
       prompt?: string;
     },
     explicitCtx?: FlowLoggerContext | null,
@@ -747,14 +869,13 @@ export class SessionFileLogger {
       // log incoming LLM API responses
       requestId,
       model,
-      operation,
       output,
       inputTokens,
       outputTokens,
     }: {
       requestId: string;
       model: string;
-      operation: string;
+      operation: string; // reserved for future use
       output?: string;
       inputTokens?: number;
       outputTokens?: number;

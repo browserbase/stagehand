@@ -1764,6 +1764,7 @@ export class V3 {
               if (cacheContext) {
                 const replayed = await this.agentCache.tryReplay(cacheContext);
                 if (replayed) {
+                  SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
                   return replayed;
                 }
               }
@@ -1849,6 +1850,7 @@ export class V3 {
               const replayed =
                 await this.agentCache.tryReplayAsStream(cacheContext);
               if (replayed) {
+                SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
                 return replayed;
               }
             }
@@ -1881,6 +1883,7 @@ export class V3 {
           if (cacheContext) {
             const replayed = await this.agentCache.tryReplay(cacheContext);
             if (replayed) {
+              SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
               return replayed;
             }
           }
