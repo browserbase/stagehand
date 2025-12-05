@@ -1,5 +1,29 @@
 # @browserbasehq/stagehand
 
+## 2.5.3
+
+### Patch Changes
+
+- [#1275](https://github.com/browserbase/stagehand/pull/1275) [`a372b3c`](https://github.com/browserbase/stagehand/commit/a372b3c6f05952b867fe1c96494c8f26c9eedfcb) Thanks [@miguelg719](https://github.com/miguelg719)! - Remove process exit on signal handler
+
+- [#1143](https://github.com/browserbase/stagehand/pull/1143) [`fc06d40`](https://github.com/browserbase/stagehand/commit/fc06d40b339fed7efc2127df76a9b942b9d8f07d) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add logger param to external aisdk client
+
+- [#1137](https://github.com/browserbase/stagehand/pull/1137) [`2dbac99`](https://github.com/browserbase/stagehand/commit/2dbac997003f72040a39c8efbf803f75a6dc033a) Thanks [@miguelg719](https://github.com/miguelg719)! - Add haiku 4.5 computer use support
+
+- [#1116](https://github.com/browserbase/stagehand/pull/1116) [`b419fc3`](https://github.com/browserbase/stagehand/commit/b419fc348673cbdefd861cda62506f1eb11c9b63) Thanks [@tkattkat](https://github.com/tkattkat)! - patch stagehand agent api support
+
+- [#1362](https://github.com/browserbase/stagehand/pull/1362) [`f26333e`](https://github.com/browserbase/stagehand/commit/f26333eb705f1141cbe965505583f65ca3e23744) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - use CDP to find scrollable nodes instead of injected JS
+
+- [#1125](https://github.com/browserbase/stagehand/pull/1125) [`cbff109`](https://github.com/browserbase/stagehand/commit/cbff109e46ec1c4df1dc5fb27a373e0a072f402a) Thanks [@tkattkat](https://github.com/tkattkat)! - update cua agents key & system prompt handling
+
+- [#1363](https://github.com/browserbase/stagehand/pull/1363) [`223e158`](https://github.com/browserbase/stagehand/commit/223e1586ede32f880374cc3e9a61dcf0e9e48142) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add causedBy to StagehandDefaultError
+
+- [#1123](https://github.com/browserbase/stagehand/pull/1123) [`f426ba5`](https://github.com/browserbase/stagehand/commit/f426ba5ac007d9cae2438565cfe2e976d1fc1849) Thanks [@tkattkat](https://github.com/tkattkat)! - Add pageUrl & timestamp to agent actions
+
+- [#1365](https://github.com/browserbase/stagehand/pull/1365) [`2f71b02`](https://github.com/browserbase/stagehand/commit/2f71b02a7cffda7b0a5f5834a7d773d54d68e54f) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - export getAccessibilityTree()
+
+- [#1366](https://github.com/browserbase/stagehand/pull/1366) [`e098b0d`](https://github.com/browserbase/stagehand/commit/e098b0d8b2faccce8da7d3662b5614d9d4ceb93c) Thanks [@miguelg719](https://github.com/miguelg719)! - Update finding scrollable nodes using CDP
+
 ## 2.5.2
 
 ### Patch Changes
