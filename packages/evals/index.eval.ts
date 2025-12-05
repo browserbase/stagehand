@@ -21,7 +21,12 @@ import {
 } from "./args";
 import { generateExperimentName } from "./utils";
 import { exactMatch, errorMatch } from "./scoring";
-import { tasksByName, tasksConfig, getModelList } from "./taskConfig";
+import {
+  tasksByName,
+  tasksConfig,
+  getModelList,
+  getAgentModelEntries,
+} from "./taskConfig";
 import { Eval } from "braintrust";
 import { SummaryResult, Testcase, EvalInput } from "./types/evals";
 import { EvalLogger } from "./logger";
@@ -171,19 +176,33 @@ const generateFilteredTestcases = (): Testcase[] => {
   }
 
   // Create a list of all remaining testcases using the determined task names and models
-  const regularTestcases = currentModels.flatMap((model) =>
+  const isAgentCategory =
+    effectiveCategory === "agent" ||
+    effectiveCategory === "external_agent_benchmarks";
+
+  // Use agent model entries (with cua flag) for agent categories, otherwise map currentModels
+  const modelEntries = isAgentCategory
+    ? getAgentModelEntries()
+    : currentModels.map((m) => ({ modelName: m, cua: false }));
+
+  const regularTestcases = modelEntries.flatMap((entry) =>
     taskNamesToRun.map((testName) => ({
-      input: { name: testName, modelName: model as AvailableModel },
+      input: {
+        name: testName,
+        modelName: entry.modelName as AvailableModel,
+        ...(isAgentCategory && { isCUA: entry.cua }),
+      },
       name: testName,
       tags: [
-        model,
+        entry.modelName,
+        ...(isAgentCategory ? [entry.cua ? "cua" : "agent"] : []),
         testName,
         ...(tasksConfig.find((t) => t.name === testName)?.categories || []).map(
           (x) => `category/${x}`,
         ),
       ],
       metadata: {
-        model: model as AvailableModel,
+        model: entry.modelName as AvailableModel,
         test: testName,
       },
       expected: true,
@@ -344,6 +363,7 @@ const generateFilteredTestcases = (): Testcase[] => {
               modelName: input.modelName,
               modelClientOptions: { apiKey: apiKey },
               createAgent: isAgentTask,
+              isCUA: input.isCUA,
             });
           } else {
             let llmClient: LLMClient;
@@ -360,6 +380,7 @@ const generateFilteredTestcases = (): Testcase[] => {
               llmClient,
               modelName: input.modelName,
               createAgent: isAgentTask,
+              isCUA: input.isCUA,
             });
           }
           // Pass full EvalInput to the task (data-driven params available via input.params)

@@ -44,6 +44,7 @@ export type EvalCategory = z.infer<typeof EvalCategorySchema>;
 export interface EvalInput {
   name: string;
   modelName: AvailableModel;
+  isCUA?: boolean;
   // Optional per-test parameters, used by data-driven tasks
   params?: Record<string, unknown>;
 }
@@ -82,4 +83,9 @@ export interface EvalResult {
 
 export type LogLineEval = LogLine & {
   parsedAuxiliary?: string | object;
+};
+
+export type AgentModelEntry = {
+  modelName: string;
+  cua: boolean;
 };
