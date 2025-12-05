@@ -3,6 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import process from "process";
+import { v7 as uuidv7 } from "uuid";
 import { z } from "zod";
 import type { InferStagehandSchema, StagehandZodSchema } from "./zodCompat";
 import { loadApiKeyFromEnv } from "../utils";
@@ -217,9 +218,7 @@ export class V3 {
     V3._installProcessGuards();
     this.externalLogger = opts.logger;
     this.verbose = opts.verbose ?? 1;
-    this.instanceId =
-      (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
-      `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+    this.instanceId = uuidv7();
 
     // Create per-instance StagehandLogger (handles usePino, verbose, externalLogger)
     // This gives each V3 instance independent logger configuration
@@ -704,6 +703,8 @@ export class V3 {
             });
             const logCtx = SessionFileLogger.getContext();
             this.ctx.conn.cdpLogger = (info) =>
+              SessionFileLogger.logCdpCallEvent(info, logCtx);
+            this.ctx.conn.cdpEventLogger = (info) =>
               SessionFileLogger.logCdpMessageEvent(info, logCtx);
             this.ctx.conn.onTransportClosed(this._onCdpClosed);
             this.state = {
@@ -796,6 +797,8 @@ export class V3 {
           });
           const logCtx = SessionFileLogger.getContext();
           this.ctx.conn.cdpLogger = (info) =>
+            SessionFileLogger.logCdpCallEvent(info, logCtx);
+          this.ctx.conn.cdpEventLogger = (info) =>
             SessionFileLogger.logCdpMessageEvent(info, logCtx);
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
           this.state = {
@@ -876,6 +879,8 @@ export class V3 {
           });
           const logCtx = SessionFileLogger.getContext();
           this.ctx.conn.cdpLogger = (info) =>
+            SessionFileLogger.logCdpCallEvent(info, logCtx);
+          this.ctx.conn.cdpEventLogger = (info) =>
             SessionFileLogger.logCdpMessageEvent(info, logCtx);
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
           this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
@@ -1451,7 +1456,7 @@ export class V3 {
     }
 
     if (this.isPuppeteerPage(page)) {
-      const cdp = await page.target().createCDPSession();
+      const cdp = await page.createCDPSession();
       const { frameTree } = await cdp.send("Page.getFrameTree");
       this.logger({
         category: "v3",
@@ -1709,8 +1714,7 @@ export class V3 {
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
           withInstanceLogContext(this.instanceId, async () => {
-            SessionFileLogger.logAgentTaskStarted();
-            SessionFileLogger.logAgentTaskEvent({
+            SessionFileLogger.logAgentTaskStarted({
               invocation: "Agent.execute",
               args: [instructionOrOptions],
             });
@@ -1817,8 +1821,7 @@ export class V3 {
           | AgentStreamExecuteOptions,
       ): Promise<AgentResult | AgentStreamResult> =>
         withInstanceLogContext(this.instanceId, async () => {
-          SessionFileLogger.logAgentTaskStarted();
-          SessionFileLogger.logAgentTaskEvent({
+          SessionFileLogger.logAgentTaskStarted({
             invocation: "Agent.execute",
             args: [instructionOrOptions],
           });

@@ -128,7 +128,7 @@ export async function performUnderstudyMethod(
     });
     throw new UnderstudyCommandException(msg);
   } finally {
-    SessionFileLogger.clearUnderstudyActionContext();
+    SessionFileLogger.logUnderstudyActionCompleted();
   }
 }
 

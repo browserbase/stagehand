@@ -50,10 +50,17 @@ export class CdpConnection implements CDPSessionLike {
   public readonly id: string | null = null; // root
   private transportCloseHandlers = new Set<(why: string) => void>();
 
-  /** Optional CDP logger - set this to receive all CDP method calls */
+  /** Optional CDP logger - set this to receive all outgoing CDP method calls */
   public cdpLogger?: (info: {
     method: string;
     params?: object;
+    targetId?: string | null;
+  }) => void;
+
+  /** Optional CDP event logger - set this to receive all incoming CDP events */
+  public cdpEventLogger?: (info: {
+    method: string;
+    params?: unknown;
     targetId?: string | null;
   }) => void;
 
@@ -224,6 +231,11 @@ export class CdpConnection implements CDPSessionLike {
       }
 
       const { method, params, sessionId } = msg;
+
+      // Log incoming CDP events
+      const targetId = this.sessionToTarget.get(sessionId) || sessionId;
+      this.cdpEventLogger?.({ method, params, targetId });
+
       if (sessionId) {
         const session = this.sessions.get(sessionId);
         session?.dispatch(method, params);
