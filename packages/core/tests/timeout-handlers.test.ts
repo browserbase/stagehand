@@ -1,63 +1,45 @@
-// Vitest supplies the BDD helpers plus the mock factory we rely on in this file.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-// Import the concrete handlers so we can exercise their logic in isolation.
 import { ActHandler } from "../lib/v3/handlers/actHandler";
 import { ExtractHandler } from "../lib/v3/handlers/extractHandler";
 import { ObserveHandler } from "../lib/v3/handlers/observeHandler";
-// Static Page type to satisfy handler constructor contracts without a real page.
 import type { Page } from "../lib/v3/understudy/page";
-// Pull in the client option type so we can build a minimal config object.
 import type { ClientOptions } from "../lib/v3/types/public/model";
-// Reference to the abstract client type for our fake LLM client implementation.
 import type { LLMClient } from "../lib/v3/llm/LLMClient";
-// We stub the timeout guard to control when ensureTimeRemaining throws.
 import { createTimeoutGuard } from "../lib/v3/handlers/handlerUtils/timeoutGuard";
-// This helper is a heavy async call we expect to run before the timeout trips.
 import { waitForDomNetworkQuiet } from "../lib/v3/handlers/handlerUtils/actHandlerUtils";
-// Snapshotting should never occur after the guard fires, so we spy on it as well.
 import { captureHybridSnapshot } from "../lib/v3/understudy/a11y/snapshot";
-// Import the timeout error types for instanceof checks.
 import {
   ActTimeoutError,
   ExtractTimeoutError,
   ObserveTimeoutError,
 } from "../lib/v3/types/public/sdkErrors";
-// Import inference functions so we can mock them
 import {
   act as actInference,
   extract as extractInference,
   observe as observeInference,
 } from "../lib/inference";
-// Import V3FunctionName for metrics validation
 import { V3FunctionName } from "../lib/v3/types/public/methods";
 
-// Replace the timeout guard factory with a mock so we can inject a deterministic guard.
 vi.mock("../lib/v3/handlers/handlerUtils/timeoutGuard", () => ({
   createTimeoutGuard: vi.fn(),
 }));
 
-// Mock out the rest of the handler utils to keep the test from touching real browser logic.
 vi.mock("../lib/v3/handlers/handlerUtils/actHandlerUtils", () => ({
   waitForDomNetworkQuiet: vi.fn(),
   performUnderstudyMethod: vi.fn(),
 }));
 
-// Snapshot helpers are also mocked; we just care about whether they are invoked or not.
 vi.mock("../lib/v3/understudy/a11y/snapshot", () => ({
   captureHybridSnapshot: vi.fn(),
   diffCombinedTrees: vi.fn(),
 }));
 
-// Mock inference calls
 vi.mock("../lib/inference", () => ({
   act: vi.fn(),
   extract: vi.fn(),
   observe: vi.fn(),
 }));
 
-// ============================================================================
-// ActHandler Timeout Tests
-// ============================================================================
 describe("ActHandler timeout guard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -188,9 +170,6 @@ describe("ActHandler timeout guard", () => {
   });
 });
 
-// ============================================================================
-// ActHandler Two-Step Timeout Tests
-// ============================================================================
 describe("ActHandler two-step timeout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -271,9 +250,6 @@ describe("ActHandler two-step timeout", () => {
   });
 });
 
-// ============================================================================
-// ActHandler Self-Heal Timeout Tests
-// ============================================================================
 describe("ActHandler self-heal timeout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -420,9 +396,6 @@ describe("ActHandler self-heal timeout", () => {
   });
 });
 
-// ============================================================================
-// ExtractHandler Timeout Tests
-// ============================================================================
 describe("ExtractHandler timeout guard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -586,9 +559,6 @@ describe("ExtractHandler timeout guard", () => {
   });
 });
 
-// ============================================================================
-// ObserveHandler Timeout Tests
-// ============================================================================
 describe("ObserveHandler timeout guard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -752,9 +722,6 @@ describe("ObserveHandler timeout guard", () => {
   });
 });
 
-// ============================================================================
-// No-Timeout Success Path Tests
-// ============================================================================
 describe("No-timeout success paths", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -815,11 +782,11 @@ describe("No-timeout success paths", () => {
     expect(result.success).toBe(true);
     expect(metricsCallback).toHaveBeenCalledWith(
       V3FunctionName.ACT,
-      100, // prompt_tokens
-      50, // completion_tokens
-      10, // reasoning_tokens
-      5, // cached_input_tokens
-      500, // inference_time_ms
+      100,
+      50,
+      10,
+      5,
+      500,
     );
   });
 
@@ -866,11 +833,11 @@ describe("No-timeout success paths", () => {
     expect(result).toHaveProperty("title", "Test Title");
     expect(metricsCallback).toHaveBeenCalledWith(
       V3FunctionName.EXTRACT,
-      200, // prompt_tokens
-      100, // completion_tokens
-      20, // reasoning_tokens
-      10, // cached_input_tokens
-      800, // inference_time_ms
+      200,
+      100,
+      20,
+      10,
+      800,
     );
   });
 
@@ -922,11 +889,11 @@ describe("No-timeout success paths", () => {
     expect(result[0]).toHaveProperty("description", "Submit button");
     expect(metricsCallback).toHaveBeenCalledWith(
       V3FunctionName.OBSERVE,
-      150, // prompt_tokens
-      75, // completion_tokens
-      15, // reasoning_tokens
-      8, // cached_input_tokens
-      600, // inference_time_ms
+      150,
+      75,
+      15,
+      8,
+      600,
     );
   });
 
@@ -1044,10 +1011,6 @@ describe("No-timeout success paths", () => {
   });
 });
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
 interface BuildActHandlerOptions {
   selfHeal?: boolean;
   onMetrics?: (
@@ -1074,11 +1037,11 @@ function buildActHandler(options: BuildActHandlerOptions = {}): ActHandler {
     "gpt-4o",
     defaultClientOptions,
     resolveLlmClient,
-    undefined, // systemPrompt
-    false, // logInferenceToFile
+    undefined,
+    false,
     options.selfHeal ?? false,
     options.onMetrics,
-    undefined, // defaultDomSettleTimeoutMs
+    undefined,
   );
 }
 
@@ -1109,9 +1072,9 @@ function buildExtractHandler(
     "gpt-4o",
     defaultClientOptions,
     resolveLlmClient,
-    undefined, // systemPrompt
-    false, // logInferenceToFile
-    false, // experimental
+    undefined,
+    false,
+    false,
     options.onMetrics,
   );
 }
@@ -1143,9 +1106,9 @@ function buildObserveHandler(
     "gpt-4o",
     defaultClientOptions,
     resolveLlmClient,
-    undefined, // systemPrompt
-    false, // logInferenceToFile
-    false, // experimental
+    undefined,
+    false,
+    false,
     options.onMetrics,
   );
 }
