@@ -981,7 +981,7 @@ export class V3 {
             frameId: v3Page.mainFrameId(),
           });
         } else {
-          actResult = await this.actHandler.actFromObserveResult(
+          actResult = await this.actHandler.takeDeterministicAction(
             { ...input, selector }, // ObserveResult
             v3Page, // V3 Page
             this.domSettleTimeoutMs,
