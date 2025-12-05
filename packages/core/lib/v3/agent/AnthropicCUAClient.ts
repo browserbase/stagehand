@@ -15,7 +15,6 @@ import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
 import Anthropic from "@anthropic-ai/sdk";
 import { ToolSet } from "ai";
 import { AgentClient } from "./AgentClient";
-import { mapKeyToPlaywright } from "./utils/cuaKeyMapping";
 import { compressConversationImages } from "./utils/imageCompression";
 import { toJsonSchema } from "../zodCompat";
 import type { StagehandZodSchema } from "../zodCompat";
@@ -772,10 +771,10 @@ export class AnthropicCUAClient extends AgentClient {
             text: input.text as string,
             ...input,
           };
-        } else if (action === "keypress") {
+        } else if (action === "keypress" || action === "key") {
           return {
             type: "keypress",
-            keys: input.keys as string[],
+            keys: input.text as string[],
             ...input,
           };
         } else if (action === "double_click" || action === "doubleClick") {
@@ -863,15 +862,6 @@ export class AnthropicCUAClient extends AgentClient {
         } else if (action === "wait") {
           return {
             type: "wait",
-            ...input,
-          };
-        } else if (action === "key") {
-          const text = input.text as string;
-          const mappedKey = mapKeyToPlaywright(text);
-
-          return {
-            type: "key",
-            text: mappedKey,
             ...input,
           };
         } else if (action === "left_click") {
