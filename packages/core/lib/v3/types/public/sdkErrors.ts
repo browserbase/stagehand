@@ -363,21 +363,4 @@ export class AgentAbortError extends StagehandError {
     super(message);
     this.reason = reason || "aborted";
   }
-
-  /**
-   * Check if an error is an abort-related error (either AgentAbortError or native AbortError)
-   */
-  static isAbortError(error: unknown): boolean {
-    if (error instanceof AgentAbortError) {
-      return true;
-    }
-    if (error instanceof Error) {
-      return (
-        error.name === "AbortError" ||
-        error.message.includes("aborted") ||
-        error.message.includes("abort")
-      );
-    }
-    return false;
-  }
 }

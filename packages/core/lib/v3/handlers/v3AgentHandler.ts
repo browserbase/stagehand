@@ -252,15 +252,10 @@ export class V3AgentHandler {
         throw error;
       }
 
-      // Re-throw abort errors wrapped in AgentAbortError for consistent error typing.
-      // Check both error type and signal state since abort may cause various error types.
-      if (AgentAbortError.isAbortError(error) || signal?.aborted) {
-        const reason = signal?.reason
-          ? String(signal.reason)
-          : getErrorMessage(error);
-        throw error instanceof AgentAbortError
-          ? error
-          : new AgentAbortError(reason);
+      // Re-throw abort errors wrapped in AgentAbortError for consistent error typing
+      if (signal?.aborted) {
+        const reason = signal.reason ? String(signal.reason) : "aborted";
+        throw new AgentAbortError(reason);
       }
 
       const errorMessage = getErrorMessage(error);
@@ -328,12 +323,11 @@ export class V3AgentHandler {
           callbacks.onError(event);
         }
         // Convert abort errors to AgentAbortError for consistent error typing
-        if (AgentAbortError.isAbortError(event.error)) {
-          rejectResult(
-            event.error instanceof AgentAbortError
-              ? event.error
-              : new AgentAbortError(getErrorMessage(event.error)),
-          );
+        if (options.signal?.aborted) {
+          const reason = options.signal.reason
+            ? String(options.signal.reason)
+            : "aborted";
+          rejectResult(new AgentAbortError(reason));
         } else {
           this.logger({
             category: "agent",
