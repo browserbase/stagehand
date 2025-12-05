@@ -74,7 +74,16 @@ export class V3CuaAgentHandler {
           }
         }
         await new Promise((r) => setTimeout(r, 300));
-        await this.executeAction(action);
+        SessionFileLogger.logUnderstudyActionEvent({
+          actionType: `v3CUA.${action.type}`,
+          target: this.computePointerTarget(action),
+          args: [action],
+        });
+        try {
+          await this.executeAction(action);
+        } finally {
+          SessionFileLogger.logUnderstudyActionCompleted();
+        }
 
         action.timestamp = Date.now();
 
@@ -163,22 +172,6 @@ export class V3CuaAgentHandler {
   ): Promise<ActionExecutionResult> {
     const page = await this.v3.context.awaitActivePage();
     const recording = this.v3.isAgentReplayActive();
-    const pointerTarget =
-      typeof action.x === "number" && typeof action.y === "number"
-        ? `(${action.x}, ${action.y})`
-        : typeof action.selector === "string"
-          ? action.selector
-          : typeof action.input === "string"
-            ? action.input
-            : typeof action.description === "string"
-              ? action.description
-              : undefined;
-    SessionFileLogger.logUnderstudyActionEvent({
-      actionType: `v3CUA.${action.type}`,
-      target: pointerTarget,
-      args: [action],
-    });
-    try {
     switch (action.type) {
       case "click": {
         const { x, y, button = "left", clickCount } = action;
@@ -439,9 +432,18 @@ export class V3CuaAgentHandler {
           error: `Unknown action ${String(action.type)}`,
         };
     }
-    } finally {
-      SessionFileLogger.clearUnderstudyActionContext();
-    }
+  }
+
+  private computePointerTarget(action: AgentAction): string | undefined {
+    return typeof action.x === "number" && typeof action.y === "number"
+      ? `(${action.x}, ${action.y})`
+      : typeof action.selector === "string"
+        ? action.selector
+        : typeof action.input === "string"
+          ? action.input
+          : typeof action.description === "string"
+            ? action.description
+            : undefined;
   }
 
   private ensureXPath(value: unknown): string | null {

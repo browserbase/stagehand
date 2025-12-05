@@ -1,17 +1,19 @@
 import { Stagehand } from "../lib/v3";
 
 async function run(): Promise<void> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
+  const openaiKey = process.env.OPENAI_API_KEY;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+
+  if (!openaiKey || !anthropicKey) {
     throw new Error(
-      "Set OPENAI_API_KEY to a valid OpenAI key before running this demo.",
+      "Set both OPENAI_API_KEY and ANTHROPIC_API_KEY before running this demo.",
     );
   }
 
   const stagehand = new Stagehand({
     env: "LOCAL",
     verbose: 2,
-    model: { modelName: "openai/gpt-4.1-mini", apiKey },
+    model: { modelName: "openai/gpt-4.1-mini", apiKey: openaiKey },
     localBrowserLaunchOptions: {
       headless: true,
       args: ["--window-size=1280,720"],
@@ -25,6 +27,7 @@ async function run(): Promise<void> {
     const [page] = stagehand.context.pages();
     await page.goto("https://example.com/", { waitUntil: "load" });
 
+    // Test standard agent path
     const agent = stagehand.agent({
       systemPrompt:
         "You are a QA assistant. Keep answers short and deterministic. Finish quickly.",
@@ -34,9 +37,22 @@ async function run(): Promise<void> {
     );
     console.log("Agent result:", agentResult);
 
-    const observations = await stagehand.observe(
-      "Find any links on the page",
-    );
+    // Test CUA (Computer Use Agent) path
+    await page.goto("https://example.com/", { waitUntil: "load" });
+    const cuaAgent = stagehand.agent({
+      cua: true,
+      model: {
+        modelName: "anthropic/claude-sonnet-4-5-20250929",
+        apiKey: anthropicKey,
+      },
+    });
+    const cuaResult = await cuaAgent.execute({
+      instruction: "Click on the 'More information...' link on the page.",
+      maxSteps: 3,
+    });
+    console.log("CUA Agent result:", cuaResult);
+
+    const observations = await stagehand.observe("Find any links on the page");
     console.log("Observe result:", observations);
 
     if (observations.length > 0) {

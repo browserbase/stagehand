@@ -13,6 +13,7 @@ import {
 } from "ai";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { ChatCompletion } from "openai/resources";
+import { v7 as uuidv7 } from "uuid";
 import { LogLine } from "../types/public/logs";
 import { AvailableModel } from "../types/public/model";
 import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
@@ -42,7 +43,6 @@ export class AISdkClient extends LLMClient {
   async createChatCompletion<T = ChatCompletion>({
     options,
   }: CreateChatCompletionOptions): Promise<T> {
-
     this.logger?.({
       category: "aisdk",
       message: "creating chat completion",
@@ -132,18 +132,24 @@ export class AISdkClient extends LLMClient {
     const isGPT51 = this.model.modelId.includes("gpt-5.1");
     if (options.response_model) {
       // Log LLM request for generateObject (extract)
-      const llmRequestId = SessionFileLogger.generateLlmRequestId();
-      const lastUserMsg = options.messages.filter(m => m.role === "user").pop();
+      const llmRequestId = uuidv7();
+      const lastUserMsg = options.messages
+        .filter((m) => m.role === "user")
+        .pop();
       const promptPreview = lastUserMsg
-        ? (typeof lastUserMsg.content === "string"
-            ? lastUserMsg.content.replace('instruction: ', '').replace('Instruction: ', '')
-            : lastUserMsg.content.map(c => "text" in c ? c.text : "[img]").join(" "))
+        ? typeof lastUserMsg.content === "string"
+          ? lastUserMsg.content
+              .replace("instruction: ", "")
+              .replace("Instruction: ", "")
+          : lastUserMsg.content
+              .map((c) => ("text" in c ? c.text : "[img]"))
+              .join(" ")
         : undefined;
       SessionFileLogger.logLlmRequest({
         requestId: llmRequestId,
         model: this.model.modelId,
         operation: "generateObject",
-        prompt: promptPreview ? `${promptPreview} +schema` : "+schema",
+        prompt: `${promptPreview} +{schema}`,
       });
 
       try {
@@ -216,7 +222,7 @@ export class AISdkClient extends LLMClient {
         requestId: llmRequestId,
         model: this.model.modelId,
         operation: "generateObject",
-        output: JSON.stringify(objectResponse.object).slice(0, 200),
+        output: JSON.stringify(objectResponse.object),
         inputTokens: objectResponse.usage.inputTokens,
         outputTokens: objectResponse.usage.outputTokens,
       });
@@ -256,19 +262,23 @@ export class AISdkClient extends LLMClient {
     }
 
     // Log LLM request for generateText (act/observe)
-    const llmRequestId = SessionFileLogger.generateLlmRequestId();
-    const lastUserMsg = options.messages.filter(m => m.role === "user").pop();
+    const llmRequestId = uuidv7();
+    const lastUserMsg = options.messages.filter((m) => m.role === "user").pop();
     const promptPreview = lastUserMsg
-      ? (typeof lastUserMsg.content === "string"
-          ? lastUserMsg.content.replace("instruction: ", "")
-          : lastUserMsg.content.map(c => "text" in c ? c.text : "[img]").join(" "))
+      ? typeof lastUserMsg.content === "string"
+        ? lastUserMsg.content.replace("instruction: ", "")
+        : lastUserMsg.content
+            .map((c) => ("text" in c ? c.text : "[img]"))
+            .join(" ")
       : undefined;
     const toolCount = Object.keys(tools).length;
     SessionFileLogger.logLlmRequest({
       requestId: llmRequestId,
       model: this.model.modelId,
       operation: "generateText",
-      prompt: promptPreview ? `${promptPreview}${toolCount > 0 ? ` +{${toolCount} tools}` : ""}` : undefined,
+      prompt: promptPreview
+        ? `${promptPreview}${toolCount > 0 ? ` +{${toolCount} tools}` : ""}`
+        : undefined,
     });
 
     const textResponse = await generateText({
@@ -330,7 +340,11 @@ export class AISdkClient extends LLMClient {
       requestId: llmRequestId,
       model: this.model.modelId,
       operation: "generateText",
-      output: textResponse.text || (transformedToolCalls.length > 0 ? `[${transformedToolCalls.length} tool calls]` : ""),
+      output:
+        textResponse.text ||
+        (transformedToolCalls.length > 0
+          ? `[${transformedToolCalls.length} tool calls]`
+          : ""),
       inputTokens: textResponse.usage.inputTokens,
       outputTokens: textResponse.usage.outputTokens,
     });

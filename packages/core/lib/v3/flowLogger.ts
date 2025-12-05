@@ -1,10 +1,17 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { randomUUID } from "node:crypto";
 import fs from "node:fs";
+import { v7 as uuidv7 } from "uuid";
 import path from "node:path";
 import type { V3Options } from "./types/public";
 
 const MAX_ARG_LENGTH = 500;
+
+// TODO: Eventually refactor this to use pino logging system + eventbus listeners
+// library code should emit an event to the bus instead of calling log funcs directly,
+// logger watchdog should listen to the bus and forward the events to pino / OTEL
+// events should track their parent events automatically (maybe with AsyncLocalStorage or manual child_events / parent_id fields),
+// so span context can be reconstructed by following the parent chain, e.g. CDPEvent.parent_id -> StagehandStepEvent.parent_id -> AgentTaskEvent.parent_id -> etc.
+// we should wait for the Stagehand.eventBus to be ready before working on this refactor
 
 interface LogFile {
   path: string;
@@ -24,13 +31,14 @@ export interface FlowLoggerContext {
   };
   initPromise: Promise<void>;
   initialized: boolean;
-  // Flow context
+  // Flow context state for each tracing span (session -> task -> step -> action -> cdp,llm)
   agentTaskId: string | null;
   stagehandStepId: string | null;
   understudyActionId: string | null;
   stagehandStepLabel: string | null;
   understudyActionLabel: string | null;
   stagehandStepStartTime: number | null;
+  understudyActionStartTime: number | null;
   // Task metrics
   agentTaskStartTime: number | null;
   agentTaskLlmRequests: number;
@@ -41,20 +49,9 @@ export interface FlowLoggerContext {
 
 const loggerContext = new AsyncLocalStorage<FlowLoggerContext>();
 
-function generateId(label: string): string {
-  try {
-    return randomUUID();
-  } catch {
-    const fallback =
-      (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
-      `${Date.now()}-${label}-${Math.floor(Math.random() * 1e6)}`;
-    return fallback;
-  }
-}
-
 function truncate(value: string): string {
-  value = value.replace(/\s+/g, " ");  // replace newlines, tabs, etc. with space
-  value = value.replace(/\s+/g, " ");  // replace repeated spaces with single space
+  value = value.replace(/\s+/g, " "); // replace newlines, tabs, etc. with space
+  value = value.replace(/\s+/g, " "); // replace repeated spaces with single space
   if (value.length <= MAX_ARG_LENGTH) {
     return value;
   }
@@ -62,12 +59,26 @@ function truncate(value: string): string {
 }
 
 /**
+ * Truncate CDP IDs (32-char uppercase hex strings) that appear after id/Id patterns.
+ * Transforms: frameId:363F03EB7E3795ACB434672C35095EF8 → frameId:363F…5EF8
+ */
+function truncateCdpIds(value: string): string {
+  // Match patterns like: id:, Id:, frameId:, loaderId:, etc. followed by optional quote and 32-char hex ID
+  // The ID must be exactly 32 uppercase hex characters [0-9A-F]
+  return value.replace(
+    /([iI]d:?"?)([0-9A-F]{32})(?="?[,})\s]|$)/g,
+    (_match, prefix: string, id: string) =>
+      `${prefix}${id.slice(0, 4)}…${id.slice(-4)}`,
+  );
+}
+
+/**
  * Truncate conversation/prompt strings showing first 30 chars + ... + last 100 chars
  * This helps see both the beginning context and the most recent part of growing conversations
  */
 function truncateConversation(value: string): string {
-  value = value.replace(/\s+/g, " ");  // normalize whitespace
-  const maxLen = 130;  // 30 + 100
+  value = value.replace(/\s+/g, " "); // normalize whitespace
+  const maxLen = 130; // 30 + 100
   if (value.length <= maxLen) {
     return value;
   }
@@ -118,10 +129,14 @@ function formatArgs(args?: unknown | unknown[]): string {
   return rendered.join(", ");
 }
 
-function formatTag(label: string, id: string | null, icon: string | null): string {
-  if (!id) return `⤑`;  // omit the part if the id is null, we're not in an active task/step/action
+function formatTag(
+  label: string,
+  id: string | null,
+  icon: string | null,
+): string {
+  if (!id) return `⤑`; // omit the part if the id is null, we're not in an active task/step/action
   // return `[${label} ${icon ? icon : ""} #${shortId(id)}]`;
-  return `[${icon || ''} #${shortId(id)}${label ? " " : ""}${label || ""}]`;
+  return `[${icon || ""} #${shortId(id)}${label ? " " : ""}${label || ""}]`;
 }
 
 function shortId(id: string | null): string {
@@ -195,6 +210,7 @@ export function getConfigDir(): string {
   if (fromEnv) {
     return path.resolve(fromEnv);
   }
+  // in the future maybe we use a centralized config directory ~/.config/browserbase
   return path.resolve(process.cwd(), ".browserbase");
 }
 
@@ -214,9 +230,18 @@ export class SessionFileLogger {
       sessionDir,
       configDir,
       logFiles: {
-        agent: { path: path.join(sessionDir, "agent_events.log"), stream: null },
-        stagehand: { path: path.join(sessionDir, "stagehand_events.log"), stream: null },
-        understudy: { path: path.join(sessionDir, "understudy_events.log"), stream: null },
+        agent: {
+          path: path.join(sessionDir, "agent_events.log"),
+          stream: null,
+        },
+        stagehand: {
+          path: path.join(sessionDir, "stagehand_events.log"),
+          stream: null,
+        },
+        understudy: {
+          path: path.join(sessionDir, "understudy_events.log"),
+          stream: null,
+        },
         cdp: { path: path.join(sessionDir, "cdp_events.log"), stream: null },
         llm: { path: path.join(sessionDir, "llm_events.log"), stream: null },
       },
@@ -229,6 +254,7 @@ export class SessionFileLogger {
       stagehandStepLabel: null,
       understudyActionId: null,
       understudyActionLabel: null,
+      understudyActionStartTime: null,
       stagehandStepStartTime: null,
       // Task metrics - null until a task starts
       agentTaskStartTime: null,
@@ -359,44 +385,6 @@ export class SessionFileLogger {
     return loggerContext.getStore() ?? null;
   }
 
-  // --- Flow context methods ---
-
-  private static ensureAgentTaskContext(ctx: FlowLoggerContext): void {
-    if (!ctx.agentTaskId) {
-      ctx.agentTaskId = generateId("task");
-    }
-  }
-
-  private static ensureStagehandStepContext(
-    ctx: FlowLoggerContext,
-    defaultLabel?: string,
-  ): void {
-    if (defaultLabel) {
-      ctx.stagehandStepLabel = defaultLabel.toUpperCase();
-    }
-    if (!ctx.stagehandStepLabel) {
-      ctx.stagehandStepLabel = "STEP";
-    }
-    if (!ctx.stagehandStepId) {
-      ctx.stagehandStepId = generateId("step");
-    }
-  }
-
-  private static ensureUnderstudyActionContext(
-    ctx: FlowLoggerContext,
-    defaultLabel?: string,
-  ): void {
-    if (defaultLabel) {
-      ctx.understudyActionLabel = defaultLabel.toUpperCase();
-    }
-    if (!ctx.understudyActionLabel) {
-      ctx.understudyActionLabel = "ACTION";
-    }
-    if (!ctx.understudyActionId) {
-      ctx.understudyActionId = generateId("action");
-    }
-  }
-
   private static buildLogLine(
     ctx: FlowLoggerContext,
     options: {
@@ -406,39 +394,69 @@ export class SessionFileLogger {
     },
     details: string,
   ): string {
-    const { includeAction = true, includeStep = true, includeTask = true } = options;
+    const {
+      includeAction = true,
+      includeStep = true,
+      includeTask = true,
+    } = options;
     const parts: string[] = [];
     if (includeTask) {
-      parts.push(formatTag("", ctx.agentTaskId, '🅰'));
+      parts.push(formatTag("", ctx.agentTaskId, "🅰"));
     }
     if (includeStep) {
-      parts.push(formatTag(ctx.stagehandStepLabel, ctx.stagehandStepId, '🆂'));
+      parts.push(formatTag(ctx.stagehandStepLabel, ctx.stagehandStepId, "🆂"));
     }
     if (includeAction) {
-      parts.push(formatTag(ctx.understudyActionLabel, ctx.understudyActionId, '🆄'));
+      parts.push(
+        formatTag(ctx.understudyActionLabel, ctx.understudyActionId, "🆄"),
+      );
     }
     // parts[parts.length - 1] = parts[parts.length - 1].replace("[", "⟦").replace("]", "⟧");  // try and higlight the last tag so it stands out visually (imperfect)
-    return `${formatTimestamp()} ${parts.join(" ")} ${details}`;
+    const full_line = `${formatTimestamp()} ${parts.join(" ")} ${details}`;
+
+    // Remove unescaped " and ' characters, but leave those preceded by a backslash (\)
+    const without_quotes = full_line
+      .replace(/([^\\])["']/g, "$1") // remove " or ' if not preceded by \
+      .replace(/^["']|["']$/g, "") // also remove leading/trailing " or ' at string ends (not preceded by \)
+      .trim();
+
+    return without_quotes;
   }
 
   /**
-   * Start a new task. Call this when agent.execute() begins.
-   * Sets taskId to a new UUID and resets metrics.
+   * Start a new task and log it. Call this when agent.execute() begins.
+   * Sets taskId to a new UUID, resets metrics, and logs the start event.
    */
-  static logAgentTaskStarted(): void {
+  static logAgentTaskStarted({
+    invocation,
+    args,
+  }: {
+    invocation: string;
+    args?: unknown | unknown[];
+  }): void {
     const ctx = loggerContext.getStore();
-    if (ctx) {
-      ctx.agentTaskId = generateId("task");
-      ctx.stagehandStepId = null;
-      ctx.stagehandStepLabel = null;
-      ctx.understudyActionId = null;
-      ctx.understudyActionLabel = null;
-      ctx.agentTaskStartTime = Date.now();
-      ctx.agentTaskLlmRequests = 0;
-      ctx.agentTaskCdpEvents = 0;
-      ctx.agentTaskLlmInputTokens = 0;
-      ctx.agentTaskLlmOutputTokens = 0;
-    }
+    if (!ctx) return;
+
+    // Set up task context
+    ctx.agentTaskId = uuidv7();
+    ctx.stagehandStepId = null;
+    ctx.stagehandStepLabel = null;
+    ctx.stagehandStepStartTime = null;
+    ctx.understudyActionId = null;
+    ctx.understudyActionLabel = null;
+    ctx.agentTaskStartTime = Date.now();
+    ctx.agentTaskLlmRequests = 0;
+    ctx.agentTaskCdpEvents = 0;
+    ctx.agentTaskLlmInputTokens = 0;
+    ctx.agentTaskLlmOutputTokens = 0;
+
+    // Log the start event
+    const message = SessionFileLogger.buildLogLine(
+      ctx,
+      { includeTask: true, includeStep: false, includeAction: false },
+      `▷ ${invocation}(${formatArgs(args)})`,
+    );
+    SessionFileLogger.writeToFile(ctx.logFiles.agent, message).then();
   }
 
   /**
@@ -466,49 +484,37 @@ export class SessionFileLogger {
       ctx.understudyActionId = null;
       ctx.stagehandStepLabel = null;
       ctx.understudyActionLabel = null;
+      ctx.understudyActionStartTime = null;
       ctx.agentTaskStartTime = null;
     }
   }
 
-  static clearStagehandStepContext(): void {
+  static logUnderstudyActionCompleted(): void {
     const ctx = loggerContext.getStore();
-    if (ctx) {
-      ctx.stagehandStepId = null;
-      ctx.stagehandStepLabel = null;
-      ctx.understudyActionId = null;
-      ctx.understudyActionLabel = null;
-    }
-  }
+    if (!ctx) return;
 
-  static clearUnderstudyActionContext(): void {
-    const ctx = loggerContext.getStore();
-    if (ctx) {
-      ctx.understudyActionId = null;
-      ctx.understudyActionLabel = null;
-    }
+    const durationMs = ctx.understudyActionStartTime
+      ? Date.now() - ctx.understudyActionStartTime
+      : 0;
+    const durationSec = (durationMs / 1000).toFixed(2);
+
+    const details = `✓ ${ctx.understudyActionLabel} completed in ${durationSec}s`;
+    const message = SessionFileLogger.buildLogLine(
+      ctx,
+      { includeTask: true, includeStep: true, includeAction: true },
+      details,
+    );
+    SessionFileLogger.writeToFile(ctx.logFiles.understudy, message).then();
+
+    // Clear action context
+    ctx.understudyActionId = null;
+    ctx.understudyActionLabel = null;
   }
 
   // --- Logging methods ---
 
-  static logAgentTaskEvent({    // log agent/session-level events like: Start, End, Execute
-    invocation,
-    args,
-  }: {
-    invocation: string;
-    args?: unknown | unknown[];
-  }): void {
-    const ctx = loggerContext.getStore();
-    if (!ctx) return;
-
-    const message = SessionFileLogger.buildLogLine(
-      ctx,
-      { includeTask: true, includeStep: false, includeAction: false },
-      `▷ ${invocation}(${formatArgs(args)})`,
-    );
-    SessionFileLogger.writeToFile(ctx.logFiles.agent, message).then();
-  }
-
-  static logStagehandStepEvent({        // log stagehand-level high-level API calls like: Act, Observe, Extract, Navigate
+  static logStagehandStepEvent({
+    // log stagehand-level high-level API calls like: Act, Observe, Extract, Navigate
     invocation,
     args,
     label,
@@ -518,19 +524,22 @@ export class SessionFileLogger {
     label: string;
   }): string {
     const ctx = loggerContext.getStore();
-    if (!ctx) return generateId("step");
+    if (!ctx) return uuidv7();
 
-    SessionFileLogger.ensureAgentTaskContext(ctx);
-    ctx.stagehandStepId = generateId("step");
+    // leave parent task id null/untouched for now, stagehand steps called directly dont always have a parent task, maybe worth randomizing the task id when a step starts to make it easier to correlate steps to tasks?
+    // ctx.agentTaskId = uuidv7();
+
+    ctx.stagehandStepId = uuidv7();
     ctx.stagehandStepLabel = label.toUpperCase();
     ctx.stagehandStepStartTime = Date.now();
     ctx.understudyActionId = null;
     ctx.understudyActionLabel = null;
+    ctx.understudyActionStartTime = null;
 
     const message = SessionFileLogger.buildLogLine(
       ctx,
       { includeTask: true, includeStep: true, includeAction: false },
-      `${invocation}(${formatArgs(args)})`,
+      `▷ ${invocation}(${formatArgs(args)})`,
     );
     SessionFileLogger.writeToFile(ctx.logFiles.stagehand, message).then();
 
@@ -560,9 +569,11 @@ export class SessionFileLogger {
     ctx.stagehandStepStartTime = null;
     ctx.understudyActionId = null;
     ctx.understudyActionLabel = null;
+    ctx.understudyActionStartTime = null;
   }
 
-  static logUnderstudyActionEvent({     // log understudy-level browser action calls like: Click, Type, Scroll
+  static logUnderstudyActionEvent({
+    // log understudy-level browser action calls like: Click, Type, Scroll
     actionType,
     target,
     args,
@@ -572,14 +583,19 @@ export class SessionFileLogger {
     args?: unknown | unknown[];
   }): string {
     const ctx = loggerContext.getStore();
-    if (!ctx) return generateId("action");
+    if (!ctx) return uuidv7();
 
     // THESE ARE NOT NEEDED, it's possible for understudy methods to be called directly without going through stagehand.act/observe/extract or agent.execute
-    // SessionFileLogger.ensureAgentTaskContext(ctx);
-    // SessionFileLogger.ensureStagehandStepContext(ctx);
+    // ctx.agentTaskId = ctx.agentTaskId || uuidv7();
+    // ctx.stagehandStepId = ctx.stagehandStepId || uuidv7();
 
-    ctx.understudyActionId = generateId("action");
-    ctx.understudyActionLabel = actionType.toUpperCase().replace("UNDERSTUDY.", "");
+    ctx.understudyActionId = uuidv7();
+    ctx.understudyActionLabel = actionType
+      .toUpperCase()
+      .replace("UNDERSTUDY.", "")
+      .replace("PAGE.", "");
+
+    ctx.understudyActionStartTime = Date.now();
 
     const details: string[] = [];
     if (target) details.push(`target=${target}`);
@@ -589,15 +605,16 @@ export class SessionFileLogger {
     const message = SessionFileLogger.buildLogLine(
       ctx,
       { includeTask: true, includeStep: true, includeAction: true },
-      `${actionType}(${details.join(", ")})`,
+      `▷ ${actionType}(${details.join(", ")})`,
     );
     SessionFileLogger.writeToFile(ctx.logFiles.understudy, message).then();
 
     return ctx.understudyActionId;
   }
 
-  static logCdpMessageEvent(
-    {      // log low-level CDP browser calls and events like: Page.getDocument, Runtime.evaluate, etc.
+  static logCdpCallEvent(
+    {
+      // log low-level CDP browser calls and events like: Page.getDocument, Runtime.evaluate, etc.
       method,
       params,
       targetId,
@@ -614,22 +631,84 @@ export class SessionFileLogger {
     // Track CDP events for task metrics
     ctx.agentTaskCdpEvents++;
 
+    // Filter out CDP enable calls - they're too noisy and not useful for debugging
+    if (method.endsWith(".enable") || method === "enable") {
+      return;
+    }
+
     const argsStr = params ? formatArgs(params) : "";
     const call = argsStr ? `${method}(${argsStr})` : `${method}()`;
-    const details = `${formatTag("CDP", targetId || "0000", '🅲')} ${call}`;
+    const details = `${formatTag("CDP", targetId || "0000", "🅲")} ⏵ ${call}`;
 
     const rawMessage = SessionFileLogger.buildLogLine(
       ctx,
       { includeTask: true, includeStep: true, includeAction: true },
       details,
     );
-    const message = rawMessage.length > 140 ? `${rawMessage.slice(0, 137)}…` : rawMessage;
+    const truncatedIds = truncateCdpIds(rawMessage);
+    const message =
+      truncatedIds.length > 140
+        ? `${truncatedIds.slice(0, 137)}…`
+        : truncatedIds;
+
+    SessionFileLogger.writeToFile(ctx.logFiles.cdp, message).then();
+  }
+
+  static logCdpMessageEvent(
+    {
+      // log CDP events received asynchronously from the browser
+      method,
+      params,
+      targetId,
+    }: {
+      method: string;
+      params?: unknown;
+      targetId?: string | null;
+    },
+    explicitCtx?: FlowLoggerContext | null,
+  ): void {
+    const ctx = explicitCtx ?? loggerContext.getStore();
+    if (!ctx) return;
+
+    // Filter out noisy events that aren't useful for debugging
+    const noisyEvents = [
+      "Target.targetInfoChanged",
+      "Runtime.executionContextCreated",
+      "Runtime.executionContextDestroyed",
+      "Runtime.executionContextsCleared",
+      "Page.lifecycleEvent",
+      "Network.dataReceived",
+      "Network.loadingFinished",
+      "Network.requestWillBeSentExtraInfo",
+      "Network.responseReceivedExtraInfo",
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+    ];
+    if (noisyEvents.includes(method)) {
+      return;
+    }
+
+    const argsStr = params ? formatArgs(params) : "";
+    const event = argsStr ? `${method}(${argsStr})` : `${method}`;
+    const details = `${formatTag("CDP", targetId ? targetId.slice(-4) : "????", "🅲")} ⏴ ${event}`;
+
+    const rawMessage = SessionFileLogger.buildLogLine(
+      ctx,
+      { includeTask: true, includeStep: true, includeAction: true },
+      details,
+    );
+    const truncatedIds = truncateCdpIds(rawMessage);
+    const message =
+      truncatedIds.length > 140
+        ? `${truncatedIds.slice(0, 137)}…`
+        : truncatedIds;
 
     SessionFileLogger.writeToFile(ctx.logFiles.cdp, message).then();
   }
 
   static logLlmRequest(
-    {      // log outgoing LLM API requests
+    {
+      // log outgoing LLM API requests
       requestId,
       model,
       operation,
@@ -649,7 +728,7 @@ export class SessionFileLogger {
     ctx.agentTaskLlmRequests++;
 
     const promptStr = prompt ? ` ${truncateConversation(prompt)}` : "";
-    const details = `${formatTag("LLM", requestId, '🧠')} ${model} 💬${promptStr}`;
+    const details = `${formatTag("LLM", requestId, "🧠")} ${model} ⏴${promptStr}`;
 
     const rawMessage = SessionFileLogger.buildLogLine(
       ctx,
@@ -657,13 +736,15 @@ export class SessionFileLogger {
       details,
     );
     // Temporarily increased limit for debugging
-    const message = rawMessage.length > 500 ? `${rawMessage.slice(0, 499)}…` : rawMessage;
+    const message =
+      rawMessage.length > 500 ? `${rawMessage.slice(0, 499)}…` : rawMessage;
 
     SessionFileLogger.writeToFile(ctx.logFiles.llm, message).then();
   }
 
   static logLlmResponse(
-    {      // log incoming LLM API responses
+    {
+      // log incoming LLM API responses
       requestId,
       model,
       operation,
@@ -687,11 +768,12 @@ export class SessionFileLogger {
     ctx.agentTaskLlmInputTokens += inputTokens ?? 0;
     ctx.agentTaskLlmOutputTokens += outputTokens ?? 0;
 
-    const tokens = inputTokens !== undefined || outputTokens !== undefined
-      ? ` ꜛ${inputTokens ?? 0} ꜜ${outputTokens ?? 0} |`
-      : "";
+    const tokens =
+      inputTokens !== undefined || outputTokens !== undefined
+        ? ` ꜛ${inputTokens ?? 0} ꜜ${outputTokens ?? 0} |`
+        : "";
     const outputStr = output ? ` ${truncateConversation(output)}` : "";
-    const details = `${formatTag("LLM", requestId, '🧠')} ${model}  ↳${tokens}${outputStr}`;
+    const details = `${formatTag("LLM", requestId, "🧠")} ${model} ↳${tokens}${outputStr}`;
 
     const rawMessage = SessionFileLogger.buildLogLine(
       ctx,
@@ -699,18 +781,18 @@ export class SessionFileLogger {
       details,
     );
     // Temporarily increased limit for debugging
-    const message = rawMessage.length > 500 ? `${rawMessage.slice(0, 499)}…` : rawMessage;
+    const message =
+      rawMessage.length > 500 ? `${rawMessage.slice(0, 499)}…` : rawMessage;
 
     SessionFileLogger.writeToFile(ctx.logFiles.llm, message).then();
-  }
-
-  static generateLlmRequestId(): string {
-    return generateId("llm");
   }
 
   /**
    * Create middleware for wrapping language models with LLM call logging.
    * Use with wrapLanguageModel from the AI SDK.
+   * This is vibecoded and a bit messy, but it's a quick way to get LLM
+   * logging working and in a useful format for devs watching the terminal in realtime.
+   * TODO: Refactor this to use a proper span-based tracing system like OpenTelemetry and clean up/reduce all the parsing/reformatting logic.
    */
   static createLlmLoggingMiddleware(modelId: string): {
     wrapGenerate: (options: {
@@ -731,32 +813,39 @@ export class SessionFileLogger {
         // Capture context at the start of the call to preserve step/action context
         const ctx = SessionFileLogger.getContext();
 
-        const llmRequestId = SessionFileLogger.generateLlmRequestId();
+        const llmRequestId = uuidv7();
 
-        const p = params as { prompt?: unknown[]; tools?: unknown[]; schema?: unknown };
+        const p = params as {
+          prompt?: unknown[];
+          tools?: unknown[];
+          schema?: unknown;
+        };
 
         // Count tools
         const toolCount = Array.isArray(p.tools) ? p.tools.length : 0;
 
         // Check for images in any message
-        const hasImage = p.prompt?.some((m: unknown) => {
-          const msg = m as { content?: unknown[] };
-          if (!Array.isArray(msg.content)) return false;
-          return msg.content.some((c: unknown) => {
-            const part = c as { type?: string };
-            return part.type === "image";
-          });
-        }) ?? false;
+        // const hasImage =
+        //   p.prompt?.some((m: unknown) => {
+        //     const msg = m as { content?: unknown[] };
+        //     if (!Array.isArray(msg.content)) return false;
+        //     return msg.content.some((c: unknown) => {
+        //       const part = c as { type?: string };
+        //       return part.type === "image";
+        //     });
+        //   }) ?? false;
 
-        // Check for schema (structured output)
-        const hasSchema = !!p.schema;
+        // // Check for schema (structured output)
+        // const hasSchema = !!p.schema;
 
         // Find the last non-system message to show the newest content (tool result, etc.)
         const nonSystemMessages = (p.prompt ?? []).filter((m: unknown) => {
           const msg = m as { role?: string };
           return msg.role !== "system";
         });
-        const lastMsg = nonSystemMessages[nonSystemMessages.length - 1] as Record<string, unknown> | undefined;
+        const lastMsg = nonSystemMessages[nonSystemMessages.length - 1] as
+          | Record<string, unknown>
+          | undefined;
         const lastRole = (lastMsg?.role as string) ?? "?";
 
         // Extract content from last message - handle various formats
@@ -772,7 +861,9 @@ export class SessionFileLogger {
                 toolName = (item.toolName as string) || "";
 
                 // output is directly on the tool-result item
-                const output = item.output as Record<string, unknown> | undefined;
+                const output = item.output as
+                  | Record<string, unknown>
+                  | undefined;
 
                 if (output) {
                   if (output.type === "json" && output.value) {
@@ -785,9 +876,15 @@ export class SessionFileLogger {
                       const vItem = v as Record<string, unknown>;
                       if (vItem.type === "text" && vItem.text) {
                         parts.push(vItem.text as string);
-                      } else if (vItem.mediaType && typeof vItem.data === "string") {
+                      } else if (
+                        vItem.mediaType &&
+                        typeof vItem.data === "string"
+                      ) {
                         // Image data
-                        const sizeKb = ((vItem.data as string).length * 0.75 / 1024).toFixed(1);
+                        const sizeKb = (
+                          ((vItem.data as string).length * 0.75) /
+                          1024
+                        ).toFixed(1);
                         parts.push(`[${sizeKb}kb img]`);
                       }
                     }
@@ -813,7 +910,7 @@ export class SessionFileLogger {
               // Truncate long strings (like base64 images)
               if (typeof value === "string" && value.length > 100) {
                 if (value.startsWith("data:image")) {
-                  const sizeKb = (value.length * 0.75 / 1024).toFixed(1);
+                  const sizeKb = ((value.length * 0.75) / 1024).toFixed(1);
                   return `[${sizeKb}kb image]`;
                 }
                 return value.slice(0, 50) + "...";
@@ -828,21 +925,30 @@ export class SessionFileLogger {
 
         // Build preview: role + tool name + truncated content + metadata
         const rolePrefix = toolName ? `tool result: ${toolName}()` : lastRole;
-        const contentTruncated = lastContent ? truncateConversation(lastContent) : "(no text)";
-        const promptPreview = `${rolePrefix}➡ ${contentTruncated} +{${toolCount} tools}`;
+        const contentTruncated = lastContent
+          ? truncateConversation(lastContent)
+          : "(no text)";
+        const promptPreview = `${rolePrefix}: ${contentTruncated} +{${toolCount} tools}`;
 
-        SessionFileLogger.logLlmRequest({
-          requestId: llmRequestId,
-          model: modelId,
-          operation: "generateText",
-          prompt: promptPreview,
-        }, ctx);
+        SessionFileLogger.logLlmRequest(
+          {
+            requestId: llmRequestId,
+            model: modelId,
+            operation: "generateText",
+            prompt: promptPreview,
+          },
+          ctx,
+        );
 
         const result = await doGenerate();
 
         // Extract output - handle various response formats
         let outputPreview = "";
-        const res = result as { text?: string; content?: unknown; toolCalls?: unknown[] };
+        const res = result as {
+          text?: string;
+          content?: unknown;
+          toolCalls?: unknown[];
+        };
         if (res.text) {
           outputPreview = res.text;
         } else if (res.content) {
@@ -852,9 +958,14 @@ export class SessionFileLogger {
           } else if (Array.isArray(res.content)) {
             outputPreview = res.content
               .map((c: unknown) => {
-                const item = c as { type?: string; text?: string; toolName?: string };
+                const item = c as {
+                  type?: string;
+                  text?: string;
+                  toolName?: string;
+                };
                 if (item.type === "text") return item.text;
-                if (item.type === "tool-call") return `tool call: ${item.toolName}()`;
+                if (item.type === "tool-call")
+                  return `tool call: ${item.toolName}()`;
                 return `[${item.type || "unknown"}]`;
               })
               .join(" ");
@@ -865,18 +976,24 @@ export class SessionFileLogger {
           outputPreview = `[${res.toolCalls.length} tool calls]`;
         } else if (typeof result === "object" && result !== null) {
           // Fallback: try to stringify relevant parts of the result
-          const keys = Object.keys(result).filter(k => k !== "usage" && k !== "rawResponse");
-          outputPreview = keys.length > 0 ? `{${keys.join(", ")}}` : "[empty response]";
+          const keys = Object.keys(result).filter(
+            (k) => k !== "usage" && k !== "rawResponse",
+          );
+          outputPreview =
+            keys.length > 0 ? `{${keys.join(", ")}}` : "[empty response]";
         }
 
-        SessionFileLogger.logLlmResponse({
-          requestId: llmRequestId,
-          model: modelId,
-          operation: "generateText",
-          output: outputPreview,
-          inputTokens: result.usage?.inputTokens,
-          outputTokens: result.usage?.outputTokens,
-        }, ctx);
+        SessionFileLogger.logLlmResponse(
+          {
+            requestId: llmRequestId,
+            model: modelId,
+            operation: "generateText",
+            output: outputPreview,
+            inputTokens: result.usage?.inputTokens,
+            outputTokens: result.usage?.outputTokens,
+          },
+          ctx,
+        );
 
         return result;
       },
