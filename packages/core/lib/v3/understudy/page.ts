@@ -1,6 +1,7 @@
 import { Protocol } from "devtools-protocol";
 import { promises as fs } from "fs";
 import { v3Logger } from "../logger";
+import { SessionFileLogger } from "../flowLogger";
 import type { CDPSessionLike } from "./cdp";
 import { CdpConnection } from "./cdp";
 import { Frame } from "./frame";
@@ -625,6 +626,9 @@ export class Page {
    * Close this top-level page (tab). Best-effort via Target.closeTarget.
    */
   public async close(): Promise<void> {
+    SessionFileLogger.logUnderstudyActionEvent({
+      actionType: "Page.close",
+    });
     try {
       await this.conn.send("Target.closeTarget", { targetId: this._targetId });
     } catch {
@@ -762,6 +766,11 @@ export class Page {
     url: string,
     options?: { waitUntil?: LoadState; timeoutMs?: number },
   ): Promise<Response | null> {
+    SessionFileLogger.logUnderstudyActionEvent({
+      actionType: "Page.goto",
+      target: url,
+      args: options,
+    });
     const waitUntil: LoadState = options?.waitUntil ?? "domcontentloaded";
     const timeout = options?.timeoutMs ?? 15000;
 
@@ -825,6 +834,10 @@ export class Page {
     timeoutMs?: number;
     ignoreCache?: boolean;
   }): Promise<Response | null> {
+    SessionFileLogger.logUnderstudyActionEvent({
+      actionType: "Page.reload",
+      args: options,
+    });
     const waitUntil = options?.waitUntil;
     const timeout = options?.timeoutMs ?? 15000;
 
@@ -870,6 +883,10 @@ export class Page {
     waitUntil?: LoadState;
     timeoutMs?: number;
   }): Promise<Response | null> {
+    SessionFileLogger.logUnderstudyActionEvent({
+      actionType: "Page.goBack",
+      args: options,
+    });
     const { entries, currentIndex } =
       await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
         "Page.getNavigationHistory",
@@ -922,6 +939,10 @@ export class Page {
     waitUntil?: LoadState;
     timeoutMs?: number;
   }): Promise<Response | null> {
+    SessionFileLogger.logUnderstudyActionEvent({
+      actionType: "Page.goForward",
+      args: options,
+    });
     const { entries, currentIndex } =
       await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
         "Page.getNavigationHistory",
@@ -1048,6 +1069,10 @@ export class Page {
    * @param options.type Image format (`"png"` by default).
    */
   async screenshot(options?: ScreenshotOptions): Promise<Buffer> {
+    SessionFileLogger.logUnderstudyActionEvent({
+      actionType: "Page.screenshot",
+      args: options,
+    });
     const opts = options ?? {};
     const type = opts.type ?? "png";
 
@@ -1170,6 +1195,10 @@ export class Page {
    * Mirrors Playwright's API signatures.
    */
   async waitForLoadState(state: LoadState, timeoutMs?: number): Promise<void> {
+    SessionFileLogger.logUnderstudyActionEvent({
+      actionType: "Page.waitForLoadState",
+      args: [state, timeoutMs],
+    });
     await this.waitForMainLoadState(state, timeoutMs ?? 15000);
   }
 
@@ -1184,6 +1213,10 @@ export class Page {
     pageFunctionOrExpression: string | ((arg: Arg) => R | Promise<R>),
     arg?: Arg,
   ): Promise<R> {
+    SessionFileLogger.logUnderstudyActionEvent({
+      actionType: "Page.evaluate",
+      args: [typeof pageFunctionOrExpression === "string" ? pageFunctionOrExpression : "[function]", arg],
+    });
     await this.mainSession.send("Runtime.enable").catch(() => {});
     const ctxId = await this.mainWorldExecutionContextId();
 
@@ -1240,6 +1273,10 @@ export class Page {
     height: number,
     options?: { deviceScaleFactor?: number },
   ): Promise<void> {
+    // SessionFileLogger.logUnderstudyActionEvent({
+    //   actionType: "Page.setViewportSize",
+    //   args: [width, height, options],
+    // });
     const dsf = Math.max(0.01, options?.deviceScaleFactor ?? 1);
     await this.mainSession
       .send("Emulation.setDeviceMetricsOverride", {
@@ -1303,6 +1340,10 @@ export class Page {
       returnXpath?: boolean;
     },
   ): Promise<void | string> {
+    SessionFileLogger.logUnderstudyActionEvent({
+      actionType: "Page.click",
+      args: [x, y, options],
+    });
     const button = options?.button ?? "left";
     const clickCount = options?.clickCount ?? 1;
 
@@ -1397,6 +1438,10 @@ export class Page {
     deltaY: number,
     options?: { returnXpath?: boolean },
   ): Promise<void | string> {
+    SessionFileLogger.logUnderstudyActionEvent({
+      actionType: "Page.scroll",
+      args: [x, y, deltaX, deltaY, options],
+    });
     let xpathResult: string | undefined;
     if (options?.returnXpath) {
       try {
@@ -1480,6 +1525,10 @@ export class Page {
       returnXpath?: boolean;
     },
   ): Promise<void | [string, string]> {
+    SessionFileLogger.logUnderstudyActionEvent({
+      actionType: "Page.dragAndDrop",
+      args: [fromX, fromY, toX, toY, options],
+    });
     const button = options?.button ?? "left";
     const steps = Math.max(1, Math.floor(options?.steps ?? 1));
     const delay = Math.max(0, options?.delay ?? 0);
@@ -1576,6 +1625,10 @@ export class Page {
     text: string,
     options?: { delay?: number; withMistakes?: boolean },
   ): Promise<void> {
+    SessionFileLogger.logUnderstudyActionEvent({
+      actionType: "Page.type",
+      args: [text, options],
+    });
     const delay = Math.max(0, options?.delay ?? 0);
     const withMistakes = !!options?.withMistakes;
 
@@ -1670,6 +1723,10 @@ export class Page {
    * Supports key combinations with modifiers like "Cmd+A", "Ctrl+C", "Shift+Tab", etc.
    */
   async keyPress(key: string, options?: { delay?: number }): Promise<void> {
+    SessionFileLogger.logUnderstudyActionEvent({
+      actionType: "Page.keyPress",
+      args: [key, options],
+    });
     const delay = Math.max(0, options?.delay ?? 0);
     const sleep = (ms: number) =>
       new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));

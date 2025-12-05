@@ -46,7 +46,7 @@ async function run(): Promise<void> {
     }
 
     const extraction = await stagehand.extract(
-      "Summarize the current page title and URL.",
+      "Summarize the current page title and contents in a single sentence",
     );
     console.log("Extraction result:", extraction);
   } finally {

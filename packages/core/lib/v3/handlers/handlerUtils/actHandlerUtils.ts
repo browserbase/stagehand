@@ -74,8 +74,8 @@ export async function performUnderstudyMethod(
     domSettleTimeoutMs,
   };
 
-  SessionFileLogger.logActionProgress({
-    actionType: method,
+  SessionFileLogger.logUnderstudyActionEvent({
+    actionType: `Understudy.${method}`,
     target: selectorRaw,
     args: Array.from(args),
   });
@@ -127,6 +127,8 @@ export async function performUnderstudyMethod(
       },
     });
     throw new UnderstudyCommandException(msg);
+  } finally {
+    SessionFileLogger.clearUnderstudyActionContext();
   }
 }
 
