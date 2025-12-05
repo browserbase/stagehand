@@ -17,7 +17,7 @@ import { v7 as uuidv7 } from "uuid";
 import { LogLine } from "../types/public/logs";
 import { AvailableModel } from "../types/public/model";
 import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
-import { SessionFileLogger } from "../flowLogger";
+import { SessionFileLogger, formatLlmPromptPreview } from "../flowLogger";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
@@ -133,23 +133,14 @@ export class AISdkClient extends LLMClient {
     if (options.response_model) {
       // Log LLM request for generateObject (extract)
       const llmRequestId = uuidv7();
-      const lastUserMsg = options.messages
-        .filter((m) => m.role === "user")
-        .pop();
-      const promptPreview = lastUserMsg
-        ? typeof lastUserMsg.content === "string"
-          ? lastUserMsg.content
-              .replace("instruction: ", "")
-              .replace("Instruction: ", "")
-          : lastUserMsg.content
-              .map((c) => ("text" in c ? c.text : "[img]"))
-              .join(" ")
-        : undefined;
+      const promptPreview = formatLlmPromptPreview(options.messages, {
+        hasSchema: true,
+      });
       SessionFileLogger.logLlmRequest({
         requestId: llmRequestId,
         model: this.model.modelId,
         operation: "generateObject",
-        prompt: `${promptPreview} +{schema}`,
+        prompt: promptPreview,
       });
 
       try {
@@ -263,22 +254,15 @@ export class AISdkClient extends LLMClient {
 
     // Log LLM request for generateText (act/observe)
     const llmRequestId = uuidv7();
-    const lastUserMsg = options.messages.filter((m) => m.role === "user").pop();
-    const promptPreview = lastUserMsg
-      ? typeof lastUserMsg.content === "string"
-        ? lastUserMsg.content.replace("instruction: ", "")
-        : lastUserMsg.content
-            .map((c) => ("text" in c ? c.text : "[img]"))
-            .join(" ")
-      : undefined;
     const toolCount = Object.keys(tools).length;
+    const promptPreview = formatLlmPromptPreview(options.messages, {
+      toolCount,
+    });
     SessionFileLogger.logLlmRequest({
       requestId: llmRequestId,
       model: this.model.modelId,
       operation: "generateText",
-      prompt: promptPreview
-        ? `${promptPreview}${toolCount > 0 ? ` +{${toolCount} tools}` : ""}`
-        : undefined,
+      prompt: promptPreview,
     });
 
     const textResponse = await generateText({
