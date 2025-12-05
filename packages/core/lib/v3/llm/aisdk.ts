@@ -16,6 +16,7 @@ import { ChatCompletion } from "openai/resources";
 import { LogLine } from "../types/public/logs";
 import { AvailableModel } from "../types/public/model";
 import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
+import { SessionFileLogger } from "../flowLogger";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
@@ -41,6 +42,7 @@ export class AISdkClient extends LLMClient {
   async createChatCompletion<T = ChatCompletion>({
     options,
   }: CreateChatCompletionOptions): Promise<T> {
+
     this.logger?.({
       category: "aisdk",
       message: "creating chat completion",
@@ -129,6 +131,21 @@ export class AISdkClient extends LLMClient {
     const isGPT5 = this.model.modelId.includes("gpt-5");
     const isGPT51 = this.model.modelId.includes("gpt-5.1");
     if (options.response_model) {
+      // Log LLM request for generateObject (extract)
+      const llmRequestId = SessionFileLogger.generateLlmRequestId();
+      const lastUserMsg = options.messages.filter(m => m.role === "user").pop();
+      const promptPreview = lastUserMsg
+        ? (typeof lastUserMsg.content === "string"
+            ? lastUserMsg.content.replace('instruction: ', '').replace('Instruction: ', '')
+            : lastUserMsg.content.map(c => "text" in c ? c.text : "[img]").join(" "))
+        : undefined;
+      SessionFileLogger.logLlmRequest({
+        requestId: llmRequestId,
+        model: this.model.modelId,
+        operation: "generateObject",
+        prompt: promptPreview ? `${promptPreview} +schema` : "+schema",
+      });
+
       try {
         objectResponse = await generateObject({
           model: this.model,
@@ -194,6 +211,16 @@ export class AISdkClient extends LLMClient {
         },
       } as T;
 
+      // Log LLM response for generateObject
+      SessionFileLogger.logLlmResponse({
+        requestId: llmRequestId,
+        model: this.model.modelId,
+        operation: "generateObject",
+        output: JSON.stringify(objectResponse.object).slice(0, 200),
+        inputTokens: objectResponse.usage.inputTokens,
+        outputTokens: objectResponse.usage.outputTokens,
+      });
+
       this.logger?.({
         category: "aisdk",
         message: "response",
@@ -227,6 +254,22 @@ export class AISdkClient extends LLMClient {
         } as Tool;
       }
     }
+
+    // Log LLM request for generateText (act/observe)
+    const llmRequestId = SessionFileLogger.generateLlmRequestId();
+    const lastUserMsg = options.messages.filter(m => m.role === "user").pop();
+    const promptPreview = lastUserMsg
+      ? (typeof lastUserMsg.content === "string"
+          ? lastUserMsg.content.replace("instruction: ", "")
+          : lastUserMsg.content.map(c => "text" in c ? c.text : "[img]").join(" "))
+      : undefined;
+    const toolCount = Object.keys(tools).length;
+    SessionFileLogger.logLlmRequest({
+      requestId: llmRequestId,
+      model: this.model.modelId,
+      operation: "generateText",
+      prompt: promptPreview ? `${promptPreview}${toolCount > 0 ? ` +{${toolCount} tools}` : ""}` : undefined,
+    });
 
     const textResponse = await generateText({
       model: this.model,
@@ -281,6 +324,16 @@ export class AISdkClient extends LLMClient {
         total_tokens: textResponse.usage.totalTokens ?? 0,
       },
     } as T;
+
+    // Log LLM response for generateText
+    SessionFileLogger.logLlmResponse({
+      requestId: llmRequestId,
+      model: this.model.modelId,
+      operation: "generateText",
+      output: textResponse.text || (transformedToolCalls.length > 0 ? `[${transformedToolCalls.length} tool calls]` : ""),
+      inputTokens: textResponse.usage.inputTokens,
+      outputTokens: textResponse.usage.outputTokens,
+    });
 
     this.logger?.({
       category: "aisdk",

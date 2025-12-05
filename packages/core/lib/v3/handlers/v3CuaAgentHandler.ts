@@ -173,11 +173,12 @@ export class V3CuaAgentHandler {
             : typeof action.description === "string"
               ? action.description
               : undefined;
-    SessionFileLogger.logActionProgress({
-      actionType: action.type,
+    SessionFileLogger.logUnderstudyActionEvent({
+      actionType: `v3CUA.${action.type}`,
       target: pointerTarget,
       args: [action],
     });
+    try {
     switch (action.type) {
       case "click": {
         const { x, y, button = "left", clickCount } = action;
@@ -437,6 +438,9 @@ export class V3CuaAgentHandler {
           success: false,
           error: `Unknown action ${String(action.type)}`,
         };
+    }
+    } finally {
+      SessionFileLogger.clearUnderstudyActionContext();
     }
   }
 

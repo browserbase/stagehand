@@ -1,7 +1,6 @@
 // lib/v3/understudy/cdp.ts
 import WebSocket from "ws";
 import type { Protocol } from "devtools-protocol";
-import { SessionFileLogger } from "../flowLogger";
 
 /**
  * CDP transport & session multiplexer
@@ -46,8 +45,17 @@ export class CdpConnection implements CDPSessionLike {
   private inflight = new Map<number, Inflight>();
   private eventHandlers = new Map<string, Set<EventHandler>>();
   private sessions = new Map<string, CdpSession>();
+  /** Maps sessionId -> targetId (1:1 mapping) */
+  private sessionToTarget = new Map<string, string>();
   public readonly id: string | null = null; // root
   private transportCloseHandlers = new Set<(why: string) => void>();
+
+  /** Optional CDP logger - set this to receive all CDP method calls */
+  public cdpLogger?: (info: {
+    method: string;
+    params?: object;
+    targetId?: string | null;
+  }) => void;
 
   public onTransportClosed(handler: (why: string) => void): void {
     this.transportCloseHandlers.add(handler);
@@ -119,7 +127,7 @@ export class CdpConnection implements CDPSessionLike {
         ts: Date.now(),
       });
     });
-    SessionFileLogger.logCdpMessage({ method, params, sessionId: null });
+    this.cdpLogger?.({ method, params, targetId: null });
     this.ws.send(JSON.stringify(payload));
     return p;
   }
@@ -157,6 +165,7 @@ export class CdpConnection implements CDPSessionLike {
       session = new CdpSession(this, sessionId);
       this.sessions.set(sessionId, session);
     }
+    this.sessionToTarget.set(sessionId, targetId);
     return session;
   }
 
@@ -191,6 +200,7 @@ export class CdpConnection implements CDPSessionLike {
         if (!this.sessions.has(p.sessionId)) {
           this.sessions.set(p.sessionId, new CdpSession(this, p.sessionId));
         }
+        this.sessionToTarget.set(p.sessionId, p.targetInfo.targetId);
       } else if (msg.method === "Target.detachedFromTarget") {
         const p = (msg as { params: Protocol.Target.DetachedFromTargetEvent })
           .params;
@@ -201,6 +211,16 @@ export class CdpConnection implements CDPSessionLike {
           }
         }
         this.sessions.delete(p.sessionId);
+        this.sessionToTarget.delete(p.sessionId);
+      } else if (msg.method === "Target.targetDestroyed") {
+        const p = (msg as { params: { targetId: string } }).params;
+        // Remove any session mapping for this target
+        for (const [sessionId, targetId] of this.sessionToTarget.entries()) {
+          if (targetId === p.targetId) {
+            this.sessionToTarget.delete(sessionId);
+            break;
+          }
+        }
       }
 
       const { method, params, sessionId } = msg;
@@ -234,7 +254,8 @@ export class CdpConnection implements CDPSessionLike {
         ts: Date.now(),
       });
     });
-    SessionFileLogger.logCdpMessage({ method, params, sessionId });
+    const targetId = this.sessionToTarget.get(sessionId) ?? null;
+    this.cdpLogger?.({ method, params, targetId });
     this.ws.send(JSON.stringify(payload));
     return p;
   }
