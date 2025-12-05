@@ -9,6 +9,7 @@ import {
 } from "../public";
 import type { Protocol } from "devtools-protocol";
 import type { StagehandZodSchema } from "../../zodCompat";
+import type { SessionStartResult } from "../../server/types";
 
 export interface StagehandAPIConstructorParams {
   apiKey?: string;
@@ -51,8 +52,7 @@ export interface StartSessionParams extends Partial<V3Options> {
   sdkVersion?: string;
 }
 
-// Re-export SessionStartResult from schemas (defined as Zod schema)
-export type { SessionStartResult } from "../../server/schemas";
+export type { SessionStartResult };
 
 export interface SuccessResponse<T> {
   success: true;

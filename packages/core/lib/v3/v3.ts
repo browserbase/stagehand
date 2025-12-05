@@ -1837,11 +1837,25 @@ export class V3 {
    * ```
    */
   createServer(
-    options?: import("./server").StagehandServerOptions,
-  ): import("./server").StagehandServer {
-    // Import StagehandServer dynamically to avoid circular dependency
-    const { StagehandServer } = require("./server");
-    return new StagehandServer(options);
+    options?: import("./server/types").StagehandServerOptions,
+  ): import("./server/types").StagehandServerInstance {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { StagehandServer } = require("@browserbasehq/stagehand-server");
+      return new StagehandServer(options);
+    } catch (error) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        (error as { code?: string }).code === "MODULE_NOT_FOUND"
+      ) {
+        throw new Error(
+          "Stagehand server package not found. Install @browserbasehq/stagehand-server to use createServer().",
+        );
+      }
+      throw error;
+    }
   }
 
 }

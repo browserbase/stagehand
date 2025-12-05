@@ -5,25 +5,36 @@ import {
   validatorCompiler,
   type ZodTypeProvider,
 } from "fastify-type-provider-zod";
-import type {
-  ActOptions,
-  ActResult,
-  ExtractResult,
-  ExtractOptions,
-  ObserveOptions,
-  Action,
-  AgentResult,
-  ModelConfiguration,
-} from "../types/public";
-import type { StagehandZodSchema } from "../zodCompat";
-import { jsonSchemaToZod, type JsonSchema } from "../../utils";
-import type { SessionStore, CreateSessionParams } from "./SessionStore";
+import {
+  jsonSchemaToZod,
+  type JsonSchema,
+  type StagehandZodSchema,
+  type ActOptions,
+  type ActResult,
+  type ExtractResult,
+  type ExtractOptions,
+  type ObserveOptions,
+  type Action,
+  type AgentResult,
+  type ModelConfiguration,
+  type SessionStore,
+  type CreateSessionParams,
+  type StagehandServerOptions,
+} from "@browserbasehq/stagehand";
 import { InMemorySessionStore } from "./InMemorySessionStore";
 import { createStreamingResponse, mapStagehandError } from "./stream";
 
 // Re-export error handling utilities for consumers
 export { StagehandErrorCode, mapStagehandError } from "./stream";
 export type { StagehandErrorResponse } from "./stream";
+export type {
+  StagehandServerEvent,
+  StagehandLLMRequestEvent,
+  StagehandLLMResponseEvent,
+  StagehandLLMErrorEvent,
+  StagehandServerEventType,
+  StagehandServerEventMap,
+} from "@browserbasehq/stagehand";
 import {
   ActRequestSchema,
   ActResponseSchema,
@@ -82,16 +93,14 @@ export interface StagehandHttpReply {
   hijack(): void;
 }
 
-// Re-export event types for consumers (only LLM events are actually used)
-export * from "./events";
-
-// Re-export SessionStore types
+// Re-export SessionStore types for consumers
 export type {
   SessionStore,
   RequestContext,
   CreateSessionParams,
+  SessionCacheConfig,
   SessionStartResult,
-} from "./SessionStore";
+} from "@browserbasehq/stagehand";
 export { InMemorySessionStore } from "./InMemorySessionStore";
 
 // Re-export API schemas and types for consumers
@@ -148,7 +157,7 @@ export async function validateSession(
  *
  * @example
  * ```typescript
- * import { createSessionValidationPreHandler, DBSessionStore } from '@browserbasehq/stagehand/server';
+ * import { createSessionValidationPreHandler, DBSessionStore } from '@browserbasehq/stagehand-server';
  *
  * const sessionStore = new DBSessionStore();
  * const sessionValidationPreHandler = createSessionValidationPreHandler(sessionStore);
@@ -170,17 +179,6 @@ export function createSessionValidationPreHandler(
   ): Promise<void> => {
     await validateSession(sessionStore, request, reply);
   };
-}
-
-export interface StagehandServerOptions {
-  port?: number;
-  host?: string;
-  /**
-   * Session store for managing session lifecycle and V3 instances.
-   * Defaults to InMemorySessionStore if not provided.
-   * Cloud environments should provide a database-backed implementation.
-   */
-  sessionStore?: SessionStore;
 }
 
 /**

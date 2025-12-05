@@ -8,7 +8,7 @@
  */
 
 import { EventEmitter } from "events";
-import type { StagehandServerEventMap } from "./server/events";
+import type { StagehandServerEventMap } from "./events";
 
 /**
  * Type-safe event bus for all Stagehand events

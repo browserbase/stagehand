@@ -10,17 +10,12 @@
       "import": "./dist/index.js",
       "require": "./dist/index.js",
       "types": "./dist/index.d.ts"
-    },
-    "./server": {
-      "import": "./dist/server.js",
-      "require": "./dist/server.js",
-      "types": "./dist/server.d.ts"
     }
   },
   "scripts": {
     "gen-version": "tsx scripts/gen-version.ts",
     "build-dom-scripts": "tsx lib/v3/dom/genDomScripts.ts && tsx lib/v3/dom/genLocatorScripts.ts",
-    "build-js": "tsup --entry.index lib/v3/index.ts --entry.server lib/v3/server/index.ts --dts",
+    "build-js": "tsup --entry.index lib/v3/index.ts --dts",
     "typecheck": "tsc --noEmit",
     "build": "pnpm run gen-version && pnpm run build-dom-scripts && pnpm run build-js && pnpm run typecheck",
     "example": "node --import tsx -e \"const args=process.argv.slice(1).filter(a=>a!=='--'); const [p]=args; const n=(p||'example').replace(/^\\.\\//,'').replace(/\\.ts$/i,''); import(new URL(require('node:path').resolve('examples', n + '.ts'), 'file:'));\" --",
@@ -35,8 +30,6 @@
   "files": [
     "dist/index.js",
     "dist/index.d.ts",
-    "dist/server.js",
-    "dist/server.d.ts",
     "dist/lib",
     "dist/types",
     "dist/stagehand.config.d.ts"
@@ -59,14 +52,11 @@
     "@ai-sdk/provider": "^2.0.0",
     "@anthropic-ai/sdk": "0.39.0",
     "@browserbasehq/sdk": "^2.4.0",
-    "@fastify/cors": "^10.0.1",
     "@google/genai": "^1.22.0",
     "@langchain/openai": "^0.4.4",
     "@modelcontextprotocol/sdk": "^1.17.2",
     "ai": "^5.0.0",
     "devtools-protocol": "^0.0.1464554",
-    "fastify": "^5.2.4",
-    "fastify-type-provider-zod": "^6.1.0",
     "fetch-cookie": "^3.1.0",
     "openai": "^4.87.1",
     "pino": "^9.6.0",

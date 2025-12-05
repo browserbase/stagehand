@@ -5,18 +5,18 @@ export * from "./types/public";
 
 // Event bus - shared by library and server
 export { StagehandEventBus, createEventBus } from "./eventBus";
-export * from "./server/events";
+export * from "./events";
 
-// Server exports for P2P functionality
-export { StagehandServer } from "./server";
-export type { StagehandServerOptions } from "./server";
-export { InMemorySessionStore } from "./server/InMemorySessionStore";
+// Server-adjacent type exports for backwards compatibility
 export type {
+  StagehandServerOptions,
+  StagehandServerInstance,
   SessionStore,
   CreateSessionParams,
   RequestContext,
   SessionCacheConfig,
-} from "./server/SessionStore";
+  SessionStartResult,
+} from "./server/types";
 export { AnnotatedScreenshotText, LLMClient } from "./llm/LLMClient";
 
 export { AgentProvider, modelToAgentProviderMap } from "./agent/AgentProvider";

@@ -1,6 +1,5 @@
 import { randomUUID } from "crypto";
-import type { V3 } from "../v3";
-import type { SessionStore, RequestContext } from "./SessionStore";
+import type { V3, SessionStore, RequestContext } from "@browserbasehq/stagehand";
 
 // =============================================================================
 // Error Handling
