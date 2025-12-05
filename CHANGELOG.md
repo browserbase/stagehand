@@ -1,5 +1,11 @@
 # @browserbasehq/stagehand
 
+## 2.5.4
+
+### Patch Changes
+
+- [#1368](https://github.com/browserbase/stagehand/pull/1368) [`fb74c90`](https://github.com/browserbase/stagehand/commit/fb74c9049ca0bfa7dc0148342af71e7fd55b835e) Thanks [@miguelg719](https://github.com/miguelg719)! - Version bump to 2.5.4
+
 ## 2.5.3
 
 ### Patch Changes
