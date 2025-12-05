@@ -774,7 +774,7 @@ export class AnthropicCUAClient extends AgentClient {
         } else if (action === "keypress" || action === "key") {
           return {
             type: "keypress",
-            keys: input.text as string[],
+            keys: [input.text as string],
             ...input,
           };
         } else if (action === "double_click" || action === "doubleClick") {
