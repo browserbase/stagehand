@@ -73,16 +73,7 @@ import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
 import { resolveModel } from "../modelUtils";
 import { StagehandAPIClient } from "./api";
-import {
-  logTaskProgress,
-  logStepProgress,
-  setSessionFileLogger,
-  FlowLoggerContext,
-} from "./flowLogger";
-import {
-  createSessionFileLogger,
-  SessionFileLogger,
-} from "./sessionFileLogger";
+import { SessionFileLogger } from "./flowLogger";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard";
 import { ActTimeoutError } from "./types/public/sdkErrors";
 
