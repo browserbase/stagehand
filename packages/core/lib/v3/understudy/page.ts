@@ -1,7 +1,7 @@
 import { Protocol } from "devtools-protocol";
 import { promises as fs } from "fs";
 import { v3Logger } from "../logger";
-import { SessionFileLogger } from "../flowLogger";
+import { SessionFileLogger, logAction } from "../flowLogger";
 import type { CDPSessionLike } from "./cdp";
 import { CdpConnection } from "./cdp";
 import { Frame } from "./frame";
@@ -625,10 +625,8 @@ export class Page {
   /**
    * Close this top-level page (tab). Best-effort via Target.closeTarget.
    */
+  @logAction("Page.close")
   public async close(): Promise<void> {
-    SessionFileLogger.logUnderstudyActionEvent({
-      actionType: "Page.close",
-    });
     try {
       await this.conn.send("Target.closeTarget", { targetId: this._targetId });
     } catch {
@@ -762,15 +760,11 @@ export class Page {
    * Navigate the page; optionally wait for a lifecycle state.
    * Waits on the **current** main frame and follows root swaps during navigation.
    */
+  @logAction("Page.goto")
   async goto(
     url: string,
     options?: { waitUntil?: LoadState; timeoutMs?: number },
   ): Promise<Response | null> {
-    SessionFileLogger.logUnderstudyActionEvent({
-      actionType: "Page.goto",
-      target: url,
-      args: options,
-    });
     const waitUntil: LoadState = options?.waitUntil ?? "domcontentloaded";
     const timeout = options?.timeoutMs ?? 15000;
 
@@ -829,15 +823,12 @@ export class Page {
   /**
    * Reload the page; optionally wait for a lifecycle state.
    */
+  @logAction("Page.reload")
   async reload(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
     ignoreCache?: boolean;
   }): Promise<Response | null> {
-    SessionFileLogger.logUnderstudyActionEvent({
-      actionType: "Page.reload",
-      args: options,
-    });
     const waitUntil = options?.waitUntil;
     const timeout = options?.timeoutMs ?? 15000;
 
@@ -879,14 +870,11 @@ export class Page {
   /**
    * Navigate back in history if possible; optionally wait for a lifecycle state.
    */
+  @logAction("Page.goBack")
   async goBack(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
   }): Promise<Response | null> {
-    SessionFileLogger.logUnderstudyActionEvent({
-      actionType: "Page.goBack",
-      args: options,
-    });
     const { entries, currentIndex } =
       await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
         "Page.getNavigationHistory",
@@ -935,14 +923,11 @@ export class Page {
   /**
    * Navigate forward in history if possible; optionally wait for a lifecycle state.
    */
+  @logAction("Page.goForward")
   async goForward(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
   }): Promise<Response | null> {
-    SessionFileLogger.logUnderstudyActionEvent({
-      actionType: "Page.goForward",
-      args: options,
-    });
     const { entries, currentIndex } =
       await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
         "Page.getNavigationHistory",
@@ -1068,11 +1053,8 @@ export class Page {
    * timeout error is thrown.
    * @param options.type Image format (`"png"` by default).
    */
+  @logAction("Page.screenshot")
   async screenshot(options?: ScreenshotOptions): Promise<Buffer> {
-    SessionFileLogger.logUnderstudyActionEvent({
-      actionType: "Page.screenshot",
-      args: options,
-    });
     const opts = options ?? {};
     const type = opts.type ?? "png";
 
@@ -1194,11 +1176,8 @@ export class Page {
    * Wait until the page reaches a lifecycle state on the current main frame.
    * Mirrors Playwright's API signatures.
    */
+  @logAction("Page.waitForLoadState")
   async waitForLoadState(state: LoadState, timeoutMs?: number): Promise<void> {
-    SessionFileLogger.logUnderstudyActionEvent({
-      actionType: "Page.waitForLoadState",
-      args: [state, timeoutMs],
-    });
     await this.waitForMainLoadState(state, timeoutMs ?? 15000);
   }
 
@@ -1215,53 +1194,60 @@ export class Page {
   ): Promise<R> {
     SessionFileLogger.logUnderstudyActionEvent({
       actionType: "Page.evaluate",
-      args: [typeof pageFunctionOrExpression === "string" ? pageFunctionOrExpression : "[function]", arg],
+      args: [
+        typeof pageFunctionOrExpression === "string"
+          ? pageFunctionOrExpression
+          : "[function]",
+        arg,
+      ],
     });
-    await this.mainSession.send("Runtime.enable").catch(() => {});
-    const ctxId = await this.mainWorldExecutionContextId();
+    try {
+      await this.mainSession.send("Runtime.enable").catch(() => {});
+      const ctxId = await this.mainWorldExecutionContextId();
 
-    const isString = typeof pageFunctionOrExpression === "string";
-    let expression: string;
+      const isString = typeof pageFunctionOrExpression === "string";
+      let expression: string;
 
-    if (isString) {
-      expression = String(pageFunctionOrExpression);
-    } else {
-      const fnSrc = pageFunctionOrExpression.toString();
-      // Build an IIFE that calls the user's function with the argument and
-      // attempts to deep-serialize the result for returnByValue.
-      const argJson = JSON.stringify(arg);
-      expression = `(() => {
-        const __fn = ${fnSrc};
-        const __arg = ${argJson};
-        try {
-          const __res = __fn(__arg);
-          return Promise.resolve(__res).then(v => {
-            try { return JSON.parse(JSON.stringify(v)); } catch { return v; }
-          });
-        } catch (e) { throw e; }
-      })()`;
+      if (isString) {
+        expression = String(pageFunctionOrExpression);
+      } else {
+        const fnSrc = pageFunctionOrExpression.toString();
+        const argJson = JSON.stringify(arg);
+        expression = `(() => {
+          const __fn = ${fnSrc};
+          const __arg = ${argJson};
+          try {
+            const __res = __fn(__arg);
+            return Promise.resolve(__res).then(v => {
+              try { return JSON.parse(JSON.stringify(v)); } catch { return v; }
+            });
+          } catch (e) { throw e; }
+        })()`;
+      }
+
+      const { result, exceptionDetails } =
+        await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
+          "Runtime.evaluate",
+          {
+            expression,
+            contextId: ctxId,
+            returnByValue: true,
+            awaitPromise: true,
+          },
+        );
+
+      if (exceptionDetails) {
+        const msg =
+          exceptionDetails.text ||
+          exceptionDetails.exception?.description ||
+          "Evaluation failed";
+        throw new StagehandEvalError(msg);
+      }
+
+      return result?.value as R;
+    } finally {
+      SessionFileLogger.logUnderstudyActionCompleted();
     }
-
-    const { result, exceptionDetails } =
-      await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
-        "Runtime.evaluate",
-        {
-          expression,
-          contextId: ctxId,
-          returnByValue: true,
-          awaitPromise: true,
-        },
-      );
-
-    if (exceptionDetails) {
-      const msg =
-        exceptionDetails.text ||
-        exceptionDetails.exception?.description ||
-        "Evaluation failed";
-      throw new StagehandEvalError(msg);
-    }
-
-    return result?.value as R;
   }
 
   /**
@@ -1331,6 +1317,7 @@ export class Page {
       returnXpath: boolean;
     },
   ): Promise<void | string>;
+  @logAction("Page.click")
   async click(
     x: number,
     y: number,
@@ -1340,10 +1327,6 @@ export class Page {
       returnXpath?: boolean;
     },
   ): Promise<void | string> {
-    SessionFileLogger.logUnderstudyActionEvent({
-      actionType: "Page.click",
-      args: [x, y, options],
-    });
     const button = options?.button ?? "left";
     const clickCount = options?.clickCount ?? 1;
 
@@ -1431,6 +1414,7 @@ export class Page {
     deltaY: number,
     options: { returnXpath: boolean },
   ): Promise<void | string>;
+  @logAction("Page.scroll")
   async scroll(
     x: number,
     y: number,
@@ -1438,10 +1422,6 @@ export class Page {
     deltaY: number,
     options?: { returnXpath?: boolean },
   ): Promise<void | string> {
-    SessionFileLogger.logUnderstudyActionEvent({
-      actionType: "Page.scroll",
-      args: [x, y, deltaX, deltaY, options],
-    });
     let xpathResult: string | undefined;
     if (options?.returnXpath) {
       try {
@@ -1513,6 +1493,7 @@ export class Page {
       returnXpath: boolean;
     },
   ): Promise<void | [string, string]>;
+  @logAction("Page.dragAndDrop")
   async dragAndDrop(
     fromX: number,
     fromY: number,
@@ -1525,10 +1506,6 @@ export class Page {
       returnXpath?: boolean;
     },
   ): Promise<void | [string, string]> {
-    SessionFileLogger.logUnderstudyActionEvent({
-      actionType: "Page.dragAndDrop",
-      args: [fromX, fromY, toX, toY, options],
-    });
     const button = options?.button ?? "left";
     const steps = Math.max(1, Math.floor(options?.steps ?? 1));
     const delay = Math.max(0, options?.delay ?? 0);
@@ -1621,14 +1598,11 @@ export class Page {
    * and never falls back to Input.insertText. Optional delay applies between
    * successive characters.
    */
+  @logAction("Page.type")
   async type(
     text: string,
     options?: { delay?: number; withMistakes?: boolean },
   ): Promise<void> {
-    SessionFileLogger.logUnderstudyActionEvent({
-      actionType: "Page.type",
-      args: [text, options],
-    });
     const delay = Math.max(0, options?.delay ?? 0);
     const withMistakes = !!options?.withMistakes;
 
@@ -1722,11 +1696,8 @@ export class Page {
    * For printable characters, uses the text path on keyDown; for named keys, sets key/code/VK.
    * Supports key combinations with modifiers like "Cmd+A", "Ctrl+C", "Shift+Tab", etc.
    */
+  @logAction("Page.keyPress")
   async keyPress(key: string, options?: { delay?: number }): Promise<void> {
-    SessionFileLogger.logUnderstudyActionEvent({
-      actionType: "Page.keyPress",
-      args: [key, options],
-    });
     const delay = Math.max(0, options?.delay ?? 0);
     const sleep = (ms: number) =>
       new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));

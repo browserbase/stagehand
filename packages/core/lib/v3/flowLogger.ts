@@ -209,26 +209,24 @@ function removeQuotes(str: string): string {
 function prettifyEvent(event: FlowEvent): string | null {
   const parts: string[] = [];
 
-  // Build context tags based on category (only add tags when IDs are present)
+  // Build context tags - always add parent span tags (formatTag returns ⤑ for null IDs)
   if (event.category === "AgentTask") {
-    if (event.taskId) parts.push(formatTag("", event.taskId, "🅰"));
+    parts.push(formatTag("", event.taskId, "🅰"));
   } else if (event.category === "StagehandStep") {
-    if (event.taskId) parts.push(formatTag("", event.taskId, "🅰"));
-    if (event.stepId) parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
+    parts.push(formatTag("", event.taskId, "🅰"));
+    parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
   } else if (event.category === "UnderstudyAction") {
-    if (event.taskId) parts.push(formatTag("", event.taskId, "🅰"));
-    if (event.stepId) parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
-    if (event.actionId)
-      parts.push(formatTag(event.actionLabel, event.actionId, "🆄"));
+    parts.push(formatTag("", event.taskId, "🅰"));
+    parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
+    parts.push(formatTag(event.actionLabel, event.actionId, "🆄"));
   } else if (event.category === "CDP") {
-    if (event.taskId) parts.push(formatTag("", event.taskId, "🅰"));
-    if (event.stepId) parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
-    if (event.actionId)
-      parts.push(formatTag(event.actionLabel, event.actionId, "🆄"));
+    parts.push(formatTag("", event.taskId, "🅰"));
+    parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
+    parts.push(formatTag(event.actionLabel, event.actionId, "🆄"));
     parts.push(formatTag("CDP", event.targetId, "🅲"));
   } else if (event.category === "LLM") {
-    if (event.taskId) parts.push(formatTag("", event.taskId, "🅰"));
-    if (event.stepId) parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
+    parts.push(formatTag("", event.taskId, "🅰"));
+    parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
     parts.push(formatTag("LLM", event.requestId, "🧠"));
   }
 
@@ -1106,4 +1104,28 @@ export class SessionFileLogger {
       },
     };
   }
+}
+
+/**
+ * Method decorator for logging understudy actions with automatic start/complete.
+ * Logs all arguments automatically.
+ */
+export function logAction(actionType: string) {
+  return function <T extends (...args: never[]) => Promise<unknown>>(
+    originalMethod: T,
+    _context: ClassMethodDecoratorContext,
+  ): T {
+    return async function (this: unknown, ...args: unknown[]) {
+      SessionFileLogger.logUnderstudyActionEvent({
+        actionType,
+        args: args.length > 0 ? args : undefined,
+      });
+
+      try {
+        return await originalMethod.apply(this, args as never[]);
+      } finally {
+        SessionFileLogger.logUnderstudyActionCompleted();
+      }
+    } as T;
+  };
 }
