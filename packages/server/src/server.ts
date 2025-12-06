@@ -1,9 +1,6 @@
-import "./lib/instrument.js";
-
 import { randomUUID } from "crypto";
 
 import cors from "@fastify/cors";
-import * as Sentry from "@sentry/node";
 import fastify from "fastify";
 import metricsPlugin from "fastify-metrics";
 import { StatusCodes } from "http-status-codes";
@@ -125,8 +122,6 @@ const start = async () => {
         statusCode,
       });
     });
-
-    Sentry.setupFastifyErrorHandler(app);
 
     // disable the built-in validator
     app.setValidatorCompiler(() => () => true);
