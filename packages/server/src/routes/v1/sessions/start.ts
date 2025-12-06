@@ -3,7 +3,6 @@ import type { RouteHandler, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 
 import { authMiddleware } from "../../../lib/auth.js";
-import { env } from "../../../lib/env.js";
 import { withErrorHandling } from "../../../lib/errorHandler.js";
 import {
   dangerouslyGetHeader,
@@ -11,17 +10,11 @@ import {
 } from "../../../lib/header.js";
 import { error, success } from "../../../lib/response.js";
 import { startSession } from "../../../lib/session.js";
-import { isV3Version } from "../../../lib/utils.js";
 import {
   InvalidModelError,
   InvalidProviderError,
 } from "../../../types/error.js";
 import { AISDK_PROVIDERS } from "../../../types/model.js";
-
-const TS_SEGMENT_KEY = "ts-users";
-const TS_V3_SEGMENT_KEY = "ts-v3-users";
-const PYTHON_SEGMENT_KEY = "python-users";
-const PLAYGROUND_SEGMENT_KEY = "playground-users";
 
 const startRouteHandler: RouteHandler = withErrorHandling(
   async (request, reply) => {
@@ -75,34 +68,6 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       if (!(AISDK_PROVIDERS as readonly string[]).includes(providerName)) {
         return new InvalidProviderError(providerName);
       }
-    }
-
-    // Manual rollout of API availability for GA
-    const { launchdarkly } = request.server;
-    // Filter rollout strategy by client SDK language
-    let context: { key: string };
-    if (clientLanguage === "typescript") {
-      if (isV3Version(sdkVersion, clientLanguage)) {
-        context = { key: TS_V3_SEGMENT_KEY };
-      } else {
-        context = { key: TS_SEGMENT_KEY };
-      }
-    } else if (clientLanguage === "python") {
-      context = { key: PYTHON_SEGMENT_KEY };
-    } else if (clientLanguage === "playground") {
-      context = { key: PLAYGROUND_SEGMENT_KEY };
-    } else {
-      context = { key: env.LAUNCHDARKLY_ENVIRONMENT_KEY };
-    }
-
-    const DEFAULT_ROLLOUT_VALUE = false;
-    const isAvailable = await launchdarkly.getFlagValue(
-      "stagehand-api-ga-rollout",
-      context,
-      DEFAULT_ROLLOUT_VALUE,
-    );
-    if (!isAvailable) {
-      return success(reply, { sessionId: null, available: false });
     }
 
     const session = await startSession({

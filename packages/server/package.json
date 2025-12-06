@@ -1,13 +1,13 @@
 {
-  "name": "stagehand-api",
+  "name": "@browserbasehq/stagehand-server",
+  "version": "3.0.5",
+  "description": "Stagehand API server",
   "type": "module",
   "private": true,
   "scripts": {
     "build": "tsc && tsc-alias",
     "dev": "tsx watch src/server.ts",
-    "eslint": "eslint ./src",
-    "eslint:fix": "eslint --fix ./src",
-    "lint": "pnpm run eslint && pnpm run typecheck",
+    "lint": "cd ../.. && prettier --check packages/server && cd packages/server && eslint .",
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org browserbase --project stagehand-api ./dist && sentry-cli sourcemaps upload --org browserbase --project stagehand-api ./dist",
     "node:test": "node --import tsx --test --test-reporter=spec",
     "test:unit": "pnpm run node:test $(find ./src -type f -name '*.test.ts')",
@@ -15,9 +15,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@browserbasehq/launchdarkly": "workspace:*",
     "@browserbasehq/sdk": "^2.4.0",
-    "@browserbasehq/stagehand": "2.5.3-alpha-73839ffea45de797ad27eb0cb18a98c29d8a103a",
+    "@browserbasehq/stagehand": "workspace:*",
     "@browserbasehq/zod": "workspace:*",
     "@fastify/cors": "^11.0.1",
     "@sentry/node": "8.35.0",
@@ -39,7 +38,6 @@
     "zod-to-json-schema": "^3.24.3"
   },
   "devDependencies": {
-    "@browserbasehq/config": "workspace:*",
     "@sentry/cli": "^2.41.1",
     "@types/node": "22.13.1",
     "eslint": "^9.7.0",
@@ -47,5 +45,14 @@
     "tsc-alias": "^1.8.10",
     "tsx": "^4.18.0",
     "typescript": "~5.9.2"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/browserbase/stagehand.git",
+    "directory": "packages/server"
+  },
+  "bugs": {
+    "url": "https://github.com/browserbase/stagehand/issues"
+  },
+  "homepage": "https://stagehand.dev"
 }

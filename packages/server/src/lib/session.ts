@@ -1,4 +1,3 @@
-import { LaunchDarklyClient } from "@browserbasehq/launchdarkly";
 import Browserbase from "@browserbasehq/sdk";
 import type {
   ConstructorParams,
@@ -45,33 +44,10 @@ const onEvictCallback = async (
   }
 };
 
-const getCacheConfig = async (launchdarkly?: LaunchDarklyClient) => {
-  if (!launchdarkly) {
-    return {
-      maxSize: DEFAULT_CACHE_MAX_SIZE,
-      ttlMs: DEFAULT_CACHE_TTL_MS,
-    };
-  }
-
-  // Temporarily setting the context to the environment
-  const context = { key: env.LAUNCHDARKLY_ENVIRONMENT_KEY };
-
-  const [maxSize, ttlMs] = await Promise.all([
-    launchdarkly.getFlagValue(
-      "stagehand-api-session-cache-size",
-      context,
-      DEFAULT_CACHE_MAX_SIZE,
-    ),
-    launchdarkly.getFlagValue(
-      "stagehand-api-session-cache-ttl",
-      context,
-      DEFAULT_CACHE_TTL_MS,
-    ),
-  ]);
-
+const getCacheConfig = () => {
   return {
-    maxSize,
-    ttlMs,
+    maxSize: DEFAULT_CACHE_MAX_SIZE,
+    ttlMs: DEFAULT_CACHE_TTL_MS,
   };
 };
 
@@ -79,80 +55,15 @@ let sessionCache: SessionCache;
 
 export const initializeSessionCache = async (
   logger: FastifyBaseLogger,
-  launchdarkly?: LaunchDarklyClient,
 ) => {
   try {
-    const cacheConfig = await getCacheConfig(launchdarkly);
+    const cacheConfig = getCacheConfig();
     sessionCache = new SessionCache(
       logger,
       onEvictCallback,
       cacheConfig.maxSize,
       cacheConfig.ttlMs,
     );
-
-    // LaunchDarkly flag change listeners for dynamic cache configuration
-    if (launchdarkly) {
-      const context = { key: env.LAUNCHDARKLY_ENVIRONMENT_KEY };
-
-      launchdarkly.onFlagChange(
-        "stagehand-api-session-cache-size",
-        async () => {
-          try {
-            const newMaxSize = await launchdarkly.getFlagValue(
-              "stagehand-api-session-cache-size",
-              context,
-              DEFAULT_CACHE_MAX_SIZE,
-            );
-
-            // Validate the new value
-            if (newMaxSize <= 0) {
-              logger.warn(
-                `Invalid cache size from LaunchDarkly: ${String(newMaxSize)}. Must be greater than 0. Keeping current value.`,
-              );
-              return;
-            }
-
-            const currentConfig = sessionCache.getConfig();
-            if (currentConfig.maxCapacity !== newMaxSize) {
-              logger.info(
-                `LaunchDarkly flag change detected: updating cache size from ${String(currentConfig.maxCapacity)} to ${String(newMaxSize)}`,
-              );
-              sessionCache.updateConfig({ maxCapacity: newMaxSize });
-            }
-          } catch (err) {
-            logger.error("Failed to update cache size from LaunchDarkly:", err);
-          }
-        },
-      );
-
-      launchdarkly.onFlagChange("stagehand-api-session-cache-ttl", async () => {
-        try {
-          const newTtl = await launchdarkly.getFlagValue(
-            "stagehand-api-session-cache-ttl",
-            context,
-            DEFAULT_CACHE_TTL_MS,
-          );
-
-          // Validate the new value (ttlMs can be 0 for no expiry, but negative values are invalid)
-          if (newTtl < 0) {
-            logger.warn(
-              `Invalid cache ttlMs from LaunchDarkly: ${String(newTtl)}. Must be non-negative. Keeping current value.`,
-            );
-            return;
-          }
-
-          const currentConfig = sessionCache.getConfig();
-          if (currentConfig.ttlMs !== newTtl) {
-            logger.info(
-              `LaunchDarkly flag change detected: updating cache ttlMs from ${String(currentConfig.ttlMs)}ms to ${String(newTtl)}ms`,
-            );
-            sessionCache.updateConfig({ ttlMs: newTtl });
-          }
-        } catch (err) {
-          logger.error("Failed to update cache ttlMs from LaunchDarkly:", err);
-        }
-      });
-    }
 
     return sessionCache;
   } catch (err) {

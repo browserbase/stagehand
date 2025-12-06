@@ -8,7 +8,6 @@ import fastify from "fastify";
 import metricsPlugin from "fastify-metrics";
 import { StatusCodes } from "http-status-codes";
 
-import launchdarklyPlugin from "./lib/launchdarkly.js";
 import { logging } from "./lib/logging/index.js";
 import { initializeSessionCache } from "./lib/session.js";
 import healthcheckRoute from "./routes/healthcheck.js";
@@ -149,8 +148,6 @@ const start = async () => {
       },
     });
 
-    await app.register(launchdarklyPlugin);
-
     await app.register(
       (app, _opts, done) => {
         app.route(actRoute);
@@ -168,8 +165,8 @@ const start = async () => {
 
     logging(app);
 
-    // The session cache is dynamically configured based on LaunchDarkly flags
-    await initializeSessionCache(app.log, app.launchdarkly);
+    // Initialize session cache with default configuration
+    await initializeSessionCache(app.log);
 
     // Register health and readiness routes at the root level
     app.route(healthcheckRoute);

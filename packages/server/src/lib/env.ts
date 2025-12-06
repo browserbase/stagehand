@@ -19,8 +19,6 @@ export const env = createEnv({
     SENTRY_DSN: z.string().min(1),
     BB_API_BASE_URL: z.string().min(1),
     BB_CONNECT_BASE_URL: z.string().min(1),
-    LAUNCHDARKLY_SDK_KEY: z.string().min(1),
-    LAUNCHDARKLY_ENVIRONMENT_KEY: z.string().min(1),
   },
   client: {},
   runtimeEnv: {
@@ -34,7 +32,5 @@ export const env = createEnv({
     SENTRY_DSN: process.env.SENTRY_DSN,
     BB_API_BASE_URL: process.env.BB_API_BASE_URL,
     BB_CONNECT_BASE_URL: process.env.BB_CONNECT_BASE_URL,
-    LAUNCHDARKLY_SDK_KEY: process.env.LAUNCHDARKLY_SDK_KEY,
-    LAUNCHDARKLY_ENVIRONMENT_KEY: process.env.LAUNCHDARKLY_ENVIRONMENT_KEY,
   },
 });
