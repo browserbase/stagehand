@@ -495,6 +495,7 @@ export function getConfigDir(): string {
 
 /**
  * Format a prompt preview from LLM messages for logging.
+ * Returns format like: "some text... +{5.8kb image} +{schema} +{12 tools}"
  */
 export function formatLlmPromptPreview(
   messages: Array<{ role: string; content: unknown }>,
@@ -503,69 +504,169 @@ export function formatLlmPromptPreview(
   const lastUserMsg = messages.filter((m) => m.role === "user").pop();
   if (!lastUserMsg) return undefined;
 
-  let preview: string;
+  let textPreview: string | undefined;
+  const extras: string[] = [];
+
   if (typeof lastUserMsg.content === "string") {
-    preview = lastUserMsg.content
+    textPreview = lastUserMsg.content
       .replace("instruction: ", "")
       .replace("Instruction: ", "");
   } else if (Array.isArray(lastUserMsg.content)) {
-    preview = lastUserMsg.content
-      .map((c: unknown) => {
-        const item = c as { text?: string };
-        return item.text ? item.text : "[img]";
-      })
-      .join(" ");
+    for (const c of lastUserMsg.content as unknown[]) {
+      const item = c as {
+        type?: string;
+        text?: string;
+        image_url?: { url?: string };
+        source?: { data?: string };
+      };
+
+      if (item.type === "text" && item.text && !textPreview) {
+        textPreview = item.text
+          .replace("instruction: ", "")
+          .replace("Instruction: ", "");
+      } else if (item.type === "image" || item.type === "image_url") {
+        if (item.image_url?.url?.startsWith("data:")) {
+          const sizeKb = ((item.image_url.url.length * 0.75) / 1024).toFixed(1);
+          extras.push(`${sizeKb}kb image`);
+        } else {
+          extras.push("image");
+        }
+      } else if (item.source?.data) {
+        const sizeKb = ((item.source.data.length * 0.75) / 1024).toFixed(1);
+        extras.push(`${sizeKb}kb image`);
+      } else if (item.text) {
+        // Text item but we already have textPreview
+      }
+    }
   } else {
     return undefined;
   }
 
-  const suffixes: string[] = [];
+  // Add options-based extras
   if (options?.hasSchema) {
-    suffixes.push("schema");
+    extras.push("schema");
   }
   if (options?.toolCount && options.toolCount > 0) {
-    suffixes.push(`${options.toolCount} tools`);
+    extras.push(`${options.toolCount} tools`);
   }
 
-  if (suffixes.length > 0) {
-    return `${preview} +{${suffixes.join(", ")}}`;
+  // Build result
+  let result = textPreview || "";
+  if (extras.length > 0) {
+    const extrasStr = extras.map((e) => `+{${e}}`).join(" ");
+    result = result ? `${result} ${extrasStr}` : extrasStr;
   }
-  return preview;
+
+  return result || undefined;
 }
 
 /**
  * Extract a text preview from CUA-style messages.
  * Accepts various message formats (Anthropic, OpenAI, Google).
+ * Returns format like: "some text... +{5.8kb image} +{schema}"
  */
 export function formatCuaPromptPreview(
   messages: unknown[],
   maxLen = 100,
 ): string | undefined {
-  // Find last user message - handle various formats
-  const lastUserMsg = messages
+  let textPreview: string | undefined;
+  const extras: string[] = [];
+
+  // Helper to extract content from a content array
+  const extractFromContentArray = (content: unknown[]) => {
+    for (const part of content) {
+      const p = part as {
+        type?: string;
+        text?: string;
+        content?: unknown[];
+        source?: { data?: string; media_type?: string };
+        image_url?: { url?: string };
+      };
+
+      if (p.type === "text" && p.text && !textPreview) {
+        textPreview = p.text;
+      } else if (p.type === "image" || p.type === "image_url") {
+        if (p.image_url?.url) {
+          if (p.image_url.url.startsWith("data:")) {
+            const sizeKb = ((p.image_url.url.length * 0.75) / 1024).toFixed(1);
+            extras.push(`${sizeKb}kb image`);
+          } else {
+            extras.push("image");
+          }
+        } else if (p.source?.data) {
+          const sizeKb = ((p.source.data.length * 0.75) / 1024).toFixed(1);
+          extras.push(`${sizeKb}kb image`);
+        } else {
+          extras.push("image");
+        }
+      } else if (p.source?.data) {
+        // Anthropic base64 image format
+        const sizeKb = ((p.source.data.length * 0.75) / 1024).toFixed(1);
+        extras.push(`${sizeKb}kb image`);
+      } else if (p.type === "tool_result" && Array.isArray(p.content)) {
+        // Anthropic tool_result with nested content
+        extractFromContentArray(p.content);
+      }
+    }
+  };
+
+  // Find last user message or tool_result - handle various formats
+  const lastMsg = messages
     .filter((m) => {
-      const msg = m as { role?: string };
-      return msg.role === "user";
+      const msg = m as { role?: string; type?: string };
+      return msg.role === "user" || msg.type === "tool_result";
     })
     .pop() as
-    | { role?: string; content?: unknown; parts?: unknown[] }
+    | {
+        role?: string;
+        type?: string;
+        content?: unknown;
+        parts?: unknown[];
+        text?: string;
+      }
     | undefined;
 
-  if (!lastUserMsg) return undefined;
+  if (!lastMsg) return undefined;
 
-  let text: string | undefined;
-
-  if (typeof lastUserMsg.content === "string") {
-    text = lastUserMsg.content;
-  } else if (Array.isArray(lastUserMsg.parts)) {
-    const firstPart = lastUserMsg.parts[0] as { text?: string } | undefined;
-    text = firstPart?.text;
-  } else if (Array.isArray(lastUserMsg.content)) {
-    text = "[multipart message]";
+  if (typeof lastMsg.content === "string") {
+    textPreview = lastMsg.content;
+  } else if (typeof lastMsg.text === "string") {
+    textPreview = lastMsg.text;
+  } else if (Array.isArray(lastMsg.parts)) {
+    // Google format: parts array
+    for (const part of lastMsg.parts) {
+      const p = part as {
+        text?: string;
+        inlineData?: { mimeType?: string; data?: string };
+      };
+      if (p.text && !textPreview) {
+        textPreview = p.text;
+      } else if (p.inlineData?.data) {
+        const sizeKb = ((p.inlineData.data.length * 0.75) / 1024).toFixed(1);
+        extras.push(`${sizeKb}kb image`);
+      }
+    }
+  } else if (Array.isArray(lastMsg.content)) {
+    extractFromContentArray(lastMsg.content as unknown[]);
   }
 
-  if (!text) return undefined;
-  return text.length > maxLen ? text.slice(0, maxLen) : text;
+  // If we only found images, show that
+  if (!textPreview && extras.length === 0) return undefined;
+
+  // Truncate text preview
+  let result = textPreview
+    ? textPreview.length > maxLen
+      ? textPreview.slice(0, maxLen) + "..."
+      : textPreview
+    : "";
+
+  // Add extras
+  if (extras.length > 0) {
+    const extrasStr = extras.map((e) => `+{${e}}`).join(" ");
+    result = result ? `${result} ${extrasStr}` : extrasStr;
+  }
+
+  return result || undefined;
 }
 
 /**
