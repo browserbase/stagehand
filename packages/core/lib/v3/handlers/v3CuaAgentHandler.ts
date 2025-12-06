@@ -74,15 +74,20 @@ export class V3CuaAgentHandler {
           }
         }
         await new Promise((r) => setTimeout(r, 300));
-        SessionFileLogger.logUnderstudyActionEvent({
-          actionType: `v3CUA.${action.type}`,
-          target: this.computePointerTarget(action),
-          args: [action],
-        });
+        // Skip logging for screenshot actions - they're no-ops, the actual
+        // Page.screenshot in captureAndSendScreenshot() is logged separately
+        const shouldLog = action.type !== "screenshot";
+        if (shouldLog) {
+          SessionFileLogger.logUnderstudyActionEvent({
+            actionType: `v3CUA.${action.type}`,
+            target: this.computePointerTarget(action),
+            args: [action],
+          });
+        }
         try {
           await this.executeAction(action);
         } finally {
-          SessionFileLogger.logUnderstudyActionCompleted();
+          if (shouldLog) SessionFileLogger.logUnderstudyActionCompleted();
         }
 
         action.timestamp = Date.now();
@@ -381,7 +386,7 @@ export class V3CuaAgentHandler {
         return { success: true };
       }
       case "screenshot": {
-        // Already handled around actions
+        // No-op - screenshot is captured by captureAndSendScreenshot() after all actions
         return { success: true };
       }
       case "goto": {
