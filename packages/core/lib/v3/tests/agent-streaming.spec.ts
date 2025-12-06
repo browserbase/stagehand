@@ -48,6 +48,13 @@ test.describe("Stagehand agent streaming behavior", () => {
 
       // result should be a promise
       expect(streamResult.result).toBeInstanceOf(Promise);
+
+      // Consume stream to avoid unhandled rejection on close
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      for await (const _ of streamResult.textStream) {
+        // Just consume
+      }
+      await streamResult.result;
     });
 
     test("textStream yields chunks incrementally", async () => {
@@ -151,7 +158,7 @@ test.describe("Stagehand agent streaming behavior", () => {
           stream: true,
           model: "anthropic/claude-haiku-4-5-20251001",
         });
-      }).toThrow("Streaming is not supported with CUA");
+      }).toThrow("streaming is not supported with CUA");
     });
 
     test("allows cua: true without stream", () => {
