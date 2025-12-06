@@ -11,9 +11,7 @@ import type { V3Options } from "./types/public";
 // Constants
 // =============================================================================
 
-const MAX_ARG_LENGTH = 500;
-const MAX_LINE_LENGTH = 140;
-const MAX_LLM_LINE_LENGTH = 500;
+const MAX_LINE_LENGTH = 160;
 
 const NOISY_CDP_EVENTS = new Set([
   "Target.targetInfoChanged",
@@ -123,14 +121,6 @@ const loggerContext = new AsyncLocalStorage<FlowLoggerContext>();
 const dataToKb = (data: string): string =>
   ((data.length * 0.75) / 1024).toFixed(1);
 
-/** Collapse whitespace and truncate */
-function truncate(value: string, maxLen = MAX_ARG_LENGTH): string {
-  const collapsed = value.replace(/\s+/g, " ");
-  return collapsed.length <= maxLen
-    ? collapsed
-    : `${collapsed.slice(0, maxLen)}…`;
-}
-
 /** Truncate CDP IDs: frameId:363F03EB...EF8 → frameId:363F…5EF8 */
 function truncateCdpIds(value: string): string {
   return value.replace(
@@ -139,19 +129,20 @@ function truncateCdpIds(value: string): string {
   );
 }
 
-/** Truncate showing first 30 + last 100 chars */
-function truncateConversation(value: string): string {
+/** Truncate line showing start...end */
+function truncateLine(value: string, maxLen: number): string {
   const collapsed = value.replace(/\s+/g, " ");
-  return collapsed.length <= 130
-    ? collapsed
-    : `${collapsed.slice(0, 30)}…${collapsed.slice(-100)}`;
+  if (collapsed.length <= maxLen) return collapsed;
+  const endLen = Math.floor(maxLen * 0.3);
+  const startLen = maxLen - endLen - 1;
+  return `${collapsed.slice(0, startLen)}…${collapsed.slice(-endLen)}`;
 }
 
 function formatValue(value: unknown): string {
   if (typeof value === "string") return `'${value}'`;
   if (value == null || typeof value !== "object") return String(value);
   try {
-    return truncate(JSON.stringify(value));
+    return JSON.stringify(value);
   } catch {
     return "[unserializable]";
   }
@@ -277,9 +268,7 @@ function prettifyEvent(event: FlowEvent): string | null {
     details = `${icon} ${event.method}(${argsStr})`;
   } else if (event.category === "LLM") {
     if (event.event === "request") {
-      const promptStr = event.prompt
-        ? " " + truncateConversation(String(event.prompt))
-        : "";
+      const promptStr = event.prompt ? " " + String(event.prompt) : "";
       details = `${event.model} ⏴${promptStr}`;
     } else if (event.event === "response") {
       const hasTokens =
@@ -287,34 +276,19 @@ function prettifyEvent(event: FlowEvent): string | null {
       const tokenStr = hasTokens
         ? ` ꜛ${event.inputTokens ?? 0} ꜜ${event.outputTokens ?? 0} |`
         : "";
-      const outputStr = event.output
-        ? " " + truncateConversation(String(event.output))
-        : "";
+      const outputStr = event.output ? " " + String(event.output) : "";
       details = `${event.model} ↳${tokenStr}${outputStr}`;
     }
   }
 
   if (!details) return null;
 
-  // Assemble and post-process the line
+  // Assemble line and apply final truncation
   const fullLine = `${formatTimestamp()} ${parts.join(" ")} ${details}`;
-  const withoutQuotes = removeQuotes(fullLine);
-
-  // Apply category-specific processing and truncation
-  if (event.category === "CDP") {
-    const truncatedIds = truncateCdpIds(withoutQuotes);
-    if (truncatedIds.length > MAX_LINE_LENGTH) {
-      return truncatedIds.slice(0, MAX_LINE_LENGTH - 1) + "…";
-    }
-    return truncatedIds;
-  } else if (event.category === "LLM") {
-    if (withoutQuotes.length > MAX_LLM_LINE_LENGTH) {
-      return withoutQuotes.slice(0, MAX_LLM_LINE_LENGTH - 1) + "…";
-    }
-    return withoutQuotes;
-  }
-
-  return withoutQuotes;
+  const cleaned = removeQuotes(fullLine);
+  const processed =
+    event.category === "CDP" ? truncateCdpIds(cleaned) : cleaned;
+  return truncateLine(processed, MAX_LINE_LENGTH);
 }
 
 /** Check if a CDP event should be filtered from pretty output */
@@ -1067,9 +1041,7 @@ export class SessionFileLogger {
           }
         }
 
-        const promptText = extracted.text
-          ? truncateConversation(extracted.text)
-          : "(no text)";
+        const promptText = extracted.text || "(no text)";
         const promptPreview = `${rolePrefix}: ${promptText} +{${toolCount} tools}`;
 
         SessionFileLogger.logLlmRequest(
