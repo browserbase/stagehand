@@ -1,6 +1,7 @@
 import { Protocol } from "devtools-protocol";
 import { promises as fs } from "fs";
 import { v3Logger } from "../logger";
+import { SessionFileLogger, logAction } from "../flowLogger";
 import type { CDPSessionLike } from "./cdp";
 import { CdpConnection } from "./cdp";
 import { Frame } from "./frame";
@@ -624,6 +625,7 @@ export class Page {
   /**
    * Close this top-level page (tab). Best-effort via Target.closeTarget.
    */
+  @logAction("Page.close")
   public async close(): Promise<void> {
     try {
       await this.conn.send("Target.closeTarget", { targetId: this._targetId });
@@ -758,6 +760,7 @@ export class Page {
    * Navigate the page; optionally wait for a lifecycle state.
    * Waits on the **current** main frame and follows root swaps during navigation.
    */
+  @logAction("Page.goto")
   async goto(
     url: string,
     options?: { waitUntil?: LoadState; timeoutMs?: number },
@@ -820,6 +823,7 @@ export class Page {
   /**
    * Reload the page; optionally wait for a lifecycle state.
    */
+  @logAction("Page.reload")
   async reload(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
@@ -866,6 +870,7 @@ export class Page {
   /**
    * Navigate back in history if possible; optionally wait for a lifecycle state.
    */
+  @logAction("Page.goBack")
   async goBack(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
@@ -918,6 +923,7 @@ export class Page {
   /**
    * Navigate forward in history if possible; optionally wait for a lifecycle state.
    */
+  @logAction("Page.goForward")
   async goForward(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
@@ -1047,6 +1053,7 @@ export class Page {
    * timeout error is thrown.
    * @param options.type Image format (`"png"` by default).
    */
+  @logAction("Page.screenshot")
   async screenshot(options?: ScreenshotOptions): Promise<Buffer> {
     const opts = options ?? {};
     const type = opts.type ?? "png";
@@ -1169,6 +1176,7 @@ export class Page {
    * Wait until the page reaches a lifecycle state on the current main frame.
    * Mirrors Playwright's API signatures.
    */
+  @logAction("Page.waitForLoadState")
   async waitForLoadState(state: LoadState, timeoutMs?: number): Promise<void> {
     await this.waitForMainLoadState(state, timeoutMs ?? 15000);
   }
@@ -1184,51 +1192,62 @@ export class Page {
     pageFunctionOrExpression: string | ((arg: Arg) => R | Promise<R>),
     arg?: Arg,
   ): Promise<R> {
-    await this.mainSession.send("Runtime.enable").catch(() => {});
-    const ctxId = await this.mainWorldExecutionContextId();
+    SessionFileLogger.logUnderstudyActionEvent({
+      actionType: "Page.evaluate",
+      args: [
+        typeof pageFunctionOrExpression === "string"
+          ? pageFunctionOrExpression
+          : "[function]",
+        arg,
+      ],
+    });
+    try {
+      await this.mainSession.send("Runtime.enable").catch(() => {});
+      const ctxId = await this.mainWorldExecutionContextId();
 
-    const isString = typeof pageFunctionOrExpression === "string";
-    let expression: string;
+      const isString = typeof pageFunctionOrExpression === "string";
+      let expression: string;
 
-    if (isString) {
-      expression = String(pageFunctionOrExpression);
-    } else {
-      const fnSrc = pageFunctionOrExpression.toString();
-      // Build an IIFE that calls the user's function with the argument and
-      // attempts to deep-serialize the result for returnByValue.
-      const argJson = JSON.stringify(arg);
-      expression = `(() => {
-        const __fn = ${fnSrc};
-        const __arg = ${argJson};
-        try {
-          const __res = __fn(__arg);
-          return Promise.resolve(__res).then(v => {
-            try { return JSON.parse(JSON.stringify(v)); } catch { return v; }
-          });
-        } catch (e) { throw e; }
-      })()`;
+      if (isString) {
+        expression = String(pageFunctionOrExpression);
+      } else {
+        const fnSrc = pageFunctionOrExpression.toString();
+        const argJson = JSON.stringify(arg);
+        expression = `(() => {
+          const __fn = ${fnSrc};
+          const __arg = ${argJson};
+          try {
+            const __res = __fn(__arg);
+            return Promise.resolve(__res).then(v => {
+              try { return JSON.parse(JSON.stringify(v)); } catch { return v; }
+            });
+          } catch (e) { throw e; }
+        })()`;
+      }
+
+      const { result, exceptionDetails } =
+        await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
+          "Runtime.evaluate",
+          {
+            expression,
+            contextId: ctxId,
+            returnByValue: true,
+            awaitPromise: true,
+          },
+        );
+
+      if (exceptionDetails) {
+        const msg =
+          exceptionDetails.text ||
+          exceptionDetails.exception?.description ||
+          "Evaluation failed";
+        throw new StagehandEvalError(msg);
+      }
+
+      return result?.value as R;
+    } finally {
+      SessionFileLogger.logUnderstudyActionCompleted();
     }
-
-    const { result, exceptionDetails } =
-      await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
-        "Runtime.evaluate",
-        {
-          expression,
-          contextId: ctxId,
-          returnByValue: true,
-          awaitPromise: true,
-        },
-      );
-
-    if (exceptionDetails) {
-      const msg =
-        exceptionDetails.text ||
-        exceptionDetails.exception?.description ||
-        "Evaluation failed";
-      throw new StagehandEvalError(msg);
-    }
-
-    return result?.value as R;
   }
 
   /**
@@ -1240,6 +1259,10 @@ export class Page {
     height: number,
     options?: { deviceScaleFactor?: number },
   ): Promise<void> {
+    // SessionFileLogger.logUnderstudyActionEvent({
+    //   actionType: "Page.setViewportSize",
+    //   args: [width, height, options],
+    // });
     const dsf = Math.max(0.01, options?.deviceScaleFactor ?? 1);
     await this.mainSession
       .send("Emulation.setDeviceMetricsOverride", {
@@ -1294,6 +1317,7 @@ export class Page {
       returnXpath: boolean;
     },
   ): Promise<void | string>;
+  @logAction("Page.click")
   async click(
     x: number,
     y: number,
@@ -1390,6 +1414,7 @@ export class Page {
     deltaY: number,
     options: { returnXpath: boolean },
   ): Promise<void | string>;
+  @logAction("Page.scroll")
   async scroll(
     x: number,
     y: number,
@@ -1468,6 +1493,7 @@ export class Page {
       returnXpath: boolean;
     },
   ): Promise<void | [string, string]>;
+  @logAction("Page.dragAndDrop")
   async dragAndDrop(
     fromX: number,
     fromY: number,
@@ -1572,6 +1598,7 @@ export class Page {
    * and never falls back to Input.insertText. Optional delay applies between
    * successive characters.
    */
+  @logAction("Page.type")
   async type(
     text: string,
     options?: { delay?: number; withMistakes?: boolean },
@@ -1669,6 +1696,7 @@ export class Page {
    * For printable characters, uses the text path on keyDown; for named keys, sets key/code/VK.
    * Supports key combinations with modifiers like "Cmd+A", "Ctrl+C", "Shift+Tab", etc.
    */
+  @logAction("Page.keyPress")
   async keyPress(key: string, options?: { delay?: number }): Promise<void> {
     const delay = Math.max(0, options?.delay ?? 0);
     const sleep = (ms: number) =>

@@ -13,6 +13,7 @@ import {
 } from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { LLMClient } from "../llm/LLMClient";
+import { SessionFileLogger } from "../flowLogger";
 import {
   AgentExecuteOptions,
   AgentStreamExecuteOptions,
@@ -86,6 +87,7 @@ export class V3AgentHandler {
             const { processedPrompt } = processMessages(params);
             return { ...params, prompt: processedPrompt } as typeof params;
           },
+          ...SessionFileLogger.createLlmLoggingMiddleware(baseModel.modelId),
         },
       });
 

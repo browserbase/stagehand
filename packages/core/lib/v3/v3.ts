@@ -3,6 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import process from "process";
+import { v7 as uuidv7 } from "uuid";
 import { z } from "zod";
 import type { InferStagehandSchema, StagehandZodSchema } from "./zodCompat";
 import { loadApiKeyFromEnv } from "../utils";
@@ -72,6 +73,7 @@ import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
 import { resolveModel } from "../modelUtils";
 import { StagehandAPIClient } from "./api";
+import { SessionFileLogger } from "./flowLogger";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard";
 import { ActTimeoutError } from "./types/public/sdkErrors";
 
@@ -207,9 +209,7 @@ export class V3 {
     V3._installProcessGuards();
     this.externalLogger = opts.logger;
     this.verbose = opts.verbose ?? 1;
-    this.instanceId =
-      (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
-      `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+    this.instanceId = uuidv7();
 
     // Create per-instance StagehandLogger (handles usePino, verbose, externalLogger)
     // This gives each V3 instance independent logger configuration
@@ -310,6 +310,10 @@ export class V3 {
     });
 
     this.opts = opts;
+
+    // Initialize session file logger
+    SessionFileLogger.init(this.instanceId, opts);
+
     // Track instance for global process guard handling
     V3._instances.add(this);
   }
@@ -688,6 +692,11 @@ export class V3 {
             this.ctx = await V3Context.create(lbo.cdpUrl, {
               env: "LOCAL",
             });
+            const logCtx = SessionFileLogger.getContext();
+            this.ctx.conn.cdpLogger = (info) =>
+              SessionFileLogger.logCdpCallEvent(info, logCtx);
+            this.ctx.conn.cdpEventLogger = (info) =>
+              SessionFileLogger.logCdpMessageEvent(info, logCtx);
             this.ctx.conn.onTransportClosed(this._onCdpClosed);
             this.state = {
               kind: "LOCAL",
@@ -777,6 +786,11 @@ export class V3 {
             env: "LOCAL",
             localBrowserLaunchOptions: lbo,
           });
+          const logCtx = SessionFileLogger.getContext();
+          this.ctx.conn.cdpLogger = (info) =>
+            SessionFileLogger.logCdpCallEvent(info, logCtx);
+          this.ctx.conn.cdpEventLogger = (info) =>
+            SessionFileLogger.logCdpMessageEvent(info, logCtx);
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
           this.state = {
             kind: "LOCAL",
@@ -854,6 +868,11 @@ export class V3 {
             env: "BROWSERBASE",
             apiClient: this.apiClient,
           });
+          const logCtx = SessionFileLogger.getContext();
+          this.ctx.conn.cdpLogger = (info) =>
+            SessionFileLogger.logCdpCallEvent(info, logCtx);
+          this.ctx.conn.cdpEventLogger = (info) =>
+            SessionFileLogger.logCdpMessageEvent(info, logCtx);
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
           this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
           this.browserbaseSessionId = sessionId;
@@ -966,128 +985,137 @@ export class V3 {
 
   async act(input: string | Action, options?: ActOptions): Promise<ActResult> {
     return await withInstanceLogContext(this.instanceId, async () => {
-      if (!this.actHandler) throw new StagehandNotInitializedError("act()");
+      SessionFileLogger.logStagehandStepEvent({
+        invocation: "Stagehand.act",
+        args: [input, options],
+        label: "ACT",
+      });
+      try {
+        if (!this.actHandler) throw new StagehandNotInitializedError("act()");
 
-      let actResult: ActResult;
+        let actResult: ActResult;
 
-      if (isObserveResult(input)) {
-        // Resolve page: use provided page if any, otherwise default active page
-        const v3Page = await this.resolvePage(options?.page);
+        if (isObserveResult(input)) {
+          // Resolve page: use provided page if any, otherwise default active page
+          const v3Page = await this.resolvePage(options?.page);
 
-        // Use selector as provided to support XPath, CSS, and other engines
-        const selector = input.selector;
-        if (this.apiClient) {
-          actResult = await this.apiClient.act({
-            input,
-            options,
-            frameId: v3Page.mainFrameId(),
-          });
-        } else {
-          const effectiveTimeoutMs =
-            typeof options?.timeout === "number" && options.timeout > 0
-              ? options.timeout
-              : undefined;
-          const ensureTimeRemaining = createTimeoutGuard(
-            effectiveTimeoutMs,
-            (ms) => new ActTimeoutError(ms),
+          // Use selector as provided to support XPath, CSS, and other engines
+          const selector = input.selector;
+          if (this.apiClient) {
+            actResult = await this.apiClient.act({
+              input,
+              options,
+              frameId: v3Page.mainFrameId(),
+            });
+          } else {
+            const effectiveTimeoutMs =
+              typeof options?.timeout === "number" && options.timeout > 0
+                ? options.timeout
+                : undefined;
+            const ensureTimeRemaining = createTimeoutGuard(
+              effectiveTimeoutMs,
+              (ms) => new ActTimeoutError(ms),
+            );
+            actResult = await this.actHandler.takeDeterministicAction(
+              { ...input, selector },
+              v3Page,
+              this.domSettleTimeoutMs,
+              this.resolveLlmClient(options?.model),
+              ensureTimeRemaining,
+            );
+          }
+
+          // history: record ObserveResult-based act call
+          this.addToHistory(
+            "act",
+            {
+              observeResult: input,
+            },
+            actResult,
           );
-          actResult = await this.actHandler.takeDeterministicAction(
-            { ...input, selector },
-            v3Page,
-            this.domSettleTimeoutMs,
-            this.resolveLlmClient(options?.model),
-            ensureTimeRemaining,
+          return actResult;
+        }
+        // instruction path
+        if (typeof input !== "string" || !input.trim()) {
+          throw new StagehandInvalidArgumentError(
+            "act(): instruction string is required unless passing an Action",
           );
         }
 
-        // history: record ObserveResult-based act call
+        // Resolve page from options or default
+        const page = await this.resolvePage(options?.page);
+
+        let actCacheContext: Awaited<
+          ReturnType<typeof this.actCache.prepareContext>
+        > | null = null;
+        const canUseCache =
+          typeof input === "string" &&
+          !this.isAgentReplayRecording() &&
+          this.actCache.enabled;
+        if (canUseCache) {
+          actCacheContext = await this.actCache.prepareContext(
+            input,
+            page,
+            options?.variables,
+          );
+          if (actCacheContext) {
+            const cachedResult = await this.actCache.tryReplay(
+              actCacheContext,
+              page,
+              options?.timeout,
+            );
+            if (cachedResult) {
+              this.addToHistory(
+                "act",
+                {
+                  instruction: input,
+                  variables: options?.variables,
+                  timeout: options?.timeout,
+                  cacheHit: true,
+                },
+                cachedResult,
+              );
+              return cachedResult;
+            }
+          }
+        }
+
+        const handlerParams: ActHandlerParams = {
+          instruction: input,
+          page,
+          variables: options?.variables,
+          timeout: options?.timeout,
+          model: options?.model,
+        };
+        if (this.apiClient) {
+          const frameId = page.mainFrameId();
+          actResult = await this.apiClient.act({ input, options, frameId });
+        } else {
+          actResult = await this.actHandler.act(handlerParams);
+        }
+        // history: record instruction-based act call (omit page object)
         this.addToHistory(
           "act",
           {
-            observeResult: input,
+            instruction: input,
+            variables: options?.variables,
+            timeout: options?.timeout,
           },
           actResult,
         );
-        return actResult;
-      }
-      // instruction path
-      if (typeof input !== "string" || !input.trim()) {
-        throw new StagehandInvalidArgumentError(
-          "act(): instruction string is required unless passing an Action",
-        );
-      }
 
-      // Resolve page from options or default
-      const page = await this.resolvePage(options?.page);
-
-      let actCacheContext: Awaited<
-        ReturnType<typeof this.actCache.prepareContext>
-      > | null = null;
-      const canUseCache =
-        typeof input === "string" &&
-        !this.isAgentReplayRecording() &&
-        this.actCache.enabled;
-      if (canUseCache) {
-        actCacheContext = await this.actCache.prepareContext(
-          input,
-          page,
-          options?.variables,
-        );
-        if (actCacheContext) {
-          const cachedResult = await this.actCache.tryReplay(
-            actCacheContext,
-            page,
-            options?.timeout,
-          );
-          if (cachedResult) {
-            this.addToHistory(
-              "act",
-              {
-                instruction: input,
-                variables: options?.variables,
-                timeout: options?.timeout,
-                cacheHit: true,
-              },
-              cachedResult,
-            );
-            return cachedResult;
-          }
+        if (
+          actCacheContext &&
+          actResult.success &&
+          Array.isArray(actResult.actions) &&
+          actResult.actions.length > 0
+        ) {
+          await this.actCache.store(actCacheContext, actResult);
         }
+        return actResult;
+      } finally {
+        SessionFileLogger.logStagehandStepCompleted();
       }
-
-      const handlerParams: ActHandlerParams = {
-        instruction: input,
-        page,
-        variables: options?.variables,
-        timeout: options?.timeout,
-        model: options?.model,
-      };
-      if (this.apiClient) {
-        const frameId = page.mainFrameId();
-        actResult = await this.apiClient.act({ input, options, frameId });
-      } else {
-        actResult = await this.actHandler.act(handlerParams);
-      }
-      // history: record instruction-based act call (omit page object)
-      this.addToHistory(
-        "act",
-        {
-          instruction: input,
-          variables: options?.variables,
-          timeout: options?.timeout,
-        },
-        actResult,
-      );
-
-      if (
-        actCacheContext &&
-        actResult.success &&
-        Array.isArray(actResult.actions) &&
-        actResult.actions.length > 0
-      ) {
-        await this.actCache.store(actCacheContext, actResult);
-      }
-      return actResult;
     });
   }
 
@@ -1122,68 +1150,79 @@ export class V3 {
     c?: ExtractOptions,
   ): Promise<unknown> {
     return await withInstanceLogContext(this.instanceId, async () => {
-      if (!this.extractHandler) {
-        throw new StagehandNotInitializedError("extract()");
-      }
-
-      // Normalize args
-      let instruction: string | undefined;
-      let schema: StagehandZodSchema | undefined;
-      let options: ExtractOptions | undefined;
-
-      if (typeof a === "string") {
-        instruction = a;
-        const isZodSchema = (val: unknown): val is StagehandZodSchema =>
-          !!val &&
-          typeof val === "object" &&
-          "parse" in val &&
-          "safeParse" in val;
-        if (isZodSchema(b)) {
-          schema = b as StagehandZodSchema;
-          options = c as ExtractOptions | undefined;
-        } else {
-          options = b as ExtractOptions | undefined;
+      SessionFileLogger.logStagehandStepEvent({
+        invocation: "Stagehand.extract",
+        args: [a, b, c],
+        label: "EXTRACT",
+      });
+      try {
+        if (!this.extractHandler) {
+          throw new StagehandNotInitializedError("extract()");
         }
-      } else {
-        // a is options or undefined
-        options = (a as ExtractOptions) || undefined;
+
+        // Normalize args
+        let instruction: string | undefined;
+        let schema: StagehandZodSchema | undefined;
+        let options: ExtractOptions | undefined;
+
+        if (typeof a === "string") {
+          instruction = a;
+          const isZodSchema = (val: unknown): val is StagehandZodSchema =>
+            !!val &&
+            typeof val === "object" &&
+            "parse" in val &&
+            "safeParse" in val;
+          if (isZodSchema(b)) {
+            schema = b as StagehandZodSchema;
+            options = c as ExtractOptions | undefined;
+          } else {
+            options = b as ExtractOptions | undefined;
+          }
+        } else {
+          // a is options or undefined
+          options = (a as ExtractOptions) || undefined;
+        }
+
+        if (!instruction && schema) {
+          throw new StagehandInvalidArgumentError(
+            "extract(): schema provided without instruction",
+          );
+        }
+
+        // If instruction without schema → defaultExtractSchema
+        const effectiveSchema =
+          instruction && !schema ? defaultExtractSchema : schema;
+
+        // Resolve page from options or use active page
+        const page = await this.resolvePage(options?.page);
+
+        const handlerParams: ExtractHandlerParams<StagehandZodSchema> = {
+          instruction,
+          schema: effectiveSchema as StagehandZodSchema | undefined,
+          model: options?.model,
+          timeout: options?.timeout,
+          selector: options?.selector,
+          page,
+        };
+        let result: z.infer<typeof effectiveSchema> | { pageText: string };
+        if (this.apiClient) {
+          const frameId = page.mainFrameId();
+          result = await this.apiClient.extract({
+            instruction: handlerParams.instruction,
+            schema: handlerParams.schema,
+            options,
+            frameId,
+          });
+        } else {
+          result =
+            await this.extractHandler.extract<StagehandZodSchema>(
+              handlerParams,
+            );
+        }
+        return result;
+      } finally {
+        SessionFileLogger.logStagehandStepCompleted();
       }
-
-      if (!instruction && schema) {
-        throw new StagehandInvalidArgumentError(
-          "extract(): schema provided without instruction",
-        );
-      }
-
-      // If instruction without schema → defaultExtractSchema
-      const effectiveSchema =
-        instruction && !schema ? defaultExtractSchema : schema;
-
-      // Resolve page from options or use active page
-      const page = await this.resolvePage(options?.page);
-
-      const handlerParams: ExtractHandlerParams<StagehandZodSchema> = {
-        instruction,
-        schema: effectiveSchema as StagehandZodSchema | undefined,
-        model: options?.model,
-        timeout: options?.timeout,
-        selector: options?.selector,
-        page,
-      };
-      let result: z.infer<typeof effectiveSchema> | { pageText: string };
-      if (this.apiClient) {
-        const frameId = page.mainFrameId();
-        result = await this.apiClient.extract({
-          instruction: handlerParams.instruction,
-          schema: handlerParams.schema,
-          options,
-          frameId,
-        });
-      } else {
-        result =
-          await this.extractHandler.extract<StagehandZodSchema>(handlerParams);
-      }
-      return result;
     });
   }
 
@@ -1201,53 +1240,62 @@ export class V3 {
     b?: ObserveOptions,
   ): Promise<Action[]> {
     return await withInstanceLogContext(this.instanceId, async () => {
-      if (!this.observeHandler) {
-        throw new StagehandNotInitializedError("observe()");
-      }
+      SessionFileLogger.logStagehandStepEvent({
+        invocation: "Stagehand.observe",
+        args: [a, b],
+        label: "OBSERVE",
+      });
+      try {
+        if (!this.observeHandler) {
+          throw new StagehandNotInitializedError("observe()");
+        }
 
-      // Normalize args
-      let instruction: string | undefined;
-      let options: ObserveOptions | undefined;
-      if (typeof a === "string") {
-        instruction = a;
-        options = b;
-      } else {
-        options = a as ObserveOptions | undefined;
-      }
+        // Normalize args
+        let instruction: string | undefined;
+        let options: ObserveOptions | undefined;
+        if (typeof a === "string") {
+          instruction = a;
+          options = b;
+        } else {
+          options = a as ObserveOptions | undefined;
+        }
 
-      // Resolve to our internal Page type
-      const page = await this.resolvePage(options?.page);
+        // Resolve to our internal Page type
+        const page = await this.resolvePage(options?.page);
 
-      const handlerParams: ObserveHandlerParams = {
-        instruction,
-        model: options?.model,
-        timeout: options?.timeout,
-        selector: options?.selector,
-        page: page!,
-      };
-
-      let results: Action[];
-      if (this.apiClient) {
-        const frameId = page.mainFrameId();
-        results = await this.apiClient.observe({
+        const handlerParams: ObserveHandlerParams = {
           instruction,
-          options,
-          frameId,
-        });
-      } else {
-        results = await this.observeHandler.observe(handlerParams);
-      }
-
-      // history: record observe call (omit page object)
-      this.addToHistory(
-        "observe",
-        {
-          instruction,
+          model: options?.model,
           timeout: options?.timeout,
-        },
-        results,
-      );
-      return results;
+          selector: options?.selector,
+          page: page!,
+        };
+
+        let results: Action[];
+        if (this.apiClient) {
+          const frameId = page.mainFrameId();
+          results = await this.apiClient.observe({
+            instruction,
+            options,
+            frameId,
+          });
+        } else {
+          results = await this.observeHandler.observe(handlerParams);
+        }
+
+        // history: record observe call (omit page object)
+        this.addToHistory(
+          "observe",
+          {
+            instruction,
+            timeout: options?.timeout,
+          },
+          results,
+        );
+        return results;
+      } finally {
+        SessionFileLogger.logStagehandStepCompleted();
+      }
     });
   }
 
@@ -1274,6 +1322,13 @@ export class V3 {
     this._isClosing = true;
 
     try {
+      // Close session file logger
+      try {
+        await SessionFileLogger.close();
+      } catch {
+        // Fail silently
+      }
+
       // Unhook CDP transport close handler if context exists
       try {
         if (this.ctx?.conn && this._onCdpClosed) {
@@ -1392,7 +1447,7 @@ export class V3 {
     }
 
     if (this.isPuppeteerPage(page)) {
-      const cdp = await page.target().createCDPSession();
+      const cdp = await page.createCDPSession();
       const { frameTree } = await cdp.send("Page.getFrameTree");
       this.logger({
         category: "v3",
@@ -1650,6 +1705,10 @@ export class V3 {
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
           withInstanceLogContext(this.instanceId, async () => {
+            SessionFileLogger.logAgentTaskStarted({
+              invocation: "Agent.execute",
+              args: [instructionOrOptions],
+            });
             if (options?.integrations && !this.experimental) {
               throw new ExperimentalNotConfiguredError("MCP integrations");
             }
@@ -1696,6 +1755,7 @@ export class V3 {
               if (cacheContext) {
                 const replayed = await this.agentCache.tryReplay(cacheContext);
                 if (replayed) {
+                  SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
                   return replayed;
                 }
               }
@@ -1735,6 +1795,7 @@ export class V3 {
               if (recording) {
                 this.discardAgentReplayRecording();
               }
+              SessionFileLogger.logAgentTaskCompleted();
             }
           }),
       };
@@ -1752,6 +1813,10 @@ export class V3 {
           | AgentStreamExecuteOptions,
       ): Promise<AgentResult | AgentStreamResult> =>
         withInstanceLogContext(this.instanceId, async () => {
+          SessionFileLogger.logAgentTaskStarted({
+            invocation: "Agent.execute",
+            args: [instructionOrOptions],
+          });
           if (
             typeof instructionOrOptions === "object" &&
             instructionOrOptions.callbacks &&
@@ -1776,6 +1841,7 @@ export class V3 {
               const replayed =
                 await this.agentCache.tryReplayAsStream(cacheContext);
               if (replayed) {
+                SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
                 return replayed;
               }
             }
@@ -1808,6 +1874,7 @@ export class V3 {
           if (cacheContext) {
             const replayed = await this.agentCache.tryReplay(cacheContext);
             if (replayed) {
+              SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
               return replayed;
             }
           }
@@ -1848,6 +1915,7 @@ export class V3 {
             if (recording) {
               this.discardAgentReplayRecording();
             }
+            SessionFileLogger.logAgentTaskCompleted();
           }
         }),
     };

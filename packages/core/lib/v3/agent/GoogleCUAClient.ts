@@ -30,6 +30,12 @@ import {
   convertToolSetToFunctionDeclarations,
 } from "./utils/googleCustomToolHandler";
 import { ToolSet } from "ai";
+import {
+  SessionFileLogger,
+  formatCuaPromptPreview,
+  formatCuaResponsePreview,
+} from "../flowLogger";
+import { v7 as uuidv7 } from "uuid";
 
 /**
  * Client for Google's Computer Use Assistant API
@@ -300,6 +306,15 @@ export class GoogleCUAClient extends AgentClient {
       let lastError: Error | null = null;
       let response: GenerateContentResponse | null = null;
 
+      // Log LLM request
+      const llmRequestId = uuidv7();
+      SessionFileLogger.logLlmRequest({
+        requestId: llmRequestId,
+        model: this.modelName,
+        operation: "CUA.generateContent",
+        prompt: formatCuaPromptPreview(compressedHistory),
+      });
+
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
           // Add exponential backoff delay for retries
@@ -356,6 +371,16 @@ export class GoogleCUAClient extends AgentClient {
       const endTime = Date.now();
       const elapsedMs = endTime - startTime;
       const { usageMetadata } = response;
+
+      // Log LLM response
+      SessionFileLogger.logLlmResponse({
+        requestId: llmRequestId,
+        model: this.modelName,
+        operation: "CUA.generateContent",
+        output: formatCuaResponsePreview(response),
+        inputTokens: usageMetadata?.promptTokenCount,
+        outputTokens: usageMetadata?.candidatesTokenCount,
+      });
 
       // Process the response
       const result = await this.processResponse(response, logger);
