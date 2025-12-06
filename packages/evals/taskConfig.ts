@@ -17,17 +17,17 @@ import { filterByEvalName } from "./args";
 
 const ALL_EVAL_MODELS = [
   // GOOGLE
-  "gemini-2.0-flash",
-  "gemini-2.0-flash-lite",
-  "gemini-1.5-flash",
-  "gemini-2.5-pro-exp-03-25",
-  "gemini-1.5-pro",
-  "gemini-1.5-flash-8b",
-  "gemini-2.5-flash-preview-04-17",
-  "gemini-2.5-pro-preview-03-25",
-  // ANTHROPIC
-  "claude-3-5-sonnet-latest",
-  "claude-3-7-sonnet-latest",
+  // "gemini-2.0-flash",
+  // "gemini-2.0-flash-lite",
+  // "gemini-1.5-flash",
+  // "gemini-2.5-pro-exp-03-25",
+  // "gemini-1.5-pro",
+  // "gemini-1.5-flash-8b",
+  // "gemini-2.5-flash-preview-04-17",
+  // "gemini-2.5-pro-preview-03-25",
+  // // ANTHROPIC
+  // "claude-3-5-sonnet-latest",
+  // "claude-3-7-sonnet-latest",
   // OPENAI
   "gpt-4o-mini",
   "gpt-4o",
@@ -36,23 +36,23 @@ const ALL_EVAL_MODELS = [
   "o3-mini",
   "o4-mini",
   // TOGETHER - META
-  "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
-  "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-  "meta-llama/Llama-4-Scout-17B-16E-Instruct",
-  "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
-  // TOGETHER - DEEPSEEK
-  "deepseek-ai/DeepSeek-V3",
-  "Qwen/Qwen2.5-7B-Instruct-Turbo",
-  // GROQ
-  "groq/meta-llama/llama-4-scout-17b-16e-instruct",
-  "groq/llama-3.3-70b-versatile",
-  "groq/llama3-70b-8192",
-  "groq/qwen-qwq-32b",
-  "groq/qwen-2.5-32b",
-  "groq/deepseek-r1-distill-qwen-32b",
-  "groq/deepseek-r1-distill-llama-70b",
-  // CEREBRAS
-  "cerebras/llama3.3-70b",
+  // "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+  // "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+  // "meta-llama/Llama-4-Scout-17B-16E-Instruct",
+  // "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+  // // TOGETHER - DEEPSEEK
+  // "deepseek-ai/DeepSeek-V3",
+  // "Qwen/Qwen2.5-7B-Instruct-Turbo",
+  // // GROQ
+  // "groq/meta-llama/llama-4-scout-17b-16e-instruct",
+  // "groq/llama-3.3-70b-versatile",
+  // "groq/llama3-70b-8192",
+  // "groq/qwen-qwq-32b",
+  // "groq/qwen-2.5-32b",
+  // "groq/deepseek-r1-distill-qwen-32b",
+  // "groq/deepseek-r1-distill-llama-70b",
+  // // CEREBRAS
+  // "cerebras/llama3.3-70b",
 ];
 
 // The configuration file `evals.config.json` contains a list of tasks and their associated categories.
@@ -75,7 +75,7 @@ type TaskConfig = {
 const tasksConfig = config.tasks as TaskConfig[];
 
 const tasksByName = tasksConfig.reduce<
-  Record<string, { categories: string[] }>
+    Record<string, { categories: string[] }>
 >((acc, task) => {
   acc[task.name] = {
     categories: task.categories,
@@ -97,16 +97,16 @@ if (filterByEvalName && !tasksByName[filterByEvalName]) {
  * DEFAULT_EVAL_MODELS: The default set of models used for most categories.
  */
 const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
-  ? process.env.EVAL_MODELS.split(",")
-  : [
-      "google/gemini-2.0-flash",
+    ? process.env.EVAL_MODELS.split(",")
+    : [
+      // "google/gemini-2.0-flash",
       "openai/gpt-4.1-mini",
-      "anthropic/claude-haiku-4-5",
+      // "anthropic/claude-haiku-4-5",
     ];
 
 const DEFAULT_AGENT_MODELS = process.env.EVAL_AGENT_MODELS
-  ? process.env.EVAL_AGENT_MODELS.split(",")
-  : [
+    ? process.env.EVAL_AGENT_MODELS.split(",")
+    : [
       "computer-use-preview-2025-03-11",
       "claude-sonnet-4-20250514",
       "gemini-2.5-computer-use-preview-10-2025",
@@ -128,7 +128,7 @@ const getModelList = (category?: string): string[] => {
 
   if (provider) {
     return ALL_EVAL_MODELS.filter((model) =>
-      filterModelByProvider(model, provider),
+        filterModelByProvider(model, provider),
     );
   }
 
@@ -147,10 +147,10 @@ const filterModelByProvider = (model: string, provider: string): boolean => {
     return modelLower.startsWith("gemini");
   } else if (provider === "together") {
     return (
-      modelLower.startsWith("meta-llama") ||
-      modelLower.startsWith("llama") ||
-      modelLower.startsWith("deepseek") ||
-      modelLower.startsWith("qwen")
+        modelLower.startsWith("meta-llama") ||
+        modelLower.startsWith("llama") ||
+        modelLower.startsWith("deepseek") ||
+        modelLower.startsWith("qwen")
     );
   } else if (provider === "groq") {
     return modelLower.startsWith("groq");
@@ -158,7 +158,7 @@ const filterModelByProvider = (model: string, provider: string): boolean => {
     return modelLower.startsWith("cerebras");
   }
   console.warn(
-    `Unknown provider specified or model doesn't match: ${provider}`,
+      `Unknown provider specified or model doesn't match: ${provider}`,
   );
   return false;
 };

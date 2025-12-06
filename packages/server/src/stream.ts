@@ -193,6 +193,10 @@ export function mapStagehandError(err: Error, operation: string): StagehandError
 export interface StreamingHttpRequest {
   headers: Record<string, string | string[] | undefined>;
   body: unknown;
+  log?: {
+    info: (obj: unknown, msg?: string) => void;
+    error: (obj: unknown, msg?: string) => void;
+  };
 }
 
 /**
@@ -359,8 +363,7 @@ export async function createStreamingResponse<T>({
     });
     reply.raw.end();
   } else {
-    reply.status(200).send({
-      result: result?.result,
-    });
+    // Send the result directly, not wrapped in { result: ... }
+    reply.status(200).send(result?.result);
   }
 }

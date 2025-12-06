@@ -202,13 +202,19 @@ export class StagehandServer {
     this.host = options.host || "0.0.0.0";
     this.sessionStore = options.sessionStore ?? new InMemorySessionStore();
     this.app = Fastify({
-      logger: false,
+      logger: {
+        transport: {
+          target: "pino-pretty",
+          options: { colorize: true },
+        },
+      },
     });
 
     // Set up Zod type provider for automatic request/response validation
     this.app.setValidatorCompiler(validatorCompiler);
     this.app.setSerializerCompiler(serializerCompiler);
 
+    this.setupConsoleLogging();
     this.setupMiddleware();
     this.setupRoutes();
   }
@@ -220,12 +226,70 @@ export class StagehandServer {
     return this.sessionStore;
   }
 
+  private setupConsoleLogging(): void {
+    const logger = this.app.log;
+    const originalConsole = {
+      log: console.log,
+      error: console.error,
+      warn: console.warn,
+      debug: console.debug,
+      info: console.info,
+    };
+
+    const formatArgs = (args: unknown[]): string => {
+      return args.map((arg) => 
+        typeof arg === "object" ? JSON.stringify(arg) : String(arg)
+      ).join(" ");
+    };
+
+    console.log = (...args: unknown[]) => {
+      originalConsole.log(...args);
+      logger.info(formatArgs(args));
+    };
+
+    console.error = (...args: unknown[]) => {
+      originalConsole.error(...args);
+      logger.error(formatArgs(args));
+    };
+
+    console.warn = (...args: unknown[]) => {
+      originalConsole.warn(...args);
+      logger.warn(formatArgs(args));
+    };
+
+    console.debug = (...args: unknown[]) => {
+      originalConsole.debug(...args);
+      logger.debug(formatArgs(args));
+    };
+
+    console.info = (...args: unknown[]) => {
+      originalConsole.info(...args);
+      logger.info(formatArgs(args));
+    };
+  }
+
   private setupMiddleware(): void {
     this.app.register(cors, {
       origin: "*",
       methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
       allowedHeaders: "*",
       credentials: true,
+    });
+
+    // Log incoming requests
+    this.app.addHook("onRequest", async (request) => {
+      request.log.info({ method: request.method, url: request.url }, "Incoming request");
+    });
+
+    // Log outgoing responses
+    this.app.addHook("onSend", async (request, reply, payload) => {
+      request.log.info({ method: request.method, url: request.url, statusCode: reply.statusCode }, "Outgoing response");
+      return payload;
+    });
+
+    // Log errors
+    this.app.addHook("onError", async (request, reply, error) => {
+      request.log.error({ err: error, method: request.method, url: request.url }, "Request error");
     });
   }
 
@@ -652,7 +716,16 @@ export class StagehandServer {
 
         const response = await page.goto(url, options);
 
-        return { result: response };
+        // Serialize Response to match NavigateResponseSchema
+        // Return directly (not wrapped) since stream.ts will send result?.result
+        return {
+          result: response
+            ? {
+                url: response.url(),
+                status: response.status(),
+              }
+            : null,
+        };
       },
     });
   }

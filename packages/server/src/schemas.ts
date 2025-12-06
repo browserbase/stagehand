@@ -94,7 +94,7 @@ export const SessionStartResponseSchema = SuccessResponseSchema(SessionStartResp
 // =============================================================================
 
 /** POST /v1/sessions/:id/end - Request body (empty, session ID comes from params) */
-export const SessionEndRequestSchema = z.object({});
+export const SessionEndRequestSchema = z.object({}).nullish();
 
 /** POST /v1/sessions/:id/end - Response */
 export const SessionEndResponseSchema = z.object({
@@ -126,11 +126,12 @@ export const ActRequestSchema = z.object({
   frameId: z.string().optional(),
 });
 
-/** POST /v1/sessions/:id/act - Response */
+/** POST /v1/sessions/:id/act - Response (matches ActResult) */
 export const ActResponseSchema = z.object({
   success: z.boolean(),
-  message: z.string().optional(),
-  action: z.string().optional(),
+  message: z.string(),
+  actionDescription: z.string(),
+  actions: z.array(ActionSchema),
 });
 
 // =============================================================================
@@ -205,12 +206,22 @@ export const AgentExecuteRequestSchema = z.object({
   frameId: z.string().optional(),
 });
 
-/** POST /v1/sessions/:id/agentExecute - Response */
+/** POST /v1/sessions/:id/agentExecute - Response (matches AgentResult) */
 export const AgentExecuteResponseSchema = z.object({
   success: z.boolean(),
-  message: z.string().optional(),
-  actions: z.array(z.unknown()).optional(),
-  completed: z.boolean().optional(),
+  message: z.string(),
+  actions: z.array(z.unknown()),
+  completed: z.boolean(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  usage: z
+    .object({
+      input_tokens: z.number(),
+      output_tokens: z.number(),
+      reasoning_tokens: z.number().optional(),
+      cached_input_tokens: z.number().optional(),
+      inference_time_ms: z.number(),
+    })
+    .optional(),
 });
 
 // =============================================================================
@@ -229,10 +240,12 @@ export const NavigateRequestSchema = z.object({
 });
 
 /** POST /v1/sessions/:id/navigate - Response */
-export const NavigateResponseSchema = z.object({
-  url: z.string().optional(),
-  status: z.number().optional(),
-});
+export const NavigateResponseSchema = z
+  .object({
+    url: z.string(),
+    status: z.number(),
+  })
+  .nullable();
 
 // =============================================================================
 // Inferred Types
