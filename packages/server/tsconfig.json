@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "@browserbasehq/config/tsconfig/app",
+  "include": ["src"],
+  "compilerOptions": {
+    "outDir": "dist",
+    "verbatimModuleSyntax": false
+  }
+}
