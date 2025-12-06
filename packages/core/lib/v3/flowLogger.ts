@@ -13,6 +13,9 @@ import type { V3Options } from "./types/public";
 
 const MAX_LINE_LENGTH = 160;
 
+// Flow logging config dir - empty string disables logging entirely
+const CONFIG_DIR = process.env.BROWSERBASE_CONFIG_DIR || "";
+
 const NOISY_CDP_EVENTS = new Set([
   "Target.targetInfoChanged",
   "Runtime.executionContextCreated",
@@ -346,14 +349,10 @@ function createPrettyStream(
 // =============================================================================
 
 /**
- * Get the config directory from environment or use default
+ * Get the config directory. Returns empty string if logging is disabled.
  */
 export function getConfigDir(): string {
-  const fromEnv = process.env.BROWSERBASE_CONFIG_DIR;
-  if (fromEnv) {
-    return path.resolve(fromEnv);
-  }
-  return path.resolve(process.cwd(), ".browserbase");
+  return CONFIG_DIR ? path.resolve(CONFIG_DIR) : "";
 }
 
 // =============================================================================
@@ -525,9 +524,12 @@ export function formatCuaResponsePreview(
 export class SessionFileLogger {
   /**
    * Initialize a new logging context. Call this at the start of a session.
+   * If BROWSERBASE_CONFIG_DIR is not set, logging is disabled.
    */
   static init(sessionId: string, v3Options?: V3Options): void {
     const configDir = getConfigDir();
+    if (!configDir) return; // Logging disabled
+
     const sessionDir = path.join(configDir, "sessions", sessionId);
 
     // Create context with placeholder logger (will be replaced after streams init)
