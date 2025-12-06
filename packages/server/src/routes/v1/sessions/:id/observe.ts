@@ -18,24 +18,7 @@ interface ObserveParams {
   id: string;
 }
 
-export const observeSchemaV2 = z.object({
-  instruction: z.string().optional(),
-  domSettleTimeoutMs: z.number().optional(),
-  returnAction: z.boolean().optional(),
-  onlyVisible: z.boolean().optional(),
-  drawOverlay: z.boolean().optional(),
-  modelName: z.string().optional(),
-  modelClientOptions: z
-    .object({
-      apiKey: z.string().optional(),
-      baseURL: z.string().url().optional(),
-    })
-    .optional(),
-  iframes: z.boolean().optional(),
-  frameId: z.string().optional(),
-});
-
-export const observeSchemaV3 = z.object({
+export const observeSchema = z.object({
   instruction: z.string().optional(),
   options: z
     .object({
@@ -78,86 +61,30 @@ const observeRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<
-      z.infer<typeof observeSchemaV2>,
-      z.infer<typeof observeSchemaV3>
-    >({
+    return createStreamingResponse<z.infer<typeof observeSchema>>({
       browserbaseSessionId: id,
       request,
       reply,
-      schemaV2: observeSchemaV2,
-      schemaV3: observeSchemaV3,
+      schema: observeSchema,
       stagehandMethod: "observe",
-      handler: async (stagehandWithVersion) => {
-        const { stagehand, version, data } = stagehandWithVersion;
+      handler: async ({ stagehand, data }) => {
+        const { frameId } = data;
+        const page = frameId
+          ? stagehand.context.resolvePageByMainFrameId(frameId)
+          : await stagehand.context.awaitActivePage();
 
-        // V3 logic
-        if (version === "v3") {
-          const { frameId } = data;
-          const page = frameId
-            ? stagehand.context.resolvePageByMainFrameId(frameId)
-            : await stagehand.context.awaitActivePage();
-
-          if (!page) {
-            return reply.status(StatusCodes.NOT_FOUND).send({
-              message: "Page not found",
-            });
-          }
-
-          const url = page.url();
-
-          // Temporarily mask frameId from DB/Session Replay
-          const options = { ...data, frameId: undefined };
-
-          // Create action first
-          const action = await createAction({
-            sessionId: id,
-            method: "observe",
-            xpath: "",
-            options: sanitizeActionDbData(options),
-            url,
+        if (!page) {
+          return reply.status(StatusCodes.NOT_FOUND).send({
+            message: "Page not found",
           });
-
-          const safeOptions = {
-            ...data.options,
-            model:
-              data.options?.model &&
-              typeof data.options.model.model === "string"
-                ? {
-                    ...data.options.model,
-                    modelName: data.options.model.model,
-                  }
-                : undefined,
-            page,
-          };
-
-          let result: Action[];
-
-          if (data.instruction) {
-            result = await stagehand.observe(data.instruction, safeOptions);
-          } else {
-            result = await stagehand.observe(safeOptions);
-          }
-
-          await updateActionResult(action.id, result);
-          return { result, actionId: action.id };
         }
-
-        // V2 logic
-        /* eslint-disable */
-        if (data.frameId) {
-          const ctx = stagehand["stagehandContext"]; // Disabling eslint because of private property
-
-          const shPage = ctx?.getStagehandPageByFrameId(data.frameId);
-          if (shPage) ctx.setActivePage(shPage);
-        }
-        /* eslint-enable */
-        const { page } = stagehand;
 
         const url = page.url();
+
         // Temporarily mask frameId from DB/Session Replay
         const options = { ...data, frameId: undefined };
 
+        // Create action first
         const action = await createAction({
           sessionId: id,
           method: "observe",
@@ -166,7 +93,27 @@ const observeRouteHandler: RouteHandlerMethod = withErrorHandling(
           url,
         });
 
-        const result = await page.observe(data);
+        const safeOptions = {
+          ...data.options,
+          model:
+            data.options?.model &&
+            typeof data.options.model.model === "string"
+              ? {
+                  ...data.options.model,
+                  modelName: data.options.model.model,
+                }
+              : undefined,
+          page,
+        };
+
+        let result: Action[];
+
+        if (data.instruction) {
+          result = await stagehand.observe(data.instruction, safeOptions);
+        } else {
+          result = await stagehand.observe(safeOptions);
+        }
+
         await updateActionResult(action.id, result);
         return { result, actionId: action.id };
       },
@@ -185,7 +132,7 @@ const observeRoute: RouteOptions = {
       },
       required: ["id"],
     },
-    body: zodToJsonSchema(observeSchemaV2),
+    body: zodToJsonSchema(observeSchema),
   },
   handler: observeRouteHandler,
 };

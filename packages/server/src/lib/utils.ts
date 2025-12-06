@@ -1,5 +1,5 @@
 import { StatusCodes } from "http-status-codes";
-import type { ActResult as ActResultV3 } from "stagehand-v3";
+import type { ActResult } from "stagehand-v3";
 import { z } from "zod/v3";
 import type { ZodTypeAny } from "zod/v3";
 
@@ -233,14 +233,14 @@ export function sanitizeActionDbData(
 }
 
 /**
- * Sanitizes the V3 act result object by replacing arguments with variable names
+ * Sanitizes the act result object by replacing arguments with variable names
  * when variables were used in the action
  * This prevents sensitive variable data from being stored in the database result field
  */
 export function sanitizeResultWithVariables(
-  result: ActResultV3,
+  result: ActResult,
   variables?: Record<string, string>,
-): ActResultV3 {
+): ActResult {
   if (!variables || Object.keys(variables).length === 0) {
     return result;
   }
@@ -315,13 +315,3 @@ function deepRemoveApiKeys(value: unknown): unknown {
   return value;
 }
 
-export function isV3Version(
-  currentVersion: string | undefined,
-  language: string | undefined,
-): boolean {
-  if (!currentVersion || language !== "typescript") return false;
-  // Match semantic versioning: x.y.z, extract the major part
-  const match = currentVersion.match(/^(\d+)\./);
-  if (!match) return false;
-  return match[1] === "3";
-}

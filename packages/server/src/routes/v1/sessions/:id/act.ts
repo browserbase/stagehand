@@ -1,7 +1,6 @@
-import type { ActResult as ActResultV2 } from "@browserbasehq/stagehand";
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
-import type { ActResult as ActResultV3 } from "stagehand-v3";
+import type { ActResult } from "stagehand-v3";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { z } from "zod/v3";
 
@@ -22,44 +21,8 @@ interface ActParams {
   id: string;
 }
 
-// Schema for array format: [input, options] - V2
-export const actSchemaV2 = z
-  .object({
-    action: z
-      .string({
-        /* eslint-disable-next-line camelcase */
-        invalid_type_error: "`action` must be a string",
-        /* eslint-disable-next-line camelcase */
-        required_error: "`action` is required",
-      })
-      .min(1),
-    variables: z.record(z.string()).optional(),
-    domSettleTimeoutMs: z.number().optional(),
-    slowDomBasedAct: z.boolean().optional(),
-    timeoutMs: z.number().optional(),
-    modelName: z.string().optional(),
-    modelClientOptions: z
-      .object({
-        apiKey: z.string().optional(),
-        baseURL: z.string().url().optional(),
-      })
-      .optional(),
-    iframes: z.boolean().optional(),
-    frameId: z.string().optional(),
-  })
-  .or(
-    z.object({
-      selector: z.string(),
-      description: z.string(),
-      backendNodeId: z.number().optional(),
-      method: z.string().optional(),
-      arguments: z.array(z.string()).optional(),
-      frameId: z.string().optional(),
-    }),
-  );
-
-// Schema for V3 - new structure
-export const actSchemaV3 = z.object({
+// Schema for V3
+export const actSchema = z.object({
   input: z.string().or(
     z.object({
       selector: z.string(),
@@ -110,126 +73,56 @@ const actRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<
-      z.infer<typeof actSchemaV2>,
-      z.infer<typeof actSchemaV3>
-    >({
+    return createStreamingResponse<z.infer<typeof actSchema>>({
       browserbaseSessionId: id,
       request,
       reply,
-      schemaV2: actSchemaV2,
-      schemaV3: actSchemaV3,
+      schema: actSchema,
       stagehandMethod: "act",
-      handler: async (stagehandWithVersion) => {
-        const { stagehand, version, data } = stagehandWithVersion;
+      handler: async ({ stagehand, data }) => {
+        const { frameId } = data;
+        const page = frameId
+          ? stagehand.context.resolvePageByMainFrameId(frameId)
+          : await stagehand.context.awaitActivePage();
 
-        // V3 logic
-        if (version === "v3") {
-          const { frameId } = data;
-          const page = frameId
-            ? stagehand.context.resolvePageByMainFrameId(frameId)
-            : await stagehand.context.awaitActivePage();
-
-          if (!page) {
-            throw new AppError(
-              "Page not found",
-              StatusCodes.INTERNAL_SERVER_ERROR,
-            );
-          }
-
-          const url = page.url();
-
-          // Temporarily mask frameId from DB/Session Replay
-          const options = { ...data, frameId: undefined };
-
-          const action = await createAction({
-            sessionId: id,
-            method: "act",
-            xpath: "",
-            options: sanitizeActionDbData(options),
-            url,
-          });
-
-          let result: ActResultV3;
-
-          const safeOptions = {
-            ...data.options,
-            model: data.options?.model
-              ? {
-                  ...data.options.model,
-                  modelName: data.options.model.model ?? "gpt-4o",
-                }
-              : undefined,
-            page,
-          };
-
-          if (typeof data.input === "string") {
-            result = await stagehand.act(data.input, safeOptions);
-          } else {
-            result = await stagehand.act(data.input, safeOptions);
-          }
-
-          const sanitizedResult = sanitizeResultWithVariables(
-            result,
-            data.options?.variables,
+        if (!page) {
+          throw new AppError(
+            "Page not found",
+            StatusCodes.INTERNAL_SERVER_ERROR,
           );
-          await updateActionResult(action.id, sanitizedResult);
-          return { result, actionId: action.id };
-        }
-
-        // V2 logic
-        /* eslint-disable */
-        if (data.frameId) {
-          const ctx = stagehand["stagehandContext"]; // Disabling eslint because of private property
-
-          const shPage = ctx?.getStagehandPageByFrameId(data.frameId);
-          if (shPage) ctx.setActivePage(shPage);
-        }
-        /* eslint-enable */
-        const { page } = stagehand;
-
-        const method = "act";
-        let xpath = "";
-        let options = {};
-
-        if ("action" in data) {
-          options = { ...data };
-        } else if (data.selector) {
-          xpath = data.selector;
-          options = {
-            method: data.method,
-            selector: data.selector,
-            description: data.description,
-            backendNodeId: data.backendNodeId,
-            arguments: data.arguments,
-          };
         }
 
         const url = page.url();
+
         // Temporarily mask frameId from DB/Session Replay
-        options = { ...options, frameId: undefined };
+        const options = { ...data, frameId: undefined };
 
         const action = await createAction({
           sessionId: id,
-          method,
-          xpath,
+          method: "act",
+          xpath: "",
           options: sanitizeActionDbData(options),
           url,
         });
 
-        let result: ActResultV2;
+        const safeOptions = {
+          ...data.options,
+          model: data.options?.model
+            ? {
+                ...data.options.model,
+                modelName: data.options.model.model ?? "gpt-4o",
+              }
+            : undefined,
+          page,
+        };
 
-        if ("action" in data) {
-          if (data.modelClientOptions) {
-            result = await page.act(data);
-          } else {
-            result = await page.act(data);
-          }
-        } else {
-          result = await page.act(data);
-        }
+        const result: ActResult = await stagehand.act(data.input, safeOptions);
 
-        await updateActionResult(action.id, result);
+        const sanitizedResult = sanitizeResultWithVariables(
+          result,
+          data.options?.variables,
+        );
+        await updateActionResult(action.id, sanitizedResult);
         return { result, actionId: action.id };
       },
     });
@@ -247,7 +140,7 @@ const actRoute: RouteOptions = {
       },
       required: ["id"],
     },
-    body: zodToJsonSchema(actSchemaV2),
+    body: zodToJsonSchema(actSchema),
   },
   handler: actRouteHandler,
 };

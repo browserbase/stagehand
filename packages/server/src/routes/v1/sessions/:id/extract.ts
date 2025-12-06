@@ -21,26 +21,8 @@ interface ExtractParams {
   id: string;
 }
 
-// Schema for array format: [instruction, options] - V2
-export const extractSchemaV2 = z.object({
-  instruction: z.string().optional(),
-  schemaDefinition: z.record(z.unknown()).optional(),
-  domSettleTimeoutMs: z.number().optional(),
-  useTextExtract: z.boolean().optional(),
-  selector: z.string().optional(),
-  modelName: z.string().optional(),
-  modelClientOptions: z
-    .object({
-      apiKey: z.string().optional(),
-      baseURL: z.string().url().optional(),
-    })
-    .optional(),
-  iframes: z.boolean().optional(),
-  frameId: z.string().optional(),
-});
-
-// Schema for V3 - new structure
-export const extractSchemaV3 = z.object({
+// Schema for V3
+export const extractSchema = z.object({
   instruction: z.string().optional(),
   schema: z.record(z.unknown()).optional(),
   options: z
@@ -84,130 +66,65 @@ const extractRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<
-      z.infer<typeof extractSchemaV2>,
-      z.infer<typeof extractSchemaV3>
-    >({
+    return createStreamingResponse<z.infer<typeof extractSchema>>({
       browserbaseSessionId: id,
       request,
       reply,
-      schemaV2: extractSchemaV2,
-      schemaV3: extractSchemaV3,
+      schema: extractSchema,
       stagehandMethod: "extract",
-      handler: async (stagehandWithVersion) => {
-        const { stagehand, version, data } = stagehandWithVersion;
+      handler: async ({ stagehand, data }) => {
+        const { frameId } = data;
+        const page = frameId
+          ? stagehand.context.resolvePageByMainFrameId(frameId)
+          : await stagehand.context.awaitActivePage();
 
-        // V3 logic
-        if (version === "v3") {
-          const { frameId } = data;
-          const page = frameId
-            ? stagehand.context.resolvePageByMainFrameId(frameId)
-            : await stagehand.context.awaitActivePage();
-
-          if (!page) {
-            throw new AppError(
-              "Page not found",
-              StatusCodes.INTERNAL_SERVER_ERROR,
-            );
-          }
-
-          const url = page.url();
-
-          // Temporarily mask frameId from DB/Session Replay
-          const options = { ...data, frameId: undefined };
-
-          // Create action first
-          const action = await createAction({
-            sessionId: id,
-            method: "extract",
-            xpath: data.options?.selector ?? "",
-            options: sanitizeActionDbData(options),
-            url,
-          });
-
-          let result: ExtractResult<z.AnyZodObject>;
-
-          const safeOptions = {
-            ...data.options,
-            model: data.options?.model
-              ? {
-                  ...data.options.model,
-                  modelName: data.options.model.model ?? "gpt-4o",
-                }
-              : undefined,
-            page,
-          };
-
-          if (data.instruction) {
-            if (data.schema) {
-              const zodSchema = jsonSchemaToZod(data.schema) as z.AnyZodObject;
-              result = await stagehand.extract(
-                data.instruction,
-                zodSchema,
-                // safeOptions,
-              );
-            } else {
-              result = await stagehand.extract(data.instruction, safeOptions);
-            }
-          } else {
-            result = await stagehand.extract(safeOptions);
-          }
-
-          await updateActionResult(action.id, result);
-          return { result, actionId: action.id };
+        if (!page) {
+          throw new AppError(
+            "Page not found",
+            StatusCodes.INTERNAL_SERVER_ERROR,
+          );
         }
-
-        // V2 logic
-        /* eslint-disable */
-        if (data.frameId) {
-          const ctx = stagehand["stagehandContext"]; // Disabling eslint because of private property
-
-          const shPage = ctx?.getStagehandPageByFrameId(data.frameId);
-          if (shPage) ctx.setActivePage(shPage);
-        }
-        /* eslint-enable */
-        const { page } = stagehand;
 
         const url = page.url();
 
+        // Temporarily mask frameId from DB/Session Replay
+        const options = { ...data, frameId: undefined };
+
+        // Create action first
         const action = await createAction({
           sessionId: id,
           method: "extract",
-          xpath: data.selector ?? "",
-          // Temporarily mask frameId from DB/Session Replay
-          options: sanitizeActionDbData({ ...data, frameId: undefined }),
+          xpath: data.options?.selector ?? "",
+          options: sanitizeActionDbData(options),
           url,
         });
 
-        let result: Record<string, unknown>;
-        // We need to pass modelName to extract to respect the modelClientOptions
-        // TODO: remove this once patched in stagehand
-        let modelName;
-        if (data.modelClientOptions) {
-          modelName = data.modelName ?? session.modelName;
-        }
+        const safeOptions = {
+          ...data.options,
+          model: data.options?.model
+            ? {
+                ...data.options.model,
+                modelName: data.options.model.model ?? "gpt-4o",
+              }
+            : undefined,
+          page,
+        };
+
+        let result: ExtractResult<z.AnyZodObject>;
 
         if (data.instruction) {
-          if (data.schemaDefinition) {
-            const zodSchema = jsonSchemaToZod(data.schemaDefinition);
-            result = (await page.extract<z.infer<typeof zodSchema>>({
-              instruction: data.instruction,
-              schema: zodSchema,
-              useTextExtract: data.useTextExtract,
-              selector: data.selector,
-              modelName: modelName,
-              modelClientOptions: data.modelClientOptions,
-              iframes: data.iframes,
-            })) as Record<string, unknown>;
+          if (data.schema) {
+            const zodSchema = jsonSchemaToZod(data.schema) as z.AnyZodObject;
+            result = await stagehand.extract(
+              data.instruction,
+              zodSchema,
+              safeOptions,
+            );
           } else {
-            result = (await page.extract({
-              instruction: data.instruction,
-              modelName: modelName,
-              modelClientOptions: data.modelClientOptions,
-            })) as Record<string, unknown>;
+            result = await stagehand.extract(data.instruction, safeOptions);
           }
         } else {
-          result = (await page.extract()) as Record<string, unknown>;
+          result = await stagehand.extract(safeOptions);
         }
 
         await updateActionResult(action.id, result);
@@ -228,7 +145,7 @@ const extractRoute: RouteOptions = {
       },
       required: ["id"],
     },
-    body: zodToJsonSchema(extractSchemaV2),
+    body: zodToJsonSchema(extractSchema),
   },
   handler: extractRouteHandler,
 };

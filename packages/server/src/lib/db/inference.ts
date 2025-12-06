@@ -1,4 +1,4 @@
-import type { StagehandMetrics } from "@browserbasehq/stagehand";
+import type { StagehandMetrics } from "stagehand-v3";
 
 import { db } from "./index.js";
 import { inference } from "./schema.js";

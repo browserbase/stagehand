@@ -17,24 +17,7 @@ interface AgentExecuteParams {
   id: string;
 }
 
-const agentExecuteSchemaV2 = z.object({
-  agentConfig: z.object({
-    provider: z.enum(["openai", "anthropic", "google"]).optional(),
-    model: z.string().optional(),
-    instructions: z.string().optional(),
-    options: z.record(z.string(), z.unknown()).optional(),
-  }),
-  executeOptions: z.object({
-    instruction: z.string(),
-    maxSteps: z.number().optional(),
-    autoScreenshot: z.boolean().optional(),
-    waitBetweenActions: z.number().optional(),
-    context: z.string().optional(),
-    frameId: z.string().optional(),
-  }),
-});
-
-const agentExecuteSchemaV3 = z.object({
+const agentExecuteSchema = z.object({
   agentConfig: z.object({
     provider: z.enum(["openai", "anthropic", "google"]).optional(),
     model: z
@@ -84,86 +67,49 @@ const agentExecuteRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<
-      z.infer<typeof agentExecuteSchemaV2>,
-      z.infer<typeof agentExecuteSchemaV3>
-    >({
+    return createStreamingResponse<z.infer<typeof agentExecuteSchema>>({
       browserbaseSessionId: id,
       request,
       reply,
-      schemaV2: agentExecuteSchemaV2,
-      schemaV3: agentExecuteSchemaV3,
-      handler: async (stagehandWithVersion) => {
-        const { stagehand, version, data } = stagehandWithVersion;
-
-        // V3 logic
-        if (version === "v3") {
-          const { agentConfig, executeOptions } = data;
-          const method = "agentExecute";
-          const xpath = "";
-          const safeAgentConfig = {
-            model: agentConfig.model,
-            systemPrompt: agentConfig.systemPrompt,
-          };
-          const combinedOptions = {
-            agentExecuteOptions: executeOptions,
-            agentConfig: safeAgentConfig,
-          };
-          const { frameId } = data;
-          const page = frameId
-            ? stagehand.context.resolvePageByMainFrameId(frameId)
-            : await stagehand.context.awaitActivePage();
-          if (!page) {
-            throw new AppError(
-              "Page not found",
-              StatusCodes.INTERNAL_SERVER_ERROR,
-            );
-          }
-          const fullExecuteOptions = {
-            ...executeOptions,
-            page,
-          };
-          const url = page.url();
-          const action = await createAction({
-            sessionId: id,
-            method,
-            xpath,
-            url,
-            options: sanitizeActionDbData(combinedOptions),
-          });
-          const result = await stagehand
-            .agent(agentConfig)
-            .execute(fullExecuteOptions);
-
-          await updateActionResult(action.id, result);
-          return { result, actionId: action.id };
-        }
-
-        // V2 logic
+      schema: agentExecuteSchema,
+      handler: async ({ stagehand, data }) => {
         const { agentConfig, executeOptions } = data;
         const method = "agentExecute";
         const xpath = "";
         const safeAgentConfig = {
-          provider: agentConfig.provider,
           model: agentConfig.model,
-          instructions: agentConfig.instructions,
+          systemPrompt: agentConfig.systemPrompt,
         };
-
         const combinedOptions = {
           agentExecuteOptions: executeOptions,
           agentConfig: safeAgentConfig,
         };
-
+        const { frameId } = data;
+        const page = frameId
+          ? stagehand.context.resolvePageByMainFrameId(frameId)
+          : await stagehand.context.awaitActivePage();
+        if (!page) {
+          throw new AppError(
+            "Page not found",
+            StatusCodes.INTERNAL_SERVER_ERROR,
+          );
+        }
+        const fullExecuteOptions = {
+          ...executeOptions,
+          page,
+        };
+        const url = page.url();
         const action = await createAction({
           sessionId: id,
           method,
           xpath,
-          options: combinedOptions,
+          url,
+          options: sanitizeActionDbData(combinedOptions),
         });
-
         const result = await stagehand
           .agent(agentConfig)
-          .execute(executeOptions);
+          .execute(fullExecuteOptions);
+
         await updateActionResult(action.id, result);
         return { result, actionId: action.id };
       },
@@ -182,9 +128,7 @@ const agentExecuteRoute: RouteOptions = {
       },
       required: ["id"],
     },
-    body: zodToJsonSchema(
-      z.union([agentExecuteSchemaV2, agentExecuteSchemaV3]),
-    ),
+    body: zodToJsonSchema(agentExecuteSchema),
   },
   handler: agentExecuteRouteHandler,
 };

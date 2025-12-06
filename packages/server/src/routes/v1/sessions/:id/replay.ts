@@ -1,5 +1,4 @@
-import type { AgentAction, AgentResult } from "@browserbasehq/stagehand";
-import { inArray } from "drizzle-orm";
+import type { AgentAction, AgentResult } from "stagehand-v3";
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 

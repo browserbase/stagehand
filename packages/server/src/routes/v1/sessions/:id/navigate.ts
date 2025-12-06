@@ -13,26 +13,7 @@ interface NavigateParams {
   id: string;
 }
 
-export const navigateSchemaV2 = z.object({
-  url: z.string({
-    /* eslint-disable-next-line camelcase */
-    invalid_type_error: "`url` must be a string",
-    /* eslint-disable-next-line camelcase */
-    required_error: "`url` is required",
-  }),
-  options: z
-    .object({
-      referer: z.string().optional(),
-      timeout: z.number().optional(),
-      waitUntil: z
-        .enum(["load", "domcontentloaded", "networkidle", "commit"])
-        .optional(),
-    })
-    .optional(),
-  frameId: z.string().optional(),
-});
-
-export const navigateSchemaV3 = z.object({
+export const navigateSchema = z.object({
   url: z.string({
     /* eslint-disable-next-line camelcase */
     invalid_type_error: "`url` must be a string",
@@ -46,7 +27,7 @@ export const navigateSchemaV3 = z.object({
       waitUntil: z.enum(["load", "domcontentloaded", "networkidle"]).optional(),
     })
     .optional(),
-  frameId: z.string(),
+  frameId: z.string().optional(),
 });
 
 const navigateRouteHandler: RouteHandlerMethod = withErrorHandling(
@@ -73,64 +54,39 @@ const navigateRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<
-      z.infer<typeof navigateSchemaV2>,
-      z.infer<typeof navigateSchemaV3>
-    >({
+    return createStreamingResponse<z.infer<typeof navigateSchema>>({
       browserbaseSessionId: id,
       request,
       reply,
-      schemaV2: navigateSchemaV2,
-      schemaV3: navigateSchemaV3,
-      handler: async (stagehandWithVersion) => {
-        const { stagehand, version, data } = stagehandWithVersion;
+      schema: navigateSchema,
+      handler: async ({ stagehand, data }) => {
+        const page = data.frameId
+          ? stagehand.context.resolvePageByMainFrameId(data.frameId)
+          : await stagehand.context.awaitActivePage();
 
-        if (version === "v3") {
-          const page = data.frameId
-            ? stagehand.context.resolvePageByMainFrameId(data.frameId)
-            : await stagehand.context.awaitActivePage();
-
-          if (!page) {
-            return reply.status(StatusCodes.NOT_FOUND).send({
-              message: "Page not found",
-            });
-          }
-
-          // Run createAction and page.goto in parallel
-          const [action, result] = await Promise.all([
-            createAction({
-              sessionId: id,
-              method: "navigate",
-              xpath: "",
-              options: {
-                url: data.url,
-                ...(data.options
-                  ? { ...data.options, frameId: undefined }
-                  : {}),
-              },
-              url: data.url,
-            }),
-            page.goto(data.url, data.options),
-          ]);
-
-          return { result, actionId: action.id };
+        if (!page) {
+          return reply.status(StatusCodes.NOT_FOUND).send({
+            message: "Page not found",
+          });
         }
 
-        // V2 logic
-        const { page } = stagehand;
-
-        const action = await createAction({
-          sessionId: id,
-          method: "navigate",
-          xpath: "",
-          options: {
+        // Run createAction and page.goto in parallel
+        const [action, result] = await Promise.all([
+          createAction({
+            sessionId: id,
+            method: "navigate",
+            xpath: "",
+            options: {
+              url: data.url,
+              ...(data.options
+                ? { ...data.options, frameId: undefined }
+                : {}),
+            },
             url: data.url,
-            ...(data.options ? { ...data.options, frameId: undefined } : {}),
-          },
-          url: data.url,
-        });
+          }),
+          page.goto(data.url, data.options),
+        ]);
 
-        const result = await page.goto(data.url, data.options);
         return { result, actionId: action.id };
       },
     });
@@ -148,7 +104,7 @@ const navigateRoute: RouteOptions = {
       },
       required: ["id"],
     },
-    body: zodToJsonSchema(navigateSchemaV2),
+    body: zodToJsonSchema(navigateSchema),
   },
   handler: navigateRouteHandler,
 };

@@ -1,7 +1,6 @@
-import type { Stagehand, StagehandMetrics } from "@browserbasehq/stagehand";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { StatusCodes } from "http-status-codes";
-import type { Stagehand as V3Stagehand } from "stagehand-v3";
+import type { Stagehand as V3Stagehand, StagehandMetrics } from "stagehand-v3";
 import { v4 } from "uuid";
 import { z } from "zod/v3";
 
@@ -11,37 +10,30 @@ import {
 } from "./db/actions.js";
 import { createInference } from "./db/inference.js";
 import { AppError } from "./errorHandler.js";
-import { dangerouslyGetHeader, getOptionalHeader } from "./header.js";
+import { dangerouslyGetHeader } from "./header.js";
 import { error, success } from "./response.js";
 import { resumeStagehandSession } from "./session.js";
-import { isV3Version } from "./utils.js";
 
-// Discriminated union for stagehand objects with version information and data
-type StagehandWithVersion<TV2 = unknown, TV3 = unknown> =
-  | { version: "v2"; stagehand: Stagehand; data: TV2 }
-  | { version: "v3"; stagehand: V3Stagehand; data: TV3 };
-
-interface StreamingResponseOptions<TV2, TV3> {
+interface StreamingResponseOptions<TV3> {
   browserbaseSessionId: string;
   request: FastifyRequest;
   reply: FastifyReply;
-  schemaV2: z.ZodType<TV2>;
-  schemaV3: z.ZodType<TV3>;
-  handler: (
-    stagehandWithVersion: StagehandWithVersion<TV2, TV3>,
-  ) => Promise<{ result: unknown; actionId?: string }>;
+  schema: z.ZodType<TV3>;
+  handler: (stagehand: {
+    stagehand: V3Stagehand;
+    data: TV3;
+  }) => Promise<{ result: unknown; actionId?: string }>;
   stagehandMethod?: "act" | "extract" | "observe";
 }
 
-export async function createStreamingResponse<TV2, TV3>({
+export async function createStreamingResponse<TV3>({
   browserbaseSessionId,
   request,
   reply,
-  schemaV2,
-  schemaV3,
+  schema,
   handler,
   stagehandMethod,
-}: StreamingResponseOptions<TV2, TV3>) {
+}: StreamingResponseOptions<TV3>) {
   const streamHeader = dangerouslyGetHeader(
     request,
     "x-stream-response",
@@ -61,12 +53,6 @@ export async function createStreamingResponse<TV2, TV3>({
   const modelApiKey = dangerouslyGetHeader(request, "x-model-api-key");
   const sentAt = request.headers["x-sent-at"];
 
-  // Detect stagehand version to determine which logic to use
-  const sdkVersion = getOptionalHeader(request, "x-sdk-version");
-  const language = getOptionalHeader(request, "x-language");
-  // Temporarily enable v3 for TS only
-  const useNewLogic = isV3Version(sdkVersion, language);
-
   if (!browserbaseApiKey) {
     return reply.status(StatusCodes.BAD_REQUEST).send({
       error:
@@ -79,18 +65,12 @@ export async function createStreamingResponse<TV2, TV3>({
     });
   }
 
-  // Parse data using the appropriate schema based on version
-  let parsedData: TV2 | TV3;
+  // Parse data using V3 schema
+  let parsedData: TV3;
 
   try {
     const json: unknown = request.body;
-
-    // Parse with both schemas to validate the data structure
-    if (useNewLogic) {
-      parsedData = await schemaV3.parseAsync(json);
-    } else {
-      parsedData = await schemaV2.parseAsync(json);
-    }
+    parsedData = await schema.parseAsync(json);
   } catch (err) {
     const error = err as Error | z.ZodError;
 
@@ -153,7 +133,7 @@ export async function createStreamingResponse<TV2, TV3>({
       sessionId: browserbaseSessionId,
       modelApiKey,
       browserbaseApiKey,
-      useV3: useNewLogic,
+      useV3: true,
       logger: (message) => {
         sendData({
           type: "log",
@@ -173,33 +153,18 @@ export async function createStreamingResponse<TV2, TV3>({
       },
     });
 
-    return stagehand;
+    return stagehand as V3Stagehand;
   }
 
   const stagehand = await getStagehand();
 
-  const originalMetrics = useNewLogic
-    ? structuredClone(await (stagehand as V3Stagehand).metrics)
-    : structuredClone((stagehand as Stagehand).stagehandMetrics);
+  const originalMetrics = structuredClone(await stagehand.metrics);
 
   let result: Awaited<ReturnType<typeof handler>> | null = null;
   let handlerError: Error | null = null;
 
-  // Create the discriminated union object with the appropriate data
-  const stagehandWithVersion: StagehandWithVersion<TV2, TV3> = useNewLogic
-    ? {
-        version: "v3",
-        stagehand: stagehand as V3Stagehand,
-        data: parsedData as TV3,
-      }
-    : {
-        version: "v2",
-        stagehand: stagehand as Stagehand,
-        data: parsedData as TV2,
-      };
-
   try {
-    result = await handler(stagehandWithVersion);
+    result = await handler({ stagehand, data: parsedData });
   } catch (err) {
     handlerError =
       err instanceof Error ? err : new Error("Unknown error occurred");
@@ -210,9 +175,7 @@ export async function createStreamingResponse<TV2, TV3>({
       ["act", "extract", "observe"].includes(stagehandMethod) &&
       result?.actionId
     ) {
-      const currentMetrics = useNewLogic
-        ? await (stagehand as V3Stagehand).metrics
-        : (stagehand as Stagehand).stagehandMetrics;
+      const currentMetrics = await stagehand.metrics;
 
       const metricsDelta: Pick<
         StagehandMetrics,
