@@ -15,8 +15,7 @@ const MAX_ARG_LENGTH = 500;
 const MAX_LINE_LENGTH = 140;
 const MAX_LLM_LINE_LENGTH = 500;
 
-// CDP events to filter from pretty output (still logged to JSONL)
-const NOISY_CDP_EVENTS = [
+const NOISY_CDP_EVENTS = new Set([
   "Target.targetInfoChanged",
   "Runtime.executionContextCreated",
   "Runtime.executionContextDestroyed",
@@ -28,7 +27,7 @@ const NOISY_CDP_EVENTS = [
   "Network.responseReceivedExtraInfo",
   "Network.requestWillBeSent",
   "Network.responseReceived",
-];
+]);
 
 // =============================================================================
 // Types
@@ -120,157 +119,88 @@ const loggerContext = new AsyncLocalStorage<FlowLoggerContext>();
 // Formatting Utilities (used by pretty streams)
 // =============================================================================
 
+/** Calculate base64 data size in KB */
+const dataToKb = (data: string): string =>
+  ((data.length * 0.75) / 1024).toFixed(1);
+
+/** Collapse whitespace and truncate */
 function truncate(value: string, maxLen = MAX_ARG_LENGTH): string {
-  value = value.replace(/\s+/g, " ");
-  if (value.length <= maxLen) {
-    return value;
-  }
-  return `${value.slice(0, maxLen)}…`;
+  const collapsed = value.replace(/\s+/g, " ");
+  return collapsed.length <= maxLen
+    ? collapsed
+    : `${collapsed.slice(0, maxLen)}…`;
 }
 
-/**
- * Truncate CDP IDs (32-char uppercase hex strings) that appear after id/Id patterns.
- * Transforms: frameId:363F03EB7E3795ACB434672C35095EF8 → frameId:363F…5EF8
- */
+/** Truncate CDP IDs: frameId:363F03EB...EF8 → frameId:363F…5EF8 */
 function truncateCdpIds(value: string): string {
   return value.replace(
     /([iI]d:?"?)([0-9A-F]{32})(?="?[,})\s]|$)/g,
-    (_match, prefix: string, id: string) =>
-      `${prefix}${id.slice(0, 4)}…${id.slice(-4)}`,
+    (_, pre: string, id: string) => `${pre}${id.slice(0, 4)}…${id.slice(-4)}`,
   );
 }
 
-/**
- * Truncate conversation/prompt strings showing first 30 chars + ... + last 100 chars
- */
+/** Truncate showing first 30 + last 100 chars */
 function truncateConversation(value: string): string {
-  value = value.replace(/\s+/g, " ");
-  const maxLen = 130;
-  if (value.length <= maxLen) {
-    return value;
-  }
-  return `${value.slice(0, 30)}…${value.slice(-100)}`;
+  const collapsed = value.replace(/\s+/g, " ");
+  return collapsed.length <= 130
+    ? collapsed
+    : `${collapsed.slice(0, 30)}…${collapsed.slice(-100)}`;
 }
 
 function formatValue(value: unknown): string {
-  if (typeof value === "string") {
-    return `'${value}'`;
+  if (typeof value === "string") return `'${value}'`;
+  if (value == null || typeof value !== "object") return String(value);
+  try {
+    return truncate(JSON.stringify(value));
+  } catch {
+    return "[unserializable]";
   }
-  if (
-    typeof value === "number" ||
-    typeof value === "boolean" ||
-    value === null
-  ) {
-    return String(value);
-  }
-  if (Array.isArray(value)) {
-    try {
-      return truncate(JSON.stringify(value));
-    } catch {
-      return "[unserializable array]";
-    }
-  }
-  if (typeof value === "object" && value !== null) {
-    try {
-      return truncate(JSON.stringify(value));
-    } catch {
-      return "[unserializable object]";
-    }
-  }
-  if (value === undefined) {
-    return "undefined";
-  }
-  return truncate(String(value));
 }
 
 function formatArgs(args?: unknown | unknown[]): string {
-  if (args === undefined) {
-    return "";
-  }
-  const normalized = (Array.isArray(args) ? args : [args]).filter(
-    (entry) => entry !== undefined,
-  );
-  const rendered = normalized
-    .map((entry) => formatValue(entry))
-    .filter((entry) => entry.length > 0);
-  return rendered.join(", ");
+  if (args === undefined) return "";
+  return (Array.isArray(args) ? args : [args])
+    .filter((e) => e !== undefined)
+    .map(formatValue)
+    .filter((e) => e.length > 0)
+    .join(", ");
 }
 
-function shortId(id: string | null | undefined): string {
-  if (!id) return "-";
-  return id.slice(-4);
-}
+const shortId = (id: string | null | undefined): string =>
+  id ? id.slice(-4) : "-";
 
 function formatTag(
   label: string | null | undefined,
   id: string | null | undefined,
   icon: string,
 ): string {
-  if (!id) return `⤑`;
-  return `[${icon} #${shortId(id)}${label ? " " : ""}${label || ""}]`;
+  return id ? `[${icon} #${shortId(id)}${label ? " " + label : ""}]` : "⤑";
 }
 
 let nonce = 0;
-
 function formatTimestamp(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  const hours = String(now.getHours()).padStart(2, "0");
-  const minutes = String(now.getMinutes()).padStart(2, "0");
-  const seconds = String(now.getSeconds()).padStart(2, "0");
-  const milliseconds = String(now.getMilliseconds()).padStart(3, "0");
-  const monotonic = String(nonce++ % 100).padStart(2, "0");
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${milliseconds}${monotonic}`;
+  const d = new Date();
+  const pad = (n: number, w = 2) => String(n).padStart(w, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}${pad(nonce++ % 100)}`;
 }
 
+const SENSITIVE_KEYS =
+  /apikey|api_key|key|secret|token|password|passwd|pwd|credential|auth/i;
+
 function sanitizeOptions(options: V3Options): Record<string, unknown> {
-  const sensitiveKeys = [
-    "apiKey",
-    "api_key",
-    "apikey",
-    "key",
-    "secret",
-    "token",
-    "password",
-    "passwd",
-    "pwd",
-    "credential",
-    "credentials",
-    "auth",
-    "authorization",
-  ];
-
-  const sanitizeValue = (obj: unknown): unknown => {
-    if (typeof obj !== "object" || obj === null) {
-      return obj;
-    }
-
-    if (Array.isArray(obj)) {
-      return obj.map(sanitizeValue);
-    }
-
+  const sanitize = (obj: unknown): unknown => {
+    if (typeof obj !== "object" || obj === null) return obj;
+    if (Array.isArray(obj)) return obj.map(sanitize);
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj)) {
-      const lowerKey = key.toLowerCase();
-      if (sensitiveKeys.some((sk) => lowerKey.includes(sk))) {
-        result[key] = "******";
-      } else if (typeof value === "object" && value !== null) {
-        result[key] = sanitizeValue(value);
-      } else {
-        result[key] = value;
-      }
+      result[key] = SENSITIVE_KEYS.test(key) ? "******" : sanitize(value);
     }
     return result;
   };
-
-  return sanitizeValue({ ...options }) as Record<string, unknown>;
+  return sanitize({ ...options }) as Record<string, unknown>;
 }
 
-/**
- * Remove unescaped quotes from a string for cleaner log output
- */
+/** Remove unescaped quotes for cleaner log output */
 function removeQuotes(str: string): string {
   return str
     .replace(/([^\\])["']/g, "$1")
@@ -285,48 +215,47 @@ function removeQuotes(str: string): string {
 function prettifyEvent(event: FlowEvent): string | null {
   const parts: string[] = [];
 
-  // Build context tags based on category
+  // Build context tags based on category (only add tags when IDs are present)
   if (event.category === "AgentTask") {
-    parts.push(formatTag("", event.taskId, "🅰"));
+    if (event.taskId) parts.push(formatTag("", event.taskId, "🅰"));
   } else if (event.category === "StagehandStep") {
-    parts.push(formatTag("", event.taskId, "🅰"));
-    parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
+    if (event.taskId) parts.push(formatTag("", event.taskId, "🅰"));
+    if (event.stepId) parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
   } else if (event.category === "UnderstudyAction") {
-    parts.push(formatTag("", event.taskId, "🅰"));
-    parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
-    parts.push(formatTag(event.actionLabel, event.actionId, "🆄"));
+    if (event.taskId) parts.push(formatTag("", event.taskId, "🅰"));
+    if (event.stepId) parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
+    if (event.actionId)
+      parts.push(formatTag(event.actionLabel, event.actionId, "🆄"));
   } else if (event.category === "CDP") {
-    parts.push(formatTag("", event.taskId, "🅰"));
-    parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
-    parts.push(formatTag(event.actionLabel, event.actionId, "🆄"));
+    if (event.taskId) parts.push(formatTag("", event.taskId, "🅰"));
+    if (event.stepId) parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
+    if (event.actionId)
+      parts.push(formatTag(event.actionLabel, event.actionId, "🆄"));
     parts.push(formatTag("CDP", event.targetId, "🅲"));
   } else if (event.category === "LLM") {
-    parts.push(formatTag("", event.taskId, "🅰"));
-    parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
+    if (event.taskId) parts.push(formatTag("", event.taskId, "🅰"));
+    if (event.stepId) parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
     parts.push(formatTag("LLM", event.requestId, "🧠"));
   }
 
   // Build details based on event type
   let details = "";
+  const argsStr = event.params ? formatArgs(event.params) : "";
 
   if (event.category === "AgentTask") {
     if (event.event === "started") {
-      const argsStr = event.params ? formatArgs(event.params) : "";
       details = `▷ ${event.method}(${argsStr})`;
     } else if (event.event === "completed") {
       const m = event.metrics;
       const durationSec = m?.durationMs
         ? (m.durationMs / 1000).toFixed(1)
         : "?";
-      const llmStats = m
-        ? `${m.llmRequests} LLM calls ꜛ${m.inputTokens} ꜜ${m.outputTokens} tokens`
-        : "";
-      const cdpStats = m ? `${m.cdpEvents} CDP msgs` : "";
+      const llmStats = `${m?.llmRequests ?? 0} LLM calls ꜛ${m?.inputTokens ?? 0} ꜜ${m?.outputTokens ?? 0} tokens`;
+      const cdpStats = `${m?.cdpEvents ?? 0} CDP msgs`;
       details = `✓ Agent.execute() DONE in ${durationSec}s | ${llmStats} | ${cdpStats}`;
     }
   } else if (event.category === "StagehandStep") {
     if (event.event === "started") {
-      const argsStr = event.params ? formatArgs(event.params) : "";
       details = `▷ ${event.method}(${argsStr})`;
     } else if (event.event === "completed") {
       const durationSec = event.metrics?.durationMs
@@ -336,7 +265,6 @@ function prettifyEvent(event: FlowEvent): string | null {
     }
   } else if (event.category === "UnderstudyAction") {
     if (event.event === "started") {
-      const argsStr = event.params ? formatArgs(event.params) : "";
       details = `▷ ${event.method}(${argsStr})`;
     } else if (event.event === "completed") {
       const durationSec = event.metrics?.durationMs
@@ -345,95 +273,76 @@ function prettifyEvent(event: FlowEvent): string | null {
       details = `✓ ${event.actionLabel || "ACTION"} completed in ${durationSec}s`;
     }
   } else if (event.category === "CDP") {
-    const argsStr = event.params ? formatArgs(event.params) : "";
-    const call = argsStr ? `${event.method}(${argsStr})` : `${event.method}()`;
-    if (event.event === "call") {
-      details = `⏵ ${call}`;
-    } else if (event.event === "message") {
-      details = `⏴ ${call}`;
-    }
+    const icon = event.event === "call" ? "⏵" : "⏴";
+    details = `${icon} ${event.method}(${argsStr})`;
   } else if (event.category === "LLM") {
     if (event.event === "request") {
       const promptStr = event.prompt
-        ? ` ${truncateConversation(String(event.prompt))}`
+        ? " " + truncateConversation(String(event.prompt))
         : "";
       details = `${event.model} ⏴${promptStr}`;
     } else if (event.event === "response") {
-      const tokens =
-        event.inputTokens !== undefined || event.outputTokens !== undefined
-          ? ` ꜛ${event.inputTokens ?? 0} ꜜ${event.outputTokens ?? 0} |`
-          : "";
-      const outputStr = event.output
-        ? ` ${truncateConversation(String(event.output))}`
+      const hasTokens =
+        event.inputTokens !== undefined || event.outputTokens !== undefined;
+      const tokenStr = hasTokens
+        ? ` ꜛ${event.inputTokens ?? 0} ꜜ${event.outputTokens ?? 0} |`
         : "";
-      details = `${event.model} ↳${tokens}${outputStr}`;
+      const outputStr = event.output
+        ? " " + truncateConversation(String(event.output))
+        : "";
+      details = `${event.model} ↳${tokenStr}${outputStr}`;
     }
   }
 
   if (!details) return null;
 
+  // Assemble and post-process the line
   const fullLine = `${formatTimestamp()} ${parts.join(" ")} ${details}`;
   const withoutQuotes = removeQuotes(fullLine);
 
-  // Apply category-specific truncation
+  // Apply category-specific processing and truncation
   if (event.category === "CDP") {
     const truncatedIds = truncateCdpIds(withoutQuotes);
-    return truncatedIds.length > MAX_LINE_LENGTH
-      ? `${truncatedIds.slice(0, MAX_LINE_LENGTH - 1)}…`
-      : truncatedIds;
+    if (truncatedIds.length > MAX_LINE_LENGTH) {
+      return truncatedIds.slice(0, MAX_LINE_LENGTH - 1) + "…";
+    }
+    return truncatedIds;
   } else if (event.category === "LLM") {
-    return withoutQuotes.length > MAX_LLM_LINE_LENGTH
-      ? `${withoutQuotes.slice(0, MAX_LLM_LINE_LENGTH - 1)}…`
-      : withoutQuotes;
+    if (withoutQuotes.length > MAX_LLM_LINE_LENGTH) {
+      return withoutQuotes.slice(0, MAX_LLM_LINE_LENGTH - 1) + "…";
+    }
+    return withoutQuotes;
   }
 
   return withoutQuotes;
 }
 
-/**
- * Check if a CDP event should be filtered from pretty output
- */
+/** Check if a CDP event should be filtered from pretty output */
 function shouldFilterCdpEvent(event: FlowEvent): boolean {
   if (event.category !== "CDP") return false;
-
-  // Filter .enable calls
-  if (event.method?.endsWith(".enable") || event.method === "enable") {
+  if (event.method?.endsWith(".enable") || event.method === "enable")
     return true;
-  }
-
-  // Filter noisy message events
-  if (event.event === "message" && NOISY_CDP_EVENTS.includes(event.method!)) {
-    return true;
-  }
-
-  return false;
+  return event.event === "message" && NOISY_CDP_EVENTS.has(event.method!);
 }
 
 // =============================================================================
-// Stream Creation (inline in this file)
+// Stream Creation
 // =============================================================================
 
-/**
- * Create a JSONL stream that writes full events verbatim
- */
+const isWritable = (s: fs.WriteStream | null): s is fs.WriteStream =>
+  !!(s && !s.destroyed && s.writable);
+
 function createJsonlStream(ctx: FlowLoggerContext): Writable {
   return new Writable({
     objectMode: true,
-    write(chunk: string, _encoding, callback) {
-      const stream = ctx.fileStreams.jsonl;
-      if (!ctx.initialized || !stream || stream.destroyed || !stream.writable) {
-        callback();
-        return;
-      }
-      // Pino already adds a newline, so just write the chunk as-is
-      stream.write(chunk, callback);
+    write(chunk: string, _, cb) {
+      if (ctx.initialized && isWritable(ctx.fileStreams.jsonl)) {
+        ctx.fileStreams.jsonl.write(chunk, cb);
+      } else cb();
     },
   });
 }
 
-/**
- * Create a pretty stream for a specific category
- */
 function createPrettyStream(
   ctx: FlowLoggerContext,
   category: EventCategory,
@@ -441,38 +350,18 @@ function createPrettyStream(
 ): Writable {
   return new Writable({
     objectMode: true,
-    write(chunk: string, _encoding, callback) {
+    write(chunk: string, _, cb) {
       const stream = ctx.fileStreams[streamKey];
-      if (!ctx.initialized || !stream || stream.destroyed || !stream.writable) {
-        callback();
-        return;
-      }
-
+      if (!ctx.initialized || !isWritable(stream)) return cb();
       try {
         const event = JSON.parse(chunk) as FlowEvent;
-
-        // Category routing
-        if (event.category !== category) {
-          callback();
-          return;
-        }
-
-        // Filter noisy CDP events from pretty output
-        if (shouldFilterCdpEvent(event)) {
-          callback();
-          return;
-        }
-
-        // Pretty format the event
+        if (event.category !== category || shouldFilterCdpEvent(event))
+          return cb();
         const line = prettifyEvent(event);
-        if (!line) {
-          callback();
-          return;
-        }
-
-        stream.write(line + "\n", callback);
+        if (line) stream.write(line + "\n", cb);
+        else cb();
       } catch {
-        callback();
+        cb();
       }
     },
   });
@@ -493,6 +382,67 @@ export function getConfigDir(): string {
   return path.resolve(process.cwd(), ".browserbase");
 }
 
+// =============================================================================
+// Prompt Preview Helpers
+// =============================================================================
+
+type ContentPart = {
+  type?: string;
+  text?: string;
+  content?: unknown[];
+  source?: { data?: string };
+  image_url?: { url?: string };
+  inlineData?: { data?: string };
+};
+
+/** Extract text and image info from a content array (handles nested tool_result) */
+function extractFromContent(
+  content: unknown[],
+  result: { text?: string; extras: string[] },
+): void {
+  for (const part of content) {
+    const p = part as ContentPart;
+    // Text
+    if (!result.text && p.text) {
+      result.text = p.type === "text" || !p.type ? p.text : undefined;
+    }
+    // Images - various formats
+    if (p.type === "image" || p.type === "image_url") {
+      const url = p.image_url?.url;
+      if (url?.startsWith("data:"))
+        result.extras.push(`${dataToKb(url)}kb image`);
+      else if (p.source?.data)
+        result.extras.push(`${dataToKb(p.source.data)}kb image`);
+      else result.extras.push("image");
+    } else if (p.source?.data) {
+      result.extras.push(`${dataToKb(p.source.data)}kb image`);
+    } else if (p.inlineData?.data) {
+      result.extras.push(`${dataToKb(p.inlineData.data)}kb image`);
+    }
+    // Recurse into tool_result content
+    if (p.type === "tool_result" && Array.isArray(p.content)) {
+      extractFromContent(p.content, result);
+    }
+  }
+}
+
+/** Build final preview string with extras */
+function buildPreview(
+  text: string | undefined,
+  extras: string[],
+  maxLen?: number,
+): string | undefined {
+  if (!text && extras.length === 0) return undefined;
+  let result = text || "";
+  if (maxLen && result.length > maxLen)
+    result = result.slice(0, maxLen) + "...";
+  if (extras.length > 0) {
+    const extrasStr = extras.map((e) => `+{${e}}`).join(" ");
+    result = result ? `${result} ${extrasStr}` : extrasStr;
+  }
+  return result || undefined;
+}
+
 /**
  * Format a prompt preview from LLM messages for logging.
  * Returns format like: "some text... +{5.8kb image} +{schema} +{12 tools}"
@@ -504,187 +454,77 @@ export function formatLlmPromptPreview(
   const lastUserMsg = messages.filter((m) => m.role === "user").pop();
   if (!lastUserMsg) return undefined;
 
-  let textPreview: string | undefined;
-  const extras: string[] = [];
+  const result = {
+    text: undefined as string | undefined,
+    extras: [] as string[],
+  };
 
   if (typeof lastUserMsg.content === "string") {
-    textPreview = lastUserMsg.content
-      .replace("instruction: ", "")
-      .replace("Instruction: ", "");
+    result.text = lastUserMsg.content;
   } else if (Array.isArray(lastUserMsg.content)) {
-    for (const c of lastUserMsg.content as unknown[]) {
-      const item = c as {
-        type?: string;
-        text?: string;
-        image_url?: { url?: string };
-        source?: { data?: string };
-      };
-
-      if (item.type === "text" && item.text && !textPreview) {
-        textPreview = item.text
-          .replace("instruction: ", "")
-          .replace("Instruction: ", "");
-      } else if (item.type === "image" || item.type === "image_url") {
-        if (item.image_url?.url?.startsWith("data:")) {
-          const sizeKb = ((item.image_url.url.length * 0.75) / 1024).toFixed(1);
-          extras.push(`${sizeKb}kb image`);
-        } else {
-          extras.push("image");
-        }
-      } else if (item.source?.data) {
-        const sizeKb = ((item.source.data.length * 0.75) / 1024).toFixed(1);
-        extras.push(`${sizeKb}kb image`);
-      } else if (item.text) {
-        // Text item but we already have textPreview
-      }
-    }
+    extractFromContent(lastUserMsg.content, result);
   } else {
     return undefined;
   }
 
-  // Add options-based extras
-  if (options?.hasSchema) {
-    extras.push("schema");
-  }
-  if (options?.toolCount && options.toolCount > 0) {
-    extras.push(`${options.toolCount} tools`);
+  // Clean instruction prefix
+  if (result.text) {
+    result.text = result.text.replace(/^[Ii]nstruction: /, "");
   }
 
-  // Build result
-  let result = textPreview || "";
-  if (extras.length > 0) {
-    const extrasStr = extras.map((e) => `+{${e}}`).join(" ");
-    result = result ? `${result} ${extrasStr}` : extrasStr;
-  }
+  if (options?.hasSchema) result.extras.push("schema");
+  if (options?.toolCount) result.extras.push(`${options.toolCount} tools`);
 
-  return result || undefined;
+  return buildPreview(result.text, result.extras);
 }
 
 /**
  * Extract a text preview from CUA-style messages.
  * Accepts various message formats (Anthropic, OpenAI, Google).
- * Returns format like: "some text... +{5.8kb image} +{schema}"
  */
 export function formatCuaPromptPreview(
   messages: unknown[],
   maxLen = 100,
 ): string | undefined {
-  let textPreview: string | undefined;
-  const extras: string[] = [];
-
-  // Helper to extract content from a content array
-  const extractFromContentArray = (content: unknown[]) => {
-    for (const part of content) {
-      const p = part as {
-        type?: string;
-        text?: string;
-        content?: unknown[];
-        source?: { data?: string; media_type?: string };
-        image_url?: { url?: string };
-      };
-
-      if (p.type === "text" && p.text && !textPreview) {
-        textPreview = p.text;
-      } else if (p.type === "image" || p.type === "image_url") {
-        if (p.image_url?.url) {
-          if (p.image_url.url.startsWith("data:")) {
-            const sizeKb = ((p.image_url.url.length * 0.75) / 1024).toFixed(1);
-            extras.push(`${sizeKb}kb image`);
-          } else {
-            extras.push("image");
-          }
-        } else if (p.source?.data) {
-          const sizeKb = ((p.source.data.length * 0.75) / 1024).toFixed(1);
-          extras.push(`${sizeKb}kb image`);
-        } else {
-          extras.push("image");
-        }
-      } else if (p.source?.data) {
-        // Anthropic base64 image format
-        const sizeKb = ((p.source.data.length * 0.75) / 1024).toFixed(1);
-        extras.push(`${sizeKb}kb image`);
-      } else if (p.type === "tool_result" && Array.isArray(p.content)) {
-        // Anthropic tool_result with nested content
-        extractFromContentArray(p.content);
-      }
-    }
-  };
-
-  // Find last user message or tool_result - handle various formats
   const lastMsg = messages
     .filter((m) => {
       const msg = m as { role?: string; type?: string };
       return msg.role === "user" || msg.type === "tool_result";
     })
     .pop() as
-    | {
-        role?: string;
-        type?: string;
-        content?: unknown;
-        parts?: unknown[];
-        text?: string;
-      }
+    | { content?: unknown; parts?: unknown[]; text?: string }
     | undefined;
 
   if (!lastMsg) return undefined;
 
+  const result = {
+    text: undefined as string | undefined,
+    extras: [] as string[],
+  };
+
   if (typeof lastMsg.content === "string") {
-    textPreview = lastMsg.content;
+    result.text = lastMsg.content;
   } else if (typeof lastMsg.text === "string") {
-    textPreview = lastMsg.text;
+    result.text = lastMsg.text;
   } else if (Array.isArray(lastMsg.parts)) {
-    // Google format: parts array
-    for (const part of lastMsg.parts) {
-      const p = part as {
-        text?: string;
-        inlineData?: { mimeType?: string; data?: string };
-      };
-      if (p.text && !textPreview) {
-        textPreview = p.text;
-      } else if (p.inlineData?.data) {
-        const sizeKb = ((p.inlineData.data.length * 0.75) / 1024).toFixed(1);
-        extras.push(`${sizeKb}kb image`);
-      }
-    }
+    extractFromContent(lastMsg.parts, result);
   } else if (Array.isArray(lastMsg.content)) {
-    extractFromContentArray(lastMsg.content as unknown[]);
+    extractFromContent(lastMsg.content, result);
   }
 
-  // If we only found images, show that
-  if (!textPreview && extras.length === 0) return undefined;
-
-  // Truncate text preview
-  let result = textPreview
-    ? textPreview.length > maxLen
-      ? textPreview.slice(0, maxLen) + "..."
-      : textPreview
-    : "";
-
-  // Add extras
-  if (extras.length > 0) {
-    const extrasStr = extras.map((e) => `+{${e}}`).join(" ");
-    result = result ? `${result} ${extrasStr}` : extrasStr;
-  }
-
-  return result || undefined;
+  return buildPreview(result.text, result.extras, maxLen);
 }
 
-/**
- * Format CUA response output for logging.
- */
+/** Format CUA response output for logging */
 export function formatCuaResponsePreview(
   output: unknown,
   maxLen = 100,
 ): string {
-  const googleParts = (
-    output as {
-      candidates?: Array<{
-        content?: { parts?: unknown[] };
-      }>;
-    }
-  )?.candidates?.[0]?.content?.parts;
-
-  const items: unknown[] = googleParts ?? (Array.isArray(output) ? output : []);
+  // Handle Google format or array
+  const items: unknown[] =
+    (output as { candidates?: [{ content?: { parts?: unknown[] } }] })
+      ?.candidates?.[0]?.content?.parts ??
+    (Array.isArray(output) ? output : []);
 
   const preview = items
     .map((item) => {
@@ -695,16 +535,13 @@ export function formatCuaResponsePreview(
         functionCall?: { name?: string };
       };
       if (i.text) return i.text.slice(0, 50);
-      if (i.type === "text" && typeof i.text === "string")
-        return i.text.slice(0, 50);
       if (i.functionCall?.name) return `fn:${i.functionCall.name}`;
       if (i.type === "tool_use" && i.name) return `tool_use:${i.name}`;
-      if (i.type) return `[${i.type}]`;
-      return "[item]";
+      return i.type ? `[${i.type}]` : "[item]";
     })
     .join(" ");
 
-  return preview.length > maxLen ? preview.slice(0, maxLen) : preview;
+  return preview.slice(0, maxLen);
 }
 
 // =============================================================================
@@ -786,38 +623,38 @@ export class SessionFileLogger {
       }
 
       // Create file streams
+      // Create file streams
+      const dir = ctx.sessionDir;
       ctx.fileStreams.agent = fs.createWriteStream(
-        path.join(ctx.sessionDir, "agent_events.log"),
+        path.join(dir, "agent_events.log"),
         { flags: "a" },
       );
       ctx.fileStreams.stagehand = fs.createWriteStream(
-        path.join(ctx.sessionDir, "stagehand_events.log"),
+        path.join(dir, "stagehand_events.log"),
         { flags: "a" },
       );
       ctx.fileStreams.understudy = fs.createWriteStream(
-        path.join(ctx.sessionDir, "understudy_events.log"),
+        path.join(dir, "understudy_events.log"),
         { flags: "a" },
       );
       ctx.fileStreams.cdp = fs.createWriteStream(
-        path.join(ctx.sessionDir, "cdp_events.log"),
+        path.join(dir, "cdp_events.log"),
         { flags: "a" },
       );
       ctx.fileStreams.llm = fs.createWriteStream(
-        path.join(ctx.sessionDir, "llm_events.log"),
+        path.join(dir, "llm_events.log"),
         { flags: "a" },
       );
       ctx.fileStreams.jsonl = fs.createWriteStream(
-        path.join(ctx.sessionDir, "session_events.jsonl"),
+        path.join(dir, "session_events.jsonl"),
         { flags: "a" },
       );
 
       ctx.initialized = true;
 
-      // Create pino logger with multistream
+      // Create pino multistream: JSONL + pretty streams per category
       const streams: pino.StreamEntry[] = [
-        // JSONL stream - full events
         { stream: createJsonlStream(ctx) },
-        // Pretty streams per category
         { stream: createPrettyStream(ctx, "AgentTask", "agent") },
         { stream: createPrettyStream(ctx, "StagehandStep", "stagehand") },
         { stream: createPrettyStream(ctx, "UnderstudyAction", "understudy") },
@@ -853,29 +690,13 @@ export class SessionFileLogger {
   static async close(): Promise<void> {
     const ctx = loggerContext.getStore();
     if (!ctx) return;
-
     await ctx.initPromise;
-
-    // Log task completion if there's an active task
     SessionFileLogger.logAgentTaskCompleted();
-
-    const closePromises: Promise<void>[] = [];
-
-    for (const stream of Object.values(ctx.fileStreams)) {
-      if (stream) {
-        closePromises.push(
-          new Promise((resolve) => {
-            stream.end(() => resolve());
-          }),
-        );
-      }
-    }
-
-    try {
-      await Promise.all(closePromises);
-    } catch {
-      // Fail silently
-    }
+    await Promise.all(
+      Object.values(ctx.fileStreams)
+        .filter(Boolean)
+        .map((s) => new Promise<void>((r) => s!.end(r))),
+    ).catch(() => {});
   }
 
   static get sessionId(): string | null {
@@ -1088,57 +909,39 @@ export class SessionFileLogger {
   // CDP Events
   // ===========================================================================
 
-  static logCdpCallEvent(
+  private static logCdpEvent(
+    eventType: "call" | "message",
     {
       method,
       params,
       targetId,
-    }: {
-      method: string;
-      params?: object;
-      targetId?: string | null;
-    },
+    }: { method: string; params?: unknown; targetId?: string | null },
     explicitCtx?: FlowLoggerContext | null,
   ): void {
     const ctx = explicitCtx ?? loggerContext.getStore();
     if (!ctx) return;
-
-    // Track CDP events for task metrics
-    ctx.metrics.cdpEvents++;
-
-    // Log full event - filtering happens in pretty stream
+    if (eventType === "call") ctx.metrics.cdpEvents++;
     ctx.logger.info({
       category: "CDP",
-      event: "call",
+      event: eventType,
       method,
       params,
       targetId,
     } as FlowEvent);
   }
 
-  static logCdpMessageEvent(
-    {
-      method,
-      params,
-      targetId,
-    }: {
-      method: string;
-      params?: unknown;
-      targetId?: string | null;
-    },
-    explicitCtx?: FlowLoggerContext | null,
+  static logCdpCallEvent(
+    data: { method: string; params?: object; targetId?: string | null },
+    ctx?: FlowLoggerContext | null,
   ): void {
-    const ctx = explicitCtx ?? loggerContext.getStore();
-    if (!ctx) return;
+    SessionFileLogger.logCdpEvent("call", data, ctx);
+  }
 
-    // Log full event - filtering happens in pretty stream
-    ctx.logger.info({
-      category: "CDP",
-      event: "message",
-      method,
-      params,
-      targetId,
-    } as FlowEvent);
+  static logCdpMessageEvent(
+    data: { method: string; params?: unknown; targetId?: string | null },
+    ctx?: FlowLoggerContext | null,
+  ): void {
+    SessionFileLogger.logCdpEvent("message", data, ctx);
   }
 
   // ===========================================================================
@@ -1216,103 +1019,58 @@ export class SessionFileLogger {
 
   /**
    * Create middleware for wrapping language models with LLM call logging.
-   * Returns a partial middleware object compatible with AI SDK's wrapLanguageModel.
    */
   static createLlmLoggingMiddleware(
     modelId: string,
   ): Pick<LanguageModelMiddleware, "wrapGenerate"> {
     return {
       wrapGenerate: async ({ doGenerate, params }) => {
-        // Capture context at the start of the call
         const ctx = SessionFileLogger.getContext();
-
         const llmRequestId = uuidv7();
+        const toolCount = Array.isArray(params.tools) ? params.tools.length : 0;
 
-        const p = params;
+        // Extract prompt preview from last non-system message
+        const messages = (params.prompt ?? []) as Array<{
+          role?: string;
+          content?: unknown;
+        }>;
+        const lastMsg = messages.filter((m) => m.role !== "system").pop();
+        const extracted = {
+          text: undefined as string | undefined,
+          extras: [] as string[],
+        };
 
-        const toolCount = Array.isArray(p.tools) ? p.tools.length : 0;
-
-        // Find the last non-system message
-        const nonSystemMessages = (p.prompt ?? []).filter((m: unknown) => {
-          const msg = m as { role?: string };
-          return msg.role !== "system";
-        });
-        const lastMsg = nonSystemMessages[nonSystemMessages.length - 1] as
-          | Record<string, unknown>
-          | undefined;
-        const lastRole = (lastMsg?.role as string) ?? "?";
-
-        let lastContent = "";
-        let toolName = "";
-
+        let rolePrefix = lastMsg?.role ?? "?";
         if (lastMsg) {
-          if (lastMsg.content && Array.isArray(lastMsg.content)) {
-            for (const part of lastMsg.content) {
-              const item = part as Record<string, unknown>;
-              if (item.type === "tool-result") {
-                toolName = (item.toolName as string) || "";
-                const output = item.output as
-                  | Record<string, unknown>
-                  | undefined;
-
-                if (output) {
-                  if (output.type === "json" && output.value) {
-                    lastContent = JSON.stringify(output.value).slice(0, 150);
-                  } else if (Array.isArray(output.value)) {
-                    const parts: string[] = [];
-                    for (const v of output.value) {
-                      const vItem = v as Record<string, unknown>;
-                      if (vItem.type === "text" && vItem.text) {
-                        parts.push(vItem.text as string);
-                      } else if (
-                        vItem.mediaType &&
-                        typeof vItem.data === "string"
-                      ) {
-                        const sizeKb = (
-                          ((vItem.data as string).length * 0.75) /
-                          1024
-                        ).toFixed(1);
-                        parts.push(`[${sizeKb}kb img]`);
-                      }
-                    }
-                    if (parts.length > 0) {
-                      lastContent = parts.join(" ");
-                    }
-                  }
-                }
-                break;
-              } else if (item.type === "text") {
-                lastContent += (item.text as string) || "";
+          if (typeof lastMsg.content === "string") {
+            extracted.text = lastMsg.content;
+          } else if (Array.isArray(lastMsg.content)) {
+            // Check for tool-result first
+            const toolResult = (
+              lastMsg.content as Array<{
+                type?: string;
+                toolName?: string;
+                output?: { type?: string; value?: unknown };
+              }>
+            ).find((p) => p.type === "tool-result");
+            if (toolResult) {
+              rolePrefix = `tool result: ${toolResult.toolName}()`;
+              const out = toolResult.output;
+              if (out?.type === "json" && out.value) {
+                extracted.text = JSON.stringify(out.value).slice(0, 150);
+              } else if (Array.isArray(out?.value)) {
+                extractFromContent(out.value as unknown[], extracted);
               }
+            } else {
+              extractFromContent(lastMsg.content as unknown[], extracted);
             }
-          } else if (typeof lastMsg.content === "string") {
-            lastContent = lastMsg.content;
           }
         }
 
-        if (!lastContent && lastMsg) {
-          try {
-            const debugStr = JSON.stringify(lastMsg, (key, value) => {
-              if (typeof value === "string" && value.length > 100) {
-                if (value.startsWith("data:image")) {
-                  const sizeKb = ((value.length * 0.75) / 1024).toFixed(1);
-                  return `[${sizeKb}kb image]`;
-                }
-                return value.slice(0, 50) + "...";
-              }
-              return value;
-            });
-            lastContent = debugStr.slice(0, 300);
-          } catch {
-            lastContent = "(unserializable)";
-          }
-        }
-
-        const rolePrefix = toolName ? `tool result: ${toolName}()` : lastRole;
-        const contentTruncated = lastContent
-          ? truncateConversation(lastContent)
+        const promptText = extracted.text
+          ? truncateConversation(extracted.text)
           : "(no text)";
-        const promptPreview = `${rolePrefix}: ${contentTruncated} +{${toolCount} tools}`;
+        const promptPreview = `${rolePrefix}: ${promptText} +{${toolCount} tools}`;
 
         SessionFileLogger.logLlmRequest(
           {
@@ -1326,42 +1084,36 @@ export class SessionFileLogger {
 
         const result = await doGenerate();
 
-        let outputPreview = "";
+        // Extract output preview
         const res = result as {
           text?: string;
           content?: unknown;
           toolCalls?: unknown[];
         };
-        if (res.text) {
-          outputPreview = res.text;
-        } else if (res.content) {
+        let outputPreview = res.text || "";
+        if (!outputPreview && res.content) {
           if (typeof res.content === "string") {
             outputPreview = res.content;
           } else if (Array.isArray(res.content)) {
-            outputPreview = res.content
-              .map((c: unknown) => {
-                const item = c as {
-                  type?: string;
-                  text?: string;
-                  toolName?: string;
-                };
-                if (item.type === "text") return item.text;
-                if (item.type === "tool-call")
-                  return `tool call: ${item.toolName}()`;
-                return `[${item.type || "unknown"}]`;
-              })
+            outputPreview = (
+              res.content as Array<{
+                type?: string;
+                text?: string;
+                toolName?: string;
+              }>
+            )
+              .map(
+                (c) =>
+                  c.text ||
+                  (c.type === "tool-call"
+                    ? `tool call: ${c.toolName}()`
+                    : `[${c.type}]`),
+              )
               .join(" ");
-          } else {
-            outputPreview = String(res.content);
           }
-        } else if (res.toolCalls?.length) {
+        }
+        if (!outputPreview && res.toolCalls?.length) {
           outputPreview = `[${res.toolCalls.length} tool calls]`;
-        } else if (typeof result === "object" && result !== null) {
-          const keys = Object.keys(result).filter(
-            (k) => k !== "usage" && k !== "rawResponse",
-          );
-          outputPreview =
-            keys.length > 0 ? `{${keys.join(", ")}}` : "[empty response]";
         }
 
         SessionFileLogger.logLlmResponse(
@@ -1369,7 +1121,7 @@ export class SessionFileLogger {
             requestId: llmRequestId,
             model: modelId,
             operation: "generateText",
-            output: outputPreview,
+            output: outputPreview || "[empty]",
             inputTokens: result.usage?.inputTokens,
             outputTokens: result.usage?.outputTokens,
           },
