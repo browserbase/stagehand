@@ -564,6 +564,10 @@
     {
       "name": "agent/flipkart_laptops",
       "categories": ["agent"]
+    },
+    {
+      "name": "agent/hotels_paris_amenities",
+      "categories": ["agent"]
     }
   ]
 }
