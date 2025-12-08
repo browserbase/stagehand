@@ -4,10 +4,7 @@ import Browserbase from "@browserbasehq/sdk";
 
 import { authMiddleware } from "../../../lib/auth.js";
 import { withErrorHandling } from "../../../lib/errorHandler.js";
-import {
-  dangerouslyGetHeader,
-  getOptionalHeader,
-} from "../../../lib/header.js";
+import { getOptionalHeader } from "../../../lib/header.js";
 import { error, success } from "../../../lib/response.js";
 import { getSessionStore } from "../../../lib/sessionStoreManager.js";
 import {
@@ -47,7 +44,6 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       return error(reply, "Unauthorized", StatusCodes.UNAUTHORIZED);
     }
 
-    const modelApiKey = dangerouslyGetHeader(request, "x-model-api-key");
     const sdkVersion = getOptionalHeader(request, "x-sdk-version");
 
     const clientLanguage = request.headers["x-language"] as string | undefined;
