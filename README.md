@@ -55,6 +55,15 @@ If you're looking for the Python implementation, you can find it
   </picture>
 </div>
 
+## 说明
+1. 使用 stagehand 和 playwright 写了个爬虫，playwright 负责执行输入和点击，stagehand 用来做抽取
+2. 在 stagehand 官方仓库的基础上合入了 https://github.com/browserbase/stagehand/pull/1242 这个 MR 以支持 deepseek 模型
+3. 安装： clone 下代码以后运行 `pnpm install` 安装, `pnpm build` 构建
+4. 爬虫程序在 packages/core/examples/index1.ts，运行方式 `pnpm run example index1` 需要先 `export DEEPSEEK_API_KEY=xxxx`
+5. playwright 生成代码的方式 `npx playwright codegen https://www.aqbz.com/#/zscx` 参考 https://playwright.dev/docs/codegen-intro
+6. typescripts format 代码 `pnpm exec prettier --write packages/core/examples/index1.ts` 和 `pnpm exec eslint --fix packages/core/examples/index1.ts`
+
+
 ## What is Stagehand?
 
 Stagehand is a browser automation framework used to control web browsers with natural language and code. By combining the power of AI with the precision of code, Stagehand makes web automation flexible, maintainable, and actually reliable.
