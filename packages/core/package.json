@@ -83,7 +83,6 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.42.1",
-    "@types/uuid": "^10.0.0",
     "eslint": "^9.16.0",
     "prettier": "^3.2.5",
     "tsup": "^8.2.1",
