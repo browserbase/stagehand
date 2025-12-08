@@ -14,8 +14,8 @@ To run the Stagehand API locally, ensure you have the following installed:
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/browserbasehq/stagehand-api.git
-cd stagehand-api
+git clone https://github.com/browserbasehq/stagehand.git
+cd stagehand/packages/server
 ```
 
 2. Install dependencies:
