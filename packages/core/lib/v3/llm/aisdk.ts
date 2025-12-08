@@ -159,6 +159,14 @@ export class AISdkClient extends LLMClient {
             : undefined,
         });
       } catch (err) {
+        // Log error response to maintain request/response pairing
+        SessionFileLogger.logLlmResponse({
+          requestId: llmRequestId,
+          model: this.model.modelId,
+          operation: "generateObject",
+          output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
+        });
+
         if (NoObjectGeneratedError.isInstance(err)) {
           this.logger?.({
             category: "AISDK error",
