@@ -1242,15 +1242,12 @@ export class Page {
    * Force the page viewport to an exact CSS size and device scale factor.
    * Ensures screenshots match width x height pixels when deviceScaleFactor = 1.
    */
+  // @logAction("Page.setViewportSize")  // disabled because it's pretty noisy, can always re-enable if needed for debugging
   async setViewportSize(
     width: number,
     height: number,
     options?: { deviceScaleFactor?: number },
   ): Promise<void> {
-    // SessionFileLogger.logUnderstudyActionEvent({
-    //   actionType: "Page.setViewportSize",
-    //   args: [width, height, options],
-    // });
     const dsf = Math.max(0.01, options?.deviceScaleFactor ?? 1);
     await this.mainSession
       .send("Emulation.setDeviceMetricsOverride", {
