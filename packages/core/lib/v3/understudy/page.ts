@@ -1,7 +1,7 @@
 import { Protocol } from "devtools-protocol";
 import { promises as fs } from "fs";
 import { v3Logger } from "../logger";
-import { SessionFileLogger, logAction } from "../flowLogger";
+import { logAction } from "../flowLogger";
 import type { CDPSessionLike } from "./cdp";
 import { CdpConnection } from "./cdp";
 import { Frame } from "./frame";

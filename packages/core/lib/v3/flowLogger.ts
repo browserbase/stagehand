@@ -1137,7 +1137,6 @@ export class SessionFileLogger {
 export function logAction(actionType: string) {
   return function <T extends (...args: never[]) => Promise<unknown>>(
     originalMethod: T,
-    _context: ClassMethodDecoratorContext,
   ): T {
     // No-op when logging is disabled
     if (!CONFIG_DIR) {
@@ -1167,7 +1166,6 @@ export function logAction(actionType: string) {
 export function logStagehandStep(invocation: string, label: string) {
   return function <T extends (...args: never[]) => Promise<unknown>>(
     originalMethod: T,
-    _context: ClassMethodDecoratorContext,
   ): T {
     // No-op when logging is disabled
     if (!CONFIG_DIR) {
