@@ -324,6 +324,15 @@ export class GoogleCUAClient extends AgentClient {
             throw new LLMResponseError("agent", "Response has no candidates!");
           }
 
+          const candidate = response.candidates[0];
+          if (!candidate.content || !candidate.content.parts) {
+            const reason = candidate.finishReason || "unknown";
+            throw new LLMResponseError(
+              "agent",
+              `Response has no content (finish reason: ${reason})`,
+            );
+          }
+
           // Success - we have a valid response
           break;
         } catch (error) {
@@ -582,21 +591,6 @@ export class GoogleCUAClient extends AgentClient {
       };
     }
     const candidate = response.candidates[0];
-
-    if (!candidate.content || !candidate.content.parts) {
-      const reason = candidate.finishReason || "unknown";
-      logger({
-        category: "agent",
-        message: `No content in response. Finish reason: ${reason}`,
-        level: 0,
-      });
-      return {
-        actions: [],
-        message: `Response blocked or empty (reason: ${reason})`,
-        completed: true,
-        functionCalls: [],
-      };
-    }
 
     // Log the raw response for debugging
     logger({
