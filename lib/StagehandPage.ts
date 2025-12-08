@@ -32,7 +32,6 @@ import {
   ExperimentalApiConflictError,
 } from "../types/stagehandErrors";
 import { StagehandAPIError } from "@/types/stagehandApiErrors";
-import { scriptContent } from "@/lib/dom/build/scriptContent";
 import type { Protocol } from "devtools-protocol";
 
 async function getCurrentRootFrameId(session: CDPSession): Promise<string> {
@@ -163,37 +162,6 @@ export class StagehandPage {
 
   public resetFrameOrdinals(): void {
     this.fidOrdinals = new Map([[undefined, 0]]);
-  }
-
-  private async ensureStagehandScript(): Promise<void> {
-    try {
-      const injected = await this.rawPage.evaluate(
-        () => !!window.__stagehandInjected,
-      );
-
-      if (injected) return;
-
-      const guardedScript = `if (!window.__stagehandInjected) { \
-window.__stagehandInjected = true; \
-${scriptContent} \
-}`;
-
-      await this.rawPage.addInitScript({ content: guardedScript });
-      await this.rawPage.evaluate(guardedScript);
-    } catch (err) {
-      if (!this.stagehand.isClosed) {
-        this.stagehand.log({
-          category: "dom",
-          message: "Failed to inject Stagehand helper script",
-          level: 1,
-          auxiliary: {
-            error: { value: (err as Error).message, type: "string" },
-            trace: { value: (err as Error).stack, type: "string" },
-          },
-        });
-        throw err;
-      }
-    }
   }
 
   /** Register the custom selector engine that pierces open/closed shadow roots. */
@@ -387,8 +355,6 @@ ${scriptContent} \
             prop === "$$eval"
           ) {
             return async (...args: unknown[]) => {
-              // Make sure helpers exist
-              await this.ensureStagehandScript();
               return (value as (...a: unknown[]) => unknown).apply(
                 target,
                 args,

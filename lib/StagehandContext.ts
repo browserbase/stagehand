@@ -8,6 +8,14 @@ import { StagehandPage } from "./StagehandPage";
 import { Page } from "../types/page";
 import { EnhancedContext } from "../types/context";
 import { Protocol } from "devtools-protocol";
+import { scriptContent } from "./dom/build/scriptContent";
+
+const stagehandInitScript = `
+  if (!window.__stagehandInjected) {
+    window.__stagehandInjected = true;
+    ${scriptContent}
+  }
+`;
 
 export class StagehandContext {
   private readonly stagehand: Stagehand;
@@ -15,6 +23,8 @@ export class StagehandContext {
   private pageMap: WeakMap<PlaywrightPage, StagehandPage>;
   private activeStagehandPage: StagehandPage | null = null;
   private readonly frameIdMap: Map<string, StagehandPage> = new Map();
+  private static readonly contextsWithInitScript =
+    new WeakSet<PlaywrightContext>();
 
   private constructor(context: PlaywrightContext, stagehand: Stagehand) {
     this.stagehand = stagehand;
@@ -81,6 +91,10 @@ export class StagehandContext {
     context: PlaywrightContext,
     stagehand: Stagehand,
   ): Promise<StagehandContext> {
+    if (!StagehandContext.contextsWithInitScript.has(context)) {
+      await context.addInitScript({ content: stagehandInitScript });
+      StagehandContext.contextsWithInitScript.add(context);
+    }
     const instance = new StagehandContext(context, stagehand);
     context.on("page", async (pwPage) => {
       await instance.handleNewPlaywrightPage(pwPage);
