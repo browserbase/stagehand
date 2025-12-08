@@ -4,10 +4,9 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import { z } from "zod/v3";
 
 import { authMiddleware } from "../../../../lib/auth.js";
-import { createAction } from "../../../../lib/db/actions.js";
-import { getSession } from "../../../../lib/db/sessions.js";
 import { withErrorHandling } from "../../../../lib/errorHandler.js";
 import { createStreamingResponse } from "../../../../lib/stream.js";
+import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
 
 interface NavigateParams {
   id: string;
@@ -15,9 +14,7 @@ interface NavigateParams {
 
 export const navigateSchema = z.object({
   url: z.string({
-    /* eslint-disable-next-line camelcase */
     invalid_type_error: "`url` must be a string",
-    /* eslint-disable-next-line camelcase */
     required_error: "`url` is required",
   }),
   options: z
@@ -46,16 +43,16 @@ const navigateRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    const session = await getSession(id);
-
-    if (!session) {
+    const sessionStore = getSessionStore();
+    const hasSession = await sessionStore.hasSession(id);
+    if (!hasSession) {
       return reply.status(StatusCodes.NOT_FOUND).send({
         message: "Session not found",
       });
     }
 
     return createStreamingResponse<z.infer<typeof navigateSchema>>({
-      browserbaseSessionId: id,
+      sessionId: id,
       request,
       reply,
       schema: navigateSchema,
@@ -70,25 +67,11 @@ const navigateRouteHandler: RouteHandlerMethod = withErrorHandling(
           });
         }
 
-        // Run createAction and page.goto in parallel
-        const [action, result] = await Promise.all([
-          createAction({
-            sessionId: id,
-            method: "navigate",
-            xpath: "",
-            options: {
-              url: data.url,
-              ...(data.options
-                ? { ...data.options, frameId: undefined }
-                : {}),
-            },
-            url: data.url,
-          }),
-          page.goto(data.url, data.options),
-        ]);
+        const result = await page.goto(data.url, data.options);
 
-        return { result, actionId: action.id };
+        return { result };
       },
+      operation: "navigate",
     });
   },
 );

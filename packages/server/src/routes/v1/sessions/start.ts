@@ -1,6 +1,6 @@
-import type { ConstructorParams } from "@browserbasehq/stagehand";
 import type { RouteHandler, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
+import Browserbase from "@browserbasehq/sdk";
 
 import { authMiddleware } from "../../../lib/auth.js";
 import { withErrorHandling } from "../../../lib/errorHandler.js";
@@ -9,12 +9,30 @@ import {
   getOptionalHeader,
 } from "../../../lib/header.js";
 import { error, success } from "../../../lib/response.js";
-import { startSession } from "../../../lib/session.js";
+import { getSessionStore } from "../../../lib/sessionStoreManager.js";
 import {
   InvalidModelError,
   InvalidProviderError,
 } from "../../../types/error.js";
 import { AISDK_PROVIDERS } from "../../../types/model.js";
+
+/**
+ * Parameters for creating a new session (request body shape)
+ */
+interface ConstructorParams {
+  modelName: string;
+  domSettleTimeoutMs?: number;
+  verbose?: 0 | 1 | 2;
+  systemPrompt?: string;
+  browserbaseSessionCreateParams?: Omit<
+    Browserbase.Sessions.SessionCreateParams,
+    "projectId"
+  > & { projectId?: string };
+  selfHeal?: boolean;
+  waitForCaptchaSolves?: boolean;
+  browserbaseSessionID?: string;
+  experimental?: boolean;
+}
 
 const startRouteHandler: RouteHandler = withErrorHandling(
   async (request, reply) => {
@@ -70,7 +88,8 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       }
     }
 
-    const session = await startSession({
+    const sessionStore = getSessionStore();
+    const session = await sessionStore.startSession({
       browserbaseSessionID,
       browserbaseApiKey: bbApiKey,
       browserbaseProjectId: bbProjectId,
@@ -86,7 +105,10 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       experimental,
     });
 
-    return success(reply, { sessionId: session.id, available: true });
+    return success(reply, {
+      sessionId: session.sessionId,
+      available: session.available,
+    });
   },
 );
 

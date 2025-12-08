@@ -16,12 +16,9 @@
   "dependencies": {
     "@browserbasehq/sdk": "^2.4.0",
     "@browserbasehq/stagehand": "workspace:*",
-    "@browserbasehq/zod": "workspace:*",
     "@fastify/cors": "^11.0.1",
-    "@t3-oss/env-nextjs": "^0.11.1",
+    "@t3-oss/env-core": "^0.13.8",
     "dotenv": "^16.4.5",
-    "drizzle-kit": "^0.30.4",
-    "drizzle-orm": "^0.38.4",
     "fastify": "^5.3.2",
     "fastify-metrics": "^12.1.0",
     "fastify-plugin": "^4.5.1",
@@ -29,10 +26,8 @@
     "pino": "^9.7.0",
     "pino-pretty": "^11.3.0",
     "playwright": "1.52.0",
-    "postgres": "^3.4.5",
-    "stagehand-v3": "npm:@browserbasehq/orca@3.0.3-patch",
     "uuid": "^11.0.5",
-    "zod": "^3.25.0",
+    "zod": "^3.25.76",
     "zod-to-json-schema": "^3.24.3"
   },
   "devDependencies": {

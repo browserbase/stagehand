@@ -3,9 +3,8 @@ import { StatusCodes } from "http-status-codes";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { withErrorHandling } from "../../../../lib/errorHandler.js";
-import { dangerouslyGetHeader } from "../../../../lib/header.js";
 import { error, success } from "../../../../lib/response.js";
-import { endSession } from "../../../../lib/session.js";
+import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
 
 interface EndParams {
   id: string;
@@ -18,8 +17,8 @@ const endRouteHandler: RouteHandlerMethod = withErrorHandling(
     }
 
     const { id: sessionId } = request.params as EndParams;
-    const browserbaseApiKey = dangerouslyGetHeader(request, "x-bb-api-key");
-    await endSession(sessionId, browserbaseApiKey);
+    const sessionStore = getSessionStore();
+    await sessionStore.endSession(sessionId);
 
     return success(reply);
   },

@@ -4,14 +4,9 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import { z } from "zod/v3";
 
 import { authMiddleware } from "../../../../lib/auth.js";
-import {
-  createAction,
-  updateActionResult,
-} from "../../../../lib/db/actions.js";
-import { getSession } from "../../../../lib/db/sessions.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
 import { createStreamingResponse } from "../../../../lib/stream.js";
-import { sanitizeActionDbData } from "../../../../lib/utils.js";
+import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
 
 interface AgentExecuteParams {
   id: string;
@@ -19,13 +14,10 @@ interface AgentExecuteParams {
 
 const agentExecuteSchema = z.object({
   agentConfig: z.object({
-    provider: z.enum(["openai", "anthropic", "google"]).optional(),
     model: z
       .string()
-      .optional()
       .or(
         z.object({
-          provider: z.enum(["openai", "anthropic", "google"]).optional(),
           modelName: z.string(),
           apiKey: z.string().optional(),
           baseURL: z.string().url().optional(),
@@ -59,31 +51,21 @@ const agentExecuteRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    const session = await getSession(id);
-
-    if (!session) {
+    const sessionStore = getSessionStore();
+    const hasSession = await sessionStore.hasSession(id);
+    if (!hasSession) {
       return reply.status(StatusCodes.NOT_FOUND).send({
         message: "Session not found",
       });
     }
 
     return createStreamingResponse<z.infer<typeof agentExecuteSchema>>({
-      browserbaseSessionId: id,
+      sessionId: id,
       request,
       reply,
       schema: agentExecuteSchema,
       handler: async ({ stagehand, data }) => {
         const { agentConfig, executeOptions } = data;
-        const method = "agentExecute";
-        const xpath = "";
-        const safeAgentConfig = {
-          model: agentConfig.model,
-          systemPrompt: agentConfig.systemPrompt,
-        };
-        const combinedOptions = {
-          agentExecuteOptions: executeOptions,
-          agentConfig: safeAgentConfig,
-        };
         const { frameId } = data;
         const page = frameId
           ? stagehand.context.resolvePageByMainFrameId(frameId)
@@ -98,21 +80,13 @@ const agentExecuteRouteHandler: RouteHandlerMethod = withErrorHandling(
           ...executeOptions,
           page,
         };
-        const url = page.url();
-        const action = await createAction({
-          sessionId: id,
-          method,
-          xpath,
-          url,
-          options: sanitizeActionDbData(combinedOptions),
-        });
         const result = await stagehand
           .agent(agentConfig)
           .execute(fullExecuteOptions);
 
-        await updateActionResult(action.id, result);
-        return { result, actionId: action.id };
+        return { result };
       },
+      operation: "agentExecute",
     });
   },
 );

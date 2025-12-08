@@ -6,7 +6,10 @@ import metricsPlugin from "fastify-metrics";
 import { StatusCodes } from "http-status-codes";
 
 import { logging } from "./lib/logging/index.js";
-import { initializeSessionCache } from "./lib/session.js";
+import {
+  destroySessionStore,
+  initializeSessionStore,
+} from "./lib/sessionStoreManager.js";
 import healthcheckRoute from "./routes/healthcheck.js";
 import readinessRoute, { setReady, setUnready } from "./routes/readiness.js";
 import actRoute from "./routes/v1/sessions/:id/act.js";
@@ -15,7 +18,6 @@ import endRoute from "./routes/v1/sessions/:id/end.js";
 import extractRoute from "./routes/v1/sessions/:id/extract.js";
 import navigateRoute from "./routes/v1/sessions/:id/navigate.js";
 import observeRoute from "./routes/v1/sessions/:id/observe.js";
-import replayRoute from "./routes/v1/sessions/:id/replay.js";
 import startRoute from "./routes/v1/sessions/start.js";
 
 // Constants for graceful shutdown
@@ -55,11 +57,17 @@ const app = fastify({
 export const logger = app.log;
 
 process.on("uncaughtException", (error) => {
-  app.log.error("Uncaught Exception:", error);
+  app.log.error(error, "Uncaught Exception:");
 });
 
 process.on("unhandledRejection", (reason, promise) => {
-  app.log.error("Unhandled Rejection at:", promise, "reason:", reason);
+  app.log.error(
+    reason instanceof Error ? reason : new Error(String(reason)),
+    "Unhandled Rejection at:",
+    promise,
+    "reason:",
+    reason,
+  );
 });
 
 // Graceful shutdown handler
@@ -78,6 +86,7 @@ const gracefulShutdown = async () => {
   timeout.unref();
 
   await app.close();
+  await destroySessionStore();
   clearTimeout(timeout);
 
   app.log.info("gracefulShutdown complete");
@@ -109,16 +118,19 @@ const start = async () => {
     }
 
     app.setErrorHandler((error, request, reply) => {
-      request.log.error(`Server error: ${error.message}`);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      request.log.error(`Server error: ${errorMessage}`);
 
-      const statusCode = error.statusCode ?? StatusCodes.INTERNAL_SERVER_ERROR;
+      const statusCode =
+        (error as { statusCode?: number }).statusCode ??
+        StatusCodes.INTERNAL_SERVER_ERROR;
 
-      /* eslint-disable-next-line  @typescript-eslint/no-floating-promises */
       reply.status(statusCode).send({
         error:
           statusCode === Number(StatusCodes.INTERNAL_SERVER_ERROR)
             ? "Internal Server Error"
-            : error.message,
+            : errorMessage,
         statusCode,
       });
     });
@@ -126,7 +138,7 @@ const start = async () => {
     // disable the built-in validator
     app.setValidatorCompiler(() => () => true);
 
-    await app.register(metricsPlugin.default, {
+    await app.register(metricsPlugin, {
       defaultMetrics: {
         enabled: true,
         prefix: "stagehand_api_",
@@ -143,6 +155,8 @@ const start = async () => {
       },
     });
 
+    initializeSessionStore();
+
     await app.register(
       (app, _opts, done) => {
         app.route(actRoute);
@@ -150,7 +164,6 @@ const start = async () => {
         app.route(extractRoute);
         app.route(navigateRoute);
         app.route(observeRoute);
-        app.route(replayRoute);
         app.route(startRoute);
         app.route(agentExecuteRoute);
         done();
@@ -160,9 +173,6 @@ const start = async () => {
 
     logging(app);
 
-    // Initialize session cache with default configuration
-    await initializeSessionCache(app.log);
-
     // Register health and readiness routes at the root level
     app.route(healthcheckRoute);
     app.route(readinessRoute);
@@ -170,9 +180,8 @@ const start = async () => {
 
     await app.listen({
       host: "0.0.0.0",
-      port: parseInt(process.env.PORT ?? "80", 10),
+      port: parseInt(process.env.PORT ?? "3000", 10),
     });
-    /* eslint-disable no-console */
     console.log("Routes registered:", app.printRoutes());
 
     // Mark the server as ready after it's started

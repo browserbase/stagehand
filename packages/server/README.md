@@ -8,7 +8,6 @@ To run the Stagehand API locally, ensure you have the following installed:
 
 - Node.js
 - pnpm
-- Database Connection Access
 
 ## 🛠 Installation
 
@@ -31,29 +30,7 @@ pnpm install
 cp .env.example .env
 ```
 
-4. Configure your `.env` file with the following variables:
-
-```bash
-DB_HOSTNAME=db_host
-DB_USERNAME=db_username
-DB_PASSWORD=db_password
-DB_NAME=db_name
-TINYBIRD_TOKEN=
-SEND_TINYBIRD_EVENTS=
-POSTHOG_API_KEY=
-```
-
-Run:
-
-```bash
-npx drizzle-kit generate
-```
-
-Manually uncomment the first migration sql file.
-
-```bash
-npx drizzle-kit migrate
-```
+4. Configure your `.env` file with the environment variables required by `src/lib/env.ts` (BB environment, API base URLs, etc.).
 
 ## 🚀 Development
 
@@ -104,9 +81,8 @@ It is _highly_ recommended to install the ESLint and Prettier extensions for you
 ```
 src/
 ├── lib/            # Core library functions
-│   ├── db/         # Database connection and commands
 │   ├── stream.ts   # Streaming response handling
-│   └── session.ts  # Session management
+│   └── sessionStore/manager utilities
 ├── routes/         # API routes
 │   └── v1/         # V1 API endpoints
 └── server.ts       # Server entry point

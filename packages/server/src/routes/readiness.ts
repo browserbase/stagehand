@@ -29,7 +29,6 @@ export const setUnready = (): void => {
   isReady = false;
 };
 
-/* eslint-disable no-magic-numbers */
 const readinessRoute: RouteOptions = {
   method: "GET",
   url: "/readyz",

@@ -1,38 +1,34 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { StatusCodes } from "http-status-codes";
-import type { Stagehand as V3Stagehand, StagehandMetrics } from "stagehand-v3";
+import type { Stagehand as V3Stagehand } from "@browserbasehq/stagehand";
 import { v4 } from "uuid";
 import { z } from "zod/v3";
 
-import {
-  updateActionEndTime,
-  updateActionStartAndEndTime,
-} from "./db/actions.js";
-import { createInference } from "./db/inference.js";
 import { AppError } from "./errorHandler.js";
 import { dangerouslyGetHeader } from "./header.js";
 import { error, success } from "./response.js";
-import { resumeStagehandSession } from "./session.js";
+import { getSessionStore } from "./sessionStoreManager.js";
+import type { RequestContext } from "./SessionStore.js";
 
 interface StreamingResponseOptions<TV3> {
-  browserbaseSessionId: string;
+  sessionId: string;
   request: FastifyRequest;
   reply: FastifyReply;
   schema: z.ZodType<TV3>;
-  handler: (stagehand: {
+  handler: (ctx: {
     stagehand: V3Stagehand;
     data: TV3;
-  }) => Promise<{ result: unknown; actionId?: string }>;
-  stagehandMethod?: "act" | "extract" | "observe";
+  }) => Promise<{ result: unknown }>;
+  operation?: string;
 }
 
 export async function createStreamingResponse<TV3>({
-  browserbaseSessionId,
+  sessionId,
   request,
   reply,
   schema,
   handler,
-  stagehandMethod,
+  operation,
 }: StreamingResponseOptions<TV3>) {
   const streamHeader = dangerouslyGetHeader(
     request,
@@ -51,14 +47,15 @@ export async function createStreamingResponse<TV3>({
   const browserbaseApiKey = dangerouslyGetHeader(request, "x-bb-api-key");
   const browserbaseProjectId = request.headers["x-bb-project-id"];
   const modelApiKey = dangerouslyGetHeader(request, "x-model-api-key");
-  const sentAt = request.headers["x-sent-at"];
 
   if (!browserbaseApiKey) {
     return reply.status(StatusCodes.BAD_REQUEST).send({
       error:
         "Browserbase API key is required as a `browserbase-api-key` header",
     });
-  } else if (!browserbaseProjectId) {
+  }
+
+  if (!browserbaseProjectId) {
     return reply.status(StatusCodes.BAD_REQUEST).send({
       error:
         "Browserbase project ID is required as a `browserbase-project-id` header",
@@ -72,18 +69,20 @@ export async function createStreamingResponse<TV3>({
     const json: unknown = request.body;
     parsedData = await schema.parseAsync(json);
   } catch (err) {
-    const error = err as Error | z.ZodError;
+    const parseError = err as Error | z.ZodError;
 
-    if (error instanceof z.ZodError) {
+    if (parseError instanceof z.ZodError) {
       return reply.status(StatusCodes.BAD_REQUEST).send({
-        error: error.issues.map((e) => ({
-          path: e.path[0],
-          message: e.message,
+        error: parseError.issues.map((issue) => ({
+          path: issue.path[0],
+          message: issue.message,
         })),
       });
     }
 
-    return reply.status(StatusCodes.BAD_REQUEST).send({ error: error.message });
+    return reply
+      .status(StatusCodes.BAD_REQUEST)
+      .send({ error: parseError.message });
   }
 
   if (shouldStreamResponse) {
@@ -99,7 +98,8 @@ export async function createStreamingResponse<TV3>({
         "Access-Control-Allow-Headers": "*",
         "Access-Control-Allow-Credentials": "true",
       });
-    } catch (err) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (_err) {
       return error(
         reply,
         "Failed to write head",
@@ -128,37 +128,60 @@ export async function createStreamingResponse<TV3>({
     },
   });
 
-  async function getStagehand() {
-    const stagehand = await resumeStagehandSession({
-      sessionId: browserbaseSessionId,
-      modelApiKey,
-      browserbaseApiKey,
-      useV3: true,
-      logger: (message) => {
-        sendData({
-          type: "log",
-          data: {
-            status: "running",
-            message,
-          },
-        });
-      },
-      requestLogger: request.log,
-    });
+  const requestContext: RequestContext = {
+    modelApiKey,
+    logger: shouldStreamResponse
+      ? (message) => {
+          sendData({
+            type: "log",
+            data: {
+              status: "running",
+              message,
+            },
+          });
+        }
+      : undefined,
+  };
+
+  const sessionStore = getSessionStore();
+
+  let stagehand: V3Stagehand;
+  try {
+    stagehand = (await sessionStore.getOrCreateStagehand(
+      sessionId,
+      requestContext,
+    )) as V3Stagehand;
+  } catch (err) {
+    const loadError = err instanceof Error ? err : new Error(String(err));
 
     sendData({
       type: "system",
       data: {
-        status: "connected",
+        status: "error",
+        error: loadError.message,
       },
     });
 
-    return stagehand as V3Stagehand;
+    if (shouldStreamResponse) {
+      reply.raw.end();
+      return reply;
+    }
+
+    return error(
+      reply,
+      loadError.message,
+      loadError instanceof AppError
+        ? loadError.statusCode
+        : StatusCodes.INTERNAL_SERVER_ERROR,
+    );
   }
 
-  const stagehand = await getStagehand();
-
-  const originalMetrics = structuredClone(await stagehand.metrics);
+  sendData({
+    type: "system",
+    data: {
+      status: "connected",
+    },
+  });
 
   let result: Awaited<ReturnType<typeof handler>> | null = null;
   let handlerError: Error | null = null;
@@ -166,59 +189,14 @@ export async function createStreamingResponse<TV3>({
   try {
     result = await handler({ stagehand, data: parsedData });
   } catch (err) {
-    handlerError =
-      err instanceof Error ? err : new Error("Unknown error occurred");
-  } finally {
-    // Always track metrics and timing, even on error
-    if (
-      stagehandMethod &&
-      ["act", "extract", "observe"].includes(stagehandMethod) &&
-      result?.actionId
-    ) {
-      const currentMetrics = await stagehand.metrics;
-
-      const metricsDelta: Pick<
-        StagehandMetrics,
-        "totalPromptTokens" | "totalCompletionTokens" | "totalInferenceTimeMs"
-      > = {
-        totalPromptTokens:
-          currentMetrics.totalPromptTokens - originalMetrics.totalPromptTokens,
-        totalCompletionTokens:
-          currentMetrics.totalCompletionTokens -
-          originalMetrics.totalCompletionTokens,
-        totalInferenceTimeMs:
-          currentMetrics.totalInferenceTimeMs -
-          originalMetrics.totalInferenceTimeMs,
-      };
-
-      await createInference(result.actionId, metricsDelta);
-    }
-
-    if (result?.actionId && sentAt) {
-      if (sentAt) {
-        await updateActionStartAndEndTime(
-          result.actionId,
-          // handle timestamp or ISO string
-          // from the stagehand SDK, it should always be an ISO string
-          new Date(typeof sentAt === "string" ? sentAt : sentAt.toString()),
-          new Date(),
-        );
-      } else {
-        // x-sent-at should always be present for streamed responses,
-        // but if it's not, we can use fall back to the creation time
-        // at insertion
-        await updateActionEndTime(result.actionId, new Date());
-      }
-    }
+    handlerError = err instanceof Error ? err : new Error("Unknown error");
   }
 
-  // Handle error case
   if (handlerError) {
-    // Get client-safe error message
     const clientMessage =
       handlerError instanceof AppError
         ? handlerError.getClientMessage()
-        : "An unexpected error occurred";
+        : `${operation ?? "operation"} failed`;
 
     sendData({
       type: "system",
@@ -240,7 +218,6 @@ export async function createStreamingResponse<TV3>({
     return error(reply, clientMessage, statusCode);
   }
 
-  // Handle success case
   sendData({
     type: "system",
     data: {
@@ -254,5 +231,5 @@ export async function createStreamingResponse<TV3>({
     return reply;
   }
 
-  return success(reply, result);
+  return success(reply, { result: result?.result });
 }

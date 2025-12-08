@@ -1,21 +1,13 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
-import type { ActResult } from "stagehand-v3";
+import type { ActResult } from "@browserbasehq/stagehand";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { z } from "zod/v3";
 
 import { authMiddleware } from "../../../../lib/auth.js";
-import {
-  createAction,
-  updateActionResult,
-} from "../../../../lib/db/actions.js";
-import { getSession } from "../../../../lib/db/sessions.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
 import { createStreamingResponse } from "../../../../lib/stream.js";
-import {
-  sanitizeActionDbData,
-  sanitizeResultWithVariables,
-} from "../../../../lib/utils.js";
+import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
 
 interface ActParams {
   id: string;
@@ -27,7 +19,6 @@ export const actSchema = z.object({
     z.object({
       selector: z.string(),
       description: z.string(),
-      backendNodeId: z.number().optional(),
       method: z.string().optional(),
       arguments: z.array(z.string()).optional(),
     }),
@@ -35,12 +26,14 @@ export const actSchema = z.object({
   options: z
     .object({
       model: z
-        .object({
-          provider: z.string().optional(),
-          model: z.string().optional(),
-          apiKey: z.string().optional(),
-          baseURL: z.string().url().optional(),
-        })
+        .string()
+        .or(
+          z.object({
+            modelName: z.string(),
+            apiKey: z.string().optional(),
+            baseURL: z.string().url().optional(),
+          }),
+        )
         .optional(),
       variables: z.record(z.string()).optional(),
       timeout: z.number().optional(),
@@ -65,20 +58,19 @@ const actRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    const session = await getSession(id);
-
-    if (!session) {
+    const sessionStore = getSessionStore();
+    const hasSession = await sessionStore.hasSession(id);
+    if (!hasSession) {
       return reply.status(StatusCodes.NOT_FOUND).send({
         message: "Session not found",
       });
     }
 
     return createStreamingResponse<z.infer<typeof actSchema>>({
-      browserbaseSessionId: id,
+      sessionId: id,
       request,
       reply,
       schema: actSchema,
-      stagehandMethod: "act",
       handler: async ({ stagehand, data }) => {
         const { frameId } = data;
         const page = frameId
@@ -92,25 +84,12 @@ const actRouteHandler: RouteHandlerMethod = withErrorHandling(
           );
         }
 
-        const url = page.url();
-
-        // Temporarily mask frameId from DB/Session Replay
-        const options = { ...data, frameId: undefined };
-
-        const action = await createAction({
-          sessionId: id,
-          method: "act",
-          xpath: "",
-          options: sanitizeActionDbData(options),
-          url,
-        });
-
         const safeOptions = {
           ...data.options,
           model: data.options?.model
             ? {
                 ...data.options.model,
-                modelName: data.options.model.model ?? "gpt-4o",
+                modelName: data.options.model ?? "gpt-4o",
               }
             : undefined,
           page,
@@ -118,13 +97,9 @@ const actRouteHandler: RouteHandlerMethod = withErrorHandling(
 
         const result: ActResult = await stagehand.act(data.input, safeOptions);
 
-        const sanitizedResult = sanitizeResultWithVariables(
-          result,
-          data.options?.variables,
-        );
-        await updateActionResult(action.id, sanitizedResult);
-        return { result, actionId: action.id };
+        return { result };
       },
+      operation: "act",
     });
   },
 );
