@@ -78,12 +78,14 @@ const observeRouteHandler: RouteHandlerMethod = withErrorHandling(
         const safeOptions = {
           ...data.options,
           model:
-            data.options?.model && typeof data.options.model.model === "string"
-              ? {
-                  ...data.options.model,
-                  modelName: data.options.model.model,
-                }
-              : undefined,
+            typeof data.options?.model === "string"
+              ? { modelName: data.options.model }
+              : data.options?.model
+                ? {
+                    ...data.options.model,
+                    modelName: data.options.model.modelName ?? "gpt-4o",
+                  }
+                : undefined,
           page,
         };
 

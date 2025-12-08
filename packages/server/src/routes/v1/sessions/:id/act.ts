@@ -1,6 +1,6 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
-import type { ActResult } from "@browserbasehq/stagehand";
+import type { ActResult, Action } from "@browserbasehq/stagehand";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { z } from "zod/v3";
 
@@ -84,18 +84,26 @@ const actRouteHandler: RouteHandlerMethod = withErrorHandling(
           );
         }
 
+        const modelOpt = data.options?.model;
+        const normalizedModel =
+          typeof modelOpt === "string"
+            ? { modelName: modelOpt }
+            : modelOpt
+              ? { ...modelOpt, modelName: modelOpt.modelName ?? "gpt-4o" }
+              : undefined;
+
         const safeOptions = {
           ...data.options,
-          model: data.options?.model
-            ? {
-                ...data.options.model,
-                modelName: data.options.model ?? "gpt-4o",
-              }
-            : undefined,
+          model: normalizedModel,
           page,
         };
 
-        const result: ActResult = await stagehand.act(data.input, safeOptions);
+        let result: ActResult;
+        if (typeof data.input === "string") {
+          result = await stagehand.act(data.input, safeOptions);
+        } else {
+          result = await stagehand.act(data.input as Action, safeOptions);
+        }
 
         return { result };
       },

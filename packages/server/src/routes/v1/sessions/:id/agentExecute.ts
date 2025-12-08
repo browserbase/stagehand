@@ -76,12 +76,27 @@ const agentExecuteRouteHandler: RouteHandlerMethod = withErrorHandling(
             StatusCodes.INTERNAL_SERVER_ERROR,
           );
         }
+        const normalizedAgentConfig = {
+          ...agentConfig,
+          model:
+            typeof agentConfig.model === "string"
+              ? { modelName: agentConfig.model }
+              : agentConfig.model
+                ? {
+                    ...agentConfig.model,
+                    modelName: agentConfig.model.modelName ?? "gpt-4o",
+                  }
+                : undefined,
+        };
+
+        const { instruction, ...restExecuteOptions } = executeOptions;
         const fullExecuteOptions = {
-          ...executeOptions,
+          instruction,
+          ...restExecuteOptions,
           page,
         };
         const result = await stagehand
-          .agent(agentConfig)
+          .agent(normalizedAgentConfig)
           .execute(fullExecuteOptions);
 
         return { result };

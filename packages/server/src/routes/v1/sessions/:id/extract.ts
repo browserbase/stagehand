@@ -1,6 +1,5 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
-import type { ExtractResult } from "@browserbasehq/stagehand";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { z } from "zod/v3";
 
@@ -79,32 +78,33 @@ const extractRouteHandler: RouteHandlerMethod = withErrorHandling(
           );
         }
 
+        const modelOpt = data.options?.model;
+        const normalizedModel =
+          typeof modelOpt === "string"
+            ? { modelName: modelOpt }
+            : modelOpt
+              ? { ...modelOpt, modelName: modelOpt.modelName ?? "gpt-4o" }
+              : undefined;
+
         const safeOptions = {
           ...data.options,
-          model: data.options?.model
-            ? {
-                ...data.options.model,
-                modelName: data.options.model.model ?? "gpt-4o",
-              }
-            : undefined,
+          model: normalizedModel,
           page,
         };
 
-        let result: ExtractResult<z.AnyZodObject>;
+        const extractFn = stagehand.extract.bind(stagehand);
+
+        let result: unknown;
 
         if (data.instruction) {
           if (data.schema) {
             const zodSchema = jsonSchemaToZod(data.schema) as z.AnyZodObject;
-            result = await stagehand.extract(
-              data.instruction,
-              zodSchema,
-              safeOptions,
-            );
+            result = await extractFn(data.instruction, zodSchema, safeOptions);
           } else {
-            result = await stagehand.extract(data.instruction, safeOptions);
+            result = await extractFn(data.instruction, safeOptions);
           }
         } else {
-          result = await stagehand.extract(safeOptions);
+          result = await extractFn(safeOptions);
         }
 
         return { result };
