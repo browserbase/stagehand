@@ -1188,32 +1188,23 @@ export class Page {
    * - The return value should be JSON-serializable. Non-serializable objects will
    *   best-effort serialize via JSON.stringify inside the page context.
    */
+  @logAction("Page.evaluate")
   async evaluate<R = unknown, Arg = unknown>(
     pageFunctionOrExpression: string | ((arg: Arg) => R | Promise<R>),
     arg?: Arg,
   ): Promise<R> {
-    SessionFileLogger.logUnderstudyActionEvent({
-      actionType: "Page.evaluate",
-      args: [
-        typeof pageFunctionOrExpression === "string"
-          ? pageFunctionOrExpression
-          : "[function]",
-        arg,
-      ],
-    });
-    try {
-      await this.mainSession.send("Runtime.enable").catch(() => {});
-      const ctxId = await this.mainWorldExecutionContextId();
+    await this.mainSession.send("Runtime.enable").catch(() => {});
+    const ctxId = await this.mainWorldExecutionContextId();
 
-      const isString = typeof pageFunctionOrExpression === "string";
-      let expression: string;
+    const isString = typeof pageFunctionOrExpression === "string";
+    let expression: string;
 
-      if (isString) {
-        expression = String(pageFunctionOrExpression);
-      } else {
-        const fnSrc = pageFunctionOrExpression.toString();
-        const argJson = JSON.stringify(arg);
-        expression = `(() => {
+    if (isString) {
+      expression = String(pageFunctionOrExpression);
+    } else {
+      const fnSrc = pageFunctionOrExpression.toString();
+      const argJson = JSON.stringify(arg);
+      expression = `(() => {
           const __fn = ${fnSrc};
           const __arg = ${argJson};
           try {
@@ -1223,31 +1214,28 @@ export class Page {
             });
           } catch (e) { throw e; }
         })()`;
-      }
-
-      const { result, exceptionDetails } =
-        await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
-          "Runtime.evaluate",
-          {
-            expression,
-            contextId: ctxId,
-            returnByValue: true,
-            awaitPromise: true,
-          },
-        );
-
-      if (exceptionDetails) {
-        const msg =
-          exceptionDetails.text ||
-          exceptionDetails.exception?.description ||
-          "Evaluation failed";
-        throw new StagehandEvalError(msg);
-      }
-
-      return result?.value as R;
-    } finally {
-      SessionFileLogger.logUnderstudyActionCompleted();
     }
+
+    const { result, exceptionDetails } =
+      await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
+        "Runtime.evaluate",
+        {
+          expression,
+          contextId: ctxId,
+          returnByValue: true,
+          awaitPromise: true,
+        },
+      );
+
+    if (exceptionDetails) {
+      const msg =
+        exceptionDetails.text ||
+        exceptionDetails.exception?.description ||
+        "Evaluation failed";
+      throw new StagehandEvalError(msg);
+    }
+
+    return result?.value as R;
   }
 
   /**
