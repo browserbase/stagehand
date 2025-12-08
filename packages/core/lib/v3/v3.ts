@@ -1825,15 +1825,20 @@ export class V3 {
             );
 
             if (cacheContext) {
-              return this.agentCache.wrapStreamForCaching(
+              const wrappedStream = this.agentCache.wrapStreamForCaching(
                 cacheContext,
                 streamResult,
                 () => this.beginAgentReplayRecording(),
                 () => this.endAgentReplayRecording(),
                 () => this.discardAgentReplayRecording(),
               );
+              // Log completion when stream is returned (stream completes asynchronously)
+              SessionFileLogger.logAgentTaskCompleted();
+              return wrappedStream;
             }
 
+            // Log completion when stream is returned (stream completes asynchronously)
+            SessionFileLogger.logAgentTaskCompleted();
             return streamResult;
           }
 
