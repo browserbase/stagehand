@@ -985,128 +985,130 @@ export class V3 {
 
   @logStagehandStep("Stagehand.act", "ACT")
   async act(input: string | Action, options?: ActOptions): Promise<ActResult> {
-    if (!this.actHandler) throw new StagehandNotInitializedError("act()");
+    return await withInstanceLogContext(this.instanceId, async () => {
+      if (!this.actHandler) throw new StagehandNotInitializedError("act()");
 
-    let actResult: ActResult;
+      let actResult: ActResult;
 
-    if (isObserveResult(input)) {
-      // Resolve page: use provided page if any, otherwise default active page
-      const v3Page = await this.resolvePage(options?.page);
+      if (isObserveResult(input)) {
+        // Resolve page: use provided page if any, otherwise default active page
+        const v3Page = await this.resolvePage(options?.page);
 
-      // Use selector as provided to support XPath, CSS, and other engines
-      const selector = input.selector;
-      if (this.apiClient) {
-        actResult = await this.apiClient.act({
-          input,
-          options,
-          frameId: v3Page.mainFrameId(),
-        });
-      } else {
-        const effectiveTimeoutMs =
-          typeof options?.timeout === "number" && options.timeout > 0
-            ? options.timeout
-            : undefined;
-        const ensureTimeRemaining = createTimeoutGuard(
-          effectiveTimeoutMs,
-          (ms) => new ActTimeoutError(ms),
+        // Use selector as provided to support XPath, CSS, and other engines
+        const selector = input.selector;
+        if (this.apiClient) {
+          actResult = await this.apiClient.act({
+            input,
+            options,
+            frameId: v3Page.mainFrameId(),
+          });
+        } else {
+          const effectiveTimeoutMs =
+            typeof options?.timeout === "number" && options.timeout > 0
+              ? options.timeout
+              : undefined;
+          const ensureTimeRemaining = createTimeoutGuard(
+            effectiveTimeoutMs,
+            (ms) => new ActTimeoutError(ms),
+          );
+          actResult = await this.actHandler.takeDeterministicAction(
+            { ...input, selector },
+            v3Page,
+            this.domSettleTimeoutMs,
+            this.resolveLlmClient(options?.model),
+            ensureTimeRemaining,
+          );
+        }
+
+        // history: record ObserveResult-based act call
+        this.addToHistory(
+          "act",
+          {
+            observeResult: input,
+          },
+          actResult,
         );
-        actResult = await this.actHandler.takeDeterministicAction(
-          { ...input, selector },
-          v3Page,
-          this.domSettleTimeoutMs,
-          this.resolveLlmClient(options?.model),
-          ensureTimeRemaining,
+        return actResult;
+      }
+      // instruction path
+      if (typeof input !== "string" || !input.trim()) {
+        throw new StagehandInvalidArgumentError(
+          "act(): instruction string is required unless passing an Action",
         );
       }
 
-      // history: record ObserveResult-based act call
+      // Resolve page from options or default
+      const page = await this.resolvePage(options?.page);
+
+      let actCacheContext: Awaited<
+        ReturnType<typeof this.actCache.prepareContext>
+      > | null = null;
+      const canUseCache =
+        typeof input === "string" &&
+        !this.isAgentReplayRecording() &&
+        this.actCache.enabled;
+      if (canUseCache) {
+        actCacheContext = await this.actCache.prepareContext(
+          input,
+          page,
+          options?.variables,
+        );
+        if (actCacheContext) {
+          const cachedResult = await this.actCache.tryReplay(
+            actCacheContext,
+            page,
+            options?.timeout,
+          );
+          if (cachedResult) {
+            this.addToHistory(
+              "act",
+              {
+                instruction: input,
+                variables: options?.variables,
+                timeout: options?.timeout,
+                cacheHit: true,
+              },
+              cachedResult,
+            );
+            return cachedResult;
+          }
+        }
+      }
+
+      const handlerParams: ActHandlerParams = {
+        instruction: input,
+        page,
+        variables: options?.variables,
+        timeout: options?.timeout,
+        model: options?.model,
+      };
+      if (this.apiClient) {
+        const frameId = page.mainFrameId();
+        actResult = await this.apiClient.act({ input, options, frameId });
+      } else {
+        actResult = await this.actHandler.act(handlerParams);
+      }
+      // history: record instruction-based act call (omit page object)
       this.addToHistory(
         "act",
         {
-          observeResult: input,
+          instruction: input,
+          variables: options?.variables,
+          timeout: options?.timeout,
         },
         actResult,
       );
-      return actResult;
-    }
-    // instruction path
-    if (typeof input !== "string" || !input.trim()) {
-      throw new StagehandInvalidArgumentError(
-        "act(): instruction string is required unless passing an Action",
-      );
-    }
 
-    // Resolve page from options or default
-    const page = await this.resolvePage(options?.page);
-
-    let actCacheContext: Awaited<
-      ReturnType<typeof this.actCache.prepareContext>
-    > | null = null;
-    const canUseCache =
-      typeof input === "string" &&
-      !this.isAgentReplayRecording() &&
-      this.actCache.enabled;
-    if (canUseCache) {
-      actCacheContext = await this.actCache.prepareContext(
-        input,
-        page,
-        options?.variables,
-      );
-      if (actCacheContext) {
-        const cachedResult = await this.actCache.tryReplay(
-          actCacheContext,
-          page,
-          options?.timeout,
-        );
-        if (cachedResult) {
-          this.addToHistory(
-            "act",
-            {
-              instruction: input,
-              variables: options?.variables,
-              timeout: options?.timeout,
-              cacheHit: true,
-            },
-            cachedResult,
-          );
-          return cachedResult;
-        }
+      if (
+        actCacheContext &&
+        actResult.success &&
+        Array.isArray(actResult.actions) &&
+        actResult.actions.length > 0
+      ) {
+        await this.actCache.store(actCacheContext, actResult);
       }
-    }
-
-    const handlerParams: ActHandlerParams = {
-      instruction: input,
-      page,
-      variables: options?.variables,
-      timeout: options?.timeout,
-      model: options?.model,
-    };
-    if (this.apiClient) {
-      const frameId = page.mainFrameId();
-      actResult = await this.apiClient.act({ input, options, frameId });
-    } else {
-      actResult = await this.actHandler.act(handlerParams);
-    }
-    // history: record instruction-based act call (omit page object)
-    this.addToHistory(
-      "act",
-      {
-        instruction: input,
-        variables: options?.variables,
-        timeout: options?.timeout,
-      },
-      actResult,
-    );
-
-    if (
-      actCacheContext &&
-      actResult.success &&
-      Array.isArray(actResult.actions) &&
-      actResult.actions.length > 0
-    ) {
-      await this.actCache.store(actCacheContext, actResult);
-    }
-    return actResult;
+      return actResult;
+    });
   }
 
   /**
@@ -1140,68 +1142,70 @@ export class V3 {
     b?: StagehandZodSchema | ExtractOptions,
     c?: ExtractOptions,
   ): Promise<unknown> {
-    if (!this.extractHandler) {
-      throw new StagehandNotInitializedError("extract()");
-    }
-
-    // Normalize args
-    let instruction: string | undefined;
-    let schema: StagehandZodSchema | undefined;
-    let options: ExtractOptions | undefined;
-
-    if (typeof a === "string") {
-      instruction = a;
-      const isZodSchema = (val: unknown): val is StagehandZodSchema =>
-        !!val &&
-        typeof val === "object" &&
-        "parse" in val &&
-        "safeParse" in val;
-      if (isZodSchema(b)) {
-        schema = b as StagehandZodSchema;
-        options = c as ExtractOptions | undefined;
-      } else {
-        options = b as ExtractOptions | undefined;
+    return await withInstanceLogContext(this.instanceId, async () => {
+      if (!this.extractHandler) {
+        throw new StagehandNotInitializedError("extract()");
       }
-    } else {
-      // a is options or undefined
-      options = (a as ExtractOptions) || undefined;
-    }
 
-    if (!instruction && schema) {
-      throw new StagehandInvalidArgumentError(
-        "extract(): schema provided without instruction",
-      );
-    }
+      // Normalize args
+      let instruction: string | undefined;
+      let schema: StagehandZodSchema | undefined;
+      let options: ExtractOptions | undefined;
 
-    // If instruction without schema → defaultExtractSchema
-    const effectiveSchema =
-      instruction && !schema ? defaultExtractSchema : schema;
+      if (typeof a === "string") {
+        instruction = a;
+        const isZodSchema = (val: unknown): val is StagehandZodSchema =>
+          !!val &&
+          typeof val === "object" &&
+          "parse" in val &&
+          "safeParse" in val;
+        if (isZodSchema(b)) {
+          schema = b as StagehandZodSchema;
+          options = c as ExtractOptions | undefined;
+        } else {
+          options = b as ExtractOptions | undefined;
+        }
+      } else {
+        // a is options or undefined
+        options = (a as ExtractOptions) || undefined;
+      }
 
-    // Resolve page from options or use active page
-    const page = await this.resolvePage(options?.page);
+      if (!instruction && schema) {
+        throw new StagehandInvalidArgumentError(
+          "extract(): schema provided without instruction",
+        );
+      }
 
-    const handlerParams: ExtractHandlerParams<StagehandZodSchema> = {
-      instruction,
-      schema: effectiveSchema as StagehandZodSchema | undefined,
-      model: options?.model,
-      timeout: options?.timeout,
-      selector: options?.selector,
-      page,
-    };
-    let result: z.infer<typeof effectiveSchema> | { pageText: string };
-    if (this.apiClient) {
-      const frameId = page.mainFrameId();
-      result = await this.apiClient.extract({
-        instruction: handlerParams.instruction,
-        schema: handlerParams.schema,
-        options,
-        frameId,
-      });
-    } else {
-      result =
-        await this.extractHandler.extract<StagehandZodSchema>(handlerParams);
-    }
-    return result;
+      // If instruction without schema → defaultExtractSchema
+      const effectiveSchema =
+        instruction && !schema ? defaultExtractSchema : schema;
+
+      // Resolve page from options or use active page
+      const page = await this.resolvePage(options?.page);
+
+      const handlerParams: ExtractHandlerParams<StagehandZodSchema> = {
+        instruction,
+        schema: effectiveSchema as StagehandZodSchema | undefined,
+        model: options?.model,
+        timeout: options?.timeout,
+        selector: options?.selector,
+        page,
+      };
+      let result: z.infer<typeof effectiveSchema> | { pageText: string };
+      if (this.apiClient) {
+        const frameId = page.mainFrameId();
+        result = await this.apiClient.extract({
+          instruction: handlerParams.instruction,
+          schema: handlerParams.schema,
+          options,
+          frameId,
+        });
+      } else {
+        result =
+          await this.extractHandler.extract<StagehandZodSchema>(handlerParams);
+      }
+      return result;
+    });
   }
 
   /**
@@ -1218,53 +1222,55 @@ export class V3 {
     a?: string | ObserveOptions,
     b?: ObserveOptions,
   ): Promise<Action[]> {
-    if (!this.observeHandler) {
-      throw new StagehandNotInitializedError("observe()");
-    }
+    return await withInstanceLogContext(this.instanceId, async () => {
+      if (!this.observeHandler) {
+        throw new StagehandNotInitializedError("observe()");
+      }
 
-    // Normalize args
-    let instruction: string | undefined;
-    let options: ObserveOptions | undefined;
-    if (typeof a === "string") {
-      instruction = a;
-      options = b;
-    } else {
-      options = a as ObserveOptions | undefined;
-    }
+      // Normalize args
+      let instruction: string | undefined;
+      let options: ObserveOptions | undefined;
+      if (typeof a === "string") {
+        instruction = a;
+        options = b;
+      } else {
+        options = a as ObserveOptions | undefined;
+      }
 
-    // Resolve to our internal Page type
-    const page = await this.resolvePage(options?.page);
+      // Resolve to our internal Page type
+      const page = await this.resolvePage(options?.page);
 
-    const handlerParams: ObserveHandlerParams = {
-      instruction,
-      model: options?.model,
-      timeout: options?.timeout,
-      selector: options?.selector,
-      page: page!,
-    };
-
-    let results: Action[];
-    if (this.apiClient) {
-      const frameId = page.mainFrameId();
-      results = await this.apiClient.observe({
+      const handlerParams: ObserveHandlerParams = {
         instruction,
-        options,
-        frameId,
-      });
-    } else {
-      results = await this.observeHandler.observe(handlerParams);
-    }
-
-    // history: record observe call (omit page object)
-    this.addToHistory(
-      "observe",
-      {
-        instruction,
+        model: options?.model,
         timeout: options?.timeout,
-      },
-      results,
-    );
-    return results;
+        selector: options?.selector,
+        page: page!,
+      };
+
+      let results: Action[];
+      if (this.apiClient) {
+        const frameId = page.mainFrameId();
+        results = await this.apiClient.observe({
+          instruction,
+          options,
+          frameId,
+        });
+      } else {
+        results = await this.observeHandler.observe(handlerParams);
+      }
+
+      // history: record observe call (omit page object)
+      this.addToHistory(
+        "observe",
+        {
+          instruction,
+          timeout: options?.timeout,
+        },
+        results,
+      );
+      return results;
+    });
   }
 
   /** Return the browser-level CDP WebSocket endpoint. */

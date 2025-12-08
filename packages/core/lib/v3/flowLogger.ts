@@ -6,7 +6,6 @@ import path from "node:path";
 import pino from "pino";
 import type { LanguageModelMiddleware } from "ai";
 import type { V3Options } from "./types/public";
-import { withInstanceLogContext } from "./logger";
 
 // =============================================================================
 // Constants
@@ -1162,8 +1161,8 @@ export function logAction(actionType: string) {
 
 /**
  * Method decorator for logging Stagehand step events (act, extract, observe).
- * Wraps the method with withInstanceLogContext and automatic step start/complete logging.
- * Requires `this` to have an `instanceId: string` property. No-op when CONFIG_DIR is empty.
+ * Only adds logging - does NOT wrap with withInstanceLogContext (caller handles that).
+ * No-op when CONFIG_DIR is empty.
  */
 export function logStagehandStep(invocation: string, label: string) {
   return function <T extends (...args: never[]) => Promise<unknown>>(
@@ -1176,22 +1175,20 @@ export function logStagehandStep(invocation: string, label: string) {
     }
 
     return async function (
-      this: { instanceId: string },
+      this: unknown,
       ...args: unknown[]
     ): Promise<unknown> {
-      return await withInstanceLogContext(this.instanceId, async () => {
-        SessionFileLogger.logStagehandStepEvent({
-          invocation,
-          args: args.length > 0 ? args : undefined,
-          label,
-        });
-
-        try {
-          return await originalMethod.apply(this, args as never[]);
-        } finally {
-          SessionFileLogger.logStagehandStepCompleted();
-        }
+      SessionFileLogger.logStagehandStepEvent({
+        invocation,
+        args: args.length > 0 ? args : undefined,
+        label,
       });
+
+      try {
+        return await originalMethod.apply(this, args as never[]);
+      } finally {
+        SessionFileLogger.logStagehandStepCompleted();
+      }
     } as T;
   };
 }
