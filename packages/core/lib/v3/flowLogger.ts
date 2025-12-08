@@ -423,31 +423,35 @@ export function formatLlmPromptPreview(
   messages: Array<{ role: string; content: unknown }>,
   options?: { toolCount?: number; hasSchema?: boolean },
 ): string | undefined {
-  const lastUserMsg = messages.filter((m) => m.role === "user").pop();
-  if (!lastUserMsg) return undefined;
+  try {
+    const lastUserMsg = messages.filter((m) => m.role === "user").pop();
+    if (!lastUserMsg) return undefined;
 
-  const result = {
-    text: undefined as string | undefined,
-    extras: [] as string[],
-  };
+    const result = {
+      text: undefined as string | undefined,
+      extras: [] as string[],
+    };
 
-  if (typeof lastUserMsg.content === "string") {
-    result.text = lastUserMsg.content;
-  } else if (Array.isArray(lastUserMsg.content)) {
-    extractFromContent(lastUserMsg.content, result);
-  } else {
+    if (typeof lastUserMsg.content === "string") {
+      result.text = lastUserMsg.content;
+    } else if (Array.isArray(lastUserMsg.content)) {
+      extractFromContent(lastUserMsg.content, result);
+    } else {
+      return undefined;
+    }
+
+    // Clean instruction prefix
+    if (result.text) {
+      result.text = result.text.replace(/^[Ii]nstruction: /, "");
+    }
+
+    if (options?.hasSchema) result.extras.push("schema");
+    if (options?.toolCount) result.extras.push(`${options.toolCount} tools`);
+
+    return buildPreview(result.text, result.extras);
+  } catch {
     return undefined;
   }
-
-  // Clean instruction prefix
-  if (result.text) {
-    result.text = result.text.replace(/^[Ii]nstruction: /, "");
-  }
-
-  if (options?.hasSchema) result.extras.push("schema");
-  if (options?.toolCount) result.extras.push(`${options.toolCount} tools`);
-
-  return buildPreview(result.text, result.extras);
 }
 
 /**
@@ -458,33 +462,37 @@ export function formatCuaPromptPreview(
   messages: unknown[],
   maxLen = 100,
 ): string | undefined {
-  const lastMsg = messages
-    .filter((m) => {
-      const msg = m as { role?: string; type?: string };
-      return msg.role === "user" || msg.type === "tool_result";
-    })
-    .pop() as
-    | { content?: unknown; parts?: unknown[]; text?: string }
-    | undefined;
+  try {
+    const lastMsg = messages
+      .filter((m) => {
+        const msg = m as { role?: string; type?: string };
+        return msg.role === "user" || msg.type === "tool_result";
+      })
+      .pop() as
+      | { content?: unknown; parts?: unknown[]; text?: string }
+      | undefined;
 
-  if (!lastMsg) return undefined;
+    if (!lastMsg) return undefined;
 
-  const result = {
-    text: undefined as string | undefined,
-    extras: [] as string[],
-  };
+    const result = {
+      text: undefined as string | undefined,
+      extras: [] as string[],
+    };
 
-  if (typeof lastMsg.content === "string") {
-    result.text = lastMsg.content;
-  } else if (typeof lastMsg.text === "string") {
-    result.text = lastMsg.text;
-  } else if (Array.isArray(lastMsg.parts)) {
-    extractFromContent(lastMsg.parts, result);
-  } else if (Array.isArray(lastMsg.content)) {
-    extractFromContent(lastMsg.content, result);
+    if (typeof lastMsg.content === "string") {
+      result.text = lastMsg.content;
+    } else if (typeof lastMsg.text === "string") {
+      result.text = lastMsg.text;
+    } else if (Array.isArray(lastMsg.parts)) {
+      extractFromContent(lastMsg.parts, result);
+    } else if (Array.isArray(lastMsg.content)) {
+      extractFromContent(lastMsg.content, result);
+    }
+
+    return buildPreview(result.text, result.extras, maxLen);
+  } catch {
+    return undefined;
   }
-
-  return buildPreview(result.text, result.extras, maxLen);
 }
 
 /** Format CUA response output for logging */
@@ -492,28 +500,32 @@ export function formatCuaResponsePreview(
   output: unknown,
   maxLen = 100,
 ): string {
-  // Handle Google format or array
-  const items: unknown[] =
-    (output as { candidates?: [{ content?: { parts?: unknown[] } }] })
-      ?.candidates?.[0]?.content?.parts ??
-    (Array.isArray(output) ? output : []);
+  try {
+    // Handle Google format or array
+    const items: unknown[] =
+      (output as { candidates?: [{ content?: { parts?: unknown[] } }] })
+        ?.candidates?.[0]?.content?.parts ??
+      (Array.isArray(output) ? output : []);
 
-  const preview = items
-    .map((item) => {
-      const i = item as {
-        type?: string;
-        text?: string;
-        name?: string;
-        functionCall?: { name?: string };
-      };
-      if (i.text) return i.text.slice(0, 50);
-      if (i.functionCall?.name) return `fn:${i.functionCall.name}`;
-      if (i.type === "tool_use" && i.name) return `tool_use:${i.name}`;
-      return i.type ? `[${i.type}]` : "[item]";
-    })
-    .join(" ");
+    const preview = items
+      .map((item) => {
+        const i = item as {
+          type?: string;
+          text?: string;
+          name?: string;
+          functionCall?: { name?: string };
+        };
+        if (i.text) return i.text.slice(0, 50);
+        if (i.functionCall?.name) return `fn:${i.functionCall.name}`;
+        if (i.type === "tool_use" && i.name) return `tool_use:${i.name}`;
+        return i.type ? `[${i.type}]` : "[item]";
+      })
+      .join(" ");
 
-  return preview.slice(0, maxLen);
+    return preview.slice(0, maxLen);
+  } catch {
+    return "[error]";
+  }
 }
 
 // =============================================================================
@@ -994,13 +1006,25 @@ export class SessionFileLogger {
 
   /**
    * Create middleware for wrapping language models with LLM call logging.
+   * Returns a no-op middleware when logging is disabled.
    */
   static createLlmLoggingMiddleware(
     modelId: string,
   ): Pick<LanguageModelMiddleware, "wrapGenerate"> {
+    // No-op middleware when logging is disabled
+    if (!CONFIG_DIR) {
+      return {
+        wrapGenerate: async ({ doGenerate }) => doGenerate(),
+      };
+    }
+
     return {
       wrapGenerate: async ({ doGenerate, params }) => {
         const ctx = SessionFileLogger.getContext();
+        // Skip logging overhead if no context (shouldn't happen but be safe)
+        if (!ctx) {
+          return doGenerate();
+        }
         const llmRequestId = uuidv7();
         const toolCount = Array.isArray(params.tools) ? params.tools.length : 0;
 
@@ -1109,13 +1133,18 @@ export class SessionFileLogger {
 
 /**
  * Method decorator for logging understudy actions with automatic start/complete.
- * Logs all arguments automatically.
+ * Logs all arguments automatically. No-op when CONFIG_DIR is empty.
  */
 export function logAction(actionType: string) {
   return function <T extends (...args: never[]) => Promise<unknown>>(
     originalMethod: T,
     _context: ClassMethodDecoratorContext,
   ): T {
+    // No-op when logging is disabled
+    if (!CONFIG_DIR) {
+      return originalMethod;
+    }
+
     return async function (this: unknown, ...args: unknown[]) {
       SessionFileLogger.logUnderstudyActionEvent({
         actionType,
@@ -1134,13 +1163,18 @@ export function logAction(actionType: string) {
 /**
  * Method decorator for logging Stagehand step events (act, extract, observe).
  * Wraps the method with withInstanceLogContext and automatic step start/complete logging.
- * Requires `this` to have an `instanceId: string` property.
+ * Requires `this` to have an `instanceId: string` property. No-op when CONFIG_DIR is empty.
  */
 export function logStagehandStep(invocation: string, label: string) {
   return function <T extends (...args: never[]) => Promise<unknown>>(
     originalMethod: T,
     _context: ClassMethodDecoratorContext,
   ): T {
+    // No-op when logging is disabled
+    if (!CONFIG_DIR) {
+      return originalMethod;
+    }
+
     return async function (
       this: { instanceId: string },
       ...args: unknown[]

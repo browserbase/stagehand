@@ -439,6 +439,7 @@ export class V3CuaAgentHandler {
     }
   }
 
+  // helper to make pointer target human-readable for logging
   private computePointerTarget(action: AgentAction): string | undefined {
     return typeof action.x === "number" && typeof action.y === "number"
       ? `(${action.x}, ${action.y})`
