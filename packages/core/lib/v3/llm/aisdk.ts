@@ -273,20 +273,32 @@ export class AISdkClient extends LLMClient {
       prompt: promptPreview,
     });
 
-    const textResponse = await generateText({
-      model: this.model,
-      messages: formattedMessages,
-      tools: Object.keys(tools).length > 0 ? tools : undefined,
-      toolChoice:
-        Object.keys(tools).length > 0
-          ? options.tool_choice === "required"
-            ? "required"
-            : options.tool_choice === "none"
-              ? "none"
-              : "auto"
-          : undefined,
-      temperature: options.temperature,
-    });
+    let textResponse: Awaited<ReturnType<typeof generateText>>;
+    try {
+      textResponse = await generateText({
+        model: this.model,
+        messages: formattedMessages,
+        tools: Object.keys(tools).length > 0 ? tools : undefined,
+        toolChoice:
+          Object.keys(tools).length > 0
+            ? options.tool_choice === "required"
+              ? "required"
+              : options.tool_choice === "none"
+                ? "none"
+                : "auto"
+            : undefined,
+        temperature: options.temperature,
+      });
+    } catch (err) {
+      // Log error response to maintain request/response pairing
+      SessionFileLogger.logLlmResponse({
+        requestId: llmRequestId,
+        model: this.model.modelId,
+        operation: "generateText",
+        output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
+      });
+      throw err;
+    }
 
     // Transform AI SDK response to match LLMResponse format expected by operator handler
     const transformedToolCalls = (textResponse.toolCalls || []).map(
