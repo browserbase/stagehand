@@ -5,7 +5,7 @@ import { v4 } from "uuid";
 import { z } from "zod/v3";
 
 import { AppError } from "./errorHandler.js";
-import { dangerouslyGetHeader } from "./header.js";
+import { dangerouslyGetHeader, getOptionalHeader } from "./header.js";
 import { error, success } from "./response.js";
 import { getSessionStore } from "./sessionStoreManager.js";
 import type { RequestContext } from "./SessionStore.js";
@@ -30,12 +30,12 @@ export async function createStreamingResponse<TV3>({
   handler,
   operation,
 }: StreamingResponseOptions<TV3>) {
-  const streamHeader = dangerouslyGetHeader(
-    request,
-    "x-stream-response",
-  ).toLowerCase();
+  const streamHeaderRaw = getOptionalHeader(request, "x-stream-response");
+  const normalizedStreamHeader = streamHeaderRaw
+    ? streamHeaderRaw.toLowerCase()
+    : "false";
 
-  if (streamHeader !== "true" && streamHeader !== "false") {
+  if (normalizedStreamHeader !== "true" && normalizedStreamHeader !== "false") {
     return error(
       reply,
       "Invalid value for x-stream-response header",
@@ -43,23 +43,29 @@ export async function createStreamingResponse<TV3>({
     );
   }
 
-  const shouldStreamResponse = streamHeader === "true";
-  const browserbaseApiKey = dangerouslyGetHeader(request, "x-bb-api-key");
-  const browserbaseProjectId = request.headers["x-bb-project-id"];
+  const shouldStreamResponse = normalizedStreamHeader === "true";
+
   const modelApiKey = dangerouslyGetHeader(request, "x-model-api-key");
 
-  if (!browserbaseApiKey) {
-    return reply.status(StatusCodes.BAD_REQUEST).send({
-      error:
-        "Browserbase API key is required as a `browserbase-api-key` header",
-    });
-  }
+  const sessionStore = getSessionStore();
+  const sessionConfig = await sessionStore.getSessionConfig(sessionId);
+  const browserType = sessionConfig.browserType ?? "local";
 
-  if (!browserbaseProjectId) {
-    return reply.status(StatusCodes.BAD_REQUEST).send({
-      error:
-        "Browserbase project ID is required as a `browserbase-project-id` header",
-    });
+  let browserbaseApiKey = sessionConfig.browserbaseApiKey;
+  let browserbaseProjectId = sessionConfig.browserbaseProjectId;
+
+  if (browserType === "browserbase") {
+    browserbaseApiKey =
+      browserbaseApiKey ?? getOptionalHeader(request, "x-bb-api-key");
+    browserbaseProjectId =
+      browserbaseProjectId ?? getOptionalHeader(request, "x-bb-project-id");
+
+    if (!browserbaseApiKey || !browserbaseProjectId) {
+      return reply.status(StatusCodes.BAD_REQUEST).send({
+        error:
+          "Browserbase API key and project ID are required for browserbase sessions",
+      });
+    }
   }
 
   // Parse data using V3 schema
@@ -142,8 +148,6 @@ export async function createStreamingResponse<TV3>({
         }
       : undefined,
   };
-
-  const sessionStore = getSessionStore();
 
   let stagehand: V3Stagehand;
   try {

@@ -24,6 +24,13 @@ interface ConstructorParams {
   domSettleTimeoutMs?: number;
   verbose?: 0 | 1 | 2;
   systemPrompt?: string;
+  browser?: {
+    type?: "local" | "browserbase";
+    cdpUrl?: string;
+    launchOptions?: Record<string, unknown>;
+    sessionCreateParams?: Record<string, unknown>;
+    sessionId?: string;
+  };
   browserbaseSessionCreateParams?: Omit<
     Browserbase.Sessions.SessionCreateParams,
     "projectId"
@@ -40,14 +47,8 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       return error(reply, "Unauthorized", StatusCodes.UNAUTHORIZED);
     }
 
-    const bbApiKey = dangerouslyGetHeader(request, "x-bb-api-key");
-    const bbProjectId = dangerouslyGetHeader(request, "x-bb-project-id");
     const modelApiKey = dangerouslyGetHeader(request, "x-model-api-key");
     const sdkVersion = getOptionalHeader(request, "x-sdk-version");
-
-    if (!bbApiKey || !bbProjectId || !modelApiKey) {
-      return error(reply, "Missing required headers");
-    }
 
     const clientLanguage = request.headers["x-language"] as string | undefined;
     if (
@@ -71,6 +72,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       waitForCaptchaSolves,
       browserbaseSessionID,
       experimental,
+      browser,
     } = request.body as ConstructorParams;
 
     if (!modelName) {
@@ -88,8 +90,26 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       }
     }
 
+    const browserType = browser?.type ?? "local";
+
+    let bbApiKey: string | undefined;
+    let bbProjectId: string | undefined;
+
+    if (browserType === "browserbase") {
+      bbApiKey = getOptionalHeader(request, "x-bb-api-key");
+      bbProjectId = getOptionalHeader(request, "x-bb-project-id");
+
+      if (!bbApiKey || !bbProjectId) {
+        return error(
+          reply,
+          "Missing required headers for browserbase sessions",
+        );
+      }
+    }
+
     const sessionStore = getSessionStore();
     const session = await sessionStore.startSession({
+      browserType,
       browserbaseSessionID,
       browserbaseApiKey: bbApiKey,
       browserbaseProjectId: bbProjectId,
@@ -97,12 +117,20 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       domSettleTimeoutMs,
       verbose,
       systemPrompt,
-      browserbaseSessionCreateParams,
+      browserbaseSessionCreateParams:
+        browser?.sessionCreateParams ?? browserbaseSessionCreateParams,
       selfHeal,
       waitForCaptchaSolves,
       clientLanguage,
       sdkVersion,
       experimental,
+      localBrowserLaunchOptions:
+        browserType === "local" && (browser?.cdpUrl || browser?.launchOptions)
+          ? {
+              cdpUrl: browser?.cdpUrl,
+              ...(browser?.launchOptions ?? {}),
+            }
+          : undefined,
     });
 
     return success(reply, {
@@ -137,6 +165,28 @@ const startRoute: RouteOptions = {
         },
         browserbaseSessionCreateParams: {
           type: "object",
+        },
+        browser: {
+          type: "object",
+          properties: {
+            type: {
+              type: "string",
+              enum: ["local", "browserbase"],
+            },
+            cdpUrl: {
+              type: "string",
+            },
+            launchOptions: {
+              type: "object",
+            },
+            sessionCreateParams: {
+              type: "object",
+            },
+            sessionId: {
+              type: "string",
+            },
+          },
+          additionalProperties: false,
         },
         selfHeal: {
           type: "boolean",

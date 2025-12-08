@@ -1,4 +1,8 @@
-import type { LogLine, V3 } from "@browserbasehq/stagehand";
+import type {
+  LocalBrowserLaunchOptions,
+  LogLine,
+  V3,
+} from "@browserbasehq/stagehand";
 import type { SessionStartResult } from "./schemas";
 
 export type { SessionStartResult };
@@ -12,6 +16,8 @@ export type { SessionStartResult };
  * The library ignores fields it doesn't need, but they're available to SessionStore.
  */
 export interface CreateSessionParams {
+  /** Browser choice for this session */
+  browserType: "local" | "browserbase";
   /** Model name (e.g., "openai/gpt-4o") */
   modelName: string;
   /** Verbosity level */
@@ -36,6 +42,8 @@ export interface CreateSessionParams {
   waitForCaptchaSolves?: boolean;
   /** Browserbase session creation params */
   browserbaseSessionCreateParams?: Record<string, unknown>;
+  /** Local browser launch overrides when browserType is local */
+  localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
 
   // Cloud-specific metadata fields
   /** Debug DOM mode */
@@ -145,6 +153,12 @@ export interface SessionStore {
    * @param sessionId - The session identifier
    */
   deleteSession(sessionId: string): Promise<void>;
+
+  /**
+   * Retrieve the stored session configuration for a given session.
+   * @param sessionId - The session identifier
+   */
+  getSessionConfig(sessionId: string): Promise<CreateSessionParams>;
 
   /**
    * Update cache configuration dynamically.

@@ -1,17 +1,14 @@
 import type { FastifyRequest } from "fastify";
 
-import { dangerouslyGetHeader } from "./header.js";
-
 export const authMiddleware = async (
   request: FastifyRequest,
 ): Promise<boolean> => {
-  const bbApiKey = dangerouslyGetHeader(request, "x-bb-api-key");
-
-  return await isAuthenticated(bbApiKey);
+  // Authentication is currently disabled; we may re-enable when a real auth backend is wired up.
+  return await isAuthenticated();
 };
 
 // TODO: Temporarily disable auth until setup in supabase
 /* eslint-disable*/
-const isAuthenticated = async (_bbApiKey: string): Promise<boolean> => {
+const isAuthenticated = async (): Promise<boolean> => {
   return true;
 };

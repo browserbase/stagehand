@@ -195,8 +195,10 @@ export class InMemorySessionStore implements SessionStore {
     ctx: RequestContext,
     loggerRef: { current?: (message: LogLine) => void },
   ): V3Options {
+    const isBrowserbase = params.browserType === "browserbase";
+
     const options: V3Options = {
-      env: "LOCAL",
+      env: isBrowserbase ? "BROWSERBASE" : "LOCAL",
       model: {
         modelName: params.modelName,
         apiKey: ctx.modelApiKey,
@@ -214,9 +216,20 @@ export class InMemorySessionStore implements SessionStore {
       },
     };
 
-    // If browserbaseSessionID is provided, set it up
-    if (params.browserbaseSessionID) {
-      options.browserbaseSessionID = params.browserbaseSessionID;
+    if (isBrowserbase) {
+      options.apiKey = params.browserbaseApiKey;
+      options.projectId = params.browserbaseProjectId;
+
+      if (params.browserbaseSessionID) {
+        options.browserbaseSessionID = params.browserbaseSessionID;
+      }
+
+      if (params.browserbaseSessionCreateParams) {
+        options.browserbaseSessionCreateParams =
+          params.browserbaseSessionCreateParams;
+      }
+    } else if (params.localBrowserLaunchOptions) {
+      options.localBrowserLaunchOptions = params.localBrowserLaunchOptions;
     }
 
     return options;
@@ -280,6 +293,17 @@ export class InMemorySessionStore implements SessionStore {
     if (next) next.prev = prev;
     if (this.first === node) this.first = next;
     if (this.last === node) this.last = prev;
+  }
+
+  async getSessionConfig(sessionId: string): Promise<CreateSessionParams> {
+    const node = this.items.get(sessionId);
+
+    if (!node) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    // Return the stored params (contains browser metadata needed downstream)
+    return node.params;
   }
 
   updateCacheConfig(config: SessionCacheConfig): void {
