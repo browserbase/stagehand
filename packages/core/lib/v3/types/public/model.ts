@@ -89,15 +89,18 @@ export type AvailableModel =
   | "gemini-2.0-flash"
   | "gemini-2.5-flash-preview-04-17"
   | "gemini-2.5-pro-preview-03-25"
+  | "deepseek/deepseek-chat"
+  | "deepseek/deepseek-reasoner"
   | string;
 
 export type ModelProvider =
   | "openai"
   | "anthropic"
-  | "cerebras"
-  | "groq"
   | "google"
-  | "aisdk";
+  | "groq"
+  | "cerebras"
+  | "aisdk"
+  | "deepseek";
 
 export type ClientOptions = (
   | OpenAIClientOptions

@@ -17,6 +17,7 @@ import { GoogleClient } from "./GoogleClient";
 import { GroqClient } from "./GroqClient";
 import { LLMClient } from "./LLMClient";
 import { OpenAIClient } from "./OpenAIClient";
+import { DeepseekAIClient } from "./DeepseekAIClient";
 import { openai, createOpenAI } from "@ai-sdk/openai";
 import { vertex, createVertex } from "@ai-sdk/google-vertex";
 import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
@@ -95,6 +96,8 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gemini-2.0-flash": "google",
   "gemini-2.5-flash-preview-04-17": "google",
   "gemini-2.5-pro-preview-03-25": "google",
+  "deepseek/deepseek-chat": "deepseek",
+  "deepseek/deepseek-reasoner": "deepseek",
 };
 
 export function getAISDKLanguageModel(
@@ -127,8 +130,9 @@ export function getAISDKLanguageModel(
 
 export class LLMProvider {
   private logger: (message: LogLine) => void;
-
-  constructor(logger: (message: LogLine) => void) {
+  private manual?: boolean = false;
+  constructor(logger: (message: LogLine) => void, manual?: boolean) {
+    this.manual = manual;
     this.logger = logger;
   }
 
@@ -137,29 +141,29 @@ export class LLMProvider {
     clientOptions?: ClientOptions,
     options?: { experimental?: boolean; disableAPI?: boolean },
   ): LLMClient {
-    if (modelName.includes("/")) {
-      const firstSlashIndex = modelName.indexOf("/");
-      const subProvider = modelName.substring(0, firstSlashIndex);
-      const subModelName = modelName.substring(firstSlashIndex + 1);
-      if (
-        subProvider === "vertex" &&
-        !options?.disableAPI &&
-        !options?.experimental
-      ) {
-        throw new ExperimentalNotConfiguredError("Vertex provider");
-      }
+    // if (modelName.includes("/") && !this.manual) {
+    //   const firstSlashIndex = modelName.indexOf("/");
+    //   const subProvider = modelName.substring(0, firstSlashIndex);
+    //   const subModelName = modelName.substring(firstSlashIndex + 1);
+    //   if (
+    //     subProvider === "vertex" &&
+    //     !options?.disableAPI &&
+    //     !options?.experimental
+    //   ) {
+    //     throw new ExperimentalNotConfiguredError("Vertex provider");
+    //   }
 
-      const languageModel = getAISDKLanguageModel(
-        subProvider,
-        subModelName,
-        clientOptions,
-      );
+    //   const languageModel = getAISDKLanguageModel(
+    //     subProvider,
+    //     subModelName,
+    //     clientOptions,
+    //   );
 
-      return new AISdkClient({
-        model: languageModel,
-        logger: this.logger,
-      });
-    }
+    //   return new AISdkClient({
+    //     model: languageModel,
+    //     logger: this.logger,
+    //   });
+    // }
 
     const provider = modelToProviderMap[modelName];
     if (!provider) {
@@ -197,6 +201,12 @@ export class LLMProvider {
           modelName: availableModel,
           clientOptions,
         });
+      case "deepseek":
+        return new DeepseekAIClient({
+          logger: this.logger,
+          modelName: availableModel,
+          clientOptions,
+        });
       default:
         throw new UnsupportedModelProviderError([
           ...new Set(Object.values(modelToProviderMap)),
@@ -204,8 +214,11 @@ export class LLMProvider {
     }
   }
 
-  static getModelProvider(modelName: AvailableModel): ModelProvider {
-    if (modelName.includes("/")) {
+  static getModelProvider(
+    modelName: AvailableModel,
+    manual: boolean = false,
+  ): ModelProvider {
+    if (modelName.includes("/") && !manual) {
       const firstSlashIndex = modelName.indexOf("/");
       const subProvider = modelName.substring(0, firstSlashIndex);
       if (AISDKProviders[subProvider]) {
