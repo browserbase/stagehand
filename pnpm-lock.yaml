@@ -67,7 +67,7 @@ importers:
         version: 1.2.0
       chromium-bidi:
         specifier: ^0.10.0
-        version: 0.10.2(devtools-protocol@0.0.1312386)
+        version: 0.10.2(devtools-protocol@0.0.1464554)
       esbuild:
         specifier: ^0.21.4
         version: 0.21.5
@@ -232,9 +232,6 @@ importers:
       '@playwright/test':
         specifier: ^1.42.1
         version: 1.54.2
-      '@types/uuid':
-        specifier: ^10.0.0
-        version: 10.0.0
       eslint:
         specifier: ^9.16.0
         version: 9.25.1(jiti@1.21.7)
@@ -6506,18 +6503,18 @@ packages:
 
 snapshots:
 
-  '@ai-sdk/anthropic@2.0.34(zod@3.25.67)':
-    dependencies:
-      '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.12(zod@3.25.67)
-      zod: 3.25.67
-    optional: true
-
   '@ai-sdk/anthropic@2.0.34(zod@4.1.12)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
       '@ai-sdk/provider-utils': 3.0.12(zod@4.1.12)
       zod: 4.1.12
+    optional: true
+
+  '@ai-sdk/anthropic@2.0.53(zod@3.25.67)':
+    dependencies:
+      '@ai-sdk/provider': 2.0.0
+      '@ai-sdk/provider-utils': 3.0.18(zod@3.25.67)
+      zod: 3.25.67
     optional: true
 
   '@ai-sdk/anthropic@2.0.53(zod@4.1.12)':
@@ -6601,18 +6598,18 @@ snapshots:
       - supports-color
     optional: true
 
-  '@ai-sdk/google@2.0.23(zod@3.25.67)':
-    dependencies:
-      '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.12(zod@3.25.67)
-      zod: 3.25.67
-    optional: true
-
   '@ai-sdk/google@2.0.23(zod@4.1.12)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
       '@ai-sdk/provider-utils': 3.0.12(zod@4.1.12)
       zod: 4.1.12
+    optional: true
+
+  '@ai-sdk/google@2.0.44(zod@3.25.67)':
+    dependencies:
+      '@ai-sdk/provider': 2.0.0
+      '@ai-sdk/provider-utils': 3.0.18(zod@3.25.67)
+      zod: 3.25.67
     optional: true
 
   '@ai-sdk/google@2.0.44(zod@4.1.12)':
@@ -6705,6 +6702,14 @@ snapshots:
       '@standard-schema/spec': 1.0.0
       eventsource-parser: 3.0.6
       zod: 4.1.12
+
+  '@ai-sdk/provider-utils@3.0.18(zod@3.25.67)':
+    dependencies:
+      '@ai-sdk/provider': 2.0.0
+      '@standard-schema/spec': 1.0.0
+      eventsource-parser: 3.0.6
+      zod: 3.25.67
+    optional: true
 
   '@ai-sdk/provider-utils@3.0.18(zod@4.1.12)':
     dependencies:
@@ -6861,11 +6866,11 @@ snapshots:
       zod: 3.25.67
       zod-to-json-schema: 3.25.0(zod@3.25.67)
     optionalDependencies:
-      '@ai-sdk/anthropic': 2.0.34(zod@3.25.67)
+      '@ai-sdk/anthropic': 2.0.53(zod@3.25.67)
       '@ai-sdk/azure': 2.0.54(zod@3.25.67)
       '@ai-sdk/cerebras': 1.0.25(zod@3.25.67)
       '@ai-sdk/deepseek': 1.0.23(zod@3.25.67)
-      '@ai-sdk/google': 2.0.23(zod@3.25.67)
+      '@ai-sdk/google': 2.0.44(zod@3.25.67)
       '@ai-sdk/groq': 2.0.24(zod@3.25.67)
       '@ai-sdk/mistral': 2.0.19(zod@3.25.67)
       '@ai-sdk/openai': 2.0.53(zod@3.25.67)
@@ -9194,9 +9199,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  chromium-bidi@0.10.2(devtools-protocol@0.0.1312386):
+  chromium-bidi@0.10.2(devtools-protocol@0.0.1464554):
     dependencies:
-      devtools-protocol: 0.0.1312386
+      devtools-protocol: 0.0.1464554
       mitt: 3.0.1
       zod: 3.23.8
 
