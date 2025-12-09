@@ -17,7 +17,6 @@ export const AvailableModelSchema = z.enum([
   "gpt-4.5-preview",
   "o1-preview",
   "claude-haiku-4-5",
-  "claude-3-5-sonnet-20240620",
   "claude-3-7-sonnet-latest",
   "claude-3-7-sonnet-20250219",
   "cerebras-llama-3.3-70b",
