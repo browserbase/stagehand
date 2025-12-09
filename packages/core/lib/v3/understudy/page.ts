@@ -1357,7 +1357,7 @@ export class Page {
         x,
         y,
         button,
-        clickCount,
+        clickCount: i,
       } as Protocol.Input.DispatchMouseEventRequest);
 
       await this.mainSession.send<never>("Input.dispatchMouseEvent", {
@@ -1365,7 +1365,7 @@ export class Page {
         x,
         y,
         button,
-        clickCount,
+        clickCount: i,
       } as Protocol.Input.DispatchMouseEventRequest);
     }
     if (options?.returnXpath) return xpathResult ?? "";
