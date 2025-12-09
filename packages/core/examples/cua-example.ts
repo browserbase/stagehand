@@ -16,7 +16,7 @@ async function main() {
 
   // Initialize Stagehand
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env: "BROWSERBASE",
     verbose: 2,
   });
   await stagehand.init();

@@ -1,0 +1,23 @@
+{
+  "name": "cua-primitives-server",
+  "version": "1.0.0",
+  "description": "CUA Primitives API Server - Browser automation primitives as REST endpoints",
+  "type": "module",
+  "scripts": {
+    "start": "./start.sh",
+    "dev": "tsx watch index.ts"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "^3.0.5",
+    "fastify": "^5.0.0",
+    "dotenv": "^16.4.5",
+    "deepmerge": "^4.3.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "tsx": "^4.10.5",
+    "typescript": "^5.2.2"
+  },
+  "packageManager": "pnpm@9.15.0"
+}
+

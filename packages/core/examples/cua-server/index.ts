@@ -3,15 +3,16 @@
  *
  * Exposes browser automation primitives as REST endpoints for external agents.
  *
- * Prerequisites:
- *   pnpm add fastify (in packages/core)
- *
- * Usage:
- *   pnpm example cua-server/index
+ * Usage (standalone):
+ *   ./start.sh                    # Start with defaults
+ *   ./start.sh --port 8080        # Custom port
+ *   ./start.sh --host 127.0.0.1   # Custom host
  *
  * Environment variables:
  *   CUA_SERVER_PORT - Server port (default: 3000)
  *   CUA_SERVER_HOST - Server host (default: 0.0.0.0)
+ *
+ * See README.md for full documentation.
  */
 
 import { createServer } from "./server";
