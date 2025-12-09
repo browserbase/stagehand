@@ -22,7 +22,8 @@ export interface AgentValidationOptions {
  *
  * This utility consolidates all validation checks for both CUA and non-CUA agent paths:
  * - Invalid argument errors for CUA (streaming, abort signal, message continuation are not supported)
- * - Experimental feature checks for non-CUA (integrations, tools, callbacks, signal, messages, streaming)
+ * - Experimental feature checks for integrations and tools (both CUA and non-CUA)
+ * - Experimental feature checks for non-CUA only (callbacks, signal, messages, streaming)
  *
  * Throws StagehandInvalidArgumentError for invalid/unsupported configurations.
  * Throws ExperimentalNotConfiguredError if experimental features are used without experimental mode.
