@@ -131,7 +131,6 @@ test.describe("Stagehand agent streaming behavior", () => {
         instruction: "What is this page? Use close tool immediately.",
         maxSteps: 3,
       });
-
       // Should be AgentResult, not AgentStreamResult
       expect(result).toHaveProperty("success");
       expect(result).toHaveProperty("message");
@@ -151,7 +150,7 @@ test.describe("Stagehand agent streaming behavior", () => {
           stream: true,
           model: "anthropic/claude-haiku-4-5-20251001",
         });
-      }).toThrow("Streaming is not supported with CUA");
+      }).toThrow("streaming is not supported with CUA");
     });
 
     test("allows cua: true without stream", () => {

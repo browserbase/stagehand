@@ -61,7 +61,6 @@ import {
   PatchrightPage,
   PlaywrightPage,
   PuppeteerPage,
-  ExperimentalNotConfiguredError,
   CuaModelRequiredError,
   StagehandInvalidArgumentError,
   StagehandNotInitializedError,
@@ -73,6 +72,7 @@ import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
 import { resolveModel } from "../modelUtils";
 import { StagehandAPIClient } from "./api";
+import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures";
 import { SessionFileLogger, logStagehandStep } from "./flowLogger";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard";
 import { ActTimeoutError } from "./types/public/sdkErrors";
@@ -1551,12 +1551,7 @@ export class V3 {
     instruction: string;
     cacheContext: AgentCacheContext | null;
   }> {
-    if ((options?.integrations || options?.tools) && !this.experimental) {
-      throw new ExperimentalNotConfiguredError(
-        "MCP integrations and custom tools",
-      );
-    }
-
+    // Note: experimental validation is done at the call site before this method
     const tools = options?.integrations
       ? await resolveTools(options.integrations, options.tools)
       : (options?.tools ?? {});
@@ -1651,17 +1646,11 @@ export class V3 {
 
     // If CUA is enabled, use the computer-use agent path
     if (options?.cua) {
-      if (options?.stream) {
-        throw new StagehandInvalidArgumentError(
-          "Streaming is not supported with CUA (Computer Use Agent) mode. Remove either 'stream: true' or 'cua: true' from your agent config.",
-        );
-      }
-
-      if ((options?.integrations || options?.tools) && !this.experimental) {
-        throw new ExperimentalNotConfiguredError(
-          "MCP integrations and custom tools",
-        );
-      }
+      // Validate agent config at creation time (includes CUA+streaming conflict check)
+      validateExperimentalFeatures({
+        isExperimental: this.experimental,
+        agentConfig: options,
+      });
 
       const modelToUse = options?.model || {
         modelName: this.modelName,
@@ -1679,13 +1668,19 @@ export class V3 {
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
           withInstanceLogContext(this.instanceId, async () => {
+            validateExperimentalFeatures({
+              isExperimental: this.experimental,
+              agentConfig: options,
+              executeOptions:
+                typeof instructionOrOptions === "object"
+                  ? instructionOrOptions
+                  : null,
+            });
+
             SessionFileLogger.logAgentTaskStarted({
               invocation: "Agent.execute",
               args: [instructionOrOptions],
             });
-            if (options?.integrations && !this.experimental) {
-              throw new ExperimentalNotConfiguredError("MCP integrations");
-            }
             const tools = options?.integrations
               ? await resolveTools(options.integrations, options.tools)
               : (options?.tools ?? {});
@@ -1787,29 +1782,28 @@ export class V3 {
           | AgentStreamExecuteOptions,
       ): Promise<AgentResult | AgentStreamResult> =>
         withInstanceLogContext(this.instanceId, async () => {
+          validateExperimentalFeatures({
+            isExperimental: this.experimental,
+            agentConfig: options,
+            executeOptions:
+              typeof instructionOrOptions === "object"
+                ? instructionOrOptions
+                : null,
+            isStreaming,
+          });
           SessionFileLogger.logAgentTaskStarted({
             invocation: "Agent.execute",
             args: [instructionOrOptions],
           });
-          if (
-            typeof instructionOrOptions === "object" &&
-            instructionOrOptions.callbacks &&
-            !this.experimental
-          ) {
-            throw new ExperimentalNotConfiguredError("Agent callbacks");
-          }
 
           // Streaming mode
           if (isStreaming) {
-            if (!this.experimental) {
-              throw new ExperimentalNotConfiguredError("Agent streaming");
-            }
-
-            const { handler, cacheContext } = await this.prepareAgentExecution(
-              options,
-              instructionOrOptions,
-              agentConfigSignature,
-            );
+            const { handler, resolvedOptions, cacheContext } =
+              await this.prepareAgentExecution(
+                options,
+                instructionOrOptions,
+                agentConfigSignature,
+              );
 
             if (cacheContext) {
               const replayed =
@@ -1821,7 +1815,7 @@ export class V3 {
             }
 
             const streamResult = await handler.stream(
-              instructionOrOptions as string | AgentStreamExecuteOptions,
+              resolvedOptions as AgentStreamExecuteOptions,
             );
 
             if (cacheContext) {
@@ -1875,7 +1869,7 @@ export class V3 {
               );
             } else {
               result = await handler.execute(
-                instructionOrOptions as string | AgentExecuteOptions,
+                resolvedOptions as AgentExecuteOptions,
               );
             }
             if (recording) {
