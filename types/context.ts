@@ -47,6 +47,7 @@ export interface TreeResult {
 }
 
 export type DOMNode = {
+  nodeId?: number;
   backendNodeId?: number;
   nodeName?: string;
   children?: DOMNode[];
@@ -55,6 +56,7 @@ export type DOMNode = {
   nodeType: number;
   frameId?: string;
   isScrollable?: boolean;
+  childNodeCount?: number;
 };
 
 export type BackendIdMaps = {

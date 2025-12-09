@@ -32,6 +32,154 @@ const NBSP_CHARS = new Set<number>([0x00a0, 0x202f, 0x2007, 0xfeff]);
 
 const WORLD_NAME = "stagehand-world";
 
+/** Order of depths we try when DOM.getDocument blows the CBOR stack. */
+const DOM_DEPTH_ATTEMPTS = [-1, 256, 128, 64, 32, 16, 8, 4, 2, 1];
+const DESCRIBE_DEPTH_ATTEMPTS = [-1, 64, 32, 16, 8, 4, 2, 1];
+
+function isCborStackError(message: string): boolean {
+  return message.includes("CBOR: stack limit exceeded");
+}
+
+/** The CDP payload only gives us child stubs when depth was capped. */
+function shouldExpandNode(node: DOMNode): boolean {
+  const declaredChildren = node.childNodeCount ?? 0;
+  const realizedChildren = node.children?.length ?? 0;
+  return declaredChildren > realizedChildren;
+}
+
+/** Replace the shallow node instance with the fully described version. */
+function mergeDomNodes(target: DOMNode, source: DOMNode): void {
+  target.childNodeCount = source.childNodeCount ?? target.childNodeCount;
+  target.children = source.children ?? target.children;
+  target.shadowRoots = source.shadowRoots ?? target.shadowRoots;
+  target.contentDocument = source.contentDocument ?? target.contentDocument;
+}
+
+/** Yield every nested DOMNode collection so we can traverse them uniformly. */
+function collectDomTraversalTargets(node: DOMNode): DOMNode[] {
+  const targets: DOMNode[] = [];
+  if (node.children) targets.push(...node.children);
+  if (node.shadowRoots) targets.push(...node.shadowRoots);
+  if (node.contentDocument) targets.push(node.contentDocument);
+  return targets;
+}
+
+/**
+ * Walk the partial DOM tree and call DOM.describeNode for any node whose
+ * childNodeCount indicates we didn't receive all of its children.
+ */
+async function hydrateDomTree(
+  session: CDPSession,
+  root: DOMNode,
+): Promise<number> {
+  const stack: DOMNode[] = [root];
+  const expandedNodeIds = new Set<number>();
+  const expandedBackendIds = new Set<number>();
+  let describeCalls = 0;
+
+  while (stack.length) {
+    const node = stack.pop()!;
+    const nodeId =
+      typeof node.nodeId === "number" && node.nodeId > 0
+        ? node.nodeId
+        : undefined;
+    const backendId =
+      typeof node.backendNodeId === "number" && node.backendNodeId > 0
+        ? node.backendNodeId
+        : undefined;
+
+    const seenByNode = nodeId ? expandedNodeIds.has(nodeId) : false;
+    const seenByBackend =
+      !nodeId && backendId ? expandedBackendIds.has(backendId) : false;
+    if (seenByNode || seenByBackend) continue;
+    if (nodeId) expandedNodeIds.add(nodeId);
+    else if (backendId) expandedBackendIds.add(backendId);
+
+    const needsExpansion = shouldExpandNode(node);
+    if (needsExpansion && (nodeId || backendId)) {
+      const describeParamsBase = nodeId
+        ? { nodeId }
+        : { backendNodeId: backendId! };
+      let expanded = false;
+      for (const depth of DESCRIBE_DEPTH_ATTEMPTS) {
+        try {
+          const described = (await session.send("DOM.describeNode", {
+            ...describeParamsBase,
+            depth,
+            pierce: true,
+          })) as { node: DOMNode };
+          mergeDomNodes(node, described.node);
+          if (!nodeId && described.node.nodeId && described.node.nodeId > 0) {
+            node.nodeId = described.node.nodeId;
+            expandedNodeIds.add(described.node.nodeId);
+          }
+          describeCalls++;
+          expanded = true;
+          break;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          if (isCborStackError(message)) {
+            continue;
+          }
+          const identifier = nodeId ?? backendId ?? "unknown";
+          throw new StagehandDomProcessError(
+            `Failed to expand DOM node ${identifier}: ${String(err)}`,
+          );
+        }
+      }
+      if (!expanded) {
+        const identifier = nodeId ?? backendId ?? "unknown";
+        throw new StagehandDomProcessError(
+          `Unable to expand DOM node ${identifier} after describeNode depth retries`,
+        );
+      }
+    }
+
+    for (const child of collectDomTraversalTargets(node)) {
+      stack.push(child);
+    }
+  }
+
+  return describeCalls;
+}
+
+/**
+ * Attempt DOM.getDocument with progressively smaller depths, rehydrating the
+ * missing children after each successful response.
+ */
+async function getDomTreeWithFallback(session: CDPSession): Promise<DOMNode> {
+  let lastCborMessage = "";
+
+  for (const depth of DOM_DEPTH_ATTEMPTS) {
+    try {
+      const params = { depth, pierce: true };
+
+      const { root } = (await session.send("DOM.getDocument", params)) as {
+        root: DOMNode;
+      };
+
+      if (depth !== -1) {
+        await hydrateDomTree(session, root);
+      }
+
+      return root;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (isCborStackError(message)) {
+        lastCborMessage = message;
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw new StagehandDomProcessError(
+    lastCborMessage
+      ? `CDP DOM.getDocument failed after adaptive depth retries: ${lastCborMessage}`
+      : "CDP DOM.getDocument failed after adaptive depth retries.",
+  );
+}
+
 /**
  * Clean a string by removing private-use unicode characters, normalizing whitespace,
  * and trimming the result.
@@ -148,11 +296,8 @@ export async function buildBackendIdMaps(
   );
 
   try {
-    // 1. full DOM tree
-    const { root } = (await session.send("DOM.getDocument", {
-      depth: -1,
-      pierce: true,
-    })) as { root: DOMNode };
+    // 1. full DOM tree (with adaptive fallback)
+    const root = await getDomTreeWithFallback(session);
 
     // 2. pick start node + root frame-id
     let startNode: DOMNode = root;
