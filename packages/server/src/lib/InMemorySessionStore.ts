@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
-import type { V3Options, LogLine, V3 } from "@browserbasehq/stagehand";
+import type { V3Options, LogLine } from "@browserbasehq/stagehand";
+import { V3 } from "@browserbasehq/stagehand";
 import type {
   SessionStore,
   CreateSessionParams,
@@ -180,9 +181,7 @@ export class InMemorySessionStore implements SessionStore {
     // Create V3 instance (lazy initialization)
     const options = this.buildV3Options(node.params, ctx, node.loggerRef);
 
-    // Import V3 dynamically to avoid circular dependency
-    const { V3: V3Class } = await import("@browserbasehq/stagehand");
-    const stagehand = new V3Class(options);
+    const stagehand = new V3(options);
     await stagehand.init();
 
     node.stagehand = stagehand;
