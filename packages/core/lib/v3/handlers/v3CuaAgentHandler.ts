@@ -13,6 +13,7 @@ import {
 } from "../types/public/agent";
 import { LogLine } from "../types/public/logs";
 import { type Action, V3FunctionName } from "../types/public/methods";
+import { SessionFileLogger } from "../flowLogger";
 
 export class V3CuaAgentHandler {
   private v3: V3;
@@ -73,7 +74,21 @@ export class V3CuaAgentHandler {
           }
         }
         await new Promise((r) => setTimeout(r, 300));
-        await this.executeAction(action);
+        // Skip logging for screenshot actions - they're no-ops, the actual
+        // Page.screenshot in captureAndSendScreenshot() is logged separately
+        const shouldLog = action.type !== "screenshot";
+        if (shouldLog) {
+          SessionFileLogger.logUnderstudyActionEvent({
+            actionType: `v3CUA.${action.type}`,
+            target: this.computePointerTarget(action),
+            args: [action],
+          });
+        }
+        try {
+          await this.executeAction(action);
+        } finally {
+          if (shouldLog) SessionFileLogger.logUnderstudyActionCompleted();
+        }
 
         action.timestamp = Date.now();
 
@@ -371,7 +386,7 @@ export class V3CuaAgentHandler {
         return { success: true };
       }
       case "screenshot": {
-        // Already handled around actions
+        // No-op - screenshot is captured by captureAndSendScreenshot() after all actions
         return { success: true };
       }
       case "goto": {
@@ -422,6 +437,19 @@ export class V3CuaAgentHandler {
           error: `Unknown action ${String(action.type)}`,
         };
     }
+  }
+
+  // helper to make pointer target human-readable for logging
+  private computePointerTarget(action: AgentAction): string | undefined {
+    return typeof action.x === "number" && typeof action.y === "number"
+      ? `(${action.x}, ${action.y})`
+      : typeof action.selector === "string"
+        ? action.selector
+        : typeof action.input === "string"
+          ? action.input
+          : typeof action.description === "string"
+            ? action.description
+            : undefined;
   }
 
   private ensureXPath(value: unknown): string | null {
