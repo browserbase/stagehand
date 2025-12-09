@@ -3,7 +3,7 @@ import { Stagehand, StagehandFunctionName } from "../index";
 import { observe } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { StagehandPage } from "../StagehandPage";
-import { drawObserveOverlay, trimTrailingTextNode } from "../utils";
+import { trimTrailingTextNode } from "../utils";
 import {
   getAccessibilityTree,
   getAccessibilityTreeWithFrames,
@@ -56,6 +56,9 @@ export class StagehandObserveHandler {
      * @deprecated The `onlyVisible` parameter has no effect in this version of Stagehand and will be removed in later versions.
      */
     onlyVisible?: boolean;
+    /**
+     * @deprecated The `drawOverlay` parameter has no effect in this version of Stagehand and will be removed in later versions.
+     */
     drawOverlay?: boolean;
     fromAct?: boolean;
     iframes?: boolean;
@@ -69,6 +72,15 @@ export class StagehandObserveHandler {
         category: "observation",
         message:
           "Warning: the `onlyVisible` parameter has no effect in this version of Stagehand and will be removed in future versions.",
+        level: 1,
+      });
+    }
+
+    if (drawOverlay !== undefined) {
+      this.logger({
+        category: "observation",
+        message:
+          "Warning: the drawOverlay parameter has been deprecated and this parameter is now a no-op.",
         level: 1,
       });
     }
@@ -220,10 +232,6 @@ export class StagehandObserveHandler {
         },
       },
     });
-
-    if (drawOverlay) {
-      await drawObserveOverlay(this.stagehandPage.page, elementsWithSelectors);
-    }
 
     return elementsWithSelectors;
   }
