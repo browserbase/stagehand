@@ -14,6 +14,9 @@ import {
 } from "ai";
 import { LogLine } from "./logs";
 import { ClientOptions } from "./model";
+
+// Re-export ModelMessage for consumers who want to use it for conversation continuation
+export type { ModelMessage } from "ai";
 import { Page as PlaywrightPage } from "playwright-core";
 import { Page as PuppeteerPage } from "puppeteer-core";
 import { Page as PatchrightPage } from "patchright-core";
@@ -63,6 +66,12 @@ export interface AgentResult {
     cached_input_tokens?: number;
     inference_time_ms: number;
   };
+  /**
+   * The conversation messages from this execution.
+   * Pass these to a subsequent execute() call via the `messages` option to continue the conversation.
+   * @experimental
+   */
+  messages?: ModelMessage[];
 }
 
 export type AgentStreamResult = StreamTextResult<ToolSet, never> & {
@@ -207,6 +216,29 @@ export interface AgentExecuteOptionsBase {
   maxSteps?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   highlightCursor?: boolean;
+  /**
+   * Previous conversation messages to continue from.
+   * Pass the `messages` from a previous AgentResult to continue that conversation.
+   * @experimental
+   */
+  messages?: ModelMessage[];
+  /**
+   * An AbortSignal that can be used to cancel the agent execution.
+   * When aborted, the agent will stop and return a partial result.
+   * @experimental
+   *
+   * @example
+   * ```typescript
+   * const controller = new AbortController();
+   * setTimeout(() => controller.abort(), 30000); // 30 second timeout
+   *
+   * const result = await agent.execute({
+   *   instruction: "...",
+   *   signal: controller.signal
+   * });
+   * ```
+   */
+  signal?: AbortSignal;
 }
 
 /**
