@@ -1,2 +1,1 @@
-export * from "./process";
-export * from "./utils";
+import "./process";
