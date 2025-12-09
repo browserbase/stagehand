@@ -11,7 +11,7 @@ on:
       - "docs/**"
 
 env:
-  EVAL_MODELS: "openai/gpt-4.1,google/gemini-2.0-flash,anthropic/claude-3-5-sonnet-latest"
+  EVAL_MODELS: "openai/gpt-4.1,google/gemini-2.0-flash,anthropic/claude-haiku-4-5"
   EVAL_CATEGORIES: "observe,act,combination,extract,targeted_extract,agent"
   EVAL_MAX_CONCURRENCY: 25
   EVAL_TRIAL_COUNT: 5
