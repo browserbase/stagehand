@@ -29,7 +29,7 @@ const ALL_EVAL_MODELS = [
   "gemini-2.5-flash-preview-04-17",
   "gemini-2.5-pro-preview-03-25",
   // ANTHROPIC
-  "claude-3-5-sonnet-latest",
+  "claude-haiku-4-5",
   "claude-3-7-sonnet-latest",
   // OPENAI
   "gpt-4o-mini",
@@ -104,7 +104,7 @@ const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
   : [
       "google/gemini-2.0-flash",
       "openai/gpt-4.1-mini",
-      "anthropic/claude-3-5-sonnet-latest",
+      "anthropic/claude-haiku-4-5",
     ];
 
 const DEFAULT_AGENT_MODELS = process.env.EVAL_AGENT_MODELS
