@@ -2,3 +2,4 @@ packages:
   - "packages/core"
   - "packages/evals"
   - "packages/docs"
+  - "packages/server"

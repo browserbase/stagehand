@@ -1,0 +1,237 @@
+openapi: 3.0.0
+info:
+  title: Stagehand API
+  description: Stagehand API Documentation
+  version: 1.0.0
+components:
+  schemas: {}
+paths:
+  /v1/sessions/{id}/act:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+                - type: object
+                  properties:
+                    action:
+                      type: string
+                      minLength: 1
+                    useVision:
+                      anyOf:
+                        - type: string
+                          enum:
+                            - fallback
+                        - type: boolean
+                    variables:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    domSettleTimeoutMs:
+                      type: number
+                  required:
+                    - action
+                  additionalProperties: false
+                - type: object
+                  properties:
+                    selector:
+                      type: string
+                    description:
+                      type: string
+                    backendNodeId:
+                      type: number
+                    method:
+                      type: string
+                    arguments:
+                      type: array
+                      items:
+                        type: string
+                  required:
+                    - selector
+                    - description
+                  additionalProperties: false
+      parameters:
+        - schema:
+            type: string
+          in: path
+          name: id
+          required: true
+      responses:
+        "200":
+          description: Default Response
+  /v1/sessions/{id}/end:
+    post:
+      parameters:
+        - schema:
+            type: string
+          in: path
+          name: id
+          required: true
+      responses:
+        "200":
+          description: Default Response
+  /v1/sessions/{id}/extract:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                instruction:
+                  type: string
+                schemaDefinition:
+                  type: object
+                  additionalProperties: {}
+                useTextExtract:
+                  type: boolean
+                selector:
+                  type: string
+              required:
+                - instruction
+                - schemaDefinition
+              additionalProperties: false
+        required: true
+      parameters:
+        - schema:
+            type: string
+          in: path
+          name: id
+          required: true
+      responses:
+        "200":
+          description: Default Response
+  /v1/healthcheck:
+    get:
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  timestamp:
+                    type: string
+  /v1/sessions/{id}/navigate:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                options:
+                  type: object
+                  properties:
+                    referer:
+                      type: string
+                    timeout:
+                      type: number
+                    waitUntil:
+                      type: string
+                      enum:
+                        - load
+                        - domcontentloaded
+                        - networkidle
+                        - commit
+                  additionalProperties: false
+              required:
+                - url
+              additionalProperties: false
+        required: true
+      parameters:
+        - schema:
+            type: string
+          in: path
+          name: id
+          required: true
+      responses:
+        "200":
+          description: Default Response
+  /v1/sessions/{id}/observe:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                instruction:
+                  type: string
+                modelName:
+                  type: string
+                modelClientOptions:
+                  type: object
+                  additionalProperties: true
+                domSettleTimeoutMs:
+                  type: number
+                returnAction:
+                  type: boolean
+                onlyVisible:
+                  type: boolean
+                drawOverlay:
+                  type: boolean
+              additionalProperties: false
+      parameters:
+        - schema:
+            type: string
+          in: path
+          name: id
+          required: true
+      responses:
+        "200":
+          description: Default Response
+  /v1/sessions/start:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                modelName:
+                  type: string
+                domSettleTimeoutMs:
+                  type: number
+                verbose:
+                  type: string
+                  enum:
+                    - "0"
+                    - "1"
+                    - "2"
+                debugDom:
+                  type: boolean
+                systemPrompt:
+                  type: string
+                browserbaseSessionCreateParams:
+                  type: object
+              required:
+                - modelName
+              additionalProperties: false
+        required: true
+      responses:
+        "200":
+          description: Default Response
+  /v1/sessions/{id}/screenshot:
+    get:
+      parameters:
+        - schema:
+            type: string
+          in: path
+          name: id
+          required: true
+      responses:
+        "200":
+          description: Default Response
+servers:
+  - url: http://localhost:3000
+    description: Development Server
+externalDocs:
+  url: https://docs.stagehand.dev/
+  description: Find more information here
