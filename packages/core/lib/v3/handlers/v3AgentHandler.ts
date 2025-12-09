@@ -308,6 +308,17 @@ export class V3AgentHandler {
       rejectResult = reject;
     });
 
+    const handleError = (error: unknown) => {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger({
+        category: "agent",
+        message: `Error during streaming: ${errorMessage}`,
+        level: 0,
+      });
+      rejectResult(error);
+    };
+
     const streamResult = this.llmClient.streamText({
       model: wrappedModel,
       system: systemPrompt,
@@ -322,20 +333,7 @@ export class V3AgentHandler {
         if (callbacks?.onError) {
           callbacks.onError(event);
         }
-        // Convert abort errors to AgentAbortError for consistent error typing
-        if (options.signal?.aborted) {
-          const reason = options.signal.reason
-            ? String(options.signal.reason)
-            : "aborted";
-          rejectResult(new AgentAbortError(reason));
-        } else {
-          this.logger({
-            category: "agent",
-            message: `Error during streaming: ${getErrorMessage(event.error)}`,
-            level: 0,
-          });
-          rejectResult(event.error);
-        }
+        handleError(event.error);
       },
       onChunk: callbacks?.onChunk,
       onFinish: (event) => {
