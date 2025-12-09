@@ -1,5 +1,11 @@
 # @browserbasehq/stagehand
 
+## 2.5.6
+
+### Patch Changes
+
+- [#1396](https://github.com/browserbase/stagehand/pull/1396) [`b7bc0b6`](https://github.com/browserbase/stagehand/commit/b7bc0b621b966db9e30d96c4439cd1eaa2ee1ce5) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - deprecate drawOverlay parameter in observe
+
 ## 2.5.5
 
 ### Patch Changes
