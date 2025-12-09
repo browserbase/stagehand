@@ -44,6 +44,7 @@
   },
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",
+    "uuid": "^11.1.0",
     "@anthropic-ai/sdk": "0.39.0",
     "@browserbasehq/sdk": "^2.4.0",
     "@google/genai": "^1.22.0",

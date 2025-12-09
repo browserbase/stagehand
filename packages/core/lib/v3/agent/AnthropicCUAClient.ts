@@ -18,6 +18,12 @@ import { AgentClient } from "./AgentClient";
 import { compressConversationImages } from "./utils/imageCompression";
 import { toJsonSchema } from "../zodCompat";
 import type { StagehandZodSchema } from "../zodCompat";
+import {
+  SessionFileLogger,
+  formatCuaPromptPreview,
+  formatCuaResponsePreview,
+} from "../flowLogger";
+import { v7 as uuidv7 } from "uuid";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
 
@@ -480,6 +486,15 @@ export class AnthropicCUAClient extends AgentClient {
         requestParams.thinking = thinking;
       }
 
+      // Log LLM request
+      const llmRequestId = uuidv7();
+      SessionFileLogger.logLlmRequest({
+        requestId: llmRequestId,
+        model: this.modelName,
+        operation: "CUA.getAction",
+        prompt: formatCuaPromptPreview(messages),
+      });
+
       const startTime = Date.now();
       // Create the message using the Anthropic Messages API
       // @ts-expect-error - The Anthropic SDK types are stricter than what we need
@@ -491,6 +506,16 @@ export class AnthropicCUAClient extends AgentClient {
         output_tokens: response.usage.output_tokens,
         inference_time_ms: elapsedMs,
       };
+
+      // Log LLM response
+      SessionFileLogger.logLlmResponse({
+        requestId: llmRequestId,
+        model: this.modelName,
+        operation: "CUA.getAction",
+        output: formatCuaResponsePreview(response.content),
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      });
 
       // Store the message ID for future use
       this.lastMessageId = response.id;
