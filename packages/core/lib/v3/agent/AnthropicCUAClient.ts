@@ -15,10 +15,15 @@ import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
 import Anthropic from "@anthropic-ai/sdk";
 import { ToolSet } from "ai";
 import { AgentClient } from "./AgentClient";
-import { mapKeyToPlaywright } from "./utils/cuaKeyMapping";
 import { compressConversationImages } from "./utils/imageCompression";
 import { toJsonSchema } from "../zodCompat";
 import type { StagehandZodSchema } from "../zodCompat";
+import {
+  SessionFileLogger,
+  formatCuaPromptPreview,
+  formatCuaResponsePreview,
+} from "../flowLogger";
+import { v7 as uuidv7 } from "uuid";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
 
@@ -481,6 +486,15 @@ export class AnthropicCUAClient extends AgentClient {
         requestParams.thinking = thinking;
       }
 
+      // Log LLM request
+      const llmRequestId = uuidv7();
+      SessionFileLogger.logLlmRequest({
+        requestId: llmRequestId,
+        model: this.modelName,
+        operation: "CUA.getAction",
+        prompt: formatCuaPromptPreview(messages),
+      });
+
       const startTime = Date.now();
       // Create the message using the Anthropic Messages API
       // @ts-expect-error - The Anthropic SDK types are stricter than what we need
@@ -492,6 +506,16 @@ export class AnthropicCUAClient extends AgentClient {
         output_tokens: response.usage.output_tokens,
         inference_time_ms: elapsedMs,
       };
+
+      // Log LLM response
+      SessionFileLogger.logLlmResponse({
+        requestId: llmRequestId,
+        model: this.modelName,
+        operation: "CUA.getAction",
+        output: formatCuaResponsePreview(response.content),
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      });
 
       // Store the message ID for future use
       this.lastMessageId = response.id;
@@ -772,10 +796,10 @@ export class AnthropicCUAClient extends AgentClient {
             text: input.text as string,
             ...input,
           };
-        } else if (action === "keypress") {
+        } else if (action === "keypress" || action === "key") {
           return {
             type: "keypress",
-            keys: input.keys as string[],
+            keys: [input.text as string],
             ...input,
           };
         } else if (action === "double_click" || action === "doubleClick") {
@@ -863,15 +887,6 @@ export class AnthropicCUAClient extends AgentClient {
         } else if (action === "wait") {
           return {
             type: "wait",
-            ...input,
-          };
-        } else if (action === "key") {
-          const text = input.text as string;
-          const mappedKey = mapKeyToPlaywright(text);
-
-          return {
-            type: "key",
-            text: mappedKey,
             ...input,
           };
         } else if (action === "left_click") {

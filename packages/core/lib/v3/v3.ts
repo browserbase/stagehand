@@ -3,6 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import process from "process";
+import { v7 as uuidv7 } from "uuid";
 import { z } from "zod";
 import type { InferStagehandSchema, StagehandZodSchema } from "./zodCompat";
 import { loadApiKeyFromEnv } from "../utils";
@@ -72,6 +73,7 @@ import { Page } from "./understudy/page";
 import { resolveModel } from "../modelUtils";
 import { StagehandAPIClient } from "./api";
 import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures";
+import { SessionFileLogger, logStagehandStep } from "./flowLogger";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard";
 import { ActTimeoutError } from "./types/public/sdkErrors";
 
@@ -207,9 +209,7 @@ export class V3 {
     V3._installProcessGuards();
     this.externalLogger = opts.logger;
     this.verbose = opts.verbose ?? 1;
-    this.instanceId =
-      (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
-      `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+    this.instanceId = uuidv7();
 
     // Create per-instance StagehandLogger (handles usePino, verbose, externalLogger)
     // This gives each V3 instance independent logger configuration
@@ -310,6 +310,10 @@ export class V3 {
     });
 
     this.opts = opts;
+
+    // Initialize session file logger
+    SessionFileLogger.init(this.instanceId, opts);
+
     // Track instance for global process guard handling
     V3._instances.add(this);
   }
@@ -688,6 +692,11 @@ export class V3 {
             this.ctx = await V3Context.create(lbo.cdpUrl, {
               env: "LOCAL",
             });
+            const logCtx = SessionFileLogger.getContext();
+            this.ctx.conn.cdpLogger = (info) =>
+              SessionFileLogger.logCdpCallEvent(info, logCtx);
+            this.ctx.conn.cdpEventLogger = (info) =>
+              SessionFileLogger.logCdpMessageEvent(info, logCtx);
             this.ctx.conn.onTransportClosed(this._onCdpClosed);
             this.state = {
               kind: "LOCAL",
@@ -777,6 +786,11 @@ export class V3 {
             env: "LOCAL",
             localBrowserLaunchOptions: lbo,
           });
+          const logCtx = SessionFileLogger.getContext();
+          this.ctx.conn.cdpLogger = (info) =>
+            SessionFileLogger.logCdpCallEvent(info, logCtx);
+          this.ctx.conn.cdpEventLogger = (info) =>
+            SessionFileLogger.logCdpMessageEvent(info, logCtx);
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
           this.state = {
             kind: "LOCAL",
@@ -854,6 +868,11 @@ export class V3 {
             env: "BROWSERBASE",
             apiClient: this.apiClient,
           });
+          const logCtx = SessionFileLogger.getContext();
+          this.ctx.conn.cdpLogger = (info) =>
+            SessionFileLogger.logCdpCallEvent(info, logCtx);
+          this.ctx.conn.cdpEventLogger = (info) =>
+            SessionFileLogger.logCdpMessageEvent(info, logCtx);
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
           this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
           this.browserbaseSessionId = sessionId;
@@ -964,6 +983,7 @@ export class V3 {
   async act(instruction: string, options?: ActOptions): Promise<ActResult>;
   async act(action: Action, options?: ActOptions): Promise<ActResult>;
 
+  @logStagehandStep("Stagehand.act", "ACT")
   async act(input: string | Action, options?: ActOptions): Promise<ActResult> {
     return await withInstanceLogContext(this.instanceId, async () => {
       if (!this.actHandler) throw new StagehandNotInitializedError("act()");
@@ -1116,6 +1136,7 @@ export class V3 {
     options?: ExtractOptions,
   ): Promise<InferStagehandSchema<T>>;
 
+  @logStagehandStep("Stagehand.extract", "EXTRACT")
   async extract(
     a?: string | ExtractOptions,
     b?: StagehandZodSchema | ExtractOptions,
@@ -1196,6 +1217,7 @@ export class V3 {
     instruction: string,
     options?: ObserveOptions,
   ): Promise<Action[]>;
+  @logStagehandStep("Stagehand.observe", "OBSERVE")
   async observe(
     a?: string | ObserveOptions,
     b?: ObserveOptions,
@@ -1274,6 +1296,13 @@ export class V3 {
     this._isClosing = true;
 
     try {
+      // Close session file logger
+      try {
+        await SessionFileLogger.close();
+      } catch {
+        // Fail silently
+      }
+
       // Unhook CDP transport close handler if context exists
       try {
         if (this.ctx?.conn && this._onCdpClosed) {
@@ -1392,7 +1421,7 @@ export class V3 {
     }
 
     if (this.isPuppeteerPage(page)) {
-      const cdp = await page.target().createCDPSession();
+      const cdp = await page.createCDPSession();
       const { frameTree } = await cdp.send("Page.getFrameTree");
       this.logger({
         category: "v3",
@@ -1648,6 +1677,10 @@ export class V3 {
                   : null,
             });
 
+            SessionFileLogger.logAgentTaskStarted({
+              invocation: "Agent.execute",
+              args: [instructionOrOptions],
+            });
             const tools = options?.integrations
               ? await resolveTools(options.integrations, options.tools)
               : (options?.tools ?? {});
@@ -1691,6 +1724,7 @@ export class V3 {
               if (cacheContext) {
                 const replayed = await this.agentCache.tryReplay(cacheContext);
                 if (replayed) {
+                  SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
                   return replayed;
                 }
               }
@@ -1730,6 +1764,7 @@ export class V3 {
               if (recording) {
                 this.discardAgentReplayRecording();
               }
+              SessionFileLogger.logAgentTaskCompleted();
             }
           }),
       };
@@ -1756,6 +1791,10 @@ export class V3 {
                 : null,
             isStreaming,
           });
+          SessionFileLogger.logAgentTaskStarted({
+            invocation: "Agent.execute",
+            args: [instructionOrOptions],
+          });
 
           // Streaming mode
           if (isStreaming) {
@@ -1770,6 +1809,7 @@ export class V3 {
               const replayed =
                 await this.agentCache.tryReplayAsStream(cacheContext);
               if (replayed) {
+                SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
                 return replayed;
               }
             }
@@ -1779,15 +1819,20 @@ export class V3 {
             );
 
             if (cacheContext) {
-              return this.agentCache.wrapStreamForCaching(
+              const wrappedStream = this.agentCache.wrapStreamForCaching(
                 cacheContext,
                 streamResult,
                 () => this.beginAgentReplayRecording(),
                 () => this.endAgentReplayRecording(),
                 () => this.discardAgentReplayRecording(),
               );
+              // Log completion when stream is returned (stream completes asynchronously)
+              SessionFileLogger.logAgentTaskCompleted();
+              return wrappedStream;
             }
 
+            // Log completion when stream is returned (stream completes asynchronously)
+            SessionFileLogger.logAgentTaskCompleted();
             return streamResult;
           }
 
@@ -1802,6 +1847,7 @@ export class V3 {
           if (cacheContext) {
             const replayed = await this.agentCache.tryReplay(cacheContext);
             if (replayed) {
+              SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
               return replayed;
             }
           }
@@ -1842,6 +1888,7 @@ export class V3 {
             if (recording) {
               this.discardAgentReplayRecording();
             }
+            SessionFileLogger.logAgentTaskCompleted();
           }
         }),
     };
