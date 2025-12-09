@@ -9,15 +9,13 @@ test.describe("StagehandPage - waitFor", () => {
 
     const page = stagehand.page;
     await page.goto("https://docs.browserbase.com/introduction");
-    const dynamicElement = page.locator(
-      "div.grid:nth-child(1) > a:nth-child(1) > div:nth-child(1)",
-    );
+    const dynamicElement = page.locator("#creating-your-account > span");
 
     const isVisibleBefore = await dynamicElement.isVisible();
     expect(isVisibleBefore).toBe(false);
 
     const clickableElement = page.locator(
-      "div.not-prose:nth-child(2) > a:nth-child(1) > div:nth-child(1)",
+      "xpath=/html/body/div[2]/div[2]/div[1]/div/div[3]/div[1]/ul/li[3]/a/div/div",
     );
     await clickableElement.click();
 
@@ -37,7 +35,7 @@ test.describe("StagehandPage - waitFor", () => {
     await page.goto("https://docs.browserbase.com/introduction");
 
     const disappearingElement = page.locator(
-      "div.not-prose:nth-child(2) > a:nth-child(1) > div:nth-child(1)",
+      "xpath=/html/body/div[2]/div[2]/div[3]/div[2]/div[1]/div[2]/a[3]/div",
     );
 
     await disappearingElement.click();
@@ -153,7 +151,7 @@ test.describe("StagehandPage - waitFor", () => {
     await page.goto("https://docs.browserbase.com");
 
     const getStartedLink = page.locator(
-      "div.not-prose:nth-child(3) > a:nth-child(1) > div:nth-child(1)",
+      "xpath=/html/body/div[2]/div[2]/div[1]/div/div[3]/div[1]/ul/li[3]/a/div/div",
     );
     await getStartedLink.click();
 
