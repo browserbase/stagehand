@@ -9,7 +9,6 @@ export const authMiddleware = async (
 };
 
 // TODO: Temporarily disable auth until setup in supabase
-/* eslint-disable*/
 const isAuthenticated = async (): Promise<boolean> => {
   return true;
 };

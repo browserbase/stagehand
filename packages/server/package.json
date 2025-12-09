@@ -8,9 +8,6 @@
     "build": "tsc && tsc-alias",
     "dev": "tsx watch src/server.ts",
     "lint": "cd ../.. && prettier --check packages/server && cd packages/server && eslint .",
-    "node:test": "node --import tsx --test --test-reporter=spec",
-    "test:unit": "pnpm run node:test $(find ./src -type f -name '*.test.ts')",
-    "test:unit:local": "DOTENV_CONFIG_PATH=.env.local pnpm run test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
