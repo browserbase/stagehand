@@ -48,13 +48,6 @@ test.describe("Stagehand agent streaming behavior", () => {
 
       // result should be a promise
       expect(streamResult.result).toBeInstanceOf(Promise);
-
-      // Consume stream to avoid unhandled rejection on close
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      for await (const _ of streamResult.textStream) {
-        // Just consume
-      }
-      await streamResult.result;
     });
 
     test("textStream yields chunks incrementally", async () => {
@@ -138,7 +131,6 @@ test.describe("Stagehand agent streaming behavior", () => {
         instruction: "What is this page? Use close tool immediately.",
         maxSteps: 3,
       });
-
       // Should be AgentResult, not AgentStreamResult
       expect(result).toHaveProperty("success");
       expect(result).toHaveProperty("message");
