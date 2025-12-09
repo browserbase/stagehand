@@ -5,7 +5,7 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import { z } from "zod/v3";
 
 import { authMiddleware } from "../../../../lib/auth.js";
-import { withErrorHandling } from "../../../../lib/errorHandler.js";
+import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
 import { createStreamingResponse } from "../../../../lib/stream.js";
 import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
 
@@ -70,9 +70,10 @@ const observeRouteHandler: RouteHandlerMethod = withErrorHandling(
           : await stagehand.context.awaitActivePage();
 
         if (!page) {
-          return reply.status(StatusCodes.NOT_FOUND).send({
-            message: "Page not found",
-          });
+          throw new AppError(
+            "Page not found",
+            StatusCodes.INTERNAL_SERVER_ERROR,
+          );
         }
 
         const safeOptions = {

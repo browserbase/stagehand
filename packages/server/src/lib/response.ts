@@ -15,12 +15,12 @@ type ApiResponse<T> = SuccessResponse<T> | ErrorResponse;
 
 export function success<T>(
   reply: FastifyReply,
-  data?: T,
+  data: T,
   status = StatusCodes.OK,
 ): FastifyReply {
   return reply.status(status).send({
     success: true,
-    ...(data !== undefined && { data }),
+    data,
   });
 }
 

@@ -7,10 +7,6 @@ import { withErrorHandling } from "../../../lib/errorHandler.js";
 import { getOptionalHeader } from "../../../lib/header.js";
 import { error, success } from "../../../lib/response.js";
 import { getSessionStore } from "../../../lib/sessionStoreManager.js";
-import {
-  InvalidModelError,
-  InvalidProviderError,
-} from "../../../types/error.js";
 import { AISDK_PROVIDERS } from "../../../types/model.js";
 
 /**
@@ -79,10 +75,18 @@ const startRouteHandler: RouteHandler = withErrorHandling(
     if (modelName.includes("/")) {
       const [providerName] = modelName.split("/", 1);
       if (!providerName) {
-        return new InvalidModelError(modelName);
+        return error(
+          reply,
+          `Invalid model: ${modelName}`,
+          StatusCodes.BAD_REQUEST,
+        );
       }
       if (!(AISDK_PROVIDERS as readonly string[]).includes(providerName)) {
-        return new InvalidProviderError(providerName);
+        return error(
+          reply,
+          `Invalid provider: ${providerName}`,
+          StatusCodes.BAD_REQUEST,
+        );
       }
     }
 
@@ -150,8 +154,8 @@ const startRoute: RouteOptions = {
           type: "number",
         },
         verbose: {
-          type: "string",
-          enum: ["0", "1", "2"],
+          type: "number",
+          enum: [0, 1, 2],
         },
         debugDom: {
           type: "boolean",

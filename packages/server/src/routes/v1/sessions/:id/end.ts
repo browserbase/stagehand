@@ -20,7 +20,7 @@ const endRouteHandler: RouteHandlerMethod = withErrorHandling(
     const sessionStore = getSessionStore();
     await sessionStore.endSession(sessionId);
 
-    return success(reply);
+    return success(reply, {});
   },
 );
 

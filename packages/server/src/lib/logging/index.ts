@@ -3,7 +3,7 @@ import { FastifyInstance } from "fastify";
 import { env } from "../../lib/env.js";
 
 // List of routes to ignore for request logging in local environments
-const ignoredRoutes = ["/healthcheck", "/readiness"];
+const ignoredRoutes = ["/healthz", "/readyz"];
 
 // Helper function to determine if a request should be logged
 const shouldLog = (url: string) => {

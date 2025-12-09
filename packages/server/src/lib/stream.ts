@@ -102,7 +102,6 @@ export async function createStreamingResponse<TV3>({
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
         "Access-Control-Allow-Headers": "*",
-        "Access-Control-Allow-Credentials": "true",
       });
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (_err) {

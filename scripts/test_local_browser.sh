@@ -79,6 +79,19 @@ if [[ -z "${SESSION_ID}" || "${SESSION_ID}" == "null" ]]; then
   exit 1
 fi
 
+# Cleanup function to end session on exit
+cleanup_session() {
+  if [[ -n "${SESSION_ID}" && "${SESSION_ID}" != "null" ]]; then
+    >&2 echo
+    >&2 echo ">>> Cleaning up session ${SESSION_ID}"
+    END_ROUTE="/sessions/${SESSION_ID}/end"
+    call_stagehand "${END_ROUTE}" '{}' >/dev/null 2>&1 || true
+  fi
+}
+
+# Set trap to cleanup on exit (normal exit, error, or signal)
+trap cleanup_session EXIT
+
 echo "Session ID: ${SESSION_ID}"
 
 ACT_ROUTE="/sessions/${SESSION_ID}/act"
@@ -95,6 +108,9 @@ call_stagehand "${ACT_ROUTE}" '{"input":"Scroll to the bottom of the page","opti
 
 END_ROUTE="/sessions/${SESSION_ID}/end"
 call_stagehand "${END_ROUTE}" '{}' | jq .
+
+# Unset trap since we've successfully cleaned up
+trap - EXIT
 
 echo
 echo "Local browser Stagehand server smoke test finished."

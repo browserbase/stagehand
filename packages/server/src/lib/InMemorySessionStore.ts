@@ -59,6 +59,8 @@ export class InMemorySessionStore implements SessionStore {
     this.cleanupInterval = setInterval(() => {
       this.cleanupExpired();
     }, 60_000);
+    // Allow process to exit gracefully even if this timer is still active
+    this.cleanupInterval.unref();
   }
 
   /**
