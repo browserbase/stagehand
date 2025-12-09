@@ -1,5 +1,13 @@
 # @browserbasehq/stagehand
 
+## 2.5.5
+
+### Patch Changes
+
+- [#1389](https://github.com/browserbase/stagehand/pull/1389) [`575226f`](https://github.com/browserbase/stagehand/commit/575226f90993c35c87c533b2200a3f737bff54cb) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Retry DOM.getDocument on max depth exceeded with exponential backoff
+
+- [#1386](https://github.com/browserbase/stagehand/pull/1386) [`dbffb75`](https://github.com/browserbase/stagehand/commit/dbffb7574b74ba768e5a0882c518a5dce87a977e) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Remove deprecated internal usage of page.evaluate
+
 ## 2.5.4
 
 ### Patch Changes
