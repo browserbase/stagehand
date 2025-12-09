@@ -20,7 +20,6 @@ import { ActOptions, ActResult, GotoOptions, Stagehand } from "./index";
 import { LLMClient } from "./llm/LLMClient";
 import { StagehandContext } from "./StagehandContext";
 import { EncodedId, EnhancedContext } from "../types/context";
-import { clearOverlays } from "./utils";
 import {
   StagehandError,
   StagehandNotInitializedError,
@@ -700,8 +699,6 @@ export class StagehandPage {
         throw new HandlerNotInitializedError("Act");
       }
 
-      await clearOverlays(this.page);
-
       // If actionOrOptions is an ObserveResult, we call actFromObserveResult.
       // We need to ensure there is both a selector and a method in the ObserveResult.
       if (typeof actionOrOptions === "object" && actionOrOptions !== null) {
@@ -803,8 +800,6 @@ export class StagehandPage {
       if (!this.extractHandler) {
         throw new HandlerNotInitializedError("Extract");
       }
-
-      await clearOverlays(this.page);
 
       // check if user called extract() with no arguments
       if (!instructionOrOptions) {
@@ -932,8 +927,6 @@ export class StagehandPage {
       if (!this.observeHandler) {
         throw new HandlerNotInitializedError("Observe");
       }
-
-      await clearOverlays(this.page);
 
       const options: ObserveOptions =
         typeof instructionOrOptions === "string"

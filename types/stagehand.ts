@@ -158,6 +158,9 @@ export interface ObserveOptions {
    * @deprecated The `onlyVisible` parameter has no effect in this version of Stagehand and will be removed in later versions.
    */
   onlyVisible?: boolean;
+  /**
+   * @deprecated The `drawOverlay` parameter has no effect in this version of Stagehand and will be removed in later versions.
+   */
   drawOverlay?: boolean;
   iframes?: boolean;
   frameId?: string;
