@@ -609,7 +609,6 @@ export class SessionFileLogger {
       }
 
       // Create file streams
-      // Create file streams
       const dir = ctx.sessionDir;
       ctx.fileStreams.agent = fs.createWriteStream(
         path.join(dir, "agent_events.log"),
