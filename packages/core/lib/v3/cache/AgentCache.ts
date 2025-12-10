@@ -329,7 +329,7 @@ export class AgentCache {
       options: context.options,
       configSignature: context.configSignature,
       steps: cloneForCache(steps),
-      result: cloneForCache(result),
+      result: this.pruneAgentResult(result),
       timestamp: new Date().toISOString(),
     };
 
@@ -358,6 +358,26 @@ export class AgentCache {
         steps: { value: String(steps.length), type: "string" },
       },
     });
+  }
+
+  /**
+   * Clone the agent result and prune bulky fields (e.g. screenshot base64 blobs)
+   * before persisting it to disk. This keeps cache entries compact without
+   * mutating the live AgentResult returned to callers.
+   */
+  private pruneAgentResult(result: AgentResult): AgentResult {
+    const cloned = cloneForCache(result);
+    if (!Array.isArray(cloned.actions)) {
+      return cloned;
+    }
+
+    for (const action of cloned.actions) {
+      if (action?.type === "screenshot") {
+        delete action.base64;
+      }
+    }
+
+    return cloned;
   }
 
   beginRecording(): void {
