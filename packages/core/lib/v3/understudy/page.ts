@@ -1359,22 +1359,24 @@ export class Page {
       button: "none",
     } as Protocol.Input.DispatchMouseEventRequest);
 
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mousePressed",
-      x,
-      y,
-      button,
-      clickCount,
-    } as Protocol.Input.DispatchMouseEventRequest);
+    // Dispatch mouse pressed and released events for the given click count
+    for (let i = 1; i <= clickCount; i++) {
+      await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        type: "mousePressed",
+        x,
+        y,
+        button,
+        clickCount: i,
+      } as Protocol.Input.DispatchMouseEventRequest);
 
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseReleased",
-      x,
-      y,
-      button,
-      clickCount,
-    } as Protocol.Input.DispatchMouseEventRequest);
-
+      await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseReleased",
+        x,
+        y,
+        button,
+        clickCount: i,
+      } as Protocol.Input.DispatchMouseEventRequest);
+    }
     if (options?.returnXpath) return xpathResult ?? "";
   }
 
