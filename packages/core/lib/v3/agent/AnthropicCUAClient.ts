@@ -11,7 +11,10 @@ import {
 } from "../types/public/agent";
 import { LogLine } from "../types/public/logs";
 import { ClientOptions } from "../types/public/model";
-import { AgentScreenshotProviderError, StagehandClosedError } from "../types/public/sdkErrors";
+import {
+  AgentScreenshotProviderError,
+  StagehandClosedError,
+} from "../types/public/sdkErrors";
 import Anthropic from "@anthropic-ai/sdk";
 import { ToolSet } from "ai";
 import { AgentClient } from "./AgentClient";

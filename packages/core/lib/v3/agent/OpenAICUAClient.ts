@@ -12,7 +12,10 @@ import {
 } from "../types/public/agent";
 import { ClientOptions } from "../types/public/model";
 import { AgentClient } from "./AgentClient";
-import { AgentScreenshotProviderError, StagehandClosedError } from "../types/public/sdkErrors";
+import {
+  AgentScreenshotProviderError,
+  StagehandClosedError,
+} from "../types/public/sdkErrors";
 import { ToolSet } from "ai";
 import {
   SessionFileLogger,

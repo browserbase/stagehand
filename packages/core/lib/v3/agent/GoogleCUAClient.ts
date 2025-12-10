@@ -20,7 +20,7 @@ import { AgentClient } from "./AgentClient";
 import {
   AgentScreenshotProviderError,
   LLMResponseError,
-  StagehandClosedError
+  StagehandClosedError,
 } from "../types/public/sdkErrors";
 import { buildGoogleCUASystemPrompt } from "../../prompt";
 import { compressGoogleConversationImages } from "./utils/imageCompression";
