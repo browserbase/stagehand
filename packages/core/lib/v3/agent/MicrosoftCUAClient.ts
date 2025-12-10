@@ -8,9 +8,7 @@ import {
 } from "../types/public/agent";
 import { ClientOptions } from "../types/public/model";
 import { AgentClient } from "./AgentClient";
-import {
-  AgentScreenshotProviderError,
-} from "../types/public/sdkErrors";
+import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
 import { mapKeyToPlaywright } from "./utils/cuaKeyMapping";
 import { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
