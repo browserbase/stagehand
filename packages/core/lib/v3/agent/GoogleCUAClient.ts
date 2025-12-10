@@ -340,6 +340,15 @@ export class GoogleCUAClient extends AgentClient {
             throw new LLMResponseError("agent", "Response has no candidates!");
           }
 
+          const candidate = response.candidates[0];
+          if (!candidate.content || !candidate.content.parts) {
+            const reason = candidate.finishReason || "unknown";
+            throw new LLMResponseError(
+              "agent",
+              `Response has no content (finish reason: ${reason})`,
+            );
+          }
+
           // Success - we have a valid response
           break;
         } catch (error) {
