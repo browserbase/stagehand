@@ -407,21 +407,24 @@ export class Locator {
         button: "none",
       } as Protocol.Input.DispatchMouseEventRequest);
 
-      await session.send<never>("Input.dispatchMouseEvent", {
-        type: "mousePressed",
-        x: cx,
-        y: cy,
-        button,
-        clickCount,
-      } as Protocol.Input.DispatchMouseEventRequest);
+      // Dispatch mouse pressed and released events for the given click count
+      for (let i = 1; i <= clickCount; i++) {
+        await session.send<never>("Input.dispatchMouseEvent", {
+          type: "mousePressed",
+          x: cx,
+          y: cy,
+          button,
+          clickCount: i,
+        } as Protocol.Input.DispatchMouseEventRequest);
 
-      await session.send<never>("Input.dispatchMouseEvent", {
-        type: "mouseReleased",
-        x: cx,
-        y: cy,
-        button,
-        clickCount,
-      } as Protocol.Input.DispatchMouseEventRequest);
+        await session.send<never>("Input.dispatchMouseEvent", {
+          type: "mouseReleased",
+          x: cx,
+          y: cy,
+          button,
+          clickCount: i,
+        } as Protocol.Input.DispatchMouseEventRequest);
+      }
     } finally {
       // release the element handle
       try {

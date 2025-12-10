@@ -804,9 +804,13 @@ export class AnthropicCUAClient extends AgentClient {
           };
         } else if (action === "double_click" || action === "doubleClick") {
           return {
-            type: action,
-            x: input.x as number,
-            y: input.y as number,
+            type: "doubleClick",
+            x:
+              (input.x as number) ||
+              (input.coordinate ? (input.coordinate as number[])[0] : 0),
+            y:
+              (input.y as number) ||
+              (input.coordinate ? (input.coordinate as number[])[1] : 0),
             ...input,
           };
         } else if (action === "scroll") {
