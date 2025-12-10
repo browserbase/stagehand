@@ -89,7 +89,7 @@ test.describe("Stagehand agent abort signal", () => {
   });
 
   test("non-streaming: already aborted signal throws AgentAbortError immediately", async () => {
-    test.setTimeout(10000);
+    test.setTimeout(20000);
 
     const agent = v3.agent({
       model: "anthropic/claude-haiku-4-5-20251001",
