@@ -13,9 +13,11 @@ import {
 } from "ai";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { ChatCompletion } from "openai/resources";
+import { v7 as uuidv7 } from "uuid";
 import { LogLine } from "../types/public/logs";
 import { AvailableModel } from "../types/public/model";
 import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
+import { SessionFileLogger, formatLlmPromptPreview } from "../flowLogger";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
@@ -129,6 +131,18 @@ export class AISdkClient extends LLMClient {
     const isGPT5 = this.model.modelId.includes("gpt-5");
     const isGPT51 = this.model.modelId.includes("gpt-5.1");
     if (options.response_model) {
+      // Log LLM request for generateObject (extract)
+      const llmRequestId = uuidv7();
+      const promptPreview = formatLlmPromptPreview(options.messages, {
+        hasSchema: true,
+      });
+      SessionFileLogger.logLlmRequest({
+        requestId: llmRequestId,
+        model: this.model.modelId,
+        operation: "generateObject",
+        prompt: promptPreview,
+      });
+
       try {
         objectResponse = await generateObject({
           model: this.model,
@@ -145,6 +159,14 @@ export class AISdkClient extends LLMClient {
             : undefined,
         });
       } catch (err) {
+        // Log error response to maintain request/response pairing
+        SessionFileLogger.logLlmResponse({
+          requestId: llmRequestId,
+          model: this.model.modelId,
+          operation: "generateObject",
+          output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
+        });
+
         if (NoObjectGeneratedError.isInstance(err)) {
           this.logger?.({
             category: "AISDK error",
@@ -194,6 +216,16 @@ export class AISdkClient extends LLMClient {
         },
       } as T;
 
+      // Log LLM response for generateObject
+      SessionFileLogger.logLlmResponse({
+        requestId: llmRequestId,
+        model: this.model.modelId,
+        operation: "generateObject",
+        output: JSON.stringify(objectResponse.object),
+        inputTokens: objectResponse.usage.inputTokens,
+        outputTokens: objectResponse.usage.outputTokens,
+      });
+
       this.logger?.({
         category: "aisdk",
         message: "response",
@@ -228,20 +260,45 @@ export class AISdkClient extends LLMClient {
       }
     }
 
-    const textResponse = await generateText({
-      model: this.model,
-      messages: formattedMessages,
-      tools: Object.keys(tools).length > 0 ? tools : undefined,
-      toolChoice:
-        Object.keys(tools).length > 0
-          ? options.tool_choice === "required"
-            ? "required"
-            : options.tool_choice === "none"
-              ? "none"
-              : "auto"
-          : undefined,
-      temperature: options.temperature,
+    // Log LLM request for generateText (act/observe)
+    const llmRequestId = uuidv7();
+    const toolCount = Object.keys(tools).length;
+    const promptPreview = formatLlmPromptPreview(options.messages, {
+      toolCount,
     });
+    SessionFileLogger.logLlmRequest({
+      requestId: llmRequestId,
+      model: this.model.modelId,
+      operation: "generateText",
+      prompt: promptPreview,
+    });
+
+    let textResponse: Awaited<ReturnType<typeof generateText>>;
+    try {
+      textResponse = await generateText({
+        model: this.model,
+        messages: formattedMessages,
+        tools: Object.keys(tools).length > 0 ? tools : undefined,
+        toolChoice:
+          Object.keys(tools).length > 0
+            ? options.tool_choice === "required"
+              ? "required"
+              : options.tool_choice === "none"
+                ? "none"
+                : "auto"
+            : undefined,
+        temperature: options.temperature,
+      });
+    } catch (err) {
+      // Log error response to maintain request/response pairing
+      SessionFileLogger.logLlmResponse({
+        requestId: llmRequestId,
+        model: this.model.modelId,
+        operation: "generateText",
+        output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
+      });
+      throw err;
+    }
 
     // Transform AI SDK response to match LLMResponse format expected by operator handler
     const transformedToolCalls = (textResponse.toolCalls || []).map(
@@ -281,6 +338,20 @@ export class AISdkClient extends LLMClient {
         total_tokens: textResponse.usage.totalTokens ?? 0,
       },
     } as T;
+
+    // Log LLM response for generateText
+    SessionFileLogger.logLlmResponse({
+      requestId: llmRequestId,
+      model: this.model.modelId,
+      operation: "generateText",
+      output:
+        textResponse.text ||
+        (transformedToolCalls.length > 0
+          ? `[${transformedToolCalls.length} tool calls]`
+          : ""),
+      inputTokens: textResponse.usage.inputTokens,
+      outputTokens: textResponse.usage.outputTokens,
+    });
 
     this.logger?.({
       category: "aisdk",

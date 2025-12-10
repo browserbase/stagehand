@@ -3,6 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import process from "process";
+import { v7 as uuidv7 } from "uuid";
 import { z } from "zod";
 import type { InferStagehandSchema, StagehandZodSchema } from "./zodCompat";
 import { loadApiKeyFromEnv } from "../utils";
@@ -60,7 +61,6 @@ import {
   PatchrightPage,
   PlaywrightPage,
   PuppeteerPage,
-  ExperimentalNotConfiguredError,
   CuaModelRequiredError,
   StagehandInvalidArgumentError,
   StagehandNotInitializedError,
@@ -72,6 +72,8 @@ import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
 import { resolveModel } from "../modelUtils";
 import { StagehandAPIClient } from "./api";
+import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures";
+import { SessionFileLogger, logStagehandStep } from "./flowLogger";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard";
 import { ActTimeoutError } from "./types/public/sdkErrors";
 
@@ -207,9 +209,7 @@ export class V3 {
     V3._installProcessGuards();
     this.externalLogger = opts.logger;
     this.verbose = opts.verbose ?? 1;
-    this.instanceId =
-      (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
-      `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+    this.instanceId = uuidv7();
 
     // Create per-instance StagehandLogger (handles usePino, verbose, externalLogger)
     // This gives each V3 instance independent logger configuration
@@ -310,6 +310,10 @@ export class V3 {
     });
 
     this.opts = opts;
+
+    // Initialize session file logger
+    SessionFileLogger.init(this.instanceId, opts);
+
     // Track instance for global process guard handling
     V3._instances.add(this);
   }
@@ -688,6 +692,11 @@ export class V3 {
             this.ctx = await V3Context.create(lbo.cdpUrl, {
               env: "LOCAL",
             });
+            const logCtx = SessionFileLogger.getContext();
+            this.ctx.conn.cdpLogger = (info) =>
+              SessionFileLogger.logCdpCallEvent(info, logCtx);
+            this.ctx.conn.cdpEventLogger = (info) =>
+              SessionFileLogger.logCdpMessageEvent(info, logCtx);
             this.ctx.conn.onTransportClosed(this._onCdpClosed);
             this.state = {
               kind: "LOCAL",
@@ -777,6 +786,11 @@ export class V3 {
             env: "LOCAL",
             localBrowserLaunchOptions: lbo,
           });
+          const logCtx = SessionFileLogger.getContext();
+          this.ctx.conn.cdpLogger = (info) =>
+            SessionFileLogger.logCdpCallEvent(info, logCtx);
+          this.ctx.conn.cdpEventLogger = (info) =>
+            SessionFileLogger.logCdpMessageEvent(info, logCtx);
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
           this.state = {
             kind: "LOCAL",
@@ -854,6 +868,11 @@ export class V3 {
             env: "BROWSERBASE",
             apiClient: this.apiClient,
           });
+          const logCtx = SessionFileLogger.getContext();
+          this.ctx.conn.cdpLogger = (info) =>
+            SessionFileLogger.logCdpCallEvent(info, logCtx);
+          this.ctx.conn.cdpEventLogger = (info) =>
+            SessionFileLogger.logCdpMessageEvent(info, logCtx);
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
           this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
           this.browserbaseSessionId = sessionId;
@@ -964,6 +983,7 @@ export class V3 {
   async act(instruction: string, options?: ActOptions): Promise<ActResult>;
   async act(action: Action, options?: ActOptions): Promise<ActResult>;
 
+  @logStagehandStep("Stagehand.act", "ACT")
   async act(input: string | Action, options?: ActOptions): Promise<ActResult> {
     return await withInstanceLogContext(this.instanceId, async () => {
       if (!this.actHandler) throw new StagehandNotInitializedError("act()");
@@ -1116,6 +1136,7 @@ export class V3 {
     options?: ExtractOptions,
   ): Promise<InferStagehandSchema<T>>;
 
+  @logStagehandStep("Stagehand.extract", "EXTRACT")
   async extract(
     a?: string | ExtractOptions,
     b?: StagehandZodSchema | ExtractOptions,
@@ -1196,6 +1217,7 @@ export class V3 {
     instruction: string,
     options?: ObserveOptions,
   ): Promise<Action[]>;
+  @logStagehandStep("Stagehand.observe", "OBSERVE")
   async observe(
     a?: string | ObserveOptions,
     b?: ObserveOptions,
@@ -1274,6 +1296,13 @@ export class V3 {
     this._isClosing = true;
 
     try {
+      // Close session file logger
+      try {
+        await SessionFileLogger.close();
+      } catch {
+        // Fail silently
+      }
+
       // Unhook CDP transport close handler if context exists
       try {
         if (this.ctx?.conn && this._onCdpClosed) {
@@ -1392,7 +1421,7 @@ export class V3 {
     }
 
     if (this.isPuppeteerPage(page)) {
-      const cdp = await page.target().createCDPSession();
+      const cdp = await page.createCDPSession();
       const { frameTree } = await cdp.send("Page.getFrameTree");
       this.logger({
         category: "v3",
@@ -1522,12 +1551,7 @@ export class V3 {
     instruction: string;
     cacheContext: AgentCacheContext | null;
   }> {
-    if ((options?.integrations || options?.tools) && !this.experimental) {
-      throw new ExperimentalNotConfiguredError(
-        "MCP integrations and custom tools",
-      );
-    }
-
+    // Note: experimental validation is done at the call site before this method
     const tools = options?.integrations
       ? await resolveTools(options.integrations, options.tools)
       : (options?.tools ?? {});
@@ -1622,17 +1646,11 @@ export class V3 {
 
     // If CUA is enabled, use the computer-use agent path
     if (options?.cua) {
-      if (options?.stream) {
-        throw new StagehandInvalidArgumentError(
-          "Streaming is not supported with CUA (Computer Use Agent) mode. Remove either 'stream: true' or 'cua: true' from your agent config.",
-        );
-      }
-
-      if ((options?.integrations || options?.tools) && !this.experimental) {
-        throw new ExperimentalNotConfiguredError(
-          "MCP integrations and custom tools",
-        );
-      }
+      // Validate agent config at creation time (includes CUA+streaming conflict check)
+      validateExperimentalFeatures({
+        isExperimental: this.experimental,
+        agentConfig: options,
+      });
 
       const modelToUse = options?.model || {
         modelName: this.modelName,
@@ -1650,9 +1668,19 @@ export class V3 {
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
           withInstanceLogContext(this.instanceId, async () => {
-            if (options?.integrations && !this.experimental) {
-              throw new ExperimentalNotConfiguredError("MCP integrations");
-            }
+            validateExperimentalFeatures({
+              isExperimental: this.experimental,
+              agentConfig: options,
+              executeOptions:
+                typeof instructionOrOptions === "object"
+                  ? instructionOrOptions
+                  : null,
+            });
+
+            SessionFileLogger.logAgentTaskStarted({
+              invocation: "Agent.execute",
+              args: [instructionOrOptions],
+            });
             const tools = options?.integrations
               ? await resolveTools(options.integrations, options.tools)
               : (options?.tools ?? {});
@@ -1696,6 +1724,7 @@ export class V3 {
               if (cacheContext) {
                 const replayed = await this.agentCache.tryReplay(cacheContext);
                 if (replayed) {
+                  SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
                   return replayed;
                 }
               }
@@ -1735,6 +1764,7 @@ export class V3 {
               if (recording) {
                 this.discardAgentReplayRecording();
               }
+              SessionFileLogger.logAgentTaskCompleted();
             }
           }),
       };
@@ -1752,48 +1782,57 @@ export class V3 {
           | AgentStreamExecuteOptions,
       ): Promise<AgentResult | AgentStreamResult> =>
         withInstanceLogContext(this.instanceId, async () => {
-          if (
-            typeof instructionOrOptions === "object" &&
-            instructionOrOptions.callbacks &&
-            !this.experimental
-          ) {
-            throw new ExperimentalNotConfiguredError("Agent callbacks");
-          }
+          validateExperimentalFeatures({
+            isExperimental: this.experimental,
+            agentConfig: options,
+            executeOptions:
+              typeof instructionOrOptions === "object"
+                ? instructionOrOptions
+                : null,
+            isStreaming,
+          });
+          SessionFileLogger.logAgentTaskStarted({
+            invocation: "Agent.execute",
+            args: [instructionOrOptions],
+          });
 
           // Streaming mode
           if (isStreaming) {
-            if (!this.experimental) {
-              throw new ExperimentalNotConfiguredError("Agent streaming");
-            }
-
-            const { handler, cacheContext } = await this.prepareAgentExecution(
-              options,
-              instructionOrOptions,
-              agentConfigSignature,
-            );
+            const { handler, resolvedOptions, cacheContext } =
+              await this.prepareAgentExecution(
+                options,
+                instructionOrOptions,
+                agentConfigSignature,
+              );
 
             if (cacheContext) {
               const replayed =
                 await this.agentCache.tryReplayAsStream(cacheContext);
               if (replayed) {
+                SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
                 return replayed;
               }
             }
 
             const streamResult = await handler.stream(
-              instructionOrOptions as string | AgentStreamExecuteOptions,
+              resolvedOptions as AgentStreamExecuteOptions,
             );
 
             if (cacheContext) {
-              return this.agentCache.wrapStreamForCaching(
+              const wrappedStream = this.agentCache.wrapStreamForCaching(
                 cacheContext,
                 streamResult,
                 () => this.beginAgentReplayRecording(),
                 () => this.endAgentReplayRecording(),
                 () => this.discardAgentReplayRecording(),
               );
+              // Log completion when stream is returned (stream completes asynchronously)
+              SessionFileLogger.logAgentTaskCompleted();
+              return wrappedStream;
             }
 
+            // Log completion when stream is returned (stream completes asynchronously)
+            SessionFileLogger.logAgentTaskCompleted();
             return streamResult;
           }
 
@@ -1808,6 +1847,7 @@ export class V3 {
           if (cacheContext) {
             const replayed = await this.agentCache.tryReplay(cacheContext);
             if (replayed) {
+              SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
               return replayed;
             }
           }
@@ -1829,7 +1869,7 @@ export class V3 {
               );
             } else {
               result = await handler.execute(
-                instructionOrOptions as string | AgentExecuteOptions,
+                resolvedOptions as AgentExecuteOptions,
               );
             }
             if (recording) {
@@ -1848,6 +1888,7 @@ export class V3 {
             if (recording) {
               this.discardAgentReplayRecording();
             }
+            SessionFileLogger.logAgentTaskCompleted();
           }
         }),
     };

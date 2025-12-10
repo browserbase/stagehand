@@ -52,6 +52,7 @@ type ExpectedExportedTypes = {
   AgentStreamCallbacks: Stagehand.AgentStreamCallbacks;
   AgentExecuteOptionsBase: Stagehand.AgentExecuteOptionsBase;
   AgentStreamExecuteOptions: Stagehand.AgentStreamExecuteOptions;
+  ModelMessage: Stagehand.ModelMessage;
   // Types from logs.ts
   LogLevel: Stagehand.LogLevel;
   LogLine: Stagehand.LogLine;
@@ -183,6 +184,8 @@ describe("Stagehand public API types", () => {
       maxSteps?: number;
       page?: Stagehand.AnyPage;
       highlightCursor?: boolean;
+      messages?: Stagehand.ModelMessage[];
+      signal?: AbortSignal;
       callbacks?: Stagehand.AgentExecuteCallbacks;
     };
 
@@ -197,6 +200,8 @@ describe("Stagehand public API types", () => {
       maxSteps?: number;
       page?: Stagehand.AnyPage;
       highlightCursor?: boolean;
+      messages?: Stagehand.ModelMessage[];
+      signal?: AbortSignal;
       callbacks?: Stagehand.AgentStreamCallbacks;
     };
 
@@ -235,6 +240,7 @@ describe("Stagehand public API types", () => {
         cached_input_tokens?: number;
         inference_time_ms: number;
       };
+      messages?: Stagehand.ModelMessage[];
     };
 
     it("matches expected type shape", () => {

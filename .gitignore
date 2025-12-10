@@ -9,6 +9,7 @@ screenshot.png
 .env
 downloads/
 dist/
+.browserbase/
 packages/evals/**/public
 packages/core/lib/dom/build/
 packages/core/lib/v3/dom/build/

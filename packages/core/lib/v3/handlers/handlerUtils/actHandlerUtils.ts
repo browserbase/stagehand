@@ -5,6 +5,7 @@ import { Locator } from "../../understudy/locator";
 import { resolveLocatorWithHops } from "../../understudy/deepLocator";
 import type { Page } from "../../understudy/page";
 import { v3Logger } from "../../logger";
+import { SessionFileLogger } from "../../flowLogger";
 import { StagehandClickError } from "../../types/public/sdkErrors";
 
 export class UnderstudyCommandException extends Error {
@@ -73,6 +74,12 @@ export async function performUnderstudyMethod(
     domSettleTimeoutMs,
   };
 
+  SessionFileLogger.logUnderstudyActionEvent({
+    actionType: `Understudy.${method}`,
+    target: selectorRaw,
+    args: Array.from(args),
+  });
+
   try {
     const handler = METHOD_HANDLER_MAP[method] ?? null;
 
@@ -120,6 +127,8 @@ export async function performUnderstudyMethod(
       },
     });
     throw new UnderstudyCommandException(msg);
+  } finally {
+    SessionFileLogger.logUnderstudyActionCompleted();
   }
 }
 

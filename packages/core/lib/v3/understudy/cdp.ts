@@ -45,8 +45,24 @@ export class CdpConnection implements CDPSessionLike {
   private inflight = new Map<number, Inflight>();
   private eventHandlers = new Map<string, Set<EventHandler>>();
   private sessions = new Map<string, CdpSession>();
+  /** Maps sessionId -> targetId (1:1 mapping) */
+  private sessionToTarget = new Map<string, string>();
   public readonly id: string | null = null; // root
   private transportCloseHandlers = new Set<(why: string) => void>();
+
+  /** Optional CDP logger - set this to receive all outgoing CDP method calls */
+  public cdpLogger?: (info: {
+    method: string;
+    params?: object;
+    targetId?: string | null;
+  }) => void;
+
+  /** Optional CDP event logger - set this to receive all incoming CDP events */
+  public cdpEventLogger?: (info: {
+    method: string;
+    params?: unknown;
+    targetId?: string | null;
+  }) => void;
 
   public onTransportClosed(handler: (why: string) => void): void {
     this.transportCloseHandlers.add(handler);
@@ -118,6 +134,7 @@ export class CdpConnection implements CDPSessionLike {
         ts: Date.now(),
       });
     });
+    this.cdpLogger?.({ method, params, targetId: null });
     this.ws.send(JSON.stringify(payload));
     return p;
   }
@@ -155,6 +172,7 @@ export class CdpConnection implements CDPSessionLike {
       session = new CdpSession(this, sessionId);
       this.sessions.set(sessionId, session);
     }
+    this.sessionToTarget.set(sessionId, targetId);
     return session;
   }
 
@@ -189,6 +207,7 @@ export class CdpConnection implements CDPSessionLike {
         if (!this.sessions.has(p.sessionId)) {
           this.sessions.set(p.sessionId, new CdpSession(this, p.sessionId));
         }
+        this.sessionToTarget.set(p.sessionId, p.targetInfo.targetId);
       } else if (msg.method === "Target.detachedFromTarget") {
         const p = (msg as { params: Protocol.Target.DetachedFromTargetEvent })
           .params;
@@ -199,9 +218,24 @@ export class CdpConnection implements CDPSessionLike {
           }
         }
         this.sessions.delete(p.sessionId);
+        this.sessionToTarget.delete(p.sessionId);
+      } else if (msg.method === "Target.targetDestroyed") {
+        const p = (msg as { params: { targetId: string } }).params;
+        // Remove any session mapping for this target
+        for (const [sessionId, targetId] of this.sessionToTarget.entries()) {
+          if (targetId === p.targetId) {
+            this.sessionToTarget.delete(sessionId);
+            break;
+          }
+        }
       }
 
       const { method, params, sessionId } = msg;
+
+      // Log incoming CDP events
+      const targetId = this.sessionToTarget.get(sessionId) || sessionId;
+      this.cdpEventLogger?.({ method, params, targetId });
+
       if (sessionId) {
         const session = this.sessions.get(sessionId);
         session?.dispatch(method, params);
@@ -232,6 +266,8 @@ export class CdpConnection implements CDPSessionLike {
         ts: Date.now(),
       });
     });
+    const targetId = this.sessionToTarget.get(sessionId) ?? null;
+    this.cdpLogger?.({ method, params, targetId });
     this.ws.send(JSON.stringify(payload));
     return p;
   }

@@ -176,8 +176,8 @@ jobs:
         with:
           name: build-artifacts
           path: |
-            packages/*/dist/
-            packages/*/lib/
+            packages/core/dist/**
+            packages/core/lib/**
           retention-days: 1
 
       - name: Run Vitest

@@ -352,3 +352,15 @@ export class StreamingCallbacksInNonStreamingModeError extends StagehandError {
     this.invalidCallbacks = invalidCallbacks;
   }
 }
+
+export class AgentAbortError extends StagehandError {
+  public readonly reason: string;
+
+  constructor(reason?: string) {
+    const message = reason
+      ? `Agent execution was aborted: ${reason}`
+      : "Agent execution was aborted";
+    super(message);
+    this.reason = reason || "aborted";
+  }
+}

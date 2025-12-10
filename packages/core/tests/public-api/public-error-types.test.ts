@@ -2,6 +2,7 @@ import { describe, expectTypeOf, it } from "vitest";
 import * as Stagehand from "../../dist";
 
 export const publicErrorTypes = {
+  AgentAbortError: Stagehand.AgentAbortError,
   AgentScreenshotProviderError: Stagehand.AgentScreenshotProviderError,
   BrowserbaseSessionNotFoundError: Stagehand.BrowserbaseSessionNotFoundError,
   CaptchaTimeoutError: Stagehand.CaptchaTimeoutError,
