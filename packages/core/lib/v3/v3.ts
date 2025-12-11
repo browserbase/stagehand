@@ -151,6 +151,12 @@ export class V3 {
   public get browserbaseSessionURL(): string | undefined {
     return this.browserbaseSessionUrl;
   }
+  /**
+   * Returns true if running on Browserbase environment.
+   */
+  public get isBrowserbase(): boolean {
+    return this.state.kind === "BROWSERBASE";
+  }
   public get browserbaseDebugURL(): string | undefined {
     return this.browserbaseDebugUrl;
   }
@@ -1569,6 +1575,7 @@ export class V3 {
         : options?.executionModel?.modelName,
       options?.systemPrompt,
       tools,
+      options?.mode,
     );
 
     const resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions =

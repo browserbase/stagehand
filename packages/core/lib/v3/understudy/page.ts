@@ -1869,10 +1869,11 @@ export class Page {
     } as Protocol.Input.DispatchKeyEventRequest);
   }
 
-  /** Normalize modifier key names to match CDP expectations */
+  /** Normalize key names to match CDP expectations */
   private normalizeModifierKey(key: string): string {
-    const normalized = key.toLowerCase();
-    switch (normalized) {
+    const lower = key.toLowerCase();
+    switch (lower) {
+      // Modifier keys
       case "cmd":
       case "command":
         // On Mac, Cmd is Meta; elsewhere map to Control for common shortcuts
@@ -1881,11 +1882,56 @@ export class Page {
       case "windows":
         return "Meta";
       case "ctrl":
+      case "control":
         return "Control";
       case "option":
+      case "alt":
         return "Alt";
       case "shift":
         return "Shift";
+      case "meta":
+        return "Meta";
+      // Action keys
+      case "enter":
+      case "return":
+        return "Enter";
+      case "esc":
+      case "escape":
+        return "Escape";
+      case "backspace":
+        return "Backspace";
+      case "tab":
+        return "Tab";
+      case "space":
+      case "spacebar":
+        return " ";
+      case "delete":
+      case "del":
+        return "Delete";
+      // Arrow keys
+      case "left":
+      case "arrowleft":
+        return "ArrowLeft";
+      case "right":
+      case "arrowright":
+        return "ArrowRight";
+      case "up":
+      case "arrowup":
+        return "ArrowUp";
+      case "down":
+      case "arrowdown":
+        return "ArrowDown";
+      // Navigation keys
+      case "home":
+        return "Home";
+      case "end":
+        return "End";
+      case "pageup":
+      case "pgup":
+        return "PageUp";
+      case "pagedown":
+      case "pgdn":
+        return "PageDown";
       default:
         return key;
     }

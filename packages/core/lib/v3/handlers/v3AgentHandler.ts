@@ -1,4 +1,5 @@
 import { createAgentTools } from "../agent/tools";
+import { buildAgentSystemPrompt } from "../agent/prompts/agentSystemPrompt";
 import { LogLine } from "../types/public/logs";
 import { V3 } from "../v3";
 import {
@@ -23,6 +24,7 @@ import {
   AgentState,
   AgentStreamResult,
   AgentStreamCallbacks,
+  AgentToolMode,
 } from "../types/public/agent";
 import { V3FunctionName } from "../types/public/methods";
 import { mapToolResultToActions } from "../agent/utils/actionMapping";
@@ -43,6 +45,7 @@ export class V3AgentHandler {
   private executionModel?: string;
   private systemInstructions?: string;
   private mcpTools?: ToolSet;
+  private mode: AgentToolMode;
 
   constructor(
     v3: V3,
@@ -51,6 +54,7 @@ export class V3AgentHandler {
     executionModel?: string,
     systemInstructions?: string,
     mcpTools?: ToolSet,
+    mode?: AgentToolMode,
   ) {
     this.v3 = v3;
     this.logger = logger;
@@ -58,6 +62,7 @@ export class V3AgentHandler {
     this.executionModel = executionModel;
     this.systemInstructions = systemInstructions;
     this.mcpTools = mcpTools;
+    this.mode = mode ?? "dom";
   }
 
   private async prepareAgent(
@@ -71,10 +76,18 @@ export class V3AgentHandler {
 
       const maxSteps = options.maxSteps || 20;
 
-      const systemPrompt = this.buildSystemPrompt(
-        options.instruction,
-        this.systemInstructions,
-      );
+      // Get the initial page URL first (needed for the system prompt)
+      const initialPageUrl = (await this.v3.context.awaitActivePage()).url();
+
+      // Build the system prompt with mode-aware tool guidance
+      const systemPrompt = buildAgentSystemPrompt({
+        url: initialPageUrl,
+        executionInstruction: options.instruction,
+        mode: this.mode,
+        systemInstructions: this.systemInstructions,
+        isBrowserbase: this.v3.isBrowserbase,
+      });
+
       const tools = this.createTools();
       const allTools: ToolSet = { ...tools, ...this.mcpTools };
 
@@ -97,8 +110,6 @@ export class V3AgentHandler {
           ...SessionFileLogger.createLlmLoggingMiddleware(baseModel.modelId),
         },
       });
-
-      const initialPageUrl = (await this.v3.context.awaitActivePage()).url();
 
       return {
         options,
@@ -136,7 +147,7 @@ export class V3AgentHandler {
         for (let i = 0; i < event.toolCalls.length; i++) {
           const toolCall = event.toolCalls[i];
           const args = toolCall.input;
-          const toolResult = event.toolResults?.[i];
+          const toolResult =  event.toolResults?.[i];
 
           if (event.text && event.text.length > 0) {
             state.collectedReasoning.push(event.text);
@@ -260,6 +271,7 @@ export class V3AgentHandler {
         throw new AgentAbortError(reason);
       }
 
+       console.log("error", error);
       const errorMessage = getErrorMessage(error);
       this.logger({
         category: "agent",
@@ -421,20 +433,11 @@ export class V3AgentHandler {
     };
   }
 
-  private buildSystemPrompt(
-    executionInstruction: string,
-    systemInstructions?: string,
-  ): string {
-    if (systemInstructions) {
-      return `${systemInstructions}\nYour current goal: ${executionInstruction} when the task is complete, use the "close" tool with taskComplete: true`;
-    }
-    return `You are a web automation assistant using browser automation tools to accomplish the user's goal.\n\nYour task: ${executionInstruction}\n\nYou have access to various browser automation tools. Use them step by step to complete the task.\n\nIMPORTANT GUIDELINES:\n1. Always start by understanding the current page state\n2. Use the screenshot tool to verify page state when needed\n3. Use appropriate tools for each action\n4. When the task is complete, use the "close" tool with taskComplete: true\n5. If the task cannot be completed, use "close" with taskComplete: false\n\nTOOLS OVERVIEW:\n- screenshot: Take a PNG screenshot for quick visual context (use sparingly)\n- ariaTree: Get an accessibility (ARIA) hybrid tree for full page context\n- act: Perform a specific atomic action (click, type, etc.)\n- extract: Extract structured data\n- goto: Navigate to a URL\n- wait/navback/refresh: Control timing and navigation\n- scroll: Scroll the page x pixels up or down\n\nSTRATEGY:\n- Prefer ariaTree to understand the page before acting; use screenshot for confirmation.\n- Keep actions atomic and verify outcomes before proceeding.`;
-  }
-
   private createTools() {
     return createAgentTools(this.v3, {
       executionModel: this.executionModel,
       logger: this.logger,
+      mode: this.mode,
     });
   }
 
