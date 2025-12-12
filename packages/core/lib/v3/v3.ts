@@ -873,9 +873,10 @@ export class V3 {
           // If server returned a direct CDP URL, attach to it instead of creating/resuming
           if (this.opts.localBrowserLaunchOptions?.cdpUrl) {
             const ws = this.opts.localBrowserLaunchOptions.cdpUrl;
-            const bb = new Browserbase({ apiKey });
+            const isLocalApi = (this.opts.browser?.type ?? "browserbase") === "local";
+
             this.ctx = await V3Context.create(ws, {
-              env: "BROWSERBASE",
+              env: isLocalApi ? "LOCAL" : "BROWSERBASE",
               apiClient: this.apiClient,
             });
             const logCtx = SessionFileLogger.getContext();
@@ -884,6 +885,20 @@ export class V3 {
             this.ctx.conn.cdpEventLogger = (info) =>
               SessionFileLogger.logCdpMessageEvent(info, logCtx);
             this.ctx.conn.onTransportClosed(this._onCdpClosed);
+
+            if (isLocalApi) {
+              this.state = {
+                kind: "LOCAL",
+                chrome: {
+                  // No launched Chrome when attaching; provide a no-op killer.
+                  kill: async () => {},
+                } as unknown as import("chrome-launcher").LaunchedChrome,
+                ws,
+              };
+              return;
+            }
+
+            const bb = new Browserbase({ apiKey });
             this.state = {
               kind: "BROWSERBASE",
               bb,
