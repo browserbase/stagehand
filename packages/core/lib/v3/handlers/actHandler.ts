@@ -97,14 +97,12 @@ export class ActHandler {
     domElements,
     xpathMap,
     llmClient,
-    variables,
     requireMethodAndArguments = true,
   }: {
     instruction: string;
     domElements: string;
     xpathMap: Record<string, string>;
     llmClient: LLMClient;
-    variables?: Record<string, string>;
     requireMethodAndArguments?: boolean;
   }): Promise<{ action?: Action; response: ActInferenceResponse }> {
     const response = await actInference({
@@ -170,7 +168,6 @@ export class ActHandler {
         domElements: combinedTree,
         xpathMap: combinedXpathMap,
         llmClient,
-        variables,
       });
 
     if (!firstAction) {
@@ -238,7 +235,6 @@ export class ActHandler {
       domElements: diffedTree,
       xpathMap: combinedXpathMap2,
       llmClient,
-      variables,
     });
 
     if (!secondAction) {
