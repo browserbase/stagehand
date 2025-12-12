@@ -218,4 +218,3 @@ test.describe("Page.hover() - mouse hover at coordinates", () => {
     expect(state.box2).toBe(true);
   });
 });
-

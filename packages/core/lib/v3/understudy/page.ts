@@ -1383,10 +1383,18 @@ export class Page {
   /**
    * Hover at absolute page coordinates (CSS pixels).
    * Dispatches mouseMoved via CDP Input domain on the top-level page target's
-   * session. 
+   * session.
    */
-  async hover(x: number, y: number, options: { returnXpath: true }): Promise<string>;
-  async hover(x: number, y: number, options?: { returnXpath?: false }): Promise<void>;
+  async hover(
+    x: number,
+    y: number,
+    options: { returnXpath: true },
+  ): Promise<string>;
+  async hover(
+    x: number,
+    y: number,
+    options?: { returnXpath?: false },
+  ): Promise<void>;
   @logAction("Page.hover")
   async hover(
     x: number,
