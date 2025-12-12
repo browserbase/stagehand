@@ -1426,7 +1426,7 @@ export class Page {
         v3Logger({
           category: "page",
           message: "Failed to resolve xpath for hover",
-          level: 0,
+          level: 2,
           auxiliary: {
             x: { value: String(x), type: "integer" },
             y: { value: String(y), type: "integer" },
