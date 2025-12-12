@@ -312,7 +312,7 @@ test.describe("Page.dragAndDrop() - dragging elements", () => {
     expect(toXpath.length).toBeGreaterThan(0);
   });
 
-  test("drag and drop without returnXpath returns void", async () => {
+  test("drag and drop without returnXpath returns empty strings", async () => {
     const page = v3.context.pages()[0];
 
     await page.goto(
@@ -358,9 +358,11 @@ test.describe("Page.dragAndDrop() - dragging elements", () => {
     const toX = item2Location.x + item2Location.width / 2;
     const toY = item2Location.y + item2Location.height / 2;
 
-    const result = await page.dragAndDrop(fromX, fromY, toX, toY);
+    const [fromXpath, toXpath] = await page.dragAndDrop(fromX, fromY, toX, toY);
 
-    expect(result).toBeUndefined();
+    // Should return empty strings when returnXpath is not set
+    expect(fromXpath).toBe("");
+    expect(toXpath).toBe("");
   });
 
   test("drag and drop with different mouse buttons", async () => {
