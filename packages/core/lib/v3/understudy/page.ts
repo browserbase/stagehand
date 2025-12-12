@@ -1619,15 +1619,44 @@ export class Page {
         return;
       }
 
-      // Printable character: use text on keyDown to generate input
+      // Printable character: include key, code, and text for maximum compatibility
+      // Some sites (like Wordle) check event.key rather than relying on text input
+      const isLetter = /^[a-zA-Z]$/.test(ch);
+      const isDigit = /^[0-9]$/.test(ch);
+
+      let key = ch;
+      let code = "";
+      let windowsVirtualKeyCode: number | undefined;
+
+      if (isLetter) {
+        // For letters, key is the character, code is KeyX where X is uppercase
+        key = ch;
+        code = `Key${ch.toUpperCase()}`;
+        windowsVirtualKeyCode = ch.toUpperCase().charCodeAt(0);
+      } else if (isDigit) {
+        key = ch;
+        code = `Digit${ch}`;
+        windowsVirtualKeyCode = ch.charCodeAt(0);
+      } else if (ch === " ") {
+        key = " ";
+        code = "Space";
+        windowsVirtualKeyCode = 32;
+      }
+
       const down: Protocol.Input.DispatchKeyEventRequest = {
         type: "keyDown",
+        key,
+        code: code || undefined,
         text: ch,
         unmodifiedText: ch,
+        windowsVirtualKeyCode,
       };
       await this.mainSession.send("Input.dispatchKeyEvent", down);
       await this.mainSession.send("Input.dispatchKeyEvent", {
         type: "keyUp",
+        key,
+        code: code || undefined,
+        windowsVirtualKeyCode,
       } as Protocol.Input.DispatchKeyEventRequest);
     };
 

@@ -11,8 +11,10 @@ import {
   type StepResult,
   type GenerateTextOnStepFinishCallback,
   type StreamTextOnStepFinishCallback,
+  type PrepareStepFunction,
+  type PrepareStepResult,
 } from "ai";
-import { processMessages } from "../agent/utils/messageProcessing";
+import { compressMessages } from "../agent/utils/messageProcessing";
 import { LLMClient } from "../llm/LLMClient";
 import { SessionFileLogger } from "../flowLogger";
 import {
@@ -103,10 +105,6 @@ export class V3AgentHandler {
       const wrappedModel = wrapLanguageModel({
         model: baseModel,
         middleware: {
-          transformParams: async ({ params }) => {
-            const { processedPrompt } = processMessages(params);
-            return { ...params, prompt: processedPrompt } as typeof params;
-          },
           ...SessionFileLogger.createLlmLoggingMiddleware(baseModel.modelId),
         },
       });
@@ -137,55 +135,66 @@ export class V3AgentHandler {
       | StreamTextOnStepFinishCallback<ToolSet>,
   ) {
     return async (event: StepResult<ToolSet>) => {
-      this.logger({
-        category: "agent",
-        message: `Step finished: ${event.finishReason}`,
-        level: 2,
-      });
+      try {
+        this.logger({
+          category: "agent",
+          message: `Step finished: ${event.finishReason}`,
+          level: 2,
+        });
 
-      if (event.toolCalls && event.toolCalls.length > 0) {
-        for (let i = 0; i < event.toolCalls.length; i++) {
-          const toolCall = event.toolCalls[i];
-          const args = toolCall.input;
-          const toolResult =  event.toolResults?.[i];
+        if (event.toolCalls && event.toolCalls.length > 0) {
+          for (let i = 0; i < event.toolCalls.length; i++) {
+            const toolCall = event.toolCalls[i];
+            if (!toolCall) continue;
 
-          if (event.text && event.text.length > 0) {
-            state.collectedReasoning.push(event.text);
-            this.logger({
-              category: "agent",
-              message: `reasoning: ${event.text}`,
-              level: 1,
+            const args = toolCall.input || {};
+            const toolResult = event.toolResults?.[i];
+
+            if (event.text && event.text.length > 0) {
+              state.collectedReasoning.push(event.text);
+              this.logger({
+                category: "agent",
+                message: `reasoning: ${event.text}`,
+                level: 1,
+              });
+            }
+
+            if (toolCall.toolName === "close") {
+              state.completed = true;
+              if (args?.taskComplete) {
+                const closeReasoning = args.reasoning;
+                const allReasoning = state.collectedReasoning.join(" ");
+                state.finalMessage = closeReasoning
+                  ? `${allReasoning} ${closeReasoning}`.trim()
+                  : allReasoning || "Task completed successfully";
+              }
+            }
+            const mappedActions = mapToolResultToActions({
+              toolCallName: toolCall.toolName,
+              toolResult,
+              args,
+              reasoning: event.text || undefined,
             });
-          }
 
-          if (toolCall.toolName === "close") {
-            state.completed = true;
-            if (args?.taskComplete) {
-              const closeReasoning = args.reasoning;
-              const allReasoning = state.collectedReasoning.join(" ");
-              state.finalMessage = closeReasoning
-                ? `${allReasoning} ${closeReasoning}`.trim()
-                : allReasoning || "Task completed successfully";
+            for (const action of mappedActions) {
+              action.pageUrl = state.currentPageUrl;
+              action.timestamp = Date.now();
+              state.actions.push(action);
             }
           }
-          const mappedActions = mapToolResultToActions({
-            toolCallName: toolCall.toolName,
-            toolResult,
-            args,
-            reasoning: event.text || undefined,
-          });
-
-          for (const action of mappedActions) {
-            action.pageUrl = state.currentPageUrl;
-            action.timestamp = Date.now();
-            state.actions.push(action);
-          }
+          state.currentPageUrl = (await this.v3.context.awaitActivePage()).url();
         }
-        state.currentPageUrl = (await this.v3.context.awaitActivePage()).url();
-      }
 
-      if (userCallback) {
-        await userCallback(event);
+        if (userCallback) {
+          await userCallback(event);
+        }
+      } catch (stepError) {
+        this.logger({
+          category: "agent",
+          message: `Error in step handler: ${stepError}`,
+          level: 0,
+        });
+        throw stepError;
       }
     };
   }
@@ -248,7 +257,7 @@ export class V3AgentHandler {
         stopWhen: (result) => this.handleStop(result, maxSteps),
         temperature: 1,
         toolChoice: "auto",
-        prepareStep: callbacks?.prepareStep,
+        prepareStep: this.createPrepareStep(callbacks?.prepareStep),
         onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
         abortSignal: options.signal,
       });
@@ -341,7 +350,7 @@ export class V3AgentHandler {
       stopWhen: (result) => this.handleStop(result, maxSteps),
       temperature: 1,
       toolChoice: "auto",
-      prepareStep: callbacks?.prepareStep,
+      prepareStep: this.createPrepareStep(callbacks?.prepareStep),
       onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
       onError: (event) => {
         if (callbacks?.onError) {
@@ -439,6 +448,78 @@ export class V3AgentHandler {
       logger: this.logger,
       mode: this.mode,
     });
+  }
+
+  /**
+   * Creates a prepareStep function that compresses messages and chains with user callback.
+   * This allows message compression without maintaining state of original messages.
+   *
+   * Three-layer compression:
+   * 1. Screenshot/ariaTree compression (keeps 2 screenshots, 1 aria tree)
+   * 2. Sparse tool representation (after 10+ tool calls)
+   * 3. LLM-powered summarization (when tokens > 120k)
+   */
+  private createPrepareStep(
+    userPrepareStep?: PrepareStepFunction<ToolSet>,
+  ): PrepareStepFunction<ToolSet> {
+    return async (options): Promise<PrepareStepResult<ToolSet>> => {
+      let compressedMessages = options.messages;
+      try {
+        const result = await compressMessages(options.messages, this.llmClient);
+        compressedMessages = result.messages;
+        const stats = result.stats;
+
+        if (stats.savedChars > 0) {
+          this.logger({
+            category: "agent",
+            message: `Context compression: ${stats.originalSize} → ${stats.compressedSize} chars (${stats.compressionRatio.toFixed(1)}% reduction)`,
+            level: 2,
+          });
+
+          if (stats.toolCallsCompressed > 0) {
+            this.logger({
+              category: "agent",
+              message: `Compressed ${stats.toolCallsCompressed} tool calls into sparse summary`,
+              level: 2,
+            });
+          }
+
+          if (stats.summarized) {
+            this.logger({
+              category: "agent",
+              message: `LLM summarization triggered (tokens exceeded 120k): ~${stats.estimatedTokens} tokens after compression`,
+              level: 1,
+            });
+          }
+        }
+      } catch (compressionError) {
+        this.logger({
+          category: "agent",
+          message: `Message compression failed, continuing with original messages: ${compressionError}`,
+          level: 1,
+        });
+      }
+
+      let prepareResult: PrepareStepResult<ToolSet> = {
+        messages: compressedMessages,
+      };
+
+      if (userPrepareStep) {
+        const userResult = await userPrepareStep({
+          ...options,
+          messages: compressedMessages,
+        });
+
+        // Merge user result with our compressed messages
+        // User can override messages if they want
+        prepareResult = {
+          ...prepareResult,
+          ...userResult,
+        };
+      }
+
+      return prepareResult;
+    };
   }
 
   private handleStop(

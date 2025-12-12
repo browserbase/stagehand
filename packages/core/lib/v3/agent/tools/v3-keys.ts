@@ -4,23 +4,31 @@ import type { V3 } from "../../v3";
 
 export const createKeysTool = (v3: V3) =>
   tool({
-    description:
-      "Send keyboard events: press, type, or insertText. Supports combinations like Cmd+A, Ctrl+C, etc. One really good use case of this tool is clearing text from an input that is currently focused.",
+    description: `Send keyboard events to the page. Two methods available:
+
+• "type" - Types text character by character. Use for: entering words, filling text without clicking an input, typing into games like Wordle. Example: method="type", text="SLATE"
+
+• "press" - Sends a single key or key combination. Use for: Enter, Escape, Tab, Backspace, arrow keys, shortcuts like Cmd+A, Ctrl+C. Example: method="press", keys="Enter"
+
+IMPORTANT: For typing words/text, always use method="type" with the text parameter. Do NOT try to press individual letter keys.`,
     inputSchema: z.object({
       method: z
         .enum(["press", "type"])
-        .describe("Keyboard method to use: 'press' for key combinations, 'type' for text input"),
+        .describe("'type' for entering text/words character by character, 'press' for single keys or shortcuts"),
       keys: z
         .string()
         .optional()
         .describe(
-          "Key or combo for press method. Use '+' to combine, e.g. 'Cmd+A' or 'Ctrl+C'.",
+          "For 'press' method only. Single key (Enter, Escape, Backspace, Tab) or combo with '+' (Cmd+A, Ctrl+C, Shift+Tab)",
         ),
-      text: z.string().optional().describe("Text for type method"),
+      text: z
+        .string()
+        .optional()
+        .describe("For 'type' method only. The text to type, e.g. 'hello world' or 'SLATE'"),
       repeat: z
         .number()
         .optional()
-        .describe("Repeat count for press/type. Default 1."),
+        .describe("Repeat count. Default 1."),
     }),
     execute: async ({ method, keys, text, repeat }) => {
       try {
