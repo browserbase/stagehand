@@ -14,6 +14,7 @@ import {
 import { LogLine } from "../types/public/logs";
 import { type Action, V3FunctionName } from "../types/public/methods";
 import { SessionFileLogger } from "../flowLogger";
+import { StagehandClosedError } from "../types/public/sdkErrors";
 
 export class V3CuaAgentHandler {
   private v3: V3;
@@ -48,9 +49,20 @@ export class V3CuaAgentHandler {
     this.agent = client;
   }
 
+  /**
+   * Ensures the V3 context is still available (not closed).
+   * Throws StagehandClosedError if stagehand.close() was called.
+   */
+  private ensureNotClosed(): void {
+    if (!this.v3.context) {
+      throw new StagehandClosedError();
+    }
+  }
+
   private setupAgentClient(): void {
     // Provide screenshots to the agent client
     this.agentClient.setScreenshotProvider(async () => {
+      this.ensureNotClosed();
       const page = await this.v3.context.awaitActivePage();
       const base64 = await page.screenshot({ fullPage: false });
       return base64.toString("base64"); // base64 png
@@ -58,6 +70,7 @@ export class V3CuaAgentHandler {
 
     // Provide action executor
     this.agentClient.setActionHandler(async (action) => {
+      this.ensureNotClosed();
       action.pageUrl = (await this.v3.context.awaitActivePage()).url();
 
       const defaultDelay = 500;
