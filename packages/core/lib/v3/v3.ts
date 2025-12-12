@@ -844,20 +844,19 @@ export class V3 {
                 stagehand: "true",
               },
             };
-            const { sessionId, available, cdpUrl } =
-              await this.apiClient.init({
-                modelName: this.modelName,
-                modelApiKey: this.modelClientOptions.apiKey,
-                domSettleTimeoutMs: this.domSettleTimeoutMs,
-                verbose: this.verbose,
-                systemPrompt: this.opts.systemPrompt,
-                selfHeal: this.opts.selfHeal,
-                browserbaseSessionCreateParams: createSessionPayload,
-                browserbaseSessionID: this.opts.browserbaseSessionID,
-                browser: {
-                  type: this.opts.browser?.type ?? "browserbase",
-                },
-              });
+            const { sessionId, available, cdpUrl } = await this.apiClient.init({
+              modelName: this.modelName,
+              modelApiKey: this.modelClientOptions.apiKey,
+              domSettleTimeoutMs: this.domSettleTimeoutMs,
+              verbose: this.verbose,
+              systemPrompt: this.opts.systemPrompt,
+              selfHeal: this.opts.selfHeal,
+              browserbaseSessionCreateParams: createSessionPayload,
+              browserbaseSessionID: this.opts.browserbaseSessionID,
+              browser: {
+                type: this.opts.browser?.type ?? "browserbase",
+              },
+            });
             if (!available) {
               this.apiClient = null;
             }
@@ -873,7 +872,8 @@ export class V3 {
           // If server returned a direct CDP URL, attach to it instead of creating/resuming
           if (this.opts.localBrowserLaunchOptions?.cdpUrl) {
             const ws = this.opts.localBrowserLaunchOptions.cdpUrl;
-            const isLocalApi = (this.opts.browser?.type ?? "browserbase") === "local";
+            const isLocalApi =
+              (this.opts.browser?.type ?? "browserbase") === "local";
 
             this.ctx = await V3Context.create(ws, {
               env: isLocalApi ? "LOCAL" : "BROWSERBASE",

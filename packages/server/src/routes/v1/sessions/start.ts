@@ -111,9 +111,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       const bb = new Browserbase({ apiKey: bbApiKey });
 
       if (browserbaseSessionID) {
-        const existing = await bb.sessions.retrieve(
-          browserbaseSessionID,
-        );
+        const existing = await bb.sessions.retrieve(browserbaseSessionID);
         browserbaseSessionId = existing?.id;
         cdpUrl = existing?.connectUrl;
         if (!browserbaseSessionId) {
@@ -160,7 +158,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       browserType,
       browserbaseSessionID:
         browserType === "browserbase"
-          ? browserbaseSessionId ?? browserbaseSessionID
+          ? (browserbaseSessionId ?? browserbaseSessionID)
           : undefined,
       browserbaseApiKey: bbApiKey,
       browserbaseProjectId: bbProjectId,
