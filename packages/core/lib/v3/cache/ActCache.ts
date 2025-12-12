@@ -44,17 +44,21 @@ export class ActCache {
   ): Promise<ActCacheContext | null> {
     if (!this.enabled) return null;
     const sanitizedInstruction = instruction.trim();
-    const sanitizedVariables = variables ? { ...variables } : {};
+    const sanitizedVariables = variables ? { ...variables } : undefined;
+    const variableKeys = sanitizedVariables
+      ? Object.keys(sanitizedVariables).sort()
+      : [];
     const pageUrl = await safeGetPageUrl(page);
     const cacheKey = this.buildActCacheKey(
       sanitizedInstruction,
       pageUrl,
-      sanitizedVariables,
+      variableKeys,
     );
     return {
       instruction: sanitizedInstruction,
       cacheKey,
       pageUrl,
+      variableKeys,
       variables: sanitizedVariables,
     };
   }
@@ -88,6 +92,31 @@ export class ActCache {
       return null;
     }
 
+    const entryVariableKeys = Array.isArray(entry.variableKeys)
+      ? [...entry.variableKeys].sort()
+      : [];
+    const contextVariableKeys = [...context.variableKeys];
+
+    if (!this.doVariableKeysMatch(entryVariableKeys, contextVariableKeys)) {
+      return null;
+    }
+
+    if (
+      contextVariableKeys.length > 0 &&
+      (!context.variables ||
+        !this.hasAllVariableValues(contextVariableKeys, context.variables))
+    ) {
+      this.logger({
+        category: "cache",
+        message: "act cache miss: missing variables for replay",
+        level: 2,
+        auxiliary: {
+          instruction: { value: context.instruction, type: "string" },
+        },
+      });
+      return null;
+    }
+
     this.logger({
       category: "cache",
       message: "act cache hit",
@@ -111,7 +140,7 @@ export class ActCache {
       version: 1,
       instruction: context.instruction,
       url: context.pageUrl,
-      variables: context.variables,
+      variableKeys: context.variableKeys,
       actions: result.actions ?? [],
       actionDescription: result.actionDescription,
       message: result.message,
@@ -147,12 +176,12 @@ export class ActCache {
   private buildActCacheKey(
     instruction: string,
     url: string,
-    variables: Record<string, string>,
+    variableKeys: string[],
   ): string {
     const payload = JSON.stringify({
       instruction,
       url,
-      variables,
+      variableKeys,
     });
     return createHash("sha256").update(payload).digest("hex");
   }
@@ -176,6 +205,8 @@ export class ActCache {
           page,
           this.domSettleTimeoutMs,
           this.getDefaultLlmClient(),
+          undefined,
+          context.variables,
         );
         actionResults.push(result);
         if (!result.success) {
@@ -278,7 +309,10 @@ export class ActCache {
   ): Promise<void> {
     const { error, path } = await this.storage.writeJson(
       `${context.cacheKey}.json`,
-      entry,
+      {
+        ...entry,
+        variableKeys: context.variableKeys,
+      },
     );
 
     if (error && path) {
@@ -302,6 +336,35 @@ export class ActCache {
         url: { value: context.pageUrl, type: "string" },
       },
     });
+  }
+
+  private doVariableKeysMatch(
+    entryKeys: string[],
+    contextKeys: string[],
+  ): boolean {
+    if (entryKeys.length !== contextKeys.length) {
+      return false;
+    }
+
+    for (let i = 0; i < entryKeys.length; i += 1) {
+      if (entryKeys[i] !== contextKeys[i]) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private hasAllVariableValues(
+    variableKeys: string[],
+    variables: Record<string, string>,
+  ): boolean {
+    for (const key of variableKeys) {
+      if (!(key in variables)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private async runWithTimeout<T>(
