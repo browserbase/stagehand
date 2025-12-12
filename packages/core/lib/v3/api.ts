@@ -78,6 +78,7 @@ export class StagehandAPIClient {
     selfHeal,
     browserbaseSessionCreateParams,
     browserbaseSessionID,
+    browser,
   }: StartSessionParams): Promise<StartSessionResult> {
     if (!modelApiKey) {
       throw new StagehandAPIError("modelApiKey is required");
@@ -86,7 +87,9 @@ export class StagehandAPIClient {
 
     const region = browserbaseSessionCreateParams?.region;
     if (region && region !== "us-west-2") {
-      return { sessionId: browserbaseSessionID ?? null, available: false };
+      throw new StagehandAPIError(
+        `Unsupported Browserbase region requested: ${region}`,
+      );
     }
     this.logger({
       category: "init",
@@ -103,6 +106,7 @@ export class StagehandAPIClient {
         selfHeal,
         browserbaseSessionCreateParams,
         browserbaseSessionID,
+        browser,
       }),
     });
 
@@ -128,11 +132,6 @@ export class StagehandAPIClient {
     }
 
     this.sessionId = sessionResponseBody.data.sessionId;
-
-    // Temporary reroute for rollout
-    if (!sessionResponseBody.data?.available && browserbaseSessionID) {
-      sessionResponseBody.data.sessionId = browserbaseSessionID;
-    }
 
     return sessionResponseBody.data;
   }

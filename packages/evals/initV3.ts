@@ -41,6 +41,7 @@ type InitV3Args = {
     chromeFlags?: string[];
     browserbaseSessionCreateParams?: V3Options["browserbaseSessionCreateParams"];
     browserbaseSessionID?: V3Options["browserbaseSessionID"];
+    browser?: { type?: "browserbase" | "local" };
     experimental?: boolean;
   };
   actTimeoutMs?: number; // retained for parity (v3 agent tools don't use this globally)
@@ -95,6 +96,11 @@ export async function initV3({
     env,
     apiKey: process.env.BROWSERBASE_API_KEY,
     projectId: process.env.BROWSERBASE_PROJECT_ID,
+    browser:
+      configOverrides?.browser ??
+      (process.env.API_BROWSER_TYPE
+        ? { type: process.env.API_BROWSER_TYPE as "browserbase" | "local" }
+        : undefined),
     localBrowserLaunchOptions: {
       headless: configOverrides?.localBrowserLaunchOptions?.headless ?? false,
       args:

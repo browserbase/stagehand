@@ -13,11 +13,12 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "@ai-sdk/provider": "^2.0.0",
     "@browserbasehq/stagehand": "workspace:*",
     "ai": "^5.0.0",
-    "@ai-sdk/provider": "^2.0.0",
-    "openai": "^4.87.1",
     "dotenv": "16.4.5",
+    "openai": "^4.87.1",
+    "uuid": "^13.0.0",
     "zod": "^4.1.8"
   },
   "devDependencies": {

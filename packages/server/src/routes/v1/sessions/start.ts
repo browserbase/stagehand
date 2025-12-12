@@ -1,6 +1,7 @@
 import type { RouteHandler, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import Browserbase from "@browserbasehq/sdk";
+import type { SessionRetrieveResponse } from "@browserbasehq/sdk/resources/sessions/sessions";
 
 import { authMiddleware } from "../../../lib/auth.js";
 import { withErrorHandling } from "../../../lib/errorHandler.js";
@@ -21,8 +22,6 @@ interface ConstructorParams {
     type?: "local" | "browserbase";
     cdpUrl?: string;
     launchOptions?: Record<string, unknown>;
-    sessionCreateParams?: Record<string, unknown>;
-    sessionId?: string;
   };
   browserbaseSessionCreateParams?: Omit<
     Browserbase.Sessions.SessionCreateParams,
@@ -66,6 +65,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       experimental,
       browser,
     } = request.body as ConstructorParams;
+    const modelApiKey = getOptionalHeader(request, "x-model-api-key");
 
     if (!modelName) {
       return error(reply, "Missing required model name");
@@ -94,6 +94,8 @@ const startRouteHandler: RouteHandler = withErrorHandling(
 
     let bbApiKey: string | undefined;
     let bbProjectId: string | undefined;
+    let browserbaseSessionId: string | undefined;
+    let cdpUrl: string | undefined;
 
     if (browserType === "browserbase") {
       bbApiKey = getOptionalHeader(request, "x-bb-api-key");
@@ -105,37 +107,114 @@ const startRouteHandler: RouteHandler = withErrorHandling(
           "Missing required headers for browserbase sessions",
         );
       }
+
+      const bb = new Browserbase({ apiKey: bbApiKey });
+
+      if (browserbaseSessionID) {
+        const existing = await bb.sessions.retrieve(
+          browserbaseSessionID,
+        );
+        browserbaseSessionId = existing?.id;
+        cdpUrl = existing?.connectUrl;
+        if (!browserbaseSessionId) {
+          return error(reply, "Failed to retrieve browserbase session");
+        }
+        if (!cdpUrl) {
+          return error(reply, "Browserbase session missing connectUrl");
+        }
+      } else {
+        const createPayload = {
+          projectId: browserbaseSessionCreateParams?.projectId ?? bbProjectId,
+          ...browserbaseSessionCreateParams,
+          browserSettings: {
+            ...(browserbaseSessionCreateParams?.browserSettings ?? {}),
+            viewport: browserbaseSessionCreateParams?.browserSettings
+              ?.viewport ?? {
+              width: 1288,
+              height: 711,
+            },
+          },
+          userMetadata: {
+            ...(browserbaseSessionCreateParams?.userMetadata ?? {}),
+            stagehand: "true",
+          },
+        } satisfies Browserbase.Sessions.SessionCreateParams;
+
+        const created = (await bb.sessions.create(
+          createPayload,
+        )) as SessionRetrieveResponse;
+
+        browserbaseSessionId = created?.id;
+        cdpUrl = created?.connectUrl;
+        if (!browserbaseSessionId) {
+          return error(reply, "Failed to create browserbase session");
+        }
+        if (!cdpUrl) {
+          return error(reply, "Browserbase session missing connectUrl");
+        }
+      }
     }
 
     const sessionStore = getSessionStore();
     const session = await sessionStore.startSession({
       browserType,
-      browserbaseSessionID,
+      browserbaseSessionID:
+        browserType === "browserbase"
+          ? browserbaseSessionId ?? browserbaseSessionID
+          : undefined,
       browserbaseApiKey: bbApiKey,
       browserbaseProjectId: bbProjectId,
       modelName,
       domSettleTimeoutMs,
       verbose,
       systemPrompt,
-      browserbaseSessionCreateParams:
-        browser?.sessionCreateParams ?? browserbaseSessionCreateParams,
+      browserbaseSessionCreateParams,
       selfHeal,
       waitForCaptchaSolves,
       clientLanguage,
       sdkVersion,
       experimental,
       localBrowserLaunchOptions:
-        browserType === "local" && (browser?.cdpUrl || browser?.launchOptions)
+        browserType === "local" &&
+        (cdpUrl || browser?.cdpUrl || browser?.launchOptions)
           ? {
-              cdpUrl: browser?.cdpUrl,
+              cdpUrl: browser?.cdpUrl ?? cdpUrl,
               ...(browser?.launchOptions ?? {}),
             }
           : undefined,
     });
 
+    if (browserType === "local" && !cdpUrl) {
+      try {
+        const stagehand = await sessionStore.getOrCreateStagehand(
+          session.sessionId,
+          {
+            modelApiKey,
+            logger: (line) => request.log.info(line),
+          },
+        );
+        cdpUrl = stagehand.connectURL();
+      } catch (err) {
+        request.log.warn(
+          { err },
+          "failed to precreate local browser for /sessions/start",
+        );
+      }
+    }
+
+    const responseCdpUrl = cdpUrl ?? browser?.cdpUrl;
+    if (!responseCdpUrl) {
+      return error(
+        reply,
+        "Missing cdpUrl for requested browser type",
+        StatusCodes.INTERNAL_SERVER_ERROR,
+      );
+    }
+
     return success(reply, {
       sessionId: session.sessionId,
       available: session.available,
+      cdpUrl: responseCdpUrl,
     });
   },
 );
@@ -178,12 +257,6 @@ const startRoute: RouteOptions = {
             },
             launchOptions: {
               type: "object",
-            },
-            sessionCreateParams: {
-              type: "object",
-            },
-            sessionId: {
-              type: "string",
             },
           },
           additionalProperties: false,

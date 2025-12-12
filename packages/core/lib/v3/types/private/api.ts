@@ -33,11 +33,15 @@ export interface StartSessionParams {
   > & { projectId?: string };
   selfHeal?: boolean;
   browserbaseSessionID?: string;
+  browser?: {
+    type: "local" | "browserbase";
+  };
 }
 
 export interface StartSessionResult {
   sessionId: string;
   available?: boolean;
+  cdpUrl: string;
 }
 
 export interface SuccessResponse<T> {
