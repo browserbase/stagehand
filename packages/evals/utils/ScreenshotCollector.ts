@@ -19,6 +19,7 @@ export class ScreenshotCollector {
     this.page = page;
     this.interval = options.interval || 5000;
     this.maxScreenshots = options.maxScreenshots || 10;
+    // Capture on navigation is deprecated for V3 pages
     this.captureOnNavigation = options.captureOnNavigation ?? false;
   }
 
@@ -33,35 +34,6 @@ export class ScreenshotCollector {
         console.error("Interval screenshot failed:", error);
       });
     }, this.interval);
-
-    // TODO: V3 pages don't support page.on() events yet
-    // if (this.captureOnNavigation) {
-    //   const loadListener = async () => {
-    //     try {
-    //       await this.captureScreenshot("load");
-    //     } catch (error) {
-    //       console.error("Navigation screenshot failed (load):", error);
-    //     }
-    //   };
-    //   const domContentListener = async () => {
-    //     try {
-    //       await this.captureScreenshot("domcontentloaded");
-    //     } catch (error) {
-    //       console.error(
-    //         "Navigation screenshot failed (domcontentloaded):",
-    //         error,
-    //       );
-    //     }
-    //   };
-
-    //   this.page.on("load", loadListener);
-    //   this.page.on("domcontentloaded", domContentListener);
-
-    //   this.navigationListeners = [
-    //     () => this.page.off("load", loadListener),
-    //     () => this.page.off("domcontentloaded", domContentListener),
-    //   ];
-    // }
 
     // Capture initial screenshot without blocking
     this.captureScreenshot("initial").catch((error) => {

@@ -50,6 +50,12 @@ export const onlineMind2Web: EvalFunction = async ({
       captureOnNavigation: true, // Also capture on page navigation
     });
 
+    // Subscribe to screenshot events from the agent via the bus
+    const screenshotHandler = (buffer: Buffer) => {
+      screenshotCollector.addScreenshot(buffer);
+    };
+    v3.bus.on("agent_screensot_taken_event", screenshotHandler);
+
     screenshotCollector.start();
 
     const agentResult = await agent.execute({
@@ -57,7 +63,8 @@ export const onlineMind2Web: EvalFunction = async ({
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
     });
 
-    // Stop collecting and get all screenshots
+    // Stop collecting, clean up event listener, and get all screenshots
+    v3.bus.off("agent_screensot_taken_event", screenshotHandler);
     const screenshots = screenshotCollector.stop();
 
     logger.log({

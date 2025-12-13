@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import { EventEmitter } from "events";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -136,6 +137,12 @@ export class V3 {
   private observeHandler: ObserveHandler | null = null;
   private ctx: V3Context | null = null;
   public llmClient!: LLMClient;
+
+  /**
+   * Event bus for internal communication.
+   * Emits events like 'screenshot' when screenshots are captured during agent execution.
+   */
+  public readonly bus: EventEmitter = new EventEmitter();
   private modelName: AvailableModel;
   private modelClientOptions: ClientOptions;
   private llmProvider: LLMProvider;

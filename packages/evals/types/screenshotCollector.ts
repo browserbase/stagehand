@@ -1,6 +1,7 @@
 export interface ScreenshotCollectorOptions {
   interval?: number;
   maxScreenshots?: number;
+  /* @deprecated for V3, there's a new method to intercept screenshots by injecting into the agent loop */
   captureOnNavigation?: boolean;
 }
 
