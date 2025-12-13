@@ -26,12 +26,10 @@ packages/evals/
 │   ├── agent/           # Agent-specific tasks (30+)
 │   ├── extract_*.ts     # Extract tasks
 │   ├── observe_*.ts     # Observe tasks
-│   ├── *.ts             # Act and combination tasks
 ├── suites/              # External benchmark suites
-│   ├── gaia/            # GAIA benchmark
-│   ├── webvoyager/      # WebVoyager benchmark
-│   ├── webbench/        # WebBench benchmark
-│   └── osworld/         # OSWorld benchmark
+│   ├── gaia.ts          # GAIA benchmark
+│   ├── webvoyager.ts    # WebVoyager benchmark
+│   └── onlineMind2Web.ts # OnlineMind2Web benchmark
 ├── types/
 │   └── evals.ts         # Type definitions
 ├── evals.config.json    # Task registry and configuration
