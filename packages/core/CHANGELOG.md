@@ -1,5 +1,41 @@
 # @browserbasehq/stagehand
 
+## 3.0.6
+
+### Patch Changes
+
+- [#1388](https://github.com/browserbase/stagehand/pull/1388) [`605ed6b`](https://github.com/browserbase/stagehand/commit/605ed6b81a3ff8f25d4022f1e5fce6b42aecfc19) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix multiple click event dispatches on CDP and Anthropic CUA handling (double clicks)
+
+- [#1400](https://github.com/browserbase/stagehand/pull/1400) [`34e7e5b`](https://github.com/browserbase/stagehand/commit/34e7e5b292f5e6af6efc0da60118663310c5f718) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - don't write base64 encoded screenshots to disk when caching agent actions
+
+- [#1345](https://github.com/browserbase/stagehand/pull/1345) [`943d2d7`](https://github.com/browserbase/stagehand/commit/943d2d79d0f289ac41c9164578f2f1dd876058f2) Thanks [@tkattkat](https://github.com/tkattkat)! - Add support for aborting / stopping an agent run & continuing an agent run using messages from prior runs
+
+- [#1334](https://github.com/browserbase/stagehand/pull/1334) [`0e95cd2`](https://github.com/browserbase/stagehand/commit/0e95cd2f67672f64f0017024fd47d8b3aef59a95) Thanks [@tkattkat](https://github.com/tkattkat)! - Add support for google vertex provider
+
+- [#1410](https://github.com/browserbase/stagehand/pull/1410) [`d4237e4`](https://github.com/browserbase/stagehand/commit/d4237e40951ecd10abfdbe766672d498f8806484) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: include extract in stagehand.history()
+
+- [#1315](https://github.com/browserbase/stagehand/pull/1315) [`86975e7`](https://github.com/browserbase/stagehand/commit/86975e795db7505804949a267b20509bd16b5256) Thanks [@tkattkat](https://github.com/tkattkat)! - Add streaming support to agent through stream:true in the agent config
+
+- [#1304](https://github.com/browserbase/stagehand/pull/1304) [`d5e119b`](https://github.com/browserbase/stagehand/commit/d5e119be5eec84915a79f8d611b6ba0546f48c99) Thanks [@miguelg719](https://github.com/miguelg719)! - Add support for Microsoft's Fara-7B
+
+- [#1346](https://github.com/browserbase/stagehand/pull/1346) [`4e051b2`](https://github.com/browserbase/stagehand/commit/4e051b23add7ae276b0dbead38b4587838cfc1c1) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: don't attach to targets twice
+
+- [#1327](https://github.com/browserbase/stagehand/pull/1327) [`6b5a3c9`](https://github.com/browserbase/stagehand/commit/6b5a3c9035654caaed2da375085b465edda97de4) Thanks [@miguelg719](https://github.com/miguelg719)! - Informed error parsing from api
+
+- [#1335](https://github.com/browserbase/stagehand/pull/1335) [`bb85ad9`](https://github.com/browserbase/stagehand/commit/bb85ad912738623a7a866f0cb6e8d5807c6c2738) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add support for page.addInitScript()
+
+- [#1331](https://github.com/browserbase/stagehand/pull/1331) [`88d28cc`](https://github.com/browserbase/stagehand/commit/88d28cc6f31058d1cf6ec6dc948a4ae77a926b3c) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: page.evaluate() now works with scripts injected via context.addInitScript()
+
+- [#1316](https://github.com/browserbase/stagehand/pull/1316) [`45bcef0`](https://github.com/browserbase/stagehand/commit/45bcef0e5788b083f9e38dfd7c3bc63afcd4b6dd) Thanks [@tkattkat](https://github.com/tkattkat)! - Add support for callbacks in stagehand agent
+
+- [#1374](https://github.com/browserbase/stagehand/pull/1374) [`6aa9d45`](https://github.com/browserbase/stagehand/commit/6aa9d455aa5836ec2ee8ab2e8b9df3fb218e5381) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix key action mapping in Anthropic CUA
+
+- [#1330](https://github.com/browserbase/stagehand/pull/1330) [`d382084`](https://github.com/browserbase/stagehand/commit/d382084745fff98c3e71413371466394a2625429) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: make act, extract, and observe respect user defined timeout param
+
+- [#1336](https://github.com/browserbase/stagehand/pull/1336) [`1df08cc`](https://github.com/browserbase/stagehand/commit/1df08ccb0a2cf73b5c37a91c129721114ff6371c) Thanks [@tkattkat](https://github.com/tkattkat)! - Patch agent on api
+
+- [#1358](https://github.com/browserbase/stagehand/pull/1358) [`2b56600`](https://github.com/browserbase/stagehand/commit/2b566009606fcbba987260f21b075b318690ce99) Thanks [@tkattkat](https://github.com/tkattkat)! - Add support for 4.5 opus in cua agent
+
 ## 3.0.4
 
 ### Patch Changes
