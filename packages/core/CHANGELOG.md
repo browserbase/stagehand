@@ -1,5 +1,11 @@
 # @browserbasehq/stagehand
 
+## 3.0.7
+
+### Patch Changes
+
+- [#1412](https://github.com/browserbase/stagehand/pull/1412) [`cd01f29`](https://github.com/browserbase/stagehand/commit/cd01f290578eac703521f801ba3712f5332918f3) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: load GOOGLE_API_KEY from .env
+
 ## 3.0.6
 
 ### Patch Changes
