@@ -69,6 +69,7 @@ export class GoogleCUAClient extends AgentClient {
       (clientOptions?.apiKey as string) ||
       process.env.GEMINI_API_KEY ||
       process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
       "";
     this.baseURL = clientOptions?.baseURL as string | undefined;
 
