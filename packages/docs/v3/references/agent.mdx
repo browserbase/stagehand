@@ -33,6 +33,7 @@ interface AgentConfig {
   cua?: boolean;
   model?: string | AgentModelConfig<string>;
   executionModel?: string | AgentModelConfig<string>;
+  stream?: boolean; // Enable streaming mode (experimental)
 }
 
 // AgentModelConfig for advanced configuration
@@ -102,10 +103,18 @@ interface AgentInstance {
   Custom tool definitions to extend agent capabilities using the AI SDK ToolSet format.
 </ParamField>
 
+<ParamField path="stream" type="boolean" optional>
+  Enable streaming mode for the agent. When `true`, `execute()` returns `AgentStreamResult` with `textStream` for incremental output. When `false` (default), `execute()` returns `AgentResult` after completion.
+  
+  **Default:** `false`
+  
+  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `cua: true`.</Warning>
+</ParamField>
+
 ### Execute Method
 
 <Tabs>
-<Tab title="TypeScript">
+<Tab title="Non-Streaming">
 
 ```typescript
 // String instruction
@@ -122,6 +131,45 @@ interface AgentExecuteOptions {
   maxSteps?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   highlightCursor?: boolean;
+  messages?: ModelMessage[]; // Continue from previous conversation (experimental)
+  signal?: AbortSignal; // Cancel execution (experimental)
+  callbacks?: AgentExecuteCallbacks;
+}
+
+interface AgentExecuteCallbacks {
+  prepareStep?: PrepareStepFunction<ToolSet>;
+  onStepFinish?: GenerateTextOnStepFinishCallback<ToolSet>;
+}
+```
+
+</Tab>
+
+<Tab title="Streaming">
+
+```typescript
+// With stream: true in AgentConfig
+await agent.execute(options: AgentStreamExecuteOptions): Promise<AgentStreamResult>
+```
+
+**AgentStreamExecuteOptions Interface:**
+```typescript
+interface AgentStreamExecuteOptions {
+  instruction: string;
+  maxSteps?: number;
+  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  highlightCursor?: boolean;
+  messages?: ModelMessage[]; // Continue from previous conversation (experimental)
+  signal?: AbortSignal; // Cancel execution (experimental)
+  callbacks?: AgentStreamCallbacks;
+}
+
+interface AgentStreamCallbacks {
+  prepareStep?: PrepareStepFunction<ToolSet>;
+  onStepFinish?: StreamTextOnStepFinishCallback<ToolSet>;
+  onChunk?: StreamTextOnChunkCallback<ToolSet>;
+  onFinish?: StreamTextOnFinishCallback<ToolSet>;
+  onError?: StreamTextOnErrorCallback;
+  onAbort?: (event: { steps: Array<StepResult<ToolSet>> }) => void | Promise<void>;
 }
 ```
 
@@ -138,7 +186,7 @@ interface AgentExecuteOptions {
 <ParamField path="maxSteps" type="number" optional>
   Maximum number of actions the agent can take before stopping.
 
-  **Default:** Varies by configuration
+  **Default:** `20`
 </ParamField>
 
 <ParamField path="page" type="PlaywrightPage | PuppeteerPage | PatchrightPage | Page" optional>
@@ -157,9 +205,60 @@ interface AgentExecuteOptions {
   **Default:** `false`
 </ParamField>
 
+<ParamField path="messages" type="ModelMessage[]" optional>
+  Previous conversation messages to continue from. Pass the `messages` from a previous `AgentResult` to continue that conversation.
+
+  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `cua: true`.</Warning>
+</ParamField>
+
+<ParamField path="signal" type="AbortSignal" optional>
+  An `AbortSignal` that can be used to cancel the agent execution. When aborted, the agent will stop and throw an `AgentAbortError`.
+
+  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `cua: true`.</Warning>
+</ParamField>
+
+<ParamField path="callbacks" type="AgentExecuteCallbacks | AgentStreamCallbacks" optional>
+  Callbacks to hook into the agent's execution lifecycle. The available callbacks depend on whether streaming is enabled.
+
+  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `cua: true`.</Warning>
+
+  <Expandable title="Non-Streaming Callbacks (AgentExecuteCallbacks)">
+    <ParamField path="prepareStep" type="PrepareStepFunction<ToolSet>" optional>
+      Called before each step to modify settings. You can change the model, tool choices, active tools, system prompt, and input messages for each step.
+    </ParamField>
+    <ParamField path="onStepFinish" type="GenerateTextOnStepFinishCallback<ToolSet>" optional>
+      Called when each step (LLM call) completes. Provides access to tool calls, reasoning, and step results.
+    </ParamField>
+  </Expandable>
+
+  <Expandable title="Streaming Callbacks (AgentStreamCallbacks)">
+    <ParamField path="prepareStep" type="PrepareStepFunction<ToolSet>" optional>
+      Called before each step to modify settings.
+    </ParamField>
+    <ParamField path="onStepFinish" type="StreamTextOnStepFinishCallback<ToolSet>" optional>
+      Called when each step completes during streaming.
+    </ParamField>
+    <ParamField path="onChunk" type="StreamTextOnChunkCallback<ToolSet>" optional>
+      Called for each chunk of the stream. Stream processing will pause until the callback promise resolves.
+    </ParamField>
+    <ParamField path="onFinish" type="StreamTextOnFinishCallback<ToolSet>" optional>
+      Called when the stream finishes successfully.
+    </ParamField>
+    <ParamField path="onError" type="StreamTextOnErrorCallback" optional>
+      Called when an error occurs during streaming.
+    </ParamField>
+    <ParamField path="onAbort" type="(event: { steps: StepResult[] }) => void | Promise<void>" optional>
+      Called when the stream is aborted via the `signal` option.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
 ### Response
 
-**Returns:** `Promise<AgentResult>`
+**Returns:** `Promise<AgentResult>` (non-streaming) or `Promise<AgentStreamResult>` (streaming)
+
+<Tabs>
+<Tab title="Non-Streaming">
 
 **AgentResult Interface:**
 ```typescript
@@ -169,6 +268,7 @@ interface AgentResult {
   actions: AgentAction[];
   completed: boolean;
   metadata?: Record<string, unknown>;
+  messages?: ModelMessage[]; // Conversation history for continuation (experimental)
   usage?: {
     input_tokens: number;
     output_tokens: number;
@@ -188,9 +288,34 @@ interface AgentAction {
   pageText?: string;      // ariaTree tool
   pageUrl?: string;       // ariaTree tool
   instruction?: string;   // various tools
+  timestamp?: number;     // Action timestamp
   [key: string]: unknown; // Additional tool-specific fields
 }
 ```
+
+</Tab>
+
+<Tab title="Streaming">
+
+**AgentStreamResult Interface:**
+```typescript
+interface AgentStreamResult {
+  // Async iterable of text chunks for incremental output
+  textStream: AsyncIterable<string>;
+  
+  // Async iterable of all stream events (tool calls, messages, etc.)
+  fullStream: AsyncIterable<StreamPart>;
+  
+  // Promise that resolves to the final AgentResult when streaming completes
+  result: Promise<AgentResult>;
+  
+  // Additional properties from StreamTextResult<ToolSet, never>
+  // See Vercel AI SDK documentation for full details
+}
+```
+
+</Tab>
+</Tabs>
 
 <ResponseField name="success" type="boolean">
   Whether the task was completed successfully.
@@ -210,6 +335,12 @@ interface AgentAction {
 
 <ResponseField name="metadata" type="Record<string, unknown>" optional>
   Additional execution metadata and debugging information.
+</ResponseField>
+
+<ResponseField name="messages" type="ModelMessage[]" optional>
+  The conversation messages from this execution. Pass these to a subsequent `execute()` call via the `messages` option to continue the conversation.
+
+  <Note>**Non-CUA agents only.** Requires `experimental: true`.</Note>
 </ResponseField>
 
 <ResponseField name="usage" type="object" optional>
@@ -352,6 +483,152 @@ const result = await agent.execute({
 ```
 
 </Tab>
+<Tab title="Streaming">
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true, // Required for streaming
+});
+await stagehand.init();
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://amazon.com");
+
+// Create a streaming agent
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+  stream: true,
+});
+
+const streamResult = await agent.execute({
+  instruction: "Search for headphones and find the best deal",
+  maxSteps: 20,
+});
+
+// Stream text output incrementally
+for await (const delta of streamResult.textStream) {
+  process.stdout.write(delta);
+}
+
+// Get the final result
+const finalResult = await streamResult.result;
+console.log("Completed:", finalResult.completed);
+```
+
+</Tab>
+<Tab title="Callbacks">
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true,
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+});
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
+
+const result = await agent.execute({
+  instruction: "Fill out the contact form",
+  maxSteps: 10,
+  callbacks: {
+    prepareStep: async (stepContext) => {
+      console.log(`Starting step ${stepContext.stepNumber}`);
+      return stepContext;
+    },
+    onStepFinish: async (event) => {
+      console.log(`Step finished: ${event.finishReason}`);
+      if (event.toolCalls) {
+        for (const tc of event.toolCalls) {
+          console.log(`Tool: ${tc.toolName}`, tc.input);
+        }
+      }
+    },
+  },
+});
+```
+
+</Tab>
+<Tab title="Abort Signal">
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true,
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+});
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
+
+const controller = new AbortController();
+
+// Abort after 30 seconds
+setTimeout(() => controller.abort("Timeout exceeded"), 30000);
+
+try {
+  const result = await agent.execute({
+    instruction: "Complete a complex multi-step workflow",
+    maxSteps: 50,
+    signal: controller.signal,
+  });
+} catch (error) {
+  if (error.name === "AgentAbortError") {
+    console.log("Task cancelled:", error.message);
+  }
+}
+```
+
+</Tab>
+<Tab title="Message Continuation">
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true,
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+});
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com/shop");
+
+// First execution
+const firstResult = await agent.execute({
+  instruction: "Search for laptops and list the top 3 options",
+  maxSteps: 10,
+});
+
+// Continue conversation with context from first run
+const secondResult = await agent.execute({
+  instruction: "Filter those results by price under $1000",
+  maxSteps: 10,
+  messages: firstResult.messages, // Pass previous messages
+});
+
+// Chain further with accumulated context
+const thirdResult = await agent.execute({
+  instruction: "Add the best-rated one to cart",
+  maxSteps: 10,
+  messages: secondResult.messages,
+});
+
+console.log("Final:", thirdResult.message);
+```
+
+</Tab>
 <Tab title="MCP Integrations">
 
 ```typescript
@@ -416,3 +693,6 @@ The following errors may be thrown by the `agent()` method:
 - **InvalidAISDKModelFormatError** - Model string does not follow the required `provider/model` format
 - **MCPConnectionError** - Failed to connect to MCP server
 - **StagehandDefaultError** - General execution error with detailed message
+- **AgentAbortError** - Thrown when agent execution is cancelled via an `AbortSignal`
+- **StreamingCallbacksInNonStreamingModeError** - Thrown when streaming-only callbacks (`onChunk`, `onFinish`, `onError`, `onAbort`) are used without `stream: true`
+- **ExperimentalNotConfiguredError** - Thrown when experimental features (callbacks, signal, messages, streaming) are used without `experimental: true` in Stagehand constructor
