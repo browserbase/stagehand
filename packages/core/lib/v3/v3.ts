@@ -1208,7 +1208,9 @@ export class V3 {
         result =
           await this.extractHandler.extract<StagehandZodSchema>(handlerParams);
       }
-      const historySchemaDescriptor = schema ? toJsonSchema(schema) : undefined;
+      const historySchemaDescriptor = effectiveSchema
+        ? toJsonSchema(effectiveSchema)
+        : undefined;
       this.addToHistory(
         "extract",
         {
