@@ -69,6 +69,7 @@ await stagehand.init();
 ```
 
 **What happens in `init()`:**
+
 1. Load environment variables (`.env`)
 2. Launch browser:
    - `env: "LOCAL"`: `launchLocalChrome()` via chrome-launcher
@@ -81,9 +82,9 @@ await stagehand.init();
 ### Key Properties
 
 ```typescript
-stagehand.context        // V3Context - browser context management
-stagehand.llmClient      // LLMClient - current LLM client
-stagehand.browserbaseSessionId  // Session ID (if using Browserbase)
+stagehand.context; // V3Context - browser context management
+stagehand.llmClient; // LLMClient - current LLM client
+stagehand.browserbaseSessionId; // Session ID (if using Browserbase)
 ```
 
 ---
@@ -119,6 +120,7 @@ export class FooHandler {
 Executes single atomic actions on the page.
 
 **Flow:**
+
 1. Capture hybrid snapshot (accessibility tree + element mappings)
 2. Build prompt with instruction + DOM elements
 3. Send to LLM via `actInference()`
@@ -128,11 +130,13 @@ Executes single atomic actions on the page.
 7. Wait for DOM/network quiet
 
 **Self-healing (when enabled):**
+
 - If action fails, retake screenshot
 - Re-prompt LLM with error context
 - Retry up to 3 times
 
 **Key methods:**
+
 - `act(params)`: Main action execution
 - `takeDeterministicAction(page, action)`: Direct Action → execute (skip LLM)
 
@@ -141,6 +145,7 @@ Executes single atomic actions on the page.
 Extracts structured data from pages using Zod schemas.
 
 **Flow:**
+
 1. If no instruction: return raw page text (accessibility tree)
 2. Transform schema (convert `z.string().url()` to numeric IDs)
 3. Capture hybrid snapshot
@@ -150,6 +155,7 @@ Extracts structured data from pages using Zod schemas.
 7. Validate against Zod schema
 
 **URL handling:**
+
 - `z.string().url()` fields are replaced with `z.number()` before LLM call
 - LLM returns numeric IDs referencing elements in DOM
 - IDs are mapped back to actual URLs after extraction
@@ -160,6 +166,7 @@ Extracts structured data from pages using Zod schemas.
 Plans actions without executing them. Returns candidate actions.
 
 **Flow:**
+
 1. Capture hybrid snapshot
 2. If instruction provided: find matching elements
 3. If no instruction: return all interactive elements
@@ -173,6 +180,7 @@ Plans actions without executing them. Returns candidate actions.
 Multi-step autonomous execution using AI SDK tools.
 
 **Tools available to agent:**
+
 - `act`: Execute single action
 - `extract`: Extract data
 - `observe`: Plan actions
@@ -183,6 +191,7 @@ Multi-step autonomous execution using AI SDK tools.
 - `close`: Close page
 
 **Flow:**
+
 1. Create AI SDK messages with system prompt
 2. Loop until max_steps or task complete:
    - Call LLM with current state
@@ -195,6 +204,7 @@ Multi-step autonomous execution using AI SDK tools.
 Computer Use Agent for Claude Sonnet 4 or Gemini 2.5 computer-use models.
 
 **Difference from V3AgentHandler:**
+
 - Direct browser control without Stagehand tool wrapping
 - Uses native computer-use capabilities of the model
 - Enabled via `agent({ cua: true })`
@@ -210,16 +220,18 @@ The `understudy` directory contains the Chrome DevTools Protocol abstraction lay
 Manages the browser context and page lifecycle.
 
 **Responsibilities:**
+
 - Own root CDP connection (`CdpConnection`)
 - Manage `Page` objects (one per browser tab)
 - Handle Target events (new tabs, closes)
 - Track frame topology and OOPIF adoption
 
 **Key methods:**
+
 ```typescript
-context.pages()          // Get all Page objects
-context.newPage()        // Create new page/tab
-context.activePage       // Get current active page
+context.pages(); // Get all Page objects
+context.newPage(); // Create new page/tab
+context.activePage; // Get current active page
 ```
 
 ### Page (`understudy/page.ts`)
@@ -227,17 +239,19 @@ context.activePage       // Get current active page
 Abstraction over a browser tab.
 
 **Key methods:**
+
 ```typescript
-page.goto(url)           // Navigate
-page.screenshot()        // Capture screenshot
-page.evaluate(fn)        // Run JS in page context
-page.locator(selector)   // Get element locator
-page.deepLocator(xpath)  // XPath across shadow DOM/iframes
+page.goto(url); // Navigate
+page.screenshot(); // Capture screenshot
+page.evaluate(fn); // Run JS in page context
+page.locator(selector); // Get element locator
+page.deepLocator(xpath); // XPath across shadow DOM/iframes
 ```
 
 ### Snapshots (`understudy/a11y/snapshot.ts`)
 
 **`captureHybridSnapshot()`:**
+
 - Captures accessibility tree
 - Maps element IDs to XPath selectors
 - Used by all handlers for LLM context
@@ -262,6 +276,7 @@ interface LLMClient {
 Factory for creating LLM clients by model name.
 
 **Supported providers:**
+
 - OpenAI: `openai/gpt-4.1`, `openai/gpt-4.1-mini`, etc.
 - Anthropic: `anthropic/claude-sonnet-4`, `anthropic/claude-haiku-4-5`
 - Google: `google/gemini-2.0-flash`, `google/gemini-2.5-*`
@@ -273,20 +288,20 @@ Factory for creating LLM clients by model name.
 
 All errors extend `StagehandError`.
 
-| Error | When Thrown |
-|-------|-------------|
-| `StagehandNotInitializedError` | Calling methods before `init()` |
-| `MissingEnvironmentVariableError` | Missing API keys |
-| `ConnectionTimeoutError` | Can't connect to Chrome (15s) |
-| `ActTimeoutError` | `act()` exceeds timeout |
-| `ExtractTimeoutError` | `extract()` exceeds timeout |
-| `ObserveTimeoutError` | `observe()` exceeds timeout |
-| `XPathResolutionError` | Selector doesn't match element |
-| `StagehandElementNotFoundError` | Element not in DOM |
-| `StagehandShadowRootMissingError` | Shadow DOM pierce failed |
-| `ZodSchemaValidationError` | LLM output doesn't match schema |
-| `AgentAbortError` | Agent execution cancelled |
-| `CuaModelRequiredError` | Using CUA without compatible model |
+| Error                             | When Thrown                        |
+| --------------------------------- | ---------------------------------- |
+| `StagehandNotInitializedError`    | Calling methods before `init()`    |
+| `MissingEnvironmentVariableError` | Missing API keys                   |
+| `ConnectionTimeoutError`          | Can't connect to Chrome (15s)      |
+| `ActTimeoutError`                 | `act()` exceeds timeout            |
+| `ExtractTimeoutError`             | `extract()` exceeds timeout        |
+| `ObserveTimeoutError`             | `observe()` exceeds timeout        |
+| `XPathResolutionError`            | Selector doesn't match element     |
+| `StagehandElementNotFoundError`   | Element not in DOM                 |
+| `StagehandShadowRootMissingError` | Shadow DOM pierce failed           |
+| `ZodSchemaValidationError`        | LLM output doesn't match schema    |
+| `AgentAbortError`                 | Agent execution cancelled          |
+| `CuaModelRequiredError`           | Using CUA without compatible model |
 
 ---
 
@@ -327,9 +342,12 @@ test("should extract data", async () => {
   const page = stagehand.context.pages()[0];
   await page.goto("https://example.com");
 
-  const data = await stagehand.extract("get the title", z.object({
-    title: z.string(),
-  }));
+  const data = await stagehand.extract(
+    "get the title",
+    z.object({
+      title: z.string(),
+    }),
+  );
 
   expect(data.title).toBeDefined();
   await stagehand.close();
@@ -341,21 +359,27 @@ test("should extract data", async () => {
 ## Key Patterns
 
 ### Snapshot-Based AI
+
 All AI operations use accessibility tree snapshots, not live DOM queries. This ensures determinism and avoids race conditions.
 
 ### Element ID → XPath Mapping
+
 1. `captureHybridSnapshot()` assigns numeric IDs to elements
 2. LLM references elements by ID
 3. IDs are mapped back to XPath for execution
 
 ### Per-Call Model Override
+
 Any method can override the default model:
+
 ```typescript
 await stagehand.act("click button", { model: "anthropic/claude-sonnet-4" });
 ```
 
 ### Metrics Tracking
+
 All handlers report:
+
 - `promptTokens`, `completionTokens`, `reasoningTokens`
 - `cachedInputTokens`, `inferenceTimeMs`
 

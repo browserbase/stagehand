@@ -122,19 +122,19 @@ Add to `evals.config.json`:
 
 ```typescript
 type EvalFunction = (taskInput: {
-  v3: V3;                    // Stagehand instance
-  v3Agent?: AgentInstance;   // Agent instance (for agent tasks)
-  logger: EvalLogger;        // Logging utility
-  debugUrl: string;          // Debug URL for session
-  sessionUrl: string;        // Browserbase session URL
+  v3: V3; // Stagehand instance
+  v3Agent?: AgentInstance; // Agent instance (for agent tasks)
+  logger: EvalLogger; // Logging utility
+  debugUrl: string; // Debug URL for session
+  sessionUrl: string; // Browserbase session URL
   modelName: AvailableModel; // Current model being tested
-  input: EvalInput;          // Task input with params
+  input: EvalInput; // Task input with params
 }) => Promise<{
-  _success: boolean;         // Pass/fail
-  logs: LogLine[];           // Captured logs
-  debugUrl: string;          // Debug URL
-  sessionUrl: string;        // Session URL
-  error?: unknown;           // Error if failed
+  _success: boolean; // Pass/fail
+  logs: LogLine[]; // Captured logs
+  debugUrl: string; // Debug URL
+  sessionUrl: string; // Session URL
+  error?: unknown; // Error if failed
 }>;
 ```
 
@@ -142,18 +142,18 @@ type EvalFunction = (taskInput: {
 
 ## Task Categories
 
-| Category | Description | Example Tasks |
-|----------|-------------|---------------|
-| `act` | Single action execution | `amazon_add_to_cart`, `dropdown`, `login` |
-| `extract` | Data extraction | `extract_repo_name`, `extract_github_stars` |
-| `observe` | Action planning | `observe_github`, `observe_amazon_add_to_cart` |
-| `combination` | Multi-step workflows | `arxiv`, `allrecipes`, `peeler_complex` |
-| `agent` | Agent-based tasks | `agent/google_flights`, `agent/sf_library_card` |
-| `targeted_extract` | Extract from specific selector | `extract_recipe`, `extract_hamilton_weather` |
-| `regression` | Regression tests | `wichita`, `heal_simple_google_search` |
-| `experimental` | Experimental features | `apple`, `costar` |
-| `llm_clients` | LLM provider tests | `hn_aisdk`, `hn_langchain` |
-| `external_agent_benchmarks` | External benchmarks | `agent/gaia`, `agent/webvoyager` |
+| Category                    | Description                    | Example Tasks                                   |
+| --------------------------- | ------------------------------ | ----------------------------------------------- |
+| `act`                       | Single action execution        | `amazon_add_to_cart`, `dropdown`, `login`       |
+| `extract`                   | Data extraction                | `extract_repo_name`, `extract_github_stars`     |
+| `observe`                   | Action planning                | `observe_github`, `observe_amazon_add_to_cart`  |
+| `combination`               | Multi-step workflows           | `arxiv`, `allrecipes`, `peeler_complex`         |
+| `agent`                     | Agent-based tasks              | `agent/google_flights`, `agent/sf_library_card` |
+| `targeted_extract`          | Extract from specific selector | `extract_recipe`, `extract_hamilton_weather`    |
+| `regression`                | Regression tests               | `wichita`, `heal_simple_google_search`          |
+| `experimental`              | Experimental features          | `apple`, `costar`                               |
+| `llm_clients`               | LLM provider tests             | `hn_aisdk`, `hn_langchain`                      |
+| `external_agent_benchmarks` | External benchmarks            | `agent/gaia`, `agent/webvoyager`                |
 
 ---
 
@@ -165,15 +165,15 @@ type EvalFunction = (taskInput: {
 pnpm evals [task-name] [options]
 ```
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--env=local\|browserbase` | Environment | `local` |
-| `--trials=N` | Number of trials per eval | `3` |
-| `--concurrency=N` | Max parallel sessions | `10` |
-| `--provider=openai\|anthropic\|google` | Model provider filter | all |
-| `--model=MODEL_NAME` | Specific model | default models |
-| `--api=true\|false` | Use API mode | `false` |
-| `--max_k=N` | Limit number of evals | unlimited |
+| Option                                 | Description               | Default        |
+| -------------------------------------- | ------------------------- | -------------- |
+| `--env=local\|browserbase`             | Environment               | `local`        |
+| `--trials=N`                           | Number of trials per eval | `3`            |
+| `--concurrency=N`                      | Max parallel sessions     | `10`           |
+| `--provider=openai\|anthropic\|google` | Model provider filter     | all            |
+| `--model=MODEL_NAME`                   | Specific model            | default models |
+| `--api=true\|false`                    | Use API mode              | `false`        |
+| `--max_k=N`                            | Limit number of evals     | unlimited      |
 
 ### Examples
 
@@ -293,7 +293,7 @@ const evaluator = new V3Evaluator(v3);
 const { evaluation, reasoning } = await evaluator.ask({
   question: "Does the page show the search results?",
   answer: "Page shows 10 search results",
-  screenshot: true,  // Include current screenshot
+  screenshot: true, // Include current screenshot
 });
 
 // evaluation: "YES" | "NO"
@@ -307,6 +307,7 @@ const { evaluation, reasoning } = await evaluator.ask({
 The `suites/` directory contains integrations with external benchmarks:
 
 ### GAIA
+
 General AI Assistant benchmark for complex reasoning tasks.
 
 ```bash
@@ -314,6 +315,7 @@ pnpm evals agent/gaia --trials=1
 ```
 
 ### WebVoyager
+
 Web navigation and task completion benchmark.
 
 ```bash
@@ -321,12 +323,15 @@ pnpm evals agent/webvoyager --trials=1
 ```
 
 ### WebBench
+
 Real-world web automation across live sites.
 
 ### OSWorld
+
 Chrome browser automation tasks.
 
 ### OnlineMind2Web
+
 Real-world web interaction tasks.
 
 ---
@@ -389,14 +394,17 @@ Results are written to `eval-summary.json`:
 From `taskConfig.ts`:
 
 **Standard evals:**
+
 - `google/gemini-2.0-flash`
 - `openai/gpt-4.1-mini`
 - `anthropic/claude-haiku-4-5`
 
 **Agent evals:**
+
 - `anthropic/claude-sonnet-4-20250514`
 
 **CUA (Computer Use Agent) evals:**
+
 - `openai/computer-use-preview-2025-03-11`
 - `google/gemini-2.5-computer-use-preview-10-2025`
 - `anthropic/claude-sonnet-4-20250514`
@@ -411,7 +419,12 @@ From `taskConfig.ts`:
 // tasks/my_task.ts
 import { EvalFunction } from "../types/evals";
 
-export const my_task: EvalFunction = async ({ v3, logger, debugUrl, sessionUrl }) => {
+export const my_task: EvalFunction = async ({
+  v3,
+  logger,
+  debugUrl,
+  sessionUrl,
+}) => {
   // Implementation
 };
 ```
@@ -421,9 +434,7 @@ export const my_task: EvalFunction = async ({ v3, logger, debugUrl, sessionUrl }
 ```json
 // evals.config.json
 {
-  "tasks": [
-    { "name": "my_task", "categories": ["extract"] }
-  ]
+  "tasks": [{ "name": "my_task", "categories": ["extract"] }]
 }
 ```
 
