@@ -5,7 +5,11 @@ import path from "path";
 import process from "process";
 import { v7 as uuidv7 } from "uuid";
 import { z } from "zod";
-import { InferStagehandSchema, StagehandZodSchema, toJsonSchema } from "./zodCompat";
+import {
+  InferStagehandSchema,
+  StagehandZodSchema,
+  toJsonSchema,
+} from "./zodCompat";
 import { loadApiKeyFromEnv } from "../utils";
 import { StagehandLogger, LoggerOptions } from "../logger";
 import { ActCache } from "./cache/ActCache";
@@ -1204,7 +1208,7 @@ export class V3 {
         result =
           await this.extractHandler.extract<StagehandZodSchema>(handlerParams);
       }
-      const historySchemaDescriptor = toJsonSchema(schema);
+      const historySchemaDescriptor = schema ? toJsonSchema(schema) : undefined;
       this.addToHistory(
         "extract",
         {
