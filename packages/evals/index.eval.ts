@@ -392,6 +392,10 @@ const generateFilteredTestcases = (): Testcase[] => {
               v3Agent: v3Input?.agent,
               logger: v3Input?.logger,
               v3Input,
+              input,
+              modelName: input.modelName,
+              debugUrl: v3Input?.debugUrl,
+              sessionUrl: v3Input?.sessionUrl,
             });
             // Log result to console
             if (result && result._success) {
