@@ -120,8 +120,16 @@ export class InMemorySessionStore implements SessionStore {
   }
 
   async startSession(params: CreateSessionParams): Promise<SessionStartResult> {
-    // Generate session ID or use provided browserbase session ID
-    const sessionId = params.browserbaseSessionID ?? randomUUID();
+    if (params.browserType === "browserbase" && !params.browserbaseSessionID) {
+      throw new Error(
+        "browserbaseSessionID is required for browserbase sessions",
+      );
+    }
+
+    const sessionId =
+      params.browserType === "browserbase"
+        ? params.browserbaseSessionID!
+        : randomUUID();
 
     // Store the session
     await this.createSession(sessionId, params);

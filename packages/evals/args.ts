@@ -12,6 +12,7 @@ const parsedArgs: {
   evalName?: string;
   env?: string;
   api?: string;
+  browser?: { type?: "browserbase" | "local" };
   trials?: number;
   concurrency?: number;
   provider?: string;
@@ -29,6 +30,11 @@ for (const arg of rawArgs) {
     parsedArgs.api = arg.split("=")[1]?.toLowerCase();
   } else if (arg.startsWith("name=")) {
     parsedArgs.evalName = arg.split("=")[1];
+  } else if (arg.startsWith("browser.type=")) {
+    const val = arg.split("=")[1]?.toLowerCase();
+    if (val === "browserbase" || val === "local") {
+      parsedArgs.browser = { type: val as "browserbase" | "local" };
+    }
   } else if (arg.startsWith("trials=")) {
     const val = parseInt(arg.split("=")[1], 10);
     if (!isNaN(val)) {
@@ -64,6 +70,12 @@ if (parsedArgs.api === "true") {
   process.env.USE_API = "true";
 } else if (parsedArgs.api === "false") {
   process.env.USE_API = "false";
+}
+
+if (parsedArgs.browser?.type === "browserbase") {
+  process.env.API_BROWSER_TYPE = "browserbase";
+} else if (parsedArgs.browser?.type === "local") {
+  process.env.API_BROWSER_TYPE = "local";
 }
 
 if (parsedArgs.trials !== undefined) {

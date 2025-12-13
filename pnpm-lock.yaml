@@ -223,6 +223,9 @@ importers:
       openai:
         specifier: ^4.87.1
         version: 4.96.2(ws@8.18.3(bufferutil@4.0.9))(zod@4.1.12)
+      uuid:
+        specifier: ^13.0.0
+        version: 13.0.0
       zod:
         specifier: ^4.1.8
         version: 4.1.12
@@ -306,6 +309,9 @@ importers:
       typescript:
         specifier: ~5.9.2
         version: 5.9.3
+      vitest:
+        specifier: ^4.0.8
+        version: 4.0.8(@types/debug@4.1.12)(@types/node@22.13.1)(jiti@1.21.7)(tsx@4.19.4)(yaml@2.7.1)
 
 packages:
 
@@ -5455,6 +5461,10 @@ packages:
     resolution: {integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==}
     hasBin: true
 
+  uuid@13.0.0:
+    resolution: {integrity: sha512-XQegIaBTVUjSHliKqcnFqYypAd4S+WCYt5NIeRs6w/UAry7z8Y9j5ZwRRL4kzq9U3sD6v+85er9FvkEaBpji2w==}
+    hasBin: true
+
   uuid@9.0.1:
     resolution: {integrity: sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA==}
     hasBin: true
@@ -7504,6 +7514,14 @@ snapshots:
       magic-string: 0.30.21
     optionalDependencies:
       vite: 7.2.2(@types/node@20.17.32)(jiti@1.21.7)(tsx@4.19.4)(yaml@2.7.1)
+
+  '@vitest/mocker@4.0.8(vite@7.2.2(@types/node@22.13.1)(jiti@1.21.7)(tsx@4.19.4)(yaml@2.7.1))':
+    dependencies:
+      '@vitest/spy': 4.0.8
+      estree-walker: 3.0.3
+      magic-string: 0.30.21
+    optionalDependencies:
+      vite: 7.2.2(@types/node@22.13.1)(jiti@1.21.7)(tsx@4.19.4)(yaml@2.7.1)
 
   '@vitest/pretty-format@4.0.8':
     dependencies:
@@ -12133,6 +12151,8 @@ snapshots:
 
   uuid@11.1.0: {}
 
+  uuid@13.0.0: {}
+
   uuid@9.0.1: {}
 
   vary@1.1.2: {}
@@ -12172,6 +12192,21 @@ snapshots:
       tsx: 4.19.4
       yaml: 2.7.1
 
+  vite@7.2.2(@types/node@22.13.1)(jiti@1.21.7)(tsx@4.19.4)(yaml@2.7.1):
+    dependencies:
+      esbuild: 0.25.11
+      fdir: 6.5.0(picomatch@4.0.3)
+      picomatch: 4.0.3
+      postcss: 8.5.6
+      rollup: 4.53.2
+      tinyglobby: 0.2.15
+    optionalDependencies:
+      '@types/node': 22.13.1
+      fsevents: 2.3.3
+      jiti: 1.21.7
+      tsx: 4.19.4
+      yaml: 2.7.1
+
   vitest@4.0.8(@types/debug@4.1.12)(@types/node@20.17.32)(jiti@1.21.7)(tsx@4.19.4)(yaml@2.7.1):
     dependencies:
       '@vitest/expect': 4.0.8
@@ -12197,6 +12232,45 @@ snapshots:
     optionalDependencies:
       '@types/debug': 4.1.12
       '@types/node': 20.17.32
+    transitivePeerDependencies:
+      - jiti
+      - less
+      - lightningcss
+      - msw
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - supports-color
+      - terser
+      - tsx
+      - yaml
+
+  vitest@4.0.8(@types/debug@4.1.12)(@types/node@22.13.1)(jiti@1.21.7)(tsx@4.19.4)(yaml@2.7.1):
+    dependencies:
+      '@vitest/expect': 4.0.8
+      '@vitest/mocker': 4.0.8(vite@7.2.2(@types/node@22.13.1)(jiti@1.21.7)(tsx@4.19.4)(yaml@2.7.1))
+      '@vitest/pretty-format': 4.0.8
+      '@vitest/runner': 4.0.8
+      '@vitest/snapshot': 4.0.8
+      '@vitest/spy': 4.0.8
+      '@vitest/utils': 4.0.8
+      debug: 4.4.3
+      es-module-lexer: 1.7.0
+      expect-type: 1.2.2
+      magic-string: 0.30.21
+      pathe: 2.0.3
+      picomatch: 4.0.3
+      std-env: 3.10.0
+      tinybench: 2.9.0
+      tinyexec: 0.3.2
+      tinyglobby: 0.2.15
+      tinyrainbow: 3.0.3
+      vite: 7.2.2(@types/node@22.13.1)(jiti@1.21.7)(tsx@4.19.4)(yaml@2.7.1)
+      why-is-node-running: 2.3.0
+    optionalDependencies:
+      '@types/debug': 4.1.12
+      '@types/node': 22.13.1
     transitivePeerDependencies:
       - jiti
       - less

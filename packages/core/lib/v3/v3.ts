@@ -21,6 +21,7 @@ import { ObserveHandler } from "./handlers/observeHandler";
 import { V3AgentHandler } from "./handlers/v3AgentHandler";
 import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler";
 import { createBrowserbaseSession } from "./launch/browserbase";
+import Browserbase from "@browserbasehq/sdk";
 import { launchLocalChrome } from "./launch/local";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
@@ -847,7 +848,7 @@ export class V3 {
                 stagehand: "true",
               },
             };
-            const { sessionId, available } = await this.apiClient.init({
+            const { sessionId, available, cdpUrl } = await this.apiClient.init({
               modelName: this.modelName,
               modelApiKey: this.modelClientOptions.apiKey,
               domSettleTimeoutMs: this.domSettleTimeoutMs,
@@ -856,11 +857,67 @@ export class V3 {
               selfHeal: this.opts.selfHeal,
               browserbaseSessionCreateParams: createSessionPayload,
               browserbaseSessionID: this.opts.browserbaseSessionID,
+              browser: {
+                type: this.opts.browser?.type ?? "browserbase",
+              },
             });
             if (!available) {
               this.apiClient = null;
             }
+            // Persist API-issued sessionId for downstream use; stash cdpUrl if provided
             this.opts.browserbaseSessionID = sessionId;
+            if (cdpUrl) {
+              this.opts.localBrowserLaunchOptions = {
+                ...(this.opts.localBrowserLaunchOptions ?? {}),
+                cdpUrl,
+              };
+            }
+          }
+          // If server returned a direct CDP URL, attach to it instead of creating/resuming
+          if (this.opts.localBrowserLaunchOptions?.cdpUrl) {
+            const ws = this.opts.localBrowserLaunchOptions.cdpUrl;
+            const isLocalApi =
+              (this.opts.browser?.type ?? "browserbase") === "local";
+
+            this.ctx = await V3Context.create(ws, {
+              env: isLocalApi ? "LOCAL" : "BROWSERBASE",
+              apiClient: this.apiClient,
+            });
+            const logCtx = SessionFileLogger.getContext();
+            this.ctx.conn.cdpLogger = (info) =>
+              SessionFileLogger.logCdpCallEvent(info, logCtx);
+            this.ctx.conn.cdpEventLogger = (info) =>
+              SessionFileLogger.logCdpMessageEvent(info, logCtx);
+            this.ctx.conn.onTransportClosed(this._onCdpClosed);
+
+            if (isLocalApi) {
+              this.state = {
+                kind: "LOCAL",
+                chrome: {
+                  // No launched Chrome when attaching; provide a no-op killer.
+                  kill: async () => {},
+                } as unknown as import("chrome-launcher").LaunchedChrome,
+                ws,
+              };
+              return;
+            }
+
+            const bb = new Browserbase({ apiKey });
+            this.state = {
+              kind: "BROWSERBASE",
+              bb,
+              sessionId: this.opts.browserbaseSessionID ?? "",
+              ws,
+            };
+            this.browserbaseSessionId = this.opts.browserbaseSessionID ?? "";
+            this.browserbaseSessionUrl = `https://www.browserbase.com/sessions/${this.browserbaseSessionId}`;
+            return;
+          }
+          // If we're in local-browser API mode and still no cdpUrl, fail fast
+          if ((this.opts.browser?.type ?? "browserbase") === "local") {
+            throw new StagehandInitError(
+              "API mode requested local browser, but server did not return a cdpUrl.",
+            );
           }
           const { ws, sessionId, bb } = await createBrowserbaseSession(
             apiKey,
