@@ -98,6 +98,7 @@
                 ]
               },
               "v3/integrations/playwright",
+              "v3/integrations/playwriter",
               "v3/integrations/puppeteer",
               "v3/integrations/selenium"
             ]

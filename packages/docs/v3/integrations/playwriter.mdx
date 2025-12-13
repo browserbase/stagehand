@@ -1,0 +1,135 @@
+---
+title: Playwriter
+description: Run Stagehand scripts on your own Chrome window - no separate Chromium needed
+---
+
+## Overview
+
+[Playwriter](https://playwriter.dev) is a Chrome extension that lets you control your existing browser tabs via CDP (Chrome DevTools Protocol). Unlike launching a new browser instance, Playwriter allows Stagehand to automate your current browser with all your existing tabs, extensions, and logged-in sessions.
+
+**Benefits:**
+- **Use your existing browser** - No separate Chromium instance needed
+- **Stay logged in** - Reuse your existing sessions and cookies
+- **Keep your extensions** - Ad blockers, password managers continue working
+- **Bypass automation detection** - Disconnect to pass CAPTCHAs, then reconnect
+- **Less resource usage** - No need to spawn a separate Chrome instance
+- **Collaborate with AI** - Work alongside the agent in the same browser
+
+## Use Cases
+
+- **Debug issues** - Start automation on a page where a bug is already reproduced
+- **Fill forms** - Complete tax forms, applications with your saved credentials
+- **Solve CAPTCHAs** - Handle CAPTCHAs manually, then let AI continue
+- **Scrape authenticated content** - Extract data from sites where you're already logged in
+
+## Installation
+
+### 1. Install the Chrome Extension
+
+Install the [Playwriter extension](https://chromewebstore.google.com/detail/playwriter-mcp/jfeammnjpkecdekppnclgkkffahnhfhe) from the Chrome Web Store and pin it to your toolbar.
+
+### 2. Install Dependencies
+
+```bash
+npm install @browserbasehq/stagehand playwriter
+```
+
+### 3. Connect to a Tab
+
+Click the Playwriter extension icon on any Chrome tab you want to control. The icon turns **green** when connected.
+
+## Example
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import { startPlayWriterCDPRelayServer, getCdpUrl } from "playwriter";
+
+// Start the relay server
+await startPlayWriterCDPRelayServer().catch(() => null);
+await new Promise((r) => setTimeout(r, 1000));
+
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  localBrowserLaunchOptions: {
+    cdpUrl: getCdpUrl(),
+  },
+});
+
+await stagehand.init();
+
+// First page is the tab where you clicked the extension
+const page = stagehand.context.pages()[0];
+console.log("Current URL:", page.url());
+
+await page.goto("https://news.ycombinator.com");
+await page.locator(".titleline > a").first().click();
+
+console.log("Navigated to:", page.url());
+
+await stagehand.close();
+```
+
+## How It Works
+
+1. The **Playwriter extension** connects to tabs you enable (click the icon)
+2. The **relay server** bridges CDP commands between your script and the extension
+3. **Stagehand** connects via the CDP URL and controls your browser
+
+The first page returned by `stagehand.context.pages()[0]` is the tab where you clicked the extension icon.
+
+## Extension States
+
+| Icon Color | Status |
+|------------|--------|
+| **Gray** | Not connected |
+| **Green** | Connected and ready |
+| **Orange (...)** | Connecting |
+| **Red (!)** | Error |
+
+## Troubleshooting
+
+<AccordionGroup>
+<Accordion title="Extension not connected">
+- Click the Playwriter extension icon on a tab
+- The icon should be **green** when connected
+- Try clicking the icon again to reconnect
+</Accordion>
+
+<Accordion title="Port 19988 already in use">
+This is expected if the relay server is already running. Your script will connect to the existing server.
+</Accordion>
+
+<Accordion title="Debugger already attached">
+Only one debugger can attach to a tab at a time:
+- Close other DevTools windows
+- Disconnect other automation tools
+- Click the extension icon to reconnect
+</Accordion>
+</AccordionGroup>
+
+## Comparison with Standard Stagehand
+
+| Feature | Standard Stagehand | With Playwriter |
+|---------|-------------------|-----------------|
+| Browser | Launches new browser | Uses your existing browser |
+| Extensions | None (fresh profile) | Your installed extensions |
+| Sessions | Fresh login required | Already logged in |
+| Detection | May be detected | Less detectable |
+| Tabs | Creates new tabs | Controls existing tabs |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Act" icon="play" href="/v3/references/act">
+    Execute AI-powered actions
+  </Card>
+  <Card title="Extract" icon="ufo-beam" href="/v3/references/extract">
+    Extract structured data from pages
+  </Card>
+  <Card title="Agent" icon="robot" href="/v3/references/agent">
+    Automate entire workflows
+  </Card>
+  <Card title="Browser Config" icon="globe" href="/v3/configuration/browser">
+    Other browser connection options
+  </Card>
+</CardGroup>
