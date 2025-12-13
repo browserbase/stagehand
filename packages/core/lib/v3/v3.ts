@@ -1021,6 +1021,7 @@ export class V3 {
             this.domSettleTimeoutMs,
             this.resolveLlmClient(options?.model),
             ensureTimeRemaining,
+            options?.variables,
           );
         }
 
