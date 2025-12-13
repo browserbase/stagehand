@@ -247,7 +247,7 @@ interface AgentStreamCallbacks {
     <ParamField path="onError" type="StreamTextOnErrorCallback" optional>
       Called when an error occurs during streaming.
     </ParamField>
-    <ParamField path="onAbort" type="(event: { steps: StepResult[] }) => void" optional>
+    <ParamField path="onAbort" type="(event: { steps: StepResult[] }) => void | Promise<void>" optional>
       Called when the stream is aborted via the `signal` option.
     </ParamField>
   </Expandable>
