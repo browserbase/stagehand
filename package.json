@@ -8,6 +8,7 @@
     "build:cli": "turbo run build:cli",
     "lint": "turbo run lint",
     "format": "prettier --write .",
+    "prettier": "prettier --write .",
     "eslint": "eslint .",
     "test": "turbo run test",
     "e2e": "turbo run e2e",
