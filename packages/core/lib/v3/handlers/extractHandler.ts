@@ -5,6 +5,7 @@ import {
   getZodType,
   injectUrls,
   transformSchema,
+  trimTrailingTextNode,
 } from "../../utils";
 import { v3Logger } from "../logger";
 import { V3FunctionName } from "../types/public/methods";
@@ -127,7 +128,13 @@ export class ExtractHandler {
         focusSelector: focusSelector || undefined,
       });
 
-      const result = { pageText: snap.combinedTree, xpathMap: snap.combinedXpathMap };
+      const trimmedXpathMap = Object.fromEntries(
+        Object.entries(snap.combinedXpathMap).map(([key, value]) => [
+          key,
+          `xpath=${trimTrailingTextNode(value) ?? value}`,
+        ]),
+      );
+      const result = { pageText: snap.combinedTree, xpathMap: trimmedXpathMap };
       // Validate via the same schema used in v2
       return pageTextSchema.parse(result);
     }
