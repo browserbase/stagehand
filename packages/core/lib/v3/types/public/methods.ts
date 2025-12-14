@@ -50,6 +50,7 @@ export const defaultExtractSchema = z.object({
 
 export const pageTextSchema = z.object({
   pageText: z.string(),
+  xpathMap: z.record(z.string(), z.string()),
 });
 
 export interface ObserveOptions {

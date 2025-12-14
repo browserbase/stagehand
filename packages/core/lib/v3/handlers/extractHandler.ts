@@ -105,7 +105,7 @@ export class ExtractHandler {
 
   async extract<T extends StagehandZodSchema>(
     params: ExtractHandlerParams<T>,
-  ): Promise<InferStagehandSchema<T> | { pageText: string }> {
+  ): Promise<InferStagehandSchema<T> | { pageText: string, xpathMap: Record<string, string> }> {
     const { instruction, schema, page, selector, timeout, model } = params;
 
     const llmClient = this.resolveLlmClient(model);
@@ -127,7 +127,7 @@ export class ExtractHandler {
         focusSelector: focusSelector || undefined,
       });
 
-      const result = { pageText: snap.combinedTree };
+      const result = { pageText: snap.combinedTree, xpathMap: snap.combinedXpathMap };
       // Validate via the same schema used in v2
       return pageTextSchema.parse(result);
     }
@@ -166,8 +166,8 @@ export class ExtractHandler {
     const objectSchema: StagehandZodObject = isObjectSchema
       ? (baseSchema as StagehandZodObject)
       : (factory.object({
-          [WRAP_KEY]: baseSchema as ZodTypeAny,
-        }) as StagehandZodObject);
+        [WRAP_KEY]: baseSchema as ZodTypeAny,
+      }) as StagehandZodObject);
 
     const [transformedSchema, urlFieldPaths] =
       transformUrlStringsToNumericIds(objectSchema);
