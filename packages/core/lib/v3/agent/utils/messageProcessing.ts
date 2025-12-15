@@ -2,7 +2,7 @@ import type { ModelMessage } from "ai";
 import type { LLMClient } from "../../llm/LLMClient";
 
 // Configuration constants
-const TOOL_CALLS_BEFORE_COMPRESSION = 10;
+const TOOL_CALLS_BEFORE_COMPRESSION = 10; //eg sparse tool call compression
 const RECENT_TOOL_CALLS_TO_KEEP = 5;
 const SUMMARIZATION_THRESHOLD_TOKENS = 120000;
 const RECENT_MESSAGES_TO_KEEP_IN_SUMMARY = 10;
