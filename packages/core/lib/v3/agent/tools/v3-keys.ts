@@ -4,33 +4,19 @@ import type { V3 } from "../../v3";
 
 export const createKeysTool = (v3: V3) =>
   tool({
-    description: `Send keyboard events to the page. Two methods available:
+    description: `Send keyboard input to the page without targeting a specific element. Unlike the type tool which clicks then types into coordinates, this sends keystrokes directly to wherever focus currently is.
 
-• "type" - Types text character by character. Use for: entering words, filling text without clicking an input, typing into games like Wordle. Example: method="type", text="SLATE"
+Use method="type" to enter text into the currently focused element. Preferred when: input is already focused, text needs to flow across multiple fields (e.g., verification codes)
 
-• "press" - Sends a single key or key combination. Use for: Enter, Escape, Tab, Backspace, arrow keys, shortcuts like Cmd+A, Ctrl+C. Example: method="press", keys="Enter"
-
-IMPORTANT: For typing words/text, always use method="type" with the text parameter. Do NOT try to press individual letter keys.`,
+Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) and keyboard shortcuts (Cmd+A, Ctrl+C, Shift+Tab).`,
     inputSchema: z.object({
-      method: z
-        .enum(["press", "type"])
-        .describe("'type' for entering text/words character by character, 'press' for single keys or shortcuts"),
-      keys: z
+      method: z.enum(["press", "type"]),
+      value: z
         .string()
-        .optional()
-        .describe(
-          "For 'press' method only. Single key (Enter, Escape, Backspace, Tab) or combo with '+' (Cmd+A, Ctrl+C, Shift+Tab)",
-        ),
-      text: z
-        .string()
-        .optional()
-        .describe("For 'type' method only. The text to type, e.g. 'hello world' or 'SLATE'"),
-      repeat: z
-        .number()
-        .optional()
-        .describe("Repeat count. Default 1."),
+        .describe("The text to type, or the key/combo to press (Enter, Tab, Cmd+A)"),
+      repeat: z.number().optional(),
     }),
-    execute: async ({ method, keys, text, repeat }) => {
+    execute: async ({ method, value, repeat }) => {
       try {
         const page = await v3.context.awaitActivePage();
         v3.logger({
@@ -39,7 +25,7 @@ IMPORTANT: For typing words/text, always use method="type" with the text paramet
           level: 1,
           auxiliary: {
             arguments: {
-              value: JSON.stringify({ method, keys, text, repeat }),
+              value: JSON.stringify({ method, value, repeat }),
               type: "string",
             },
           },
@@ -48,42 +34,27 @@ IMPORTANT: For typing words/text, always use method="type" with the text paramet
         const times = Math.max(1, repeat ?? 1);
 
         if (method === "type") {
-          if (!text || text === "")
-            return {
-              success: false,
-              error: "'text' is required for method 'type'",
-            };
           for (let i = 0; i < times; i++) {
-            await page.type(text, { delay: 100 });
+            await page.type(value, { delay: 100 });
           }
           v3.recordAgentReplayStep({
             type: "keys",
-            instruction: `type "${text}"`,
-            playwrightArguments: { method, text, times },
+            instruction: `type "${value}"`,
+            playwrightArguments: { method, text: value, times },
           });
-          return { success: true, method, text, times };
+          return { success: true, method, value, times };
         }
 
         if (method === "press") {
-          if (!keys || keys === "")
-            return {
-              success: false,
-              error: "'keys' is required for method 'press'",
-            };
           for (let i = 0; i < times; i++) {
-            await page.keyPress(keys, { delay: 100 });
+            await page.keyPress(value, { delay: 100 });
           }
           v3.recordAgentReplayStep({
             type: "keys",
-            instruction: `press ${keys}`,
-            playwrightArguments: { method, keys, times },
+            instruction: `press ${value}`,
+            playwrightArguments: { method, keys: value, times },
           });
-          return {
-            success: true,
-            method,
-            keys,
-            times,
-          };
+          return { success: true, method, value, times };
         }
 
         return { success: false, error: `Unsupported method: ${method}` };
