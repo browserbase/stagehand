@@ -41,7 +41,21 @@ const startBodySchema = z
     browserbaseSessionID: z.string().optional(),
     experimental: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.browser?.type === "local") {
+      const hasCdp = Boolean(value.browser.cdpUrl);
+      const hasLaunch = Boolean(value.browser.launchOptions);
+      if (!hasCdp && !hasLaunch) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["browser"],
+          message:
+            "When browser.type is 'local', provide either browser.cdpUrl or browser.launchOptions.",
+        });
+      }
+    }
+  });
 
 /**
  * Parameters for creating a new session (request body shape)
@@ -142,7 +156,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       }
     }
 
-    const browserType = browser?.type ?? "local";
+    const browserType = browser?.type ?? "browserbase";
 
     let bbApiKey: string | undefined;
     let bbProjectId: string | undefined;

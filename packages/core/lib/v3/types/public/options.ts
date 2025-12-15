@@ -59,7 +59,11 @@ export interface V3Options {
   // Browserbase (required when env = "BROWSERBASE")
   apiKey?: string;
   projectId?: string;
-  browser?: { type?: "browserbase" | "local" };
+  browser?: {
+    type?: "browserbase" | "local";
+    cdpUrl?: string;
+    launchOptions?: Record<string, unknown>;
+  };
   /**
    * Optional: fine-tune Browserbase session creation or resume an existing session.
    */

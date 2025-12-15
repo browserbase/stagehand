@@ -34,7 +34,9 @@ export interface StartSessionParams {
   selfHeal?: boolean;
   browserbaseSessionID?: string;
   browser?: {
-    type: "local" | "browserbase";
+    type?: "local" | "browserbase";
+    cdpUrl?: string;
+    launchOptions?: Record<string, unknown>;
   };
 }
 
