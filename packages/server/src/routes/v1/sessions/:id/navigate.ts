@@ -1,7 +1,7 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
-import { zodToJsonSchema } from "zod-to-json-schema";
-import { z } from "zod/v3";
+import { z } from "zod/v4";
+import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
@@ -13,10 +13,7 @@ interface NavigateParams {
 }
 
 export const navigateSchema = z.object({
-  url: z.string({
-    invalid_type_error: "`url` must be a string",
-    required_error: "`url` is required",
-  }),
+  url: z.string(),
   options: z
     .object({
       referer: z.string().optional(),
@@ -78,15 +75,21 @@ const navigateRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/navigate",
   schema: {
-    params: {
-      type: "object",
-      properties: {
-        id: { type: "string" },
-      },
-      required: ["id"],
+    params: z.object({ id: z.string() }).strict(),
+    body: navigateSchema,
+    response: {
+      200: z
+        .object({
+          success: z.literal(true),
+          data: z
+            .object({
+              result: z.unknown(),
+            })
+            .strict(),
+        })
+        .strict(),
     },
-    body: zodToJsonSchema(navigateSchema),
-  },
+  } satisfies FastifyZodOpenApiSchema,
   handler: navigateRouteHandler,
 };
 

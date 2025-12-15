@@ -1,5 +1,7 @@
 import type { RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
+import { z } from "zod/v4";
+import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import { withErrorHandling } from "../lib/errorHandler.js";
 
@@ -35,14 +37,10 @@ const readinessRoute: RouteOptions = {
   logLevel: "silent",
   schema: {
     response: {
-      200: {
-        type: "string",
-      },
-      503: {
-        type: "string",
-      },
+      200: z.string(),
+      503: z.string(),
     },
-  },
+  } satisfies FastifyZodOpenApiSchema,
   handler: withErrorHandling(async (_request, reply) => {
     if (!isReady) {
       return reply

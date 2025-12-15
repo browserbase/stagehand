@@ -1,24 +1,23 @@
 import type { RouteOptions } from "fastify";
+import { z } from "zod/v4";
+import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import { withErrorHandling } from "../lib/errorHandler.js";
 
-/* eslint-disable no-magic-numbers */
 const healthcheckRoute: RouteOptions = {
   method: "GET",
   url: "/healthz",
   logLevel: "silent",
   schema: {
     response: {
-      200: {
-        type: "object",
-        properties: {
-          status: { type: "string" },
-          timestamp: { type: "string" },
-        },
-      },
+      200: z
+        .object({
+          status: z.string(),
+          timestamp: z.string(),
+        })
+        .strict(),
     },
-  },
-  // eslint-disable-next-line @typescript-eslint/require-await
+  } satisfies FastifyZodOpenApiSchema,
   handler: withErrorHandling(async () => {
     return {
       status: "ok",

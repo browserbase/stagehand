@@ -1,8 +1,8 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import type { Action } from "@browserbasehq/stagehand";
-import { zodToJsonSchema } from "zod-to-json-schema";
-import { z } from "zod/v3";
+import { z } from "zod/v4";
+import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
@@ -109,15 +109,21 @@ const observeRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/observe",
   schema: {
-    params: {
-      type: "object",
-      properties: {
-        id: { type: "string" },
-      },
-      required: ["id"],
+    params: z.object({ id: z.string() }).strict(),
+    body: observeSchema,
+    response: {
+      200: z
+        .object({
+          success: z.literal(true),
+          data: z
+            .object({
+              result: z.unknown(),
+            })
+            .strict(),
+        })
+        .strict(),
     },
-    body: zodToJsonSchema(observeSchema),
-  },
+  } satisfies FastifyZodOpenApiSchema,
   handler: observeRouteHandler,
 };
 

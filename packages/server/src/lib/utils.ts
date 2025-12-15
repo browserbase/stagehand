@@ -1,7 +1,5 @@
 import { StatusCodes } from "http-status-codes";
-import { z } from "zod/v3";
-import type { ZodTypeAny } from "zod/v3";
-
+import { z, ZodType } from "zod/v4";
 import { LegacyModel, LegacyProvider } from "../types/model.js";
 import { AppError } from "./errorHandler.js";
 
@@ -25,7 +23,7 @@ interface JSONSchema {
  * @param schema The JSON Schema object to convert
  * @returns A Zod schema equivalent to the input JSON Schema
  */
-export function jsonSchemaToZod(schema: JSONSchema): ZodTypeAny {
+export function jsonSchemaToZod(schema: JSONSchema): ZodType {
   if (Array.isArray(schema.type)) {
     const subSchemas = schema.type.map((singleType) => {
       const sub = { ...schema, type: singleType };
@@ -41,7 +39,7 @@ export function jsonSchemaToZod(schema: JSONSchema): ZodTypeAny {
       }
       return subSchema;
     }
-    return z.union(subSchemas as [ZodTypeAny, ZodTypeAny, ...ZodTypeAny[]]);
+    return z.union(subSchemas as [ZodType, ZodType, ...ZodType[]]);
   }
 
   if (schema.anyOf && Array.isArray(schema.anyOf)) {
@@ -55,7 +53,7 @@ export function jsonSchemaToZod(schema: JSONSchema): ZodTypeAny {
       }
       return subSchema;
     }
-    return z.union(subSchemas as [ZodTypeAny, ZodTypeAny, ...ZodTypeAny[]]);
+    return z.union(subSchemas as [ZodType, ZodType, ...ZodType[]]);
   }
 
   if (schema.oneOf && Array.isArray(schema.oneOf)) {
@@ -69,13 +67,13 @@ export function jsonSchemaToZod(schema: JSONSchema): ZodTypeAny {
       }
       return subSchema;
     }
-    return z.union(subSchemas as [ZodTypeAny, ZodTypeAny, ...ZodTypeAny[]]);
+    return z.union(subSchemas as [ZodType, ZodType, ...ZodType[]]);
   }
 
   switch (schema.type) {
     case "object":
       if (schema.properties) {
-        const shape: Record<string, ZodTypeAny> = {};
+        const shape: Record<string, ZodType> = {};
         for (const key in schema.properties) {
           const subSchema = schema.properties[key];
           if (!subSchema) {

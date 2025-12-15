@@ -2,7 +2,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import type { Stagehand as V3Stagehand } from "@browserbasehq/stagehand";
 import { v4 } from "uuid";
-import { z } from "zod/v3";
+import { z } from "zod/v4";
 
 import { AppError } from "./errorHandler.js";
 import { dangerouslyGetHeader, getOptionalHeader } from "./header.js";

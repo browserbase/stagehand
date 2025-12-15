@@ -1,8 +1,7 @@
-openapi: 3.0.0
+openapi: 3.1.0
 info:
   title: Stagehand API
-  description: Stagehand API Documentation
-  version: 1.0.0
+  version: 3.0.5
 components:
   schemas: {}
 paths:
@@ -12,45 +11,56 @@ paths:
         content:
           application/json:
             schema:
-              anyOf:
-                - type: object
+              type: object
+              properties:
+                input:
+                  anyOf:
+                    - type: string
+                    - type: object
+                      properties:
+                        selector:
+                          type: string
+                        description:
+                          type: string
+                        method:
+                          type: string
+                        arguments:
+                          type: array
+                          items:
+                            type: string
+                      required:
+                        - selector
+                        - description
+                options:
+                  type: object
                   properties:
-                    action:
-                      type: string
-                      minLength: 1
-                    useVision:
+                    model:
                       anyOf:
                         - type: string
-                          enum:
-                            - fallback
-                        - type: boolean
+                        - type: object
+                          properties:
+                            modelName:
+                              type: string
+                            apiKey:
+                              type: string
+                            baseURL:
+                              type: string
+                              format: uri
+                          required:
+                            - modelName
                     variables:
                       type: object
+                      propertyNames:
+                        type: string
                       additionalProperties:
                         type: string
-                    domSettleTimeoutMs:
+                    timeout:
                       type: number
-                  required:
-                    - action
-                  additionalProperties: false
-                - type: object
-                  properties:
-                    selector:
-                      type: string
-                    description:
-                      type: string
-                    backendNodeId:
-                      type: number
-                    method:
-                      type: string
-                    arguments:
-                      type: array
-                      items:
-                        type: string
-                  required:
-                    - selector
-                    - description
-                  additionalProperties: false
+                frameId:
+                  type: string
+              required:
+                - input
+        required: true
       parameters:
         - schema:
             type: string
@@ -60,6 +70,25 @@ paths:
       responses:
         "200":
           description: Default Response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      result: {}
+                    required:
+                      - result
+                    additionalProperties: false
+                required:
+                  - success
+                  - data
+                additionalProperties: false
   /v1/sessions/{id}/end:
     post:
       parameters:
@@ -71,6 +100,22 @@ paths:
       responses:
         "200":
           description: Default Response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties: {}
+                    additionalProperties: false
+                required:
+                  - success
+                  - data
+                additionalProperties: false
   /v1/sessions/{id}/extract:
     post:
       requestBody:
@@ -81,17 +126,34 @@ paths:
               properties:
                 instruction:
                   type: string
-                schemaDefinition:
+                schema:
                   type: object
+                  propertyNames:
+                    type: string
                   additionalProperties: {}
-                useTextExtract:
-                  type: boolean
-                selector:
+                options:
+                  type: object
+                  properties:
+                    model:
+                      anyOf:
+                        - type: string
+                        - type: object
+                          properties:
+                            modelName:
+                              type: string
+                            apiKey:
+                              type: string
+                            baseURL:
+                              type: string
+                              format: uri
+                          required:
+                            - modelName
+                    timeout:
+                      type: number
+                    selector:
+                      type: string
+                frameId:
                   type: string
-              required:
-                - instruction
-                - schemaDefinition
-              additionalProperties: false
         required: true
       parameters:
         - schema:
@@ -102,20 +164,25 @@ paths:
       responses:
         "200":
           description: Default Response
-  /v1/healthcheck:
-    get:
-      responses:
-        "200":
-          description: Default Response
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  status:
-                    type: string
-                  timestamp:
-                    type: string
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      result: {}
+                    required:
+                      - result
+                    additionalProperties: false
+                required:
+                  - success
+                  - data
+                additionalProperties: false
   /v1/sessions/{id}/navigate:
     post:
       requestBody:
@@ -139,11 +206,10 @@ paths:
                         - load
                         - domcontentloaded
                         - networkidle
-                        - commit
-                  additionalProperties: false
+                frameId:
+                  type: string
               required:
                 - url
-              additionalProperties: false
         required: true
       parameters:
         - schema:
@@ -154,6 +220,25 @@ paths:
       responses:
         "200":
           description: Default Response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      result: {}
+                    required:
+                      - result
+                    additionalProperties: false
+                required:
+                  - success
+                  - data
+                additionalProperties: false
   /v1/sessions/{id}/observe:
     post:
       requestBody:
@@ -164,20 +249,30 @@ paths:
               properties:
                 instruction:
                   type: string
-                modelName:
-                  type: string
-                modelClientOptions:
+                options:
                   type: object
-                  additionalProperties: true
-                domSettleTimeoutMs:
-                  type: number
-                returnAction:
-                  type: boolean
-                onlyVisible:
-                  type: boolean
-                drawOverlay:
-                  type: boolean
-              additionalProperties: false
+                  properties:
+                    model:
+                      anyOf:
+                        - type: string
+                        - type: object
+                          properties:
+                            modelName:
+                              type: string
+                            apiKey:
+                              type: string
+                            baseURL:
+                              type: string
+                              format: uri
+                          required:
+                            - modelName
+                    timeout:
+                      type: number
+                    selector:
+                      type: string
+                frameId:
+                  type: string
+        required: true
       parameters:
         - schema:
             type: string
@@ -187,6 +282,25 @@ paths:
       responses:
         "200":
           description: Default Response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      result: {}
+                    required:
+                      - result
+                    additionalProperties: false
+                required:
+                  - success
+                  - data
+                additionalProperties: false
   /v1/sessions/start:
     post:
       requestBody:
@@ -196,21 +310,53 @@ paths:
               type: object
               properties:
                 modelName:
+                  description: Model name
+                  example: gpt-4o
                   type: string
                 domSettleTimeoutMs:
                   type: number
                 verbose:
-                  type: string
-                  enum:
-                    - "0"
-                    - "1"
-                    - "2"
+                  anyOf:
+                    - type: number
+                      const: 0
+                    - type: number
+                      const: 1
+                    - type: number
+                      const: 2
                 debugDom:
                   type: boolean
                 systemPrompt:
                   type: string
                 browserbaseSessionCreateParams:
                   type: object
+                  propertyNames:
+                    type: string
+                  additionalProperties: {}
+                browser:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                      enum:
+                        - local
+                        - browserbase
+                    cdpUrl:
+                      type: string
+                    launchOptions:
+                      type: object
+                      propertyNames:
+                        type: string
+                      additionalProperties: {}
+                selfHeal:
+                  type: boolean
+                waitForCaptchaSolves:
+                  type: boolean
+                actTimeoutMs:
+                  type: number
+                browserbaseSessionID:
+                  type: string
+                experimental:
+                  type: boolean
               required:
                 - modelName
               additionalProperties: false
@@ -218,8 +364,82 @@ paths:
       responses:
         "200":
           description: Default Response
-  /v1/sessions/{id}/screenshot:
-    get:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      sessionId:
+                        description: Session ID
+                        example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
+                        type: string
+                      available:
+                        type: boolean
+                      cdpUrl:
+                        description: CDP URL
+                        example: ws://localhost:3000
+                        type: string
+                    required:
+                      - sessionId
+                      - available
+                      - cdpUrl
+                    additionalProperties: false
+                required:
+                  - success
+                  - data
+                additionalProperties: false
+  /v1/sessions/{id}/agentExecute:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                agentConfig:
+                  type: object
+                  properties:
+                    model:
+                      anyOf:
+                        - type: string
+                        - type: object
+                          properties:
+                            modelName:
+                              type: string
+                            apiKey:
+                              type: string
+                            baseURL:
+                              type: string
+                              format: uri
+                          required:
+                            - modelName
+                    systemPrompt:
+                      type: string
+                    cua:
+                      type: boolean
+                executeOptions:
+                  type: object
+                  properties:
+                    instruction:
+                      type: string
+                    maxSteps:
+                      type: number
+                    highlightCursor:
+                      type: boolean
+                  required:
+                    - instruction
+                frameId:
+                  type: string
+              required:
+                - agentConfig
+                - executeOptions
+        required: true
       parameters:
         - schema:
             type: string
@@ -229,9 +449,55 @@ paths:
       responses:
         "200":
           description: Default Response
-servers:
-  - url: http://localhost:3000
-    description: Development Server
-externalDocs:
-  url: https://docs.stagehand.dev/
-  description: Find more information here
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    properties:
+                      result: {}
+                    required:
+                      - result
+                    additionalProperties: false
+                required:
+                  - success
+                  - data
+                additionalProperties: false
+  /healthz:
+    get:
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  timestamp:
+                    type: string
+                required:
+                  - status
+                  - timestamp
+                additionalProperties: false
+  /readyz:
+    get:
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                type: string
+        "503":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                type: string

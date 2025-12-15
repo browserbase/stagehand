@@ -1,5 +1,7 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
+import { z } from "zod/v4";
+import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { withErrorHandling } from "../../../../lib/errorHandler.js";
@@ -27,6 +29,17 @@ const endRouteHandler: RouteHandlerMethod = withErrorHandling(
 const endRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/end",
+  schema: {
+    params: z.object({ id: z.string() }).strict(),
+    response: {
+      200: z
+        .object({
+          success: z.literal(true),
+          data: z.object({}).strict(),
+        })
+        .strict(),
+    },
+  } satisfies FastifyZodOpenApiSchema,
   handler: endRouteHandler,
 };
 

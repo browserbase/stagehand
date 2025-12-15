@@ -1,8 +1,8 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import type { ActResult, Action } from "@browserbasehq/stagehand";
-import { zodToJsonSchema } from "zod-to-json-schema";
-import { z } from "zod/v3";
+import { z } from "zod/v4";
+import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
@@ -13,7 +13,6 @@ interface ActParams {
   id: string;
 }
 
-// Schema for V3
 export const actSchema = z.object({
   input: z.string().or(
     z.object({
@@ -35,7 +34,7 @@ export const actSchema = z.object({
           }),
         )
         .optional(),
-      variables: z.record(z.string()).optional(),
+      variables: z.record(z.string(), z.string()).optional(),
       timeout: z.number().optional(),
     })
     .optional(),
@@ -116,15 +115,21 @@ const actRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/act",
   schema: {
-    params: {
-      type: "object",
-      properties: {
-        id: { type: "string" },
-      },
-      required: ["id"],
+    params: z.object({ id: z.string() }).strict(),
+    body: actSchema,
+    response: {
+      200: z
+        .object({
+          success: z.literal(true),
+          data: z
+            .object({
+              result: z.unknown(),
+            })
+            .strict(),
+        })
+        .strict(),
     },
-    body: zodToJsonSchema(actSchema),
-  },
+  } satisfies FastifyZodOpenApiSchema,
   handler: actRouteHandler,
 };
 

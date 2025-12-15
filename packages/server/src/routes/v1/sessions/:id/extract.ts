@@ -1,7 +1,7 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
-import { zodToJsonSchema } from "zod-to-json-schema";
-import { z } from "zod/v3";
+import { z } from "zod/v4";
+import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
@@ -16,7 +16,7 @@ interface ExtractParams {
 // Schema for V3
 export const extractSchema = z.object({
   instruction: z.string().optional(),
-  schema: z.record(z.unknown()).optional(),
+  schema: z.record(z.string(), z.unknown()).optional(),
   options: z
     .object({
       model: z
@@ -98,7 +98,7 @@ const extractRouteHandler: RouteHandlerMethod = withErrorHandling(
 
         if (data.instruction) {
           if (data.schema) {
-            const zodSchema = jsonSchemaToZod(data.schema) as z.AnyZodObject;
+            const zodSchema = jsonSchemaToZod(data.schema) as z.ZodObject;
             result = await extractFn(data.instruction, zodSchema, safeOptions);
           } else {
             result = await extractFn(data.instruction, safeOptions);
@@ -118,15 +118,21 @@ const extractRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/extract",
   schema: {
-    params: {
-      type: "object",
-      properties: {
-        id: { type: "string" },
-      },
-      required: ["id"],
+    params: z.object({ id: z.string() }).strict(),
+    body: extractSchema,
+    response: {
+      200: z
+        .object({
+          success: z.literal(true),
+          data: z
+            .object({
+              result: z.unknown(),
+            })
+            .strict(),
+        })
+        .strict(),
     },
-    body: zodToJsonSchema(extractSchema),
-  },
+  } satisfies FastifyZodOpenApiSchema,
   handler: extractRouteHandler,
 };
 
