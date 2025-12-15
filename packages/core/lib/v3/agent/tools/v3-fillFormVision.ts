@@ -1,8 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
+import { processCoordinates } from "../utils/coordinateNormalization";
 
-export const createFillFormVisionTool = (v3: V3) =>
+export const createFillFormVisionTool = (v3: V3, provider?: string) =>
   tool({
     description: `FORM FILL - SPECIALIZED MULTI-FIELD INPUT TOOL
 
@@ -44,19 +45,29 @@ MANDATORY USE CASES (always use fillFormVision for these):
     execute: async ({ fields }) => {
       try {
         const page = await v3.context.awaitActivePage();
+
+        // Process coordinates for each field
+        const processedFields = fields.map((field) => {
+          const processed = processCoordinates(field.coordinates.x, field.coordinates.y, provider);
+          return {
+            ...field,
+            coordinates: { x: processed.x, y: processed.y },
+          };
+        });
+
         v3.logger({
           category: "agent",
           message: `Agent calling tool: fillFormVision`,
           level: 1,
           auxiliary: {
             arguments: {
-              value: JSON.stringify({ fields }),
+              value: JSON.stringify({ fields, processedFields }),
               type: "string",
             },
           },
         });
 
-        for (const field of fields) {
+        for (const field of processedFields) {
           await page.click(field.coordinates.x, field.coordinates.y);
           await page.type(field.value);
           // Small delay between fields
@@ -66,12 +77,12 @@ MANDATORY USE CASES (always use fillFormVision for these):
         v3.recordAgentReplayStep({
           type: "fillFormVision",
           instruction: `Fill ${fields.length} form fields`,
-          playwrightArguments: fields,
+          playwrightArguments: processedFields,
         });
 
         return {
           success: true,
-          playwrightArguments: fields,
+          playwrightArguments: processedFields,
         };
       } catch (error) {
         return {

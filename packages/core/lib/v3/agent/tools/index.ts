@@ -32,6 +32,10 @@ export interface V3AgentToolOptions {
    * - 'hybrid': Uses coordinate-based tools (click, type, dragAndDrop, etc.) - removes fillForm
    */
   mode?: AgentToolMode;
+  /**
+   * The model provider. Used for model-specific coordinate handling
+   */
+  provider?: string;
 }
 
 /**
@@ -60,24 +64,25 @@ function filterToolsByMode(tools: ToolSet, mode: AgentToolMode): ToolSet {
 export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const executionModel = options?.executionModel;
   const mode = options?.mode ?? "dom";
+  const provider = options?.provider;
 
   const allTools: ToolSet = {
     act: createActTool(v3, executionModel),
     ariaTree: createAriaTreeTool(v3),
-    click: createClickTool(v3),
-    clickAndHold: createClickAndHoldTool(v3),
+    click: createClickTool(v3, provider),
+    clickAndHold: createClickAndHoldTool(v3, provider),
     close: createCloseTool(),
-    dragAndDrop: createDragAndDropTool(v3),
+    dragAndDrop: createDragAndDropTool(v3, provider),
     extract: createExtractTool(v3, executionModel, options?.logger),
     fillForm: createFillFormTool(v3, executionModel),
-    fillFormVision: createFillFormVisionTool(v3),
+    fillFormVision: createFillFormVisionTool(v3, provider),
     goto: createGotoTool(v3),
     keys: createKeysTool(v3),
     navback: createNavBackTool(v3),
     screenshot: createScreenshotTool(v3),
-    scroll: mode === "hybrid" ? createScrollVisionTool(v3) : createScrollTool(v3),
+    scroll: mode === "hybrid" ? createScrollVisionTool(v3, provider) : createScrollTool(v3),
     think: createThinkTool(),
-    type: createTypeTool(v3),
+    type: createTypeTool(v3, provider),
     wait: createWaitTool(v3),
   };
 

@@ -1,8 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
+import { processCoordinates } from "../utils/coordinateNormalization";
 
-export const createClickAndHoldTool = (v3: V3) =>
+export const createClickAndHoldTool = (v3: V3, provider?: string) =>
   tool({
     description: "Click and hold on an element using its coordinates",
     inputSchema: z.object({
@@ -21,29 +22,31 @@ export const createClickAndHoldTool = (v3: V3) =>
     execute: async ({ describe, coordinates, duration }) => {
       try {
         const page = await v3.context.awaitActivePage();
+        const processed = processCoordinates(coordinates[0], coordinates[1], provider);
+
         v3.logger({
           category: "agent",
           message: `Agent calling tool: clickAndHold`,
           level: 1,
           auxiliary: {
             arguments: {
-              value: JSON.stringify({ describe, coordinates, duration }),
+              value: JSON.stringify({ describe, coordinates, processed, duration }),
               type: "string",
             },
           },
         });
         // Use dragAndDrop from same point to same point with delay to simulate click and hold
         await page.dragAndDrop(
-          coordinates[0],
-          coordinates[1],
-          coordinates[0],
-          coordinates[1],
+          processed.x,
+          processed.y,
+          processed.x,
+          processed.y,
           { delay: duration },
         );
         v3.recordAgentReplayStep({
           type: "clickAndHold",
           instruction: describe,
-          playwrightArguments: { coordinates, duration },
+          playwrightArguments: { coordinates: [processed.x, processed.y], duration },
         });
         return { success: true, describe };
       } catch (error) {

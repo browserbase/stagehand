@@ -497,10 +497,12 @@ export class V3AgentHandler {
   }
 
   private createTools() {
+    const provider = this.llmClient?.getLanguageModel?.()?.provider;
     return createAgentTools(this.v3, {
       executionModel: this.executionModel,
       logger: this.logger,
       mode: this.mode,
+      provider,
     });
   }
 
