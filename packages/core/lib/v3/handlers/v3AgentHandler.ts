@@ -14,7 +14,7 @@ import {
   type PrepareStepFunction,
   type PrepareStepResult,
 } from "ai";
-import { compressMessages } from "../agent/utils/messageProcessing";
+import { compressMessages, CompressMessagesOptions } from "../agent/utils/messageProcessing";
 import { LLMClient } from "../llm/LLMClient";
 import { SessionFileLogger } from "../flowLogger";
 import {
@@ -289,7 +289,7 @@ export class V3AgentHandler {
         stopWhen: (result) => this.handleStop(result, maxSteps),
         temperature: 1,
         toolChoice: "auto",
-        prepareStep: this.createPrepareStep(callbacks?.prepareStep),
+        prepareStep: this.createPrepareStep(callbacks?.prepareStep, preparedOptions.contextManagement),
         onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
         abortSignal: preparedOptions.signal,
       });
@@ -404,7 +404,7 @@ export class V3AgentHandler {
       stopWhen: (result) => this.handleStop(result, maxSteps),
       temperature: 1,
       toolChoice: "auto",
-      prepareStep: this.createPrepareStep(callbacks?.prepareStep),
+      prepareStep: this.createPrepareStep(callbacks?.prepareStep, options.contextManagement),
       onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
       onError: (event) => {
         if (callbacks?.onError) {
@@ -510,16 +510,17 @@ export class V3AgentHandler {
    *
    * Three-layer compression:
    * 1. Screenshot/ariaTree compression (keeps 2 screenshots, 1 aria tree)
-   * 2. Sparse tool representation (after 10+ tool calls)
-   * 3. LLM-powered summarization (when tokens > 120k)
+   * 2. Sparse tool representation (after 10+ tool calls) - can be disabled
+   * 3. LLM-powered summarization (when tokens > 120k) - can be disabled
    */
   private createPrepareStep(
     userPrepareStep?: PrepareStepFunction<ToolSet>,
+    contextManagement?: CompressMessagesOptions,
   ): PrepareStepFunction<ToolSet> {
     return async (options): Promise<PrepareStepResult<ToolSet>> => {
       let compressedMessages = options.messages;
       try {
-        const result = await compressMessages(options.messages, this.llmClient);
+        const result = await compressMessages(options.messages, this.llmClient, contextManagement);
         compressedMessages = result.messages;
         const stats = result.stats;
 

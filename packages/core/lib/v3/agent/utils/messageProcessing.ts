@@ -606,19 +606,37 @@ function compressToolInteractions(
   return { messages: newMessages, compressedCount: toCompress.length };
 }
 
+export interface CompressMessagesOptions {
+  /**
+   * Enable sparse representation of old tool calls.
+   * @default true
+   */
+  sparseToolCalls?: boolean;
+  /**
+   * Enable LLM-powered summarization when context exceeds 120k tokens.
+   * @default true
+   */
+  summarization?: boolean;
+}
+
 /**
  * Compresses messages by:
  * 1. Replacing old screenshots/aria trees with placeholders (keeps 2 most recent screenshots, 1 aria tree)
  * 2. Consolidating old tool calls into sparse text summaries (after 10+ tool calls, keeps 5 most recent)
  * 3. LLM-powered summarization when tokens exceed 120k (requires llmClient)
+ *
+ * Steps 2 and 3 can be disabled via options.
  */
 export async function compressMessages(
   messages: ModelMessage[],
   llmClient?: LLMClient,
+  options?: CompressMessagesOptions,
 ): Promise<{
   messages: ModelMessage[];
   stats: CompressionStats;
 }> {
+  const enableSparseToolCalls = options?.sparseToolCalls !== false;
+  const enableSummarization = options?.summarization !== false;
   // Safety check: return early if messages is undefined or empty
   if (!messages || !Array.isArray(messages)) {
     return {
@@ -707,19 +725,23 @@ export async function compressMessages(
     },
   );
 
-  // Step 2: Compress old tool interactions into sparse summaries
-  const interactions = findToolInteractions(processedMessages);
-  const { messages: sparseMessages, compressedCount } = compressToolInteractions(
-    processedMessages,
-    interactions,
-  );
-  processedMessages = sparseMessages;
+  // Step 2: Compress old tool interactions into sparse summaries (if enabled)
+  let compressedCount = 0;
+  if (enableSparseToolCalls) {
+    const interactions = findToolInteractions(processedMessages);
+    const { messages: sparseMessages, compressedCount: count } = compressToolInteractions(
+      processedMessages,
+      interactions,
+    );
+    processedMessages = sparseMessages;
+    compressedCount = count;
+  }
 
-  // Step 3: LLM-powered summarization if tokens > 120k threshold
+  // Step 3: LLM-powered summarization if tokens > 120k threshold (if enabled)
   let summarized = false;
   let currentTokens = estimateTokens(processedMessages);
 
-  if (llmClient && currentTokens > SUMMARIZATION_THRESHOLD_TOKENS) {
+  if (enableSummarization && llmClient && currentTokens > SUMMARIZATION_THRESHOLD_TOKENS) {
     try {
       const { messages: summarizedMessages, summarized: didSummarize } =
         await summarizeConversation(processedMessages, llmClient);

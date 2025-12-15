@@ -209,6 +209,24 @@ export interface AgentStreamCallbacks extends AgentCallbacks {
 }
 
 /**
+ * Options for controlling context management/compression during agent execution.
+ * All options are enabled by default for optimal performance.
+ */
+export interface ContextManagementOptions {
+  /**
+   * Enable sparse representation of old tool calls.
+   * When enabled, tool calls beyond the 10 most recent are compressed into a summary.
+   * @default true
+   */
+  sparseToolCalls?: boolean;
+  /**
+   * Enable LLM-powered summarization when context exceeds 120k tokens.
+   * @default true
+   */
+  summarization?: boolean;
+}
+
+/**
  * Base options for agent execution (without callbacks).
  */
 export interface AgentExecuteOptionsBase {
@@ -239,6 +257,23 @@ export interface AgentExecuteOptionsBase {
    * ```
    */
   signal?: AbortSignal;
+  /**
+   * Options for controlling context management during execution.
+   * By default, all context management features are enabled.
+   *
+   * @example
+   * ```typescript
+   * // Disable all advanced context management
+   * await agent.execute({
+   *   instruction: "...",
+   *   contextManagement: {
+   *     sparseToolCalls: false,
+   *     summarization: false,
+   *   }
+   * });
+   * ```
+   */
+  contextManagement?: ContextManagementOptions;
 }
 
 /**
