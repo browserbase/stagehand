@@ -1,6 +1,10 @@
 import type { RouteHandler, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import Browserbase from "@browserbasehq/sdk";
+import {
+  localBrowserLaunchOptionsSchema,
+  LocalBrowserLaunchOptions,
+} from "@browserbasehq/stagehand";
 import type { SessionRetrieveResponse } from "@browserbasehq/sdk/resources/sessions/sessions";
 import { type FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 import { z } from "zod/v4";
@@ -32,7 +36,7 @@ const startBodySchema = z
       .object({
         type: z.enum(["local", "browserbase"]).optional(),
         cdpUrl: z.string().optional(),
-        launchOptions: z.record(z.string(), z.unknown()).optional(),
+        launchOptions: localBrowserLaunchOptionsSchema.optional(),
       })
       .optional(),
     selfHeal: z.boolean().optional(),
@@ -68,7 +72,7 @@ interface ConstructorParams {
   browser?: {
     type?: "local" | "browserbase";
     cdpUrl?: string;
-    launchOptions?: Record<string, unknown>;
+    launchOptions?: LocalBrowserLaunchOptions;
   };
   browserbaseSessionCreateParams?: Omit<
     Browserbase.Sessions.SessionCreateParams,

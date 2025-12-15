@@ -8,6 +8,7 @@ import {
 } from "../public";
 import type { Protocol } from "devtools-protocol";
 import type { StagehandZodSchema } from "../../zodCompat";
+import type { LocalBrowserLaunchOptions } from "../public";
 
 export interface StagehandAPIConstructorParams {
   apiKey: string;
@@ -36,7 +37,7 @@ export interface StartSessionParams {
   browser?: {
     type?: "local" | "browserbase";
     cdpUrl?: string;
-    launchOptions?: Record<string, unknown>;
+    launchOptions?: LocalBrowserLaunchOptions;
   };
 }
 

@@ -344,9 +344,69 @@ paths:
                       type: string
                     launchOptions:
                       type: object
-                      propertyNames:
-                        type: string
-                      additionalProperties: {}
+                      properties:
+                        args:
+                          type: array
+                          items:
+                            type: string
+                        executablePath:
+                          type: string
+                        userDataDir:
+                          type: string
+                        preserveUserDataDir:
+                          type: boolean
+                        headless:
+                          type: boolean
+                        devtools:
+                          type: boolean
+                        chromiumSandbox:
+                          type: boolean
+                        ignoreDefaultArgs:
+                          anyOf:
+                            - type: boolean
+                            - type: array
+                              items:
+                                type: string
+                        proxy:
+                          type: object
+                          properties:
+                            server:
+                              type: string
+                            bypass:
+                              type: string
+                            username:
+                              type: string
+                            password:
+                              type: string
+                          required:
+                            - server
+                        locale:
+                          type: string
+                        viewport:
+                          type: object
+                          properties:
+                            width:
+                              type: number
+                            height:
+                              type: number
+                          required:
+                            - width
+                            - height
+                        deviceScaleFactor:
+                          type: number
+                        hasTouch:
+                          type: boolean
+                        ignoreHTTPSErrors:
+                          type: boolean
+                        cdpUrl:
+                          type: string
+                        connectTimeoutMs:
+                          type: number
+                        downloadsPath:
+                          type: string
+                        acceptDownloads:
+                          type: boolean
+                      additionalProperties: false
                 selfHeal:
                   type: boolean
                 waitForCaptchaSolves:

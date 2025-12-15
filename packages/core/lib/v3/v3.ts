@@ -73,6 +73,7 @@ import {
   MissingEnvironmentVariableError,
   StagehandInitError,
   AgentStreamResult,
+  localBrowserLaunchOptionsSchema,
 } from "./types/public";
 import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
@@ -692,7 +693,9 @@ export class V3 {
             }
           }
           const lbo: LocalBrowserLaunchOptions =
-            this.opts.localBrowserLaunchOptions ?? {};
+            localBrowserLaunchOptionsSchema.parse(
+              this.opts.localBrowserLaunchOptions ?? {},
+            );
 
           // If a CDP URL is provided, attach instead of launching.
           if (lbo.cdpUrl) {
@@ -866,6 +869,10 @@ export class V3 {
               browserbaseSessionID: this.opts.browserbaseSessionID,
               browser: {
                 type: this.opts.browser?.type ?? "browserbase",
+                cdpUrl: this.opts.browser?.cdpUrl,
+                launchOptions:
+                  this.opts.browser?.launchOptions ??
+                  this.opts.localBrowserLaunchOptions,
               },
             });
             if (!available) {

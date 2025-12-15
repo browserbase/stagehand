@@ -92,15 +92,16 @@ export async function initV3({
         } as ModelConfiguration)
       : internalModel;
 
+  let browserFromEnv: V3Options["browser"] = { type: "browserbase" };
+  if (process.env.API_BROWSER_TYPE === "local") {
+    browserFromEnv = { type: "local", launchOptions: {} };
+  }
+
   const v3Options: V3Options = {
     env,
     apiKey: process.env.BROWSERBASE_API_KEY,
     projectId: process.env.BROWSERBASE_PROJECT_ID,
-    browser:
-      configOverrides?.browser ??
-      (process.env.API_BROWSER_TYPE
-        ? { type: process.env.API_BROWSER_TYPE as "browserbase" | "local" }
-        : undefined),
+    browser: configOverrides?.browser ?? browserFromEnv,
     localBrowserLaunchOptions: {
       headless: configOverrides?.localBrowserLaunchOptions?.headless ?? false,
       args:
