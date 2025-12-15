@@ -6,7 +6,7 @@ import { createNavBackTool } from "./v3-navback";
 import { createCloseTool } from "./v3-close";
 import { createAriaTreeTool } from "./v3-ariaTree";
 import { createFillFormTool } from "./v3-fillform";
-import { createScrollTool } from "./v3-scroll";
+import { createScrollTool, createScrollVisionTool } from "./v3-scroll";
 import { createExtractTool } from "./v3-extract";
 import { createClickTool } from "./v3-click";
 import { createTypeTool } from "./v3-type";
@@ -75,7 +75,7 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     keys: createKeysTool(v3),
     navback: createNavBackTool(v3),
     screenshot: createScreenshotTool(v3),
-    scroll: createScrollTool(v3),
+    scroll: mode === "hybrid" ? createScrollVisionTool(v3) : createScrollTool(v3),
     think: createThinkTool(),
     type: createTypeTool(v3),
     wait: createWaitTool(v3),
@@ -108,7 +108,7 @@ export type AgentToolTypesMap = {
   keys: ReturnType<typeof createKeysTool>;
   navback: ReturnType<typeof createNavBackTool>;
   screenshot: ReturnType<typeof createScreenshotTool>;
-  scroll: ReturnType<typeof createScrollTool>;
+  scroll: ReturnType<typeof createScrollTool> | ReturnType<typeof createScrollVisionTool>;
   search: ReturnType<typeof createSearchTool>;
   think: ReturnType<typeof createThinkTool>;
   type: ReturnType<typeof createTypeTool>;

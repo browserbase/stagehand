@@ -2,61 +2,41 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
 
+/**
+ * Simple scroll tool for DOM mode (non-grounding models).
+ * No coordinates - scrolls from viewport center.
+ */
 export const createScrollTool = (v3: V3) =>
   tool({
-    description:
-      "Scroll the page by a percentage of the current viewport height",
+    description: "Scroll the page up or down by a percentage of the viewport height.",
     inputSchema: z.object({
-      percentage: z
-        .number()
-        .min(1)
-        .max(200)
-        .default(80)
-        .describe(
-          "Percentage of viewport height to scroll (1-200%, default: 80%)",
-        ),
-      direction: z.enum(["up", "down"]).describe("Direction to scroll"),
-      coordinates: z
-        .array(z.number())
-        .optional()
-        .describe(
-          "Optional (x, y) coordinates to scroll at. If not provided, scrolls at the center of the viewport.",
-        ),
+      direction: z.enum(["up", "down"]),
+      percentage: z.number().min(1).max(200).optional(),
     }),
-    execute: async ({ percentage = 80, direction, coordinates }) => {
+    execute: async ({ direction, percentage = 80 }) => {
       v3.logger({
         category: "agent",
         message: `Agent calling tool: scroll`,
         level: 1,
         auxiliary: {
           arguments: {
-            value: JSON.stringify({ percentage, direction, coordinates }),
+            value: JSON.stringify({ direction, percentage }),
             type: "object",
           },
         },
       });
+
       const page = await v3.context.awaitActivePage();
 
-      // Get viewport dimensions
-      const { w, h } = await page.mainFrame().evaluate<{
-        w: number;
-        h: number;
-      }>("({ w: window.innerWidth, h: window.innerHeight })");
+      const { w, h } = await page.mainFrame().evaluate<{ w: number; h: number }>(
+        "({ w: window.innerWidth, h: window.innerHeight })"
+      );
 
-      // Calculate scroll distance based on percentage of viewport height
       const scrollDistance = Math.round((h * percentage) / 100);
-
-      // Use provided coordinates or default to center of viewport
-      const cx =
-        coordinates && coordinates.length >= 2
-          ? coordinates[0]
-          : Math.max(0, Math.floor(w / 2));
-      const cy =
-        coordinates && coordinates.length >= 2
-          ? coordinates[1]
-          : Math.max(0, Math.floor(h / 2));
-
+      const cx = Math.floor(w / 2);
+      const cy = Math.floor(h / 2);
       const deltaY = direction === "up" ? -scrollDistance : scrollDistance;
+
       await page.scroll(cx, cy, 0, deltaY);
 
       v3.recordAgentReplayStep({
@@ -68,9 +48,67 @@ export const createScrollTool = (v3: V3) =>
 
       return {
         success: true,
-        message: `Scrolled ${percentage}% of viewport ${direction} (${scrollDistance}px of ${h}px viewport height)`,
+        message: `Scrolled ${percentage}% ${direction} (${scrollDistance}px)`,
         scrolledPixels: scrollDistance,
-        viewportHeight: h,
+      };
+    },
+  });
+
+/**
+ * Scroll tool for hybrid mode (grounding models).
+ * Supports optional coordinates for scrolling within nested scrollable elements.
+ */
+export const createScrollVisionTool = (v3: V3) =>
+  tool({
+    description: `Scroll the page up or down. For general page scrolling, no coordinates needed. Only provide coordinates when scrolling inside a nested scrollable element (e.g., a dropdown menu, modal with overflow, or scrollable sidebar).`,
+    inputSchema: z.object({
+      direction: z.enum(["up", "down"]),
+      coordinates: z
+        .array(z.number())
+        .optional()
+        .describe("Only use coordinatesfor scrolling inside a nested scrollable element - provide (x, y) within that element"),
+      percentage: z.number().min(1).max(200).optional(),
+    }),
+    execute: async ({ direction, coordinates, percentage = 80 }) => {
+      v3.logger({
+        category: "agent",
+        message: `Agent calling tool: scroll`,
+        level: 1,
+        auxiliary: {
+          arguments: {
+            value: JSON.stringify({ direction, coordinates, percentage }),
+            type: "object",
+          },
+        },
+      });
+
+      const page = await v3.context.awaitActivePage();
+
+      const { w, h } = await page.mainFrame().evaluate<{ w: number; h: number }>(
+        "({ w: window.innerWidth, h: window.innerHeight })"
+      );
+
+      const scrollDistance = Math.round((h * percentage) / 100);
+      const deltaY = direction === "up" ? -scrollDistance : scrollDistance;
+
+      const cx = coordinates?.[0] ?? Math.floor(w / 2);
+      const cy = coordinates?.[1] ?? Math.floor(h / 2);
+
+      await page.scroll(cx, cy, 0, deltaY);
+
+      v3.recordAgentReplayStep({
+        type: "scroll",
+        deltaX: 0,
+        deltaY,
+        anchor: { x: cx, y: cy },
+      });
+
+      return {
+        success: true,
+        message: coordinates
+          ? `Scrolled ${percentage}% ${direction} at (${cx}, ${cy})`
+          : `Scrolled ${percentage}% ${direction}`,
+        scrolledPixels: scrollDistance,
       };
     },
   });
