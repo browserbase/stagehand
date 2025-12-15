@@ -386,13 +386,7 @@ const generateFilteredTestcases = (): Testcase[] => {
           // Pass full EvalInput to the task (data-driven params available via input.params)
           let result;
           try {
-            result = await taskFunction({
-              // ...taskInput,
-              v3: v3Input?.v3,
-              v3Agent: v3Input?.agent,
-              logger: v3Input?.logger,
-              v3Input,
-            });
+            result = await taskFunction({ ...v3Input, input });
             // Log result to console
             if (result && result._success) {
               console.log(`✅ ${input.name}: Passed`);

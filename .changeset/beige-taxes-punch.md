@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand-evals": patch
 ---
 
-Update model handling in agent evals cli
+Update screenshot collector in agent evals cli

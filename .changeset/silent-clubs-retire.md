@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-Fix key action mapping in Anthropic CUA
+fix: load GOOGLE_API_KEY from .env

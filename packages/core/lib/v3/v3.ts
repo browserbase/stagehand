@@ -1,11 +1,16 @@
 import dotenv from "dotenv";
+import { EventEmitter } from "events";
 import fs from "fs";
 import os from "os";
 import path from "path";
 import process from "process";
 import { v7 as uuidv7 } from "uuid";
 import { z } from "zod";
-import type { InferStagehandSchema, StagehandZodSchema } from "./zodCompat";
+import {
+  InferStagehandSchema,
+  StagehandZodSchema,
+  toJsonSchema,
+} from "./zodCompat";
 import { loadApiKeyFromEnv } from "../utils";
 import { StagehandLogger, LoggerOptions } from "../logger";
 import { ActCache } from "./cache/ActCache";
@@ -137,6 +142,12 @@ export class V3 {
   private observeHandler: ObserveHandler | null = null;
   private ctx: V3Context | null = null;
   public llmClient!: LLMClient;
+
+  /**
+   * Event bus for internal communication.
+   * Emits events like 'screenshot' when screenshots are captured during agent execution.
+   */
+  public readonly bus: EventEmitter = new EventEmitter();
   private modelName: AvailableModel;
   private modelClientOptions: ClientOptions;
   private llmProvider: LLMProvider;
@@ -1261,6 +1272,19 @@ export class V3 {
         result =
           await this.extractHandler.extract<StagehandZodSchema>(handlerParams);
       }
+      const historySchemaDescriptor = effectiveSchema
+        ? toJsonSchema(effectiveSchema)
+        : undefined;
+      this.addToHistory(
+        "extract",
+        {
+          instruction,
+          selector: options?.selector,
+          timeout: options?.timeout,
+          schema: historySchemaDescriptor,
+        },
+        result,
+      );
       return result;
     });
   }
