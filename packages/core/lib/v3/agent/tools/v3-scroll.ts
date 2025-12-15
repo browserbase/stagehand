@@ -8,7 +8,7 @@ import type { V3 } from "../../v3";
  */
 export const createScrollTool = (v3: V3) =>
   tool({
-    description: "Scroll the page up or down by a percentage of the viewport height.",
+    description: "Scroll the page up or down by a percentage of the viewport height. Default is 80%, and what should be typically used for general page scrolling",
     inputSchema: z.object({
       direction: z.enum(["up", "down"]),
       percentage: z.number().min(1).max(200).optional(),
@@ -60,7 +60,7 @@ export const createScrollTool = (v3: V3) =>
  */
 export const createScrollVisionTool = (v3: V3) =>
   tool({
-    description: `Scroll the page up or down. For general page scrolling, no coordinates needed. Only provide coordinates when scrolling inside a nested scrollable element (e.g., a dropdown menu, modal with overflow, or scrollable sidebar).`,
+    description: `Scroll the page up or down. For general page scrolling, no coordinates needed. Only provide coordinates when scrolling inside a nested scrollable element (e.g., a dropdown menu, modal with overflow, or scrollable sidebar). Default is 80%, and what should be typically used for general page scrolling`,
     inputSchema: z.object({
       direction: z.enum(["up", "down"]),
       coordinates: z
