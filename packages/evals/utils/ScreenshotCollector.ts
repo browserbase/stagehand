@@ -68,6 +68,7 @@ export class ScreenshotCollector {
       // Ignore errors - CDP may be disconnected
     }
 
+
     // Return a copy and clear internal state to free memory
     const result = [...this.screenshots];
     this.screenshots = [];
