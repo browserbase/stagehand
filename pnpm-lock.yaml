@@ -98,7 +98,7 @@ importers:
     optionalDependencies:
       '@ai-sdk/anthropic':
         specifier: ^2.0.34
-        version: 2.0.34(zod@4.1.12)
+        version: 2.0.53(zod@4.1.12)
       '@ai-sdk/azure':
         specifier: ^2.0.54
         version: 2.0.54(zod@4.1.12)
@@ -314,12 +314,6 @@ importers:
         version: 5.9.3
 
 packages:
-
-  '@ai-sdk/anthropic@2.0.34':
-    resolution: {integrity: sha512-ayiKwCRVubQonbMX0YBQLtJKEZ7gziW35N6Md3qwdOqEq17JGz6vjKiba9RyYa/iIVT535n6ChLtHY/vTA7ImA==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
 
   '@ai-sdk/anthropic@2.0.53':
     resolution: {integrity: sha512-ih7NV+OFSNWZCF+tYYD7ovvvM+gv7TRKQblpVohg2ipIwC9Y0TirzocJVREzZa/v9luxUwFbsPji++DUDWWxsg==}
@@ -918,17 +912,10 @@ packages:
     resolution: {integrity: sha512-xeO57FpIu4p1Ri3Jq/EXq4ClRm86dVF2z/+kvFnyqVYRavTZmaFaUBbWCOuuTh0o/g7DSsk6kc2vrS4Vl5oPOQ==}
     engines: {node: '>=18.18'}
 
-<<<<<<< HEAD
-=======
-  '@ibm-cloud/watsonx-ai@1.7.0':
-    resolution: {integrity: sha512-TmLaoFXmLc7yVFJIQS25mzZcuWfju4JmRXcO62KthDKNENyPpXXJukrHN6gXfv1BotzFt0M2kyRnO1Vt8ZLlxQ==}
-    engines: {node: '>=18.0.0'}
-
   '@img/colour@1.0.0':
     resolution: {integrity: sha512-A5P/LfWGFSl6nsckYtjw9da+19jB8hkJ6ACTGcDfEJ0aE+l2n2El7dsVM7UVHZQ9s2lmYMWlrS21YLy2IR1LUw==}
     engines: {node: '>=18'}
 
->>>>>>> cb952c47 (pnpm lock update)
   '@img/sharp-darwin-arm64@0.33.5':
     resolution: {integrity: sha512-UT4p+iz/2H4twwAoLCqfA9UH5pI6DggwKEGuaPy7nCVQ8ZsiY5PIcrRvD1DzuY3qYL07NtIQcWnBSY/heikIFQ==}
     engines: {node: ^18.17.0 || ^20.3.0 || >=21.0.0}
@@ -5877,13 +5864,6 @@ packages:
 
 snapshots:
 
-  '@ai-sdk/anthropic@2.0.53(zod@3.25.67)':
-    dependencies:
-      '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.18(zod@3.25.67)
-      zod: 3.25.67
-    optional: true
-
   '@ai-sdk/anthropic@2.0.53(zod@4.1.12)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
@@ -5937,8 +5917,8 @@ snapshots:
   '@ai-sdk/google@2.0.23(zod@4.1.12)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.18(zod@3.25.67)
-      zod: 3.25.67
+      '@ai-sdk/provider-utils': 3.0.12(zod@4.1.12)
+      zod: 4.1.12
     optional: true
 
   '@ai-sdk/google@2.0.44(zod@4.1.12)':
@@ -5988,8 +5968,7 @@ snapshots:
       '@ai-sdk/provider': 2.0.0
       '@standard-schema/spec': 1.0.0
       eventsource-parser: 3.0.6
-      zod: 3.25.67
-    optional: true
+      zod: 4.1.12
 
   '@ai-sdk/provider-utils@3.0.18(zod@4.1.12)':
     dependencies:
@@ -6506,20 +6485,8 @@ snapshots:
 
   '@humanwhocodes/retry@0.4.2': {}
 
-<<<<<<< HEAD
-=======
-  '@ibm-cloud/watsonx-ai@1.7.0':
-    dependencies:
-      '@types/node': 18.19.87
-      extend: 3.0.2
-      form-data: 4.0.4
-      ibm-cloud-sdk-core: 5.4.3
-    transitivePeerDependencies:
-      - supports-color
-
   '@img/colour@1.0.0': {}
 
->>>>>>> cb952c47 (pnpm lock update)
   '@img/sharp-darwin-arm64@0.33.5':
     optionalDependencies:
       '@img/sharp-libvips-darwin-arm64': 1.0.4
