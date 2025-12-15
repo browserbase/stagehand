@@ -20,8 +20,17 @@ interface SearchResponse {
   error?: string;
 }
 
-interface ExaSearchResponse {
-  results?: Array<{ id?: string; title?: string; url?: string }>;
+interface ExaApiResponse {
+  results?: Array<{
+    id?: string;
+    title?: string;
+    url?: string;
+    publishedDate?: string;
+    author?: string;
+    favicon?: string;
+    score?: number;
+    image?: string;
+  }>;
 }
 
 async function performExaSearch(query: string): Promise<SearchResponse> {
@@ -33,55 +42,47 @@ async function performExaSearch(query: string): Promise<SearchResponse> {
       };
     }
 
-    // Dynamic import to avoid requiring exa-js if not installed
-    let ExaModule: { default: new (apiKey: string) => { search: (query: string, options: { type: string; numResults: number }) => Promise<ExaSearchResponse> } };
-    try {
-      // @ts-expect-error - exa-js is an optional dependency
-      ExaModule = await import("exa-js");
-    } catch {
+    const response = await fetch("https://api.exa.ai/search", {
+      method: "POST",
+      headers: {
+        "x-api-key": process.env.EXA_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query,
+        type: "auto",
+        numResults: 5,
+      }),
+    });
+
+    if (!response.ok) {
       return {
-        error:
-          "exa-js package is not installed. Install it with: npm install exa-js",
+        error: `Exa API error: ${response.status} ${response.statusText}`,
         data: { results: [] },
       };
     }
 
-    const Exa = ExaModule.default;
-    const exa = new Exa(process.env.EXA_API_KEY);
-
-    const response = await exa.search(query, {
-      type: "auto",
-      numResults: 5,
-    });
-
+    const data = (await response.json()) as ExaApiResponse;
     const results: ExaSearchResult[] = [];
 
-    if (response?.results && Array.isArray(response.results)) {
-      response.results.forEach(
-        (item: { id?: string; title?: string; url?: string }) => {
-          if (item.id && item.title && item.url) {
-            results.push({
-              id: item.id,
-              title: item.title,
-              url: item.url,
-            });
-          }
-        },
-      );
+    if (data?.results && Array.isArray(data.results)) {
+      for (const item of data.results) {
+        if (item.id && item.title && item.url) {
+          results.push({
+            id: item.id,
+            title: item.title,
+            url: item.url,
+          });
+        }
+      }
     }
 
-    return {
-      data: {
-        results: results,
-      },
-    };
+    return { data: { results } };
   } catch (error) {
     console.error("Search error", error);
     return {
       error: `Error performing search: ${(error as Error).message}`,
-      data: {
-        results: [],
-      },
+      data: { results: [] },
     };
   }
 }
