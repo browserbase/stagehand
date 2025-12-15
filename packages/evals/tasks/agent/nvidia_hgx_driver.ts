@@ -6,7 +6,7 @@ export const nvidia_hgx_driver: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -22,7 +22,7 @@ export const nvidia_hgx_driver: EvalFunction = async ({
 
     const instruction =
       "Find the HGX H100 driver for Ubuntu 22.04 on AMD64 CPU. use https://nvidia.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site.";
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 40,
     });

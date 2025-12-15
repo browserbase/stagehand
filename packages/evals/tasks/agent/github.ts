@@ -5,14 +5,14 @@ export const github: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
     const page = v3.context.pages()[0];
     await page.goto("https://github.com/");
     const evaluator = new V3Evaluator(v3);
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction:
         "Find a Ruby repository on GitHub that has been updated in the past 3 days and has at least 1000 stars.",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,

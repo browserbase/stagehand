@@ -6,7 +6,7 @@ export const webmd_ovulation_calculator: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -22,7 +22,7 @@ export const webmd_ovulation_calculator: EvalFunction = async ({
 
     const instruction =
       "Search for the ovulation calculator and enter Mar 1 as the first date of the period and calculate the date of ovulation and pregnancy test day. use https://www.webmd.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site.";
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 40,
     });

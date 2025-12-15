@@ -6,7 +6,7 @@ export const alibaba_supplier_search: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -21,7 +21,7 @@ export const alibaba_supplier_search: EvalFunction = async ({
     screenshotCollector.start();
 
     const instruction = "Search for 'solar panels' on Alibaba and find 3 suppliers. For each supplier, tell me their company name, minimum order quantity, and price range if available.";
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
     });

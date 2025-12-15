@@ -6,7 +6,7 @@ export const trustpilot_hr_companies: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -22,7 +22,7 @@ export const trustpilot_hr_companies: EvalFunction = async ({
 
     const instruction =
       "Use Trustpilot's search function to filter HR & Recruiting located in 'London', then list the review summaries for the first three companies listed above 4.5 stars. Only use http://trustpilot.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site.";
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 40,
     });

@@ -6,7 +6,7 @@ export const flipkart_laptops: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -21,7 +21,7 @@ export const flipkart_laptops: EvalFunction = async ({
     screenshotCollector.start();
 
     const instruction = "In the 'Laptops' section, apply the filter for 'Dell' and extract the average discount percentage on the first 3 Dell laptops displayed. Only use http://flipkart.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site.";
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
     });

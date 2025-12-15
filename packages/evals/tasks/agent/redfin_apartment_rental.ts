@@ -6,7 +6,7 @@ export const redfin_apartment_rental: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -30,7 +30,7 @@ export const redfin_apartment_rental: EvalFunction = async ({
     });
 
     const instruction = `Find a 2 bed and 1.5+ bath apartment listing for rent in New York, with a move in date of ${moveInDateFormatted}. use https://redfin.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site.`;
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 40,
     });

@@ -6,7 +6,7 @@ export const radiotimes_tv_schedule: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -22,7 +22,7 @@ export const radiotimes_tv_schedule: EvalFunction = async ({
 
     const instruction =
       "Locate tonight's featured TV schedule on Radiotimes, and list the titles of shows airing on both BBC and ITV. Only use http://radiotimes.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site.";
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 40,
     });

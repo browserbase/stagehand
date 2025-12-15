@@ -6,7 +6,7 @@ export const made_in_china_supplier: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -22,7 +22,7 @@ export const made_in_china_supplier: EvalFunction = async ({
 
     const instruction =
       "Navigate to the suppliers profiles section, select a verified supplier offering 'electronic components', and extract the certification details provided on their profile. Only use http://made-in-china.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site.";
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
     });

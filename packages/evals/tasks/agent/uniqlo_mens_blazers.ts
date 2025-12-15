@@ -6,7 +6,7 @@ export const uniqlo_mens_blazers: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -22,7 +22,7 @@ export const uniqlo_mens_blazers: EvalFunction = async ({
 
     const instruction =
       "Show me the list of Men's Blazers, Black, Size M on Uniqlo.";
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 40,
     });

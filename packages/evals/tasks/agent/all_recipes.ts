@@ -5,14 +5,14 @@ export const all_recipes: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
     const page = v3.context.pages()[0];
     await page.goto("https://www.allrecipes.com/");
     const evaluator = new V3Evaluator(v3);
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction:
         "Search for a recipe for Beef Wellington on Allrecipes that has at least 200 reviews and an average rating of 4.5 stars or higher. List the main ingredients required for the dish.",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,

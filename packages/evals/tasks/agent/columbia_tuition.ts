@@ -6,7 +6,7 @@ export const columbia_tuition: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -21,7 +21,7 @@ export const columbia_tuition: EvalFunction = async ({
     screenshotCollector.start();
 
     const instruction = "Use the search functionality to locate pages detailing tuition and fees, then extract the published tuition fee information for undergraduate programs. Only use http://columbia.edu to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site.";
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
     });

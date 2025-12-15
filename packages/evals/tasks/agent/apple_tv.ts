@@ -5,14 +5,14 @@ export const apple_tv: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
     const page = v3.context.pages()[0];
     await page.goto("https://www.apple.com/");
 
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction:
         "Identify the size and weight for the Apple TV 4K and list the Siri Remote features introduced.",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,

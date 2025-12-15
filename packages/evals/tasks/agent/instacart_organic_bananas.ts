@@ -6,7 +6,7 @@ export const instacart_organic_bananas: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -22,7 +22,7 @@ export const instacart_organic_bananas: EvalFunction = async ({
 
     const instruction =
       "Search for organic bananas on Instacart and list the top 3 prices along with their retailer names. Only use http://instacart.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site.";
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
     });

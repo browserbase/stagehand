@@ -6,7 +6,7 @@ export const webmd_audiologist_search: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -22,7 +22,7 @@ export const webmd_audiologist_search: EvalFunction = async ({
 
     const instruction =
       "Find the best Audiologist within 50 miles of New York, NY, with a rating of 4 and above. use https://doctor.webmd.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site.";
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 40,
     });

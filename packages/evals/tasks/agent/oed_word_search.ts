@@ -6,7 +6,7 @@ export const oed_word_search: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -22,7 +22,7 @@ export const oed_word_search: EvalFunction = async ({
 
     const instruction =
       "Filter search results to show only entries for words first used from 1500 to 1600 and list the headwords of the first 10 results. Only use http://oed.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site.";
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
     });

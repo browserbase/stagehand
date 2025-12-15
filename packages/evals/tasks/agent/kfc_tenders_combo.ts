@@ -6,7 +6,7 @@ export const kfc_tenders_combo: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -22,7 +22,7 @@ export const kfc_tenders_combo: EvalFunction = async ({
 
     const instruction =
       "Add a 5-piece Tenders Combo to my bag with Sweet Corn as the side, Sweet Tea as the drink, and both Honey BBQ and Honey Mustard sauces. Select the store closest to Zip code 10001 for pick-up tomorrow at 12:00 PM.";
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 40,
     });

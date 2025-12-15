@@ -6,7 +6,7 @@ export const amazon_shoes_cart: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -22,7 +22,7 @@ export const amazon_shoes_cart: EvalFunction = async ({
 
     const instruction =
       "go to amazon, and add a pair of black running shoes to cart in size 14. stop after you add the item to cart, and reach the login page";
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 40,
     });

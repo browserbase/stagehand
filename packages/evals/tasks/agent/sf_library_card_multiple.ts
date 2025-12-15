@@ -5,14 +5,14 @@ export const sf_library_card_multiple: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
     const page = v3.context.pages()[0];
     await page.goto("https://sflib1.sfpl.org/selfreg");
 
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction:
         "Fill in ALL the required fields with mock data. DO NOT submit the form",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,

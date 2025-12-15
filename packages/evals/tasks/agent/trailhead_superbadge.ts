@@ -6,7 +6,7 @@ export const trailhead_superbadge: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -22,7 +22,7 @@ export const trailhead_superbadge: EvalFunction = async ({
     screenshotCollector.start();
 
     const instruction = "Find the tasks needed to complete the Assess Your Access & Security Skills category in the secure your app trailhead";
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 40,
     });
