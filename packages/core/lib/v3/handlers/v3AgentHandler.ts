@@ -171,6 +171,17 @@ export class V3AgentHandler {
           }
         }
         state.currentPageUrl = (await this.v3.context.awaitActivePage()).url();
+
+        // Capture screenshot after tool execution and emit event
+        try {
+          await this.captureAndEmitScreenshot();
+        } catch (e) {
+          this.logger({
+            category: "agent",
+            message: `Warning: Failed to capture screenshot: ${getErrorMessage(e)}`,
+            level: 1,
+          });
+        }
       }
 
       if (userCallback) {
@@ -447,5 +458,22 @@ export class V3AgentHandler {
       return true;
     }
     return stepCountIs(maxSteps)(result);
+  }
+
+  /**
+   * Capture a screenshot and emit it via the event bus
+   */
+  private async captureAndEmitScreenshot(): Promise<void> {
+    try {
+      const page = await this.v3.context.awaitActivePage();
+      const screenshot = await page.screenshot({ fullPage: false });
+      this.v3.bus.emit("agent_screensot_taken_event", screenshot);
+    } catch (error) {
+      this.logger({
+        category: "agent",
+        message: `Error capturing screenshot: ${getErrorMessage(error)}`,
+        level: 0,
+      });
+    }
   }
 }

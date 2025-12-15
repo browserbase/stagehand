@@ -13,3 +13,7 @@ packages/core/lib/v3/dom/build/
 packages/evals/dist/
 packages/docs/
 *.min.js
+.browserbase/
+.browserbase/**
+**/.browserbase/
+**/.browserbase/**
