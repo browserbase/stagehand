@@ -5,7 +5,7 @@ import type { V3 } from "../../v3";
 export const createScrollTool = (v3: V3) =>
   tool({
     description:
-      "Scroll the page by a percentage of the current viewport height. More dynamic and robust than fixed pixel amounts.",
+      "Scroll the page by a percentage of the current viewport height",
     inputSchema: z.object({
       percentage: z
         .number()
