@@ -264,6 +264,44 @@ Provide a thorough summary that will allow continuation of the automation task:`
 }
 
 /**
+ * Finds a safe split point that doesn't break tool call/result pairs.
+ * Returns the index where we should start the "recent" messages.
+ */
+function findSafeSplitPoint(messages: ModelMessage[], targetRecentCount: number): number {
+  if (messages.length <= targetRecentCount) {
+    return 0;
+  }
+
+  let splitIndex = messages.length - targetRecentCount;
+
+  // Check if the message at splitIndex is a tool result message
+  // If so, we need to include its preceding assistant message with tool calls
+  const messageAtSplit = messages[splitIndex];
+  if (messageAtSplit && isToolMessage(messageAtSplit)) {
+    // Find the preceding assistant message with tool calls
+    // It should be the message right before
+    if (splitIndex > 0) {
+      splitIndex = splitIndex - 1;
+    }
+  }
+
+  // Also check if the message just before splitIndex is an assistant with tool calls
+  // whose results would be at splitIndex
+  if (splitIndex > 0) {
+    const messageBefore = messages[splitIndex - 1];
+    if (messageBefore && isAssistantMessage(messageBefore) && Array.isArray(messageBefore.content)) {
+      const hasToolCalls = messageBefore.content.some((part) => isToolCallPart(part));
+      if (hasToolCalls) {
+        // Include the assistant message with tool calls
+        splitIndex = splitIndex - 1;
+      }
+    }
+  }
+
+  return splitIndex;
+}
+
+/**
  * Summarizes the conversation and keeps recent messages intact.
  * This is the third layer of context management, triggered when tokens > 120k.
  */
@@ -271,9 +309,11 @@ async function summarizeConversation(
   messages: ModelMessage[],
   llmClient: LLMClient,
 ): Promise<{ messages: ModelMessage[]; summarized: boolean }> {
+  const splitIndex = findSafeSplitPoint(messages, RECENT_MESSAGES_TO_KEEP_IN_SUMMARY);
+
   // Keep the most recent messages intact
-  const recentMessages = messages.slice(-RECENT_MESSAGES_TO_KEEP_IN_SUMMARY);
-  const messagesToSummarize = messages.slice(0, -RECENT_MESSAGES_TO_KEEP_IN_SUMMARY);
+  const recentMessages = messages.slice(splitIndex);
+  const messagesToSummarize = messages.slice(0, splitIndex);
 
   if (messagesToSummarize.length === 0) {
     return { messages, summarized: false };
@@ -495,8 +535,23 @@ function compressToolInteractions(
     const message = messages[i];
     if (!message) continue;
 
-    // Skip tool result messages that are being compressed
-    if (toolIndicesToRemove.has(i)) {
+    // For tool result messages that contain compressed results, filter out only the compressed results
+    // (Don't skip the entire message - it may contain results for non-compressed tool calls)
+    if (toolIndicesToRemove.has(i) && isToolMessage(message) && Array.isArray(message.content)) {
+      const filteredContent = message.content.filter((part) => {
+        if (isToolResultPart(part)) {
+          return !toolCallIdsToRemove.has(part.toolCallId);
+        }
+        return true;
+      });
+
+      // Only keep the message if there are remaining tool results
+      if (filteredContent.length > 0) {
+        newMessages.push({
+          ...message,
+          content: filteredContent,
+        } as ModelMessage);
+      }
       continue;
     }
 

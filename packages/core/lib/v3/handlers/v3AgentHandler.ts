@@ -48,6 +48,7 @@ export class V3AgentHandler {
   private systemInstructions?: string;
   private mcpTools?: ToolSet;
   private mode: AgentToolMode;
+  private highlightCursor: boolean;
 
   constructor(
     v3: V3,
@@ -65,6 +66,20 @@ export class V3AgentHandler {
     this.systemInstructions = systemInstructions;
     this.mcpTools = mcpTools;
     this.mode = mode ?? "dom";
+    this.highlightCursor = this.mode === "hybrid";
+  }
+
+  private async injectCursor(): Promise<void> {
+    try {
+      const page = await this.v3.context.awaitActivePage();
+      await page.enableCursorOverlay();
+    } catch {
+      this.logger({
+        category: "agent",
+        message: `Warning: Failed to inject cursor. Continuing with execution.`,
+        level: 1,
+      });
+    }
   }
 
   private async prepareAgent(
@@ -203,10 +218,13 @@ export class V3AgentHandler {
     instructionOrOptions: string | AgentExecuteOptions,
   ): Promise<AgentResult> {
     const startTime = Date.now();
-    const signal =
-      typeof instructionOrOptions === "object"
-        ? instructionOrOptions.signal
-        : undefined;
+    const options =
+      typeof instructionOrOptions === "object" ? instructionOrOptions : null;
+    const signal = options?.signal;
+
+    // Allow execute options to override the default highlightCursor setting
+    const shouldHighlightCursor =
+      options?.highlightCursor ?? this.highlightCursor;
 
     const state: AgentState = {
       collectedReasoning: [],
@@ -220,7 +238,7 @@ export class V3AgentHandler {
 
     try {
       const {
-        options,
+        options: preparedOptions,
         maxSteps,
         systemPrompt,
         allTools,
@@ -228,6 +246,20 @@ export class V3AgentHandler {
         wrappedModel,
         initialPageUrl,
       } = await this.prepareAgent(instructionOrOptions);
+
+      if (shouldHighlightCursor && this.mode === "hybrid") {
+        try {
+          await this.injectCursor();
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          this.logger({
+            category: "agent",
+            message: `Warning: Failed to inject cursor: ${errorMessage}. Continuing with execution.`,
+            level: 1,
+          });
+        }
+      }
 
       messages = preparedMessages;
       state.currentPageUrl = initialPageUrl;
@@ -259,7 +291,7 @@ export class V3AgentHandler {
         toolChoice: "auto",
         prepareStep: this.createPrepareStep(callbacks?.prepareStep),
         onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
-        abortSignal: options.signal,
+        abortSignal: preparedOptions.signal,
       });
 
       return this.consolidateMetricsAndResult(
@@ -302,6 +334,13 @@ export class V3AgentHandler {
   public async stream(
     instructionOrOptions: string | AgentStreamExecuteOptions,
   ): Promise<AgentStreamResult> {
+    const streamOptions =
+      typeof instructionOrOptions === "object" ? instructionOrOptions : null;
+
+    // Allow stream options to override the default highlightCursor setting
+    const shouldHighlightCursor =
+      streamOptions?.highlightCursor ?? this.highlightCursor;
+
     const {
       options,
       maxSteps,
@@ -311,6 +350,21 @@ export class V3AgentHandler {
       wrappedModel,
       initialPageUrl,
     } = await this.prepareAgent(instructionOrOptions);
+
+    // Inject cursor overlay for hybrid mode (coordinate-based interactions)
+    if (shouldHighlightCursor && this.mode === "hybrid") {
+      try {
+        await this.injectCursor();
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        this.logger({
+          category: "agent",
+          message: `Warning: Failed to inject cursor: ${errorMessage}. Continuing with execution.`,
+          level: 1,
+        });
+      }
+    }
 
     const callbacks = (instructionOrOptions as AgentStreamExecuteOptions)
       .callbacks as AgentStreamCallbacks | undefined;
