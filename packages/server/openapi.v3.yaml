@@ -231,7 +231,36 @@ paths:
                   data:
                     type: object
                     properties:
-                      result: {}
+                      result:
+                        anyOf:
+                          - type: object
+                            properties:
+                              requestId:
+                                type: string
+                              frameId:
+                                type: string
+                              loaderId:
+                                type: string
+                              response: {}
+                              fromServiceWorkerFlag:
+                                type: boolean
+                              finishedSettled:
+                                type: boolean
+                              extraInfoHeaders:
+                                anyOf:
+                                  - type: object
+                                    propertyNames:
+                                      type: string
+                                    additionalProperties:
+                                      type: string
+                                  - type: "null"
+                              extraInfoHeadersText:
+                                type: string
+                            required:
+                              - requestId
+                              - response
+                            additionalProperties: false
+                          - type: "null"
                     required:
                       - result
                     additionalProperties: false

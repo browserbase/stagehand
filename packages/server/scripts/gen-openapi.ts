@@ -23,7 +23,7 @@ import startRoute from "../src/routes/v1/sessions/start.js";
 import healthcheckRoute from "../src/routes/healthcheck.js";
 import readinessRoute from "../src/routes/readiness.js";
 
-// @ts-expect-error - I don't care that you broke your elbow
+// @ts-expect-error - __dirname is not available in ES modules, using fileURLToPath workaround
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUTPUT_PATH = path.resolve(__dirname, "../openapi.v3.yaml");
 

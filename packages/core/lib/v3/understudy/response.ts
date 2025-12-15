@@ -14,7 +14,7 @@
  */
 
 import type { Protocol } from "devtools-protocol";
-import type { SerializableResponse } from "../types/private";
+import type { NavigateResponse as SerializableResponse } from "../types/private";
 import {
   ResponseBodyError,
   ResponseParseError,
@@ -367,7 +367,7 @@ export class Response {
       requestId: serialized.requestId,
       frameId: serialized.frameId,
       loaderId: serialized.loaderId,
-      response: serialized.response,
+      response: serialized.response as Protocol.Network.Response,
       fromServiceWorker: serialized.fromServiceWorkerFlag ?? false,
     });
 

@@ -1,4 +1,5 @@
 import Browserbase from "@browserbasehq/sdk";
+import { z } from "zod";
 import {
   Action,
   ActOptions,
@@ -6,7 +7,6 @@ import {
   LogLine,
   ObserveOptions,
 } from "../public";
-import type { Protocol } from "devtools-protocol";
 import type { StagehandZodSchema } from "../../zodCompat";
 import type { LocalBrowserLaunchOptions } from "../public";
 
@@ -78,13 +78,17 @@ export interface APIObserveParameters {
   frameId?: string;
 }
 
-export interface SerializableResponse {
-  requestId: string;
-  frameId?: string;
-  loaderId?: string;
-  response: Protocol.Network.Response;
-  fromServiceWorkerFlag?: boolean;
-  finishedSettled?: boolean;
-  extraInfoHeaders?: Protocol.Network.Headers | null;
-  extraInfoHeadersText?: string;
-}
+export const navigateResponseSchema = z
+  .object({
+    requestId: z.string(),
+    frameId: z.string().optional(),
+    loaderId: z.string().optional(),
+    response: z.unknown(),
+    fromServiceWorkerFlag: z.boolean().optional(),
+    finishedSettled: z.boolean().optional(),
+    extraInfoHeaders: z.record(z.string(), z.string()).nullish(),
+    extraInfoHeadersText: z.string().optional(),
+  })
+  .strict();
+
+export type NavigateResponse = z.infer<typeof navigateResponseSchema>;

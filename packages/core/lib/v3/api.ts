@@ -27,7 +27,7 @@ import {
   StagehandServerError,
   ExperimentalNotConfiguredError,
 } from "./types/public";
-import type { SerializableResponse } from "./types/private";
+import type { NavigateResponse } from "./types/private";
 import { toJsonSchema } from "./zodCompat";
 import type { StagehandZodSchema } from "./zodCompat";
 
@@ -212,8 +212,8 @@ export class StagehandAPIClient {
     url: string,
     options?: { waitUntil?: "load" | "domcontentloaded" | "networkidle" },
     frameId?: string,
-  ): Promise<SerializableResponse | null> {
-    return this.execute<SerializableResponse | null>({
+  ): Promise<NavigateResponse | null> {
+    return this.execute<NavigateResponse | null>({
       method: "navigate",
       args: { url, options, frameId },
     });

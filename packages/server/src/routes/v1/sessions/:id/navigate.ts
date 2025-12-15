@@ -2,6 +2,7 @@ import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import { z } from "zod/v4";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
+import { navigateResponseSchema } from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
@@ -83,7 +84,7 @@ const navigateRoute: RouteOptions = {
           success: z.literal(true),
           data: z
             .object({
-              result: z.unknown(),
+              result: navigateResponseSchema.nullable(),
             })
             .strict(),
         })
