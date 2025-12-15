@@ -28,7 +28,7 @@ export function buildAgentSystemPrompt(options: AgentSystemPromptOptions): strin
   const cdata = (text: string) => `<![CDATA[${text}]]>`;
 
   const isHybridMode = mode === "hybrid";
-  const hasSearch = process.env.EXA_API_KEY?.length ?? 0 > 0;
+  const hasSearch = Boolean(process.env.EXA_API_KEY);
 
   const searchToolLine = hasSearch
     ? `\n    <tool name="search">Perform a web search and return results. Prefer this over navigating to Google and searching within the page for reliability and efficiency.</tool>`

@@ -35,17 +35,10 @@ interface ExaApiResponse {
 
 async function performExaSearch(query: string): Promise<SearchResponse> {
   try {
-    if (!process.env.EXA_API_KEY) {
-      return {
-        error: "EXA_API_KEY environment variable is not set",
-        data: { results: [] },
-      };
-    }
-
     const response = await fetch("https://api.exa.ai/search", {
       method: "POST",
       headers: {
-        "x-api-key": process.env.EXA_API_KEY,
+        "x-api-key": process.env.EXA_API_KEY!,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({

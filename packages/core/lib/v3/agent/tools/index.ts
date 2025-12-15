@@ -16,10 +16,12 @@ import { createKeysTool } from "./v3-keys";
 import { createFillFormVisionTool } from "./v3-fillFormVision";
 import { createThinkTool } from "./v3-think";
 import { createSearchTool } from "./v3-search";
+
 import type { ToolSet, InferUITools } from "ai";
 import type { V3 } from "../../v3";
 import type { LogLine } from "../../types/public/logs";
 import type { AgentToolMode } from "../../types/public/agent";
+
 
 export interface V3AgentToolOptions {
   executionModel?: string;
@@ -59,7 +61,7 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const executionModel = options?.executionModel;
   const mode = options?.mode ?? "dom";
 
-  const allTools = {
+  const allTools: ToolSet = {
     act: createActTool(v3, executionModel),
     ariaTree: createAriaTreeTool(v3),
     click: createClickTool(v3),
@@ -74,11 +76,15 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     navback: createNavBackTool(v3),
     screenshot: createScreenshotTool(v3),
     scroll: createScrollTool(v3),
-    search: createSearchTool(v3),
     think: createThinkTool(),
     type: createTypeTool(v3),
     wait: createWaitTool(v3),
   };
+
+  // Only include search tool if EXA_API_KEY is configured
+  if (process.env.EXA_API_KEY) {
+    allTools.search = createSearchTool(v3);
+  }
 
   return filterToolsByMode(allTools, mode);
 }
