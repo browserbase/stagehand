@@ -75,4 +75,3 @@ export const uniqlo_mens_blazers: EvalFunction = async ({
     await v3.close();
   }
 };
-

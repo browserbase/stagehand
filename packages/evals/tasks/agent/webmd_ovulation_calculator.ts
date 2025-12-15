@@ -75,4 +75,3 @@ export const webmd_ovulation_calculator: EvalFunction = async ({
     await v3.close();
   }
 };
-

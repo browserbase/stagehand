@@ -83,4 +83,3 @@ export const redfin_apartment_rental: EvalFunction = async ({
     await v3.close();
   }
 };
-

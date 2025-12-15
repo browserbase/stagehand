@@ -20,7 +20,8 @@ export const alibaba_supplier_search: EvalFunction = async ({
     });
     screenshotCollector.start();
 
-    const instruction = "Search for 'solar panels' on Alibaba and find 3 suppliers. For each supplier, tell me their company name, minimum order quantity, and price range if available.";
+    const instruction =
+      "Search for 'solar panels' on Alibaba and find 3 suppliers. For each supplier, tell me their company name, minimum order quantity, and price range if available.";
     const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
@@ -74,4 +75,3 @@ export const alibaba_supplier_search: EvalFunction = async ({
     await v3.close();
   }
 };
-

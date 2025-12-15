@@ -20,7 +20,8 @@ export const flipkart_laptops: EvalFunction = async ({
     });
     screenshotCollector.start();
 
-    const instruction = "In the 'Laptops' section, apply the filter for 'Dell' and extract the average discount percentage on the first 3 Dell laptops displayed. Only use http://flipkart.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site.";
+    const instruction =
+      "In the 'Laptops' section, apply the filter for 'Dell' and extract the average discount percentage on the first 3 Dell laptops displayed. Only use http://flipkart.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site.";
     const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
@@ -74,4 +75,3 @@ export const flipkart_laptops: EvalFunction = async ({
     await v3.close();
   }
 };
-

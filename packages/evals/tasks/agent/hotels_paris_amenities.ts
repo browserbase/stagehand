@@ -20,7 +20,8 @@ export const hotels_paris_amenities: EvalFunction = async ({
     });
     screenshotCollector.start();
 
-    const instruction = "Filter search results for properties in Paris available next month that offer spa amenities and bars, and list the amenities of the first three hotels. Only use http://hotels.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site.";
+    const instruction =
+      "Filter search results for properties in Paris available next month that offer spa amenities and bars, and list the amenities of the first three hotels. Only use http://hotels.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site.";
     const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 40,
@@ -74,4 +75,3 @@ export const hotels_paris_amenities: EvalFunction = async ({
     await v3.close();
   }
 };
-

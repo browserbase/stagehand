@@ -21,7 +21,8 @@ export const trailhead_superbadge: EvalFunction = async ({
     });
     screenshotCollector.start();
 
-    const instruction = "Find the tasks needed to complete the Assess Your Access & Security Skills category in the secure your app trailhead";
+    const instruction =
+      "Find the tasks needed to complete the Assess Your Access & Security Skills category in the secure your app trailhead";
     const agentResult = await agent.execute({
       instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 40,

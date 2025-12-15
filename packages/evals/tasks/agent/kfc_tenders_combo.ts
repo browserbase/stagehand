@@ -75,4 +75,3 @@ export const kfc_tenders_combo: EvalFunction = async ({
     await v3.close();
   }
 };
-

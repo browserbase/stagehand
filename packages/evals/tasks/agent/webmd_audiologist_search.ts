@@ -75,4 +75,3 @@ export const webmd_audiologist_search: EvalFunction = async ({
     await v3.close();
   }
 };
-

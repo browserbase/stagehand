@@ -75,4 +75,3 @@ export const radiotimes_tv_schedule: EvalFunction = async ({
     await v3.close();
   }
 };
-
