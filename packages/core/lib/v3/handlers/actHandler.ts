@@ -97,14 +97,12 @@ export class ActHandler {
     domElements,
     xpathMap,
     llmClient,
-    variables,
     requireMethodAndArguments = true,
   }: {
     instruction: string;
     domElements: string;
     xpathMap: Record<string, string>;
     llmClient: LLMClient;
-    variables?: Record<string, string>;
     requireMethodAndArguments?: boolean;
   }): Promise<{ action?: Action; response: ActInferenceResponse }> {
     const response = await actInference({
@@ -128,16 +126,8 @@ export class ActHandler {
       return { response };
     }
 
-    const action: Action = {
-      ...normalized,
-      arguments: substituteVariablesInArguments(
-        normalized.arguments,
-        variables,
-      ),
-    } as Action;
-
     return {
-      action,
+      action: { ...normalized } as Action,
       response,
     };
   }
@@ -178,7 +168,6 @@ export class ActHandler {
         domElements: combinedTree,
         xpathMap: combinedXpathMap,
         llmClient,
-        variables,
       });
 
     if (!firstAction) {
@@ -203,6 +192,7 @@ export class ActHandler {
       this.defaultDomSettleTimeoutMs,
       llmClient,
       ensureTimeRemaining,
+      variables,
     );
 
     // If not two-step, return the first action result
@@ -245,7 +235,6 @@ export class ActHandler {
       domElements: diffedTree,
       xpathMap: combinedXpathMap2,
       llmClient,
-      variables,
     });
 
     if (!secondAction) {
@@ -260,6 +249,7 @@ export class ActHandler {
       this.defaultDomSettleTimeoutMs,
       llmClient,
       ensureTimeRemaining,
+      variables,
     );
 
     // Combine results
@@ -282,6 +272,7 @@ export class ActHandler {
     domSettleTimeoutMs?: number,
     llmClientOverride?: LLMClient,
     ensureTimeRemaining?: () => void,
+    variables?: Record<string, string>,
   ): Promise<ActResult> {
     ensureTimeRemaining?.();
     const settleTimeout = domSettleTimeoutMs ?? this.defaultDomSettleTimeoutMs;
@@ -305,7 +296,11 @@ export class ActHandler {
       };
     }
 
-    const args = Array.isArray(action.arguments) ? action.arguments : [];
+    const placeholderArgs = Array.isArray(action.arguments)
+      ? [...action.arguments]
+      : [];
+    const resolvedArgs =
+      substituteVariablesInArguments(action.arguments, variables) ?? [];
 
     try {
       ensureTimeRemaining?.();
@@ -314,7 +309,7 @@ export class ActHandler {
         page.mainFrame(),
         method,
         action.selector,
-        args,
+        resolvedArgs,
         settleTimeout,
       );
       return {
@@ -326,7 +321,7 @@ export class ActHandler {
             selector: action.selector,
             description: action.description || `action (${method})`,
             method,
-            arguments: args,
+            arguments: placeholderArgs,
           },
         ],
       };
@@ -406,7 +401,7 @@ export class ActHandler {
             page.mainFrame(),
             method,
             newSelector,
-            args,
+            resolvedArgs,
             settleTimeout,
           );
 
@@ -419,7 +414,7 @@ export class ActHandler {
                 selector: newSelector,
                 description: action.description || `action (${method})`,
                 method,
-                arguments: args,
+                arguments: placeholderArgs,
               },
             ],
           };

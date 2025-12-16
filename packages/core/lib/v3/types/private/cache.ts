@@ -41,7 +41,8 @@ export type ActCacheContext = {
   instruction: string;
   cacheKey: string;
   pageUrl: string;
-  variables: Record<string, string>;
+  variableKeys: string[];
+  variables?: Record<string, string>;
 };
 
 export type ActCacheDeps = {
@@ -67,7 +68,7 @@ export interface CachedActEntry {
   version: 1;
   instruction: string;
   url: string;
-  variables: Record<string, string>;
+  variableKeys: string[];
   actions: Action[];
   actionDescription?: string;
   message?: string;
