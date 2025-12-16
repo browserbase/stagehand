@@ -1359,22 +1359,12 @@ export class Page {
    * Dispatches mouseMoved via CDP Input domain on the top-level page target's
    * session.
    */
-  async hover(
-    x: number,
-    y: number,
-    options: { returnXpath: true },
-  ): Promise<string>;
-  async hover(
-    x: number,
-    y: number,
-    options?: { returnXpath?: false },
-  ): Promise<void>;
   @logAction("Page.hover")
   async hover(
     x: number,
     y: number,
     options?: { returnXpath?: boolean },
-  ): Promise<void | string> {
+  ): Promise<string> {
     let xpathResult: string | undefined;
     if (options?.returnXpath) {
       try {
@@ -1417,9 +1407,8 @@ export class Page {
       button: "none",
     } as Protocol.Input.DispatchMouseEventRequest);
 
-    if (options?.returnXpath) return xpathResult ?? "";
+    return xpathResult ?? "";
   }
-
 
   @logAction("Page.scroll")
   async scroll(
