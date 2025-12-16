@@ -28,7 +28,7 @@ export const made_in_china_supplier: EvalFunction = async ({
     });
 
     // Stop and collect all screenshots from the journey
-    const screenshots = screenshotCollector.stop();
+    const screenshots = await screenshotCollector.stop();
 
     logger.log({
       category: "evaluation",
