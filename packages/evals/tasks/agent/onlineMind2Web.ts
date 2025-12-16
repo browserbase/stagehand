@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { V3Evaluator } from "@browserbasehq/stagehand";
+import { V3Evaluator, imageResize } from "@browserbasehq/stagehand";
 import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 import dotenv from "dotenv";
 dotenv.config();
@@ -12,6 +12,10 @@ export const onlineMind2Web: EvalFunction = async ({
   modelName,
   input,
 }) => {
+  // Track resources that need cleanup
+  let screenshotCollector: ScreenshotCollector | null = null;
+  let screenshotHandler: ((buffer: Buffer) => void) | null = null;
+
   try {
     const params = ((input && input.params) || {}) as {
       task_id?: string;
@@ -32,7 +36,7 @@ export const onlineMind2Web: EvalFunction = async ({
     }
     const page = v3.context.pages()[0];
     await page.goto(params.website, {
-      timeoutMs: 60_000,
+      timeoutMs: 120_000,
     });
 
     const agent = v3.agent({
@@ -42,13 +46,13 @@ export const onlineMind2Web: EvalFunction = async ({
     });
 
     // Set up event-driven screenshot collection via the V3 event bus
-    const screenshotCollector = new ScreenshotCollector(v3, {
-      maxScreenshots: 5,
+    screenshotCollector = new ScreenshotCollector(v3, {
+      maxScreenshots: 7,
     });
 
     // Subscribe to screenshot events from the agent
-    const screenshotHandler = (buffer: Buffer) => {
-      screenshotCollector.addScreenshot(buffer);
+    screenshotHandler = (buffer: Buffer) => {
+      screenshotCollector?.addScreenshot(buffer);
     };
     v3.bus.on("agent_screensot_taken_event", screenshotHandler);
 
@@ -57,9 +61,31 @@ export const onlineMind2Web: EvalFunction = async ({
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
     });
 
-    // Stop collecting, clean up event listener, and get all screenshots
-    v3.bus.off("agent_screensot_taken_event", screenshotHandler);
-    const screenshots = screenshotCollector.stop();
+    // Stop collecting and get all screenshots
+    let screenshots = screenshotCollector.stop();
+
+    // Try to capture final screenshot, but don't fail if CDP is disconnected
+    try {
+      const lastPage = await v3.context.awaitActivePage();
+      const lastScreenshot = await lastPage.screenshot();
+      screenshots = [...screenshots, lastScreenshot];
+    } catch (screenshotError) {
+      logger.warn({
+        category: "evaluation",
+        message: `Failed to capture final screenshot (CDP may be disconnected): ${screenshotError}`,
+        level: 1,
+      });
+      // Continue with whatever screenshots we already collected
+    }
+
+    // Resize screenshots if we have any
+    if (screenshots.length > 0) {
+      screenshots = await Promise.all(
+        screenshots.map(async (screenshot) => {
+          return await imageResize(screenshot, 0.7);
+        }),
+      );
+    }
 
     logger.log({
       category: "evaluation",
@@ -76,10 +102,12 @@ export const onlineMind2Web: EvalFunction = async ({
         "no reasoning available, agent potentially hit step limit",
     });
 
+    // Clear screenshot buffers to free memory
+    screenshots.length = 0;
+
     return {
       _success: evalResult.evaluation === "YES",
       reasoning: evalResult.reasoning,
-      // screenshotCount: screenshots.length,
       task_level: params.level,
       debugUrl,
       sessionUrl,
@@ -93,5 +121,21 @@ export const onlineMind2Web: EvalFunction = async ({
       sessionUrl,
       logs: logger.getLogs(),
     };
+  } finally {
+    // Always clean up event listener and stop collector to prevent hanging
+    if (screenshotHandler) {
+      try {
+        v3.bus.off("agent_screensot_taken_event", screenshotHandler);
+      } catch {
+        // Ignore errors during cleanup
+      }
+    }
+    if (screenshotCollector) {
+      try {
+        screenshotCollector.stop();
+      } catch {
+        // Ignore errors during cleanup
+      }
+    }
   }
 };
