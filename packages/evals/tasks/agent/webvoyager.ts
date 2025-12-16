@@ -50,7 +50,7 @@ export const webvoyager: EvalFunction = async ({
     });
 
     // Stop collecting and get all screenshots
-    const screenshots = screenshotCollector.stop();
+    const screenshots = await screenshotCollector.stop();
 
     logger.log({
       category: "evaluation",
