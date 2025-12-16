@@ -216,7 +216,7 @@ test.describe("Page.scroll() - mouse wheel scrolling", () => {
     expect(xpath.toLowerCase()).toMatch(/div|target/);
   });
 
-  test("scroll without returnXpath returns void", async () => {
+  test("scroll without returnXpath returns empty string", async () => {
     const page = v3.context.pages()[0];
 
     await page.goto(
@@ -231,8 +231,8 @@ test.describe("Page.scroll() - mouse wheel scrolling", () => {
     // Scroll without returnXpath
     const result = await page.scroll(640, 400, 0, 200);
 
-    // Should return undefined (void)
-    expect(result).toBeUndefined();
+    // Should return empty string
+    expect(result).toBe("");
   });
 
   test("multiple sequential scrolls accumulate", async () => {

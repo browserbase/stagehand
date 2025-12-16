@@ -1275,33 +1275,6 @@ export class Page {
    * on the top-level page target's session. Coordinates are relative to the
    * viewport origin (top-left). Does not scroll.
    */
-  async click(
-    x: number,
-    y: number,
-    options: {
-      button?: "left" | "right" | "middle";
-      clickCount?: number;
-      returnXpath: true;
-    },
-  ): Promise<string>;
-  async click(
-    x: number,
-    y: number,
-    options?: {
-      button?: "left" | "right" | "middle";
-      clickCount?: number;
-      returnXpath?: false;
-    },
-  ): Promise<void>;
-  async click(
-    x: number,
-    y: number,
-    options: {
-      button?: "left" | "right" | "middle";
-      clickCount?: number;
-      returnXpath: boolean;
-    },
-  ): Promise<void | string>;
   @logAction("Page.click")
   async click(
     x: number,
@@ -1311,7 +1284,7 @@ export class Page {
       clickCount?: number;
       returnXpath?: boolean;
     },
-  ): Promise<void | string> {
+  ): Promise<string> {
     const button = options?.button ?? "left";
     const clickCount = options?.clickCount ?? 1;
 
@@ -1377,7 +1350,8 @@ export class Page {
         clickCount: i,
       } as Protocol.Input.DispatchMouseEventRequest);
     }
-    if (options?.returnXpath) return xpathResult ?? "";
+
+    return xpathResult ?? "";
   }
 
   /**
@@ -1385,22 +1359,12 @@ export class Page {
    * Dispatches mouseMoved via CDP Input domain on the top-level page target's
    * session.
    */
-  async hover(
-    x: number,
-    y: number,
-    options: { returnXpath: true },
-  ): Promise<string>;
-  async hover(
-    x: number,
-    y: number,
-    options?: { returnXpath?: false },
-  ): Promise<void>;
   @logAction("Page.hover")
   async hover(
     x: number,
     y: number,
     options?: { returnXpath?: boolean },
-  ): Promise<void | string> {
+  ): Promise<string> {
     let xpathResult: string | undefined;
     if (options?.returnXpath) {
       try {
@@ -1443,30 +1407,9 @@ export class Page {
       button: "none",
     } as Protocol.Input.DispatchMouseEventRequest);
 
-    if (options?.returnXpath) return xpathResult ?? "";
+    return xpathResult ?? "";
   }
 
-  async scroll(
-    x: number,
-    y: number,
-    deltaX: number,
-    deltaY: number,
-    options: { returnXpath: true },
-  ): Promise<string>;
-  async scroll(
-    x: number,
-    y: number,
-    deltaX: number,
-    deltaY: number,
-    options?: { returnXpath?: false },
-  ): Promise<void>;
-  async scroll(
-    x: number,
-    y: number,
-    deltaX: number,
-    deltaY: number,
-    options: { returnXpath: boolean },
-  ): Promise<void | string>;
   @logAction("Page.scroll")
   async scroll(
     x: number,
@@ -1474,7 +1417,7 @@ export class Page {
     deltaX: number,
     deltaY: number,
     options?: { returnXpath?: boolean },
-  ): Promise<void | string> {
+  ): Promise<string> {
     let xpathResult: string | undefined;
     if (options?.returnXpath) {
       try {
@@ -1503,49 +1446,13 @@ export class Page {
       deltaY,
     } as Protocol.Input.DispatchMouseEventRequest);
 
-    if (options?.returnXpath) return xpathResult ?? "";
+    return xpathResult ?? "";
   }
 
   /**
    * Drag from (fromX, fromY) to (toX, toY) using mouse events.
    * Sends mouseMoved → mousePressed → mouseMoved (steps) → mouseReleased.
    */
-  async dragAndDrop(
-    fromX: number,
-    fromY: number,
-    toX: number,
-    toY: number,
-    options: {
-      button?: "left" | "right" | "middle";
-      steps?: number;
-      delay?: number;
-      returnXpath: true;
-    },
-  ): Promise<[string, string]>;
-  async dragAndDrop(
-    fromX: number,
-    fromY: number,
-    toX: number,
-    toY: number,
-    options?: {
-      button?: "left" | "right" | "middle";
-      steps?: number;
-      delay?: number;
-      returnXpath?: false;
-    },
-  ): Promise<void>;
-  async dragAndDrop(
-    fromX: number,
-    fromY: number,
-    toX: number,
-    toY: number,
-    options: {
-      button?: "left" | "right" | "middle";
-      steps?: number;
-      delay?: number;
-      returnXpath: boolean;
-    },
-  ): Promise<void | [string, string]>;
   @logAction("Page.dragAndDrop")
   async dragAndDrop(
     fromX: number,
@@ -1558,7 +1465,7 @@ export class Page {
       delay?: number;
       returnXpath?: boolean;
     },
-  ): Promise<void | [string, string]> {
+  ): Promise<[string, string]> {
     const button = options?.button ?? "left";
     const steps = Math.max(1, Math.floor(options?.steps ?? 1));
     const delay = Math.max(0, options?.delay ?? 0);
@@ -1642,7 +1549,7 @@ export class Page {
       clickCount: 1,
     } as Protocol.Input.DispatchMouseEventRequest);
 
-    if (options?.returnXpath) return [fromXpath ?? "", toXpath ?? ""];
+    return [fromXpath ?? "", toXpath ?? ""];
   }
 
   /**

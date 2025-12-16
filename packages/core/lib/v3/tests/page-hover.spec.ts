@@ -107,7 +107,7 @@ test.describe("Page.hover() - mouse hover at coordinates", () => {
     expect(xpath.toLowerCase()).toMatch(/div|target/);
   });
 
-  test("hover without returnXpath returns void", async () => {
+  test("hover without returnXpath returns empty string", async () => {
     const page = v3.context.pages()[0];
 
     await page.goto(
@@ -122,8 +122,8 @@ test.describe("Page.hover() - mouse hover at coordinates", () => {
     // Hover without returnXpath
     const result = await page.hover(50, 50);
 
-    // Should return undefined (void)
-    expect(result).toBeUndefined();
+    // Should return empty string
+    expect(result).toBe("");
   });
 
   test("hover triggers CSS :hover styles", async () => {
