@@ -50,8 +50,12 @@ export class ScreenshotCollector {
     this.navigationListeners.forEach((removeListener) => removeListener());
     this.navigationListeners = [];
 
-    // Capture final screenshot before returning
-    await this.captureScreenshot("final");
+    // Capture final screenshot before returning (don't fail if it errors)
+    try {
+      await this.captureScreenshot("final");
+    } catch (error) {
+      console.error("Failed to capture final screenshot:", error);
+    }
     return this.getScreenshots();
   }
 
