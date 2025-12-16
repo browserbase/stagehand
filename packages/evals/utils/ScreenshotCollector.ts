@@ -41,7 +41,7 @@ export class ScreenshotCollector {
     });
   }
 
-  stop(): Buffer[] {
+  async stop(): Promise<Buffer[]> {
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = undefined;
@@ -50,10 +50,8 @@ export class ScreenshotCollector {
     this.navigationListeners.forEach((removeListener) => removeListener());
     this.navigationListeners = [];
 
-    // Capture final screenshot without blocking
-    this.captureScreenshot("final").catch((error) => {
-      console.error("Failed to capture final screenshot:", error);
-    });
+    // Capture final screenshot before returning
+    await this.captureScreenshot("final");
     return this.getScreenshots();
   }
 
