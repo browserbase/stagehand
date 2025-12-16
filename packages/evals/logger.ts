@@ -121,4 +121,14 @@ export class EvalLogger {
   getLogs(): LogLineEval[] {
     return this.logs || [];
   }
+
+  /**
+   * clear:
+   * Clears all stored logs to free memory.
+   * Should be called after logs have been retrieved and processed.
+   */
+  clear(): void {
+    this.logs = [];
+    this.stagehand = undefined;
+  }
 }
