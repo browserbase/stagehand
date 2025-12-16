@@ -1354,6 +1354,73 @@ export class Page {
     return xpathResult ?? "";
   }
 
+  /**
+   * Hover at absolute page coordinates (CSS pixels).
+   * Dispatches mouseMoved via CDP Input domain on the top-level page target's
+   * session.
+   */
+  async hover(
+    x: number,
+    y: number,
+    options: { returnXpath: true },
+  ): Promise<string>;
+  async hover(
+    x: number,
+    y: number,
+    options?: { returnXpath?: false },
+  ): Promise<void>;
+  @logAction("Page.hover")
+  async hover(
+    x: number,
+    y: number,
+    options?: { returnXpath?: boolean },
+  ): Promise<void | string> {
+    let xpathResult: string | undefined;
+    if (options?.returnXpath) {
+      try {
+        const hit = await resolveXpathForLocation(this, x, y);
+        if (hit) {
+          v3Logger({
+            category: "page",
+            message: "hover resolved hit",
+            level: 2,
+            auxiliary: {
+              frameId: { value: String(hit.frameId), type: "string" },
+              backendNodeId: {
+                value: String(hit.backendNodeId),
+                type: "string",
+              },
+              x: { value: String(x), type: "integer" },
+              y: { value: String(y), type: "integer" },
+            },
+          });
+          xpathResult = hit.absoluteXPath;
+        }
+      } catch {
+        v3Logger({
+          category: "page",
+          message: "Failed to resolve xpath for hover",
+          level: 2,
+          auxiliary: {
+            x: { value: String(x), type: "integer" },
+            y: { value: String(y), type: "integer" },
+          },
+        });
+      }
+    }
+
+    await this.updateCursor(x, y);
+    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+      type: "mouseMoved",
+      x,
+      y,
+      button: "none",
+    } as Protocol.Input.DispatchMouseEventRequest);
+
+    if (options?.returnXpath) return xpathResult ?? "";
+  }
+
+
   @logAction("Page.scroll")
   async scroll(
     x: number,
