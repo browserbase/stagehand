@@ -2,8 +2,8 @@ import type {
   LocalBrowserLaunchOptions,
   LogLine,
   V3,
+  SessionStartResult,
 } from "@browserbasehq/stagehand";
-import type { SessionStartResult } from "./schemas";
 
 export type { SessionStartResult };
 

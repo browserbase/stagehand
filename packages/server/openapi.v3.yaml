@@ -3,7 +3,349 @@ info:
   title: Stagehand API
   version: 3.0.5
 components:
-  schemas: {}
+  schemas:
+    ActRequest:
+      type: object
+      properties:
+        input:
+          anyOf:
+            - type: string
+            - $ref: "#/components/schemas/ActionInput"
+        options:
+          $ref: "#/components/schemas/ActOptions"
+        frameId:
+          type: string
+      required:
+        - input
+    ActionInput:
+      type: object
+      properties:
+        selector:
+          type: string
+        description:
+          type: string
+        method:
+          type: string
+        arguments:
+          type: array
+          items:
+            type: string
+      required:
+        - selector
+        - description
+    ActOptions:
+      type: object
+      properties:
+        model:
+          $ref: "#/components/schemas/ModelConfig"
+        variables:
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
+        timeout:
+          type: number
+    ModelConfig:
+      anyOf:
+        - type: string
+        - type: object
+          properties:
+            modelName:
+              type: string
+            apiKey:
+              type: string
+            baseURL:
+              type: string
+              format: uri
+          required:
+            - modelName
+    ExtractRequest:
+      type: object
+      properties:
+        instruction:
+          type: string
+        schema:
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties: {}
+        options:
+          $ref: "#/components/schemas/ExtractOptions"
+        frameId:
+          type: string
+    ExtractOptions:
+      type: object
+      properties:
+        model:
+          $ref: "#/components/schemas/ModelConfig"
+        timeout:
+          type: number
+        selector:
+          type: string
+    NavigateRequest:
+      type: object
+      properties:
+        url:
+          type: string
+        options:
+          $ref: "#/components/schemas/NavigateOptions"
+        frameId:
+          type: string
+      required:
+        - url
+    NavigateOptions:
+      type: object
+      properties:
+        referer:
+          type: string
+        timeout:
+          type: number
+        waitUntil:
+          type: string
+          enum:
+            - load
+            - domcontentloaded
+            - networkidle
+    ObserveRequest:
+      type: object
+      properties:
+        instruction:
+          type: string
+        options:
+          $ref: "#/components/schemas/ObserveOptions"
+        frameId:
+          type: string
+    ObserveOptions:
+      type: object
+      properties:
+        model:
+          $ref: "#/components/schemas/ModelConfig"
+        timeout:
+          type: number
+        selector:
+          type: string
+    BrowserConfig:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - local
+            - browserbase
+        cdpUrl:
+          type: string
+        launchOptions:
+          $ref: "#/components/schemas/LocalBrowserLaunchOptions"
+    LocalBrowserLaunchOptions:
+      type: object
+      properties:
+        args:
+          type: array
+          items:
+            type: string
+        executablePath:
+          type: string
+        userDataDir:
+          type: string
+        preserveUserDataDir:
+          type: boolean
+        headless:
+          type: boolean
+        devtools:
+          type: boolean
+        chromiumSandbox:
+          type: boolean
+        ignoreDefaultArgs:
+          anyOf:
+            - type: boolean
+            - type: array
+              items:
+                type: string
+        proxy:
+          type: object
+          properties:
+            server:
+              type: string
+            bypass:
+              type: string
+            username:
+              type: string
+            password:
+              type: string
+          required:
+            - server
+        locale:
+          type: string
+        viewport:
+          type: object
+          properties:
+            width:
+              type: number
+            height:
+              type: number
+          required:
+            - width
+            - height
+        deviceScaleFactor:
+          type: number
+        hasTouch:
+          type: boolean
+        ignoreHTTPSErrors:
+          type: boolean
+        cdpUrl:
+          type: string
+        connectTimeoutMs:
+          type: number
+        downloadsPath:
+          type: string
+        acceptDownloads:
+          type: boolean
+      additionalProperties: false
+    AgentExecuteRequest:
+      type: object
+      properties:
+        agentConfig:
+          $ref: "#/components/schemas/AgentConfig"
+        executeOptions:
+          $ref: "#/components/schemas/ExecuteOptions"
+        frameId:
+          type: string
+      required:
+        - agentConfig
+        - executeOptions
+    AgentConfig:
+      type: object
+      properties:
+        model:
+          $ref: "#/components/schemas/ModelConfig"
+        systemPrompt:
+          type: string
+        cua:
+          type: boolean
+    ExecuteOptions:
+      type: object
+      properties:
+        instruction:
+          type: string
+        maxSteps:
+          type: number
+        highlightCursor:
+          type: boolean
+      required:
+        - instruction
+    ActResult:
+      type: object
+      properties:
+        result: {}
+      required:
+        - result
+      additionalProperties: false
+    SessionEndResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: "#/components/schemas/SessionEndResponseData"
+      required:
+        - success
+        - data
+      additionalProperties: false
+    SessionEndResponseData:
+      type: object
+      properties: {}
+      additionalProperties: false
+    ExtractResult:
+      type: object
+      properties:
+        result: {}
+      required:
+        - result
+      additionalProperties: false
+    NavigateResult:
+      type: object
+      properties:
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/NavigateResponseData"
+            - type: "null"
+      required:
+        - result
+      additionalProperties: false
+    NavigateResponseData:
+      type: object
+      properties:
+        requestId:
+          type: string
+        frameId:
+          type: string
+        loaderId:
+          type: string
+        response: {}
+        fromServiceWorkerFlag:
+          type: boolean
+        finishedSettled:
+          type: boolean
+        extraInfoHeaders:
+          anyOf:
+            - type: object
+              propertyNames:
+                type: string
+              additionalProperties:
+                type: string
+            - type: "null"
+        extraInfoHeadersText:
+          type: string
+      required:
+        - requestId
+        - response
+      additionalProperties: false
+    ObserveResult:
+      type: object
+      properties:
+        result: {}
+      required:
+        - result
+      additionalProperties: false
+    SessionStartResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: "#/components/schemas/SessionStartResponseData"
+      required:
+        - success
+        - data
+      additionalProperties: false
+    SessionStartResponseData:
+      type: object
+      properties:
+        sessionId:
+          description: Unique session identifier
+          example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
+          type: string
+        available:
+          type: boolean
+        cdpUrl:
+          description: Chrome DevTools Protocol URL
+          example: ws://localhost:9222
+          type: string
+      required:
+        - sessionId
+        - available
+        - cdpUrl
+      additionalProperties: false
+    AgentExecuteResult:
+      type: object
+      properties:
+        result: {}
+      required:
+        - result
+      additionalProperties: false
 paths:
   /v1/sessions/{id}/act:
     post:
@@ -11,55 +353,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                input:
-                  anyOf:
-                    - type: string
-                    - type: object
-                      properties:
-                        selector:
-                          type: string
-                        description:
-                          type: string
-                        method:
-                          type: string
-                        arguments:
-                          type: array
-                          items:
-                            type: string
-                      required:
-                        - selector
-                        - description
-                options:
-                  type: object
-                  properties:
-                    model:
-                      anyOf:
-                        - type: string
-                        - type: object
-                          properties:
-                            modelName:
-                              type: string
-                            apiKey:
-                              type: string
-                            baseURL:
-                              type: string
-                              format: uri
-                          required:
-                            - modelName
-                    variables:
-                      type: object
-                      propertyNames:
-                        type: string
-                      additionalProperties:
-                        type: string
-                    timeout:
-                      type: number
-                frameId:
-                  type: string
-              required:
-                - input
+              $ref: "#/components/schemas/ActRequest"
         required: true
       parameters:
         - schema:
@@ -79,12 +373,7 @@ paths:
                     type: boolean
                     const: true
                   data:
-                    type: object
-                    properties:
-                      result: {}
-                    required:
-                      - result
-                    additionalProperties: false
+                    $ref: "#/components/schemas/ActResult"
                 required:
                   - success
                   - data
@@ -103,57 +392,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    const: true
-                  data:
-                    type: object
-                    properties: {}
-                    additionalProperties: false
-                required:
-                  - success
-                  - data
-                additionalProperties: false
+                $ref: "#/components/schemas/SessionEndResponse"
   /v1/sessions/{id}/extract:
     post:
       requestBody:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                instruction:
-                  type: string
-                schema:
-                  type: object
-                  propertyNames:
-                    type: string
-                  additionalProperties: {}
-                options:
-                  type: object
-                  properties:
-                    model:
-                      anyOf:
-                        - type: string
-                        - type: object
-                          properties:
-                            modelName:
-                              type: string
-                            apiKey:
-                              type: string
-                            baseURL:
-                              type: string
-                              format: uri
-                          required:
-                            - modelName
-                    timeout:
-                      type: number
-                    selector:
-                      type: string
-                frameId:
-                  type: string
+              $ref: "#/components/schemas/ExtractRequest"
         required: true
       parameters:
         - schema:
@@ -173,12 +419,7 @@ paths:
                     type: boolean
                     const: true
                   data:
-                    type: object
-                    properties:
-                      result: {}
-                    required:
-                      - result
-                    additionalProperties: false
+                    $ref: "#/components/schemas/ExtractResult"
                 required:
                   - success
                   - data
@@ -189,27 +430,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                url:
-                  type: string
-                options:
-                  type: object
-                  properties:
-                    referer:
-                      type: string
-                    timeout:
-                      type: number
-                    waitUntil:
-                      type: string
-                      enum:
-                        - load
-                        - domcontentloaded
-                        - networkidle
-                frameId:
-                  type: string
-              required:
-                - url
+              $ref: "#/components/schemas/NavigateRequest"
         required: true
       parameters:
         - schema:
@@ -229,41 +450,7 @@ paths:
                     type: boolean
                     const: true
                   data:
-                    type: object
-                    properties:
-                      result:
-                        anyOf:
-                          - type: object
-                            properties:
-                              requestId:
-                                type: string
-                              frameId:
-                                type: string
-                              loaderId:
-                                type: string
-                              response: {}
-                              fromServiceWorkerFlag:
-                                type: boolean
-                              finishedSettled:
-                                type: boolean
-                              extraInfoHeaders:
-                                anyOf:
-                                  - type: object
-                                    propertyNames:
-                                      type: string
-                                    additionalProperties:
-                                      type: string
-                                  - type: "null"
-                              extraInfoHeadersText:
-                                type: string
-                            required:
-                              - requestId
-                              - response
-                            additionalProperties: false
-                          - type: "null"
-                    required:
-                      - result
-                    additionalProperties: false
+                    $ref: "#/components/schemas/NavigateResult"
                 required:
                   - success
                   - data
@@ -274,33 +461,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                instruction:
-                  type: string
-                options:
-                  type: object
-                  properties:
-                    model:
-                      anyOf:
-                        - type: string
-                        - type: object
-                          properties:
-                            modelName:
-                              type: string
-                            apiKey:
-                              type: string
-                            baseURL:
-                              type: string
-                              format: uri
-                          required:
-                            - modelName
-                    timeout:
-                      type: number
-                    selector:
-                      type: string
-                frameId:
-                  type: string
+              $ref: "#/components/schemas/ObserveRequest"
         required: true
       parameters:
         - schema:
@@ -320,12 +481,7 @@ paths:
                     type: boolean
                     const: true
                   data:
-                    type: object
-                    properties:
-                      result: {}
-                    required:
-                      - result
-                    additionalProperties: false
+                    $ref: "#/components/schemas/ObserveResult"
                 required:
                   - success
                   - data
@@ -339,7 +495,7 @@ paths:
               type: object
               properties:
                 modelName:
-                  description: Model name
+                  description: Model name to use for AI operations
                   example: gpt-4o
                   type: string
                 domSettleTimeoutMs:
@@ -362,80 +518,7 @@ paths:
                     type: string
                   additionalProperties: {}
                 browser:
-                  type: object
-                  properties:
-                    type:
-                      type: string
-                      enum:
-                        - local
-                        - browserbase
-                    cdpUrl:
-                      type: string
-                    launchOptions:
-                      type: object
-                      properties:
-                        args:
-                          type: array
-                          items:
-                            type: string
-                        executablePath:
-                          type: string
-                        userDataDir:
-                          type: string
-                        preserveUserDataDir:
-                          type: boolean
-                        headless:
-                          type: boolean
-                        devtools:
-                          type: boolean
-                        chromiumSandbox:
-                          type: boolean
-                        ignoreDefaultArgs:
-                          anyOf:
-                            - type: boolean
-                            - type: array
-                              items:
-                                type: string
-                        proxy:
-                          type: object
-                          properties:
-                            server:
-                              type: string
-                            bypass:
-                              type: string
-                            username:
-                              type: string
-                            password:
-                              type: string
-                          required:
-                            - server
-                        locale:
-                          type: string
-                        viewport:
-                          type: object
-                          properties:
-                            width:
-                              type: number
-                            height:
-                              type: number
-                          required:
-                            - width
-                            - height
-                        deviceScaleFactor:
-                          type: number
-                        hasTouch:
-                          type: boolean
-                        ignoreHTTPSErrors:
-                          type: boolean
-                        cdpUrl:
-                          type: string
-                        connectTimeoutMs:
-                          type: number
-                        downloadsPath:
-                          type: string
-                        acceptDownloads:
-                          type: boolean
-                      additionalProperties: false
+                  $ref: "#/components/schemas/BrowserConfig"
                 selfHeal:
                   type: boolean
                 waitForCaptchaSolves:
@@ -456,78 +539,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    const: true
-                  data:
-                    type: object
-                    properties:
-                      sessionId:
-                        description: Session ID
-                        example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
-                        type: string
-                      available:
-                        type: boolean
-                      cdpUrl:
-                        description: CDP URL
-                        example: ws://localhost:3000
-                        type: string
-                    required:
-                      - sessionId
-                      - available
-                      - cdpUrl
-                    additionalProperties: false
-                required:
-                  - success
-                  - data
-                additionalProperties: false
+                $ref: "#/components/schemas/SessionStartResponse"
   /v1/sessions/{id}/agentExecute:
     post:
       requestBody:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                agentConfig:
-                  type: object
-                  properties:
-                    model:
-                      anyOf:
-                        - type: string
-                        - type: object
-                          properties:
-                            modelName:
-                              type: string
-                            apiKey:
-                              type: string
-                            baseURL:
-                              type: string
-                              format: uri
-                          required:
-                            - modelName
-                    systemPrompt:
-                      type: string
-                    cua:
-                      type: boolean
-                executeOptions:
-                  type: object
-                  properties:
-                    instruction:
-                      type: string
-                    maxSteps:
-                      type: number
-                    highlightCursor:
-                      type: boolean
-                  required:
-                    - instruction
-                frameId:
-                  type: string
-              required:
-                - agentConfig
-                - executeOptions
+              $ref: "#/components/schemas/AgentExecuteRequest"
         required: true
       parameters:
         - schema:
@@ -547,12 +566,7 @@ paths:
                     type: boolean
                     const: true
                   data:
-                    type: object
-                    properties:
-                      result: {}
-                    required:
-                      - result
-                    additionalProperties: false
+                    $ref: "#/components/schemas/AgentExecuteResult"
                 required:
                   - success
                   - data

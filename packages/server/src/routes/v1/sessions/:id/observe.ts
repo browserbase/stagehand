@@ -3,6 +3,11 @@ import { StatusCodes } from "http-status-codes";
 import type { Action } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
+import {
+  ObserveRequestSchema,
+  ObserveResultSchema,
+  SessionIdParamsSchema,
+} from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
@@ -12,27 +17,6 @@ import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
 interface ObserveParams {
   id: string;
 }
-
-export const observeSchema = z.object({
-  instruction: z.string().optional(),
-  options: z
-    .object({
-      model: z
-        .string()
-        .or(
-          z.object({
-            modelName: z.string(),
-            apiKey: z.string().optional(),
-            baseURL: z.string().url().optional(),
-          }),
-        )
-        .optional(),
-      timeout: z.number().optional(),
-      selector: z.string().optional(),
-    })
-    .optional(),
-  frameId: z.string().optional(),
-});
 
 const observeRouteHandler: RouteHandlerMethod = withErrorHandling(
   async (request, reply) => {
@@ -58,11 +42,11 @@ const observeRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<z.infer<typeof observeSchema>>({
+    return createStreamingResponse<z.infer<typeof ObserveRequestSchema>>({
       sessionId: id,
       request,
       reply,
-      schema: observeSchema,
+      schema: ObserveRequestSchema,
       handler: async ({ stagehand, data }) => {
         const { frameId } = data;
         const page = frameId
@@ -109,17 +93,13 @@ const observeRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/observe",
   schema: {
-    params: z.object({ id: z.string() }).strict(),
-    body: observeSchema,
+    params: SessionIdParamsSchema,
+    body: ObserveRequestSchema,
     response: {
       200: z
         .object({
           success: z.literal(true),
-          data: z
-            .object({
-              result: z.unknown(),
-            })
-            .strict(),
+          data: ObserveResultSchema,
         })
         .strict(),
     },

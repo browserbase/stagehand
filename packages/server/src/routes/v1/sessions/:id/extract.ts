@@ -2,6 +2,11 @@ import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import { z } from "zod/v4";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
+import {
+  ExtractRequestSchema,
+  ExtractResultSchema,
+  SessionIdParamsSchema,
+} from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
@@ -12,29 +17,6 @@ import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
 interface ExtractParams {
   id: string;
 }
-
-// Schema for V3
-export const extractSchema = z.object({
-  instruction: z.string().optional(),
-  schema: z.record(z.string(), z.unknown()).optional(),
-  options: z
-    .object({
-      model: z
-        .string()
-        .or(
-          z.object({
-            modelName: z.string(),
-            apiKey: z.string().optional(),
-            baseURL: z.string().url().optional(),
-          }),
-        )
-        .optional(),
-      timeout: z.number().optional(),
-      selector: z.string().optional(),
-    })
-    .optional(),
-  frameId: z.string().optional(),
-});
 
 const extractRouteHandler: RouteHandlerMethod = withErrorHandling(
   async (request, reply) => {
@@ -60,11 +42,11 @@ const extractRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<z.infer<typeof extractSchema>>({
+    return createStreamingResponse<z.infer<typeof ExtractRequestSchema>>({
       sessionId: id,
       request,
       reply,
-      schema: extractSchema,
+      schema: ExtractRequestSchema,
       handler: async ({ stagehand, data }) => {
         const { frameId } = data;
         const page = frameId
@@ -118,17 +100,13 @@ const extractRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/extract",
   schema: {
-    params: z.object({ id: z.string() }).strict(),
-    body: extractSchema,
+    params: SessionIdParamsSchema,
+    body: ExtractRequestSchema,
     response: {
       200: z
         .object({
           success: z.literal(true),
-          data: z
-            .object({
-              result: z.unknown(),
-            })
-            .strict(),
+          data: ExtractResultSchema,
         })
         .strict(),
     },

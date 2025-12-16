@@ -1,7 +1,10 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
-import { z } from "zod/v4";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
+import {
+  SessionIdParamsSchema,
+  SessionEndResponseSchema,
+} from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { withErrorHandling } from "../../../../lib/errorHandler.js";
@@ -30,14 +33,9 @@ const endRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/end",
   schema: {
-    params: z.object({ id: z.string() }).strict(),
+    params: SessionIdParamsSchema,
     response: {
-      200: z
-        .object({
-          success: z.literal(true),
-          data: z.object({}).strict(),
-        })
-        .strict(),
+      200: SessionEndResponseSchema,
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: endRouteHandler,

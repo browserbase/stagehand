@@ -4,6 +4,8 @@ import Browserbase from "@browserbasehq/sdk";
 import {
   localBrowserLaunchOptionsSchema,
   LocalBrowserLaunchOptions,
+  SessionStartRequestSchema,
+  SessionStartResponseSchema,
 } from "@browserbasehq/stagehand";
 import type { SessionRetrieveResponse } from "@browserbasehq/sdk/resources/sessions/sessions";
 import { type FastifyZodOpenApiSchema } from "fastify-zod-openapi";
@@ -15,51 +17,6 @@ import { getOptionalHeader } from "../../../lib/header.js";
 import { error, success } from "../../../lib/response.js";
 import { getSessionStore } from "../../../lib/sessionStoreManager.js";
 import { AISDK_PROVIDERS } from "../../../types/model.js";
-
-/**
- * Parameters for creating a new session (request body shape)
- */
-const startBodySchema = z
-  .object({
-    modelName: z.string().meta({
-      description: "Model name",
-      example: "gpt-4o",
-    }),
-    domSettleTimeoutMs: z.number().optional(),
-    verbose: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
-    debugDom: z.boolean().optional(),
-    systemPrompt: z.string().optional(),
-    browserbaseSessionCreateParams: z
-      .record(z.string(), z.unknown())
-      .optional(),
-    browser: z
-      .object({
-        type: z.enum(["local", "browserbase"]).optional(),
-        cdpUrl: z.string().optional(),
-        launchOptions: localBrowserLaunchOptionsSchema.optional(),
-      })
-      .optional(),
-    selfHeal: z.boolean().optional(),
-    waitForCaptchaSolves: z.boolean().optional(),
-    actTimeoutMs: z.number().optional(),
-    browserbaseSessionID: z.string().optional(),
-    experimental: z.boolean().optional(),
-  })
-  .strict()
-  .superRefine((value, ctx) => {
-    if (value.browser?.type === "local") {
-      const hasCdp = Boolean(value.browser.cdpUrl);
-      const hasLaunch = Boolean(value.browser.launchOptions);
-      if (!hasCdp && !hasLaunch) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["browser"],
-          message:
-            "When browser.type is 'local', provide either browser.cdpUrl or browser.launchOptions.",
-        });
-      }
-    }
-  });
 
 /**
  * Parameters for creating a new session (request body shape)
@@ -85,23 +42,21 @@ interface ConstructorParams {
   actTimeoutMs?: number;
 }
 
-const startResponseSchema = z
-  .object({
-    success: z.literal(true),
-    data: z
-      .object({
-        sessionId: z.string().meta({
-          description: "Session ID",
-          example: "c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123",
-        }),
-        available: z.boolean(),
-        cdpUrl: z
-          .string()
-          .meta({ description: "CDP URL", example: "ws://localhost:3000" }),
-      })
-      .strict(),
-  })
-  .strict();
+// Extended schema with custom refinement for local browser validation
+const startBodySchema = SessionStartRequestSchema.superRefine((value, ctx) => {
+  if (value.browser?.type === "local") {
+    const hasCdp = Boolean(value.browser.cdpUrl);
+    const hasLaunch = Boolean(value.browser.launchOptions);
+    if (!hasCdp && !hasLaunch) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["browser"],
+        message:
+          "When browser.type is 'local', provide either browser.cdpUrl or browser.launchOptions.",
+      });
+    }
+  }
+});
 
 const startRouteHandler: RouteHandler = withErrorHandling(
   async (request, reply) => {
@@ -293,7 +248,7 @@ const startRoute: RouteOptions = {
   schema: {
     body: startBodySchema,
     response: {
-      200: startResponseSchema,
+      200: SessionStartResponseSchema,
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: startRouteHandler,

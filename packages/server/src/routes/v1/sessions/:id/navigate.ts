@@ -2,7 +2,11 @@ import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import { z } from "zod/v4";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
-import { navigateResponseSchema } from "@browserbasehq/stagehand";
+import {
+  NavigateRequestSchema,
+  NavigateResultSchema,
+  SessionIdParamsSchema,
+} from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
@@ -12,18 +16,6 @@ import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
 interface NavigateParams {
   id: string;
 }
-
-export const navigateSchema = z.object({
-  url: z.string(),
-  options: z
-    .object({
-      referer: z.string().optional(),
-      timeout: z.number().optional(),
-      waitUntil: z.enum(["load", "domcontentloaded", "networkidle"]).optional(),
-    })
-    .optional(),
-  frameId: z.string().optional(),
-});
 
 const navigateRouteHandler: RouteHandlerMethod = withErrorHandling(
   async (request, reply) => {
@@ -49,11 +41,11 @@ const navigateRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<z.infer<typeof navigateSchema>>({
+    return createStreamingResponse<z.infer<typeof NavigateRequestSchema>>({
       sessionId: id,
       request,
       reply,
-      schema: navigateSchema,
+      schema: NavigateRequestSchema,
       handler: async ({ stagehand, data }) => {
         const page = data.frameId
           ? stagehand.context.resolvePageByMainFrameId(data.frameId)
@@ -76,17 +68,13 @@ const navigateRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/navigate",
   schema: {
-    params: z.object({ id: z.string() }).strict(),
-    body: navigateSchema,
+    params: SessionIdParamsSchema,
+    body: NavigateRequestSchema,
     response: {
       200: z
         .object({
           success: z.literal(true),
-          data: z
-            .object({
-              result: navigateResponseSchema.nullable(),
-            })
-            .strict(),
+          data: NavigateResultSchema,
         })
         .strict(),
     },

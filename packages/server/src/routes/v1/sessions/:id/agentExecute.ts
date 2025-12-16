@@ -2,6 +2,11 @@ import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import { z } from "zod/v4";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
+import {
+  AgentExecuteRequestSchema,
+  AgentExecuteResultSchema,
+  SessionIdParamsSchema,
+} from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
@@ -11,29 +16,6 @@ import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
 interface AgentExecuteParams {
   id: string;
 }
-
-const agentExecuteSchema = z.object({
-  agentConfig: z.object({
-    model: z
-      .string()
-      .or(
-        z.object({
-          modelName: z.string(),
-          apiKey: z.string().optional(),
-          baseURL: z.string().url().optional(),
-        }),
-      )
-      .optional(),
-    systemPrompt: z.string().optional(),
-    cua: z.boolean().optional(),
-  }),
-  executeOptions: z.object({
-    instruction: z.string(),
-    maxSteps: z.number().optional(),
-    highlightCursor: z.boolean().optional(),
-  }),
-  frameId: z.string().optional(),
-});
 
 const agentExecuteRouteHandler: RouteHandlerMethod = withErrorHandling(
   async (request, reply) => {
@@ -59,11 +41,11 @@ const agentExecuteRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<z.infer<typeof agentExecuteSchema>>({
+    return createStreamingResponse<z.infer<typeof AgentExecuteRequestSchema>>({
       sessionId: id,
       request,
       reply,
-      schema: agentExecuteSchema,
+      schema: AgentExecuteRequestSchema,
       handler: async ({ stagehand, data }) => {
         const { agentConfig, executeOptions } = data;
         const { frameId } = data;
@@ -110,17 +92,13 @@ const agentExecuteRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/agentExecute",
   schema: {
-    params: z.object({ id: z.string() }).strict(),
-    body: agentExecuteSchema,
+    params: SessionIdParamsSchema,
+    body: AgentExecuteRequestSchema,
     response: {
       200: z
         .object({
           success: z.literal(true),
-          data: z
-            .object({
-              result: z.unknown(),
-            })
-            .strict(),
+          data: AgentExecuteResultSchema,
         })
         .strict(),
     },

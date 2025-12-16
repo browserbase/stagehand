@@ -3,6 +3,11 @@ import { StatusCodes } from "http-status-codes";
 import type { ActResult, Action } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
+import {
+  ActRequestSchema,
+  ActResultSchema,
+  SessionIdParamsSchema,
+} from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
@@ -12,34 +17,6 @@ import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
 interface ActParams {
   id: string;
 }
-
-export const actSchema = z.object({
-  input: z.string().or(
-    z.object({
-      selector: z.string(),
-      description: z.string(),
-      method: z.string().optional(),
-      arguments: z.array(z.string()).optional(),
-    }),
-  ),
-  options: z
-    .object({
-      model: z
-        .string()
-        .or(
-          z.object({
-            modelName: z.string(),
-            apiKey: z.string().optional(),
-            baseURL: z.string().url().optional(),
-          }),
-        )
-        .optional(),
-      variables: z.record(z.string(), z.string()).optional(),
-      timeout: z.number().optional(),
-    })
-    .optional(),
-  frameId: z.string().optional(),
-});
 
 const actRouteHandler: RouteHandlerMethod = withErrorHandling(
   async (request, reply) => {
@@ -65,11 +42,11 @@ const actRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<z.infer<typeof actSchema>>({
+    return createStreamingResponse<z.infer<typeof ActRequestSchema>>({
       sessionId: id,
       request,
       reply,
-      schema: actSchema,
+      schema: ActRequestSchema,
       handler: async ({ stagehand, data }) => {
         const { frameId } = data;
         const page = frameId
@@ -115,17 +92,13 @@ const actRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/act",
   schema: {
-    params: z.object({ id: z.string() }).strict(),
-    body: actSchema,
+    params: SessionIdParamsSchema,
+    body: ActRequestSchema,
     response: {
       200: z
         .object({
           success: z.literal(true),
-          data: z
-            .object({
-              result: z.unknown(),
-            })
-            .strict(),
+          data: ActResultSchema,
         })
         .strict(),
     },
