@@ -12,7 +12,10 @@ import {
 } from "../types/public/agent";
 import { ClientOptions } from "../types/public/model";
 import { AgentClient } from "./AgentClient";
-import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
+import {
+  AgentScreenshotProviderError,
+  StagehandClosedError,
+} from "../types/public/sdkErrors";
 import { ToolSet } from "ai";
 import {
   SessionFileLogger,
@@ -547,6 +550,9 @@ export class OpenAICUAClient extends AgentClient {
 
           nextInputItems.push(outputItem);
         } catch (error) {
+          if (error instanceof StagehandClosedError) {
+            throw error;
+          }
           const errorMessage =
             error instanceof Error ? error.message : String(error);
 
@@ -613,6 +619,9 @@ export class OpenAICUAClient extends AgentClient {
 
             nextInputItems.push(errorOutputItem);
           } catch (screenshotError) {
+            if (screenshotError instanceof StagehandClosedError) {
+              throw screenshotError;
+            }
             // If we can't capture a screenshot, just send the error
             logger({
               category: "agent",
@@ -688,6 +697,9 @@ export class OpenAICUAClient extends AgentClient {
 
           nextInputItems.push(outputItem);
         } catch (error) {
+          if (error instanceof StagehandClosedError) {
+            throw error;
+          }
           const errorMessage =
             error instanceof Error ? error.message : String(error);
 
