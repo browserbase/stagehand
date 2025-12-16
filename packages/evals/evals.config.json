@@ -548,6 +548,82 @@
     {
       "name": "agent/onlineMind2Web",
       "categories": ["external_agent_benchmarks"]
+    },
+    {
+      "name": "agent/alibaba_supplier_search",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/amazon_shoes_cart",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/columbia_tuition",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/flipkart_laptops",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/google_shopping",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/hotels_paris_amenities",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/instacart_organic_bananas",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/kfc_tenders_combo",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/made_in_china_supplier",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/nvidia_hgx_driver",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/oed_word_search",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/radiotimes_tv_schedule",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/redfin_apartment_rental",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/thegamer_opinion_article",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/trailhead_superbadge",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/trustpilot_hr_companies",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/uniqlo_mens_blazers",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/webmd_audiologist_search",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/webmd_ovulation_calculator",
+      "categories": ["agent"]
     }
   ]
 }

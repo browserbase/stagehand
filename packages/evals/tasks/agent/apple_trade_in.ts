@@ -6,14 +6,14 @@ export const apple_trade_in: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
     const page = v3.context.pages()[0];
     await page.goto("https://www.apple.com/shop/trade-in");
     const evaluator = new V3Evaluator(v3);
-    await v3Agent.execute({
+    await agent.execute({
       instruction:
         "Find out the trade-in value for an iPhone 13 Pro Max in good condition on the Apple website.",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,

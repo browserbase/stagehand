@@ -4,14 +4,14 @@ export const sign_in: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
     const page = v3.context.pages()[0];
     await page.goto("https://v0-modern-login-flow.vercel.app/");
 
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction:
         "Sign in with the email address 'test@browserbaser.com' and the password 'stagehand=goated' ",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 15,

@@ -4,14 +4,14 @@ export const youtube: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
     const page = v3.context.pages()[0];
     await page.goto("https://youtube.com");
 
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction:
         "Search for Keinemusik's set under some very famous pointy landmarks. Make sure to click on the video",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 15,
