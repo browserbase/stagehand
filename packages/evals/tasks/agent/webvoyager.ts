@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { V3Evaluator } from "@browserbasehq/stagehand";
+import { V3Evaluator, imageResize } from "@browserbasehq/stagehand";
 import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 export const webvoyager: EvalFunction = async ({
@@ -10,6 +10,10 @@ export const webvoyager: EvalFunction = async ({
   modelName,
   input,
 }) => {
+  // Track resources that need cleanup
+  let screenshotCollector: ScreenshotCollector | null = null;
+  let screenshotHandler: ((buffer: Buffer) => void) | null = null;
+
   try {
     const params = ((input && input.params) || {}) as {
       id?: string;
@@ -29,20 +33,25 @@ export const webvoyager: EvalFunction = async ({
     }
 
     const page = v3.context.pages()[0];
-    await page.goto(params.web);
+    await page.goto(params.web, {
+      timeoutMs: 120_000,
+    });
 
     const agent = v3.agent({
       model: modelName,
       systemPrompt: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await page.title()}`,
     });
 
-    // Start collecting screenshots in parallel
-    const screenshotCollector = new ScreenshotCollector(page, {
-      maxScreenshots: 10, // Keep last 10 screenshots
-      captureOnNavigation: true, // Also capture on page navigation
+    // Set up event-driven screenshot collection via the V3 event bus
+    screenshotCollector = new ScreenshotCollector(v3, {
+      maxScreenshots: 7,
     });
 
-    screenshotCollector.start();
+    // Subscribe to screenshot events from the agent
+    screenshotHandler = (buffer: Buffer) => {
+      screenshotCollector?.addScreenshot(buffer);
+    };
+    v3.bus.on("agent_screensot_taken_event", screenshotHandler);
 
     const agentResult = await agent.execute({
       instruction: params.ques,
@@ -50,7 +59,30 @@ export const webvoyager: EvalFunction = async ({
     });
 
     // Stop collecting and get all screenshots
-    const screenshots = screenshotCollector.stop();
+    let screenshots = screenshotCollector.stop();
+
+    // Try to capture final screenshot, but don't fail if CDP is disconnected
+    try {
+      const lastPage = await v3.context.awaitActivePage();
+      const lastScreenshot = await lastPage.screenshot();
+      screenshots = [...screenshots, lastScreenshot];
+    } catch (screenshotError) {
+      logger.warn({
+        category: "evaluation",
+        message: `Failed to capture final screenshot (CDP may be disconnected): ${screenshotError}`,
+        level: 1,
+      });
+      // Continue with whatever screenshots we already collected
+    }
+
+    // Resize screenshots if we have any
+    if (screenshots.length > 0) {
+      screenshots = await Promise.all(
+        screenshots.map(async (screenshot) => {
+          return await imageResize(screenshot, 0.7);
+        }),
+      );
+    }
 
     logger.log({
       category: "evaluation",
@@ -67,10 +99,12 @@ export const webvoyager: EvalFunction = async ({
         "no reasoning available, agent potentially hit step limit",
     });
 
+    // Clear screenshot buffers to free memory
+    screenshots.length = 0;
+
     return {
       _success: evalResult.evaluation === "YES",
       reasoning: evalResult.reasoning,
-      screenshotCount: screenshots.length,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
@@ -83,5 +117,21 @@ export const webvoyager: EvalFunction = async ({
       sessionUrl,
       logs: logger.getLogs(),
     };
+  } finally {
+    // Always clean up event listener and stop collector to prevent hanging
+    if (screenshotHandler) {
+      try {
+        v3.bus.off("agent_screensot_taken_event", screenshotHandler);
+      } catch {
+        // Ignore errors during cleanup
+      }
+    }
+    if (screenshotCollector) {
+      try {
+        screenshotCollector.stop();
+      } catch {
+        // Ignore errors during cleanup
+      }
+    }
   }
 };
