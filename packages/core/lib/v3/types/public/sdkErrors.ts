@@ -364,3 +364,9 @@ export class AgentAbortError extends StagehandError {
     this.reason = reason || "aborted";
   }
 }
+
+export class StagehandClosedError extends StagehandError {
+  constructor() {
+    super("Stagehand session was closed");
+  }
+}

@@ -271,6 +271,9 @@ const generateFilteredTestcases = (): Testcase[] => {
       // Each test is a function that runs the corresponding task module
       task: async (input: EvalInput) => {
         const logger = new EvalLogger();
+        // Track V3 instance at outer scope to ensure cleanup in all cases
+        let v3Input: Awaited<ReturnType<typeof initV3>> | undefined;
+
         try {
           // Dynamically import the task based on its name
           const taskModulePath = path.join(
@@ -323,9 +326,6 @@ const generateFilteredTestcases = (): Testcase[] => {
           }
 
           // Execute the task
-          // let taskInput: Awaited<ReturnType<typeof initStagehand>>;
-          let v3Input: Awaited<ReturnType<typeof initV3>> | undefined;
-
           const isAgentTask =
             input.name.startsWith("agent/") || input.name.includes("/agent/");
           if (USE_API) {
@@ -384,24 +384,15 @@ const generateFilteredTestcases = (): Testcase[] => {
             });
           }
           // Pass full EvalInput to the task (data-driven params available via input.params)
-          let result;
-          try {
-            result = await taskFunction({
-              // ...taskInput,
-              v3: v3Input?.v3,
-              v3Agent: v3Input?.agent,
-              logger: v3Input?.logger,
-              v3Input,
-            });
-            // Log result to console
-            if (result && result._success) {
-              console.log(`✅ ${input.name}: Passed`);
-            } else {
-              console.log(`❌ ${input.name}: Failed`);
-            }
-          } finally {
-            if (v3Input?.v3) await v3Input.v3.close();
+          const result = await taskFunction({ ...v3Input, input });
+
+          // Log result to console
+          if (result && result._success) {
+            console.log(`✅ ${input.name}: Passed`);
+          } else {
+            console.log(`❌ ${input.name}: Failed`);
           }
+
           return result;
         } catch (error) {
           // Log any errors that occur during task execution
@@ -425,6 +416,24 @@ const generateFilteredTestcases = (): Testcase[] => {
             error: JSON.parse(JSON.stringify(error, null, 2)),
             logs: logger.getLogs(),
           };
+        } finally {
+          // Always close V3 instance, regardless of success or failure.
+          // This ensures proper cleanup even if the task threw an error or
+          // the Browserbase session disconnected mid-execution.
+          if (v3Input?.v3) {
+            try {
+              await v3Input.v3.close();
+            } catch (closeError) {
+              // Log but don't throw - we don't want close errors to mask
+              // the original task result or prevent subsequent evals
+              console.error(
+                `Warning: Error closing V3 instance for ${input.name}:`,
+                closeError,
+              );
+            }
+          }
+          // Clear logger to free memory (logs already captured in result)
+          logger.clear();
         }
       },
       // Use the scoring functions defined above

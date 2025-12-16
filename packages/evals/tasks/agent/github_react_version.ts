@@ -6,13 +6,13 @@ export const github_react_version: EvalFunction = async ({
   sessionUrl,
   logger,
   v3,
-  v3Agent,
+  agent,
 }) => {
   try {
     const page = v3.context.pages()[0];
     const evaluator = new V3Evaluator(v3);
     await page.goto("https://github.com/");
-    await v3Agent.execute({
+    await agent.execute({
       instruction:
         "Check the latest release version of React and the date it was published. ",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,

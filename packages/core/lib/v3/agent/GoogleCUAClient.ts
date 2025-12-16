@@ -20,6 +20,7 @@ import { AgentClient } from "./AgentClient";
 import {
   AgentScreenshotProviderError,
   LLMResponseError,
+  StagehandClosedError,
 } from "../types/public/sdkErrors";
 import { buildGoogleCUASystemPrompt } from "../../prompt";
 import { compressGoogleConversationImages } from "./utils/imageCompression";
@@ -69,6 +70,7 @@ export class GoogleCUAClient extends AgentClient {
       (clientOptions?.apiKey as string) ||
       process.env.GEMINI_API_KEY ||
       process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
       "";
     this.baseURL = clientOptions?.baseURL as string | undefined;
 
@@ -485,6 +487,9 @@ export class GoogleCUAClient extends AgentClient {
                 await new Promise((resolve) => setTimeout(resolve, delay));
               }
             } catch (actionError) {
+              if (actionError instanceof StagehandClosedError) {
+                throw actionError;
+              }
               logger({
                 category: "agent",
                 message: `Error executing action ${action.type}: ${actionError}`,

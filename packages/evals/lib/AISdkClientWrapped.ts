@@ -133,7 +133,9 @@ export class AISdkClientWrapped extends LLMClient {
 
     let objectResponse: Awaited<ReturnType<typeof generateObject>>;
     const isGPT5 = this.model.modelId.includes("gpt-5");
-    const isGPT51 = this.model.modelId.includes("gpt-5.1");
+    const usesLowReasoningEffort =
+      this.model.modelId.includes("gpt-5.1") ||
+      this.model.modelId.includes("gpt-5.2");
     if (options.response_model) {
       try {
         objectResponse = await generateObject({
@@ -145,7 +147,7 @@ export class AISdkClientWrapped extends LLMClient {
             ? {
                 openai: {
                   textVerbosity: "low", // Making these the default for gpt-5 for now
-                  reasoningEffort: isGPT51 ? "low" : "minimal",
+                  reasoningEffort: usesLowReasoningEffort ? "low" : "minimal",
                 },
               }
             : undefined,

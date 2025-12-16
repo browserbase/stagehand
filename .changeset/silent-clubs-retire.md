@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-Patch agent on api
+fix: load GOOGLE_API_KEY from .env

@@ -5,7 +5,7 @@ export const ubereats: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -13,7 +13,7 @@ export const ubereats: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://www.ubereats.com/");
 
-    await v3Agent.execute({
+    await agent.execute({
       instruction:
         "Order a pizza from ubereats to 639 geary st in sf, call the task complete once the login page is shown after adding pizza and viewing the cart",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 35,
