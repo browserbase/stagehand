@@ -1,5 +1,4 @@
 import Browserbase from "@browserbasehq/sdk";
-import { z } from "zod";
 import {
   Action,
   ActOptions,
@@ -9,6 +8,13 @@ import {
 } from "../public";
 import type { StagehandZodSchema } from "../../zodCompat";
 import type { LocalBrowserLaunchOptions } from "../public";
+
+// Re-export schemas and types from the single source of truth
+export {
+  NavigateResponseDataSchema as navigateResponseSchema,
+  type NavigateResponseData as NavigateResponse,
+  type SessionStartResult as StartSessionResult,
+} from "../../client/schemas";
 
 export interface StagehandAPIConstructorParams {
   apiKey: string;
@@ -22,6 +28,10 @@ export interface ExecuteActionParams {
   params?: unknown;
 }
 
+/**
+ * Parameters for starting a session via the API client.
+ * Note: This extends the base schema with client-specific fields like modelApiKey.
+ */
 export interface StartSessionParams {
   modelName: string;
   modelApiKey: string;
@@ -39,12 +49,6 @@ export interface StartSessionParams {
     cdpUrl?: string;
     launchOptions?: LocalBrowserLaunchOptions;
   };
-}
-
-export interface StartSessionResult {
-  sessionId: string;
-  available?: boolean;
-  cdpUrl: string;
 }
 
 export interface SuccessResponse<T> {
@@ -77,18 +81,3 @@ export interface APIObserveParameters {
   options?: ObserveOptions;
   frameId?: string;
 }
-
-export const navigateResponseSchema = z
-  .object({
-    requestId: z.string(),
-    frameId: z.string().optional(),
-    loaderId: z.string().optional(),
-    response: z.unknown(),
-    fromServiceWorkerFlag: z.boolean().optional(),
-    finishedSettled: z.boolean().optional(),
-    extraInfoHeaders: z.record(z.string(), z.string()).nullish(),
-    extraInfoHeadersText: z.string().optional(),
-  })
-  .strict();
-
-export type NavigateResponse = z.infer<typeof navigateResponseSchema>;

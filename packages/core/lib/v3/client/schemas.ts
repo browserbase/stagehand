@@ -360,20 +360,31 @@ export const NavigateResponseSchema = SuccessResponseSchema(
 );
 
 // =============================================================================
-// Type exports
+// Type exports (inferred from schemas - single source of truth)
 // =============================================================================
 
+// Session types
 export type SessionStartRequest = z.infer<typeof SessionStartRequestSchema>;
+export type SessionStartResponseData = z.infer<typeof SessionStartResponseDataSchema>;
+
+// Act types
 export type ActRequest = z.infer<typeof ActRequestSchema>;
+
+// Extract types
 export type ExtractRequest = z.infer<typeof ExtractRequestSchema>;
+
+// Observe types
 export type ObserveRequest = z.infer<typeof ObserveRequestSchema>;
+
+// Agent types
 export type AgentExecuteRequest = z.infer<typeof AgentExecuteRequestSchema>;
+
+// Navigate types
 export type NavigateRequest = z.infer<typeof NavigateRequestSchema>;
+export type NavigateResponseData = z.infer<typeof NavigateResponseDataSchema>;
 
 /**
  * Result returned when starting a new session
+ * @deprecated Use SessionStartResponseData instead
  */
-export interface SessionStartResult {
-  sessionId: string;
-  available: boolean;
-}
+export type SessionStartResult = SessionStartResponseData;
