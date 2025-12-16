@@ -5,7 +5,7 @@ export const iframe_form_multiple: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -14,7 +14,7 @@ export const iframe_form_multiple: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-form-filling/",
     );
 
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction:
         "Fill in the form name with 'John Smith', the email with 'john.smith@example.com', and select the 'Are you the domain owner?' option as 'No'",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 10,

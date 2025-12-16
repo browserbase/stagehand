@@ -225,14 +225,19 @@
     "global": {
       "anchors": [
         {
+          "anchor": "Discord",
+          "href": "https://discord.gg/stagehand",
+          "icon": "discord"
+        },
+        {
+          "anchor": "GitHub",
+          "href": "https://github.com/browserbase/stagehand",
+          "icon": "github"
+        },
+        {
           "anchor": "Changelog",
           "href": "https://github.com/browserbase/stagehand/releases",
           "icon": "scroll"
-        },
-        {
-          "anchor": "Stagehand by Browserbase",
-          "href": "https://docs.stagehand.dev/v3/first-steps/introduction",
-          "icon": "code"
         }
       ]
     }
@@ -245,6 +250,10 @@
   "navbar": {
     "links": [
       {
+        "label": "Discord",
+        "href": "https://discord.gg/stagehand"
+      },
+      {
         "label": "Support",
         "href": "mailto:support@browserbase.com"
       }
@@ -252,6 +261,7 @@
   },
   "footer": {
     "socials": {
+      "discord": "https://discord.gg/stagehand",
       "x": "https://x.com/stagehanddev",
       "github": "https://github.com/browserbase/stagehand",
       "linkedin": "https://linkedin.com/company/browserbasehq",
