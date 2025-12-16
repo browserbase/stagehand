@@ -5,14 +5,14 @@ export const google_flights: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
     const page = v3.context.pages()[0];
     await page.goto("https://google.com/travel/flights");
 
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction:
         "Search for flights from San Francisco to New York for next weekend",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,

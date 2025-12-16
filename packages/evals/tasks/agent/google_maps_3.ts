@@ -5,14 +5,14 @@ export const google_maps_3: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
     const page = v3.context.pages()[0];
     await page.goto("https://maps.google.com/");
     const evaluator = new V3Evaluator(v3);
-    await v3Agent.execute({
+    await agent.execute({
       instruction:
         "Search for locksmiths open now but not open 24 hours in Texas City.",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 35,
