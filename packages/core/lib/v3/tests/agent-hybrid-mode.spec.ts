@@ -158,26 +158,8 @@ test.describe("Stagehand agent hybrid mode", () => {
     });
   });
 
-  test.describe("Agent creation with mode", () => {
-    test("agent({ mode: 'dom' }) creates DOM-mode agent", () => {
-      const agent = v3.agent({
-        mode: "dom",
-        model: "anthropic/claude-haiku-4-5-20251001",
-      });
-
-      expect(agent).toHaveProperty("execute");
-    });
-
-    test("agent({ mode: 'hybrid' }) creates hybrid-mode agent", () => {
-      const agent = v3.agent({
-        mode: "hybrid",
-        model: "anthropic/claude-haiku-4-5-20251001",
-      });
-
-      expect(agent).toHaveProperty("execute");
-    });
-
-    test("agent without mode defaults to DOM mode", () => {
+  test.describe("Agent creation", () => {
+    test("agent() creates agent with execute method", () => {
       const agent = v3.agent({
         model: "anthropic/claude-haiku-4-5-20251001",
       });
@@ -185,9 +167,8 @@ test.describe("Stagehand agent hybrid mode", () => {
       expect(agent).toHaveProperty("execute");
     });
 
-    test("hybrid mode can be combined with streaming", () => {
+    test("agent with streaming enabled", () => {
       const agent = v3.agent({
-        mode: "hybrid",
         stream: true,
         model: "anthropic/claude-haiku-4-5-20251001",
       });
@@ -196,14 +177,13 @@ test.describe("Stagehand agent hybrid mode", () => {
     });
   });
 
-  test.describe("Hybrid mode execution", () => {
-    test("hybrid mode agent uses coordinate-based tools when available", async () => {
+  test.describe("Mode execution via execute options", () => {
+    test("execute with mode: 'hybrid' uses coordinate-based tools", async () => {
       test.setTimeout(90000);
 
       const toolCalls: Array<{ toolName: string; input: unknown }> = [];
 
       const agent = v3.agent({
-        mode: "hybrid",
         model: "anthropic/claude-haiku-4-5-20251001",
       });
 
@@ -213,6 +193,7 @@ test.describe("Stagehand agent hybrid mode", () => {
       await agent.execute({
         instruction:
           "Take a screenshot to see the page, then use close tool with taskComplete: true",
+        mode: "hybrid",
         maxSteps: 5,
         callbacks: {
           onStepFinish: async (event: StepResult<ToolSet>) => {
@@ -231,18 +212,18 @@ test.describe("Stagehand agent hybrid mode", () => {
       // Should have captured tool calls
       expect(toolCalls.length).toBeGreaterThan(0);
 
-      // Should include screenshot (hybrid mode emphasizes visual)
       const toolNames = toolCalls.map((tc) => tc.toolName);
+      // Should include screenshot (hybrid mode emphasizes visual) and close
+      expect(toolNames).toContain("screenshot");
       expect(toolNames).toContain("close");
     });
 
-    test("DOM mode agent uses DOM-based tools", async () => {
+    test("execute with mode: 'dom' uses DOM-based tools", async () => {
       test.setTimeout(90000);
 
       const toolCalls: Array<{ toolName: string; input: unknown }> = [];
 
       const agent = v3.agent({
-        mode: "dom",
         model: "anthropic/claude-haiku-4-5-20251001",
       });
 
@@ -252,6 +233,7 @@ test.describe("Stagehand agent hybrid mode", () => {
       await agent.execute({
         instruction:
           "Use the ariaTree to understand the page, then use close tool with taskComplete: true",
+        mode: "dom",
         maxSteps: 5,
         callbacks: {
           onStepFinish: async (event: StepResult<ToolSet>) => {
@@ -271,6 +253,40 @@ test.describe("Stagehand agent hybrid mode", () => {
       expect(toolCalls.length).toBeGreaterThan(0);
 
       // Should include close
+      const toolNames = toolCalls.map((tc) => tc.toolName);
+      expect(toolNames).toContain("close");
+    });
+
+    test("execute defaults to DOM mode when mode not specified", async () => {
+      test.setTimeout(90000);
+
+      const toolCalls: Array<{ toolName: string; input: unknown }> = [];
+
+      const agent = v3.agent({
+        model: "anthropic/claude-haiku-4-5-20251001",
+      });
+
+      const page = v3.context.pages()[0];
+      await page.goto("https://example.com");
+
+      await agent.execute({
+        instruction: "Use close tool with taskComplete: true",
+        maxSteps: 5,
+        callbacks: {
+          onStepFinish: async (event: StepResult<ToolSet>) => {
+            if (event.toolCalls) {
+              for (const tc of event.toolCalls) {
+                toolCalls.push({
+                  toolName: tc.toolName,
+                  input: tc.input,
+                });
+              }
+            }
+          },
+        },
+      });
+
+      expect(toolCalls.length).toBeGreaterThan(0);
       const toolNames = toolCalls.map((tc) => tc.toolName);
       expect(toolNames).toContain("close");
     });

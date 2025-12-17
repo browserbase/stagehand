@@ -45,8 +45,6 @@ export class V3AgentHandler {
   private executionModel?: string;
   private systemInstructions?: string;
   private mcpTools?: ToolSet;
-  private mode: AgentToolMode;
-  private highlightCursor: boolean;
 
   constructor(
     v3: V3,
@@ -55,7 +53,6 @@ export class V3AgentHandler {
     executionModel?: string,
     systemInstructions?: string,
     mcpTools?: ToolSet,
-    mode?: AgentToolMode,
   ) {
     this.v3 = v3;
     this.logger = logger;
@@ -63,25 +60,11 @@ export class V3AgentHandler {
     this.executionModel = executionModel;
     this.systemInstructions = systemInstructions;
     this.mcpTools = mcpTools;
-    this.mode = mode ?? "dom";
-    this.highlightCursor = this.mode === "hybrid";
-  }
-
-  private async injectCursor(): Promise<void> {
-    try {
-      const page = await this.v3.context.awaitActivePage();
-      await page.enableCursorOverlay();
-    } catch {
-      this.logger({
-        category: "agent",
-        message: `Warning: Failed to inject cursor. Continuing with execution.`,
-        level: 1,
-      });
-    }
   }
 
   private async prepareAgent(
     instructionOrOptions: string | AgentExecuteOptionsBase,
+    effectiveMode?: AgentToolMode,
   ): Promise<AgentContext> {
     try {
       const options =
@@ -91,6 +74,9 @@ export class V3AgentHandler {
 
       const maxSteps = options.maxSteps || 20;
 
+      // Use effective mode passed from execute/stream, default to "dom"
+      const mode = effectiveMode ?? "dom";
+
       // Get the initial page URL first (needed for the system prompt)
       const initialPageUrl = (await this.v3.context.awaitActivePage()).url();
 
@@ -98,12 +84,12 @@ export class V3AgentHandler {
       const systemPrompt = buildAgentSystemPrompt({
         url: initialPageUrl,
         executionInstruction: options.instruction,
-        mode: this.mode,
+        mode,
         systemInstructions: this.systemInstructions,
         isBrowserbase: this.v3.isBrowserbase,
       });
 
-      const tools = this.createTools();
+      const tools = this.createTools(mode);
       const allTools: ToolSet = { ...tools, ...this.mcpTools };
 
       // Use provided messages for continuation, or start fresh with the instruction
@@ -198,15 +184,17 @@ export class V3AgentHandler {
         }
         state.currentPageUrl = (await this.v3.context.awaitActivePage()).url();
 
-        // Capture screenshot after tool execution and emit event
-        try {
-          await this.captureAndEmitScreenshot();
-        } catch (e) {
-          this.logger({
-            category: "agent",
-            message: `Warning: Failed to capture screenshot: ${getErrorMessage(e)}`,
-            level: 1,
-          });
+        // Capture screenshot after tool execution (only for evals)
+        if (process.env.EVALS === "true") {
+          try {
+            await this.captureAndEmitScreenshot();
+          } catch (e) {
+            this.logger({
+              category: "agent",
+              message: `Warning: Failed to capture screenshot: ${getErrorMessage(e)}`,
+              level: 1,
+            });
+          }
         }
       }
 
@@ -224,9 +212,12 @@ export class V3AgentHandler {
       typeof instructionOrOptions === "object" ? instructionOrOptions : null;
     const signal = options?.signal;
 
-    // Allow execute options to override the default highlightCursor setting
+    // Determine effective mode from execute options, default to "dom"
+    const effectiveMode = options?.mode ?? "dom";
+
+    // Highlight cursor defaults to true for hybrid mode, can be overridden
     const shouldHighlightCursor =
-      options?.highlightCursor ?? this.highlightCursor;
+      options?.highlightCursor ?? effectiveMode === "hybrid";
 
     const state: AgentState = {
       collectedReasoning: [],
@@ -247,21 +238,12 @@ export class V3AgentHandler {
         messages: preparedMessages,
         wrappedModel,
         initialPageUrl,
-      } = await this.prepareAgent(instructionOrOptions);
+      } = await this.prepareAgent(instructionOrOptions, effectiveMode);
 
-      // Inject cursor overlay for hybrid mode (coordinate-based interactions)
-      if (shouldHighlightCursor && this.mode === "hybrid") {
-        try {
-          await this.injectCursor();
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          this.logger({
-            category: "agent",
-            message: `Warning: Failed to inject cursor: ${errorMessage}. Continuing with execution.`,
-            level: 1,
-          });
-        }
+      // Enable cursor overlay for hybrid mode (coordinate-based interactions)
+      if (shouldHighlightCursor && effectiveMode === "hybrid") {
+        const page = await this.v3.context.awaitActivePage();
+        await page.enableCursorOverlay().catch(() => {});
       }
 
       messages = preparedMessages;
@@ -339,9 +321,12 @@ export class V3AgentHandler {
     const streamOptions =
       typeof instructionOrOptions === "object" ? instructionOrOptions : null;
 
-    // Allow stream options to override the default highlightCursor setting
+    // Determine effective mode from stream options, default to "dom"
+    const effectiveMode = streamOptions?.mode ?? "dom";
+
+    // Highlight cursor defaults to true for hybrid mode, can be overridden
     const shouldHighlightCursor =
-      streamOptions?.highlightCursor ?? this.highlightCursor;
+      streamOptions?.highlightCursor ?? effectiveMode === "hybrid";
 
     const {
       options,
@@ -351,21 +336,12 @@ export class V3AgentHandler {
       messages,
       wrappedModel,
       initialPageUrl,
-    } = await this.prepareAgent(instructionOrOptions);
+    } = await this.prepareAgent(instructionOrOptions, effectiveMode);
 
-    // Inject cursor overlay for hybrid mode (coordinate-based interactions)
-    if (shouldHighlightCursor && this.mode === "hybrid") {
-      try {
-        await this.injectCursor();
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        this.logger({
-          category: "agent",
-          message: `Warning: Failed to inject cursor: ${errorMessage}. Continuing with execution.`,
-          level: 1,
-        });
-      }
+    // Enable cursor overlay for hybrid mode (coordinate-based interactions)
+    if (shouldHighlightCursor && effectiveMode === "hybrid") {
+      const page = await this.v3.context.awaitActivePage();
+      await page.enableCursorOverlay().catch(() => {});
     }
 
     const callbacks = (instructionOrOptions as AgentStreamExecuteOptions)
@@ -498,12 +474,12 @@ export class V3AgentHandler {
     };
   }
 
-  private createTools() {
+  private createTools(mode?: AgentToolMode) {
     const provider = this.llmClient?.getLanguageModel?.()?.provider;
     return createAgentTools(this.v3, {
       executionModel: this.executionModel,
       logger: this.logger,
-      mode: this.mode,
+      mode: mode ?? "dom",
       provider,
     });
   }

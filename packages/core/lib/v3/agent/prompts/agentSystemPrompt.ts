@@ -45,6 +45,7 @@ export function buildAgentSystemPrompt(
     <tool name="type">Type text into an element (PREFERRED - more reliable when element is visible in viewport)</tool>
     <tool name="act">Perform a specific atomic action (click, type, etc.) - ONLY use when element is in ariaTree but NOT visible in screenshot. Less reliable but can interact with out-of-viewport elements.</tool>
     <tool name="dragAndDrop">Drag and drop an element</tool>
+    <tool name="clickAndHold">Click and hold on an element</tool>
     <tool name="keys">Press a keyboard key</tool>
     <tool name="fillFormVision">Fill out a form using coordinates</tool>
     <tool name="think">Think about the task</tool>

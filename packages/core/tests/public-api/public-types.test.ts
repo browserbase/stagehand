@@ -191,6 +191,7 @@ describe("Stagehand public API types", () => {
       maxSteps?: number;
       page?: Stagehand.AnyPage;
       highlightCursor?: boolean;
+      mode?: Stagehand.AgentToolMode;
       messages?: Stagehand.ModelMessage[];
       signal?: AbortSignal;
       callbacks?: Stagehand.AgentExecuteCallbacks;
@@ -207,6 +208,7 @@ describe("Stagehand public API types", () => {
       maxSteps?: number;
       page?: Stagehand.AnyPage;
       highlightCursor?: boolean;
+      mode?: Stagehand.AgentToolMode;
       messages?: Stagehand.ModelMessage[];
       signal?: AbortSignal;
       callbacks?: Stagehand.AgentStreamCallbacks;
@@ -264,7 +266,6 @@ describe("Stagehand public API types", () => {
       model?: string | Stagehand.AgentModelConfig<string>;
       executionModel?: string | Stagehand.AgentModelConfig<string>;
       stream?: boolean;
-      mode?: Stagehand.AgentToolMode;
     };
 
     it("matches expected type shape", () => {

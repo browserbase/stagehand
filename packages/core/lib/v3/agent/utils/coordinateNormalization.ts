@@ -4,7 +4,8 @@ export function isGoogleProvider(provider?: string): boolean {
   if (!provider) return false;
   return provider.toLowerCase().includes("google");
 }
-
+//google returns coordinates in a 0-1000 range, we need to normalize
+// them to the viewport dimensions
 export function normalizeGoogleCoordinates(
   x: number,
   y: number,
