@@ -195,13 +195,9 @@ const startRouteHandler: RouteHandler = withErrorHandling(
           : undefined,
     });
 
-    // SessionStore.startSession() always returns cdpUrl
-    // For local browsers without a pre-existing cdpUrl, it returns "local:pending"
-    // which signals the browser will be launched lazily on first use
     return success(reply, {
       sessionId: session.sessionId,
       available: session.available,
-      cdpUrl: session.cdpUrl,
     });
   },
 );
