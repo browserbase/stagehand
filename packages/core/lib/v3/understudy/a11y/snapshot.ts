@@ -4,7 +4,10 @@ import type { CDPSessionLike } from "../cdp";
 import { Page } from "../page";
 import { executionContexts } from "../executionContextRegistry";
 import { v3Logger } from "../../logger";
-import { StagehandIframeError } from "../../types/public/sdkErrors";
+import {
+  StagehandDomProcessError,
+  StagehandIframeError,
+} from "../../types/public/sdkErrors";
 
 /**
  * a11y/snapshot
@@ -503,6 +506,169 @@ async function absoluteXPathForBackendNode(
   }
 }
 
+// starting from infinite depth (-1), exponentially shrink down to 1
+const DOM_DEPTH_ATTEMPTS = [-1, 256, 128, 64, 32, 16, 8, 4, 2, 1];
+const DESCRIBE_DEPTH_ATTEMPTS = [-1, 64, 32, 16, 8, 4, 2, 1];
+
+/** Identify CDP failures caused by deep DOM trees blowing the CBOR encoder stack. */
+function isCborStackError(message: string): boolean {
+  return message.includes("CBOR: stack limit exceeded");
+}
+
+/**
+ * Determine if CDP truncated a node's children when streaming the DOM tree.
+ * childNodeCount stays accurate even when `children` are omitted; we use this to
+ * decide whether DOM.describeNode must be re-run for that node.
+ */
+function shouldExpandNode(node: Protocol.DOM.Node): boolean {
+  const declaredChildren = node.childNodeCount ?? 0;
+  const realizedChildren = node.children?.length ?? 0;
+  return declaredChildren > realizedChildren;
+}
+
+/** Merge an expanded DescribeNode payload back into the original shallow node. */
+function mergeDomNodes(
+  target: Protocol.DOM.Node,
+  source: Protocol.DOM.Node,
+): void {
+  target.childNodeCount = source.childNodeCount ?? target.childNodeCount;
+  target.children = source.children ?? target.children;
+  target.shadowRoots = source.shadowRoots ?? target.shadowRoots;
+  target.contentDocument = source.contentDocument ?? target.contentDocument;
+}
+
+/** Helper that returns every nested collection we recurse through uniformly. */
+function collectDomTraversalTargets(
+  node: Protocol.DOM.Node,
+): Protocol.DOM.Node[] {
+  const targets: Protocol.DOM.Node[] = [];
+  if (node.children) targets.push(...node.children);
+  if (node.shadowRoots) targets.push(...node.shadowRoots);
+  if (node.contentDocument) targets.push(node.contentDocument);
+  return targets;
+}
+
+/**
+ * Rehydrate a truncated DOM tree by repeatedly calling DOM.describeNode with
+ * decreasing depths. Any non-CBOR failure is surfaced as a
+ * StagehandDomProcessError.
+ */
+async function hydrateDomTree(
+  session: CDPSessionLike,
+  root: Protocol.DOM.Node,
+  pierce: boolean,
+): Promise<void> {
+  const stack: Protocol.DOM.Node[] = [root];
+  const expandedNodeIds = new Set<number>();
+  const expandedBackendIds = new Set<number>();
+
+  while (stack.length) {
+    const node = stack.pop()!;
+    const nodeId =
+      typeof node.nodeId === "number" && node.nodeId > 0
+        ? node.nodeId
+        : undefined;
+    const backendId =
+      typeof node.backendNodeId === "number" && node.backendNodeId > 0
+        ? node.backendNodeId
+        : undefined;
+
+    const seenByNode = nodeId ? expandedNodeIds.has(nodeId) : false;
+    const seenByBackend =
+      !nodeId && backendId ? expandedBackendIds.has(backendId) : false;
+    if (seenByNode || seenByBackend) continue;
+    if (nodeId) expandedNodeIds.add(nodeId);
+    else if (backendId) expandedBackendIds.add(backendId);
+
+    const needsExpansion = shouldExpandNode(node);
+    if (needsExpansion && (nodeId || backendId)) {
+      const describeParamsBase = nodeId
+        ? { nodeId }
+        : { backendNodeId: backendId! };
+      let expanded = false;
+      for (const depth of DESCRIBE_DEPTH_ATTEMPTS) {
+        try {
+          const described =
+            await session.send<Protocol.DOM.DescribeNodeResponse>(
+              "DOM.describeNode",
+              {
+                ...describeParamsBase,
+                depth,
+                pierce,
+              },
+            );
+          mergeDomNodes(node, described.node);
+          if (!nodeId && described.node.nodeId && described.node.nodeId > 0) {
+            node.nodeId = described.node.nodeId;
+            expandedNodeIds.add(described.node.nodeId);
+          }
+          expanded = true;
+          break;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          if (isCborStackError(message)) {
+            continue;
+          }
+          const identifier = nodeId ?? backendId ?? "unknown";
+          throw new StagehandDomProcessError(
+            `Failed to expand DOM node ${identifier}: ${String(err)}`,
+          );
+        }
+      }
+      if (!expanded) {
+        const identifier = nodeId ?? backendId ?? "unknown";
+        throw new StagehandDomProcessError(
+          `Unable to expand DOM node ${identifier} after describeNode depth retries`,
+        );
+      }
+    }
+
+    for (const child of collectDomTraversalTargets(node)) {
+      stack.push(child);
+    }
+  }
+}
+
+/**
+ * Attempt DOM.getDocument with progressively shallower depths until CBOR stops
+ * complaining. When a shallower snapshot is returned we hydrate the missing
+ * branches so downstream DOM traversals see the full tree shape.
+ */
+async function getDomTreeWithFallback(
+  session: CDPSessionLike,
+  pierce: boolean,
+): Promise<Protocol.DOM.Node> {
+  let lastCborMessage = "";
+
+  for (const depth of DOM_DEPTH_ATTEMPTS) {
+    try {
+      const { root } = await session.send<{ root: Protocol.DOM.Node }>(
+        "DOM.getDocument",
+        { depth, pierce },
+      );
+
+      if (depth !== -1) {
+        await hydrateDomTree(session, root, pierce);
+      }
+
+      return root;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (isCborStackError(message)) {
+        lastCborMessage = message;
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw new StagehandDomProcessError(
+    lastCborMessage
+      ? `CDP DOM.getDocument failed after adaptive depth retries: ${lastCborMessage}`
+      : "CDP DOM.getDocument failed after adaptive depth retries.",
+  );
+}
+
 export async function captureHybridSnapshot(
   page: Page,
   options?: SnapshotOptions,
@@ -670,10 +836,7 @@ export async function captureHybridSnapshot(
     pierce: boolean,
   ): Promise<SessionDomIndex> {
     await session.send("DOM.enable").catch(() => {});
-    const { root } = await session.send<{ root: Protocol.DOM.Node }>(
-      "DOM.getDocument",
-      { depth: -1, pierce },
-    );
+    const root = await getDomTreeWithFallback(session, pierce);
 
     const absByBe = new Map<number, string>();
     const tagByBe = new Map<number, string>();
@@ -1169,10 +1332,7 @@ async function domMapsForSession(
   scrollableMap: Record<string, boolean>;
 }> {
   await session.send("DOM.enable").catch(() => {});
-  const { root } = await session.send<{ root: Protocol.DOM.Node }>(
-    "DOM.getDocument",
-    { depth: -1, pierce },
-  );
+  const root = await getDomTreeWithFallback(session, pierce);
 
   // Try to scope to the iframe’s own contentDocument (same-process iframe).
   // In an OOPIF child session, this call is invalid; callers pass attemptOwnerLookup = false.
