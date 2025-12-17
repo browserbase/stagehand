@@ -30,12 +30,10 @@ export const createScrollTool = (v3: V3) =>
 
       const page = await v3.context.awaitActivePage();
 
-      const { w, h } = await page
-        .mainFrame()
-        .evaluate<{
-          w: number;
-          h: number;
-        }>("({ w: window.innerWidth, h: window.innerHeight })");
+      const { w, h } = await page.mainFrame().evaluate<{
+        w: number;
+        h: number;
+      }>("({ w: window.innerWidth, h: window.innerHeight })");
 
       const scrollDistance = Math.round((h * percentage) / 100);
       const cx = Math.floor(w / 2);
@@ -79,12 +77,10 @@ export const createScrollVisionTool = (v3: V3, provider?: string) =>
     execute: async ({ direction, coordinates, percentage = 80 }) => {
       const page = await v3.context.awaitActivePage();
 
-      const { w, h } = await page
-        .mainFrame()
-        .evaluate<{
-          w: number;
-          h: number;
-        }>("({ w: window.innerWidth, h: window.innerHeight })");
+      const { w, h } = await page.mainFrame().evaluate<{
+        w: number;
+        h: number;
+      }>("({ w: window.innerWidth, h: window.innerHeight })");
 
       // Process coordinates if provided, otherwise use viewport center
       let cx: number;
