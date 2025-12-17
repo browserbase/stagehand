@@ -509,6 +509,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ActionInput"
+        actionId:
+          description: Action ID for tracking
+          type: string
       required:
         - result
       additionalProperties: false
@@ -797,6 +800,18 @@ components:
           const: true
         data:
           $ref: "#/components/schemas/NavigateResultOutput"
+      required:
+        - success
+        - data
+      additionalProperties: false
+    ReplayResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: "#/components/schemas/ReplayResultOutput"
       required:
         - success
         - data
@@ -1192,6 +1207,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Action"
+        actionId:
+          description: Action ID for tracking
+          type: string
       required:
         - result
       additionalProperties: false
@@ -1457,18 +1475,6 @@ components:
           type: boolean
       required:
         - modelName
-      additionalProperties: false
-    ReplayResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          const: true
-        data:
-          $ref: "#/components/schemas/ReplayResultOutput"
-      required:
-        - success
-        - data
       additionalProperties: false
 paths:
   /v1/sessions/{id}/act:
@@ -1787,6 +1793,64 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ObserveResponse"
+  /v1/sessions/{id}/replay:
+    get:
+      operationId: SessionReplay
+      summary: Replay session metrics
+      description: Retrieves replay metrics for a session.
+      parameters:
+        - schema:
+            description: Unique session identifier
+            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
+            type: string
+          in: path
+          name: id
+          required: true
+          description: Unique session identifier
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+        - schema:
+            description: Client SDK language
+            example: typescript
+            type: string
+            enum:
+              - typescript
+              - python
+              - playground
+          in: header
+          name: x-language
+          description: Client SDK language
+        - schema:
+            description: Version of the Stagehand SDK
+            example: 3.0.6
+            type: string
+          in: header
+          name: x-sdk-version
+          description: Version of the Stagehand SDK
+        - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00.000Z
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+          in: header
+          name: x-sent-at
+          description: ISO timestamp when request was sent
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReplayResponse"
   /v1/sessions/start:
     post:
       operationId: SessionStart
@@ -1970,39 +2034,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AgentExecuteResponse"
-  /healthz:
-    get:
-      responses:
-        "200":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                  timestamp:
-                    type: string
-                required:
-                  - status
-                  - timestamp
-                additionalProperties: false
-  /readyz:
-    get:
-      responses:
-        "200":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                type: string
-        "503":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                type: string
 servers:
   - url: https://api.stagehand.browserbase.com
     description: Production Browserbase Cloud API

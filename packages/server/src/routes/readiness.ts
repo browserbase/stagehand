@@ -36,6 +36,7 @@ const readinessRoute: RouteOptions = {
   url: "/readyz",
   logLevel: "silent",
   schema: {
+    hide: true, // Hide from OpenAPI spec - utility endpoint
     response: {
       200: z.string(),
       503: z.string(),

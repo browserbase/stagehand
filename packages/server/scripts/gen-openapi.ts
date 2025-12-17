@@ -21,6 +21,7 @@ import endRoute from "../src/routes/v1/sessions/:id/end.js";
 import extractRoute from "../src/routes/v1/sessions/:id/extract.js";
 import navigateRoute from "../src/routes/v1/sessions/:id/navigate.js";
 import observeRoute from "../src/routes/v1/sessions/:id/observe.js";
+import replayRoute from "../src/routes/v1/sessions/:id/replay.js";
 import startRoute from "../src/routes/v1/sessions/start.js";
 import healthcheckRoute from "../src/routes/healthcheck.js";
 import readinessRoute from "../src/routes/readiness.js";
@@ -151,6 +152,7 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
       instance.route(extractRoute);
       instance.route(navigateRoute);
       instance.route(observeRoute);
+      instance.route(replayRoute);
       instance.route(startRoute);
       instance.route(agentExecuteRoute);
       done();

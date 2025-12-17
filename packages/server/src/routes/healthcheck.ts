@@ -9,6 +9,7 @@ const healthcheckRoute: RouteOptions = {
   url: "/healthz",
   logLevel: "silent",
   schema: {
+    hide: true, // Hide from OpenAPI spec - utility endpoint
     response: {
       200: z
         .object({

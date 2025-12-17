@@ -44,6 +44,7 @@ describe.skipIf(!canRun)(
       "x-model-api-key": MODEL_API_KEY!,
       "x-language": "typescript",
       "x-stream-response": "false",
+      "x-sdk-version": "3.0.0",
     };
 
     async function apiRequest(
@@ -113,8 +114,14 @@ describe.skipIf(!canRun)(
 
       const res = await apiRequest("POST", `/sessions/${sessionId}/navigate`, {
         url: "https://example.com",
+        frameId: "", // Required for V3, empty string uses active page
       });
 
+      if (res.status !== 200) {
+        const errBody = await res.json();
+        console.log("Navigate status:", res.status);
+        console.log("Navigate error:", JSON.stringify(errBody, null, 2));
+      }
       expect(res.status).toBe(200);
 
       const body = await res.json();
@@ -175,14 +182,29 @@ describe.skipIf(!canRun)(
     test("POST /sessions/:id/act performs an action", async () => {
       expect(sessionId).toBeTruthy();
 
+      // Use the action from observe result
       const res = await apiRequest("POST", `/sessions/${sessionId}/act`, {
-        input: "Click the 'More information' link",
+        input: {
+          selector: "xpath=/html[1]/body[1]/div[1]/p[2]/a[1]",
+          description: "More information link",
+          method: "click",
+          arguments: [],
+        },
       });
 
+      if (res.status !== 200) {
+        const body = await res.json();
+        console.log("Act status:", res.status);
+        console.log("Act body:", JSON.stringify(body, null, 2));
+      }
       expect(res.status).toBe(200);
 
       const body = await res.json();
       const parsed = Api.ActResponseSchema.safeParse(body);
+      if (!parsed.success) {
+        console.log("Act response body:", JSON.stringify(body, null, 2));
+        console.log("Act parse errors:", parsed.error.issues);
+      }
       expect(parsed.success).toBe(true);
 
       if (parsed.success) {
