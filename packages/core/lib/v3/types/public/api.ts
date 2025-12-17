@@ -344,10 +344,13 @@ export const SessionEndResultSchema = z
   .strict()
   .meta({ id: "SessionEndResult" });
 
-export const SessionEndResponseSchema = wrapResponse(
-  SessionEndResultSchema,
-  "SessionEndResponse",
-);
+/** Session end response - just success flag, no data wrapper */
+export const SessionEndResponseSchema = z
+  .object({
+    success: z.literal(true),
+  })
+  .strict()
+  .meta({ id: "SessionEndResponse" });
 
 // =============================================================================
 // Act

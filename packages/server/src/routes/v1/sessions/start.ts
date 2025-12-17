@@ -210,17 +210,7 @@ const startRoute: RouteOptions = {
     headers: Api.SessionHeadersSchema,
     body: startBodySchema,
     response: {
-      200: Api.SessionStartResponseSchema.meta({
-        links: {
-          SessionAct: { $ref: "#/components/links/SessionAct" },
-          SessionExtract: { $ref: "#/components/links/SessionExtract" },
-          SessionObserve: { $ref: "#/components/links/SessionObserve" },
-          SessionNavigate: { $ref: "#/components/links/SessionNavigate" },
-          SessionAgentExecute: { $ref: "#/components/links/SessionAgentExecute" },
-          SessionReplay: { $ref: "#/components/links/SessionReplay" },
-          SessionEnd: { $ref: "#/components/links/SessionEnd" },
-        },
-      }),
+      200: Api.SessionStartResponseSchema,
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: startRouteHandler,

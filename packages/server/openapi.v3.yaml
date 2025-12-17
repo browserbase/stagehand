@@ -435,6 +435,9 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/ActResultData"
+        actionId:
+          description: Action ID for tracking
+          type: string
       required:
         - result
       additionalProperties: false
@@ -1158,6 +1161,9 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/ActResultDataOutput"
+        actionId:
+          description: Action ID for tracking
+          type: string
       required:
         - result
       additionalProperties: false
@@ -1953,21 +1959,6 @@ paths:
           content:
             application/json:
               schema:
-                links:
-                  SessionAct:
-                    $ref: "#/components/links/SessionAct"
-                  SessionExtract:
-                    $ref: "#/components/links/SessionExtract"
-                  SessionObserve:
-                    $ref: "#/components/links/SessionObserve"
-                  SessionNavigate:
-                    $ref: "#/components/links/SessionNavigate"
-                  SessionAgentExecute:
-                    $ref: "#/components/links/SessionAgentExecute"
-                  SessionReplay:
-                    $ref: "#/components/links/SessionReplay"
-                  SessionEnd:
-                    $ref: "#/components/links/SessionEnd"
                 $ref: "#/components/schemas/SessionStartResponse"
   /v1/sessions/{id}/agentExecute:
     post:
