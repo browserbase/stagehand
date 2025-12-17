@@ -39,7 +39,6 @@ const publicApiShape = {
   loadApiKeyFromEnv: Stagehand.loadApiKeyFromEnv,
   localBrowserLaunchOptionsSchema: Stagehand.localBrowserLaunchOptionsSchema,
   modelToAgentProviderMap: Stagehand.modelToAgentProviderMap,
-  navigateResponseSchema: Stagehand.navigateResponseSchema,
   pageTextSchema: Stagehand.pageTextSchema,
   providerEnvVarMap: Stagehand.providerEnvVarMap,
   toGeminiSchema: Stagehand.toGeminiSchema,
