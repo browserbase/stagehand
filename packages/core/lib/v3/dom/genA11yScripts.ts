@@ -56,10 +56,7 @@ async function main(): Promise<void> {
   const banner = `/*\n * AUTO-GENERATED FILE. DO NOT EDIT.\n * Update sources in lib/v3/dom/a11yScripts and run genA11yScripts.ts.\n */`;
 
   const globalRefs: Record<string, string> = Object.fromEntries(
-    sorted.map(([name]) => [
-      name,
-      `globalThis.__stagehandA11yScripts.${name}`,
-    ]),
+    sorted.map(([name]) => [name, `globalThis.__stagehandA11yScripts.${name}`]),
   );
 
   const content = `${banner}

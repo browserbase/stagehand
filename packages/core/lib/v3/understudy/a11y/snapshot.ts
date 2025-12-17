@@ -4,9 +4,7 @@ import type { CDPSessionLike } from "../cdp";
 import { Page } from "../page";
 import { executionContexts } from "../executionContextRegistry";
 import { v3Logger } from "../../logger";
-import {
-  a11yScriptSources,
-} from "../../dom/build/a11yScripts.generated";
+import { a11yScriptSources } from "../../dom/build/a11yScripts.generated";
 import { buildA11yInvocation } from "../a11yInvocation";
 import { buildLocatorInvocation } from "../locatorInvocation";
 import {
@@ -261,10 +259,7 @@ export async function computeActiveElementXpath(
       const ctxId = await executionContexts
         .waitForMainWorld(sess, fid, 1000)
         .catch(() => {});
-      const hasFocusExpr = buildA11yInvocation(
-        "documentHasFocusStrict",
-        [],
-      );
+      const hasFocusExpr = buildA11yInvocation("documentHasFocusStrict", []);
       const evalParams = ctxId
         ? {
             contextId: ctxId,
