@@ -46,64 +46,65 @@ export function resolveDeepActiveElement(): Element | null {
   }
 }
 
-const nodeToAbsoluteXPathImpl = (node: Node | null | undefined): string => {
-  try {
-    const sibIndex = (n: Node | null | undefined): number => {
-      if (!n || !n.parentNode) return 1;
-      let i = 1;
-      const targetKey = `${n.nodeType}:${(n.nodeName || "").toLowerCase()}`;
-      for (let p = n.previousSibling; p; p = p.previousSibling) {
-        const key = `${p.nodeType}:${(p.nodeName || "").toLowerCase()}`;
-        if (key === targetKey) i += 1;
-      }
-      return i;
-    };
-
-    const step = (n: Node | null | undefined): string => {
-      if (!n) return "";
-      if (n.nodeType === Node.DOCUMENT_NODE) return "";
-      if (n.nodeType === Node.DOCUMENT_FRAGMENT_NODE) return "//";
-      if (n.nodeType === Node.TEXT_NODE) return `text()[${sibIndex(n)}]`;
-      if (n.nodeType === Node.COMMENT_NODE) return `comment()[${sibIndex(n)}]`;
-      const tag = (n.nodeName || "").toLowerCase();
-      const name = tag.includes(":") ? `*[name()='${tag}']` : tag;
-      return `${name}[${sibIndex(n)}]`;
-    };
-
-    const parts: string[] = [];
-    let cur: Node | null | undefined = node;
-    while (cur) {
-      if (cur.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
-        parts.push("//");
-        cur = (cur as ShadowRoot).host ?? null;
-        continue;
-      }
-      const s = step(cur);
-      if (s) parts.push(s);
-      cur = cur.parentNode;
-    }
-    parts.reverse();
-
-    let out = "";
-    for (const part of parts) {
-      if (part === "//") {
-        out = out ? (out.endsWith("/") ? `${out}/` : `${out}//`) : "//";
-      } else {
-        out = out
-          ? out.endsWith("/")
-            ? `${out}${part}`
-            : `${out}/${part}`
-          : `/${part}`;
-      }
-    }
-    return out || "/";
-  } catch {
-    return "/";
-  }
-};
-
 export function nodeToAbsoluteXPath(this: Node | null | undefined): string {
-  return nodeToAbsoluteXPathImpl(this);
+  const compute = (node: Node | null | undefined): string => {
+    try {
+      const sibIndex = (n: Node | null | undefined): number => {
+        if (!n || !n.parentNode) return 1;
+        let i = 1;
+        const targetKey = `${n.nodeType}:${(n.nodeName || "").toLowerCase()}`;
+        for (let p = n.previousSibling; p; p = p.previousSibling) {
+          const key = `${p.nodeType}:${(p.nodeName || "").toLowerCase()}`;
+          if (key === targetKey) i += 1;
+        }
+        return i;
+      };
+
+      const step = (n: Node | null | undefined): string => {
+        if (!n) return "";
+        if (n.nodeType === Node.DOCUMENT_NODE) return "";
+        if (n.nodeType === Node.DOCUMENT_FRAGMENT_NODE) return "//";
+        if (n.nodeType === Node.TEXT_NODE) return `text()[${sibIndex(n)}]`;
+        if (n.nodeType === Node.COMMENT_NODE)
+          return `comment()[${sibIndex(n)}]`;
+        const tag = (n.nodeName || "").toLowerCase();
+        const name = tag.includes(":") ? `*[name()='${tag}']` : tag;
+        return `${name}[${sibIndex(n)}]`;
+      };
+
+      const parts: string[] = [];
+      let cur: Node | null | undefined = node;
+      while (cur) {
+        if (cur.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+          parts.push("//");
+          cur = (cur as ShadowRoot).host ?? null;
+          continue;
+        }
+        const s = step(cur);
+        if (s) parts.push(s);
+        cur = cur.parentNode;
+      }
+      parts.reverse();
+
+      let out = "";
+      for (const part of parts) {
+        if (part === "//") {
+          out = out ? (out.endsWith("/") ? `${out}/` : `${out}//`) : "//";
+        } else {
+          out = out
+            ? out.endsWith("/")
+              ? `${out}${part}`
+              : `${out}/${part}`
+            : `/${part}`;
+        }
+      }
+      return out || "/";
+    } catch {
+      return "/";
+    }
+  };
+
+  return compute(this);
 }
 
 export function documentHasFocusStrict(): boolean {
