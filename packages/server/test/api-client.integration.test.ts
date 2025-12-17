@@ -43,6 +43,7 @@ describe.skipIf(!canRun)(
       "x-bb-project-id": BROWSERBASE_PROJECT_ID!,
       "x-model-api-key": MODEL_API_KEY!,
       "x-language": "typescript",
+      "x-stream-response": "false",
     };
 
     async function apiRequest(
@@ -114,6 +115,9 @@ describe.skipIf(!canRun)(
         url: "https://example.com",
       });
 
+      if (res.status !== 200) {
+        console.log("Navigate response:", await res.json());
+      }
       expect(res.status).toBe(200);
 
       const body = await res.json();

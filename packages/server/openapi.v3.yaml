@@ -365,14 +365,9 @@ components:
           type: string
         available:
           type: boolean
-        cdpUrl:
-          description: Chrome DevTools Protocol URL
-          example: ws://localhost:9222
-          type: string
       required:
         - sessionId
         - available
-        - cdpUrl
       additionalProperties: false
     SessionEndResult:
       type: object
@@ -1502,6 +1497,54 @@ components:
           const: true
         data:
           $ref: "#/components/schemas/ReplayResultOutput"
+      required:
+        - success
+        - data
+      additionalProperties: false
+    ActResponseOutput:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: "#/components/schemas/ActResultOutput"
+      required:
+        - success
+        - data
+      additionalProperties: false
+    ObserveResponseOutput:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: "#/components/schemas/ObserveResultOutput"
+      required:
+        - success
+        - data
+      additionalProperties: false
+    AgentExecuteResponseOutput:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: "#/components/schemas/AgentExecuteResultOutput"
+      required:
+        - success
+        - data
+      additionalProperties: false
+    NavigateResponseOutput:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: "#/components/schemas/NavigateResultOutput"
       required:
         - success
         - data
