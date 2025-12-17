@@ -1,8 +1,8 @@
-import Browserbase from "@browserbasehq/sdk";
 import { z } from "zod";
 import { LLMClient } from "../../llm/LLMClient";
 import { ModelConfiguration } from "./model";
 import { LogLine } from "./logs";
+import type { BrowserbaseSessionCreateParams } from "./api";
 
 export type V3Env = "LOCAL" | "BROWSERBASE";
 
@@ -73,10 +73,7 @@ export interface V3Options {
   /**
    * Optional: fine-tune Browserbase session creation or resume an existing session.
    */
-  browserbaseSessionCreateParams?: Omit<
-    Browserbase.Sessions.SessionCreateParams,
-    "projectId"
-  > & { projectId?: string };
+  browserbaseSessionCreateParams?: BrowserbaseSessionCreateParams;
   browserbaseSessionID?: string;
 
   // Local Chromium (optional)

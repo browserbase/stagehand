@@ -1,22 +1,13 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import type { Action } from "@browserbasehq/stagehand";
-import { z } from "zod/v4";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
-import {
-  ObserveRequestSchema,
-  ObserveResultSchema,
-  SessionIdParamsSchema,
-} from "@browserbasehq/stagehand";
+import { Api } from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
 import { createStreamingResponse } from "../../../../lib/stream.js";
 import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
-
-interface ObserveParams {
-  id: string;
-}
 
 const observeRouteHandler: RouteHandlerMethod = withErrorHandling(
   async (request, reply) => {
@@ -26,7 +17,7 @@ const observeRouteHandler: RouteHandlerMethod = withErrorHandling(
         .send({ error: "Unauthorized" });
     }
 
-    const { id } = request.params as ObserveParams;
+    const { id } = request.params as Api.SessionIdParams;
 
     if (!id.length) {
       return reply.status(StatusCodes.BAD_REQUEST).send({
@@ -42,11 +33,11 @@ const observeRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<z.infer<typeof ObserveRequestSchema>>({
+    return createStreamingResponse<Api.ObserveRequest>({
       sessionId: id,
       request,
       reply,
-      schema: ObserveRequestSchema,
+      schema: Api.ObserveRequestSchema,
       handler: async ({ stagehand, data }) => {
         const { frameId } = data;
         const page = frameId
@@ -93,15 +84,12 @@ const observeRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/observe",
   schema: {
-    params: SessionIdParamsSchema,
-    body: ObserveRequestSchema,
+    ...Api.Operations.SessionObserve,
+    headers: Api.SessionHeadersSchema,
+    params: Api.SessionIdParamsSchema,
+    body: Api.ObserveRequestSchema,
     response: {
-      200: z
-        .object({
-          success: z.literal(true),
-          data: ObserveResultSchema,
-        })
-        .strict(),
+      200: Api.ObserveResponseSchema,
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: observeRouteHandler,

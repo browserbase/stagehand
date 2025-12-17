@@ -1,21 +1,12 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
-import { z } from "zod/v4";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
-import {
-  NavigateRequestSchema,
-  NavigateResultSchema,
-  SessionIdParamsSchema,
-} from "@browserbasehq/stagehand";
+import { Api } from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
 import { createStreamingResponse } from "../../../../lib/stream.js";
 import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
-
-interface NavigateParams {
-  id: string;
-}
 
 const navigateRouteHandler: RouteHandlerMethod = withErrorHandling(
   async (request, reply) => {
@@ -25,7 +16,7 @@ const navigateRouteHandler: RouteHandlerMethod = withErrorHandling(
         .send({ error: "Unauthorized" });
     }
 
-    const { id } = request.params as NavigateParams;
+    const { id } = request.params as Api.SessionIdParams;
 
     if (!id.length) {
       return reply.status(StatusCodes.BAD_REQUEST).send({
@@ -41,11 +32,11 @@ const navigateRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<z.infer<typeof NavigateRequestSchema>>({
+    return createStreamingResponse<Api.NavigateRequest>({
       sessionId: id,
       request,
       reply,
-      schema: NavigateRequestSchema,
+      schema: Api.NavigateRequestSchema,
       handler: async ({ stagehand, data }) => {
         const page = data.frameId
           ? stagehand.context.resolvePageByMainFrameId(data.frameId)
@@ -68,15 +59,12 @@ const navigateRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/navigate",
   schema: {
-    params: SessionIdParamsSchema,
-    body: NavigateRequestSchema,
+    ...Api.Operations.SessionNavigate,
+    headers: Api.SessionHeadersSchema,
+    params: Api.SessionIdParamsSchema,
+    body: Api.NavigateRequestSchema,
     response: {
-      200: z
-        .object({
-          success: z.literal(true),
-          data: NavigateResultSchema,
-        })
-        .strict(),
+      200: Api.NavigateResponseSchema,
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: navigateRouteHandler,

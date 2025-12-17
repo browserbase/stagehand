@@ -1,21 +1,12 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
-import { z } from "zod/v4";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
-import {
-  AgentExecuteRequestSchema,
-  AgentExecuteResultSchema,
-  SessionIdParamsSchema,
-} from "@browserbasehq/stagehand";
+import { Api } from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
 import { createStreamingResponse } from "../../../../lib/stream.js";
 import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
-
-interface AgentExecuteParams {
-  id: string;
-}
 
 const agentExecuteRouteHandler: RouteHandlerMethod = withErrorHandling(
   async (request, reply) => {
@@ -25,7 +16,7 @@ const agentExecuteRouteHandler: RouteHandlerMethod = withErrorHandling(
         .send({ error: "Unauthorized" });
     }
 
-    const { id } = request.params as AgentExecuteParams;
+    const { id } = request.params as Api.SessionIdParams;
 
     if (!id.length) {
       return reply.status(StatusCodes.BAD_REQUEST).send({
@@ -41,11 +32,11 @@ const agentExecuteRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<z.infer<typeof AgentExecuteRequestSchema>>({
+    return createStreamingResponse<Api.AgentExecuteRequest>({
       sessionId: id,
       request,
       reply,
-      schema: AgentExecuteRequestSchema,
+      schema: Api.AgentExecuteRequestSchema,
       handler: async ({ stagehand, data }) => {
         const { agentConfig, executeOptions } = data;
         const { frameId } = data;
@@ -92,15 +83,12 @@ const agentExecuteRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/agentExecute",
   schema: {
-    params: SessionIdParamsSchema,
-    body: AgentExecuteRequestSchema,
+    ...Api.Operations.SessionAgentExecute,
+    headers: Api.SessionHeadersSchema,
+    params: Api.SessionIdParamsSchema,
+    body: Api.AgentExecuteRequestSchema,
     response: {
-      200: z
-        .object({
-          success: z.literal(true),
-          data: AgentExecuteResultSchema,
-        })
-        .strict(),
+      200: Api.AgentExecuteResponseSchema,
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: agentExecuteRouteHandler,

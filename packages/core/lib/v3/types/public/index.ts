@@ -1,4 +1,8 @@
 export * from "./agent";
+// Export api.ts under namespace to avoid conflicts with methods.ts types
+export * as Api from "./api";
+// Export localBrowserLaunchOptionsSchema directly for backwards compatibility
+export { LocalBrowserLaunchOptionsSchema as localBrowserLaunchOptionsSchema } from "./api";
 export * from "./apiErrors";
 export * from "./logs";
 export * from "./methods";

@@ -15,6 +15,7 @@ import { publicErrorTypes } from "./public-error-types.test";
 
 const publicApiShape = {
   AISdkClient: Stagehand.AISdkClient,
+  Api: Stagehand.Api,
   AVAILABLE_CUA_MODELS: Stagehand.AVAILABLE_CUA_MODELS,
   AgentProvider: Stagehand.AgentProvider,
   AnnotatedScreenshotText: Stagehand.AnnotatedScreenshotText,

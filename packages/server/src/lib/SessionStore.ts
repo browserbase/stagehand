@@ -1,11 +1,25 @@
 import type {
+  Api,
   LocalBrowserLaunchOptions,
   LogLine,
   V3,
-  SessionStartResult,
 } from "@browserbasehq/stagehand";
 
-export type { SessionStartResult };
+/**
+ * Sentinel value for cdpUrl indicating the server should launch a local browser.
+ * When the client receives this value, the server will lazily create the browser
+ * on the first request and return the actual cdpUrl.
+ */
+export const LOCAL_BROWSER_PENDING = "local:pending" as const;
+
+/**
+ * Result from SessionStore.startSession().
+ * Uses Api.SessionStartResult to ensure cdpUrl is always provided.
+ *
+ * For local browsers without a pre-existing cdpUrl, use LOCAL_BROWSER_PENDING
+ * as the cdpUrl value. The server will launch the browser on first use.
+ */
+export type SessionStartResult = Api.SessionStartResult;
 
 /**
  * Parameters for creating a new session.
@@ -20,6 +34,8 @@ export interface CreateSessionParams {
   browserType: "local" | "browserbase";
   /** Model name (e.g., "openai/gpt-4o") */
   modelName: string;
+  /** Chrome DevTools Protocol URL for connecting to the browser (required for browserbase, optional for local) */
+  cdpUrl?: string;
   /** Verbosity level */
   verbose?: 0 | 1 | 2;
   /** Custom system prompt */

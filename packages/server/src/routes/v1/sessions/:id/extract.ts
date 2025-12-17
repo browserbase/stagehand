@@ -2,21 +2,13 @@ import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import { z } from "zod/v4";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
-import {
-  ExtractRequestSchema,
-  ExtractResultSchema,
-  SessionIdParamsSchema,
-} from "@browserbasehq/stagehand";
+import { Api } from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
 import { createStreamingResponse } from "../../../../lib/stream.js";
 import { jsonSchemaToZod } from "../../../../lib/utils.js";
 import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
-
-interface ExtractParams {
-  id: string;
-}
 
 const extractRouteHandler: RouteHandlerMethod = withErrorHandling(
   async (request, reply) => {
@@ -26,7 +18,7 @@ const extractRouteHandler: RouteHandlerMethod = withErrorHandling(
         .send({ error: "Unauthorized" });
     }
 
-    const { id } = request.params as ExtractParams;
+    const { id } = request.params as Api.SessionIdParams;
 
     if (!id.length) {
       return reply.status(StatusCodes.BAD_REQUEST).send({
@@ -42,11 +34,11 @@ const extractRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<z.infer<typeof ExtractRequestSchema>>({
+    return createStreamingResponse<Api.ExtractRequest>({
       sessionId: id,
       request,
       reply,
-      schema: ExtractRequestSchema,
+      schema: Api.ExtractRequestSchema,
       handler: async ({ stagehand, data }) => {
         const { frameId } = data;
         const page = frameId
@@ -100,15 +92,12 @@ const extractRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/extract",
   schema: {
-    params: SessionIdParamsSchema,
-    body: ExtractRequestSchema,
+    ...Api.Operations.SessionExtract,
+    headers: Api.SessionHeadersSchema,
+    params: Api.SessionIdParamsSchema,
+    body: Api.ExtractRequestSchema,
     response: {
-      200: z
-        .object({
-          success: z.literal(true),
-          data: ExtractResultSchema,
-        })
-        .strict(),
+      200: Api.ExtractResponseSchema,
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: extractRouteHandler,

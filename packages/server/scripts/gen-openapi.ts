@@ -11,6 +11,7 @@ import {
   validatorCompiler,
   type FastifyZodOpenApiTypeProvider,
 } from "fastify-zod-openapi";
+import { Api } from "@browserbasehq/stagehand";
 
 // Routes
 import actRoute from "../src/routes/v1/sessions/:id/act.js";
@@ -41,9 +42,18 @@ async function main() {
     openapi: {
       info: {
         title: "Stagehand API",
-        version: "3.0.5",
+        version: "3.0.6",
+        description:
+          "API for browser automation with AI-powered actions, extraction, and observation.",
       },
       openapi: "3.1.0",
+      components: {
+        securitySchemes: Api.openApiSecuritySchemes,
+        links: Api.openApiLinks,
+      },
+      security: [
+        { BrowserbaseApiKey: [], BrowserbaseProjectId: [], ModelApiKey: [] },
+      ],
     },
     ...fastifyZodOpenApiTransformers,
   });

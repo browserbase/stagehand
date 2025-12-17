@@ -1,12 +1,7 @@
 import type { RouteHandler, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import Browserbase from "@browserbasehq/sdk";
-import {
-  localBrowserLaunchOptionsSchema,
-  LocalBrowserLaunchOptions,
-  SessionStartRequestSchema,
-  SessionStartResponseSchema,
-} from "@browserbasehq/stagehand";
+import { Api, localBrowserLaunchOptionsSchema } from "@browserbasehq/stagehand";
 import type { SessionRetrieveResponse } from "@browserbasehq/sdk/resources/sessions/sessions";
 import { type FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 import { z } from "zod/v4";
@@ -18,45 +13,23 @@ import { error, success } from "../../../lib/response.js";
 import { getSessionStore } from "../../../lib/sessionStoreManager.js";
 import { AISDK_PROVIDERS } from "../../../types/model.js";
 
-/**
- * Parameters for creating a new session (request body shape)
- */
-interface ConstructorParams {
-  modelName: string;
-  domSettleTimeoutMs?: number;
-  verbose?: 0 | 1 | 2;
-  systemPrompt?: string;
-  browser?: {
-    type?: "local" | "browserbase";
-    cdpUrl?: string;
-    launchOptions?: LocalBrowserLaunchOptions;
-  };
-  browserbaseSessionCreateParams?: Omit<
-    Browserbase.Sessions.SessionCreateParams,
-    "projectId"
-  > & { projectId?: string };
-  selfHeal?: boolean;
-  waitForCaptchaSolves?: boolean;
-  browserbaseSessionID?: string;
-  experimental?: boolean;
-  actTimeoutMs?: number;
-}
-
 // Extended schema with custom refinement for local browser validation
-const startBodySchema = SessionStartRequestSchema.superRefine((value, ctx) => {
-  if (value.browser?.type === "local") {
-    const hasCdp = Boolean(value.browser.cdpUrl);
-    const hasLaunch = Boolean(value.browser.launchOptions);
-    if (!hasCdp && !hasLaunch) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["browser"],
-        message:
-          "When browser.type is 'local', provide either browser.cdpUrl or browser.launchOptions.",
-      });
+const startBodySchema = Api.SessionStartRequestSchema.superRefine(
+  (value, ctx) => {
+    if (value.browser?.type === "local") {
+      const hasCdp = Boolean(value.browser.cdpUrl);
+      const hasLaunch = Boolean(value.browser.launchOptions);
+      if (!hasCdp && !hasLaunch) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["browser"],
+          message:
+            "When browser.type is 'local', provide either browser.cdpUrl or browser.launchOptions.",
+        });
+      }
     }
-  }
-});
+  },
+);
 
 const startRouteHandler: RouteHandler = withErrorHandling(
   async (request, reply) => {
@@ -78,6 +51,14 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       );
     }
 
+    // Cast to Api.SessionStartRequest with properly typed browserbaseSessionCreateParams
+    // The API schema uses Record<string, unknown> for flexibility, but we need the SDK types here
+    type RequestBody = Omit<Api.SessionStartRequest, "browserbaseSessionCreateParams"> & {
+      browserbaseSessionCreateParams?: Omit<
+        Browserbase.Sessions.SessionCreateParams,
+        "projectId"
+      > & { projectId?: string };
+    };
     const {
       modelName,
       domSettleTimeoutMs,
@@ -89,7 +70,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       browserbaseSessionID,
       experimental,
       browser,
-    } = request.body as ConstructorParams;
+    } = request.body as RequestBody;
     const modelApiKey = getOptionalHeader(request, "x-model-api-key");
 
     if (!modelName) {
@@ -179,8 +160,16 @@ const startRouteHandler: RouteHandler = withErrorHandling(
     }
 
     const sessionStore = getSessionStore();
+
+    // For local browsers without a cdpUrl, we need to get it from browser.cdpUrl
+    // or it will be obtained when the stagehand instance is created
+    if (browserType === "local") {
+      cdpUrl = browser?.cdpUrl;
+    }
+
     const session = await sessionStore.startSession({
       browserType,
+      cdpUrl,
       browserbaseSessionID:
         browserType === "browserbase"
           ? (browserbaseSessionId ?? browserbaseSessionID)
@@ -198,46 +187,21 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       sdkVersion,
       experimental,
       localBrowserLaunchOptions:
-        browserType === "local" &&
-        (cdpUrl || browser?.cdpUrl || browser?.launchOptions)
+        browserType === "local" && browser?.launchOptions
           ? {
-              cdpUrl: browser?.cdpUrl ?? cdpUrl,
+              cdpUrl: browser?.cdpUrl,
               ...(browser?.launchOptions ?? {}),
             }
           : undefined,
     });
 
-    if (browserType === "local" && !cdpUrl) {
-      try {
-        const stagehand = await sessionStore.getOrCreateStagehand(
-          session.sessionId,
-          {
-            modelApiKey,
-            logger: (line) => request.log.info(line),
-          },
-        );
-        cdpUrl = stagehand.connectURL();
-      } catch (err) {
-        request.log.warn(
-          { err },
-          "failed to precreate local browser for /sessions/start",
-        );
-      }
-    }
-
-    const responseCdpUrl = cdpUrl ?? browser?.cdpUrl;
-    if (!responseCdpUrl) {
-      return error(
-        reply,
-        "Missing cdpUrl for requested browser type",
-        StatusCodes.INTERNAL_SERVER_ERROR,
-      );
-    }
-
+    // SessionStore.startSession() always returns cdpUrl
+    // For local browsers without a pre-existing cdpUrl, it returns "local:pending"
+    // which signals the browser will be launched lazily on first use
     return success(reply, {
       sessionId: session.sessionId,
       available: session.available,
-      cdpUrl: responseCdpUrl,
+      cdpUrl: session.cdpUrl,
     });
   },
 );
@@ -246,9 +210,21 @@ const startRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/start",
   schema: {
+    ...Api.Operations.SessionStart,
+    headers: Api.SessionHeadersSchema,
     body: startBodySchema,
     response: {
-      200: SessionStartResponseSchema,
+      200: Api.SessionStartResponseSchema.meta({
+        links: {
+          SessionAct: { $ref: "#/components/links/SessionAct" },
+          SessionExtract: { $ref: "#/components/links/SessionExtract" },
+          SessionObserve: { $ref: "#/components/links/SessionObserve" },
+          SessionNavigate: { $ref: "#/components/links/SessionNavigate" },
+          SessionAgentExecute: { $ref: "#/components/links/SessionAgentExecute" },
+          SessionReplay: { $ref: "#/components/links/SessionReplay" },
+          SessionEnd: { $ref: "#/components/links/SessionEnd" },
+        },
+      }),
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: startRouteHandler,

@@ -1,19 +1,12 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
-import {
-  SessionIdParamsSchema,
-  SessionEndResponseSchema,
-} from "@browserbasehq/stagehand";
+import { Api } from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { withErrorHandling } from "../../../../lib/errorHandler.js";
 import { error, success } from "../../../../lib/response.js";
 import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
-
-interface EndParams {
-  id: string;
-}
 
 const endRouteHandler: RouteHandlerMethod = withErrorHandling(
   async (request, reply) => {
@@ -21,7 +14,7 @@ const endRouteHandler: RouteHandlerMethod = withErrorHandling(
       return error(reply, "Unauthorized", StatusCodes.UNAUTHORIZED);
     }
 
-    const { id: sessionId } = request.params as EndParams;
+    const { id: sessionId } = request.params as Api.SessionIdParams;
     const sessionStore = getSessionStore();
     await sessionStore.endSession(sessionId);
 
@@ -33,9 +26,11 @@ const endRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/end",
   schema: {
-    params: SessionIdParamsSchema,
+    ...Api.Operations.SessionEnd,
+    headers: Api.SessionHeadersSchema,
+    params: Api.SessionIdParamsSchema,
     response: {
-      200: SessionEndResponseSchema,
+      200: Api.SessionEndResponseSchema,
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: endRouteHandler,

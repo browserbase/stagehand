@@ -1,0 +1,919 @@
+/**
+ * Centralized Zod schemas for Stagehand Server API
+ *
+ * Naming conventions:
+ * - `*RequestSchema` - Request body schemas (zod4), `*Request` is the inferred type
+ * - `*ResultSchema` - Inner response data (unwrapped), `*Result` is the inferred type
+ * - `*ResponseSchema` - Full response with success wrapper: { success: true, data: *Result }, `*Response` is the inferred type
+ *
+ * All TypeScript types are inferred from the Zod4 *Schemas using z.infer<>
+ */
+import { z } from "zod/v4";
+
+// =============================================================================
+// Shared Components
+// =============================================================================
+
+/** Browser launch options for local browsers */
+export const LocalBrowserLaunchOptionsSchema = z
+  .object({
+    args: z.array(z.string()).optional(),
+    executablePath: z.string().optional(),
+    userDataDir: z.string().optional(),
+    preserveUserDataDir: z.boolean().optional(),
+    headless: z.boolean().optional(),
+    devtools: z.boolean().optional(),
+    chromiumSandbox: z.boolean().optional(),
+    ignoreDefaultArgs: z.union([z.boolean(), z.array(z.string())]).optional(),
+    proxy: z
+      .object({
+        server: z.string(),
+        bypass: z.string().optional(),
+        username: z.string().optional(),
+        password: z.string().optional(),
+      })
+      .optional(),
+    locale: z.string().optional(),
+    viewport: z.object({ width: z.number(), height: z.number() }).optional(),
+    deviceScaleFactor: z.number().optional(),
+    hasTouch: z.boolean().optional(),
+    ignoreHTTPSErrors: z.boolean().optional(),
+    cdpUrl: z.string().optional(),
+    connectTimeoutMs: z.number().optional(),
+    downloadsPath: z.string().optional(),
+    acceptDownloads: z.boolean().optional(),
+  })
+  .strict()
+  .meta({ id: "LocalBrowserLaunchOptions" });
+
+/** Model configuration - string model name or detailed config */
+export const ModelConfigSchema = z
+  .string()
+  .or(
+    z.object({
+      modelName: z.string(),
+      apiKey: z.string().optional(),
+      baseURL: z.string().url().optional(),
+    }),
+  )
+  .meta({ id: "ModelConfig" });
+
+/** Action object returned by observe and used by act */
+export const ActionSchema = z
+  .object({
+    selector: z.string().meta({
+      description: "CSS selector or XPath for the element",
+      example: "[data-testid='submit-button']",
+    }),
+    description: z.string().meta({
+      description: "Human-readable description of the action",
+      example: "Click the submit button",
+    }),
+    method: z.string().optional().meta({
+      description: "The method to execute (click, fill, etc.)",
+      example: "click",
+    }),
+    arguments: z.array(z.string()).optional().meta({
+      description: "Arguments to pass to the method",
+      example: ["Hello World"],
+    }),
+  })
+  .meta({
+    id: "ActionInput",
+    outputId: "Action",
+    description: "Action object returned by observe and used by act",
+  });
+
+/** Session ID path parameter */
+export const SessionIdParamsSchema = z
+  .object({
+    id: z.string().meta({
+      description: "Unique session identifier",
+      example: "c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123",
+    }),
+  })
+  .strict()
+  .meta({ id: "SessionIdParams" });
+
+/** Browser configuration for session start */
+export const BrowserConfigSchema = z
+  .object({
+    type: z.enum(["local", "browserbase"]).optional().meta({
+      description: "Browser type to use",
+      example: "local",
+    }),
+    cdpUrl: z.string().optional().meta({
+      description: "Chrome DevTools Protocol URL for connecting to existing browser",
+      example: "ws://localhost:9222",
+    }),
+    launchOptions: LocalBrowserLaunchOptionsSchema.optional(),
+  })
+  .meta({ id: "BrowserConfig" });
+
+// =============================================================================
+// Request Headers (operational only - auth headers are in security schemes)
+// =============================================================================
+
+/** Operational headers for all session requests (auth handled via security schemes) */
+export const SessionHeadersSchema = z
+  .object({
+    "x-stream-response": z.enum(["true", "false"]).optional().meta({
+      description: "Whether to stream the response via SSE",
+      example: "true",
+    }),
+    "x-language": z
+      .enum(["typescript", "python", "playground"])
+      .optional()
+      .meta({
+        description: "Client SDK language",
+        example: "typescript",
+      }),
+    "x-sdk-version": z.string().optional().meta({
+      description: "Version of the Stagehand SDK",
+      example: "3.0.6",
+    }),
+    "x-sent-at": z.string().datetime().optional().meta({
+      description: "ISO timestamp when request was sent",
+      example: "2025-01-15T10:30:00.000Z",
+    }),
+  })
+  .meta({ id: "SessionHeaders" });
+
+// =============================================================================
+// Response Wrapper Helper
+// =============================================================================
+
+/** Wraps a result schema in standard success response format */
+const wrapResponse = <T extends z.ZodTypeAny>(resultSchema: T, name: string) =>
+  z
+    .object({
+      success: z.literal(true),
+      data: resultSchema,
+    })
+    .strict()
+    .meta({ id: name });
+
+/** Standard error response */
+export const ErrorResponseSchema = z
+  .object({
+    success: z.literal(false),
+    error: z.string(),
+    code: z.string().optional(),
+  })
+  .strict()
+  .meta({ id: "ErrorResponse" });
+
+// =============================================================================
+// Browserbase Session Create Params  (zod+hints duplicated version of Browserbase.Sessions.SessionCreateParams)
+// =============================================================================
+
+/** Browserbase viewport configuration */
+export const BrowserbaseViewportSchema = z
+  .object({
+    width: z.number().optional(),
+    height: z.number().optional(),
+  })
+  .meta({ id: "BrowserbaseViewport" });
+
+/** Browserbase fingerprint screen configuration */
+export const BrowserbaseFingerprintScreenSchema = z
+  .object({
+    maxHeight: z.number().optional(),
+    maxWidth: z.number().optional(),
+    minHeight: z.number().optional(),
+    minWidth: z.number().optional(),
+  })
+  .meta({ id: "BrowserbaseFingerprintScreen" });
+
+/** Browserbase fingerprint configuration for stealth mode */
+export const BrowserbaseFingerprintSchema = z
+  .object({
+    browsers: z
+      .array(z.enum(["chrome", "edge", "firefox", "safari"]))
+      .optional(),
+    devices: z.array(z.enum(["desktop", "mobile"])).optional(),
+    httpVersion: z.enum(["1", "2"]).optional(),
+    locales: z.array(z.string()).optional(),
+    operatingSystems: z
+      .array(z.enum(["android", "ios", "linux", "macos", "windows"]))
+      .optional(),
+    screen: BrowserbaseFingerprintScreenSchema.optional(),
+  })
+  .meta({ id: "BrowserbaseFingerprint" });
+
+/** Browserbase context configuration for session persistence */
+export const BrowserbaseContextSchema = z
+  .object({
+    id: z.string(),
+    persist: z.boolean().optional(),
+  })
+  .meta({ id: "BrowserbaseContext" });
+
+/** Browserbase browser settings for session creation */
+export const BrowserbaseBrowserSettingsSchema = z
+  .object({
+    advancedStealth: z.boolean().optional(),
+    blockAds: z.boolean().optional(),
+    context: BrowserbaseContextSchema.optional(),
+    extensionId: z.string().optional(),
+    fingerprint: BrowserbaseFingerprintSchema.optional(),
+    logSession: z.boolean().optional(),
+    recordSession: z.boolean().optional(),
+    solveCaptchas: z.boolean().optional(),
+    viewport: BrowserbaseViewportSchema.optional(),
+  })
+  .meta({ id: "BrowserbaseBrowserSettings" });
+
+/** Browserbase managed proxy geolocation configuration */
+export const BrowserbaseProxyGeolocationSchema = z
+  .object({
+    country: z.string(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+  })
+  .meta({ id: "BrowserbaseProxyGeolocation" });
+
+/** Browserbase managed proxy configuration */
+export const BrowserbaseProxyConfigSchema = z
+  .object({
+    type: z.literal("browserbase"),
+    domainPattern: z.string().optional(),
+    geolocation: BrowserbaseProxyGeolocationSchema.optional(),
+  })
+  .meta({ id: "BrowserbaseProxyConfig" });
+
+/** External proxy configuration */
+export const ExternalProxyConfigSchema = z
+  .object({
+    type: z.literal("external"),
+    server: z.string(),
+    domainPattern: z.string().optional(),
+    username: z.string().optional(),
+    password: z.string().optional(),
+  })
+  .meta({ id: "ExternalProxyConfig" });
+
+/** Browserbase session creation parameters */
+export const BrowserbaseSessionCreateParamsSchema = z
+  .object({
+    projectId: z.string().optional(),
+    browserSettings: BrowserbaseBrowserSettingsSchema.optional(),
+    extensionId: z.string().optional(),
+    keepAlive: z.boolean().optional(),
+    proxies: z
+      .union([
+        z.boolean(),
+        z.array(
+          z.union([BrowserbaseProxyConfigSchema, ExternalProxyConfigSchema]),
+        ),
+      ])
+      .optional(),
+    region: z
+      .enum(["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"])
+      .optional(),
+    timeout: z.number().optional(),
+    userMetadata: z.record(z.string(), z.unknown()).optional(),
+  })
+  .meta({ id: "BrowserbaseSessionCreateParams" });
+
+// =============================================================================
+// Session Start
+// =============================================================================
+
+export const SessionStartRequestSchema = z
+  .object({
+    modelName: z.string().meta({
+      description: "Model name to use for AI operations",
+      example: "gpt-4o",
+    }),
+    domSettleTimeoutMs: z.number().optional().meta({
+      description: "Timeout in ms to wait for DOM to settle",
+      example: 5000,
+    }),
+    verbose: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional().meta({
+      description: "Logging verbosity level (0=quiet, 1=normal, 2=debug)",
+      example: 1,
+    }),
+    debugDom: z.boolean().optional(),
+    systemPrompt: z.string().optional().meta({
+      description: "Custom system prompt for AI operations",
+    }),
+    browserbaseSessionCreateParams:
+      BrowserbaseSessionCreateParamsSchema.optional(),
+    browser: BrowserConfigSchema.optional(),
+    selfHeal: z.boolean().optional().meta({
+      description: "Enable self-healing for failed actions",
+      example: true,
+    }),
+    waitForCaptchaSolves: z.boolean().optional(),
+    actTimeoutMs: z.number().optional().meta({
+      description: "Timeout in ms for act operations",
+      example: 30000,
+    }),
+    browserbaseSessionID: z.string().optional().meta({
+      description: "Existing Browserbase session ID to resume",
+    }),
+    experimental: z.boolean().optional(),
+  })
+  .strict()
+  .meta({ id: "SessionStartRequest" });
+
+export const SessionStartResultSchema = z
+  .object({
+    sessionId: z.string().meta({
+      description: "Unique session identifier",
+      example: "c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123",
+    }),
+    available: z.boolean(),
+    cdpUrl: z.string().meta({
+      description: "Chrome DevTools Protocol URL",
+      example: "ws://localhost:9222",
+    }),
+  })
+  .strict()
+  .meta({ id: "SessionStartResult" });
+
+export const SessionStartResponseSchema = wrapResponse(
+  SessionStartResultSchema,
+  "SessionStartResponse",
+);
+
+// =============================================================================
+// Session End
+// =============================================================================
+
+export const SessionEndResultSchema = z
+  .object({})
+  .strict()
+  .meta({ id: "SessionEndResult" });
+
+export const SessionEndResponseSchema = wrapResponse(
+  SessionEndResultSchema,
+  "SessionEndResponse",
+);
+
+// =============================================================================
+// Act
+// =============================================================================
+
+export const ActOptionsSchema = z
+  .object({
+    model: ModelConfigSchema.optional(),
+    variables: z.record(z.string(), z.string()).optional().meta({
+      description: "Variables to substitute in the action instruction",
+      example: { username: "john_doe" },
+    }),
+    timeout: z.number().optional().meta({
+      description: "Timeout in ms for the action",
+      example: 30000,
+    }),
+  })
+  .optional()
+  .meta({ id: "ActOptions" });
+
+export const ActRequestSchema = z
+  .object({
+    input: z.string().or(ActionSchema).meta({
+      description: "Natural language instruction or Action object",
+      example: "Click the login button",
+    }),
+    options: ActOptionsSchema,
+    frameId: z.string().optional().meta({
+      description: "Target frame ID for the action",
+    }),
+  })
+  .meta({ id: "ActRequest" });
+
+/** Inner act result data */
+export const ActResultDataSchema = z
+  .object({
+    success: z.boolean().meta({
+      description: "Whether the action completed successfully",
+      example: true,
+    }),
+    message: z.string().meta({
+      description: "Human-readable result message",
+      example: "Successfully clicked the login button",
+    }),
+    actionDescription: z.string().meta({
+      description: "Description of the action that was performed",
+      example: "Clicked button with text 'Login'",
+    }),
+    actions: z.array(ActionSchema).meta({
+      description: "List of actions that were executed",
+    }),
+  })
+  .meta({ id: "ActResultData" });
+
+export const ActResultSchema = z
+  .object({
+    result: ActResultDataSchema,
+  })
+  .strict()
+  .meta({ id: "ActResult" });
+
+export const ActResponseSchema = wrapResponse(ActResultSchema, "ActResponse");
+
+// =============================================================================
+// Extract
+// =============================================================================
+
+export const ExtractOptionsSchema = z
+  .object({
+    model: ModelConfigSchema.optional(),
+    timeout: z.number().optional().meta({
+      description: "Timeout in ms for the extraction",
+      example: 30000,
+    }),
+    selector: z.string().optional().meta({
+      description: "CSS selector to scope extraction to a specific element",
+      example: "#main-content",
+    }),
+  })
+  .optional()
+  .meta({ id: "ExtractOptions" });
+
+export const ExtractRequestSchema = z
+  .object({
+    instruction: z.string().optional().meta({
+      description: "Natural language instruction for what to extract",
+      example: "Extract all product names and prices from the page",
+    }),
+    schema: z.record(z.string(), z.unknown()).optional().meta({
+      description: "JSON Schema defining the structure of data to extract",
+    }),
+    options: ExtractOptionsSchema,
+    frameId: z.string().optional().meta({
+      description: "Target frame ID for the extraction",
+    }),
+  })
+  .meta({ id: "ExtractRequest" });
+
+export const ExtractResultSchema = z
+  .object({
+    result: z.unknown().meta({
+      description: "Extracted data matching the requested schema",
+    }),
+  })
+  .strict()
+  .meta({ id: "ExtractResult" });
+
+export const ExtractResponseSchema = wrapResponse(
+  ExtractResultSchema,
+  "ExtractResponse",
+);
+
+// =============================================================================
+// Observe
+// =============================================================================
+
+export const ObserveOptionsSchema = z
+  .object({
+    model: ModelConfigSchema.optional(),
+    timeout: z.number().optional().meta({
+      description: "Timeout in ms for the observation",
+      example: 30000,
+    }),
+    selector: z.string().optional().meta({
+      description: "CSS selector to scope observation to a specific element",
+      example: "nav",
+    }),
+  })
+  .optional()
+  .meta({ id: "ObserveOptions" });
+
+export const ObserveRequestSchema = z
+  .object({
+    instruction: z.string().optional().meta({
+      description: "Natural language instruction for what actions to find",
+      example: "Find all clickable navigation links",
+    }),
+    options: ObserveOptionsSchema,
+    frameId: z.string().optional().meta({
+      description: "Target frame ID for the observation",
+    }),
+  })
+  .meta({ id: "ObserveRequest" });
+
+export const ObserveResultSchema = z
+  .object({
+    result: z.array(ActionSchema),
+  })
+  .strict()
+  .meta({ id: "ObserveResult" });
+
+export const ObserveResponseSchema = wrapResponse(
+  ObserveResultSchema,
+  "ObserveResponse",
+);
+
+// =============================================================================
+// Agent Execute
+// =============================================================================
+
+export const AgentConfigSchema = z
+  .object({
+    model: ModelConfigSchema.optional(),
+    systemPrompt: z.string().optional().meta({
+      description: "Custom system prompt for the agent",
+    }),
+    cua: z.boolean().optional().meta({
+      description: "Enable Computer Use Agent mode",
+      example: true,
+    }),
+  })
+  .meta({ id: "AgentConfig" });
+
+/** Action taken by the agent during execution */
+export const AgentActionSchema = z
+  .object({
+    type: z.string().meta({
+      description: "Type of action taken",
+      example: "click",
+    }),
+    reasoning: z.string().optional().meta({
+      description: "Agent's reasoning for taking this action",
+    }),
+    taskCompleted: z.boolean().optional(),
+    action: z.string().optional(),
+    timeMs: z.number().optional().meta({
+      description: "Time taken for this action in ms",
+    }),
+    pageText: z.string().optional(),
+    pageUrl: z.string().optional(),
+    instruction: z.string().optional(),
+  })
+  .passthrough()
+  .meta({ id: "AgentAction" });
+
+/** Token usage statistics for agent execution */
+export const AgentUsageSchema = z
+  .object({
+    input_tokens: z.number().meta({ example: 1500 }),
+    output_tokens: z.number().meta({ example: 250 }),
+    reasoning_tokens: z.number().optional(),
+    cached_input_tokens: z.number().optional(),
+    inference_time_ms: z.number().meta({ example: 2500 }),
+  })
+  .meta({ id: "AgentUsage" });
+
+/** Result data from agent execution */
+export const AgentResultDataSchema = z
+  .object({
+    success: z.boolean().meta({
+      description: "Whether the agent completed successfully",
+      example: true,
+    }),
+    message: z.string().meta({
+      description: "Summary of what the agent accomplished",
+      example: "Successfully logged in and navigated to dashboard",
+    }),
+    actions: z.array(AgentActionSchema),
+    completed: z.boolean().meta({
+      description: "Whether the agent finished its task",
+      example: true,
+    }),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+    usage: AgentUsageSchema.optional(),
+  })
+  .meta({ id: "AgentResultData" });
+
+export const AgentExecuteOptionsSchema = z
+  .object({
+    instruction: z.string().meta({
+      description: "Natural language instruction for the agent",
+      example: "Log in with username 'demo' and password 'test123', then navigate to settings",
+    }),
+    maxSteps: z.number().optional().meta({
+      description: "Maximum number of steps the agent can take",
+      example: 20,
+    }),
+    highlightCursor: z.boolean().optional().meta({
+      description: "Whether to visually highlight the cursor during execution",
+      example: true,
+    }),
+  })
+  .meta({ id: "AgentExecuteOptions" });
+
+export const AgentExecuteRequestSchema = z
+  .object({
+    agentConfig: AgentConfigSchema,
+    executeOptions: AgentExecuteOptionsSchema,
+    frameId: z.string().optional().meta({
+      description: "Target frame ID for the agent",
+    }),
+  })
+  .meta({ id: "AgentExecuteRequest" });
+
+export const AgentExecuteResultSchema = z
+  .object({
+    result: AgentResultDataSchema,
+  })
+  .strict()
+  .meta({ id: "AgentExecuteResult" });
+
+export const AgentExecuteResponseSchema = wrapResponse(
+  AgentExecuteResultSchema,
+  "AgentExecuteResponse",
+);
+
+// =============================================================================
+// Navigate
+// =============================================================================
+
+export const NavigateOptionsSchema = z
+  .object({
+    referer: z.string().optional().meta({
+      description: "Referer header to send with the request",
+    }),
+    timeout: z.number().optional().meta({
+      description: "Timeout in ms for the navigation",
+      example: 30000,
+    }),
+    waitUntil: z.enum(["load", "domcontentloaded", "networkidle"]).optional().meta({
+      description: "When to consider navigation complete",
+      example: "networkidle",
+    }),
+  })
+  .optional()
+  .meta({ id: "NavigateOptions" });
+
+export const NavigateRequestSchema = z
+  .object({
+    url: z.string().meta({
+      description: "URL to navigate to",
+      example: "https://example.com",
+    }),
+    options: NavigateOptionsSchema,
+    frameId: z.string().optional().meta({
+      description: "Target frame ID for the navigation",
+    }),
+  })
+  .meta({ id: "NavigateRequest" });
+
+/** Inner navigate response data from Playwright */
+export const NavigateResultDataSchema = z
+  .object({
+    requestId: z.string(),
+    frameId: z.string().optional(),
+    loaderId: z.string().optional(),
+    response: z.unknown(), // CDP Protocol.Network.Response - kept as unknown for understudy compatibility
+    fromServiceWorkerFlag: z.boolean().optional(),
+    finishedSettled: z.boolean().optional(),
+    extraInfoHeaders: z.record(z.string(), z.string()).nullish(),
+    extraInfoHeadersText: z.string().optional(),
+  })
+  .meta({ id: "NavigateResultData" });
+
+export const NavigateResultSchema = z
+  .object({
+    result: NavigateResultDataSchema.nullable(),
+  })
+  .strict()
+  .meta({ id: "NavigateResult" });
+
+export const NavigateResponseSchema = wrapResponse(
+  NavigateResultSchema,
+  "NavigateResponse",
+);
+
+// =============================================================================
+// Replay Metrics
+// =============================================================================
+
+/** Token usage for a single action */
+export const TokenUsageSchema = z
+  .object({
+    inputTokens: z.number().optional(),
+    outputTokens: z.number().optional(),
+    reasoningTokens: z.number().optional(),
+    cachedInputTokens: z.number().optional(),
+    timeMs: z.number().optional(),
+  })
+  .meta({ id: "TokenUsage" });
+
+/** Action entry in replay metrics */
+export const ReplayActionSchema = z
+  .object({
+    method: z.string().optional(),
+    tokenUsage: TokenUsageSchema.optional(),
+  })
+  .meta({ id: "ReplayAction" });
+
+/** Page entry in replay metrics */
+export const ReplayPageSchema = z
+  .object({
+    actions: z.array(ReplayActionSchema).optional(),
+  })
+  .meta({ id: "ReplayPage" });
+
+/** Inner result data for replay */
+export const ReplayResultSchema = z
+  .object({
+    pages: z.array(ReplayPageSchema).optional(),
+  })
+  .meta({ id: "ReplayResult" });
+
+export const ReplayResponseSchema = wrapResponse(
+  ReplayResultSchema,
+  "ReplayResponse",
+);
+
+// =============================================================================
+// OpenAPI Components
+// =============================================================================
+// These objects are exported for use in gen-openapi.ts to configure the spec.
+
+/** OpenAPI security schemes for authentication */
+export const openApiSecuritySchemes = {
+  BrowserbaseApiKey: {
+    type: "apiKey",
+    in: "header",
+    name: "x-bb-api-key",
+    description: "Browserbase API key for authentication",
+  },
+  BrowserbaseProjectId: {
+    type: "apiKey",
+    in: "header",
+    name: "x-bb-project-id",
+    description: "Browserbase project ID",
+  },
+  ModelApiKey: {
+    type: "apiKey",
+    in: "header",
+    name: "x-model-api-key",
+    description:
+      "API key for the AI model provider (OpenAI, Anthropic, etc.)",
+  },
+} as const;
+
+/** OpenAPI links for session operations (used in SessionStart response) */
+export const openApiLinks = {
+  SessionAct: {
+    operationId: "SessionAct",
+    parameters: { id: "$response.body#/data/sessionId" },
+    description: "Perform an action on the session",
+  },
+  SessionExtract: {
+    operationId: "SessionExtract",
+    parameters: { id: "$response.body#/data/sessionId" },
+    description: "Extract data from the session",
+  },
+  SessionObserve: {
+    operationId: "SessionObserve",
+    parameters: { id: "$response.body#/data/sessionId" },
+    description: "Observe available actions on the session",
+  },
+  SessionNavigate: {
+    operationId: "SessionNavigate",
+    parameters: { id: "$response.body#/data/sessionId" },
+    description: "Navigate to a URL in the session",
+  },
+  SessionAgentExecute: {
+    operationId: "SessionAgentExecute",
+    parameters: { id: "$response.body#/data/sessionId" },
+    description: "Execute an agent on the session",
+  },
+  SessionReplay: {
+    operationId: "SessionReplay",
+    parameters: { id: "$response.body#/data/sessionId" },
+    description: "Replay session metrics",
+  },
+  SessionEnd: {
+    operationId: "SessionEnd",
+    parameters: { id: "$response.body#/data/sessionId" },
+    description: "End the session and release resources",
+  },
+} as const;
+
+/** OpenAPI operation metadata for each endpoint */
+export const Operations = {
+  SessionStart: {
+    operationId: "SessionStart",
+    summary: "Start a new browser session",
+    description:
+      "Creates a new browser session with the specified configuration. Returns a session ID used for all subsequent operations.",
+  },
+  SessionEnd: {
+    operationId: "SessionEnd",
+    summary: "End a browser session",
+    description:
+      "Terminates the browser session and releases all associated resources.",
+  },
+  SessionAct: {
+    operationId: "SessionAct",
+    summary: "Perform an action",
+    description:
+      "Executes a browser action using natural language instructions or a predefined Action object.",
+  },
+  SessionExtract: {
+    operationId: "SessionExtract",
+    summary: "Extract data from the page",
+    description:
+      "Extracts structured data from the current page using AI-powered analysis.",
+  },
+  SessionObserve: {
+    operationId: "SessionObserve",
+    summary: "Observe available actions",
+    description:
+      "Identifies and returns available actions on the current page that match the given instruction.",
+  },
+  SessionNavigate: {
+    operationId: "SessionNavigate",
+    summary: "Navigate to a URL",
+    description: "Navigates the browser to the specified URL.",
+  },
+  SessionAgentExecute: {
+    operationId: "SessionAgentExecute",
+    summary: "Execute an AI agent",
+    description:
+      "Runs an autonomous AI agent that can perform complex multi-step browser tasks.",
+  },
+  SessionReplay: {
+    operationId: "SessionReplay",
+    summary: "Replay session metrics",
+    description: "Retrieves replay metrics for a session.",
+  },
+} as const;
+
+// =============================================================================
+// Type Exports (inferred from schemas)
+// =============================================================================
+
+// Shared types
+export type Action = z.infer<typeof ActionSchema>;
+export type ModelConfig = z.infer<typeof ModelConfigSchema>;
+export type BrowserConfig = z.infer<typeof BrowserConfigSchema>;
+export type SessionIdParams = z.infer<typeof SessionIdParamsSchema>;
+
+// Header types
+export type SessionHeaders = z.infer<typeof SessionHeadersSchema>;
+
+// Browserbase types
+export type BrowserbaseViewport = z.infer<typeof BrowserbaseViewportSchema>;
+export type BrowserbaseFingerprintScreen = z.infer<
+  typeof BrowserbaseFingerprintScreenSchema
+>;
+export type BrowserbaseFingerprint = z.infer<
+  typeof BrowserbaseFingerprintSchema
+>;
+export type BrowserbaseContext = z.infer<typeof BrowserbaseContextSchema>;
+export type BrowserbaseBrowserSettings = z.infer<
+  typeof BrowserbaseBrowserSettingsSchema
+>;
+export type BrowserbaseProxyGeolocation = z.infer<
+  typeof BrowserbaseProxyGeolocationSchema
+>;
+export type BrowserbaseProxyConfig = z.infer<
+  typeof BrowserbaseProxyConfigSchema
+>;
+export type ExternalProxyConfig = z.infer<typeof ExternalProxyConfigSchema>;
+export type BrowserbaseSessionCreateParams = z.infer<
+  typeof BrowserbaseSessionCreateParamsSchema
+>;
+
+// /sessions/start
+export type SessionStartRequest = z.infer<typeof SessionStartRequestSchema>;
+export type SessionStartResult = z.infer<typeof SessionStartResultSchema>;
+export type SessionStartResponse = z.infer<typeof SessionStartResponseSchema>;
+
+// /sessions/{id}/end
+export type SessionEndResult = z.infer<typeof SessionEndResultSchema>;
+export type SessionEndResponse = z.infer<typeof SessionEndResponseSchema>;
+
+// /sessions/{id}/act
+export type ActRequest = z.infer<typeof ActRequestSchema>;
+export type ActResultData = z.infer<typeof ActResultDataSchema>;
+export type ActResult = z.infer<typeof ActResultSchema>;
+export type ActResponse = z.infer<typeof ActResponseSchema>;
+
+// /sessions/{id}/extract
+export type ExtractRequest = z.infer<typeof ExtractRequestSchema>;
+export type ExtractResult = z.infer<typeof ExtractResultSchema>;
+export type ExtractResponse = z.infer<typeof ExtractResponseSchema>;
+
+// /sessions/{id}/observe
+export type ObserveRequest = z.infer<typeof ObserveRequestSchema>;
+export type ObserveResult = z.infer<typeof ObserveResultSchema>;
+export type ObserveResponse = z.infer<typeof ObserveResponseSchema>;
+
+// /sessions/{id}/agentExecute
+export type AgentAction = z.infer<typeof AgentActionSchema>;
+export type AgentUsage = z.infer<typeof AgentUsageSchema>;
+export type AgentResultData = z.infer<typeof AgentResultDataSchema>;
+export type AgentExecuteRequest = z.infer<typeof AgentExecuteRequestSchema>;
+export type AgentExecuteResult = z.infer<typeof AgentExecuteResultSchema>;
+export type AgentExecuteResponse = z.infer<typeof AgentExecuteResponseSchema>;
+
+// /sessions/{id}/navigate
+export type NavigateRequest = z.infer<typeof NavigateRequestSchema>;
+export type NavigateResultData = z.infer<typeof NavigateResultDataSchema>;
+export type NavigateResult = z.infer<typeof NavigateResultSchema>;
+export type NavigateResponse = z.infer<typeof NavigateResponseSchema>;
+
+// /sessions/{id}/replay
+export type TokenUsage = z.infer<typeof TokenUsageSchema>;
+export type ReplayAction = z.infer<typeof ReplayActionSchema>;
+export type ReplayPage = z.infer<typeof ReplayPageSchema>;
+export type ReplayResult = z.infer<typeof ReplayResultSchema>;
+export type ReplayResponse = z.infer<typeof ReplayResponseSchema>;

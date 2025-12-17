@@ -1,22 +1,13 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import type { ActResult, Action } from "@browserbasehq/stagehand";
-import { z } from "zod/v4";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
-import {
-  ActRequestSchema,
-  ActResultSchema,
-  SessionIdParamsSchema,
-} from "@browserbasehq/stagehand";
+import { Api } from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
 import { createStreamingResponse } from "../../../../lib/stream.js";
 import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
-
-interface ActParams {
-  id: string;
-}
 
 const actRouteHandler: RouteHandlerMethod = withErrorHandling(
   async (request, reply) => {
@@ -26,7 +17,7 @@ const actRouteHandler: RouteHandlerMethod = withErrorHandling(
         .send({ error: "Unauthorized" });
     }
 
-    const { id } = request.params as ActParams;
+    const { id } = request.params as Api.SessionIdParams;
 
     if (!id.length) {
       return reply.status(StatusCodes.BAD_REQUEST).send({
@@ -42,11 +33,11 @@ const actRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<z.infer<typeof ActRequestSchema>>({
+    return createStreamingResponse<Api.ActRequest>({
       sessionId: id,
       request,
       reply,
-      schema: ActRequestSchema,
+      schema: Api.ActRequestSchema,
       handler: async ({ stagehand, data }) => {
         const { frameId } = data;
         const page = frameId
@@ -92,15 +83,12 @@ const actRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/act",
   schema: {
-    params: SessionIdParamsSchema,
-    body: ActRequestSchema,
+    ...Api.Operations.SessionAct,
+    headers: Api.SessionHeadersSchema,
+    params: Api.SessionIdParamsSchema,
+    body: Api.ActRequestSchema,
     response: {
-      200: z
-        .object({
-          success: z.literal(true),
-          data: ActResultSchema,
-        })
-        .strict(),
+      200: Api.ActResponseSchema,
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: actRouteHandler,
