@@ -115,13 +115,14 @@ describe.skipIf(!canRun)(
         url: "https://example.com",
       });
 
-      if (res.status !== 200) {
-        console.log("Navigate response:", await res.json());
-      }
       expect(res.status).toBe(200);
 
       const body = await res.json();
       const parsed = Api.NavigateResponseSchema.safeParse(body);
+      if (!parsed.success) {
+        console.log("Navigate body:", JSON.stringify(body, null, 2));
+        console.log("Navigate parse errors:", parsed.error.issues);
+      }
       expect(parsed.success).toBe(true);
 
       if (parsed.success) {
@@ -159,6 +160,10 @@ describe.skipIf(!canRun)(
 
       const body = await res.json();
       const parsed = Api.ObserveResponseSchema.safeParse(body);
+      if (!parsed.success) {
+        console.log("Observe body:", JSON.stringify(body, null, 2));
+        console.log("Observe parse errors:", parsed.error.issues);
+      }
       expect(parsed.success).toBe(true);
 
       if (parsed.success) {

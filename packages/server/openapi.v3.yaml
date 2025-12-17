@@ -472,9 +472,11 @@ components:
       properties:
         result:
           description: Extracted data matching the requested schema
+        actionId:
+          description: Action ID for tracking
+          type: string
       required:
         - result
-      additionalProperties: false
     ObserveOptions:
       type: object
       properties:
@@ -668,41 +670,19 @@ components:
           type: string
       required:
         - url
-    NavigateResultData:
-      type: object
-      properties:
-        requestId:
-          type: string
-        frameId:
-          type: string
-        loaderId:
-          type: string
-        response: {}
-        fromServiceWorkerFlag:
-          type: boolean
-        finishedSettled:
-          type: boolean
-        extraInfoHeaders:
-          anyOf:
-            - type: object
-              additionalProperties:
-                type: string
-            - type: "null"
-        extraInfoHeadersText:
-          type: string
-      required:
-        - requestId
-        - response
     NavigateResult:
       type: object
       properties:
         result:
+          description: Navigation response (Playwright Response object or null)
           anyOf:
-            - $ref: "#/components/schemas/NavigateResultData"
+            - {}
             - type: "null"
+        actionId:
+          description: Action ID for tracking
+          type: string
       required:
         - result
-      additionalProperties: false
     TokenUsage:
       type: object
       properties:
@@ -780,7 +760,7 @@ components:
           type: boolean
           const: true
         data:
-          $ref: "#/components/schemas/ExtractResult"
+          $ref: "#/components/schemas/ExtractResultOutput"
       required:
         - success
         - data
@@ -1180,6 +1160,17 @@ components:
           example: "#main-content"
           type: string
       additionalProperties: false
+    ExtractResultOutput:
+      type: object
+      properties:
+        result:
+          description: Extracted data matching the requested schema
+        actionId:
+          description: Action ID for tracking
+          type: string
+      required:
+        - result
+      additionalProperties: false
     ObserveOptionsOutput:
       type: object
       properties:
@@ -1314,39 +1305,17 @@ components:
             - domcontentloaded
             - networkidle
       additionalProperties: false
-    NavigateResultDataOutput:
-      type: object
-      properties:
-        requestId:
-          type: string
-        frameId:
-          type: string
-        loaderId:
-          type: string
-        response: {}
-        fromServiceWorkerFlag:
-          type: boolean
-        finishedSettled:
-          type: boolean
-        extraInfoHeaders:
-          anyOf:
-            - type: object
-              additionalProperties:
-                type: string
-            - type: "null"
-        extraInfoHeadersText:
-          type: string
-      required:
-        - requestId
-        - response
-      additionalProperties: false
     NavigateResultOutput:
       type: object
       properties:
         result:
+          description: Navigation response (Playwright Response object or null)
           anyOf:
-            - $ref: "#/components/schemas/NavigateResultDataOutput"
+            - {}
             - type: "null"
+        actionId:
+          description: Action ID for tracking
+          type: string
       required:
         - result
       additionalProperties: false
@@ -1501,56 +1470,8 @@ components:
         - success
         - data
       additionalProperties: false
-    ActResponseOutput:
-      type: object
-      properties:
-        success:
-          type: boolean
-          const: true
-        data:
-          $ref: "#/components/schemas/ActResultOutput"
-      required:
-        - success
-        - data
-      additionalProperties: false
-    ObserveResponseOutput:
-      type: object
-      properties:
-        success:
-          type: boolean
-          const: true
-        data:
-          $ref: "#/components/schemas/ObserveResultOutput"
-      required:
-        - success
-        - data
-      additionalProperties: false
-    AgentExecuteResponseOutput:
-      type: object
-      properties:
-        success:
-          type: boolean
-          const: true
-        data:
-          $ref: "#/components/schemas/AgentExecuteResultOutput"
-      required:
-        - success
-        - data
-      additionalProperties: false
-    NavigateResponseOutput:
-      type: object
-      properties:
-        success:
-          type: boolean
-          const: true
-        data:
-          $ref: "#/components/schemas/NavigateResultOutput"
-      required:
-        - success
-        - data
-      additionalProperties: false
 paths:
-  /sessions/{id}/act:
+  /v1/sessions/{id}/act:
     post:
       operationId: SessionAct
       summary: Perform an action
@@ -1560,26 +1481,51 @@ paths:
         content:
           application/json:
             schema:
-              x-fastify-zod-openapi-optional: false
+              $ref: "#/components/schemas/ActRequest"
+        required: true
       parameters:
-        - schema: {}
+        - schema:
+            description: Unique session identifier
+            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
+            type: string
           in: path
           name: id
           required: true
           description: Unique session identifier
-        - schema: {}
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema: {}
+        - schema:
+            description: Client SDK language
+            example: typescript
+            type: string
+            enum:
+              - typescript
+              - python
+              - playground
           in: header
           name: x-language
           description: Client SDK language
-        - schema: {}
+        - schema:
+            description: Version of the Stagehand SDK
+            example: 3.0.6
+            type: string
           in: header
           name: x-sdk-version
           description: Version of the Stagehand SDK
-        - schema: {}
+        - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00.000Z
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
           in: header
           name: x-sent-at
           description: ISO timestamp when request was sent
@@ -1588,31 +1534,56 @@ paths:
           description: Default Response
           content:
             application/json:
-              schema: {}
-  /sessions/{id}/end:
+              schema:
+                $ref: "#/components/schemas/ActResponse"
+  /v1/sessions/{id}/end:
     post:
       operationId: SessionEnd
       summary: End a browser session
       description: Terminates the browser session and releases all associated resources.
       parameters:
-        - schema: {}
+        - schema:
+            description: Unique session identifier
+            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
+            type: string
           in: path
           name: id
           required: true
           description: Unique session identifier
-        - schema: {}
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema: {}
+        - schema:
+            description: Client SDK language
+            example: typescript
+            type: string
+            enum:
+              - typescript
+              - python
+              - playground
           in: header
           name: x-language
           description: Client SDK language
-        - schema: {}
+        - schema:
+            description: Version of the Stagehand SDK
+            example: 3.0.6
+            type: string
           in: header
           name: x-sdk-version
           description: Version of the Stagehand SDK
-        - schema: {}
+        - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00.000Z
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
           in: header
           name: x-sent-at
           description: ISO timestamp when request was sent
@@ -1621,8 +1592,9 @@ paths:
           description: Default Response
           content:
             application/json:
-              schema: {}
-  /sessions/{id}/extract:
+              schema:
+                $ref: "#/components/schemas/SessionEndResponse"
+  /v1/sessions/{id}/extract:
     post:
       operationId: SessionExtract
       summary: Extract data from the page
@@ -1631,26 +1603,51 @@ paths:
         content:
           application/json:
             schema:
-              x-fastify-zod-openapi-optional: false
+              $ref: "#/components/schemas/ExtractRequest"
+        required: true
       parameters:
-        - schema: {}
+        - schema:
+            description: Unique session identifier
+            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
+            type: string
           in: path
           name: id
           required: true
           description: Unique session identifier
-        - schema: {}
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema: {}
+        - schema:
+            description: Client SDK language
+            example: typescript
+            type: string
+            enum:
+              - typescript
+              - python
+              - playground
           in: header
           name: x-language
           description: Client SDK language
-        - schema: {}
+        - schema:
+            description: Version of the Stagehand SDK
+            example: 3.0.6
+            type: string
           in: header
           name: x-sdk-version
           description: Version of the Stagehand SDK
-        - schema: {}
+        - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00.000Z
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
           in: header
           name: x-sent-at
           description: ISO timestamp when request was sent
@@ -1659,8 +1656,9 @@ paths:
           description: Default Response
           content:
             application/json:
-              schema: {}
-  /sessions/{id}/navigate:
+              schema:
+                $ref: "#/components/schemas/ExtractResponse"
+  /v1/sessions/{id}/navigate:
     post:
       operationId: SessionNavigate
       summary: Navigate to a URL
@@ -1669,26 +1667,51 @@ paths:
         content:
           application/json:
             schema:
-              x-fastify-zod-openapi-optional: false
+              $ref: "#/components/schemas/NavigateRequest"
+        required: true
       parameters:
-        - schema: {}
+        - schema:
+            description: Unique session identifier
+            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
+            type: string
           in: path
           name: id
           required: true
           description: Unique session identifier
-        - schema: {}
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema: {}
+        - schema:
+            description: Client SDK language
+            example: typescript
+            type: string
+            enum:
+              - typescript
+              - python
+              - playground
           in: header
           name: x-language
           description: Client SDK language
-        - schema: {}
+        - schema:
+            description: Version of the Stagehand SDK
+            example: 3.0.6
+            type: string
           in: header
           name: x-sdk-version
           description: Version of the Stagehand SDK
-        - schema: {}
+        - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00.000Z
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
           in: header
           name: x-sent-at
           description: ISO timestamp when request was sent
@@ -1697,8 +1720,9 @@ paths:
           description: Default Response
           content:
             application/json:
-              schema: {}
-  /sessions/{id}/observe:
+              schema:
+                $ref: "#/components/schemas/NavigateResponse"
+  /v1/sessions/{id}/observe:
     post:
       operationId: SessionObserve
       summary: Observe available actions
@@ -1708,26 +1732,51 @@ paths:
         content:
           application/json:
             schema:
-              x-fastify-zod-openapi-optional: false
+              $ref: "#/components/schemas/ObserveRequest"
+        required: true
       parameters:
-        - schema: {}
+        - schema:
+            description: Unique session identifier
+            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
+            type: string
           in: path
           name: id
           required: true
           description: Unique session identifier
-        - schema: {}
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema: {}
+        - schema:
+            description: Client SDK language
+            example: typescript
+            type: string
+            enum:
+              - typescript
+              - python
+              - playground
           in: header
           name: x-language
           description: Client SDK language
-        - schema: {}
+        - schema:
+            description: Version of the Stagehand SDK
+            example: 3.0.6
+            type: string
           in: header
           name: x-sdk-version
           description: Version of the Stagehand SDK
-        - schema: {}
+        - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00.000Z
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
           in: header
           name: x-sent-at
           description: ISO timestamp when request was sent
@@ -1736,8 +1785,9 @@ paths:
           description: Default Response
           content:
             application/json:
-              schema: {}
-  /sessions/start:
+              schema:
+                $ref: "#/components/schemas/ObserveResponse"
+  /v1/sessions/start:
     post:
       operationId: SessionStart
       summary: Start a new browser session
@@ -1747,21 +1797,89 @@ paths:
         content:
           application/json:
             schema:
-              x-fastify-zod-openapi-optional: false
+              type: object
+              properties:
+                modelName:
+                  description: Model name to use for AI operations
+                  example: gpt-4o
+                  type: string
+                domSettleTimeoutMs:
+                  description: Timeout in ms to wait for DOM to settle
+                  example: 5000
+                  type: number
+                verbose:
+                  description: Logging verbosity level (0=quiet, 1=normal, 2=debug)
+                  example: 1
+                  anyOf:
+                    - type: number
+                      const: 0
+                    - type: number
+                      const: 1
+                    - type: number
+                      const: 2
+                debugDom:
+                  type: boolean
+                systemPrompt:
+                  description: Custom system prompt for AI operations
+                  type: string
+                browserbaseSessionCreateParams:
+                  $ref: "#/components/schemas/BrowserbaseSessionCreateParams"
+                browser:
+                  $ref: "#/components/schemas/BrowserConfig"
+                selfHeal:
+                  description: Enable self-healing for failed actions
+                  example: true
+                  type: boolean
+                waitForCaptchaSolves:
+                  type: boolean
+                actTimeoutMs:
+                  description: Timeout in ms for act operations
+                  example: 30000
+                  type: number
+                browserbaseSessionID:
+                  description: Existing Browserbase session ID to resume
+                  type: string
+                experimental:
+                  type: boolean
+              required:
+                - modelName
+              additionalProperties: false
+        required: true
       parameters:
-        - schema: {}
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema: {}
+        - schema:
+            description: Client SDK language
+            example: typescript
+            type: string
+            enum:
+              - typescript
+              - python
+              - playground
           in: header
           name: x-language
           description: Client SDK language
-        - schema: {}
+        - schema:
+            description: Version of the Stagehand SDK
+            example: 3.0.6
+            type: string
           in: header
           name: x-sdk-version
           description: Version of the Stagehand SDK
-        - schema: {}
+        - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00.000Z
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
           in: header
           name: x-sent-at
           description: ISO timestamp when request was sent
@@ -1770,8 +1888,24 @@ paths:
           description: Default Response
           content:
             application/json:
-              schema: {}
-  /sessions/{id}/agentExecute:
+              schema:
+                links:
+                  SessionAct:
+                    $ref: "#/components/links/SessionAct"
+                  SessionExtract:
+                    $ref: "#/components/links/SessionExtract"
+                  SessionObserve:
+                    $ref: "#/components/links/SessionObserve"
+                  SessionNavigate:
+                    $ref: "#/components/links/SessionNavigate"
+                  SessionAgentExecute:
+                    $ref: "#/components/links/SessionAgentExecute"
+                  SessionReplay:
+                    $ref: "#/components/links/SessionReplay"
+                  SessionEnd:
+                    $ref: "#/components/links/SessionEnd"
+                $ref: "#/components/schemas/SessionStartResponse"
+  /v1/sessions/{id}/agentExecute:
     post:
       operationId: SessionAgentExecute
       summary: Execute an AI agent
@@ -1781,26 +1915,51 @@ paths:
         content:
           application/json:
             schema:
-              x-fastify-zod-openapi-optional: false
+              $ref: "#/components/schemas/AgentExecuteRequest"
+        required: true
       parameters:
-        - schema: {}
+        - schema:
+            description: Unique session identifier
+            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
+            type: string
           in: path
           name: id
           required: true
           description: Unique session identifier
-        - schema: {}
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema: {}
+        - schema:
+            description: Client SDK language
+            example: typescript
+            type: string
+            enum:
+              - typescript
+              - python
+              - playground
           in: header
           name: x-language
           description: Client SDK language
-        - schema: {}
+        - schema:
+            description: Version of the Stagehand SDK
+            example: 3.0.6
+            type: string
           in: header
           name: x-sdk-version
           description: Version of the Stagehand SDK
-        - schema: {}
+        - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00.000Z
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
           in: header
           name: x-sent-at
           description: ISO timestamp when request was sent
@@ -1809,7 +1968,8 @@ paths:
           description: Default Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: "#/components/schemas/AgentExecuteResponse"
   /healthz:
     get:
       responses:
@@ -1844,7 +2004,7 @@ paths:
               schema:
                 type: string
 servers:
-  - url: https://api.stagehand.browserbase.com/v1
+  - url: https://api.stagehand.browserbase.com
     description: Production Browserbase Cloud API
 security:
   - BrowserbaseApiKey: []

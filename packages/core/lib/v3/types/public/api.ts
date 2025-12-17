@@ -451,8 +451,10 @@ export const ExtractResultSchema = z
     result: z.unknown().meta({
       description: "Extracted data matching the requested schema",
     }),
+    actionId: z.string().optional().meta({
+      description: "Action ID for tracking",
+    }),
   })
-  .strict()
   .meta({ id: "ExtractResult" });
 
 export const ExtractResponseSchema = wrapResponse(
@@ -495,6 +497,9 @@ export const ObserveRequestSchema = z
 export const ObserveResultSchema = z
   .object({
     result: z.array(ActionSchema),
+    actionId: z.string().optional().meta({
+      description: "Action ID for tracking",
+    }),
   })
   .strict()
   .meta({ id: "ObserveResult" });
@@ -648,25 +653,15 @@ export const NavigateRequestSchema = z
   })
   .meta({ id: "NavigateRequest" });
 
-/** Inner navigate response data from Playwright */
-export const NavigateResultDataSchema = z
-  .object({
-    requestId: z.string(),
-    frameId: z.string().optional(),
-    loaderId: z.string().optional(),
-    response: z.unknown(), // CDP Protocol.Network.Response - kept as unknown for understudy compatibility
-    fromServiceWorkerFlag: z.boolean().optional(),
-    finishedSettled: z.boolean().optional(),
-    extraInfoHeaders: z.record(z.string(), z.string()).nullish(),
-    extraInfoHeadersText: z.string().optional(),
-  })
-  .meta({ id: "NavigateResultData" });
-
 export const NavigateResultSchema = z
   .object({
-    result: NavigateResultDataSchema.nullable(),
+    result: z.unknown().nullable().meta({
+      description: "Navigation response (Playwright Response object or null)",
+    }),
+    actionId: z.string().optional().meta({
+      description: "Action ID for tracking",
+    }),
   })
-  .strict()
   .meta({ id: "NavigateResult" });
 
 export const NavigateResponseSchema = wrapResponse(
@@ -911,7 +906,6 @@ export type AgentExecuteResponse = z.infer<typeof AgentExecuteResponseSchema>;
 
 // /sessions/{id}/navigate
 export type NavigateRequest = z.infer<typeof NavigateRequestSchema>;
-export type NavigateResultData = z.infer<typeof NavigateResultDataSchema>;
 export type NavigateResult = z.infer<typeof NavigateResultSchema>;
 export type NavigateResponse = z.infer<typeof NavigateResponseSchema>;
 

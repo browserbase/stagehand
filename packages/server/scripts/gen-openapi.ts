@@ -129,7 +129,7 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
       openapi: "3.1.0",
       servers: [
         {
-          url: "https://api.stagehand.browserbase.com/v1",
+          url: "https://api.stagehand.browserbase.com",
           description: "Production Browserbase Cloud API",
         },
       ],
@@ -162,22 +162,6 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
   app.route(readinessRoute);
 
   await app.ready();
-
-  // Debug: Check the registry state before generating swagger
-  const openapiDoc = app.swagger();
-  const config = (openapiDoc as any)[Symbol.for('fastify-zod-openapi-config')];
-  if (config) {
-    console.log('Registry input schemas count:', config.registry.components.schemas.input.size);
-    console.log('Registry output schemas count:', config.registry.components.schemas.output.size);
-    console.log('Registry schema IDs:', [...config.registry.components.schemas.ids.keys()]);
-
-    // Check a specific schema
-    for (const [key, value] of config.registry.components.schemas.input) {
-      console.log(`Input schema "${key.substring(0, 60)}...":`, JSON.stringify(value.schemaObject).substring(0, 100));
-    }
-  } else {
-    console.log('No fastify-zod-openapi config found');
-  }
 
   let yaml = app.swagger({ yaml: true });
 
