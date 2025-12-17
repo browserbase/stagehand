@@ -177,6 +177,12 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
 
   await writeFile(OUTPUT_PATH, yaml, "utf8");
 
+  // Also output JSON version for Stainless
+  const json = app.swagger();
+  const jsonPath = OUTPUT_PATH.replace('.yaml', '.json');
+  await writeFile(jsonPath, JSON.stringify(json, null, 2), "utf8");
+  console.log(`OpenAPI JSON spec written to ${jsonPath}`);
+
   await app.close();
   console.log(`OpenAPI spec written to ${OUTPUT_PATH}`);
 }

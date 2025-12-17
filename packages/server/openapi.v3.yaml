@@ -369,10 +369,6 @@ components:
         - sessionId
         - available
       additionalProperties: false
-    SessionEndResult:
-      type: object
-      properties: {}
-      additionalProperties: false
     ActOptions:
       type: object
       properties:
@@ -741,11 +737,8 @@ components:
         success:
           type: boolean
           const: true
-        data:
-          $ref: "#/components/schemas/SessionEndResult"
       required:
         - success
-        - data
       additionalProperties: false
     ActResponse:
       type: object
@@ -1481,6 +1474,10 @@ components:
           type: boolean
       required:
         - modelName
+      additionalProperties: false
+    SessionEndResult:
+      type: object
+      properties: {}
       additionalProperties: false
 paths:
   /v1/sessions/{id}/act:
