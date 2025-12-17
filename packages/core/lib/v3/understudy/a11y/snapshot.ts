@@ -506,19 +506,27 @@ async function absoluteXPathForBackendNode(
   }
 }
 
+// starting from infinite depth (-1), exponentially shrink down to 1
 const DOM_DEPTH_ATTEMPTS = [-1, 256, 128, 64, 32, 16, 8, 4, 2, 1];
 const DESCRIBE_DEPTH_ATTEMPTS = [-1, 64, 32, 16, 8, 4, 2, 1];
 
+/** Identify CDP failures caused by deep DOM trees blowing the CBOR encoder stack. */
 function isCborStackError(message: string): boolean {
   return message.includes("CBOR: stack limit exceeded");
 }
 
+/**
+ * Determine if CDP truncated a node's children when streaming the DOM tree.
+ * childNodeCount stays accurate even when `children` are omitted; we use this to
+ * decide whether DOM.describeNode must be re-run for that node.
+ */
 function shouldExpandNode(node: Protocol.DOM.Node): boolean {
   const declaredChildren = node.childNodeCount ?? 0;
   const realizedChildren = node.children?.length ?? 0;
   return declaredChildren > realizedChildren;
 }
 
+/** Merge an expanded DescribeNode payload back into the original shallow node. */
 function mergeDomNodes(
   target: Protocol.DOM.Node,
   source: Protocol.DOM.Node,
@@ -529,6 +537,7 @@ function mergeDomNodes(
   target.contentDocument = source.contentDocument ?? target.contentDocument;
 }
 
+/** Helper that returns every nested collection we recurse through uniformly. */
 function collectDomTraversalTargets(
   node: Protocol.DOM.Node,
 ): Protocol.DOM.Node[] {
@@ -539,6 +548,11 @@ function collectDomTraversalTargets(
   return targets;
 }
 
+/**
+ * Rehydrate a truncated DOM tree by repeatedly calling DOM.describeNode with
+ * decreasing depths. Any non-CBOR failure is surfaced as a
+ * StagehandDomProcessError.
+ */
 async function hydrateDomTree(
   session: CDPSessionLike,
   root: Protocol.DOM.Node,
@@ -615,6 +629,11 @@ async function hydrateDomTree(
   }
 }
 
+/**
+ * Attempt DOM.getDocument with progressively shallower depths until CBOR stops
+ * complaining. When a shallower snapshot is returned we hydrate the missing
+ * branches so downstream DOM traversals see the full tree shape.
+ */
 async function getDomTreeWithFallback(
   session: CDPSessionLike,
   pierce: boolean,
