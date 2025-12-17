@@ -1,9 +1,27 @@
 openapi: 3.1.0
 info:
   title: Stagehand API
-  version: 3.0.6
-  description: API for browser automation with AI-powered actions, extraction, and
-    observation.
+  version: 3.1.0
+  description: >-
+    Stagehand SDK for AI browser automation [ALPHA]. This API allows clients to
+
+    execute browser automation tasks remotely on the Browserbase cloud.
+
+
+    All endpoints except /sessions/start require an active session ID.
+
+    Responses are streamed using Server-Sent Events (SSE) when the
+
+    `x-stream-response: true` header is provided.
+
+
+    This SDK is currently ALPHA software and is not production ready!
+
+    Please try it and give us your feedback, stay tuned for upcoming release
+    announcements!
+  contact:
+    name: Browserbase
+    url: https://browserbase.com
 components:
   securitySchemes:
     BrowserbaseApiKey:
@@ -58,345 +76,6 @@ components:
         id: $response.body#/data/sessionId
       description: End the session and release resources
   schemas:
-    ActRequest:
-      type: object
-      properties:
-        input:
-          description: Natural language instruction or Action object
-          example: Click the login button
-          anyOf:
-            - type: string
-            - $ref: "#/components/schemas/ActionInput"
-        options:
-          $ref: "#/components/schemas/ActOptions"
-        frameId:
-          description: Target frame ID for the action
-          type: string
-      required:
-        - input
-    ActionInput:
-      description: Action object returned by observe and used by act
-      type: object
-      properties:
-        selector:
-          description: CSS selector or XPath for the element
-          example: "[data-testid='submit-button']"
-          type: string
-        description:
-          description: Human-readable description of the action
-          example: Click the submit button
-          type: string
-        method:
-          description: The method to execute (click, fill, etc.)
-          example: click
-          type: string
-        arguments:
-          description: Arguments to pass to the method
-          example:
-            - Hello World
-          type: array
-          items:
-            type: string
-      required:
-        - selector
-        - description
-    ActOptions:
-      type: object
-      properties:
-        model:
-          $ref: "#/components/schemas/ModelConfig"
-        variables:
-          description: Variables to substitute in the action instruction
-          example:
-            username: john_doe
-          type: object
-          propertyNames:
-            type: string
-          additionalProperties:
-            type: string
-        timeout:
-          description: Timeout in ms for the action
-          example: 30000
-          type: number
-    ModelConfig:
-      anyOf:
-        - type: string
-        - type: object
-          properties:
-            modelName:
-              type: string
-            apiKey:
-              type: string
-            baseURL:
-              type: string
-              format: uri
-          required:
-            - modelName
-    ExtractRequest:
-      type: object
-      properties:
-        instruction:
-          description: Natural language instruction for what to extract
-          example: Extract all product names and prices from the page
-          type: string
-        schema:
-          description: JSON Schema defining the structure of data to extract
-          type: object
-          propertyNames:
-            type: string
-          additionalProperties: {}
-        options:
-          $ref: "#/components/schemas/ExtractOptions"
-        frameId:
-          description: Target frame ID for the extraction
-          type: string
-    ExtractOptions:
-      type: object
-      properties:
-        model:
-          $ref: "#/components/schemas/ModelConfig"
-        timeout:
-          description: Timeout in ms for the extraction
-          example: 30000
-          type: number
-        selector:
-          description: CSS selector to scope extraction to a specific element
-          example: "#main-content"
-          type: string
-    NavigateRequest:
-      type: object
-      properties:
-        url:
-          description: URL to navigate to
-          example: https://example.com
-          type: string
-        options:
-          $ref: "#/components/schemas/NavigateOptions"
-        frameId:
-          description: Target frame ID for the navigation
-          type: string
-      required:
-        - url
-    NavigateOptions:
-      type: object
-      properties:
-        referer:
-          description: Referer header to send with the request
-          type: string
-        timeout:
-          description: Timeout in ms for the navigation
-          example: 30000
-          type: number
-        waitUntil:
-          description: When to consider navigation complete
-          example: networkidle
-          type: string
-          enum:
-            - load
-            - domcontentloaded
-            - networkidle
-    ObserveRequest:
-      type: object
-      properties:
-        instruction:
-          description: Natural language instruction for what actions to find
-          example: Find all clickable navigation links
-          type: string
-        options:
-          $ref: "#/components/schemas/ObserveOptions"
-        frameId:
-          description: Target frame ID for the observation
-          type: string
-    ObserveOptions:
-      type: object
-      properties:
-        model:
-          $ref: "#/components/schemas/ModelConfig"
-        timeout:
-          description: Timeout in ms for the observation
-          example: 30000
-          type: number
-        selector:
-          description: CSS selector to scope observation to a specific element
-          example: nav
-          type: string
-    BrowserbaseSessionCreateParams:
-      type: object
-      properties:
-        projectId:
-          type: string
-        browserSettings:
-          $ref: "#/components/schemas/BrowserbaseBrowserSettings"
-        extensionId:
-          type: string
-        keepAlive:
-          type: boolean
-        proxies:
-          anyOf:
-            - type: boolean
-            - type: array
-              items:
-                anyOf:
-                  - $ref: "#/components/schemas/BrowserbaseProxyConfig"
-                  - $ref: "#/components/schemas/ExternalProxyConfig"
-        region:
-          type: string
-          enum:
-            - us-west-2
-            - us-east-1
-            - eu-central-1
-            - ap-southeast-1
-        timeout:
-          type: number
-        userMetadata:
-          type: object
-          propertyNames:
-            type: string
-          additionalProperties: {}
-    BrowserbaseBrowserSettings:
-      type: object
-      properties:
-        advancedStealth:
-          type: boolean
-        blockAds:
-          type: boolean
-        context:
-          $ref: "#/components/schemas/BrowserbaseContext"
-        extensionId:
-          type: string
-        fingerprint:
-          $ref: "#/components/schemas/BrowserbaseFingerprint"
-        logSession:
-          type: boolean
-        recordSession:
-          type: boolean
-        solveCaptchas:
-          type: boolean
-        viewport:
-          $ref: "#/components/schemas/BrowserbaseViewport"
-    BrowserbaseContext:
-      type: object
-      properties:
-        id:
-          type: string
-        persist:
-          type: boolean
-      required:
-        - id
-    BrowserbaseFingerprint:
-      type: object
-      properties:
-        browsers:
-          type: array
-          items:
-            type: string
-            enum:
-              - chrome
-              - edge
-              - firefox
-              - safari
-        devices:
-          type: array
-          items:
-            type: string
-            enum:
-              - desktop
-              - mobile
-        httpVersion:
-          type: string
-          enum:
-            - "1"
-            - "2"
-        locales:
-          type: array
-          items:
-            type: string
-        operatingSystems:
-          type: array
-          items:
-            type: string
-            enum:
-              - android
-              - ios
-              - linux
-              - macos
-              - windows
-        screen:
-          $ref: "#/components/schemas/BrowserbaseFingerprintScreen"
-    BrowserbaseFingerprintScreen:
-      type: object
-      properties:
-        maxHeight:
-          type: number
-        maxWidth:
-          type: number
-        minHeight:
-          type: number
-        minWidth:
-          type: number
-    BrowserbaseViewport:
-      type: object
-      properties:
-        width:
-          type: number
-        height:
-          type: number
-    BrowserbaseProxyConfig:
-      type: object
-      properties:
-        type:
-          type: string
-          const: browserbase
-        domainPattern:
-          type: string
-        geolocation:
-          $ref: "#/components/schemas/BrowserbaseProxyGeolocation"
-      required:
-        - type
-    BrowserbaseProxyGeolocation:
-      type: object
-      properties:
-        country:
-          type: string
-        city:
-          type: string
-        state:
-          type: string
-      required:
-        - country
-    ExternalProxyConfig:
-      type: object
-      properties:
-        type:
-          type: string
-          const: external
-        server:
-          type: string
-        domainPattern:
-          type: string
-        username:
-          type: string
-        password:
-          type: string
-      required:
-        - type
-        - server
-    BrowserConfig:
-      type: object
-      properties:
-        type:
-          description: Browser type to use
-          example: local
-          type: string
-          enum:
-            - local
-            - browserbase
-        cdpUrl:
-          description: Chrome DevTools Protocol URL for connecting to existing browser
-          example: ws://localhost:9222
-          type: string
-        launchOptions:
-          $ref: "#/components/schemas/LocalBrowserLaunchOptions"
     LocalBrowserLaunchOptions:
       type: object
       properties:
@@ -462,69 +141,275 @@ components:
         acceptDownloads:
           type: boolean
       additionalProperties: false
-    AgentExecuteRequest:
+    ModelConfig:
+      anyOf:
+        - type: string
+        - type: object
+          properties:
+            modelName:
+              type: string
+            apiKey:
+              type: string
+            baseURL:
+              type: string
+              format: uri
+          required:
+            - modelName
+    ActionInput:
+      description: Action object returned by observe and used by act
       type: object
       properties:
-        agentConfig:
-          $ref: "#/components/schemas/AgentConfig"
-        executeOptions:
-          $ref: "#/components/schemas/AgentExecuteOptions"
-        frameId:
-          description: Target frame ID for the agent
+        selector:
+          description: CSS selector or XPath for the element
+          example: "[data-testid='submit-button']"
+          type: string
+        description:
+          description: Human-readable description of the action
+          example: Click the submit button
+          type: string
+        method:
+          description: The method to execute (click, fill, etc.)
+          example: click
+          type: string
+        arguments:
+          description: Arguments to pass to the method
+          example:
+            - Hello World
+          type: array
+          items:
+            type: string
+      required:
+        - selector
+        - description
+    BrowserConfig:
+      type: object
+      properties:
+        type:
+          description: Browser type to use
+          example: local
+          type: string
+          enum:
+            - local
+            - browserbase
+        cdpUrl:
+          description: Chrome DevTools Protocol URL for connecting to existing browser
+          example: ws://localhost:9222
+          type: string
+        launchOptions:
+          $ref: "#/components/schemas/LocalBrowserLaunchOptions"
+    BrowserbaseViewport:
+      type: object
+      properties:
+        width:
+          type: number
+        height:
+          type: number
+    BrowserbaseFingerprintScreen:
+      type: object
+      properties:
+        maxHeight:
+          type: number
+        maxWidth:
+          type: number
+        minHeight:
+          type: number
+        minWidth:
+          type: number
+    BrowserbaseFingerprint:
+      type: object
+      properties:
+        browsers:
+          type: array
+          items:
+            type: string
+            enum:
+              - chrome
+              - edge
+              - firefox
+              - safari
+        devices:
+          type: array
+          items:
+            type: string
+            enum:
+              - desktop
+              - mobile
+        httpVersion:
+          type: string
+          enum:
+            - "1"
+            - "2"
+        locales:
+          type: array
+          items:
+            type: string
+        operatingSystems:
+          type: array
+          items:
+            type: string
+            enum:
+              - android
+              - ios
+              - linux
+              - macos
+              - windows
+        screen:
+          $ref: "#/components/schemas/BrowserbaseFingerprintScreen"
+    BrowserbaseContext:
+      type: object
+      properties:
+        id:
+          type: string
+        persist:
+          type: boolean
+      required:
+        - id
+    BrowserbaseBrowserSettings:
+      type: object
+      properties:
+        advancedStealth:
+          type: boolean
+        blockAds:
+          type: boolean
+        context:
+          $ref: "#/components/schemas/BrowserbaseContext"
+        extensionId:
+          type: string
+        fingerprint:
+          $ref: "#/components/schemas/BrowserbaseFingerprint"
+        logSession:
+          type: boolean
+        recordSession:
+          type: boolean
+        solveCaptchas:
+          type: boolean
+        viewport:
+          $ref: "#/components/schemas/BrowserbaseViewport"
+    BrowserbaseProxyGeolocation:
+      type: object
+      properties:
+        country:
+          type: string
+        city:
+          type: string
+        state:
           type: string
       required:
-        - agentConfig
-        - executeOptions
-    AgentConfig:
+        - country
+    BrowserbaseProxyConfig:
+      type: object
+      properties:
+        type:
+          type: string
+          const: browserbase
+        domainPattern:
+          type: string
+        geolocation:
+          $ref: "#/components/schemas/BrowserbaseProxyGeolocation"
+      required:
+        - type
+    ExternalProxyConfig:
+      type: object
+      properties:
+        type:
+          type: string
+          const: external
+        server:
+          type: string
+        domainPattern:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+      required:
+        - type
+        - server
+    BrowserbaseSessionCreateParams:
+      type: object
+      properties:
+        projectId:
+          type: string
+        browserSettings:
+          $ref: "#/components/schemas/BrowserbaseBrowserSettings"
+        extensionId:
+          type: string
+        keepAlive:
+          type: boolean
+        proxies:
+          anyOf:
+            - type: boolean
+            - type: array
+              items:
+                anyOf:
+                  - $ref: "#/components/schemas/BrowserbaseProxyConfig"
+                  - $ref: "#/components/schemas/ExternalProxyConfig"
+        region:
+          type: string
+          enum:
+            - us-west-2
+            - us-east-1
+            - eu-central-1
+            - ap-southeast-1
+        timeout:
+          type: number
+        userMetadata:
+          type: object
+          additionalProperties: true
+    SessionStartResult:
+      type: object
+      properties:
+        sessionId:
+          description: Unique session identifier
+          example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
+          type: string
+        available:
+          type: boolean
+        cdpUrl:
+          description: Chrome DevTools Protocol URL
+          example: ws://localhost:9222
+          type: string
+      required:
+        - sessionId
+        - available
+        - cdpUrl
+      additionalProperties: false
+    SessionEndResult:
+      type: object
+      properties: {}
+      additionalProperties: false
+    ActOptions:
       type: object
       properties:
         model:
           $ref: "#/components/schemas/ModelConfig"
-        systemPrompt:
-          description: Custom system prompt for the agent
-          type: string
-        cua:
-          description: Enable Computer Use Agent mode
-          example: true
-          type: boolean
-    AgentExecuteOptions:
-      type: object
-      properties:
-        instruction:
-          description: Natural language instruction for the agent
-          example: Log in with username 'demo' and password 'test123', then navigate to
-            settings
-          type: string
-        maxSteps:
-          description: Maximum number of steps the agent can take
-          example: 20
+        variables:
+          description: Variables to substitute in the action instruction
+          example:
+            username: john_doe
+          type: object
+          additionalProperties:
+            type: string
+        timeout:
+          description: Timeout in ms for the action
+          example: 30000
           type: number
-        highlightCursor:
-          description: Whether to visually highlight the cursor during execution
-          example: true
-          type: boolean
-      required:
-        - instruction
-    ActResponse:
+    ActRequest:
       type: object
       properties:
-        success:
-          type: boolean
-          const: true
-        data:
-          $ref: "#/components/schemas/ActResult"
+        input:
+          description: Natural language instruction or Action object
+          example: Click the login button
+          anyOf:
+            - type: string
+            - $ref: "#/components/schemas/ActionInput"
+        options:
+          $ref: "#/components/schemas/ActOptions"
+        frameId:
+          description: Target frame ID for the action
+          type: string
       required:
-        - success
-        - data
-      additionalProperties: false
-    ActResult:
-      type: object
-      properties:
-        result:
-          $ref: "#/components/schemas/ActResultData"
-      required:
-        - result
-      additionalProperties: false
+        - input
     ActResultData:
       type: object
       properties:
@@ -544,41 +429,49 @@ components:
           description: List of actions that were executed
           type: array
           items:
-            $ref: "#/components/schemas/Action"
+            $ref: "#/components/schemas/ActionInput"
       required:
         - success
         - message
         - actionDescription
         - actions
-      additionalProperties: false
-    SessionEndResponse:
+    ActResult:
       type: object
       properties:
-        success:
-          type: boolean
-          const: true
-        data:
-          $ref: "#/components/schemas/SessionEndResult"
+        result:
+          $ref: "#/components/schemas/ActResultData"
       required:
-        - success
-        - data
+        - result
       additionalProperties: false
-    SessionEndResult:
-      type: object
-      properties: {}
-      additionalProperties: false
-    ExtractResponse:
+    ExtractOptions:
       type: object
       properties:
-        success:
-          type: boolean
-          const: true
-        data:
-          $ref: "#/components/schemas/ExtractResult"
-      required:
-        - success
-        - data
-      additionalProperties: false
+        model:
+          $ref: "#/components/schemas/ModelConfig"
+        timeout:
+          description: Timeout in ms for the extraction
+          example: 30000
+          type: number
+        selector:
+          description: CSS selector to scope extraction to a specific element
+          example: "#main-content"
+          type: string
+    ExtractRequest:
+      type: object
+      properties:
+        instruction:
+          description: Natural language instruction for what to extract
+          example: Extract all product names and prices from the page
+          type: string
+        schema:
+          description: JSON Schema defining the structure of data to extract
+          type: object
+          additionalProperties: true
+        options:
+          $ref: "#/components/schemas/ExtractOptions"
+        frameId:
+          description: Target frame ID for the extraction
+          type: string
     ExtractResult:
       type: object
       properties:
@@ -587,160 +480,53 @@ components:
       required:
         - result
       additionalProperties: false
-    NavigateResponse:
+    ObserveOptions:
       type: object
       properties:
-        success:
-          type: boolean
-          const: true
-        data:
-          $ref: "#/components/schemas/NavigateResult"
-      required:
-        - success
-        - data
-      additionalProperties: false
-    NavigateResult:
-      type: object
-      properties:
-        result:
-          anyOf:
-            - $ref: "#/components/schemas/NavigateResultData"
-            - type: "null"
-      required:
-        - result
-      additionalProperties: false
-    NavigateResultData:
-      type: object
-      properties:
-        requestId:
+        model:
+          $ref: "#/components/schemas/ModelConfig"
+        timeout:
+          description: Timeout in ms for the observation
+          example: 30000
+          type: number
+        selector:
+          description: CSS selector to scope observation to a specific element
+          example: nav
           type: string
+    ObserveRequest:
+      type: object
+      properties:
+        instruction:
+          description: Natural language instruction for what actions to find
+          example: Find all clickable navigation links
+          type: string
+        options:
+          $ref: "#/components/schemas/ObserveOptions"
         frameId:
+          description: Target frame ID for the observation
           type: string
-        loaderId:
-          type: string
-        response: {}
-        fromServiceWorkerFlag:
-          type: boolean
-        finishedSettled:
-          type: boolean
-        extraInfoHeaders:
-          anyOf:
-            - type: object
-              propertyNames:
-                type: string
-              additionalProperties:
-                type: string
-            - type: "null"
-        extraInfoHeadersText:
-          type: string
-      required:
-        - requestId
-        - response
-      additionalProperties: false
-    ObserveResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          const: true
-        data:
-          $ref: "#/components/schemas/ObserveResult"
-      required:
-        - success
-        - data
-      additionalProperties: false
     ObserveResult:
       type: object
       properties:
         result:
           type: array
           items:
-            $ref: "#/components/schemas/Action"
+            $ref: "#/components/schemas/ActionInput"
       required:
         - result
       additionalProperties: false
-    SessionStartResponse:
+    AgentConfig:
       type: object
       properties:
-        success:
-          type: boolean
-          const: true
-        data:
-          $ref: "#/components/schemas/SessionStartResult"
-      required:
-        - success
-        - data
-      additionalProperties: false
-    SessionStartResult:
-      type: object
-      properties:
-        sessionId:
-          description: Unique session identifier
-          example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
+        model:
+          $ref: "#/components/schemas/ModelConfig"
+        systemPrompt:
+          description: Custom system prompt for the agent
           type: string
-        available:
-          type: boolean
-        cdpUrl:
-          description: Chrome DevTools Protocol URL
-          example: ws://localhost:9222
-          type: string
-      required:
-        - sessionId
-        - available
-        - cdpUrl
-      additionalProperties: false
-    AgentExecuteResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          const: true
-        data:
-          $ref: "#/components/schemas/AgentExecuteResult"
-      required:
-        - success
-        - data
-      additionalProperties: false
-    AgentExecuteResult:
-      type: object
-      properties:
-        result:
-          $ref: "#/components/schemas/AgentResultData"
-      required:
-        - result
-      additionalProperties: false
-    AgentResultData:
-      type: object
-      properties:
-        success:
-          description: Whether the agent completed successfully
+        cua:
+          description: Enable Computer Use Agent mode
           example: true
           type: boolean
-        message:
-          description: Summary of what the agent accomplished
-          example: Successfully logged in and navigated to dashboard
-          type: string
-        actions:
-          type: array
-          items:
-            $ref: "#/components/schemas/AgentAction"
-        completed:
-          description: Whether the agent finished its task
-          example: true
-          type: boolean
-        metadata:
-          type: object
-          propertyNames:
-            type: string
-          additionalProperties: {}
-        usage:
-          $ref: "#/components/schemas/AgentUsage"
-      required:
-        - success
-        - message
-        - actions
-        - completed
-      additionalProperties: false
     AgentAction:
       type: object
       properties:
@@ -766,7 +552,7 @@ components:
           type: string
       required:
         - type
-      additionalProperties: {}
+      additionalProperties: true
     AgentUsage:
       type: object
       properties:
@@ -787,7 +573,341 @@ components:
         - input_tokens
         - output_tokens
         - inference_time_ms
+    AgentResultData:
+      type: object
+      properties:
+        success:
+          description: Whether the agent completed successfully
+          example: true
+          type: boolean
+        message:
+          description: Summary of what the agent accomplished
+          example: Successfully logged in and navigated to dashboard
+          type: string
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentAction"
+        completed:
+          description: Whether the agent finished its task
+          example: true
+          type: boolean
+        metadata:
+          type: object
+          additionalProperties: true
+        usage:
+          $ref: "#/components/schemas/AgentUsage"
+      required:
+        - success
+        - message
+        - actions
+        - completed
+    AgentExecuteOptions:
+      type: object
+      properties:
+        instruction:
+          description: Natural language instruction for the agent
+          example: Log in with username 'demo' and password 'test123', then navigate to
+            settings
+          type: string
+        maxSteps:
+          description: Maximum number of steps the agent can take
+          example: 20
+          type: number
+        highlightCursor:
+          description: Whether to visually highlight the cursor during execution
+          example: true
+          type: boolean
+      required:
+        - instruction
+    AgentExecuteRequest:
+      type: object
+      properties:
+        agentConfig:
+          $ref: "#/components/schemas/AgentConfig"
+        executeOptions:
+          $ref: "#/components/schemas/AgentExecuteOptions"
+        frameId:
+          description: Target frame ID for the agent
+          type: string
+      required:
+        - agentConfig
+        - executeOptions
+    AgentExecuteResult:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/AgentResultData"
+      required:
+        - result
       additionalProperties: false
+    NavigateOptions:
+      type: object
+      properties:
+        referer:
+          description: Referer header to send with the request
+          type: string
+        timeout:
+          description: Timeout in ms for the navigation
+          example: 30000
+          type: number
+        waitUntil:
+          description: When to consider navigation complete
+          example: networkidle
+          type: string
+          enum:
+            - load
+            - domcontentloaded
+            - networkidle
+    NavigateRequest:
+      type: object
+      properties:
+        url:
+          description: URL to navigate to
+          example: https://example.com
+          type: string
+        options:
+          $ref: "#/components/schemas/NavigateOptions"
+        frameId:
+          description: Target frame ID for the navigation
+          type: string
+      required:
+        - url
+    NavigateResultData:
+      type: object
+      properties:
+        requestId:
+          type: string
+        frameId:
+          type: string
+        loaderId:
+          type: string
+        response: {}
+        fromServiceWorkerFlag:
+          type: boolean
+        finishedSettled:
+          type: boolean
+        extraInfoHeaders:
+          anyOf:
+            - type: object
+              additionalProperties:
+                type: string
+            - type: "null"
+        extraInfoHeadersText:
+          type: string
+      required:
+        - requestId
+        - response
+    NavigateResult:
+      type: object
+      properties:
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/NavigateResultData"
+            - type: "null"
+      required:
+        - result
+      additionalProperties: false
+    TokenUsage:
+      type: object
+      properties:
+        inputTokens:
+          type: number
+        outputTokens:
+          type: number
+        reasoningTokens:
+          type: number
+        cachedInputTokens:
+          type: number
+        timeMs:
+          type: number
+    ReplayAction:
+      type: object
+      properties:
+        method:
+          type: string
+        tokenUsage:
+          $ref: "#/components/schemas/TokenUsage"
+    ReplayPage:
+      type: object
+      properties:
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReplayAction"
+    ReplayResult:
+      type: object
+      properties:
+        pages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReplayPage"
+    SessionStartResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: "#/components/schemas/SessionStartResult"
+      required:
+        - success
+        - data
+      additionalProperties: false
+    SessionEndResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: "#/components/schemas/SessionEndResult"
+      required:
+        - success
+        - data
+      additionalProperties: false
+    ActResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: "#/components/schemas/ActResultOutput"
+      required:
+        - success
+        - data
+      additionalProperties: false
+    ExtractResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: "#/components/schemas/ExtractResult"
+      required:
+        - success
+        - data
+      additionalProperties: false
+    ObserveResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: "#/components/schemas/ObserveResultOutput"
+      required:
+        - success
+        - data
+      additionalProperties: false
+    AgentExecuteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: "#/components/schemas/AgentExecuteResultOutput"
+      required:
+        - success
+        - data
+      additionalProperties: false
+    NavigateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: "#/components/schemas/NavigateResultOutput"
+      required:
+        - success
+        - data
+      additionalProperties: false
+    LocalBrowserLaunchOptionsOutput:
+      type: object
+      properties:
+        args:
+          type: array
+          items:
+            type: string
+        executablePath:
+          type: string
+        userDataDir:
+          type: string
+        preserveUserDataDir:
+          type: boolean
+        headless:
+          type: boolean
+        devtools:
+          type: boolean
+        chromiumSandbox:
+          type: boolean
+        ignoreDefaultArgs:
+          anyOf:
+            - type: boolean
+            - type: array
+              items:
+                type: string
+        proxy:
+          type: object
+          properties:
+            server:
+              type: string
+            bypass:
+              type: string
+            username:
+              type: string
+            password:
+              type: string
+          required:
+            - server
+          additionalProperties: false
+        locale:
+          type: string
+        viewport:
+          type: object
+          properties:
+            width:
+              type: number
+            height:
+              type: number
+          required:
+            - width
+            - height
+          additionalProperties: false
+        deviceScaleFactor:
+          type: number
+        hasTouch:
+          type: boolean
+        ignoreHTTPSErrors:
+          type: boolean
+        cdpUrl:
+          type: string
+        connectTimeoutMs:
+          type: number
+        downloadsPath:
+          type: string
+        acceptDownloads:
+          type: boolean
+      additionalProperties: false
+    ModelConfigOutput:
+      anyOf:
+        - type: string
+        - type: object
+          properties:
+            modelName:
+              type: string
+            apiKey:
+              type: string
+            baseURL:
+              type: string
+              format: uri
+          required:
+            - modelName
+          additionalProperties: false
     Action:
       description: Action object returned by observe and used by act
       type: object
@@ -815,8 +935,579 @@ components:
         - selector
         - description
       additionalProperties: false
+    BrowserConfigOutput:
+      type: object
+      properties:
+        type:
+          description: Browser type to use
+          example: local
+          type: string
+          enum:
+            - local
+            - browserbase
+        cdpUrl:
+          description: Chrome DevTools Protocol URL for connecting to existing browser
+          example: ws://localhost:9222
+          type: string
+        launchOptions:
+          $ref: "#/components/schemas/LocalBrowserLaunchOptionsOutput"
+      additionalProperties: false
+    BrowserbaseViewportOutput:
+      type: object
+      properties:
+        width:
+          type: number
+        height:
+          type: number
+      additionalProperties: false
+    BrowserbaseFingerprintScreenOutput:
+      type: object
+      properties:
+        maxHeight:
+          type: number
+        maxWidth:
+          type: number
+        minHeight:
+          type: number
+        minWidth:
+          type: number
+      additionalProperties: false
+    BrowserbaseFingerprintOutput:
+      type: object
+      properties:
+        browsers:
+          type: array
+          items:
+            type: string
+            enum:
+              - chrome
+              - edge
+              - firefox
+              - safari
+        devices:
+          type: array
+          items:
+            type: string
+            enum:
+              - desktop
+              - mobile
+        httpVersion:
+          type: string
+          enum:
+            - "1"
+            - "2"
+        locales:
+          type: array
+          items:
+            type: string
+        operatingSystems:
+          type: array
+          items:
+            type: string
+            enum:
+              - android
+              - ios
+              - linux
+              - macos
+              - windows
+        screen:
+          $ref: "#/components/schemas/BrowserbaseFingerprintScreenOutput"
+      additionalProperties: false
+    BrowserbaseContextOutput:
+      type: object
+      properties:
+        id:
+          type: string
+        persist:
+          type: boolean
+      required:
+        - id
+      additionalProperties: false
+    BrowserbaseBrowserSettingsOutput:
+      type: object
+      properties:
+        advancedStealth:
+          type: boolean
+        blockAds:
+          type: boolean
+        context:
+          $ref: "#/components/schemas/BrowserbaseContextOutput"
+        extensionId:
+          type: string
+        fingerprint:
+          $ref: "#/components/schemas/BrowserbaseFingerprintOutput"
+        logSession:
+          type: boolean
+        recordSession:
+          type: boolean
+        solveCaptchas:
+          type: boolean
+        viewport:
+          $ref: "#/components/schemas/BrowserbaseViewportOutput"
+      additionalProperties: false
+    BrowserbaseProxyGeolocationOutput:
+      type: object
+      properties:
+        country:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+      required:
+        - country
+      additionalProperties: false
+    BrowserbaseProxyConfigOutput:
+      type: object
+      properties:
+        type:
+          type: string
+          const: browserbase
+        domainPattern:
+          type: string
+        geolocation:
+          $ref: "#/components/schemas/BrowserbaseProxyGeolocationOutput"
+      required:
+        - type
+      additionalProperties: false
+    ExternalProxyConfigOutput:
+      type: object
+      properties:
+        type:
+          type: string
+          const: external
+        server:
+          type: string
+        domainPattern:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+      required:
+        - type
+        - server
+      additionalProperties: false
+    BrowserbaseSessionCreateParamsOutput:
+      type: object
+      properties:
+        projectId:
+          type: string
+        browserSettings:
+          $ref: "#/components/schemas/BrowserbaseBrowserSettingsOutput"
+        extensionId:
+          type: string
+        keepAlive:
+          type: boolean
+        proxies:
+          anyOf:
+            - type: boolean
+            - type: array
+              items:
+                anyOf:
+                  - $ref: "#/components/schemas/BrowserbaseProxyConfigOutput"
+                  - $ref: "#/components/schemas/ExternalProxyConfigOutput"
+        region:
+          type: string
+          enum:
+            - us-west-2
+            - us-east-1
+            - eu-central-1
+            - ap-southeast-1
+        timeout:
+          type: number
+        userMetadata:
+          type: object
+          additionalProperties: true
+      additionalProperties: false
+    ActOptionsOutput:
+      type: object
+      properties:
+        model:
+          $ref: "#/components/schemas/ModelConfigOutput"
+        variables:
+          description: Variables to substitute in the action instruction
+          example:
+            username: john_doe
+          type: object
+          additionalProperties:
+            type: string
+        timeout:
+          description: Timeout in ms for the action
+          example: 30000
+          type: number
+      additionalProperties: false
+    ActResultDataOutput:
+      type: object
+      properties:
+        success:
+          description: Whether the action completed successfully
+          example: true
+          type: boolean
+        message:
+          description: Human-readable result message
+          example: Successfully clicked the login button
+          type: string
+        actionDescription:
+          description: Description of the action that was performed
+          example: Clicked button with text 'Login'
+          type: string
+        actions:
+          description: List of actions that were executed
+          type: array
+          items:
+            $ref: "#/components/schemas/Action"
+      required:
+        - success
+        - message
+        - actionDescription
+        - actions
+      additionalProperties: false
+    ActResultOutput:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ActResultDataOutput"
+      required:
+        - result
+      additionalProperties: false
+    ExtractOptionsOutput:
+      type: object
+      properties:
+        model:
+          $ref: "#/components/schemas/ModelConfigOutput"
+        timeout:
+          description: Timeout in ms for the extraction
+          example: 30000
+          type: number
+        selector:
+          description: CSS selector to scope extraction to a specific element
+          example: "#main-content"
+          type: string
+      additionalProperties: false
+    ObserveOptionsOutput:
+      type: object
+      properties:
+        model:
+          $ref: "#/components/schemas/ModelConfigOutput"
+        timeout:
+          description: Timeout in ms for the observation
+          example: 30000
+          type: number
+        selector:
+          description: CSS selector to scope observation to a specific element
+          example: nav
+          type: string
+      additionalProperties: false
+    ObserveResultOutput:
+      type: object
+      properties:
+        result:
+          type: array
+          items:
+            $ref: "#/components/schemas/Action"
+      required:
+        - result
+      additionalProperties: false
+    AgentConfigOutput:
+      type: object
+      properties:
+        model:
+          $ref: "#/components/schemas/ModelConfigOutput"
+        systemPrompt:
+          description: Custom system prompt for the agent
+          type: string
+        cua:
+          description: Enable Computer Use Agent mode
+          example: true
+          type: boolean
+      additionalProperties: false
+    AgentUsageOutput:
+      type: object
+      properties:
+        input_tokens:
+          example: 1500
+          type: number
+        output_tokens:
+          example: 250
+          type: number
+        reasoning_tokens:
+          type: number
+        cached_input_tokens:
+          type: number
+        inference_time_ms:
+          example: 2500
+          type: number
+      required:
+        - input_tokens
+        - output_tokens
+        - inference_time_ms
+      additionalProperties: false
+    AgentResultDataOutput:
+      type: object
+      properties:
+        success:
+          description: Whether the agent completed successfully
+          example: true
+          type: boolean
+        message:
+          description: Summary of what the agent accomplished
+          example: Successfully logged in and navigated to dashboard
+          type: string
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentAction"
+        completed:
+          description: Whether the agent finished its task
+          example: true
+          type: boolean
+        metadata:
+          type: object
+          additionalProperties: true
+        usage:
+          $ref: "#/components/schemas/AgentUsageOutput"
+      required:
+        - success
+        - message
+        - actions
+        - completed
+      additionalProperties: false
+    AgentExecuteOptionsOutput:
+      type: object
+      properties:
+        instruction:
+          description: Natural language instruction for the agent
+          example: Log in with username 'demo' and password 'test123', then navigate to
+            settings
+          type: string
+        maxSteps:
+          description: Maximum number of steps the agent can take
+          example: 20
+          type: number
+        highlightCursor:
+          description: Whether to visually highlight the cursor during execution
+          example: true
+          type: boolean
+      required:
+        - instruction
+      additionalProperties: false
+    AgentExecuteResultOutput:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/AgentResultDataOutput"
+      required:
+        - result
+      additionalProperties: false
+    NavigateOptionsOutput:
+      type: object
+      properties:
+        referer:
+          description: Referer header to send with the request
+          type: string
+        timeout:
+          description: Timeout in ms for the navigation
+          example: 30000
+          type: number
+        waitUntil:
+          description: When to consider navigation complete
+          example: networkidle
+          type: string
+          enum:
+            - load
+            - domcontentloaded
+            - networkidle
+      additionalProperties: false
+    NavigateResultDataOutput:
+      type: object
+      properties:
+        requestId:
+          type: string
+        frameId:
+          type: string
+        loaderId:
+          type: string
+        response: {}
+        fromServiceWorkerFlag:
+          type: boolean
+        finishedSettled:
+          type: boolean
+        extraInfoHeaders:
+          anyOf:
+            - type: object
+              additionalProperties:
+                type: string
+            - type: "null"
+        extraInfoHeadersText:
+          type: string
+      required:
+        - requestId
+        - response
+      additionalProperties: false
+    NavigateResultOutput:
+      type: object
+      properties:
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/NavigateResultDataOutput"
+            - type: "null"
+      required:
+        - result
+      additionalProperties: false
+    TokenUsageOutput:
+      type: object
+      properties:
+        inputTokens:
+          type: number
+        outputTokens:
+          type: number
+        reasoningTokens:
+          type: number
+        cachedInputTokens:
+          type: number
+        timeMs:
+          type: number
+      additionalProperties: false
+    ReplayActionOutput:
+      type: object
+      properties:
+        method:
+          type: string
+        tokenUsage:
+          $ref: "#/components/schemas/TokenUsageOutput"
+      additionalProperties: false
+    ReplayPageOutput:
+      type: object
+      properties:
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReplayActionOutput"
+      additionalProperties: false
+    ReplayResultOutput:
+      type: object
+      properties:
+        pages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReplayPageOutput"
+      additionalProperties: false
+    SessionIdParams:
+      type: object
+      properties:
+        id:
+          description: Unique session identifier
+          example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
+          type: string
+      required:
+        - id
+      additionalProperties: false
+    SessionHeaders:
+      type: object
+      properties:
+        x-stream-response:
+          description: Whether to stream the response via SSE
+          example: "true"
+          type: string
+          enum:
+            - "true"
+            - "false"
+        x-language:
+          description: Client SDK language
+          example: typescript
+          type: string
+          enum:
+            - typescript
+            - python
+            - playground
+        x-sdk-version:
+          description: Version of the Stagehand SDK
+          example: 3.0.6
+          type: string
+        x-sent-at:
+          description: ISO timestamp when request was sent
+          example: 2025-01-15T10:30:00.000Z
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+      additionalProperties: false
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: false
+        error:
+          type: string
+        code:
+          type: string
+      required:
+        - success
+        - error
+      additionalProperties: false
+    SessionStartRequest:
+      type: object
+      properties:
+        modelName:
+          description: Model name to use for AI operations
+          example: gpt-4o
+          type: string
+        domSettleTimeoutMs:
+          description: Timeout in ms to wait for DOM to settle
+          example: 5000
+          type: number
+        verbose:
+          description: Logging verbosity level (0=quiet, 1=normal, 2=debug)
+          example: 1
+          anyOf:
+            - type: number
+              const: 0
+            - type: number
+              const: 1
+            - type: number
+              const: 2
+        debugDom:
+          type: boolean
+        systemPrompt:
+          description: Custom system prompt for AI operations
+          type: string
+        browserbaseSessionCreateParams:
+          $ref: "#/components/schemas/BrowserbaseSessionCreateParamsOutput"
+        browser:
+          $ref: "#/components/schemas/BrowserConfigOutput"
+        selfHeal:
+          description: Enable self-healing for failed actions
+          example: true
+          type: boolean
+        waitForCaptchaSolves:
+          type: boolean
+        actTimeoutMs:
+          description: Timeout in ms for act operations
+          example: 30000
+          type: number
+        browserbaseSessionID:
+          description: Existing Browserbase session ID to resume
+          type: string
+        experimental:
+          type: boolean
+      required:
+        - modelName
+      additionalProperties: false
+    ReplayResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: "#/components/schemas/ReplayResultOutput"
+      required:
+        - success
+        - data
+      additionalProperties: false
 paths:
-  /v1/sessions/{id}/act:
+  /sessions/{id}/act:
     post:
       operationId: SessionAct
       summary: Perform an action
@@ -826,51 +1517,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ActRequest"
-        required: true
+              x-fastify-zod-openapi-optional: false
       parameters:
-        - schema:
-            description: Unique session identifier
-            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
-            type: string
+        - schema: {}
           in: path
           name: id
           required: true
           description: Unique session identifier
-        - schema:
-            description: Whether to stream the response via SSE
-            example: "true"
-            type: string
-            enum:
-              - "true"
-              - "false"
+        - schema: {}
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
+        - schema: {}
           in: header
           name: x-language
           description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
+        - schema: {}
           in: header
           name: x-sdk-version
           description: Version of the Stagehand SDK
-        - schema:
-            description: ISO timestamp when request was sent
-            example: 2025-01-15T10:30:00.000Z
-            type: string
-            format: date-time
-            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        - schema: {}
           in: header
           name: x-sent-at
           description: ISO timestamp when request was sent
@@ -879,56 +1545,31 @@ paths:
           description: Default Response
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/ActResponse"
-  /v1/sessions/{id}/end:
+              schema: {}
+  /sessions/{id}/end:
     post:
       operationId: SessionEnd
       summary: End a browser session
       description: Terminates the browser session and releases all associated resources.
       parameters:
-        - schema:
-            description: Unique session identifier
-            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
-            type: string
+        - schema: {}
           in: path
           name: id
           required: true
           description: Unique session identifier
-        - schema:
-            description: Whether to stream the response via SSE
-            example: "true"
-            type: string
-            enum:
-              - "true"
-              - "false"
+        - schema: {}
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
+        - schema: {}
           in: header
           name: x-language
           description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
+        - schema: {}
           in: header
           name: x-sdk-version
           description: Version of the Stagehand SDK
-        - schema:
-            description: ISO timestamp when request was sent
-            example: 2025-01-15T10:30:00.000Z
-            type: string
-            format: date-time
-            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        - schema: {}
           in: header
           name: x-sent-at
           description: ISO timestamp when request was sent
@@ -937,9 +1578,8 @@ paths:
           description: Default Response
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/SessionEndResponse"
-  /v1/sessions/{id}/extract:
+              schema: {}
+  /sessions/{id}/extract:
     post:
       operationId: SessionExtract
       summary: Extract data from the page
@@ -948,51 +1588,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ExtractRequest"
-        required: true
+              x-fastify-zod-openapi-optional: false
       parameters:
-        - schema:
-            description: Unique session identifier
-            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
-            type: string
+        - schema: {}
           in: path
           name: id
           required: true
           description: Unique session identifier
-        - schema:
-            description: Whether to stream the response via SSE
-            example: "true"
-            type: string
-            enum:
-              - "true"
-              - "false"
+        - schema: {}
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
+        - schema: {}
           in: header
           name: x-language
           description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
+        - schema: {}
           in: header
           name: x-sdk-version
           description: Version of the Stagehand SDK
-        - schema:
-            description: ISO timestamp when request was sent
-            example: 2025-01-15T10:30:00.000Z
-            type: string
-            format: date-time
-            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        - schema: {}
           in: header
           name: x-sent-at
           description: ISO timestamp when request was sent
@@ -1001,9 +1616,8 @@ paths:
           description: Default Response
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/ExtractResponse"
-  /v1/sessions/{id}/navigate:
+              schema: {}
+  /sessions/{id}/navigate:
     post:
       operationId: SessionNavigate
       summary: Navigate to a URL
@@ -1012,51 +1626,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/NavigateRequest"
-        required: true
+              x-fastify-zod-openapi-optional: false
       parameters:
-        - schema:
-            description: Unique session identifier
-            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
-            type: string
+        - schema: {}
           in: path
           name: id
           required: true
           description: Unique session identifier
-        - schema:
-            description: Whether to stream the response via SSE
-            example: "true"
-            type: string
-            enum:
-              - "true"
-              - "false"
+        - schema: {}
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
+        - schema: {}
           in: header
           name: x-language
           description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
+        - schema: {}
           in: header
           name: x-sdk-version
           description: Version of the Stagehand SDK
-        - schema:
-            description: ISO timestamp when request was sent
-            example: 2025-01-15T10:30:00.000Z
-            type: string
-            format: date-time
-            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        - schema: {}
           in: header
           name: x-sent-at
           description: ISO timestamp when request was sent
@@ -1065,9 +1654,8 @@ paths:
           description: Default Response
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/NavigateResponse"
-  /v1/sessions/{id}/observe:
+              schema: {}
+  /sessions/{id}/observe:
     post:
       operationId: SessionObserve
       summary: Observe available actions
@@ -1077,51 +1665,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ObserveRequest"
-        required: true
+              x-fastify-zod-openapi-optional: false
       parameters:
-        - schema:
-            description: Unique session identifier
-            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
-            type: string
+        - schema: {}
           in: path
           name: id
           required: true
           description: Unique session identifier
-        - schema:
-            description: Whether to stream the response via SSE
-            example: "true"
-            type: string
-            enum:
-              - "true"
-              - "false"
+        - schema: {}
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
+        - schema: {}
           in: header
           name: x-language
           description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
+        - schema: {}
           in: header
           name: x-sdk-version
           description: Version of the Stagehand SDK
-        - schema:
-            description: ISO timestamp when request was sent
-            example: 2025-01-15T10:30:00.000Z
-            type: string
-            format: date-time
-            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        - schema: {}
           in: header
           name: x-sent-at
           description: ISO timestamp when request was sent
@@ -1130,9 +1693,8 @@ paths:
           description: Default Response
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/ObserveResponse"
-  /v1/sessions/start:
+              schema: {}
+  /sessions/start:
     post:
       operationId: SessionStart
       summary: Start a new browser session
@@ -1142,89 +1704,21 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                modelName:
-                  description: Model name to use for AI operations
-                  example: gpt-4o
-                  type: string
-                domSettleTimeoutMs:
-                  description: Timeout in ms to wait for DOM to settle
-                  example: 5000
-                  type: number
-                verbose:
-                  description: Logging verbosity level (0=quiet, 1=normal, 2=debug)
-                  example: 1
-                  anyOf:
-                    - type: number
-                      const: 0
-                    - type: number
-                      const: 1
-                    - type: number
-                      const: 2
-                debugDom:
-                  type: boolean
-                systemPrompt:
-                  description: Custom system prompt for AI operations
-                  type: string
-                browserbaseSessionCreateParams:
-                  $ref: "#/components/schemas/BrowserbaseSessionCreateParams"
-                browser:
-                  $ref: "#/components/schemas/BrowserConfig"
-                selfHeal:
-                  description: Enable self-healing for failed actions
-                  example: true
-                  type: boolean
-                waitForCaptchaSolves:
-                  type: boolean
-                actTimeoutMs:
-                  description: Timeout in ms for act operations
-                  example: 30000
-                  type: number
-                browserbaseSessionID:
-                  description: Existing Browserbase session ID to resume
-                  type: string
-                experimental:
-                  type: boolean
-              required:
-                - modelName
-              additionalProperties: false
-        required: true
+              x-fastify-zod-openapi-optional: false
       parameters:
-        - schema:
-            description: Whether to stream the response via SSE
-            example: "true"
-            type: string
-            enum:
-              - "true"
-              - "false"
+        - schema: {}
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
+        - schema: {}
           in: header
           name: x-language
           description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
+        - schema: {}
           in: header
           name: x-sdk-version
           description: Version of the Stagehand SDK
-        - schema:
-            description: ISO timestamp when request was sent
-            example: 2025-01-15T10:30:00.000Z
-            type: string
-            format: date-time
-            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        - schema: {}
           in: header
           name: x-sent-at
           description: ISO timestamp when request was sent
@@ -1233,24 +1727,8 @@ paths:
           description: Default Response
           content:
             application/json:
-              schema:
-                links:
-                  SessionAct:
-                    $ref: "#/components/links/SessionAct"
-                  SessionExtract:
-                    $ref: "#/components/links/SessionExtract"
-                  SessionObserve:
-                    $ref: "#/components/links/SessionObserve"
-                  SessionNavigate:
-                    $ref: "#/components/links/SessionNavigate"
-                  SessionAgentExecute:
-                    $ref: "#/components/links/SessionAgentExecute"
-                  SessionReplay:
-                    $ref: "#/components/links/SessionReplay"
-                  SessionEnd:
-                    $ref: "#/components/links/SessionEnd"
-                $ref: "#/components/schemas/SessionStartResponse"
-  /v1/sessions/{id}/agentExecute:
+              schema: {}
+  /sessions/{id}/agentExecute:
     post:
       operationId: SessionAgentExecute
       summary: Execute an AI agent
@@ -1260,51 +1738,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AgentExecuteRequest"
-        required: true
+              x-fastify-zod-openapi-optional: false
       parameters:
-        - schema:
-            description: Unique session identifier
-            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
-            type: string
+        - schema: {}
           in: path
           name: id
           required: true
           description: Unique session identifier
-        - schema:
-            description: Whether to stream the response via SSE
-            example: "true"
-            type: string
-            enum:
-              - "true"
-              - "false"
+        - schema: {}
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
+        - schema: {}
           in: header
           name: x-language
           description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
+        - schema: {}
           in: header
           name: x-sdk-version
           description: Version of the Stagehand SDK
-        - schema:
-            description: ISO timestamp when request was sent
-            example: 2025-01-15T10:30:00.000Z
-            type: string
-            format: date-time
-            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        - schema: {}
           in: header
           name: x-sent-at
           description: ISO timestamp when request was sent
@@ -1313,8 +1766,7 @@ paths:
           description: Default Response
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/AgentExecuteResponse"
+              schema: {}
   /healthz:
     get:
       responses:
@@ -1348,6 +1800,9 @@ paths:
             application/json:
               schema:
                 type: string
+servers:
+  - url: https://api.stagehand.browserbase.com/v1
+    description: Production Browserbase Cloud API
 security:
   - BrowserbaseApiKey: []
     BrowserbaseProjectId: []

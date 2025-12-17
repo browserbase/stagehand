@@ -6,18 +6,7 @@ import type {
 } from "@browserbasehq/stagehand";
 
 /**
- * Sentinel value for cdpUrl indicating the server should launch a local browser.
- * When the client receives this value, the server will lazily create the browser
- * on the first request and return the actual cdpUrl.
- */
-export const LOCAL_BROWSER_PENDING = "local:pending" as const;
-
-/**
  * Result from SessionStore.startSession().
- * Uses Api.SessionStartResult to ensure cdpUrl is always provided.
- *
- * For local browsers without a pre-existing cdpUrl, use LOCAL_BROWSER_PENDING
- * as the cdpUrl value. The server will launch the browser on first use.
  */
 export type SessionStartResult = Api.SessionStartResult;
 

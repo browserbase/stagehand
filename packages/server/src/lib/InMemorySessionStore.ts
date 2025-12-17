@@ -2,7 +2,6 @@ import { randomUUID } from "crypto";
 import type { V3Options, LogLine } from "@browserbasehq/stagehand";
 import { V3 } from "@browserbasehq/stagehand";
 import {
-  LOCAL_BROWSER_PENDING,
   type SessionStore,
   type CreateSessionParams,
   type RequestContext,
@@ -135,19 +134,9 @@ export class InMemorySessionStore implements SessionStore {
     // Store the session
     await this.createSession(sessionId, params);
 
-    // For local browsers without a cdpUrl, use sentinel value
-    // The browser will be launched lazily on first use
-    const cdpUrl =
-      params.cdpUrl ?? (params.browserType === "local" ? LOCAL_BROWSER_PENDING : undefined);
-
-    if (!cdpUrl) {
-      throw new Error("cdpUrl is required for browserbase sessions");
-    }
-
     return {
       sessionId,
       available: true,
-      cdpUrl,
     };
   }
 

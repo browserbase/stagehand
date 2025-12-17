@@ -12,6 +12,7 @@ import {
   type FastifyZodOpenApiTypeProvider,
 } from "fastify-zod-openapi";
 import { Api } from "@browserbasehq/stagehand";
+import type { ZodOpenApiComponentsObject } from "zod-openapi";
 
 // Routes
 import actRoute from "../src/routes/v1/sessions/:id/act.js";
@@ -36,17 +37,102 @@ async function main() {
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
-  await app.register(fastifyZodOpenApiPlugin);
+  // Register all API schemas as components so fastify-zod-openapi can create $ref links
+  const components: ZodOpenApiComponentsObject = {
+    schemas: {
+      // Shared components
+      LocalBrowserLaunchOptions: Api.LocalBrowserLaunchOptionsSchema,
+      ModelConfig: Api.ModelConfigSchema,
+      ActionInput: Api.ActionSchema,
+      SessionIdParams: Api.SessionIdParamsSchema,
+      BrowserConfig: Api.BrowserConfigSchema,
+      SessionHeaders: Api.SessionHeadersSchema,
+      ErrorResponse: Api.ErrorResponseSchema,
+      // Browserbase schemas
+      BrowserbaseViewport: Api.BrowserbaseViewportSchema,
+      BrowserbaseFingerprintScreen: Api.BrowserbaseFingerprintScreenSchema,
+      BrowserbaseFingerprint: Api.BrowserbaseFingerprintSchema,
+      BrowserbaseContext: Api.BrowserbaseContextSchema,
+      BrowserbaseBrowserSettings: Api.BrowserbaseBrowserSettingsSchema,
+      BrowserbaseProxyGeolocation: Api.BrowserbaseProxyGeolocationSchema,
+      BrowserbaseProxyConfig: Api.BrowserbaseProxyConfigSchema,
+      ExternalProxyConfig: Api.ExternalProxyConfigSchema,
+      BrowserbaseSessionCreateParams: Api.BrowserbaseSessionCreateParamsSchema,
+      // Session Start
+      SessionStartRequest: Api.SessionStartRequestSchema,
+      SessionStartResult: Api.SessionStartResultSchema,
+      SessionStartResponse: Api.SessionStartResponseSchema,
+      // Session End
+      SessionEndResult: Api.SessionEndResultSchema,
+      SessionEndResponse: Api.SessionEndResponseSchema,
+      // Act
+      ActOptions: Api.ActOptionsSchema,
+      ActRequest: Api.ActRequestSchema,
+      ActResultData: Api.ActResultDataSchema,
+      ActResult: Api.ActResultSchema,
+      ActResponse: Api.ActResponseSchema,
+      // Extract
+      ExtractOptions: Api.ExtractOptionsSchema,
+      ExtractRequest: Api.ExtractRequestSchema,
+      ExtractResult: Api.ExtractResultSchema,
+      ExtractResponse: Api.ExtractResponseSchema,
+      // Observe
+      ObserveOptions: Api.ObserveOptionsSchema,
+      ObserveRequest: Api.ObserveRequestSchema,
+      ObserveResult: Api.ObserveResultSchema,
+      ObserveResponse: Api.ObserveResponseSchema,
+      // Agent Execute
+      AgentConfig: Api.AgentConfigSchema,
+      AgentAction: Api.AgentActionSchema,
+      AgentUsage: Api.AgentUsageSchema,
+      AgentResultData: Api.AgentResultDataSchema,
+      AgentExecuteOptions: Api.AgentExecuteOptionsSchema,
+      AgentExecuteRequest: Api.AgentExecuteRequestSchema,
+      AgentExecuteResult: Api.AgentExecuteResultSchema,
+      AgentExecuteResponse: Api.AgentExecuteResponseSchema,
+      // Navigate
+      NavigateOptions: Api.NavigateOptionsSchema,
+      NavigateRequest: Api.NavigateRequestSchema,
+      NavigateResultData: Api.NavigateResultDataSchema,
+      NavigateResult: Api.NavigateResultSchema,
+      NavigateResponse: Api.NavigateResponseSchema,
+      // Replay
+      TokenUsage: Api.TokenUsageSchema,
+      ReplayAction: Api.ReplayActionSchema,
+      ReplayPage: Api.ReplayPageSchema,
+      ReplayResult: Api.ReplayResultSchema,
+      ReplayResponse: Api.ReplayResponseSchema,
+    },
+  };
+
+  await app.register(fastifyZodOpenApiPlugin, { components });
 
   await app.register(fastifySwagger, {
     openapi: {
       info: {
         title: "Stagehand API",
-        version: "3.0.6",
-        description:
-          "API for browser automation with AI-powered actions, extraction, and observation.",
+        version: "3.1.0",
+        description: `Stagehand SDK for AI browser automation [ALPHA]. This API allows clients to
+execute browser automation tasks remotely on the Browserbase cloud.
+
+All endpoints except /sessions/start require an active session ID.
+Responses are streamed using Server-Sent Events (SSE) when the
+\`x-stream-response: true\` header is provided.
+
+This SDK is currently ALPHA software and is not production ready!
+Please try it and give us your feedback, stay tuned for upcoming release announcements!`,
+        contact: {
+          name: "Browserbase",
+          url: "https://browserbase.com",
+        },
       },
       openapi: "3.1.0",
+      servers: [
+        {
+          url: "https://api.stagehand.browserbase.com/v1",
+          description: "Production Browserbase Cloud API",
+        },
+      ],
       components: {
         securitySchemes: Api.openApiSecuritySchemes,
         links: Api.openApiLinks,
@@ -77,7 +163,16 @@ async function main() {
 
   await app.ready();
 
-  const yaml = app.swagger({ yaml: true });
+  let yaml = app.swagger({ yaml: true });
+
+  // Post-process for Stainless compatibility:
+  // 1. Replace `additionalProperties: {}` with `additionalProperties: true`
+  yaml = yaml.replace(/additionalProperties: \{\}/g, "additionalProperties: true");
+
+  // 2. Remove `propertyNames` blocks (not supported by Stainless)
+  // Matches propertyNames with its nested content (type: string)
+  yaml = yaml.replace(/\n\s+propertyNames:\n\s+type: string/g, "");
+
   await writeFile(OUTPUT_PATH, yaml, "utf8");
 
   await app.close();

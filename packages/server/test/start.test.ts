@@ -1,6 +1,10 @@
 import fastify from "fastify";
 import { randomUUID } from "crypto";
 import { afterAll, beforeEach, describe, expect, test, vi } from "vitest";
+import {
+  serializerCompiler,
+  validatorCompiler,
+} from "fastify-zod-openapi";
 import startRoute from "../src/routes/v1/sessions/start.js";
 
 const bbMocks = vi.hoisted(() => ({
@@ -46,8 +50,8 @@ describe("/v1/sessions/start cdpUrl responses", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     app = fastify({ logger: false });
-    // disable built-in validation to mirror server.ts
-    app.setValidatorCompiler(() => () => true);
+    app.setValidatorCompiler(validatorCompiler);
+    app.setSerializerCompiler(serializerCompiler);
     app.route(startRoute);
   });
 
@@ -55,11 +59,11 @@ describe("/v1/sessions/start cdpUrl responses", () => {
     await app.close();
   });
 
-  test("returns cdpUrl for local browser requests", async () => {
+  test("returns sessionId for local browser requests", async () => {
     const sessionId = "uuid-" + randomUUID();
-    storeMocks.startSession.mockResolvedValue({ sessionId, available: true });
-    storeMocks.getOrCreateStagehand.mockResolvedValue({
-      connectURL: () => "ws://local-cdp",
+    storeMocks.startSession.mockResolvedValue({
+      sessionId,
+      available: true,
     });
 
     const res = await app.inject({
@@ -67,10 +71,9 @@ describe("/v1/sessions/start cdpUrl responses", () => {
       url: "/sessions/start",
       payload: {
         modelName: "openai/gpt-4.1-mini",
-        browser: { type: "local" },
+        browser: { type: "local", launchOptions: { headless: true } },
       },
     });
-
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
       success: boolean;
@@ -78,10 +81,9 @@ describe("/v1/sessions/start cdpUrl responses", () => {
     };
     expect(body.success).toBe(true);
     expect(body.data.sessionId).toBe(sessionId);
-    expect(body.data.cdpUrl).toBe("ws://local-cdp");
   });
 
-  test("returns cdpUrl from Browserbase for browserbase requests", async () => {
+  test("returns sessionId for browserbase requests", async () => {
     storeMocks.startSession.mockResolvedValue({
       sessionId: "bb-123",
       available: true,
@@ -121,6 +123,5 @@ describe("/v1/sessions/start cdpUrl responses", () => {
     };
     expect(body.success).toBe(true);
     expect(body.data.sessionId).toBe("bb-123");
-    expect(body.data.cdpUrl).toBe("wss://bb-cdp");
   });
 });

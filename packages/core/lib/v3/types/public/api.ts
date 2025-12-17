@@ -326,10 +326,6 @@ export const SessionStartResultSchema = z
       example: "c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123",
     }),
     available: z.boolean(),
-    cdpUrl: z.string().meta({
-      description: "Chrome DevTools Protocol URL",
-      example: "ws://localhost:9222",
-    }),
   })
   .strict()
   .meta({ id: "SessionStartResult" });

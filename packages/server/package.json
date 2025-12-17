@@ -9,7 +9,8 @@
     "dev": "tsx watch src/server.ts",
     "lint": "cd ../.. && prettier --check packages/server && cd packages/server && eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --exclude test/api-client.integration.test.ts",
+    "test:integration": "vitest run test/api-client.integration.test.ts",
     "gen:openapi": "tsx scripts/gen-openapi.ts"
   },
   "dependencies": {
