@@ -858,7 +858,7 @@ export class V3 {
                 stagehand: "true",
               },
             };
-            const { sessionId, available, cdpUrl } = await this.apiClient.init({
+            const { sessionId, available } = await this.apiClient.init({
               modelName: this.modelName,
               modelApiKey: this.modelClientOptions.apiKey,
               domSettleTimeoutMs: this.domSettleTimeoutMs,
@@ -878,14 +878,8 @@ export class V3 {
             if (!available) {
               this.apiClient = null;
             }
-            // Persist API-issued sessionId for downstream use; stash cdpUrl if provided
+            // Persist API-issued sessionId for downstream use
             this.opts.browserbaseSessionID = sessionId;
-            if (cdpUrl) {
-              this.opts.localBrowserLaunchOptions = {
-                ...(this.opts.localBrowserLaunchOptions ?? {}),
-                cdpUrl,
-              };
-            }
           }
           // If server returned a direct CDP URL, attach to it instead of creating/resuming
           if (this.opts.localBrowserLaunchOptions?.cdpUrl) {
