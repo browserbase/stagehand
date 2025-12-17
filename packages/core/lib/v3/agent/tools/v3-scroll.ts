@@ -9,7 +9,8 @@ import { processCoordinates } from "../utils/coordinateNormalization";
  */
 export const createScrollTool = (v3: V3) =>
   tool({
-    description: "Scroll the page up or down by a percentage of the viewport height. Default is 80%, and what should be typically used for general page scrolling",
+    description:
+      "Scroll the page up or down by a percentage of the viewport height. Default is 80%, and what should be typically used for general page scrolling",
     inputSchema: z.object({
       direction: z.enum(["up", "down"]),
       percentage: z.number().min(1).max(200).optional(),
@@ -29,9 +30,12 @@ export const createScrollTool = (v3: V3) =>
 
       const page = await v3.context.awaitActivePage();
 
-      const { w, h } = await page.mainFrame().evaluate<{ w: number; h: number }>(
-        "({ w: window.innerWidth, h: window.innerHeight })"
-      );
+      const { w, h } = await page
+        .mainFrame()
+        .evaluate<{
+          w: number;
+          h: number;
+        }>("({ w: window.innerWidth, h: window.innerHeight })");
 
       const scrollDistance = Math.round((h * percentage) / 100);
       const cx = Math.floor(w / 2);
@@ -67,21 +71,30 @@ export const createScrollVisionTool = (v3: V3, provider?: string) =>
       coordinates: z
         .array(z.number())
         .optional()
-        .describe("Only use coordinates for scrolling inside a nested scrollable element - provide (x, y) within that element"),
+        .describe(
+          "Only use coordinates for scrolling inside a nested scrollable element - provide (x, y) within that element",
+        ),
       percentage: z.number().min(1).max(200).optional(),
     }),
     execute: async ({ direction, coordinates, percentage = 80 }) => {
       const page = await v3.context.awaitActivePage();
 
-      const { w, h } = await page.mainFrame().evaluate<{ w: number; h: number }>(
-        "({ w: window.innerWidth, h: window.innerHeight })"
-      );
+      const { w, h } = await page
+        .mainFrame()
+        .evaluate<{
+          w: number;
+          h: number;
+        }>("({ w: window.innerWidth, h: window.innerHeight })");
 
       // Process coordinates if provided, otherwise use viewport center
       let cx: number;
       let cy: number;
       if (coordinates) {
-        const processed = processCoordinates(coordinates[0], coordinates[1], provider);
+        const processed = processCoordinates(
+          coordinates[0],
+          coordinates[1],
+          provider,
+        );
         cx = processed.x;
         cy = processed.y;
       } else {
@@ -95,7 +108,12 @@ export const createScrollVisionTool = (v3: V3, provider?: string) =>
         level: 1,
         auxiliary: {
           arguments: {
-            value: JSON.stringify({ direction, coordinates, percentage, processed: { cx, cy } }),
+            value: JSON.stringify({
+              direction,
+              coordinates,
+              percentage,
+              processed: { cx, cy },
+            }),
             type: "object",
           },
         },

@@ -22,7 +22,6 @@ import type { V3 } from "../../v3";
 import type { LogLine } from "../../types/public/logs";
 import type { AgentToolMode } from "../../types/public/agent";
 
-
 export interface V3AgentToolOptions {
   executionModel?: string;
   logger?: (message: LogLine) => void;
@@ -80,7 +79,10 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     keys: createKeysTool(v3),
     navback: createNavBackTool(v3),
     screenshot: createScreenshotTool(v3),
-    scroll: mode === "hybrid" ? createScrollVisionTool(v3, provider) : createScrollTool(v3),
+    scroll:
+      mode === "hybrid"
+        ? createScrollVisionTool(v3, provider)
+        : createScrollTool(v3),
     think: createThinkTool(),
     type: createTypeTool(v3, provider),
     wait: createWaitTool(v3),
@@ -98,6 +100,7 @@ export type AgentTools = ReturnType<typeof createAgentTools>;
 
 /**
  * Type map of all agent tools for strong typing of tool calls and results.
+ * Note: `search` is optional as it's only available when BRAVE_API_KEY is configured.
  */
 export type AgentToolTypesMap = {
   act: ReturnType<typeof createActTool>;
@@ -113,8 +116,10 @@ export type AgentToolTypesMap = {
   keys: ReturnType<typeof createKeysTool>;
   navback: ReturnType<typeof createNavBackTool>;
   screenshot: ReturnType<typeof createScreenshotTool>;
-  scroll: ReturnType<typeof createScrollTool> | ReturnType<typeof createScrollVisionTool>;
-  search: ReturnType<typeof createSearchTool>;
+  scroll:
+    | ReturnType<typeof createScrollTool>
+    | ReturnType<typeof createScrollVisionTool>;
+  search?: ReturnType<typeof createSearchTool>;
   think: ReturnType<typeof createThinkTool>;
   type: ReturnType<typeof createTypeTool>;
   wait: ReturnType<typeof createWaitTool>;

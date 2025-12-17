@@ -22,7 +22,11 @@ export const createClickAndHoldTool = (v3: V3, provider?: string) =>
     execute: async ({ describe, coordinates, duration }) => {
       try {
         const page = await v3.context.awaitActivePage();
-        const processed = processCoordinates(coordinates[0], coordinates[1], provider);
+        const processed = processCoordinates(
+          coordinates[0],
+          coordinates[1],
+          provider,
+        );
 
         v3.logger({
           category: "agent",
@@ -30,7 +34,12 @@ export const createClickAndHoldTool = (v3: V3, provider?: string) =>
           level: 1,
           auxiliary: {
             arguments: {
-              value: JSON.stringify({ describe, coordinates, processed, duration }),
+              value: JSON.stringify({
+                describe,
+                coordinates,
+                processed,
+                duration,
+              }),
               type: "string",
             },
           },
@@ -46,7 +55,10 @@ export const createClickAndHoldTool = (v3: V3, provider?: string) =>
         v3.recordAgentReplayStep({
           type: "clickAndHold",
           instruction: describe,
-          playwrightArguments: { coordinates: [processed.x, processed.y], duration },
+          playwrightArguments: {
+            coordinates: [processed.x, processed.y],
+            duration,
+          },
         });
         return { success: true, describe };
       } catch (error) {
@@ -57,4 +69,3 @@ export const createClickAndHoldTool = (v3: V3, provider?: string) =>
       }
     },
   });
-

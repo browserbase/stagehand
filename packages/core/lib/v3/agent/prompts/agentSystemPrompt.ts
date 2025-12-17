@@ -15,7 +15,9 @@ export interface AgentSystemPromptOptions {
  * @param options - The prompt configuration options
  * @returns The formatted system prompt string
  */
-export function buildAgentSystemPrompt(options: AgentSystemPromptOptions): string {
+export function buildAgentSystemPrompt(
+  options: AgentSystemPromptOptions,
+): string {
   const {
     url,
     executionInstruction,
@@ -131,55 +133,14 @@ export function buildAgentSystemPrompt(options: AgentSystemPromptOptions): strin
   </roadblocks>`
     : "";
 
-  // Build the full prompt
-  if (systemInstructions) {
-    return `<system>
-  <identity>You are a web automation assistant using browser automation tools to accomplish the user's goal.</identity>
-  <customInstructions>${cdata(systemInstructions)}</customInstructions>
-  <task>
-    <goal>${cdata(executionInstruction)}</goal>
-    <date display="local" iso="${isoDate}">${localeDate}</date>
-    <note>You may think the date is different due to knowledge cutoff, but this is the actual date.</note>
-  </task>
-  <page>
-    <startingUrl>you are starting your task on this url: ${url}</startingUrl>
-  </page>
-  <mindset>
-    <note>Be very intentional about your action. The initial instruction is very important, and slight variations of the actual goal can lead to failures.</note>
-    <importantNote>If something fails to meet a single condition of the task, move on from it rather than seeing if it meets other criteria. We only care that it meets all of it</importantNote>
-    <note>When the task is complete, do not seek more information; you have completed the task.</note>
-  </mindset>
-  <guidelines>
-    <item>Always start by understanding the current page state</item>
-    <item>Use the screenshot tool to verify page state when needed</item>
-    <item>Use appropriate tools for each action</item>
-    <item>When the task is complete, use the "close" tool with taskComplete: true</item>
-    <item>If the task cannot be completed, use "close" with taskComplete: false</item>
-  </guidelines>
-  ${pageUnderstandingProtocol}
-  <navigation>
-    <rule>If you are confident in the URL, navigate directly to it.</rule>
-    ${hasSearch ? `<rule>If you are not confident in the URL, use the search tool to find it.</rule>` : ``}
-  </navigation>
-  ${toolsSection}
-  <strategy>
-    ${strategySection}
-    ${commonStrategyItems}
-  </strategy>
-  ${roadblocksSection}
-  <completion>
-    <note>When you complete the task, explain any information that was found that was relevant to the original task.</note>
-    <examples>
-      <example>If you were asked for specific flights, list the flights you found.</example>
-      <example>If you were asked for information about a product, list the product information you were asked for.</example>
-    </examples>
-  </completion>
-</system>`;
-  }
+  // Build customInstructions block only if provided
+  const customInstructionsBlock = systemInstructions
+    ? `<customInstructions>${cdata(systemInstructions)}</customInstructions>\n  `
+    : "";
 
   return `<system>
   <identity>You are a web automation assistant using browser automation tools to accomplish the user's goal.</identity>
-  <task>
+  ${customInstructionsBlock}<task>
     <goal>${cdata(executionInstruction)}</goal>
     <date display="local" iso="${isoDate}">${localeDate}</date>
     <note>You may think the date is different due to knowledge cutoff, but this is the actual date.</note>
@@ -219,4 +180,3 @@ export function buildAgentSystemPrompt(options: AgentSystemPromptOptions): strin
   </completion>
 </system>`;
 }
-

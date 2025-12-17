@@ -48,7 +48,11 @@ MANDATORY USE CASES (always use fillFormVision for these):
 
         // Process coordinates for each field
         const processedFields = fields.map((field) => {
-          const processed = processCoordinates(field.coordinates.x, field.coordinates.y, provider);
+          const processed = processCoordinates(
+            field.coordinates.x,
+            field.coordinates.y,
+            provider,
+          );
           return {
             ...field,
             coordinates: { x: processed.x, y: processed.y },
@@ -92,4 +96,3 @@ MANDATORY USE CASES (always use fillFormVision for these):
       }
     },
   });
-

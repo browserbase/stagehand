@@ -13,7 +13,9 @@ Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) a
       method: z.enum(["press", "type"]),
       value: z
         .string()
-        .describe("The text to type, or the key/combo to press (Enter, Tab, Cmd+A)"),
+        .describe(
+          "The text to type, or the key/combo to press (Enter, Tab, Cmd+A)",
+        ),
       repeat: z.number().optional(),
     }),
     execute: async ({ method, value, repeat }) => {
@@ -63,4 +65,3 @@ Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) a
       }
     },
   });
-

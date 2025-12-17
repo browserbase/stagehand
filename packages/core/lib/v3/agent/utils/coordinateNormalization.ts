@@ -27,4 +27,3 @@ export function processCoordinates(
   }
   return { x, y };
 }
-

@@ -1,7 +1,10 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
-import { processCoordinates, isGoogleProvider } from "../utils/coordinateNormalization";
+import {
+  processCoordinates,
+  isGoogleProvider,
+} from "../utils/coordinateNormalization";
 
 function waitForTimeout(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -25,7 +28,11 @@ export const createTypeTool = (v3: V3, provider?: string) =>
     execute: async ({ describe, coordinates, text }) => {
       try {
         const page = await v3.context.awaitActivePage();
-        const processed = processCoordinates(coordinates[0], coordinates[1], provider);
+        const processed = processCoordinates(
+          coordinates[0],
+          coordinates[1],
+          provider,
+        );
 
         v3.logger({
           category: "agent",
@@ -48,7 +55,10 @@ export const createTypeTool = (v3: V3, provider?: string) =>
         v3.recordAgentReplayStep({
           type: "type",
           instruction: describe,
-          playwrightArguments: { coordinates: [processed.x, processed.y], text },
+          playwrightArguments: {
+            coordinates: [processed.x, processed.y],
+            text,
+          },
         });
         return { success: true, describe, text };
       } catch (error) {
@@ -59,4 +69,3 @@ export const createTypeTool = (v3: V3, provider?: string) =>
       }
     },
   });
-

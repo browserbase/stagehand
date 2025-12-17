@@ -6,8 +6,6 @@ export interface BraveSearchResult {
   title: string;
   url: string;
   description?: string;
-  age?: string;
-  favicon?: string;
 }
 
 interface SearchResponse {
@@ -41,11 +39,11 @@ async function performBraveSearch(query: string): Promise<SearchResponse> {
       {
         method: "GET",
         headers: {
-          "Accept": "application/json",
+          Accept: "application/json",
           "Accept-Encoding": "gzip",
           "X-Subscription-Token": process.env.BRAVE_API_KEY!,
         },
-      }
+      },
     );
 
     if (!response.ok) {
@@ -64,7 +62,7 @@ async function performBraveSearch(query: string): Promise<SearchResponse> {
           results.push({
             title: item.title,
             url: item.url,
-            description: item.description
+            description: item.description,
           });
         }
       }

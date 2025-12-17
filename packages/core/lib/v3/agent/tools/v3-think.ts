@@ -25,4 +25,3 @@ The output is only visible to you; use it to track your own reasoning process.`,
       };
     },
   });
-

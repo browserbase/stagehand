@@ -19,8 +19,16 @@ export const createDragAndDropTool = (v3: V3, provider?: string) =>
     execute: async ({ describe, startCoordinates, endCoordinates }) => {
       try {
         const page = await v3.context.awaitActivePage();
-        const processedStart = processCoordinates(startCoordinates[0], startCoordinates[1], provider);
-        const processedEnd = processCoordinates(endCoordinates[0], endCoordinates[1], provider);
+        const processedStart = processCoordinates(
+          startCoordinates[0],
+          startCoordinates[1],
+          provider,
+        );
+        const processedEnd = processCoordinates(
+          endCoordinates[0],
+          endCoordinates[1],
+          provider,
+        );
 
         v3.logger({
           category: "agent",
@@ -28,7 +36,13 @@ export const createDragAndDropTool = (v3: V3, provider?: string) =>
           level: 1,
           auxiliary: {
             arguments: {
-              value: JSON.stringify({ describe, startCoordinates, endCoordinates, processedStart, processedEnd }),
+              value: JSON.stringify({
+                describe,
+                startCoordinates,
+                endCoordinates,
+                processedStart,
+                processedEnd,
+              }),
               type: "string",
             },
           },
@@ -56,4 +70,3 @@ export const createDragAndDropTool = (v3: V3, provider?: string) =>
       }
     },
   });
-
