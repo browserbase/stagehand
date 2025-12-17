@@ -4,6 +4,9 @@ import type { CDPSessionLike } from "../cdp";
 import { Page } from "../page";
 import { executionContexts } from "../executionContextRegistry";
 import { v3Logger } from "../../logger";
+import { a11yScriptSources } from "../../dom/build/a11yScripts.generated";
+import { buildA11yInvocation } from "../a11yInvocation";
+import { buildLocatorInvocation } from "../locatorInvocation";
 import {
   StagehandDomProcessError,
   StagehandIframeError,
@@ -104,13 +107,14 @@ export async function resolveXpathForLocation(
         const ctxId = await executionContexts
           .waitForMainWorld(curSession, curFrameId)
           .catch(() => {});
+        const scrollExpr = buildA11yInvocation("getScrollOffsets", []);
         const evalParams = ctxId
           ? {
               contextId: ctxId,
-              expression: scrollOffsetsExpr(),
+              expression: scrollExpr,
               returnByValue: true,
             }
-          : { expression: scrollOffsetsExpr(), returnByValue: true };
+          : { expression: scrollExpr, returnByValue: true };
         const { result } = await curSession.send<{
           result: { value?: { sx?: number; sy?: number } };
         }>("Runtime.evaluate", evalParams);
@@ -205,8 +209,7 @@ export async function resolveXpathForLocation(
             result: { value?: { left: number; top: number } };
           }>("Runtime.callFunctionOn", {
             objectId,
-            functionDeclaration:
-              "function(){ const r=this.getBoundingClientRect(); return {left:r.left, top:r.top}; }",
+            functionDeclaration: a11yScriptSources.getBoundingRectLite,
             returnByValue: true,
           });
           left = Number(result?.value?.left ?? 0);
@@ -256,13 +259,14 @@ export async function computeActiveElementXpath(
       const ctxId = await executionContexts
         .waitForMainWorld(sess, fid, 1000)
         .catch(() => {});
+      const hasFocusExpr = buildA11yInvocation("documentHasFocusStrict", []);
       const evalParams = ctxId
         ? {
             contextId: ctxId,
-            expression: "document.hasFocus()===true",
+            expression: hasFocusExpr,
             returnByValue: true,
           }
-        : { expression: "document.hasFocus()===true", returnByValue: true };
+        : { expression: hasFocusExpr, returnByValue: true };
       const { result } = await sess.send<Protocol.Runtime.EvaluateResponse>(
         "Runtime.evaluate",
         evalParams,
@@ -285,21 +289,14 @@ export async function computeActiveElementXpath(
     const ctxId = await executionContexts
       .waitForMainWorld(focusedSession, focusedFrameId, 1000)
       .catch(() => {});
-    const expr = `(() => {
-      try {
-        function deepActive(doc) {
-          let el = doc.activeElement || null;
-          while (el && el.shadowRoot && el.shadowRoot.activeElement) {
-            el = el.shadowRoot.activeElement;
-          }
-          return el || null;
-        }
-        return deepActive(document);
-      } catch { return null; }
-    })()`;
+    const activeExpr = buildA11yInvocation("resolveDeepActiveElement", []);
     const evalParams = ctxId
-      ? { contextId: ctxId, expression: expr, returnByValue: false }
-      : { expression: expr, returnByValue: false };
+      ? {
+          contextId: ctxId,
+          expression: activeExpr,
+          returnByValue: false,
+        }
+      : { expression: activeExpr, returnByValue: false };
     const { result } =
       await focusedSession.send<Protocol.Runtime.EvaluateResponse>(
         "Runtime.evaluate",
@@ -318,48 +315,7 @@ export async function computeActiveElementXpath(
         result: { value?: string };
       }>("Runtime.callFunctionOn", {
         objectId,
-        functionDeclaration: `function() {
-            try {
-              const node = this;
-              function sibIndex(n) {
-                let i = 1; const t = n.nodeType+':'+(n.nodeName||'').toLowerCase();
-                for (let p = n.previousSibling; p; p = p.previousSibling) {
-                  const key = p.nodeType+':'+(p.nodeName||'').toLowerCase();
-                  if (key === t) i++;
-                }
-                return i;
-              }
-              function step(n) {
-                if (!n) return '';
-                if (n.nodeType === Node.DOCUMENT_NODE) return '';
-                if (n.nodeType === Node.DOCUMENT_FRAGMENT_NODE) return '//';
-                if (n.nodeType === Node.TEXT_NODE) return 'text()[' + sibIndex(n) + ']';
-                if (n.nodeType === Node.COMMENT_NODE) return 'comment()[' + sibIndex(n) + ']';
-                const tag = (n.nodeName||'').toLowerCase();
-                const name = tag.includes(':') ? "*[name()='"+tag+"']" : tag;
-                return name + '[' + sibIndex(n) + ']';
-              }
-              const parts = [];
-              let cur = node;
-              while (cur) {
-                if (cur.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
-                  parts.push('//');
-                  cur = (cur && cur.host) ? cur.host : null;
-                  continue;
-                }
-                const s = step(cur);
-                if (s) parts.push(s);
-                cur = cur.parentNode;
-              }
-              parts.reverse();
-              let out = '';
-              for (const s of parts) {
-                if (s === '//') out = out ? (out.endsWith('/') ? out + '/' : out + '//') : '//';
-                else out = out ? (out.endsWith('/') ? out + s : out + '/' + s) : '/' + s;
-              }
-              return out || '/';
-            } catch { return ''; }
-          }`,
+        functionDeclaration: a11yScriptSources.nodeToAbsoluteXPath,
         returnByValue: true,
       });
       try {
@@ -405,10 +361,6 @@ export async function computeActiveElementXpath(
   return prefix ? prefixXPath(prefix, leafXPath) : normalizeXPath(leafXPath);
 }
 
-function scrollOffsetsExpr(): string {
-  return "({sx:(window.scrollX||window.pageXOffset||0),sy:(window.scrollY||window.pageYOffset||0)})";
-}
-
 async function buildAbsoluteXPathFromChain(
   chain: Array<{
     parentFrameId: string;
@@ -451,49 +403,7 @@ async function absoluteXPathForBackendNode(
       "Runtime.callFunctionOn",
       {
         objectId,
-        functionDeclaration: `function() {
-          try {
-            const node = this;
-            function sibIndex(n) {
-              let i = 1; const t = n.nodeType+':'+(n.nodeName||'').toLowerCase();
-              for (let p = n.previousSibling; p; p = p.previousSibling) {
-                const key = p.nodeType+':'+(p.nodeName||'').toLowerCase();
-                if (key === t) i++;
-              }
-              return i;
-            }
-            function step(n) {
-              if (!n) return '';
-              if (n.nodeType === Node.DOCUMENT_NODE) return '';
-              if (n.nodeType === Node.DOCUMENT_FRAGMENT_NODE) return '//'; // ShadowRoot hop
-              if (n.nodeType === Node.TEXT_NODE) return 'text()[' + sibIndex(n) + ']';
-              if (n.nodeType === Node.COMMENT_NODE) return 'comment()[' + sibIndex(n) + ']';
-              const tag = (n.nodeName||'').toLowerCase();
-              const name = tag.includes(':') ? "*[name()='"+tag+"']" : tag;
-              return name + '[' + sibIndex(n) + ']';
-            }
-            const parts = [];
-            let cur = node;
-            while (cur) {
-              // Insert a marker before stepping out of a ShadowRoot
-              if (cur.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
-                parts.push('//');
-                cur = (cur && cur.host) ? cur.host : null;
-                continue;
-              }
-              const s = step(cur);
-              if (s) parts.push(s);
-              cur = cur.parentNode;
-            }
-            parts.reverse();
-            let out = '';
-            for (const s of parts) {
-              if (s === '//') out = out ? (out.endsWith('/') ? out + '/' : out + '//') : '//';
-              else out = out ? (out.endsWith('/') ? out + s : out + '/' + s) : '/' + s;
-            }
-            return out || '/';
-          } catch { return ''; }
-        }`,
+        functionDeclaration: a11yScriptSources.nodeToAbsoluteXPath,
         returnByValue: true,
       },
     );
@@ -1574,18 +1484,10 @@ async function resolveObjectIdForXPath(
   } catch {
     contextId = undefined;
   }
-  const expr = `(() => {
-    const xp = ${JSON.stringify(xpath)};
-    try {
-      if (window.__stagehandV3__ && typeof window.__stagehandV3__.resolveSimpleXPath === 'function') {
-        return window.__stagehandV3__.resolveSimpleXPath(xp);
-      }
-    } catch {}
-    try {
-      const res = document.evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-      return res.singleNodeValue;
-    } catch { return null; }
-  })()`;
+  const expr = buildLocatorInvocation("resolveXPathMainWorld", [
+    JSON.stringify(xpath),
+    "0",
+  ]);
   const { result, exceptionDetails } = await session.send<{
     result: { objectId?: string | undefined };
     exceptionDetails?: Protocol.Runtime.ExceptionDetails;
@@ -1617,65 +1519,32 @@ async function resolveObjectIdForCss(
   } catch {
     contextId = undefined;
   }
-  const expr = `(() => {
-    const selector = ${JSON.stringify(selector)};
-    function queryOpenDeep(root) {
-      try {
-        const hit = root.querySelector(selector);
-        if (hit) return hit;
-      } catch {}
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
-      let n;
-      while ((n = walker.nextNode())) {
-        if (n.shadowRoot) {
-          const found = queryOpenDeep(n.shadowRoot);
-          if (found) return found;
-        }
-      }
-      return null;
-    }
-    const backdoor = window.__stagehandV3__;
-    if (backdoor && typeof backdoor.getClosedRoot === 'function') {
-      function* roots() {
-        yield document;
-        const queue = [];
-        try {
-          const w = document.createTreeWalker(document, NodeFilter.SHOW_ELEMENT);
-          let e; while ((e = w.nextNode())) {
-            if (e.shadowRoot) queue.push(e.shadowRoot);
-            try { const closed = backdoor.getClosedRoot(e); if (closed) queue.push(closed); } catch {}
-          }
-        } catch {}
-        while (queue.length) {
-          const r = queue.shift();
-          yield r;
-          try {
-            const w2 = document.createTreeWalker(r, NodeFilter.SHOW_ELEMENT);
-            let e2; while ((e2 = w2.nextNode())) {
-              if (e2.shadowRoot) queue.push(e2.shadowRoot);
-              try { const closed2 = backdoor.getClosedRoot(e2); if (closed2) queue.push(closed2); } catch {}
-            }
-          } catch {}
-        }
-      }
-      for (const r of roots()) {
-        try { const hit = r.querySelector(selector); if (hit) return hit; } catch {}
-      }
-      return null;
-    }
-    return queryOpenDeep(document);
-  })()`;
-  const { result, exceptionDetails } = await session.send<{
-    result: { objectId?: string | undefined };
-    exceptionDetails?: Protocol.Runtime.ExceptionDetails;
-  }>("Runtime.evaluate", {
-    expression: expr,
-    returnByValue: false,
-    contextId,
-    awaitPromise: true,
-  });
-  if (exceptionDetails) return null;
-  return result?.objectId ?? null;
+  const primaryExpr = buildLocatorInvocation("resolveCssSelector", [
+    JSON.stringify(selector),
+    "0",
+  ]);
+  const fallbackExpr = buildLocatorInvocation("resolveCssSelectorPierce", [
+    JSON.stringify(selector),
+    "0",
+  ]);
+
+  const evaluate = async (expression: string): Promise<string | null> => {
+    const { result, exceptionDetails } = await session.send<{
+      result: { objectId?: string | undefined };
+      exceptionDetails?: Protocol.Runtime.ExceptionDetails;
+    }>("Runtime.evaluate", {
+      expression,
+      returnByValue: false,
+      contextId,
+      awaitPromise: true,
+    });
+    if (exceptionDetails) return null;
+    return result?.objectId ?? null;
+  };
+
+  const primary = await evaluate(primaryExpr);
+  if (primary) return primary;
+  return evaluate(fallbackExpr);
 }
 
 function decorateRoles(
