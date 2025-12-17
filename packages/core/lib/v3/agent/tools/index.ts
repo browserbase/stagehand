@@ -79,10 +79,7 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     keys: keysTool(v3),
     navback: navBackTool(v3),
     screenshot: screenshotTool(v3),
-    scroll:
-      mode === "hybrid"
-        ? scrollVisionTool(v3, provider)
-        : scrollTool(v3),
+    scroll: mode === "hybrid" ? scrollVisionTool(v3, provider) : scrollTool(v3),
     think: thinkTool(),
     type: typeTool(v3, provider),
     wait: waitTool(v3),
