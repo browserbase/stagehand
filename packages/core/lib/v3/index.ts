@@ -2,6 +2,7 @@ export { V3 } from "./v3";
 export { V3 as Stagehand } from "./v3";
 
 export * from "./types/public";
+export { NavigateResponseSchema as navigateResponseSchema } from "./types/public/api";
 export { AnnotatedScreenshotText, LLMClient } from "./llm/LLMClient";
 
 export { AgentProvider, modelToAgentProviderMap } from "./agent/AgentProvider";

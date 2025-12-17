@@ -14,7 +14,7 @@
  */
 
 import type { Protocol } from "devtools-protocol";
-import type { NavigateResponse as SerializableResponse } from "../types/private";
+import type { SerializableResponse } from "../types/private";
 import {
   ResponseBodyError,
   ResponseParseError,

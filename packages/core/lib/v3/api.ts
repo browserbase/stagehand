@@ -23,6 +23,7 @@ import type {
   ObserveOptions,
   Api,
 } from "./types/public";
+import type { SerializableResponse } from "./types/private";
 import { toJsonSchema } from "./zodCompat";
 import type { StagehandZodSchema } from "./zodCompat";
 
@@ -290,15 +291,14 @@ export class StagehandAPIClient {
     url: string,
     options?: Api.NavigateRequest["options"],
     frameId?: string,
-  ): Promise<Api.NavigateResultData | null> {
-    // Build wire-format request body
+  ): Promise<SerializableResponse | null> {
     const requestBody: Api.NavigateRequest = { url, options, frameId };
 
     const result = await this.execute<Api.NavigateResult>({
       method: "navigate",
       args: requestBody,
     });
-    return result.result;
+    return result.result as SerializableResponse | null;
   }
 
   async agentExecute(
