@@ -46,7 +46,7 @@ export function resolveDeepActiveElement(): Element | null {
   }
 }
 
-export function nodeToAbsoluteXPath(this: Node | null | undefined): string {
+const nodeToAbsoluteXPathImpl = (node: Node | null | undefined): string => {
   try {
     const sibIndex = (n: Node | null | undefined): number => {
       if (!n || !n.parentNode) return 1;
@@ -71,7 +71,7 @@ export function nodeToAbsoluteXPath(this: Node | null | undefined): string {
     };
 
     const parts: string[] = [];
-    let cur: Node | null | undefined = this;
+    let cur: Node | null | undefined = node;
     while (cur) {
       if (cur.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
         parts.push("//");
@@ -100,6 +100,10 @@ export function nodeToAbsoluteXPath(this: Node | null | undefined): string {
   } catch {
     return "/";
   }
+};
+
+export function nodeToAbsoluteXPath(this: Node | null | undefined): string {
+  return nodeToAbsoluteXPathImpl(this);
 }
 
 export function documentHasFocusStrict(): boolean {
