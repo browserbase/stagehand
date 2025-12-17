@@ -6,7 +6,7 @@ export const arxiv_gpt_report: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -14,7 +14,7 @@ export const arxiv_gpt_report: EvalFunction = async ({
     const evaluator = new V3Evaluator(v3);
     await page.goto("https://arxiv.org/");
 
-    await v3Agent.execute({
+    await agent.execute({
       instruction:
         "Find the paper 'GPT-4 Technical Report', when was v3 submitted?",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,

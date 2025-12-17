@@ -26,6 +26,7 @@ export const publicErrorTypes = {
   StagehandAPIError: Stagehand.StagehandAPIError,
   StagehandAPIUnauthorizedError: Stagehand.StagehandAPIUnauthorizedError,
   StagehandClickError: Stagehand.StagehandClickError,
+  StagehandClosedError: Stagehand.StagehandClosedError,
   StagehandDefaultError: Stagehand.StagehandDefaultError,
   StagehandDomProcessError: Stagehand.StagehandDomProcessError,
   StagehandElementNotFoundError: Stagehand.StagehandElementNotFoundError,

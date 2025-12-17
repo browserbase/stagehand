@@ -1092,6 +1092,7 @@ export class V3 {
             this.domSettleTimeoutMs,
             this.resolveLlmClient(options?.model),
             ensureTimeRemaining,
+            options?.variables,
           );
         }
 
@@ -1438,6 +1439,17 @@ export class V3 {
       } catch {
         // ignore
       }
+      // Clear all event bus listeners to prevent memory leaks and hanging handlers
+      try {
+        this.bus.removeAllListeners();
+      } catch {
+        // ignore
+      }
+      // Clear accumulated data to free memory
+      this._history = [];
+      this.actHandler = null;
+      this.extractHandler = null;
+      this.observeHandler = null;
       // Remove from global registry
       V3._instances.delete(this);
     }

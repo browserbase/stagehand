@@ -5,7 +5,7 @@ export const kayak: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -13,11 +13,11 @@ export const kayak: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://www.kayak.com");
 
-    await v3Agent.execute({
+    await agent.execute({
       instruction: "Find flights from San Francisco to Tokyo next week",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
     });
-    await v3Agent.execute({
+    await agent.execute({
       instruction: "Sort the flights by price",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 8,
     });
