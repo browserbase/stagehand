@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { V3 } from "../../v3";
 import { processCoordinates } from "../utils/coordinateNormalization";
 
-export const createDragAndDropTool = (v3: V3, provider?: string) =>
+export const dragAndDropTool = (v3: V3, provider?: string) =>
   tool({
     description:
       "Drag and drop an element using its coordinates (this is the most reliable way to drag and drop an element, always use this over act, unless the element is not visible in the screenshot, but shown in ariaTree)",

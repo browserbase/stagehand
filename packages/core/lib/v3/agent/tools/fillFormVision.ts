@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { V3 } from "../../v3";
 import { processCoordinates } from "../utils/coordinateNormalization";
 
-export const createFillFormVisionTool = (v3: V3, provider?: string) =>
+export const fillFormVisionTool = (v3: V3, provider?: string) =>
   tool({
     description: `FORM FILL - SPECIALIZED MULTI-FIELD INPUT TOOL
 

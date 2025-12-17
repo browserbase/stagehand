@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { V3 } from "../../v3";
 import { processCoordinates } from "../utils/coordinateNormalization";
 
-export const createClickAndHoldTool = (v3: V3, provider?: string) =>
+export const clickAndHoldTool = (v3: V3, provider?: string) =>
   tool({
     description: "Click and hold on an element using its coordinates",
     inputSchema: z.object({

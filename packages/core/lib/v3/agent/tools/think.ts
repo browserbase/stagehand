@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 
-export const createThinkTool = () =>
+export const thinkTool = () =>
   tool({
     description: `Use this tool to think through complex problems or plan a sequence of steps. This is for internal reasoning only and doesn't perform any actions. Use this to:
 

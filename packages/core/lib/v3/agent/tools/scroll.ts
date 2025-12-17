@@ -7,7 +7,7 @@ import { processCoordinates } from "../utils/coordinateNormalization";
  * Simple scroll tool for DOM mode (non-grounding models).
  * No coordinates - scrolls from viewport center.
  */
-export const createScrollTool = (v3: V3) =>
+export const scrollTool = (v3: V3) =>
   tool({
     description:
       "Scroll the page up or down by a percentage of the viewport height. Default is 80%, and what should be typically used for general page scrolling",
@@ -61,7 +61,7 @@ export const createScrollTool = (v3: V3) =>
  * Scroll tool for hybrid mode (grounding models).
  * Supports optional coordinates for scrolling within nested scrollable elements.
  */
-export const createScrollVisionTool = (v3: V3, provider?: string) =>
+export const scrollVisionTool = (v3: V3, provider?: string) =>
   tool({
     description: `Scroll the page up or down. For general page scrolling, no coordinates needed. Only provide coordinates when scrolling inside a nested scrollable element (e.g., a dropdown menu, modal with overflow, or scrollable sidebar). Default is 80%, and what should be typically used for general page scrolling`,
     inputSchema: z.object({

@@ -10,21 +10,22 @@ function waitForTimeout(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export const createClickTool = (v3: V3, provider?: string) =>
+export const typeTool = (v3: V3, provider?: string) =>
   tool({
     description:
-      "Click on an element using its coordinates (this is the most reliable way to click on an element, always use this over act, unless the element is not visible in the screenshot, but shown in ariaTree)",
+      "Type text into an element using its coordinates. This will click the element and then type the text into it (this is the most reliable way to type into an element, always use this over act, unless the element is not visible in the screenshot, but shown in ariaTree)",
     inputSchema: z.object({
       describe: z
         .string()
         .describe(
-          "Describe the element to click on in a short, specific phrase that mentions the element type and a good visual description",
+          "Describe the element to type into in a short, specific phrase that mentions the element type and a good visual description",
         ),
+      text: z.string().describe("The text to type into the element"),
       coordinates: z
         .array(z.number())
-        .describe("The (x, y) coordinates to click on"),
+        .describe("The (x, y) coordinates to type into the element"),
     }),
-    execute: async ({ describe, coordinates }) => {
+    execute: async ({ describe, coordinates, text }) => {
       try {
         const page = await v3.context.awaitActivePage();
         const processed = processCoordinates(
@@ -35,34 +36,35 @@ export const createClickTool = (v3: V3, provider?: string) =>
 
         v3.logger({
           category: "agent",
-          message: `Agent calling tool: click`,
+          message: `Agent calling tool: type`,
           level: 1,
           auxiliary: {
             arguments: {
-              value: JSON.stringify({ describe, coordinates, processed }),
+              value: JSON.stringify({ describe, coordinates, processed, text }),
               type: "string",
             },
           },
         });
+        // Click the element first, then type
         await page.click(processed.x, processed.y);
         // Google models need extra delay for page to settle after click
         if (isGoogleProvider(provider)) {
           await waitForTimeout(1000);
         }
+        await page.type(text);
         v3.recordAgentReplayStep({
-          type: "click",
+          type: "type",
           instruction: describe,
-          playwrightArguments: { coordinates: [processed.x, processed.y] },
+          playwrightArguments: {
+            coordinates: [processed.x, processed.y],
+            text,
+          },
         });
-        return {
-          success: true,
-          describe,
-          coordinates: [processed.x, processed.y],
-        };
+        return { success: true, describe, text };
       } catch (error) {
         return {
           success: false,
-          error: `Error clicking: ${(error as Error).message}`,
+          error: `Error typing: ${(error as Error).message}`,
         };
       }
     },

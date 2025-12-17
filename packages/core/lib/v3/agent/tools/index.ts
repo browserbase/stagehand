@@ -1,21 +1,21 @@
-import { createGotoTool } from "./v3-goto";
-import { createActTool } from "./v3-act";
-import { createScreenshotTool } from "./v3-screenshot";
-import { createWaitTool } from "./v3-wait";
-import { createNavBackTool } from "./v3-navback";
-import { createCloseTool } from "./v3-close";
-import { createAriaTreeTool } from "./v3-ariaTree";
-import { createFillFormTool } from "./v3-fillform";
-import { createScrollTool, createScrollVisionTool } from "./v3-scroll";
-import { createExtractTool } from "./v3-extract";
-import { createClickTool } from "./v3-click";
-import { createTypeTool } from "./v3-type";
-import { createDragAndDropTool } from "./v3-dragAndDrop";
-import { createClickAndHoldTool } from "./v3-clickAndHold";
-import { createKeysTool } from "./v3-keys";
-import { createFillFormVisionTool } from "./v3-fillFormVision";
-import { createThinkTool } from "./v3-think";
-import { createSearchTool } from "./v3-search";
+import { gotoTool } from "./goto";
+import { actTool } from "./act";
+import { screenshotTool } from "./screenshot";
+import { waitTool } from "./wait";
+import { navBackTool } from "./navback";
+import { closeTool } from "./close";
+import { ariaTreeTool } from "./ariaTree";
+import { fillFormTool } from "./fillform";
+import { scrollTool, scrollVisionTool } from "./scroll";
+import { extractTool } from "./extract";
+import { clickTool } from "./click";
+import { typeTool } from "./type";
+import { dragAndDropTool } from "./dragAndDrop";
+import { clickAndHoldTool } from "./clickAndHold";
+import { keysTool } from "./keys";
+import { fillFormVisionTool } from "./fillFormVision";
+import { thinkTool } from "./think";
+import { searchTool } from "./search";
 
 import type { ToolSet, InferUITools } from "ai";
 import type { V3 } from "../../v3";
@@ -66,31 +66,31 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const provider = options?.provider;
 
   const allTools: ToolSet = {
-    act: createActTool(v3, executionModel),
-    ariaTree: createAriaTreeTool(v3),
-    click: createClickTool(v3, provider),
-    clickAndHold: createClickAndHoldTool(v3, provider),
-    close: createCloseTool(),
-    dragAndDrop: createDragAndDropTool(v3, provider),
-    extract: createExtractTool(v3, executionModel, options?.logger),
-    fillForm: createFillFormTool(v3, executionModel),
-    fillFormVision: createFillFormVisionTool(v3, provider),
-    goto: createGotoTool(v3),
-    keys: createKeysTool(v3),
-    navback: createNavBackTool(v3),
-    screenshot: createScreenshotTool(v3),
+    act: actTool(v3, executionModel),
+    ariaTree: ariaTreeTool(v3),
+    click: clickTool(v3, provider),
+    clickAndHold: clickAndHoldTool(v3, provider),
+    close: closeTool(),
+    dragAndDrop: dragAndDropTool(v3, provider),
+    extract: extractTool(v3, executionModel, options?.logger),
+    fillForm: fillFormTool(v3, executionModel),
+    fillFormVision: fillFormVisionTool(v3, provider),
+    goto: gotoTool(v3),
+    keys: keysTool(v3),
+    navback: navBackTool(v3),
+    screenshot: screenshotTool(v3),
     scroll:
       mode === "hybrid"
-        ? createScrollVisionTool(v3, provider)
-        : createScrollTool(v3),
-    think: createThinkTool(),
-    type: createTypeTool(v3, provider),
-    wait: createWaitTool(v3),
+        ? scrollVisionTool(v3, provider)
+        : scrollTool(v3),
+    think: thinkTool(),
+    type: typeTool(v3, provider),
+    wait: waitTool(v3),
   };
 
   // Only include search tool if BRAVE_API_KEY is configured
   if (process.env.BRAVE_API_KEY) {
-    allTools.search = createSearchTool(v3);
+    allTools.search = searchTool(v3);
   }
 
   return filterToolsByMode(allTools, mode);
@@ -103,26 +103,24 @@ export type AgentTools = ReturnType<typeof createAgentTools>;
  * Note: `search` is optional as it's only available when BRAVE_API_KEY is configured.
  */
 export type AgentToolTypesMap = {
-  act: ReturnType<typeof createActTool>;
-  ariaTree: ReturnType<typeof createAriaTreeTool>;
-  click: ReturnType<typeof createClickTool>;
-  clickAndHold: ReturnType<typeof createClickAndHoldTool>;
-  close: ReturnType<typeof createCloseTool>;
-  dragAndDrop: ReturnType<typeof createDragAndDropTool>;
-  extract: ReturnType<typeof createExtractTool>;
-  fillForm: ReturnType<typeof createFillFormTool>;
-  fillFormVision: ReturnType<typeof createFillFormVisionTool>;
-  goto: ReturnType<typeof createGotoTool>;
-  keys: ReturnType<typeof createKeysTool>;
-  navback: ReturnType<typeof createNavBackTool>;
-  screenshot: ReturnType<typeof createScreenshotTool>;
-  scroll:
-    | ReturnType<typeof createScrollTool>
-    | ReturnType<typeof createScrollVisionTool>;
-  search?: ReturnType<typeof createSearchTool>;
-  think: ReturnType<typeof createThinkTool>;
-  type: ReturnType<typeof createTypeTool>;
-  wait: ReturnType<typeof createWaitTool>;
+  act: ReturnType<typeof actTool>;
+  ariaTree: ReturnType<typeof ariaTreeTool>;
+  click: ReturnType<typeof clickTool>;
+  clickAndHold: ReturnType<typeof clickAndHoldTool>;
+  close: ReturnType<typeof closeTool>;
+  dragAndDrop: ReturnType<typeof dragAndDropTool>;
+  extract: ReturnType<typeof extractTool>;
+  fillForm: ReturnType<typeof fillFormTool>;
+  fillFormVision: ReturnType<typeof fillFormVisionTool>;
+  goto: ReturnType<typeof gotoTool>;
+  keys: ReturnType<typeof keysTool>;
+  navback: ReturnType<typeof navBackTool>;
+  screenshot: ReturnType<typeof screenshotTool>;
+  scroll: ReturnType<typeof scrollTool> | ReturnType<typeof scrollVisionTool>;
+  search?: ReturnType<typeof searchTool>;
+  think: ReturnType<typeof thinkTool>;
+  type: ReturnType<typeof typeTool>;
+  wait: ReturnType<typeof waitTool>;
 };
 
 /**
