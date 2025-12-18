@@ -697,14 +697,14 @@ export class V3 {
               this.opts.localBrowserLaunchOptions ?? {},
             );
 
-          // If a CDP URL is provided, attach instead of launching.
-          if (lbo.cdpUrl) {
+          // If a connect URL is provided, attach instead of launching.
+          if (lbo.connectUrl) {
             this.logger({
               category: "init",
               message: "Connecting to local browser",
               level: 1,
             });
-            this.ctx = await V3Context.create(lbo.cdpUrl, {
+            this.ctx = await V3Context.create(lbo.connectUrl, {
               env: "LOCAL",
             });
             const logCtx = SessionFileLogger.getContext();
@@ -719,7 +719,7 @@ export class V3 {
               chrome: {
                 kill: async () => {},
               } as unknown as import("chrome-launcher").LaunchedChrome,
-              ws: lbo.cdpUrl,
+              ws: lbo.connectUrl,
             };
             this.resetBrowserbaseSessionMetadata();
             // Post-connect settings (downloads and viewport) if provided
@@ -869,7 +869,7 @@ export class V3 {
               browserbaseSessionID: this.opts.browserbaseSessionID,
               browser: {
                 type: this.opts.browser?.type ?? "browserbase",
-                cdpUrl: this.opts.browser?.cdpUrl,
+                connectUrl: this.opts.browser?.connectUrl,
                 launchOptions:
                   this.opts.browser?.launchOptions ??
                   this.opts.localBrowserLaunchOptions,
@@ -881,9 +881,9 @@ export class V3 {
             // Persist API-issued sessionId for downstream use
             this.opts.browserbaseSessionID = sessionId;
           }
-          // If server returned a direct CDP URL, attach to it instead of creating/resuming
-          if (this.opts.localBrowserLaunchOptions?.cdpUrl) {
-            const ws = this.opts.localBrowserLaunchOptions.cdpUrl;
+          // If server returned a direct connect URL, attach to it instead of creating/resuming
+          if (this.opts.localBrowserLaunchOptions?.connectUrl) {
+            const ws = this.opts.localBrowserLaunchOptions.connectUrl;
             const isLocalApi =
               (this.opts.browser?.type ?? "browserbase") === "local";
 
@@ -921,10 +921,10 @@ export class V3 {
             this.browserbaseSessionUrl = `https://www.browserbase.com/sessions/${this.browserbaseSessionId}`;
             return;
           }
-          // If we're in local-browser API mode and still no cdpUrl, fail fast
+          // If we're in local-browser API mode and still no connectUrl, fail fast
           if ((this.opts.browser?.type ?? "browserbase") === "local") {
             throw new StagehandInitError(
-              "API mode requested local browser, but server did not return a cdpUrl.",
+              "API mode requested local browser, but server did not return a connectUrl.",
             );
           }
           const { ws, sessionId, bb } = await createBrowserbaseSession(

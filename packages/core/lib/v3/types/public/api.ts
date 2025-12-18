@@ -39,7 +39,7 @@ export const LocalBrowserLaunchOptionsSchema = z
     deviceScaleFactor: z.number().optional(),
     hasTouch: z.boolean().optional(),
     ignoreHTTPSErrors: z.boolean().optional(),
-    cdpUrl: z.string().optional(),
+    connectUrl: z.string().optional(),
     connectTimeoutMs: z.number().optional(),
     downloadsPath: z.string().optional(),
     acceptDownloads: z.boolean().optional(),
@@ -126,7 +126,7 @@ export const BrowserConfigSchema = z
       description: "Browser type to use",
       example: "local",
     }),
-    cdpUrl: z.string().optional().meta({
+    connectUrl: z.string().optional().meta({
       description:
         "Chrome DevTools Protocol URL for connecting to existing browser",
       example: "ws://localhost:9222",
@@ -362,7 +362,8 @@ export const SessionStartResultSchema = z
       example: "c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123",
     }),
     connectUrl: z.string().meta({
-      description: "CDP WebSocket URL for connecting to the Browserbase cloud browser",
+      description:
+        "CDP WebSocket URL for connecting to the Browserbase cloud browser",
       example: "wss://connect.browserbase.com/?signingKey=abc123",
     }),
     available: z.boolean(),
@@ -999,6 +1000,7 @@ export type BrowserbaseSessionCreateParams = z.infer<
 
 // Type check: ensure our schema-derived type is assignable to the SDK type
 // This will cause a compile error if our schema drifts from the SDK
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _BrowserbaseSessionCreateParamsCheck =
   BrowserbaseSessionCreateParams extends Browserbase.Sessions.SessionCreateParams
     ? true

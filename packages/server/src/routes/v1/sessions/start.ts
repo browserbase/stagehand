@@ -1,7 +1,7 @@
 import type { RouteHandler, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import Browserbase from "@browserbasehq/sdk";
-import { Api, localBrowserLaunchOptionsSchema } from "@browserbasehq/stagehand";
+import { Api } from "@browserbasehq/stagehand";
 import type { SessionRetrieveResponse } from "@browserbasehq/sdk/resources/sessions/sessions";
 import { type FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 import { z } from "zod/v4";
@@ -17,14 +17,14 @@ import { AISDK_PROVIDERS } from "../../../types/model.js";
 const startBodySchema = Api.SessionStartRequestSchema.superRefine(
   (value, ctx) => {
     if (value.browser?.type === "local") {
-      const hasCdp = Boolean(value.browser.cdpUrl);
+      const hasConnect = Boolean(value.browser.connectUrl);
       const hasLaunch = Boolean(value.browser.launchOptions);
-      if (!hasCdp && !hasLaunch) {
+      if (!hasConnect && !hasLaunch) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["browser"],
           message:
-            "When browser.type is 'local', provide either browser.cdpUrl or browser.launchOptions.",
+            "When browser.type is 'local', provide either browser.connectUrl or browser.launchOptions.",
         });
       }
     }
@@ -53,7 +53,10 @@ const startRouteHandler: RouteHandler = withErrorHandling(
 
     // Cast to Api.SessionStartRequest with properly typed browserbaseSessionCreateParams
     // The API schema uses Record<string, unknown> for flexibility, but we need the SDK types here
-    type RequestBody = Omit<Api.SessionStartRequest, "browserbaseSessionCreateParams"> & {
+    type RequestBody = Omit<
+      Api.SessionStartRequest,
+      "browserbaseSessionCreateParams"
+    > & {
       browserbaseSessionCreateParams?: Omit<
         Browserbase.Sessions.SessionCreateParams,
         "projectId"
@@ -71,8 +74,6 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       experimental,
       browser,
     } = request.body as RequestBody;
-    const modelApiKey = getOptionalHeader(request, "x-model-api-key");
-
     if (!modelName) {
       return error(reply, "Missing required model name");
     }
@@ -101,7 +102,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
     let bbApiKey: string | undefined;
     let bbProjectId: string | undefined;
     let browserbaseSessionId: string | undefined;
-    let cdpUrl: string | undefined;
+    let connectUrl: string | undefined;
 
     if (browserType === "browserbase") {
       bbApiKey = getOptionalHeader(request, "x-bb-api-key");
@@ -119,11 +120,11 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       if (browserbaseSessionID) {
         const existing = await bb.sessions.retrieve(browserbaseSessionID);
         browserbaseSessionId = existing?.id;
-        cdpUrl = existing?.connectUrl;
+        connectUrl = existing?.connectUrl;
         if (!browserbaseSessionId) {
           return error(reply, "Failed to retrieve browserbase session");
         }
-        if (!cdpUrl) {
+        if (!connectUrl) {
           return error(reply, "Browserbase session missing connectUrl");
         }
       } else {
@@ -149,11 +150,11 @@ const startRouteHandler: RouteHandler = withErrorHandling(
         )) as SessionRetrieveResponse;
 
         browserbaseSessionId = created?.id;
-        cdpUrl = created?.connectUrl;
+        connectUrl = created?.connectUrl;
         if (!browserbaseSessionId) {
           return error(reply, "Failed to create browserbase session");
         }
-        if (!cdpUrl) {
+        if (!connectUrl) {
           return error(reply, "Browserbase session missing connectUrl");
         }
       }
@@ -161,15 +162,14 @@ const startRouteHandler: RouteHandler = withErrorHandling(
 
     const sessionStore = getSessionStore();
 
-    // For local browsers without a cdpUrl, we need to get it from browser.cdpUrl
-    // or it will be obtained when the stagehand instance is created
+    // For local browsers without a connectUrl, get it from browser.connectUrl
     if (browserType === "local") {
-      cdpUrl = browser?.cdpUrl;
+      connectUrl = browser?.connectUrl;
     }
 
     const session = await sessionStore.startSession({
       browserType,
-      cdpUrl,
+      connectUrl,
       browserbaseSessionID:
         browserType === "browserbase"
           ? (browserbaseSessionId ?? browserbaseSessionID)
@@ -189,7 +189,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       localBrowserLaunchOptions:
         browserType === "local" && browser?.launchOptions
           ? {
-              cdpUrl: browser?.cdpUrl,
+              connectUrl: browser?.connectUrl,
               ...(browser?.launchOptions ?? {}),
             }
           : undefined,
@@ -198,6 +198,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
     return success(reply, {
       sessionId: session.sessionId,
       available: session.available,
+      connectUrl: connectUrl ?? session.connectUrl ?? "",
     });
   },
 );

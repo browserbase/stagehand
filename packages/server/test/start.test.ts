@@ -1,10 +1,7 @@
 import fastify from "fastify";
 import { randomUUID } from "crypto";
 import { afterAll, beforeEach, describe, expect, test, vi } from "vitest";
-import {
-  serializerCompiler,
-  validatorCompiler,
-} from "fastify-zod-openapi";
+import { serializerCompiler, validatorCompiler } from "fastify-zod-openapi";
 import startRoute from "../src/routes/v1/sessions/start.js";
 
 const bbMocks = vi.hoisted(() => ({
@@ -44,7 +41,7 @@ vi.mock("../src/lib/sessionStoreManager.js", async () => {
   };
 });
 
-describe("/v1/sessions/start cdpUrl responses", () => {
+describe("/v1/sessions/start connectUrl responses", () => {
   let app: ReturnType<typeof fastify>;
 
   beforeEach(() => {
@@ -77,7 +74,7 @@ describe("/v1/sessions/start cdpUrl responses", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
       success: boolean;
-      data: { sessionId: string; cdpUrl?: string };
+      data: { sessionId: string; connectUrl?: string };
     };
     expect(body.success).toBe(true);
     expect(body.data.sessionId).toBe(sessionId);
@@ -119,7 +116,7 @@ describe("/v1/sessions/start cdpUrl responses", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
       success: boolean;
-      data: { sessionId: string; cdpUrl?: string };
+      data: { sessionId: string; connectUrl?: string };
     };
     expect(body.success).toBe(true);
     expect(body.data.sessionId).toBe("bb-123");

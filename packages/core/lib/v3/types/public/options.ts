@@ -24,7 +24,7 @@ export interface V3Options {
   projectId?: string;
   browser?: {
     type?: "browserbase" | "local";
-    cdpUrl?: string;
+    connectUrl?: string;
     launchOptions?: LocalBrowserLaunchOptions;
   };
   /**

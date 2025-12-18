@@ -47,7 +47,7 @@ test.describe("connect to existing Browserbase session", () => {
         disableAPI: true,
         logger: v3BBTestConfig.logger,
         localBrowserLaunchOptions: {
-          cdpUrl: sessionUrl,
+          connectUrl: sessionUrl,
         },
       });
       await resumedStagehand.init();

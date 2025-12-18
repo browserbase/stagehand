@@ -178,7 +178,10 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
 
   // Post-process for Stainless compatibility:
   // 1. Replace `additionalProperties: {}` with `additionalProperties: true`
-  yaml = yaml.replace(/additionalProperties: \{\}/g, "additionalProperties: true");
+  yaml = yaml.replace(
+    /additionalProperties: \{\}/g,
+    "additionalProperties: true",
+  );
 
   // 2. Remove `propertyNames` blocks (not supported by Stainless)
   // Matches propertyNames with its nested content (type: string)
@@ -188,18 +191,18 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
   // ExtractResult*.result and NavigateResult*.result
   yaml = yaml.replace(
     /(ExtractResult(?:Output)?:\s+type: object\s+properties:\s+result:\s+description: [^\n]+)\n(\s+actionId:)/g,
-    "$1\n          type: unknown\n$2"
+    "$1\n          type: unknown\n$2",
   );
   yaml = yaml.replace(
     /(NavigateResult(?:Output|Data|DataOutput)?:\s+type: object\s+properties:\s+result:\s+description: [^\n]+)\n\s+anyOf:\s+- \{\}\s+- type: "null"\n(\s+actionId:)/g,
-    "$1\n          type: unknown\n$2"
+    "$1\n          type: unknown\n$2",
   );
 
   // 4. Add title to proxies array schema for Stainless name inference
   // Matches the array inside proxies anyOf and adds a title
   yaml = yaml.replace(
     /(proxies:\s+anyOf:\s+- type: boolean\s+- )(type: array)/g,
-    "$1title: ProxyConfigList\n              $2"
+    "$1title: ProxyConfigList\n              $2",
   );
 
   await writeFile(OUTPUT_PATH, yaml, "utf8");

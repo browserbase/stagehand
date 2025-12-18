@@ -208,7 +208,11 @@ export class StagehandAPIClient {
     return sessionResponseBody.data;
   }
 
-  async act({ input, options, frameId }: ClientActParameters): Promise<ActResult> {
+  async act({
+    input,
+    options,
+    frameId,
+  }: ClientActParameters): Promise<ActResult> {
     // Strip non-serializable `page` from options before wire serialization
     let wireOptions: Api.ActRequest["options"];
     if (options) {
