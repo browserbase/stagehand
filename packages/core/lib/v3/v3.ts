@@ -22,7 +22,6 @@ import { ObserveHandler } from "./handlers/observeHandler";
 import { V3AgentHandler } from "./handlers/v3AgentHandler";
 import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler";
 import { createBrowserbaseSession } from "./launch/browserbase";
-import Browserbase from "@browserbasehq/sdk";
 import { launchLocalChrome } from "./launch/local";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
@@ -73,7 +72,6 @@ import {
   MissingEnvironmentVariableError,
   StagehandInitError,
   AgentStreamResult,
-  localBrowserLaunchOptionsSchema,
 } from "./types/public";
 import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
@@ -699,9 +697,7 @@ export class V3 {
             }
           }
           const lbo: LocalBrowserLaunchOptions =
-            localBrowserLaunchOptionsSchema.parse(
-              this.opts.localBrowserLaunchOptions ?? {},
-            );
+            this.opts.localBrowserLaunchOptions ?? {};
 
           // If a connect URL is provided, attach instead of launching.
           if (lbo.connectUrl) {
@@ -873,65 +869,11 @@ export class V3 {
               selfHeal: this.opts.selfHeal,
               browserbaseSessionCreateParams: createSessionPayload,
               browserbaseSessionID: this.opts.browserbaseSessionID,
-              browser: {
-                type: this.opts.browser?.type ?? "browserbase",
-                connectUrl: this.opts.browser?.connectUrl,
-                launchOptions:
-                  this.opts.browser?.launchOptions ??
-                  this.opts.localBrowserLaunchOptions,
-              },
             });
             if (!available) {
               this.apiClient = null;
             }
-            // Persist API-issued sessionId for downstream use
             this.opts.browserbaseSessionID = sessionId;
-          }
-          // If server returned a direct connect URL, attach to it instead of creating/resuming
-          if (this.opts.localBrowserLaunchOptions?.connectUrl) {
-            const ws = this.opts.localBrowserLaunchOptions.connectUrl;
-            const isLocalApi =
-              (this.opts.browser?.type ?? "browserbase") === "local";
-
-            this.ctx = await V3Context.create(ws, {
-              env: isLocalApi ? "LOCAL" : "BROWSERBASE",
-              apiClient: this.apiClient,
-            });
-            const logCtx = SessionFileLogger.getContext();
-            this.ctx.conn.cdpLogger = (info) =>
-              SessionFileLogger.logCdpCallEvent(info, logCtx);
-            this.ctx.conn.cdpEventLogger = (info) =>
-              SessionFileLogger.logCdpMessageEvent(info, logCtx);
-            this.ctx.conn.onTransportClosed(this._onCdpClosed);
-
-            if (isLocalApi) {
-              this.state = {
-                kind: "LOCAL",
-                chrome: {
-                  // No launched Chrome when attaching; provide a no-op killer.
-                  kill: async () => {},
-                } as unknown as import("chrome-launcher").LaunchedChrome,
-                ws,
-              };
-              return;
-            }
-
-            const bb = new Browserbase({ apiKey });
-            this.state = {
-              kind: "BROWSERBASE",
-              bb,
-              sessionId: this.opts.browserbaseSessionID ?? "",
-              ws,
-            };
-            this.browserbaseSessionId = this.opts.browserbaseSessionID ?? "";
-            this.browserbaseSessionUrl = `https://www.browserbase.com/sessions/${this.browserbaseSessionId}`;
-            return;
-          }
-          // If we're in local-browser API mode and still no connectUrl, fail fast
-          if ((this.opts.browser?.type ?? "browserbase") === "local") {
-            throw new StagehandInitError(
-              "API mode requested local browser, but server did not return a connectUrl.",
-            );
           }
           const { ws, sessionId, bb } = await createBrowserbaseSession(
             apiKey,

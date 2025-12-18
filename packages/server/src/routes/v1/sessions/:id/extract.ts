@@ -1,6 +1,6 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
-import { z } from "zod/v4";
+import type { ZodTypeAny } from "zod/v3";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 import { Api } from "@browserbasehq/stagehand";
 
@@ -72,7 +72,7 @@ const extractRouteHandler: RouteHandlerMethod = withErrorHandling(
 
         if (data.instruction) {
           if (data.schema) {
-            const zodSchema = jsonSchemaToZod(data.schema) as z.ZodObject;
+            const zodSchema = jsonSchemaToZod(data.schema) as ZodTypeAny;
             result = await extractFn(data.instruction, zodSchema, safeOptions);
           } else {
             result = await extractFn(data.instruction, safeOptions);
