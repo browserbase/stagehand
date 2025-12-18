@@ -92,9 +92,6 @@ importers:
       ws:
         specifier: ^8.18.0
         version: 8.18.3(bufferutil@4.0.9)
-      zod-openapi:
-        specifier: ^5.4.5
-        version: 5.4.5(zod@4.2.0)
       zod-to-json-schema:
         specifier: ^3.25.0
         version: 3.25.0(zod@4.2.0)
