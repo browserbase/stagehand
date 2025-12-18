@@ -4,6 +4,8 @@ import { ToolSet } from "ai";
 import { AgentClient } from "../agent/AgentClient";
 import { AgentProvider } from "../agent/AgentProvider";
 import { GoogleCUAClient } from "../agent/GoogleCUAClient";
+import { OpenAICUAClient } from "../agent/OpenAICUAClient";
+import { MicrosoftCUAClient } from "../agent/MicrosoftCUAClient";
 import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping";
 import {
   ActionExecutionResult,
@@ -83,7 +85,10 @@ export class V3CuaAgentHandler {
       const page = await this.v3.context.awaitActivePage();
       const screenshotBuffer = await page.screenshot({ fullPage: false });
 
-      if (this.agentClient instanceof GoogleCUAClient) {
+      // For Google, OpenAI, and Microsoft CUA, extract screenshot dimensions and set them
+      if (this.agentClient instanceof GoogleCUAClient ||
+          this.agentClient instanceof OpenAICUAClient ||
+          this.agentClient instanceof MicrosoftCUAClient) {
         try {
           const dimensions = getPNGDimensions(screenshotBuffer);
           this.agentClient.setScreenshotSize(dimensions.width, dimensions.height);
@@ -590,7 +595,10 @@ export class V3CuaAgentHandler {
       const page = await this.v3.context.awaitActivePage();
       const screenshotBuffer = await page.screenshot({ fullPage: false });
 
-      if (this.agentClient instanceof GoogleCUAClient) {
+      // For Google, OpenAI, and Microsoft CUA, extract screenshot dimensions and set them
+      if (this.agentClient instanceof GoogleCUAClient ||
+          this.agentClient instanceof OpenAICUAClient ||
+          this.agentClient instanceof MicrosoftCUAClient) {
         try {
           const dimensions = getPNGDimensions(screenshotBuffer);
           this.agentClient.setScreenshotSize(dimensions.width, dimensions.height);
@@ -605,7 +613,6 @@ export class V3CuaAgentHandler {
 
       // Emit screenshot event via the bus
       this.v3.bus.emit("agent_screenshot_taken_event", screenshotBuffer);
-
       const currentUrl = page.url();
       return await this.agentClient.captureScreenshot({
         base64Image: screenshotBuffer,
