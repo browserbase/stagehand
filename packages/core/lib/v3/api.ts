@@ -30,6 +30,8 @@ import {
 import type { SerializableResponse } from "./types/private";
 import { toJsonSchema } from "./zodCompat";
 import type { StagehandZodSchema } from "./zodCompat";
+import { loadApiKeyFromEnv } from "../utils";
+import type { ModelConfiguration } from "./types/public/model";
 
 /**
  * API response structure for replay metrics endpoint
@@ -58,6 +60,7 @@ export class StagehandAPIClient {
   private projectId: string;
   private sessionId?: string;
   private modelApiKey: string;
+  private modelProvider?: string;
   private logger: (message: LogLine) => void;
   private fetchWithCookies;
 
@@ -83,6 +86,10 @@ export class StagehandAPIClient {
       throw new StagehandAPIError("modelApiKey is required");
     }
     this.modelApiKey = modelApiKey;
+    // Extract provider from modelName (e.g., "openai/gpt-4o" -> "openai")
+    this.modelProvider = modelName?.includes("/")
+      ? modelName.split("/")[0]
+      : undefined;
 
     const region = browserbaseSessionCreateParams?.region;
     if (region && region !== "us-west-2") {
@@ -147,6 +154,9 @@ export class StagehandAPIClient {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { page: _, ...restOptions } = options;
       if (Object.keys(restOptions).length > 0) {
+        if (restOptions.model) {
+          restOptions.model = this.prepareModelConfig(restOptions.model);
+        }
         args.options = restOptions;
       }
     }
@@ -175,6 +185,9 @@ export class StagehandAPIClient {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { page: _, ...restOptions } = options;
       if (Object.keys(restOptions).length > 0) {
+        if (restOptions.model) {
+          restOptions.model = this.prepareModelConfig(restOptions.model);
+        }
         args.options = restOptions;
       }
     }
@@ -199,6 +212,9 @@ export class StagehandAPIClient {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { page: _, ...restOptions } = options;
       if (Object.keys(restOptions).length > 0) {
+        if (restOptions.model) {
+          restOptions.model = this.prepareModelConfig(restOptions.model);
+        }
         args.options = restOptions;
       }
     }
@@ -363,6 +379,53 @@ export class StagehandAPIClient {
     }
 
     return metrics;
+  }
+
+  /**
+   * Prepares a model configuration for the API payload by ensuring
+   * the apiKey is included. If the model is passed as a string,
+   * it converts it to an object with modelName and apiKey.
+   * The apiKey is loaded from environment variables only if the provider
+   * differs from the one used during init.
+   */
+  private prepareModelConfig(
+    model: ModelConfiguration,
+  ): { modelName: string; apiKey: string } & Record<string, unknown> {
+    if (typeof model === "string") {
+      // Extract provider from model string (e.g., "openai/gpt-4o" -> "openai")
+      const provider = model.includes("/") ? model.split("/")[0] : undefined;
+      // Only load from env if provider differs from the original
+      const apiKey =
+        provider && provider !== this.modelProvider
+          ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
+          : this.modelApiKey;
+      return {
+        modelName: model,
+        apiKey,
+      };
+    }
+
+    // Model is an object - ensure apiKey is present
+    if (!model.apiKey) {
+      const provider = model.modelName?.includes("/")
+        ? model.modelName.split("/")[0]
+        : undefined;
+      // Only load from env if provider differs from the original
+      const apiKey =
+        provider && provider !== this.modelProvider
+          ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
+          : this.modelApiKey;
+      return {
+        ...model,
+        apiKey,
+      };
+    }
+
+    // Model object already has apiKey
+    return model as { modelName: string; apiKey: string } & Record<
+      string,
+      unknown
+    >;
   }
 
   private async execute<T>({
