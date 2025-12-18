@@ -217,12 +217,6 @@ export interface AgentExecuteOptionsBase {
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   highlightCursor?: boolean;
   /**
-   * Tool mode for this execution. Overrides the mode set in AgentConfig.
-   * - 'dom': Uses DOM-based tools (act, fillForm) for structured interactions
-   * - 'hybrid': Uses coordinate-based tools (click, type, dragAndDrop, etc.)
-   */
-  mode?: AgentToolMode;
-  /**
    * Previous conversation messages to continue from.
    * Pass the `messages` from a previous AgentResult to continue that conversation.
    * @experimental
@@ -443,6 +437,13 @@ export type AgentConfig = {
    * When false (default), execute() returns AgentResult after completion.
    */
   stream?: boolean;
+  /**
+   * Tool mode for the agent. Determines which set of tools are available.
+   * - 'dom' (default): Uses DOM-based tools (act, fillForm) for structured interactions
+   * - 'hybrid': Uses coordinate-based tools (click, type, dragAndDrop, clickAndHold, fillFormVision)
+   *             for visual/screenshot-based interactions
+   */
+  mode?: AgentToolMode;
 };
 
 /**

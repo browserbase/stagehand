@@ -45,6 +45,7 @@ export class V3AgentHandler {
   private executionModel?: string;
   private systemInstructions?: string;
   private mcpTools?: ToolSet;
+  private mode: AgentToolMode;
 
   constructor(
     v3: V3,
@@ -53,6 +54,7 @@ export class V3AgentHandler {
     executionModel?: string,
     systemInstructions?: string,
     mcpTools?: ToolSet,
+    mode?: AgentToolMode,
   ) {
     this.v3 = v3;
     this.logger = logger;
@@ -60,11 +62,11 @@ export class V3AgentHandler {
     this.executionModel = executionModel;
     this.systemInstructions = systemInstructions;
     this.mcpTools = mcpTools;
+    this.mode = mode ?? "dom";
   }
 
   private async prepareAgent(
     instructionOrOptions: string | AgentExecuteOptionsBase,
-    effectiveMode?: AgentToolMode,
   ): Promise<AgentContext> {
     try {
       const options =
@@ -74,9 +76,6 @@ export class V3AgentHandler {
 
       const maxSteps = options.maxSteps || 20;
 
-      // Use effective mode passed from execute/stream, default to "dom"
-      const mode = effectiveMode ?? "dom";
-
       // Get the initial page URL first (needed for the system prompt)
       const initialPageUrl = (await this.v3.context.awaitActivePage()).url();
 
@@ -84,12 +83,12 @@ export class V3AgentHandler {
       const systemPrompt = buildAgentSystemPrompt({
         url: initialPageUrl,
         executionInstruction: options.instruction,
-        mode,
+        mode: this.mode,
         systemInstructions: this.systemInstructions,
         isBrowserbase: this.v3.isBrowserbase,
       });
 
-      const tools = this.createTools(mode);
+      const tools = this.createTools();
       const allTools: ToolSet = { ...tools, ...this.mcpTools };
 
       // Use provided messages for continuation, or start fresh with the instruction
@@ -212,12 +211,9 @@ export class V3AgentHandler {
       typeof instructionOrOptions === "object" ? instructionOrOptions : null;
     const signal = options?.signal;
 
-    // Determine effective mode from execute options, default to "dom"
-    const effectiveMode = options?.mode ?? "dom";
-
     // Highlight cursor defaults to true for hybrid mode, can be overridden
     const shouldHighlightCursor =
-      options?.highlightCursor ?? effectiveMode === "hybrid";
+      options?.highlightCursor ?? this.mode === "hybrid";
 
     const state: AgentState = {
       collectedReasoning: [],
@@ -238,10 +234,10 @@ export class V3AgentHandler {
         messages: preparedMessages,
         wrappedModel,
         initialPageUrl,
-      } = await this.prepareAgent(instructionOrOptions, effectiveMode);
+      } = await this.prepareAgent(instructionOrOptions);
 
       // Enable cursor overlay for hybrid mode (coordinate-based interactions)
-      if (shouldHighlightCursor && effectiveMode === "hybrid") {
+      if (shouldHighlightCursor && this.mode === "hybrid") {
         const page = await this.v3.context.awaitActivePage();
         await page.enableCursorOverlay().catch(() => {});
       }
@@ -321,12 +317,9 @@ export class V3AgentHandler {
     const streamOptions =
       typeof instructionOrOptions === "object" ? instructionOrOptions : null;
 
-    // Determine effective mode from stream options, default to "dom"
-    const effectiveMode = streamOptions?.mode ?? "dom";
-
     // Highlight cursor defaults to true for hybrid mode, can be overridden
     const shouldHighlightCursor =
-      streamOptions?.highlightCursor ?? effectiveMode === "hybrid";
+      streamOptions?.highlightCursor ?? this.mode === "hybrid";
 
     const {
       options,
@@ -336,10 +329,10 @@ export class V3AgentHandler {
       messages,
       wrappedModel,
       initialPageUrl,
-    } = await this.prepareAgent(instructionOrOptions, effectiveMode);
+    } = await this.prepareAgent(instructionOrOptions);
 
     // Enable cursor overlay for hybrid mode (coordinate-based interactions)
-    if (shouldHighlightCursor && effectiveMode === "hybrid") {
+    if (shouldHighlightCursor && this.mode === "hybrid") {
       const page = await this.v3.context.awaitActivePage();
       await page.enableCursorOverlay().catch(() => {});
     }
@@ -474,12 +467,12 @@ export class V3AgentHandler {
     };
   }
 
-  private createTools(mode?: AgentToolMode) {
+  private createTools() {
     const provider = this.llmClient?.getLanguageModel?.()?.provider;
     return createAgentTools(this.v3, {
       executionModel: this.executionModel,
       logger: this.logger,
-      mode: mode ?? "dom",
+      mode: this.mode,
       provider,
     });
   }
