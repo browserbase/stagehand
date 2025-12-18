@@ -106,6 +106,7 @@ test.describe("Locator nth() method tests", () => {
             'shadow.innerHTML = "<button>Shadow Button 1</button><button>Shadow Button 2</button><button>Shadow Button 3</button>";' +
             "</script>",
         ),
+      { waitUntil: "load", timeoutMs: 30000 },
     );
 
     // Wait a bit for shadow DOM to be attached

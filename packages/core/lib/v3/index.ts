@@ -5,6 +5,13 @@ export * from "./types/public";
 export { AnnotatedScreenshotText, LLMClient } from "./llm/LLMClient";
 
 export { AgentProvider, modelToAgentProviderMap } from "./agent/AgentProvider";
+export type {
+  AgentTools,
+  AgentToolTypesMap,
+  AgentUITools,
+  AgentToolCall,
+  AgentToolResult,
+} from "./agent/tools";
 
 export {
   validateZodSchema,
