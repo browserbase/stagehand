@@ -109,13 +109,17 @@ export class AgentCache {
     const serializedExecutionModel = this.serializeAgentModelForCache(
       agentOptions?.executionModel,
     );
+
+    const isCuaMode =
+      agentOptions?.mode === "cua" || agentOptions?.cua === true;
+
     return JSON.stringify({
       v3Model: this.getBaseModelName(),
       systemPrompt: this.getSystemPrompt() ?? "",
       agent: {
-        cua: agentOptions?.cua ?? false,
+        cua: isCuaMode,
         model: serializedModel ?? null,
-        executionModel: agentOptions?.cua ? null : serializedExecutionModel,
+        executionModel: isCuaMode ? null : serializedExecutionModel,
         systemPrompt: agentOptions?.systemPrompt ?? null,
         toolKeys,
         integrations: integrationSignatures,
