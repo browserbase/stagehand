@@ -37,6 +37,7 @@ export interface AgentState {
   actions: AgentAction[];
   finalMessage: string;
   completed: boolean;
+  taskSuccessful: boolean;
   currentPageUrl: string;
 }
 

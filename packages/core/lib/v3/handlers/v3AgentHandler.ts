@@ -149,6 +149,7 @@ export class V3AgentHandler {
 
           if (toolCall.toolName === "close") {
             state.completed = true;
+            state.taskSuccessful = args?.taskComplete === true;
             if (args?.taskComplete) {
               const closeReasoning = args.reasoning;
               const allReasoning = state.collectedReasoning.join(" ");
@@ -204,6 +205,7 @@ export class V3AgentHandler {
       actions: [],
       finalMessage: "",
       completed: false,
+      taskSuccessful: false,
       currentPageUrl: "",
     };
 
@@ -310,6 +312,7 @@ export class V3AgentHandler {
       actions: [],
       finalMessage: "",
       completed: false,
+      taskSuccessful: false,
       currentPageUrl: initialPageUrl,
     };
     const startTime = Date.now();
@@ -415,7 +418,7 @@ export class V3AgentHandler {
     ];
 
     return {
-      success: state.completed,
+      success: state.taskSuccessful,
       message: state.finalMessage || "Task execution completed",
       actions: state.actions,
       completed: state.completed,
