@@ -464,7 +464,6 @@ export class V3CuaAgentHandler {
             : undefined;
   }
 
-
   private describePointerAction(kind: string, x: unknown, y: unknown): string {
     const nx = Number(x);
     const ny = Number(y);

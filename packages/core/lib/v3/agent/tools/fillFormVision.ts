@@ -78,9 +78,13 @@ MANDATORY USE CASES (always use fillFormVision for these):
 
         for (const field of processedFields) {
           // Click the field with returnXpath to get the element's XPath
-          const xpath = await page.click(field.coordinates.x, field.coordinates.y, {
-            returnXpath: true,
-          });
+          const xpath = await page.click(
+            field.coordinates.x,
+            field.coordinates.y,
+            {
+              returnXpath: true,
+            },
+          );
           await page.type(field.value);
 
           // Build Action with XPath for deterministic replay

@@ -15,4 +15,3 @@ export function ensureXPath(value: unknown): string | null {
   if (!trimmed) return null;
   return trimmed.startsWith("xpath=") ? trimmed : `xpath=${trimmed}`;
 }
-
