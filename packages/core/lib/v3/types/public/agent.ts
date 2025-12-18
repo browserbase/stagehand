@@ -442,6 +442,7 @@ export type AgentConfig = {
    * - 'dom' (default): Uses DOM-based tools (act, fillForm) for structured interactions
    * - 'hybrid': Uses coordinate-based tools (click, type, dragAndDrop, clickAndHold, fillFormVision)
    *             for visual/screenshot-based interactions
+   * @experimental hybrid mode requires `experimental: true` in Stagehand constructor
    */
   mode?: AgentToolMode;
 };
