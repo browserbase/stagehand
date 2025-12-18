@@ -1665,12 +1665,29 @@ export class V3 {
         | AgentStreamExecuteOptions,
     ) => Promise<AgentResult | AgentStreamResult>;
   } {
+    // Determine if CUA mode is enabled (via mode: "cua" or deprecated cua: true)
+    const isCuaMode = options?.mode === "cua" || options?.cua === true;
+
+    // Emit deprecation warning for cua: true
+    if (options?.cua === true) {
+      this.logger({
+        category: "agent",
+        message:
+          '[DEPRECATED] The "cua: true" option is deprecated. Use "mode: \'cua\'" instead. This option will be removed in a future version.',
+        level: 0,
+      });
+      console.warn(
+        '[Stagehand] DEPRECATED: The "cua: true" option is deprecated. Use "mode: \'cua\'" instead.',
+      );
+    }
+
     this.logger({
       category: "agent",
       message: `Creating v3 agent instance with options: ${JSON.stringify(options)}`,
       level: 1,
       auxiliary: {
-        cua: { value: options?.cua ? "true" : "false", type: "boolean" },
+        cua: { value: isCuaMode ? "true" : "false", type: "boolean" },
+        mode: { value: options?.mode ?? "dom", type: "string" },
         model: options?.model
           ? typeof options?.model === "string"
             ? { value: options.model, type: "string" }
@@ -1687,8 +1704,8 @@ export class V3 {
       },
     });
 
-    // If CUA is enabled, use the computer-use agent path
-    if (options?.cua) {
+    // If CUA mode is enabled (via mode: "cua" or deprecated cua: true), use the computer-use agent path
+    if (isCuaMode) {
       // Validate agent config at creation time (includes CUA+streaming conflict check)
       validateExperimentalFeatures({
         isExperimental: this.experimental,

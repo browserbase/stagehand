@@ -33,8 +33,12 @@ export function validateExperimentalFeatures(
 ): void {
   const { isExperimental, agentConfig, executeOptions, isStreaming } = options;
 
+  // Check if CUA mode is enabled (via mode: "cua" or deprecated cua: true)
+  const isCuaMode =
+    agentConfig?.mode === "cua" || agentConfig?.cua === true;
+
   // CUA-specific validation: certain features are not available at all
-  if (agentConfig?.cua) {
+  if (isCuaMode) {
     const unsupportedFeatures: string[] = [];
 
     if (agentConfig?.stream) {
@@ -69,12 +73,12 @@ export function validateExperimentalFeatures(
   }
 
   // Check streaming mode (either explicit or derived from config) - only for non-CUA
-  if (!agentConfig?.cua && (isStreaming || agentConfig?.stream)) {
+  if (!isCuaMode && (isStreaming || agentConfig?.stream)) {
     features.push("streaming");
   }
 
   // Check execute options features - only for non-CUA
-  if (executeOptions && !agentConfig?.cua) {
+  if (executeOptions && !isCuaMode) {
     if (executeOptions.callbacks) {
       features.push("callbacks");
     }
