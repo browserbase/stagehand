@@ -1,7 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
+import type { Action } from "../../types/public/methods";
 import { processCoordinates } from "../utils/coordinateNormalization";
+import { ensureXPath } from "../utils/xpath";
 
 export const clickAndHoldTool = (v3: V3, provider?: string) =>
   tool({
@@ -44,22 +46,34 @@ export const clickAndHoldTool = (v3: V3, provider?: string) =>
             },
           },
         });
+
         // Use dragAndDrop from same point to same point with delay to simulate click and hold
-        await page.dragAndDrop(
+        // returnXpath gives us the xpath of the element at that position
+        const [xpath] = await page.dragAndDrop(
           processed.x,
           processed.y,
           processed.x,
           processed.y,
-          { delay: duration },
+          { delay: duration, returnXpath: true },
         );
-        v3.recordAgentReplayStep({
-          type: "clickAndHold",
-          instruction: describe,
-          playwrightArguments: {
-            coordinates: [processed.x, processed.y],
-            duration,
-          },
-        });
+
+        // Record as "act" step with proper Action for deterministic replay
+        const normalizedXpath = ensureXPath(xpath);
+        if (normalizedXpath) {
+          const action: Action = {
+            selector: normalizedXpath,
+            description: describe,
+            method: "clickAndHold",
+            arguments: [String(duration)],
+          };
+          v3.recordAgentReplayStep({
+            type: "act",
+            instruction: describe,
+            actions: [action],
+            actionDescription: describe,
+          });
+        }
+
         return { success: true, describe };
       } catch (error) {
         return {

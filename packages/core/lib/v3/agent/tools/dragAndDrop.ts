@@ -1,7 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
+import type { Action } from "../../types/public/methods";
 import { processCoordinates } from "../utils/coordinateNormalization";
+import { ensureXPath } from "../utils/xpath";
 
 export const dragAndDropTool = (v3: V3, provider?: string) =>
   tool({
@@ -47,20 +49,34 @@ export const dragAndDropTool = (v3: V3, provider?: string) =>
             },
           },
         });
-        await page.dragAndDrop(
+
+        // Use returnXpath to get XPaths of both start and end elements for caching
+        const [fromXpath, toXpath] = await page.dragAndDrop(
           processedStart.x,
           processedStart.y,
           processedEnd.x,
           processedEnd.y,
+          { returnXpath: true },
         );
-        v3.recordAgentReplayStep({
-          type: "dragAndDrop",
-          instruction: describe,
-          playwrightArguments: {
-            startCoordinates: [processedStart.x, processedStart.y],
-            endCoordinates: [processedEnd.x, processedEnd.y],
-          },
-        });
+
+        // Record as "act" step with proper Action for deterministic replay
+        const normalizedFrom = ensureXPath(fromXpath);
+        const normalizedTo = ensureXPath(toXpath);
+        if (normalizedFrom && normalizedTo) {
+          const action: Action = {
+            selector: normalizedFrom,
+            description: describe,
+            method: "dragAndDrop",
+            arguments: [normalizedTo],
+          };
+          v3.recordAgentReplayStep({
+            type: "act",
+            instruction: describe,
+            actions: [action],
+            actionDescription: describe,
+          });
+        }
+
         return { success: true, describe };
       } catch (error) {
         return {

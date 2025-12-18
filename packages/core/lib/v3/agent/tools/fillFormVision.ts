@@ -1,7 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
+import type { Action } from "../../types/public/methods";
 import { processCoordinates } from "../utils/coordinateNormalization";
+import { ensureXPath } from "../utils/xpath";
 
 export const fillFormVisionTool = (v3: V3, provider?: string) =>
   tool({
@@ -71,18 +73,44 @@ MANDATORY USE CASES (always use fillFormVision for these):
           },
         });
 
+        // Collect actions with XPaths for cache replay
+        const actions: Action[] = [];
+
         for (const field of processedFields) {
-          await page.click(field.coordinates.x, field.coordinates.y);
+          // Click the field with returnXpath to get the element's XPath
+          const xpath = await page.click(
+            field.coordinates.x,
+            field.coordinates.y,
+            {
+              returnXpath: true,
+            },
+          );
           await page.type(field.value);
+
+          // Build Action with XPath for deterministic replay
+          const normalizedXpath = ensureXPath(xpath);
+          if (normalizedXpath) {
+            actions.push({
+              selector: normalizedXpath,
+              description: field.action,
+              method: "type",
+              arguments: [field.value],
+            });
+          }
+
           // Small delay between fields
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
 
-        v3.recordAgentReplayStep({
-          type: "fillFormVision",
-          instruction: `Fill ${fields.length} form fields`,
-          playwrightArguments: processedFields,
-        });
+        // Record as "act" step with proper Actions for deterministic replay
+        if (actions.length > 0) {
+          v3.recordAgentReplayStep({
+            type: "act",
+            instruction: `Fill ${fields.length} form fields`,
+            actions,
+            actionDescription: `Fill ${fields.length} form fields`,
+          });
+        }
 
         return {
           success: true,
