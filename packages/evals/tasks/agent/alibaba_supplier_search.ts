@@ -14,7 +14,7 @@ export const alibaba_supplier_search: EvalFunction = async ({
     await page.goto("https://www.alibaba.com/");
 
     // Start collecting screenshots throughout the agent's journey
-    const screenshotCollector = new ScreenshotCollector(page, {
+    const screenshotCollector = new ScreenshotCollector(v3, {
       interval: 3000,
       maxScreenshots: 15,
     });
