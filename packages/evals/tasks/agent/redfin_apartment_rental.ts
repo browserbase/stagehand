@@ -14,7 +14,7 @@ export const redfin_apartment_rental: EvalFunction = async ({
     await page.goto("https://redfin.com/");
 
     // Start collecting screenshots throughout the agent's journey
-    const screenshotCollector = new ScreenshotCollector(page, {
+    const screenshotCollector = new ScreenshotCollector(v3, {
       interval: 3000,
       maxScreenshots: 15,
     });

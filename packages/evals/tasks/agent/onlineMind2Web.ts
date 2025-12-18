@@ -2,7 +2,6 @@ import { EvalFunction } from "../../types/evals";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 import dotenv from "dotenv";
-import fs from "fs";
 dotenv.config();
 
 export const onlineMind2Web: EvalFunction = async ({
@@ -42,22 +41,16 @@ export const onlineMind2Web: EvalFunction = async ({
       systemPrompt: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await page.title()}. ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE.`,
     });
 
-    const screenshot = await page.screenshot();
-    fs.writeFileSync("screenshot.png", screenshot);
-
-    // Start collecting screenshots in parallel
-    const screenshotCollector = new ScreenshotCollector(page, {
-      maxScreenshots: 5, // Keep up to the last 5 screenshots
-      captureOnNavigation: true, // Also capture on page navigation
+    // Set up event-driven screenshot collection via the V3 event bus
+    const screenshotCollector = new ScreenshotCollector(v3, {
+      maxScreenshots: 5,
     });
 
-    // Subscribe to screenshot events from the agent via the bus
+    // Subscribe to screenshot events from the agent
     const screenshotHandler = (buffer: Buffer) => {
       screenshotCollector.addScreenshot(buffer);
     };
     v3.bus.on("agent_screensot_taken_event", screenshotHandler);
-
-    screenshotCollector.start();
 
     const agentResult = await agent.execute({
       instruction: params.confirmed_task,

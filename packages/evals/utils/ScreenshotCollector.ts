@@ -1,29 +1,36 @@
-import { Page } from "@browserbasehq/stagehand";
+import { V3 } from "@browserbasehq/stagehand";
 import sharp from "sharp";
 import { ScreenshotCollectorOptions } from "../types/screenshotCollector";
 
 export class ScreenshotCollector {
   private screenshots: Buffer[] = [];
-  private page: Page;
-  private interval: number;
+  private v3: V3;
+  private interval?: number;
   private maxScreenshots: number;
-  private captureOnNavigation: boolean;
   private intervalId?: NodeJS.Timeout;
-  private navigationListeners: Array<() => void> = [];
   private isCapturing: boolean = false;
   private lastScreenshot?: Buffer;
   private ssimThreshold: number = 0.75;
   private mseThreshold: number = 30;
+  private stopped: boolean = false;
 
-  constructor(page: Page, options: ScreenshotCollectorOptions = {}) {
-    this.page = page;
-    this.interval = options.interval || 5000;
+  constructor(v3: V3, options: ScreenshotCollectorOptions = {}) {
+    this.v3 = v3;
+    this.interval = options.interval; // undefined means event-driven mode
     this.maxScreenshots = options.maxScreenshots || 10;
-    // Capture on navigation is deprecated for V3 pages
-    this.captureOnNavigation = options.captureOnNavigation ?? false;
   }
 
+  /**
+   * Start interval-based screenshot capture.
+   * Only activates if interval option was provided in constructor.
+   * For event-driven collection, use addScreenshot() directly via the V3 event bus.
+   */
   start(): void {
+    // Only start interval if interval was provided
+    if (!this.interval) {
+      return;
+    }
+
     if (this.intervalId) {
       return;
     }
@@ -42,31 +49,48 @@ export class ScreenshotCollector {
   }
 
   async stop(): Promise<Buffer[]> {
+    // Mark as stopped first to prevent any new operations
+    this.stopped = true;
+
+    // Clear interval if running
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = undefined;
     }
 
-    this.navigationListeners.forEach((removeListener) => removeListener());
-    this.navigationListeners = [];
+    // Reset capturing flag to unblock any pending state
+    this.isCapturing = false;
 
-    // Capture final screenshot before returning (don't fail if it errors)
+    // Try to capture final screenshot, but don't fail if CDP is disconnected
     try {
       await this.captureScreenshot("final");
-    } catch (error) {
-      console.error("Failed to capture final screenshot:", error);
+    } catch {
+      // Ignore errors - CDP may be disconnected
     }
-    return this.getScreenshots();
+
+    // Return a copy and clear internal state to free memory
+    const result = [...this.screenshots];
+    this.screenshots = [];
+    this.lastScreenshot = undefined;
+
+    return result;
   }
 
   private async captureScreenshot(trigger: string): Promise<void> {
-    if (this.isCapturing) {
+    // Don't capture if stopped (unless it's the final capture) or already capturing
+    if ((this.stopped && trigger !== "final") || this.isCapturing) {
       return;
     }
     this.isCapturing = true;
 
     try {
-      const screenshot = await this.page.screenshot();
+      const page = await this.v3.context.awaitActivePage();
+      const screenshot = await page.screenshot({ fullPage: false });
+
+      // If stopped while awaiting screenshot (and not final), don't process further
+      if (this.stopped && trigger !== "final") {
+        return;
+      }
 
       // Check if we should keep this screenshot based on image diff
       let shouldKeep = true;
@@ -120,12 +144,13 @@ export class ScreenshotCollector {
   }
 
   /**
-   * Manually add a screenshot to the collection
+   * Manually add a screenshot to the collection.
+   * Use this with the V3 event bus for event-driven screenshot collection.
    * @param screenshot The screenshot buffer to add
    */
   async addScreenshot(screenshot: Buffer): Promise<void> {
-    // Prevent concurrent processing
-    if (this.isCapturing) {
+    // Don't add if stopped or already capturing
+    if (this.stopped || this.isCapturing) {
       return;
     }
     this.isCapturing = true;
