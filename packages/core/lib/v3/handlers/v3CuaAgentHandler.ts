@@ -4,6 +4,7 @@ import { ToolSet } from "ai";
 import { AgentClient } from "../agent/AgentClient";
 import { AgentProvider } from "../agent/AgentProvider";
 import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping";
+import { ensureXPath } from "../agent/utils/xpath";
 import {
   ActionExecutionResult,
   AgentAction,
@@ -197,7 +198,7 @@ export class V3CuaAgentHandler {
             clickCount: (clickCount as number) ?? 1,
             returnXpath: true,
           });
-          const normalized = this.ensureXPath(xpath);
+          const normalized = ensureXPath(xpath);
           if (normalized) {
             const stagehandAction: Action = {
               selector: normalized,
@@ -228,7 +229,7 @@ export class V3CuaAgentHandler {
             clickCount: 2,
             returnXpath: true,
           });
-          const normalized = this.ensureXPath(xpath);
+          const normalized = ensureXPath(xpath);
           if (normalized) {
             const stagehandAction: Action = {
               selector: normalized,
@@ -258,7 +259,7 @@ export class V3CuaAgentHandler {
             clickCount: 3,
             returnXpath: true,
           });
-          const normalized = this.ensureXPath(xpath);
+          const normalized = ensureXPath(xpath);
           if (normalized) {
             const stagehandAction: Action = {
               selector: normalized,
@@ -284,7 +285,7 @@ export class V3CuaAgentHandler {
         await page.type(String(text ?? ""));
         if (recording) {
           const xpath = await computeActiveElementXpath(page);
-          const normalized = this.ensureXPath(xpath);
+          const normalized = ensureXPath(xpath);
           if (normalized) {
             const stagehandAction: Action = {
               selector: normalized,
@@ -360,8 +361,8 @@ export class V3CuaAgentHandler {
               returnXpath: true,
             });
             const [fromXpath, toXpath] = (xps as [string, string]) || ["", ""];
-            const from = this.ensureXPath(fromXpath);
-            const to = this.ensureXPath(toXpath);
+            const from = ensureXPath(fromXpath);
+            const to = ensureXPath(toXpath);
             if (from && to) {
               const stagehandAction: Action = {
                 selector: from,
@@ -463,12 +464,6 @@ export class V3CuaAgentHandler {
             : undefined;
   }
 
-  private ensureXPath(value: unknown): string | null {
-    if (typeof value !== "string") return null;
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    return trimmed.startsWith("xpath=") ? trimmed : `xpath=${trimmed}`;
-  }
 
   private describePointerAction(kind: string, x: unknown, y: unknown): string {
     const nx = Number(x);

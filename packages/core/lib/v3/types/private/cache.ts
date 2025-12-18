@@ -81,6 +81,7 @@ export type AgentReplayStep =
   | AgentReplayScrollStep
   | AgentReplayWaitStep
   | AgentReplayNavBackStep
+  | AgentReplayKeysStep
   | { type: string; [key: string]: unknown };
 
 export interface AgentReplayActStep {
@@ -120,6 +121,17 @@ export interface AgentReplayWaitStep {
 export interface AgentReplayNavBackStep {
   type: "navback";
   waitUntil?: LoadState;
+}
+
+export interface AgentReplayKeysStep {
+  type: "keys";
+  instruction?: string;
+  playwrightArguments: {
+    method: "type" | "press";
+    text?: string;
+    keys?: string;
+    times?: number;
+  };
 }
 
 export interface SanitizedAgentExecuteOptions {
