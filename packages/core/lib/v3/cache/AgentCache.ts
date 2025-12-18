@@ -5,6 +5,7 @@ import type {
   AgentReplayActStep,
   AgentReplayFillFormStep,
   AgentReplayGotoStep,
+  AgentReplayKeysStep,
   AgentReplayNavBackStep,
   AgentReplayScrollStep,
   AgentReplayStep,
@@ -554,6 +555,9 @@ export class AgentCache {
       case "navback":
         await this.replayAgentNavBackStep(step as AgentReplayNavBackStep, ctx);
         return;
+      case "keys":
+        await this.replayAgentKeysStep(step as AgentReplayKeysStep, ctx);
+        return;
       case "close":
       case "extract":
       case "screenshot":
@@ -653,5 +657,24 @@ export class AgentCache {
   ): Promise<void> {
     const page = await ctx.awaitActivePage();
     await page.goBack({ waitUntil: step.waitUntil ?? "domcontentloaded" });
+  }
+
+  private async replayAgentKeysStep(
+    step: AgentReplayKeysStep,
+    ctx: V3Context,
+  ): Promise<void> {
+    const page = await ctx.awaitActivePage();
+    const { method, text, keys, times } = step.playwrightArguments;
+    const repeatCount = Math.max(1, times ?? 1);
+
+    if (method === "type" && text) {
+      for (let i = 0; i < repeatCount; i++) {
+        await page.type(text, { delay: 100 });
+      }
+    } else if (method === "press" && keys) {
+      for (let i = 0; i < repeatCount; i++) {
+        await page.keyPress(keys, { delay: 100 });
+      }
+    }
   }
 }

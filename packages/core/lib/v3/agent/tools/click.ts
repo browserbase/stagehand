@@ -1,10 +1,12 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
+import type { Action } from "../../types/public/methods";
 import {
   processCoordinates,
   isGoogleProvider,
 } from "../utils/coordinateNormalization";
+import { ensureXPath } from "../utils/xpath";
 
 function waitForTimeout(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -44,16 +46,34 @@ export const clickTool = (v3: V3, provider?: string) =>
             },
           },
         });
-        await page.click(processed.x, processed.y);
+
+        // Use returnXpath to get the XPath of the clicked element for caching
+        const xpath = await page.click(processed.x, processed.y, {
+          returnXpath: true,
+        });
+
         // Google models need extra delay for page to settle after click
         if (isGoogleProvider(provider)) {
           await waitForTimeout(1000);
         }
-        v3.recordAgentReplayStep({
-          type: "click",
-          instruction: describe,
-          playwrightArguments: { coordinates: [processed.x, processed.y] },
-        });
+
+        // Record as an "act" step with proper Action for deterministic replay
+        const normalizedXpath = ensureXPath(xpath);
+        if (normalizedXpath) {
+          const action: Action = {
+            selector: normalizedXpath,
+            description: describe,
+            method: "click",
+            arguments: [],
+          };
+          v3.recordAgentReplayStep({
+            type: "act",
+            instruction: describe,
+            actions: [action],
+            actionDescription: describe,
+          });
+        }
+
         return {
           success: true,
           describe,
