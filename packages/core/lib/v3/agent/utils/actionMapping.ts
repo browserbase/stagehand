@@ -99,6 +99,13 @@ function createStandardAction(
     ...args,
   };
 
+  // For screenshot tool, exclude base64 data and just indicate a screenshot was taken, 
+  // if somebody really wants the base64 daya, they can access it through messages 
+  if (toolCallName === "screenshot") {
+    action.result = "screenshotTaken";
+    return action;
+  }
+
   // Spread the output from the tool result if it exists, exclude ariaTree tool result as it is very large and unnecessary
   // todo : add better typing for every tool to avoid type casting
   if (toolCallName !== "ariaTree" && toolResult) {
