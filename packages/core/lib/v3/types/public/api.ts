@@ -830,20 +830,28 @@ export const StreamEventLogDataSchema = z
   })
   .meta({ id: "StreamEventLogData" });
 
-/** SSE stream event sent during streaming responses */
+/**
+ * SSE stream event sent during streaming responses.
+ *
+ * IMPORTANT: Key ordering matters for Stainless SDK generation.
+ * The `data` field MUST be serialized first, with `status` as the first key within it.
+ * This allows Stainless to use `data_starts_with: '{"data":{"status":"finished"'` for event handling.
+ *
+ * Expected serialization order: {"data":{"status":...},"type":...,"id":...}
+ */
 export const StreamEventSchema = z
   .object({
+    data: z.union([StreamEventSystemDataSchema, StreamEventLogDataSchema]),
+    type: StreamEventTypeSchema,
     id: z.string().uuid().meta({
       description: "Unique identifier for this event",
       example: "c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123",
     }),
-    type: StreamEventTypeSchema,
-    data: z.union([StreamEventSystemDataSchema, StreamEventLogDataSchema]),
   })
   .meta({
     id: "StreamEvent",
     description:
-      "Server-Sent Event emitted during streaming responses. Events are sent as `data: <JSON>\\n\\n`.",
+      "Server-Sent Event emitted during streaming responses. Events are sent as `data: <JSON>\\n\\n`. Key order: data (with status first), type, id.",
   });
 
 // =============================================================================
