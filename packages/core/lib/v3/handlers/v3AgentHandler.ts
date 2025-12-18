@@ -168,6 +168,14 @@ export class V3AgentHandler {
                 : allReasoning || "Task completed successfully";
             }
           }
+          // Intercept screenshot tool output for evals (hybrid mode only)
+          if (this.mode === "hybrid" && toolCall.toolName === "screenshot") {
+            const screenshotOutput = event.toolResults?.[i]?.output;
+            this.v3.bus.emit(
+              "agent_screensot_taken_event",
+              Buffer.from(screenshotOutput.base64, "base64"),
+            );
+          }
           const mappedActions = mapToolResultToActions({
             toolCallName: toolCall.toolName,
             toolResult,
@@ -183,17 +191,9 @@ export class V3AgentHandler {
         }
         state.currentPageUrl = (await this.v3.context.awaitActivePage()).url();
 
-        // Capture screenshot after tool execution (only for evals)
-        if (process.env.EVALS === "true") {
-          try {
-            await this.captureAndEmitScreenshot();
-          } catch (e) {
-            this.logger({
-              category: "agent",
-              message: `Warning: Failed to capture screenshot: ${getErrorMessage(e)}`,
-              level: 1,
-            });
-          }
+        // Capture screenshot after tool execution (only for evals, DOM mode)
+        if (process.env.EVALS === "true" && this.mode === "dom") {
+          await this.captureAndEmitScreenshot();
         }
       }
 
