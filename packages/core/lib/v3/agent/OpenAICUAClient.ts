@@ -735,7 +735,7 @@ export class OpenAICUAClient extends AgentClient {
     const { action } = call;
 
     // Scale coordinates from screenshot space to viewport space
-    let scaledAction = { ...action };
+    const scaledAction = { ...action };
     if (action.x !== undefined && action.y !== undefined) {
       const scaleX =
         this.currentViewport.width / this.actualScreenshotSize.width;
