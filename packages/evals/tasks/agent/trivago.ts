@@ -1,4 +1,6 @@
 import { EvalFunction } from "../../types/evals";
+import { V3Evaluator } from "@browserbasehq/stagehand";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 export const trivago: EvalFunction = async ({
   debugUrl,
@@ -11,39 +13,57 @@ export const trivago: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://www.trivago.com/");
 
+    const screenshotCollector = new ScreenshotCollector(v3, {
+      maxScreenshots: 15,
+    });
+    screenshotCollector.start();
+
+    const instruction =
+      "Find the cheapest room in the hotel H10 Tribeca in Madrid next weekend. Stop at the trivago page showing the results";
     const agentResult = await agent.execute({
-      instruction:
-        "Find the cheapest room in the hotel H10 Tribeca in Madrid next weekend. Stop at the trivago page showing the results",
+      instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 13,
     });
-    logger.log(agentResult);
 
-    const url = page.url();
+    const screenshots = await screenshotCollector.stop();
 
-    if (
-      url.includes("hotel-h10-tribeca-madrid") &&
-      url.includes("trivago.com")
-    ) {
-      return {
-        _success: true,
-        observations: url,
-        debugUrl,
-        sessionUrl,
-        logs: logger.getLogs(),
-      };
-    } else {
+    logger.log({
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
+      level: 1,
+    });
+
+    const evaluator = new V3Evaluator(v3);
+    const { evaluation, reasoning } = await evaluator.ask({
+      question: `did the agent complete this task successfully? ${instruction}`,
+      screenshot: screenshots,
+      agentReasoning: agentResult.message,
+    });
+
+    console.log(`reasoning: ${reasoning}`);
+
+    const success = evaluation === "YES";
+
+    if (!success) {
       return {
         _success: false,
-        observations: url,
+        message: reasoning,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     }
+    return {
+      _success: true,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       _success: false,
-      error: error,
+      message: errorMessage,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),

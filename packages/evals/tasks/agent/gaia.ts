@@ -1,5 +1,6 @@
 import { EvalFunction } from "../../types/evals";
 import { V3Evaluator } from "@browserbasehq/stagehand";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 /**
  * Data-driven GAIA agent eval
@@ -44,30 +45,52 @@ export const gaia: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto(params.web);
 
+    const screenshotCollector = new ScreenshotCollector(v3, {
+      maxScreenshots: 15,
+    });
+    screenshotCollector.start();
+
     const agent = v3.agent({
       model: modelName,
       systemPrompt: `You are a helpful assistant that must solve the task by browsing. You must produce a single line at the end like: "Final Answer: <answer>". Do not ask follow up questions. Current page: ${await page.title()}`,
     });
 
-    const result = await agent.execute({
-      instruction: params.ques,
+    const instruction = params.ques;
+    const agentResult = await agent.execute({
+      instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
     });
 
-    const expected = (params as Record<string, unknown>).expected as
-      | string
-      | undefined;
-    const evaluator = new V3Evaluator(v3);
-    const evalResult = await evaluator.ask({
-      question: `Did the agent provide the expected answer: "${expected}"?`,
-      answer: result?.message || "",
-      screenshot: false,
+    const screenshots = await screenshotCollector.stop();
+
+    logger.log({
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
+      level: 1,
     });
 
+    const evaluator = new V3Evaluator(v3);
+    const { evaluation, reasoning } = await evaluator.ask({
+      question: `did the agent complete this task successfully? ${instruction}`,
+      screenshot: screenshots,
+      agentReasoning: agentResult.message,
+    });
+
+    console.log(`reasoning: ${reasoning}`);
+
+    const success = evaluation === "YES";
+
+    if (!success) {
+      return {
+        _success: false,
+        message: reasoning,
+        debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
+      };
+    }
     return {
-      _success: evalResult.evaluation === "YES",
-      reasoning: evalResult.reasoning,
-      expectedAnswer: expected,
+      _success: true,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),

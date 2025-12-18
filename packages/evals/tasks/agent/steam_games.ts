@@ -1,4 +1,6 @@
 import { EvalFunction } from "../../types/evals";
+import { V3Evaluator } from "@browserbasehq/stagehand";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 export const steam_games: EvalFunction = async ({
   debugUrl,
@@ -11,19 +13,41 @@ export const steam_games: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://store.steampowered.com/");
 
+    const screenshotCollector = new ScreenshotCollector(v3, {
+      maxScreenshots: 15,
+    });
+    screenshotCollector.start();
+
+    const instruction =
+      "Show most played games in Steam. And tell me the number of players in game at this time";
     const agentResult = await agent.execute({
-      instruction:
-        "Show most played games in Steam. And tell me the number of players in game at this time",
+      instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
     });
 
-    //strictly used url check and no extract as the top games / players can vary
-    const success = page.url().includes("https://store.steampowered.com/");
+    const screenshots = await screenshotCollector.stop();
+
+    logger.log({
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
+      level: 1,
+    });
+
+    const evaluator = new V3Evaluator(v3);
+    const { evaluation, reasoning } = await evaluator.ask({
+      question: `did the agent complete this task successfully? ${instruction}`,
+      screenshot: screenshots,
+      agentReasoning: agentResult.message,
+    });
+
+    console.log(`reasoning: ${reasoning}`);
+
+    const success = evaluation === "YES";
 
     if (!success) {
       return {
         _success: false,
-        message: agentResult.message,
+        message: reasoning,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
@@ -36,9 +60,10 @@ export const steam_games: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       _success: false,
-      message: error.message,
+      message: errorMessage,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),

@@ -13,44 +13,48 @@ export class ScreenshotCollector {
   private ssimThreshold: number = 0.75;
   private mseThreshold: number = 30;
   private stopped: boolean = false;
+  private boundEventHandler: (screenshot: Buffer) => void;
 
   constructor(v3: V3, options: ScreenshotCollectorOptions = {}) {
     this.v3 = v3;
     this.interval = options.interval; // undefined means event-driven mode
     this.maxScreenshots = options.maxScreenshots || 10;
+    // Bind the event handler so we can remove it later
+    this.boundEventHandler = (screenshot: Buffer) => {
+      this.addScreenshot(screenshot).catch((error) => {
+        console.error("Event-driven screenshot failed:", error);
+      });
+    };
   }
 
   /**
-   * Start interval-based screenshot capture.
-   * Only activates if interval option was provided in constructor.
-   * For event-driven collection, use addScreenshot() directly via the V3 event bus.
+   * Start screenshot capture.
+   * - Always subscribes to agent screenshot events for event-driven collection.
+   * - If interval option was provided, also captures screenshots periodically.
    */
   start(): void {
+    this.v3.bus.on("agent_screenshot_taken_event", this.boundEventHandler);
+
     // Only start interval if interval was provided
-    if (!this.interval) {
-      return;
-    }
+    if (this.interval && !this.intervalId) {
+      this.intervalId = setInterval(() => {
+        this.captureScreenshot("interval").catch((error) => {
+          console.error("Interval screenshot failed:", error);
+        });
+      }, this.interval);
 
-    if (this.intervalId) {
-      return;
-    }
-
-    // Set up time-based screenshot capture
-    this.intervalId = setInterval(() => {
-      this.captureScreenshot("interval").catch((error) => {
-        console.error("Interval screenshot failed:", error);
+      // Capture initial screenshot without blocking
+      this.captureScreenshot("initial").catch((error) => {
+        console.error("Failed to capture initial screenshot:", error);
       });
-    }, this.interval);
-
-    // Capture initial screenshot without blocking
-    this.captureScreenshot("initial").catch((error) => {
-      console.error("Failed to capture initial screenshot:", error);
-    });
+    }
   }
 
   async stop(): Promise<Buffer[]> {
     // Mark as stopped first to prevent any new operations
     this.stopped = true;
+
+    this.v3.bus.off("agent_screenshot_taken_event", this.boundEventHandler);
 
     // Clear interval if running
     if (this.intervalId) {

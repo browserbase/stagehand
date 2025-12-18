@@ -1,5 +1,6 @@
 import { EvalFunction } from "../../types/evals";
 import { V3Evaluator } from "@browserbasehq/stagehand";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 export const google_maps_3: EvalFunction = async ({
   debugUrl,
@@ -11,17 +12,35 @@ export const google_maps_3: EvalFunction = async ({
   try {
     const page = v3.context.pages()[0];
     await page.goto("https://maps.google.com/");
-    const evaluator = new V3Evaluator(v3);
-    await agent.execute({
-      instruction:
-        "Search for locksmiths open now but not open 24 hours in Texas City.",
+
+    const screenshotCollector = new ScreenshotCollector(v3, {
+      maxScreenshots: 15,
+    });
+    screenshotCollector.start();
+
+    const instruction =
+      "Search for locksmiths open now but not open 24 hours in Texas City.";
+    const agentResult = await agent.execute({
+      instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 35,
     });
 
-    const { evaluation, reasoning } = await evaluator.ask({
-      question:
-        "Does the page show a locksmiths open now but not open 24 hours in Texas City?",
+    const screenshots = await screenshotCollector.stop();
+
+    logger.log({
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
+      level: 1,
     });
+
+    const evaluator = new V3Evaluator(v3);
+    const { evaluation, reasoning } = await evaluator.ask({
+      question: `did the agent complete this task successfully? ${instruction}`,
+      screenshot: screenshots,
+      agentReasoning: agentResult.message,
+    });
+
+    console.log(`reasoning: ${reasoning}`);
 
     const success = evaluation === "YES";
 
@@ -41,9 +60,10 @@ export const google_maps_3: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       _success: false,
-      message: error.message,
+      message: errorMessage,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),

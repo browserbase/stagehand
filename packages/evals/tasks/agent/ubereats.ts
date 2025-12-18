@@ -1,5 +1,6 @@
 import { EvalFunction } from "../../types/evals";
 import { V3Evaluator } from "@browserbasehq/stagehand";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 export const ubereats: EvalFunction = async ({
   debugUrl,
@@ -9,22 +10,40 @@ export const ubereats: EvalFunction = async ({
   v3,
 }) => {
   try {
-    const evaluator = new V3Evaluator(v3);
     const page = v3.context.pages()[0];
     await page.goto("https://www.ubereats.com/");
 
-    await agent.execute({
-      instruction:
-        "Order a pizza from ubereats to 639 geary st in sf, call the task complete once the login page is shown after adding pizza and viewing the cart",
+    const screenshotCollector = new ScreenshotCollector(v3, {
+      maxScreenshots: 15,
+    });
+    screenshotCollector.start();
+
+    const instruction =
+      "Order a pizza from ubereats to 639 geary st in sf, call the task complete once the login page is shown after adding pizza and viewing the cart";
+    const agentResult = await agent.execute({
+      instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 35,
     });
 
-    const { evaluation, reasoning } = await evaluator.ask({
-      question: "Did the agent make it to the login page?",
+    const screenshots = await screenshotCollector.stop();
+
+    logger.log({
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
+      level: 1,
     });
 
-    const success =
-      evaluation === "YES" && page.url().includes("https://auth.uber.com/");
+    const evaluator = new V3Evaluator(v3);
+    const { evaluation, reasoning } = await evaluator.ask({
+      question: `did the agent complete this task successfully? ${instruction}`,
+      screenshot: screenshots,
+      agentReasoning: agentResult.message,
+    });
+
+    console.log(`reasoning: ${reasoning}`);
+
+    const success = evaluation === "YES";
+
     if (!success) {
       return {
         _success: false,
@@ -41,9 +60,10 @@ export const ubereats: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       _success: false,
-      message: error.message,
+      message: errorMessage,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),

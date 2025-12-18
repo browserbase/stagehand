@@ -1,5 +1,6 @@
 import { EvalFunction } from "../../types/evals";
 import { V3Evaluator } from "@browserbasehq/stagehand";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 export const github_react_version: EvalFunction = async ({
   debugUrl,
@@ -10,21 +11,39 @@ export const github_react_version: EvalFunction = async ({
 }) => {
   try {
     const page = v3.context.pages()[0];
-    const evaluator = new V3Evaluator(v3);
     await page.goto("https://github.com/");
-    await agent.execute({
-      instruction:
-        "Check the latest release version of React and the date it was published. ",
+
+    const screenshotCollector = new ScreenshotCollector(v3, {
+      maxScreenshots: 15,
+    });
+    screenshotCollector.start();
+
+    const instruction =
+      "Check the latest release version of React and the date it was published.";
+    const agentResult = await agent.execute({
+      instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,
     });
-    const { evaluation, reasoning } = await evaluator.ask({
-      question:
-        "Does the page show the latest version of react and the date it was published",
+
+    const screenshots = await screenshotCollector.stop();
+
+    logger.log({
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
+      level: 1,
     });
-    console.log(`evaluation: ${evaluation}`);
+
+    const evaluator = new V3Evaluator(v3);
+    const { evaluation, reasoning } = await evaluator.ask({
+      question: `did the agent complete this task successfully? ${instruction}`,
+      screenshot: screenshots,
+      agentReasoning: agentResult.message,
+    });
+
     console.log(`reasoning: ${reasoning}`);
-    // only use url check for now, as using extract on the version is prone to breaking in future
+
     const success = evaluation === "YES";
+
     if (!success) {
       return {
         _success: false,
@@ -41,9 +60,10 @@ export const github_react_version: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       _success: false,
-      message: error.message,
+      message: errorMessage,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),

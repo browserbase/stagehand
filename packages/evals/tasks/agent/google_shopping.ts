@@ -1,5 +1,6 @@
 import { EvalFunction } from "../../types/evals";
 import { V3Evaluator } from "@browserbasehq/stagehand";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 export const google_shopping: EvalFunction = async ({
   debugUrl,
@@ -12,18 +13,34 @@ export const google_shopping: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://www.google.com/shopping");
 
+    const screenshotCollector = new ScreenshotCollector(v3, {
+      maxScreenshots: 15,
+    });
+    screenshotCollector.start();
+
+    const instruction =
+      "Find a drip coffee maker that is on sale and within $25-60 and has a black finish";
     const agentResult = await agent.execute({
-      instruction:
-        "Find a drip coffee maker that is on sale and within $25-60 and has a black finish",
+      instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,
     });
-    logger.log(agentResult);
+
+    const screenshots = await screenshotCollector.stop();
+
+    logger.log({
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
+      level: 1,
+    });
 
     const evaluator = new V3Evaluator(v3);
     const { evaluation, reasoning } = await evaluator.ask({
-      question:
-        "Does the page show a drip coffee maker that is on sale and within $25-60 and has a black finish?",
+      question: `did the agent complete this task successfully? ${instruction}`,
+      screenshot: screenshots,
+      agentReasoning: agentResult.message,
     });
+
+    console.log(`reasoning: ${reasoning}`);
 
     const success = evaluation === "YES";
 
@@ -36,7 +53,6 @@ export const google_shopping: EvalFunction = async ({
         logs: logger.getLogs(),
       };
     }
-
     return {
       _success: true,
       debugUrl,
@@ -44,9 +60,10 @@ export const google_shopping: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       _success: false,
-      error,
+      message: errorMessage,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
