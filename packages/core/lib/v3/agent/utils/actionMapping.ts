@@ -99,8 +99,8 @@ function createStandardAction(
     ...args,
   };
 
-  // For screenshot tool, exclude base64 data and just indicate a screenshot was taken, 
-  // if somebody really wants the base64 daya, they can access it through messages 
+  // For screenshot tool, exclude base64 data and just indicate a screenshot was taken,
+  // if somebody really wants the base64 daya, they can access it through messages
   if (toolCallName === "screenshot") {
     action.result = "screenshotTaken";
     return action;
