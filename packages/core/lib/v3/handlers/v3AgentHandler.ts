@@ -170,7 +170,7 @@ export class V3AgentHandler {
           }
           await this.captureAndEmitScreenshot({
             toolName: toolCall.toolName,
-            toolOutput: event.toolResults?.[i]?.output
+            toolOutput: event.toolResults?.[i]?.output,
           });
 
           const mappedActions = mapToolResultToActions({
