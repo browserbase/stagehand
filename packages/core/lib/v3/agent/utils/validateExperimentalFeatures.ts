@@ -34,8 +34,7 @@ export function validateExperimentalFeatures(
   const { isExperimental, agentConfig, executeOptions, isStreaming } = options;
 
   // Check if CUA mode is enabled (via mode: "cua" or deprecated cua: true)
-  const isCuaMode =
-    agentConfig?.mode === "cua" || agentConfig?.cua === true;
+  const isCuaMode = agentConfig?.mode === "cua" || agentConfig?.cua === true;
 
   // CUA-specific validation: certain features are not available at all
   if (isCuaMode) {
