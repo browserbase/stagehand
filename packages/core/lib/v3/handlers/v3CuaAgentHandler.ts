@@ -86,12 +86,17 @@ export class V3CuaAgentHandler {
       const screenshotBuffer = await page.screenshot({ fullPage: false });
 
       // For Google, OpenAI, and Microsoft CUA, extract screenshot dimensions and set them
-      if (this.agentClient instanceof GoogleCUAClient ||
-          this.agentClient instanceof OpenAICUAClient ||
-          this.agentClient instanceof MicrosoftCUAClient) {
+      if (
+        this.agentClient instanceof GoogleCUAClient ||
+        this.agentClient instanceof OpenAICUAClient ||
+        this.agentClient instanceof MicrosoftCUAClient
+      ) {
         try {
           const dimensions = getPNGDimensions(screenshotBuffer);
-          this.agentClient.setScreenshotSize(dimensions.width, dimensions.height);
+          this.agentClient.setScreenshotSize(
+            dimensions.width,
+            dimensions.height,
+          );
         } catch (e) {
           this.logger({
             category: "agent",
@@ -596,12 +601,17 @@ export class V3CuaAgentHandler {
       const screenshotBuffer = await page.screenshot({ fullPage: false });
 
       // For Google, OpenAI, and Microsoft CUA, extract screenshot dimensions and set them
-      if (this.agentClient instanceof GoogleCUAClient ||
-          this.agentClient instanceof OpenAICUAClient ||
-          this.agentClient instanceof MicrosoftCUAClient) {
+      if (
+        this.agentClient instanceof GoogleCUAClient ||
+        this.agentClient instanceof OpenAICUAClient ||
+        this.agentClient instanceof MicrosoftCUAClient
+      ) {
         try {
           const dimensions = getPNGDimensions(screenshotBuffer);
-          this.agentClient.setScreenshotSize(dimensions.width, dimensions.height);
+          this.agentClient.setScreenshotSize(
+            dimensions.width,
+            dimensions.height,
+          );
         } catch (e) {
           this.logger({
             category: "agent",

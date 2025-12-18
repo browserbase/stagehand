@@ -375,8 +375,10 @@ For each function call, return a json object with function name and arguments wi
     const transformCoordinate = (coord: number[]): number[] => {
       if (!coord || coord.length !== 2) return coord;
       const [x, y] = coord;
-      const scaleX = this.currentViewport.width / this.actualScreenshotSize.width;
-      const scaleY = this.currentViewport.height / this.actualScreenshotSize.height;
+      const scaleX =
+        this.currentViewport.width / this.actualScreenshotSize.width;
+      const scaleY =
+        this.currentViewport.height / this.actualScreenshotSize.height;
       return [Math.round(x * scaleX), Math.round(y * scaleY)];
     };
 

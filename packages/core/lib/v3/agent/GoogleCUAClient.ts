@@ -917,7 +917,8 @@ export class GoogleCUAClient extends AgentClient {
     const screenshotX = (x / 1000) * this.actualScreenshotSize.width;
     const screenshotY = (y / 1000) * this.actualScreenshotSize.height;
     const scaleX = this.currentViewport.width / this.actualScreenshotSize.width;
-    const scaleY = this.currentViewport.height / this.actualScreenshotSize.height;
+    const scaleY =
+      this.currentViewport.height / this.actualScreenshotSize.height;
 
     return {
       x: Math.floor(screenshotX * scaleX),
