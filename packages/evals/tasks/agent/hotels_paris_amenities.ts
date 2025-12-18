@@ -14,7 +14,7 @@ export const hotels_paris_amenities: EvalFunction = async ({
     await page.goto("https://www.hotels.com/");
 
     // Start collecting screenshots throughout the agent's journey
-    const screenshotCollector = new ScreenshotCollector(page, {
+    const screenshotCollector = new ScreenshotCollector(v3, {
       interval: 3000,
       maxScreenshots: 15,
     });

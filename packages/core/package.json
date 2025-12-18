@@ -7,7 +7,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "gen-version": "tsx scripts/gen-version.ts",
-    "build-dom-scripts": "tsx lib/v3/dom/genDomScripts.ts && tsx lib/v3/dom/genLocatorScripts.ts",
+    "build-dom-scripts": "tsx lib/v3/dom/genDomScripts.ts && tsx lib/v3/dom/genLocatorScripts.ts && tsx lib/v3/dom/genA11yScripts.ts",
     "build-js": "tsup --entry.index lib/v3/index.ts --dts",
     "typecheck": "tsc --noEmit",
     "build": "pnpm run gen-version && pnpm run build-dom-scripts && pnpm run build-js && pnpm run typecheck",

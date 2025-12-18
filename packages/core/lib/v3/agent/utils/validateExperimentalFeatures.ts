@@ -23,6 +23,7 @@ export interface AgentValidationOptions {
  * This utility consolidates all validation checks for both CUA and non-CUA agent paths:
  * - Invalid argument errors for CUA (streaming, abort signal, message continuation are not supported)
  * - Experimental feature checks for integrations and tools (both CUA and non-CUA)
+ * - Experimental feature checks for hybrid mode (requires experimental: true)
  * - Experimental feature checks for non-CUA only (callbacks, signal, messages, streaming)
  *
  * Throws StagehandInvalidArgumentError for invalid/unsupported configurations.
@@ -33,8 +34,11 @@ export function validateExperimentalFeatures(
 ): void {
   const { isExperimental, agentConfig, executeOptions, isStreaming } = options;
 
+  // Check if CUA mode is enabled (via mode: "cua" or deprecated cua: true)
+  const isCuaMode = agentConfig?.mode === "cua" || agentConfig?.cua === true;
+
   // CUA-specific validation: certain features are not available at all
-  if (agentConfig?.cua) {
+  if (isCuaMode) {
     const unsupportedFeatures: string[] = [];
 
     if (agentConfig?.stream) {
@@ -67,14 +71,17 @@ export function validateExperimentalFeatures(
   if (hasIntegrations || hasTools) {
     features.push("MCP integrations and custom tools");
   }
+  if (agentConfig?.mode === "hybrid") {
+    features.push("hybrid mode");
+  }
 
   // Check streaming mode (either explicit or derived from config) - only for non-CUA
-  if (!agentConfig?.cua && (isStreaming || agentConfig?.stream)) {
+  if (!isCuaMode && (isStreaming || agentConfig?.stream)) {
     features.push("streaming");
   }
 
   // Check execute options features - only for non-CUA
-  if (executeOptions && !agentConfig?.cua) {
+  if (executeOptions && !isCuaMode) {
     if (executeOptions.callbacks) {
       features.push("callbacks");
     }

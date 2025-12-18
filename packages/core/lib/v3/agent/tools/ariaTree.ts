@@ -2,7 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
 
-export const createAriaTreeTool = (v3: V3) =>
+export const ariaTreeTool = (v3: V3) =>
   tool({
     description:
       "gets the accessibility (ARIA) hybrid tree text for the current page. use this to understand structure and content.",

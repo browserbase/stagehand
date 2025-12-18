@@ -47,12 +47,19 @@ type ExpectedExportedTypes = {
   AgentProviderType: Stagehand.AgentProviderType;
   AgentModelConfig: Stagehand.AgentModelConfig;
   AgentConfig: Stagehand.AgentConfig;
+  AgentToolMode: Stagehand.AgentToolMode;
   AgentCallbacks: Stagehand.AgentCallbacks;
   AgentExecuteCallbacks: Stagehand.AgentExecuteCallbacks;
   AgentStreamCallbacks: Stagehand.AgentStreamCallbacks;
   AgentExecuteOptionsBase: Stagehand.AgentExecuteOptionsBase;
   AgentStreamExecuteOptions: Stagehand.AgentStreamExecuteOptions;
   ModelMessage: Stagehand.ModelMessage;
+  // Types from agent/tools
+  AgentTools: Stagehand.AgentTools;
+  AgentToolTypesMap: Stagehand.AgentToolTypesMap;
+  AgentUITools: Stagehand.AgentUITools;
+  AgentToolCall: Stagehand.AgentToolCall;
+  AgentToolResult: Stagehand.AgentToolResult;
   // Types from logs.ts
   LogLevel: Stagehand.LogLevel;
   LogLine: Stagehand.LogLine;
@@ -256,10 +263,20 @@ describe("Stagehand public API types", () => {
       cua?: boolean;
       model?: string | Stagehand.AgentModelConfig<string>;
       executionModel?: string | Stagehand.AgentModelConfig<string>;
+      stream?: boolean;
+      mode?: Stagehand.AgentToolMode;
     };
 
     it("matches expected type shape", () => {
       expectTypeOf<Stagehand.AgentConfig>().toExtend<ExpectedAgentConfig>();
+    });
+  });
+
+  describe("AgentToolMode", () => {
+    type ExpectedAgentToolMode = "dom" | "hybrid" | "cua";
+
+    it("matches expected type shape", () => {
+      expectTypeOf<Stagehand.AgentToolMode>().toEqualTypeOf<ExpectedAgentToolMode>();
     });
   });
 

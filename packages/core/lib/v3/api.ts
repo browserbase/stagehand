@@ -28,6 +28,8 @@ import type { SerializableResponse } from "./types/private";
 import type { ModelConfiguration } from "./types/public/model";
 import { toJsonSchema } from "./zodCompat";
 import type { StagehandZodSchema } from "./zodCompat";
+import { loadApiKeyFromEnv } from "../utils";
+import type { ModelConfiguration } from "./types/public/model";
 
 // =============================================================================
 // Client-specific types (can't be Zod schemas due to functions/Page objects)
