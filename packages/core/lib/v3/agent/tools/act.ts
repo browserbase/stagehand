@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { V3 } from "../../v3";
 import type { Action } from "../../types/public/methods";
 
-export const createActTool = (v3: V3, executionModel?: string) =>
+export const actTool = (v3: V3, executionModel?: string) =>
   tool({
     description:
       "Perform an action on the page (click, type). Provide a short, specific phrase that mentions the element type.",

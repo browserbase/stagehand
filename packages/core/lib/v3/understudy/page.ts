@@ -1592,15 +1592,44 @@ export class Page {
         return;
       }
 
-      // Printable character: use text on keyDown to generate input
+      // Printable character: include key, code, and text for maximum compatibility
+      // Some sites (like Wordle) check event.key rather than relying on text input
+      const isLetter = /^[a-zA-Z]$/.test(ch);
+      const isDigit = /^[0-9]$/.test(ch);
+
+      let key = ch;
+      let code = "";
+      let windowsVirtualKeyCode: number | undefined;
+
+      if (isLetter) {
+        // For letters, key is the character, code is KeyX where X is uppercase
+        key = ch;
+        code = `Key${ch.toUpperCase()}`;
+        windowsVirtualKeyCode = ch.toUpperCase().charCodeAt(0);
+      } else if (isDigit) {
+        key = ch;
+        code = `Digit${ch}`;
+        windowsVirtualKeyCode = ch.charCodeAt(0);
+      } else if (ch === " ") {
+        key = " ";
+        code = "Space";
+        windowsVirtualKeyCode = 32;
+      }
+
       const down: Protocol.Input.DispatchKeyEventRequest = {
         type: "keyDown",
+        key,
+        code: code || undefined,
         text: ch,
         unmodifiedText: ch,
+        windowsVirtualKeyCode,
       };
       await this.mainSession.send("Input.dispatchKeyEvent", down);
       await this.mainSession.send("Input.dispatchKeyEvent", {
         type: "keyUp",
+        key,
+        code: code || undefined,
+        windowsVirtualKeyCode,
       } as Protocol.Input.DispatchKeyEventRequest);
     };
 
@@ -1842,10 +1871,11 @@ export class Page {
     } as Protocol.Input.DispatchKeyEventRequest);
   }
 
-  /** Normalize modifier key names to match CDP expectations */
+  /** Normalize key names to match CDP expectations */
   private normalizeModifierKey(key: string): string {
-    const normalized = key.toLowerCase();
-    switch (normalized) {
+    const lower = key.toLowerCase();
+    switch (lower) {
+      // Modifier keys
       case "cmd":
       case "command":
         // On Mac, Cmd is Meta; elsewhere map to Control for common shortcuts
@@ -1854,11 +1884,56 @@ export class Page {
       case "windows":
         return "Meta";
       case "ctrl":
+      case "control":
         return "Control";
       case "option":
+      case "alt":
         return "Alt";
       case "shift":
         return "Shift";
+      case "meta":
+        return "Meta";
+      // Action keys
+      case "enter":
+      case "return":
+        return "Enter";
+      case "esc":
+      case "escape":
+        return "Escape";
+      case "backspace":
+        return "Backspace";
+      case "tab":
+        return "Tab";
+      case "space":
+      case "spacebar":
+        return " ";
+      case "delete":
+      case "del":
+        return "Delete";
+      // Arrow keys
+      case "left":
+      case "arrowleft":
+        return "ArrowLeft";
+      case "right":
+      case "arrowright":
+        return "ArrowRight";
+      case "up":
+      case "arrowup":
+        return "ArrowUp";
+      case "down":
+      case "arrowdown":
+        return "ArrowDown";
+      // Navigation keys
+      case "home":
+        return "Home";
+      case "end":
+        return "End";
+      case "pageup":
+      case "pgup":
+        return "PageUp";
+      case "pagedown":
+      case "pgdn":
+        return "PageDown";
       default:
         return key;
     }

@@ -2,7 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
 
-export const createGotoTool = (v3: V3) =>
+export const gotoTool = (v3: V3) =>
   tool({
     description: "Navigate to a specific URL",
     inputSchema: z.object({

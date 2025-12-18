@@ -2,7 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
 
-export const createNavBackTool = (v3: V3) =>
+export const navBackTool = (v3: V3) =>
   tool({
     description: "Navigate back to the previous page",
     inputSchema: z.object({

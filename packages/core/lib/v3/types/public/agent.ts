@@ -397,6 +397,13 @@ export type AgentModelConfig<TModelName extends string = string> = {
   modelName: TModelName;
 } & Record<string, unknown>;
 
+/**
+ * Agent tool mode determines which set of tools are available to the agent.
+ * - 'dom': Uses DOM-based tools (act, fillForm) - better for structured page interactions
+ * - 'hybrid': Uses coordinate-based tools (click, type, dragAndDrop, etc.) - better for visual/screenshot-based interactions
+ */
+export type AgentToolMode = "dom" | "hybrid";
+
 export type AgentConfig = {
   /**
    * Custom system prompt to provide to the agent. Overrides the default system prompt.
@@ -430,6 +437,13 @@ export type AgentConfig = {
    * When false (default), execute() returns AgentResult after completion.
    */
   stream?: boolean;
+  /**
+   * Tool mode for the agent. Determines which set of tools are available.
+   * - 'dom' (default): Uses DOM-based tools (act, fillForm) for structured interactions
+   * - 'hybrid': Uses coordinate-based tools (click, type, dragAndDrop, clickAndHold, fillFormVision)
+   *             for visual/screenshot-based interactions
+   */
+  mode?: AgentToolMode;
 };
 
 /**

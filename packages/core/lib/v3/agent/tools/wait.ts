@@ -2,7 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
 
-export const createWaitTool = (v3: V3) =>
+export const waitTool = (v3: V3) =>
   tool({
     description: "Wait for a specified time",
     inputSchema: z.object({

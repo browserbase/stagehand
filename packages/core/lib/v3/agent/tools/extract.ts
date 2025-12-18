@@ -19,7 +19,7 @@ function evaluateZodSchema(
   }
 }
 
-export const createExtractTool = (
+export const extractTool = (
   v3: V3,
   executionModel?: string,
   logger?: (message: LogLine) => void,

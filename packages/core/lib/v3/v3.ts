@@ -165,6 +165,12 @@ export class V3 {
   public get browserbaseDebugURL(): string | undefined {
     return this.browserbaseDebugUrl;
   }
+  /**
+   * Returns true if the browser is running on Browserbase.
+   */
+  public get isBrowserbase(): boolean {
+    return this.state.kind === "BROWSERBASE";
+  }
   private _onCdpClosed = (why: string) => {
     if (this.state.kind === "BROWSERBASE") {
       void this._logBrowserbaseSessionStatus();
@@ -1605,6 +1611,7 @@ export class V3 {
         : options?.executionModel?.modelName,
       options?.systemPrompt,
       tools,
+      options?.mode,
     );
 
     const resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions =

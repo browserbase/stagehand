@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 
-export const createCloseTool = () =>
+export const closeTool = () =>
   tool({
     description: "Complete the task and close",
     inputSchema: z.object({
