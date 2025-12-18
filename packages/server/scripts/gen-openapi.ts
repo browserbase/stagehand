@@ -43,8 +43,10 @@ async function main() {
     schemas: {
       // Shared components
       LocalBrowserLaunchOptions: Api.LocalBrowserLaunchOptionsSchema,
+      ModelName: Api.ModelNameSchema,
+      ModelConfigObject: Api.ModelConfigObjectSchema,
       ModelConfig: Api.ModelConfigSchema,
-      ActionInput: Api.ActionSchema,
+      Action: Api.ActionSchema,
       SessionIdParams: Api.SessionIdParamsSchema,
       BrowserConfig: Api.BrowserConfigSchema,
       SessionHeaders: Api.SessionHeadersSchema,
@@ -58,6 +60,7 @@ async function main() {
       BrowserbaseProxyGeolocation: Api.BrowserbaseProxyGeolocationSchema,
       BrowserbaseProxyConfig: Api.BrowserbaseProxyConfigSchema,
       ExternalProxyConfig: Api.ExternalProxyConfigSchema,
+      ProxyConfig: Api.ProxyConfigSchema,
       BrowserbaseSessionCreateParams: Api.BrowserbaseSessionCreateParamsSchema,
       // Session Start
       SessionStartRequest: Api.SessionStartRequestSchema,
@@ -103,6 +106,12 @@ async function main() {
       ReplayPage: Api.ReplayPageSchema,
       ReplayResult: Api.ReplayResultSchema,
       ReplayResponse: Api.ReplayResponseSchema,
+      // SSE Stream Events
+      StreamEventStatus: Api.StreamEventStatusSchema,
+      StreamEventType: Api.StreamEventTypeSchema,
+      StreamEventSystemData: Api.StreamEventSystemDataSchema,
+      StreamEventLogData: Api.StreamEventLogDataSchema,
+      StreamEvent: Api.StreamEventSchema,
     },
   };
 
@@ -175,13 +184,25 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
   // Matches propertyNames with its nested content (type: string)
   yaml = yaml.replace(/\n\s+propertyNames:\n\s+type: string/g, "");
 
-  await writeFile(OUTPUT_PATH, yaml, "utf8");
+  // 3. Fix z.unknown() fields to have explicit type: unknown
+  // ExtractResult*.result and NavigateResult*.result
+  yaml = yaml.replace(
+    /(ExtractResult(?:Output)?:\s+type: object\s+properties:\s+result:\s+description: [^\n]+)\n(\s+actionId:)/g,
+    "$1\n          type: unknown\n$2"
+  );
+  yaml = yaml.replace(
+    /(NavigateResult(?:Output|Data|DataOutput)?:\s+type: object\s+properties:\s+result:\s+description: [^\n]+)\n\s+anyOf:\s+- \{\}\s+- type: "null"\n(\s+actionId:)/g,
+    "$1\n          type: unknown\n$2"
+  );
 
-  // Also output JSON version for Stainless
-  const json = app.swagger();
-  const jsonPath = OUTPUT_PATH.replace('.yaml', '.json');
-  await writeFile(jsonPath, JSON.stringify(json, null, 2), "utf8");
-  console.log(`OpenAPI JSON spec written to ${jsonPath}`);
+  // 4. Add title to proxies array schema for Stainless name inference
+  // Matches the array inside proxies anyOf and adds a title
+  yaml = yaml.replace(
+    /(proxies:\s+anyOf:\s+- type: boolean\s+- )(type: array)/g,
+    "$1title: ProxyConfigList\n              $2"
+  );
+
+  await writeFile(OUTPUT_PATH, yaml, "utf8");
 
   await app.close();
   console.log(`OpenAPI spec written to ${OUTPUT_PATH}`);

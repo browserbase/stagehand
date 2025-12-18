@@ -47,16 +47,36 @@ export const LocalBrowserLaunchOptionsSchema = z
   .strict()
   .meta({ id: "LocalBrowserLaunchOptions" });
 
+/** Simple model name string */
+export const ModelNameSchema = z.string().meta({
+  id: "ModelName",
+  description:
+    "Model name string with provider prefix (e.g., 'openai/gpt-5-nano', 'anthropic/claude-4.5-opus')",
+  example: "openai/gpt-5-nano",
+});
+
+/** Detailed model configuration object */
+export const ModelConfigObjectSchema = z
+  .object({
+    modelName: z.string().meta({
+      description:
+        "Model name string without prefix (e.g., 'gpt-5-nano', 'claude-4.5-opus')",
+      example: "gpt-5-nano",
+    }),
+    apiKey: z.string().optional().meta({
+      description: "API key for the model provider",
+      example: "sk-some-openai-api-key",
+    }),
+    baseURL: z.string().url().optional().meta({
+      description: "Base URL for the model provider",
+      example: "https://api.openai.com/v1",
+    }),
+  })
+  .meta({ id: "ModelConfigObject" });
+
 /** Model configuration - string model name or detailed config */
 export const ModelConfigSchema = z
-  .string()
-  .or(
-    z.object({
-      modelName: z.string(),
-      apiKey: z.string().optional(),
-      baseURL: z.string().url().optional(),
-    }),
-  )
+  .union([ModelNameSchema, ModelConfigObjectSchema])
   .meta({ id: "ModelConfig" });
 
 /** Action object returned by observe and used by act */
@@ -74,14 +94,17 @@ export const ActionSchema = z
       description: "The method to execute (click, fill, etc.)",
       example: "click",
     }),
-    arguments: z.array(z.string()).optional().meta({
-      description: "Arguments to pass to the method",
-      example: ["Hello World"],
-    }),
+    arguments: z
+      .array(z.string())
+      .optional()
+      .meta({
+        description: "Arguments to pass to the method",
+        example: ["Hello World"],
+      }),
   })
+  .strict()
   .meta({
-    id: "ActionInput",
-    outputId: "Action",
+    id: "Action",
     description: "Action object returned by observe and used by act",
   });
 
@@ -104,7 +127,8 @@ export const BrowserConfigSchema = z
       example: "local",
     }),
     cdpUrl: z.string().optional().meta({
-      description: "Chrome DevTools Protocol URL for connecting to existing browser",
+      description:
+        "Chrome DevTools Protocol URL for connecting to existing browser",
       example: "ws://localhost:9222",
     }),
     launchOptions: LocalBrowserLaunchOptionsSchema.optional(),
@@ -135,7 +159,7 @@ export const SessionHeadersSchema = z
     }),
     "x-sent-at": z.string().datetime().optional().meta({
       description: "ISO timestamp when request was sent",
-      example: "2025-01-15T10:30:00.000Z",
+      example: "2025-01-15T10:30:00Z",
     }),
   })
   .meta({ id: "SessionHeaders" });
@@ -148,7 +172,9 @@ export const SessionHeadersSchema = z
 const wrapResponse = <T extends z.ZodTypeAny>(resultSchema: T, name: string) =>
   z
     .object({
-      success: z.literal(true),
+      success: z.boolean().meta({
+        description: "Indicates whether the request was successful",
+      }),
       data: resultSchema,
     })
     .strict()
@@ -254,6 +280,14 @@ export const ExternalProxyConfigSchema = z
   })
   .meta({ id: "ExternalProxyConfig" });
 
+/** Union of proxy configuration types */
+export const ProxyConfigSchema = z
+  .discriminatedUnion("type", [
+    BrowserbaseProxyConfigSchema,
+    ExternalProxyConfigSchema,
+  ])
+  .meta({ id: "ProxyConfig" });
+
 /** Browserbase session creation parameters */
 export const BrowserbaseSessionCreateParamsSchema = z
   .object({
@@ -261,14 +295,7 @@ export const BrowserbaseSessionCreateParamsSchema = z
     browserSettings: BrowserbaseBrowserSettingsSchema.optional(),
     extensionId: z.string().optional(),
     keepAlive: z.boolean().optional(),
-    proxies: z
-      .union([
-        z.boolean(),
-        z.array(
-          z.union([BrowserbaseProxyConfigSchema, ExternalProxyConfigSchema]),
-        ),
-      ])
-      .optional(),
+    proxies: z.union([z.boolean(), z.array(ProxyConfigSchema)]).optional(),
     region: z
       .enum(["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"])
       .optional(),
@@ -291,10 +318,19 @@ export const SessionStartRequestSchema = z
       description: "Timeout in ms to wait for DOM to settle",
       example: 5000,
     }),
-    verbose: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional().meta({
-      description: "Logging verbosity level (0=quiet, 1=normal, 2=debug)",
-      example: 1,
-    }),
+    verbose: z
+      .union([z.literal(0), z.literal(1), z.literal(2)])
+      .optional()
+      .meta({
+        description: "Logging verbosity level (0=quiet, 1=normal, 2=debug)",
+        example: 1,
+        override: ({ jsonSchema }: { jsonSchema: Record<string, unknown> }) => {
+          delete jsonSchema.anyOf;
+          jsonSchema.type = "integer";
+          jsonSchema.minimum = 0;
+          jsonSchema.maximum = 2;
+        },
+      }),
     debugDom: z.boolean().optional(),
     systemPrompt: z.string().optional().meta({
       description: "Custom system prompt for AI operations",
@@ -322,8 +358,12 @@ export const SessionStartRequestSchema = z
 export const SessionStartResultSchema = z
   .object({
     sessionId: z.string().meta({
-      description: "Unique session identifier",
+      description: "Unique Browserbase session identifier",
       example: "c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123",
+    }),
+    connectUrl: z.string().meta({
+      description: "CDP WebSocket URL for connecting to the Browserbase cloud browser",
+      example: "wss://connect.browserbase.com/?signingKey=abc123",
     }),
     available: z.boolean(),
   })
@@ -347,7 +387,9 @@ export const SessionEndResultSchema = z
 /** Session end response - just success flag, no data wrapper */
 export const SessionEndResponseSchema = z
   .object({
-    success: z.literal(true),
+    success: z.boolean().meta({
+      description: "Indicates whether the request was successful",
+    }),
   })
   .strict()
   .meta({ id: "SessionEndResponse" });
@@ -359,10 +401,13 @@ export const SessionEndResponseSchema = z
 export const ActOptionsSchema = z
   .object({
     model: ModelConfigSchema.optional(),
-    variables: z.record(z.string(), z.string()).optional().meta({
-      description: "Variables to substitute in the action instruction",
-      example: { username: "john_doe" },
-    }),
+    variables: z
+      .record(z.string(), z.string())
+      .optional()
+      .meta({
+        description: "Variables to substitute in the action instruction",
+        example: { username: "john_doe" },
+      }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the action",
       example: 30000,
@@ -380,6 +425,10 @@ export const ActRequestSchema = z
     options: ActOptionsSchema,
     frameId: z.string().optional().meta({
       description: "Target frame ID for the action",
+    }),
+    streamResponse: z.boolean().optional().meta({
+      description: "Whether to stream the response via SSE",
+      example: true,
     }),
   })
   .meta({ id: "ActRequest" });
@@ -449,6 +498,10 @@ export const ExtractRequestSchema = z
     frameId: z.string().optional().meta({
       description: "Target frame ID for the extraction",
     }),
+    streamResponse: z.boolean().optional().meta({
+      description: "Whether to stream the response via SSE",
+      example: true,
+    }),
   })
   .meta({ id: "ExtractRequest" });
 
@@ -496,6 +549,10 @@ export const ObserveRequestSchema = z
     options: ObserveOptionsSchema,
     frameId: z.string().optional().meta({
       description: "Target frame ID for the observation",
+    }),
+    streamResponse: z.boolean().optional().meta({
+      description: "Whether to stream the response via SSE",
+      example: true,
     }),
   })
   .meta({ id: "ObserveRequest" });
@@ -590,7 +647,8 @@ export const AgentExecuteOptionsSchema = z
   .object({
     instruction: z.string().meta({
       description: "Natural language instruction for the agent",
-      example: "Log in with username 'demo' and password 'test123', then navigate to settings",
+      example:
+        "Log in with username 'demo' and password 'test123', then navigate to settings",
     }),
     maxSteps: z.number().optional().meta({
       description: "Maximum number of steps the agent can take",
@@ -609,6 +667,10 @@ export const AgentExecuteRequestSchema = z
     executeOptions: AgentExecuteOptionsSchema,
     frameId: z.string().optional().meta({
       description: "Target frame ID for the agent",
+    }),
+    streamResponse: z.boolean().optional().meta({
+      description: "Whether to stream the response via SSE",
+      example: true,
     }),
   })
   .meta({ id: "AgentExecuteRequest" });
@@ -638,10 +700,13 @@ export const NavigateOptionsSchema = z
       description: "Timeout in ms for the navigation",
       example: 30000,
     }),
-    waitUntil: z.enum(["load", "domcontentloaded", "networkidle"]).optional().meta({
-      description: "When to consider navigation complete",
-      example: "networkidle",
-    }),
+    waitUntil: z
+      .enum(["load", "domcontentloaded", "networkidle"])
+      .optional()
+      .meta({
+        description: "When to consider navigation complete",
+        example: "networkidle",
+      }),
   })
   .optional()
   .meta({ id: "NavigateOptions" });
@@ -655,6 +720,10 @@ export const NavigateRequestSchema = z
     options: NavigateOptionsSchema,
     frameId: z.string().optional().meta({
       description: "Target frame ID for the navigation",
+    }),
+    streamResponse: z.boolean().optional().meta({
+      description: "Whether to stream the response via SSE",
+      example: true,
     }),
   })
   .meta({ id: "NavigateRequest" });
@@ -718,6 +787,65 @@ export const ReplayResponseSchema = wrapResponse(
 );
 
 // =============================================================================
+// SSE Stream Events
+// =============================================================================
+// These schemas define the Server-Sent Events format for streaming responses.
+// Streaming is enabled by setting the `x-stream-response: true` header.
+
+/** Status values for SSE stream events */
+export const StreamEventStatusSchema = z
+  .enum(["starting", "connected", "running", "finished", "error"])
+  .meta({
+    id: "StreamEventStatus",
+    description: "Current status of the streaming operation",
+  });
+
+/** Type discriminator for SSE stream events */
+export const StreamEventTypeSchema = z.enum(["system", "log"]).meta({
+  id: "StreamEventType",
+  description: "Type of stream event - system events or log messages",
+});
+
+/** Data payload for system stream events */
+export const StreamEventSystemDataSchema = z
+  .object({
+    status: StreamEventStatusSchema,
+    result: z.unknown().optional().meta({
+      description: "Operation result (present when status is 'finished')",
+    }),
+    error: z.string().optional().meta({
+      description: "Error message (present when status is 'error')",
+    }),
+  })
+  .meta({ id: "StreamEventSystemData" });
+
+/** Data payload for log stream events */
+export const StreamEventLogDataSchema = z
+  .object({
+    status: z.literal("running"),
+    message: z.string().meta({
+      description: "Log message from the operation",
+    }),
+  })
+  .meta({ id: "StreamEventLogData" });
+
+/** SSE stream event sent during streaming responses */
+export const StreamEventSchema = z
+  .object({
+    id: z.string().uuid().meta({
+      description: "Unique identifier for this event",
+      example: "c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123",
+    }),
+    type: StreamEventTypeSchema,
+    data: z.union([StreamEventSystemDataSchema, StreamEventLogDataSchema]),
+  })
+  .meta({
+    id: "StreamEvent",
+    description:
+      "Server-Sent Event emitted during streaming responses. Events are sent as `data: <JSON>\\n\\n`.",
+  });
+
+// =============================================================================
 // OpenAPI Components
 // =============================================================================
 // These objects are exported for use in gen-openapi.ts to configure the spec.
@@ -740,8 +868,7 @@ export const openApiSecuritySchemes = {
     type: "apiKey",
     in: "header",
     name: "x-model-api-key",
-    description:
-      "API key for the AI model provider (OpenAI, Anthropic, etc.)",
+    description: "API key for the AI model provider (OpenAI, Anthropic, etc.)",
   },
 } as const;
 
@@ -921,3 +1048,10 @@ export type ReplayAction = z.infer<typeof ReplayActionSchema>;
 export type ReplayPage = z.infer<typeof ReplayPageSchema>;
 export type ReplayResult = z.infer<typeof ReplayResultSchema>;
 export type ReplayResponse = z.infer<typeof ReplayResponseSchema>;
+
+// SSE Stream Events
+export type StreamEventStatus = z.infer<typeof StreamEventStatusSchema>;
+export type StreamEventType = z.infer<typeof StreamEventTypeSchema>;
+export type StreamEventSystemData = z.infer<typeof StreamEventSystemDataSchema>;
+export type StreamEventLogData = z.infer<typeof StreamEventLogDataSchema>;
+export type StreamEvent = z.infer<typeof StreamEventSchema>;

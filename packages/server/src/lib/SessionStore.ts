@@ -50,6 +50,9 @@ export interface CreateSessionParams {
   /** Local browser launch overrides when browserType is local */
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
 
+  /** WebSocket URL for connecting to the browser (returned to client) */
+  connectUrl?: string;
+
   // Cloud-specific metadata fields
   /** Debug DOM mode */
   debugDom?: boolean;
