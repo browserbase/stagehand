@@ -401,8 +401,9 @@ export type AgentModelConfig<TModelName extends string = string> = {
  * Agent tool mode determines which set of tools are available to the agent.
  * - 'dom': Uses DOM-based tools (act, fillForm) - better for structured page interactions
  * - 'hybrid': Uses coordinate-based tools (click, type, dragAndDrop, etc.) - better for visual/screenshot-based interactions
+ * - 'cua': Uses Computer Use Agent (CUA) providers like Anthropic Claude or Google Gemini for screenshot-based automation
  */
-export type AgentToolMode = "dom" | "hybrid";
+export type AgentToolMode = "dom" | "hybrid" | "cua";
 
 export type AgentConfig = {
   /**
@@ -418,7 +419,8 @@ export type AgentConfig = {
    */
   tools?: ToolSet;
   /**
-   * Indicates CUA is disabled for this configuration
+   * @deprecated Use `mode: "cua"` instead. This option will be removed in a future version.
+   * Enables Computer Use Agent (CUA) mode.
    */
   cua?: boolean;
   /**
@@ -442,7 +444,7 @@ export type AgentConfig = {
    * - 'dom' (default): Uses DOM-based tools (act, fillForm) for structured interactions
    * - 'hybrid': Uses coordinate-based tools (click, type, dragAndDrop, clickAndHold, fillFormVision)
    *             for visual/screenshot-based interactions
-   * @experimental hybrid mode requires `experimental: true` in Stagehand constructor
+   * - 'cua': Uses Computer Use Agent (CUA) providers for screenshot-based automation
    */
   mode?: AgentToolMode;
 };

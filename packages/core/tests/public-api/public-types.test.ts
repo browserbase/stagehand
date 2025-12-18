@@ -273,7 +273,7 @@ describe("Stagehand public API types", () => {
   });
 
   describe("AgentToolMode", () => {
-    type ExpectedAgentToolMode = "dom" | "hybrid";
+    type ExpectedAgentToolMode = "dom" | "hybrid" | "cua";
 
     it("matches expected type shape", () => {
       expectTypeOf<Stagehand.AgentToolMode>().toEqualTypeOf<ExpectedAgentToolMode>();
