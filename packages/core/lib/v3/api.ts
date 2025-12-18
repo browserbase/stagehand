@@ -1,4 +1,5 @@
 import makeFetchCookie from "fetch-cookie";
+import { loadApiKeyFromEnv } from "../utils";
 import { STAGEHAND_VERSION } from "../version";
 import {
   StagehandAPIError,
@@ -24,6 +25,7 @@ import type {
   Api,
 } from "./types/public";
 import type { SerializableResponse } from "./types/private";
+import type { ModelConfiguration } from "./types/public/model";
 import { toJsonSchema } from "./zodCompat";
 import type { StagehandZodSchema } from "./zodCompat";
 
@@ -126,6 +128,7 @@ export class StagehandAPIClient {
   private projectId: string;
   private sessionId?: string;
   private modelApiKey: string;
+  private modelProvider?: string;
   private logger: (message: LogLine) => void;
   private fetchWithCookies;
 
@@ -152,6 +155,10 @@ export class StagehandAPIClient {
       throw new StagehandAPIError("modelApiKey is required");
     }
     this.modelApiKey = modelApiKey;
+    // Extract provider from modelName (e.g., "openai/gpt-5-nano" -> "openai")
+    this.modelProvider = modelName?.includes("/")
+      ? modelName.split("/")[0]
+      : undefined;
 
     const region = browserbaseSessionCreateParams?.region;
     if (region && region !== "us-west-2") {
@@ -217,8 +224,13 @@ export class StagehandAPIClient {
     let wireOptions: Api.ActRequest["options"];
     if (options) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { page: _, ...rest } = options;
-      wireOptions = Object.keys(rest).length > 0 ? rest : undefined;
+      const { page: _, ...restOptions } = options;
+      if (Object.keys(restOptions).length > 0) {
+        if (restOptions.model) {
+          restOptions.model = this.prepareModelConfig(restOptions.model);
+        }
+        wireOptions = restOptions as unknown as Api.ActRequest["options"];
+      }
     }
 
     // Build wire-format request body
@@ -247,8 +259,13 @@ export class StagehandAPIClient {
     let wireOptions: Api.ExtractRequest["options"];
     if (options) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { page: _, ...rest } = options;
-      wireOptions = Object.keys(rest).length > 0 ? rest : undefined;
+      const { page: _, ...restOptions } = options;
+      if (Object.keys(restOptions).length > 0) {
+        if (restOptions.model) {
+          restOptions.model = this.prepareModelConfig(restOptions.model);
+        }
+        wireOptions = restOptions as unknown as Api.ExtractRequest["options"];
+      }
     }
 
     // Build wire-format request body
@@ -274,8 +291,13 @@ export class StagehandAPIClient {
     let wireOptions: Api.ObserveRequest["options"];
     if (options) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { page: _, ...rest } = options;
-      wireOptions = Object.keys(rest).length > 0 ? rest : undefined;
+      const { page: _, ...restOptions } = options;
+      if (Object.keys(restOptions).length > 0) {
+        if (restOptions.model) {
+          restOptions.model = this.prepareModelConfig(restOptions.model);
+        }
+        wireOptions = restOptions as unknown as Api.ObserveRequest["options"];
+      }
     }
 
     // Build wire-format request body
@@ -464,6 +486,50 @@ export class StagehandAPIClient {
     }
 
     return metrics;
+  }
+
+  /**
+   * Prepares a model configuration for the API payload by ensuring the `apiKey`
+   * is included. If the model is passed as a string, converts it to an object
+   * with `modelName` and `apiKey`.
+   *
+   * In API mode, we only attempt to load an API key from env vars when the
+   * model provider differs from the one used to init the session.
+   */
+  private prepareModelConfig(
+    model: ModelConfiguration,
+  ): { modelName: string; apiKey: string } & Record<string, unknown> {
+    if (typeof model === "string") {
+      // Extract provider from model string (e.g., "openai/gpt-5-nano" -> "openai")
+      const provider = model.includes("/") ? model.split("/")[0] : undefined;
+      const apiKey =
+        provider && provider !== this.modelProvider
+          ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
+          : this.modelApiKey;
+      return {
+        modelName: model,
+        apiKey,
+      };
+    }
+
+    if (!model.apiKey) {
+      const provider = model.modelName?.includes("/")
+        ? model.modelName.split("/")[0]
+        : undefined;
+      const apiKey =
+        provider && provider !== this.modelProvider
+          ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
+          : this.modelApiKey;
+      return {
+        ...model,
+        apiKey,
+      };
+    }
+
+    return model as { modelName: string; apiKey: string } & Record<
+      string,
+      unknown
+    >;
   }
 
   private async execute<T>({
