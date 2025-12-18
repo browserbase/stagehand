@@ -1,6 +1,7 @@
 //agent often fails on this one,
 import { EvalFunction } from "../../types/evals";
 import { V3Evaluator } from "@browserbasehq/stagehand";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 export const arxiv_gpt_report: EvalFunction = async ({
   debugUrl,
@@ -11,22 +12,33 @@ export const arxiv_gpt_report: EvalFunction = async ({
 }) => {
   try {
     const page = v3.context.pages()[0];
-    const evaluator = new V3Evaluator(v3);
     await page.goto("https://arxiv.org/");
 
-    await agent.execute({
-      instruction:
-        "Find the paper 'GPT-4 Technical Report', when was v3 submitted?",
+    const screenshotCollector = new ScreenshotCollector(v3, {
+      maxScreenshots: 15,
+    });
+    screenshotCollector.start();
+
+    const instruction =
+      "Find the paper 'GPT-4 Technical Report', when was v3 submitted?";
+    const agentResult = await agent.execute({
+      instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
     });
 
-    // Mon, 27 Mar 2023 17:46:54 UTC
+    const screenshots = await screenshotCollector.stop();
 
+    logger.log({
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
+      level: 1,
+    });
+
+    const evaluator = new V3Evaluator(v3);
     const { evaluation, reasoning } = await evaluator.ask({
-      question:
-        "Did the agent find the published paper 'GPT-4 Technical Report' and the date it was submitted?",
-      screenshot: false,
-      answer: "03-27-2023",
+      question: `did the agent complete this task successfully? ${instruction}`,
+      screenshot: screenshots,
+      agentReasoning: agentResult.message,
     });
 
     console.log(`reasoning: ${reasoning}`);
@@ -49,9 +61,10 @@ export const arxiv_gpt_report: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       _success: false,
-      message: error.message,
+      message: errorMessage,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),

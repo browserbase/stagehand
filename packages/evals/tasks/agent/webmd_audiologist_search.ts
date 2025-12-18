@@ -15,7 +15,6 @@ export const webmd_audiologist_search: EvalFunction = async ({
 
     // Start collecting screenshots throughout the agent's journey
     const screenshotCollector = new ScreenshotCollector(v3, {
-      interval: 3000,
       maxScreenshots: 15,
     });
     screenshotCollector.start();

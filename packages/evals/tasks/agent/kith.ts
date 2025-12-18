@@ -1,5 +1,6 @@
 import { EvalFunction } from "../../types/evals";
 import { V3Evaluator } from "@browserbasehq/stagehand";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 export const kith: EvalFunction = async ({
   debugUrl,
@@ -9,55 +10,43 @@ export const kith: EvalFunction = async ({
   v3,
 }) => {
   try {
-    const evaluator = new V3Evaluator(v3);
     const page = v3.context.pages()[0];
     await page.goto(
       "https://kith.com/collections/nike-air-force-1/products/nkcw2288-111?variant=19439468707968",
     );
 
-    await agent.execute({
-      instruction:
-        "add the shoes to cart, go to checkout, and fill the delivery information. Don't fill the payment information",
-      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
+    const screenshotCollector = new ScreenshotCollector(v3, {
+      maxScreenshots: 15,
+    });
+    screenshotCollector.start();
+
+    const instruction =
+      "Add the shoes to cart, go to checkout, fill the delivery information, and fill the credit card information with placeholders. Do not submit the order.";
+    const agentResult = await agent.execute({
+      instruction,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
     });
 
-    const { evaluation, reasoning } = await evaluator.ask({
-      question: "Did the agent fill the delivery information",
+    const screenshots = await screenshotCollector.stop();
+
+    logger.log({
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
+      level: 1,
     });
+
+    const evaluator = new V3Evaluator(v3);
+    const { evaluation, reasoning } = await evaluator.ask({
+      question: `did the agent complete this task successfully? ${instruction}`,
+      screenshot: screenshots,
+      agentReasoning: agentResult.message,
+    });
+
+    console.log(`reasoning: ${reasoning}`);
 
     const success = evaluation === "YES";
 
-    if (success) {
-      await agent.execute({
-        instruction:
-          "fill the credit card information, do not submit the order just add placeholders",
-        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 10,
-      });
-
-      const { evaluation: evaluation2, reasoning: reasoning2 } =
-        await evaluator.ask({
-          question: "Did the agent fill the payment information",
-        });
-
-      const success2 = evaluation2 === "YES";
-
-      if (success2) {
-        return {
-          _success: true,
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      } else {
-        return {
-          _success: false,
-          message: reasoning2,
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
-    } else {
+    if (!success) {
       return {
         _success: false,
         message: reasoning,
@@ -66,10 +55,17 @@ export const kith: EvalFunction = async ({
         logs: logger.getLogs(),
       };
     }
+    return {
+      _success: true,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       _success: false,
-      message: error.message,
+      message: errorMessage,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),

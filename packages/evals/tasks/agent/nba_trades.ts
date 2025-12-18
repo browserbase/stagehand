@@ -1,5 +1,6 @@
 import { EvalFunction } from "../../types/evals";
 import { V3Evaluator } from "@browserbasehq/stagehand";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 export const nba_trades: EvalFunction = async ({
   debugUrl,
@@ -10,23 +11,38 @@ export const nba_trades: EvalFunction = async ({
 }) => {
   try {
     const page = v3.context.pages()[0];
-    const evaluator = new V3Evaluator(v3);
     await page.goto("https://www.espn.com/");
 
+    const screenshotCollector = new ScreenshotCollector(v3, {
+      maxScreenshots: 15,
+    });
+    screenshotCollector.start();
+
+    const instruction =
+      "Find the latest Team transaction in the NBA within the past week.";
     const agentResult = await agent.execute({
-      instruction:
-        "Find the latest Team transaction in the NBA within the past week.",
+      instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
     });
-    logger.log(agentResult);
 
-    const { evaluation, reasoning } = await evaluator.ask({
-      question: "Did the agent make it to the nba transactions page?",
+    const screenshots = await screenshotCollector.stop();
+
+    logger.log({
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
+      level: 1,
     });
 
-    const success =
-      page.url() === "https://www.espn.com/nba/transactions" &&
-      evaluation === "YES";
+    const evaluator = new V3Evaluator(v3);
+    const { evaluation, reasoning } = await evaluator.ask({
+      question: `did the agent complete this task successfully? ${instruction}`,
+      screenshot: screenshots,
+      agentReasoning: agentResult.message,
+    });
+
+    console.log(`reasoning: ${reasoning}`);
+
+    const success = evaluation === "YES";
 
     if (!success) {
       return {
@@ -37,7 +53,6 @@ export const nba_trades: EvalFunction = async ({
         logs: logger.getLogs(),
       };
     }
-
     return {
       _success: true,
       debugUrl,
@@ -45,9 +60,10 @@ export const nba_trades: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       _success: false,
-      error,
+      message: errorMessage,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),

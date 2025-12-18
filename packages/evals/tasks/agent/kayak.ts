@@ -1,5 +1,6 @@
 import { EvalFunction } from "../../types/evals";
 import { V3Evaluator } from "@browserbasehq/stagehand";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 export const kayak: EvalFunction = async ({
   debugUrl,
@@ -9,34 +10,40 @@ export const kayak: EvalFunction = async ({
   v3,
 }) => {
   try {
-    const evaluator = new V3Evaluator(v3);
     const page = v3.context.pages()[0];
     await page.goto("https://www.kayak.com");
 
-    await agent.execute({
-      instruction: "Find flights from San Francisco to Tokyo next week",
-      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
+    const screenshotCollector = new ScreenshotCollector(v3, {
+      maxScreenshots: 15,
     });
-    await agent.execute({
-      instruction: "Sort the flights by price",
-      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 8,
+    screenshotCollector.start();
+
+    const instruction =
+      "Find flights from San Francisco to Tokyo next week and sort them by price (cheapest first)";
+    const agentResult = await agent.execute({
+      instruction,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 33,
     });
 
-    if (v3.context.pages().length !== 2) {
-      return {
-        _success: false,
-        message: "No new pages were opened",
-        debugUrl,
-        sessionUrl,
-        logs: logger.getLogs(),
-      };
-    }
-    const { evaluation, reasoning } = await evaluator.ask({
-      question:
-        "Are the flights shown sorted by price? Check the sort button in the top left corner of the page. It should show cheapest first; use this as the success criteria since the page might promote other flights and not show the list in order.",
+    const screenshots = await screenshotCollector.stop();
+
+    logger.log({
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
+      level: 1,
     });
+
+    const evaluator = new V3Evaluator(v3);
+    const { evaluation, reasoning } = await evaluator.ask({
+      question: `did the agent complete this task successfully? ${instruction}`,
+      screenshot: screenshots,
+      agentReasoning: agentResult.message,
+    });
+
+    console.log(`reasoning: ${reasoning}`);
 
     const success = evaluation === "YES";
+
     if (!success) {
       return {
         _success: false,
@@ -53,9 +60,10 @@ export const kayak: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       _success: false,
-      message: error.message,
+      message: errorMessage,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),

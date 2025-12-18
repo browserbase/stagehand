@@ -1,5 +1,6 @@
 import { EvalFunction } from "../../types/evals";
 import { V3Evaluator } from "@browserbasehq/stagehand";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 export const github: EvalFunction = async ({
   debugUrl,
@@ -11,18 +12,35 @@ export const github: EvalFunction = async ({
   try {
     const page = v3.context.pages()[0];
     await page.goto("https://github.com/");
-    const evaluator = new V3Evaluator(v3);
+
+    const screenshotCollector = new ScreenshotCollector(v3, {
+      maxScreenshots: 15,
+    });
+    screenshotCollector.start();
+
+    const instruction =
+      "Find a Ruby repository on GitHub that has been updated in the past 3 days and has at least 1000 stars.";
     const agentResult = await agent.execute({
-      instruction:
-        "Find a Ruby repository on GitHub that has been updated in the past 3 days and has at least 1000 stars.",
+      instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,
     });
-    logger.log(agentResult);
 
-    const { evaluation, reasoning } = await evaluator.ask({
-      question:
-        "Ruby repository on GitHub that has been updated in the past 3 days and has at least 1000 stars.",
+    const screenshots = await screenshotCollector.stop();
+
+    logger.log({
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
+      level: 1,
     });
+
+    const evaluator = new V3Evaluator(v3);
+    const { evaluation, reasoning } = await evaluator.ask({
+      question: `did the agent complete this task successfully? ${instruction}`,
+      screenshot: screenshots,
+      agentReasoning: agentResult.message,
+    });
+
+    console.log(`reasoning: ${reasoning}`);
 
     const success = evaluation === "YES";
 
@@ -35,7 +53,6 @@ export const github: EvalFunction = async ({
         logs: logger.getLogs(),
       };
     }
-
     return {
       _success: true,
       debugUrl,
@@ -43,9 +60,10 @@ export const github: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       _success: false,
-      error,
+      message: errorMessage,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),

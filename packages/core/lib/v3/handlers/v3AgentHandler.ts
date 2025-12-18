@@ -168,6 +168,11 @@ export class V3AgentHandler {
                 : allReasoning || "Task completed successfully";
             }
           }
+          await this.captureAndEmitScreenshot({
+            toolName: toolCall.toolName,
+            toolOutput: event.toolResults?.[i]?.output,
+          });
+
           const mappedActions = mapToolResultToActions({
             toolCallName: toolCall.toolName,
             toolResult,
@@ -182,19 +187,6 @@ export class V3AgentHandler {
           }
         }
         state.currentPageUrl = (await this.v3.context.awaitActivePage()).url();
-
-        // Capture screenshot after tool execution (only for evals)
-        if (process.env.EVALS === "true") {
-          try {
-            await this.captureAndEmitScreenshot();
-          } catch (e) {
-            this.logger({
-              category: "agent",
-              message: `Warning: Failed to capture screenshot: ${getErrorMessage(e)}`,
-              level: 1,
-            });
-          }
-        }
       }
 
       if (userCallback) {
@@ -489,13 +481,32 @@ export class V3AgentHandler {
   }
 
   /**
-   * Capture a screenshot and emit it via the event bus
+   * Capture a screenshot and emit it via the event bus.
+   * Handles both hybrid mode (uses existing screenshot from tool output) and DOM mode (captures fresh screenshot).
+   * Only runs when EVALS=true.
    */
-  private async captureAndEmitScreenshot(): Promise<void> {
+  private async captureAndEmitScreenshot(options: {
+    toolName: string;
+    toolOutput?: { base64?: string };
+  }): Promise<void> {
+    if (process.env.EVALS !== "true") {
+      return;
+    }
+
     try {
-      const page = await this.v3.context.awaitActivePage();
-      const screenshot = await page.screenshot({ fullPage: false });
-      this.v3.bus.emit("agent_screensot_taken_event", screenshot);
+      let screenshot: Buffer;
+
+      if (this.mode === "hybrid") {
+        if (options.toolName !== "screenshot" || !options.toolOutput?.base64) {
+          return;
+        }
+        screenshot = Buffer.from(options.toolOutput.base64, "base64");
+      } else {
+        const page = await this.v3.context.awaitActivePage();
+        screenshot = await page.screenshot({ fullPage: false });
+      }
+
+      this.v3.bus.emit("agent_screenshot_taken_event", screenshot);
     } catch (error) {
       this.logger({
         category: "agent",

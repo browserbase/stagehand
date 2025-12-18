@@ -1,4 +1,6 @@
 import { EvalFunction } from "../../types/evals";
+import { V3Evaluator } from "@browserbasehq/stagehand";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 export const sign_in: EvalFunction = async ({
   debugUrl,
@@ -11,35 +13,57 @@ export const sign_in: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://v0-modern-login-flow.vercel.app/");
 
+    const screenshotCollector = new ScreenshotCollector(v3, {
+      maxScreenshots: 15,
+    });
+    screenshotCollector.start();
+
+    const instruction =
+      "Sign in with the email address 'test@browserbaser.com' and the password 'stagehand=goated'";
     const agentResult = await agent.execute({
-      instruction:
-        "Sign in with the email address 'test@browserbaser.com' and the password 'stagehand=goated' ",
+      instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 15,
     });
-    logger.log(agentResult);
-    const url = page.url();
 
-    if (url === "https://v0-modern-login-flow.vercel.app/authorized") {
+    const screenshots = await screenshotCollector.stop();
+
+    logger.log({
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
+      level: 1,
+    });
+
+    const evaluator = new V3Evaluator(v3);
+    const { evaluation, reasoning } = await evaluator.ask({
+      question: `did the agent complete this task successfully? ${instruction}`,
+      screenshot: screenshots,
+      agentReasoning: agentResult.message,
+    });
+
+    console.log(`reasoning: ${reasoning}`);
+
+    const success = evaluation === "YES";
+
+    if (!success) {
       return {
-        _success: true,
-        observations: url,
+        _success: false,
+        message: reasoning,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     }
-
     return {
-      _success: false,
-      observations: url,
+      _success: true,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       _success: false,
-      error: error,
+      message: errorMessage,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),

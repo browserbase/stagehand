@@ -41,24 +41,18 @@ export const onlineMind2Web: EvalFunction = async ({
       systemPrompt: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await page.title()}. ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE.`,
     });
 
-    // Set up event-driven screenshot collection via the V3 event bus
+    // Set up screenshot collection (automatically subscribes to agent events)
     const screenshotCollector = new ScreenshotCollector(v3, {
       maxScreenshots: 5,
     });
-
-    // Subscribe to screenshot events from the agent
-    const screenshotHandler = (buffer: Buffer) => {
-      screenshotCollector.addScreenshot(buffer);
-    };
-    v3.bus.on("agent_screensot_taken_event", screenshotHandler);
+    screenshotCollector.start();
 
     const agentResult = await agent.execute({
       instruction: params.confirmed_task,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
     });
 
-    // Stop collecting, clean up event listener, and get all screenshots
-    v3.bus.off("agent_screensot_taken_event", screenshotHandler);
+    // Stop collecting and get all screenshots
     const screenshots = await screenshotCollector.stop();
 
     logger.log({

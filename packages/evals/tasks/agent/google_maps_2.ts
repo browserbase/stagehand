@@ -1,7 +1,6 @@
 import { EvalFunction } from "../../types/evals";
 import { V3Evaluator } from "@browserbasehq/stagehand";
-import type { AvailableModel } from "@browserbasehq/stagehand";
-import { z } from "zod";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 export const google_maps_2: EvalFunction = async ({
   debugUrl,
@@ -14,68 +13,57 @@ export const google_maps_2: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://maps.google.com");
 
+    const screenshotCollector = new ScreenshotCollector(v3, {
+      maxScreenshots: 15,
+    });
+    screenshotCollector.start();
+
+    const instruction =
+      "Search for the fastest walking route from La Puerta de Alcalá to La Puerta del Sol";
     const agentResult = await agent.execute({
-      instruction:
-        "Search for the fastest walking route from La Puerta de Alcalá to La Puerta del Sol",
+      instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,
     });
-    logger.log(agentResult);
+
+    const screenshots = await screenshotCollector.stop();
+
+    logger.log({
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
+      level: 1,
+    });
 
     const evaluator = new V3Evaluator(v3);
-    const result = await evaluator.ask({
-      question:
-        "Does the page show the fastest walking route from La Puerta de Alcalá to La Puerta del Sol? Does the distance between the two points show as 1.5 km?",
+    const { evaluation, reasoning } = await evaluator.ask({
+      question: `did the agent complete this task successfully? ${instruction}`,
+      screenshot: screenshots,
+      agentReasoning: agentResult.message,
     });
-    const { distance } = await v3.extract(
-      "Extract the distance for the fastest route walking to the decimal",
-      z.object({
-        distance: z
-          .number()
-          .describe("The distance between the two destinations in km"),
-      }),
-      { model: "google/gemini-2.5-flash" as AvailableModel },
-    );
 
-    if (result.evaluation !== "YES" && result.evaluation !== "NO") {
+    console.log(`reasoning: ${reasoning}`);
+
+    const success = evaluation === "YES";
+
+    if (!success) {
       return {
         _success: false,
-        observations: "Evaluator provided an invalid response",
+        message: reasoning,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     }
-
-    if (result.evaluation === "YES") {
-      if (distance <= 1.3 || distance >= 1.6) {
-        return {
-          _success: false,
-          observations: "Distance is not 1.5 km",
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
-      return {
-        _success: true,
-        observations: result.reasoning,
-        debugUrl,
-        sessionUrl,
-        logs: logger.getLogs(),
-      };
-    } else {
-      return {
-        _success: false,
-        observations: result.reasoning,
-        debugUrl,
-        sessionUrl,
-        logs: logger.getLogs(),
-      };
-    }
+    return {
+      _success: true,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       _success: false,
-      error: error,
+      message: errorMessage,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),

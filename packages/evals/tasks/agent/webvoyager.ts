@@ -36,24 +36,17 @@ export const webvoyager: EvalFunction = async ({
       systemPrompt: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await page.title()}`,
     });
 
-    // Set up event-driven screenshot collection via the V3 event bus
+    // Set up screenshot collection (automatically subscribes to agent events)
     const screenshotCollector = new ScreenshotCollector(v3, {
       maxScreenshots: 7,
     });
-
-    // Subscribe to screenshot events from the agent
-    const screenshotHandler = (buffer: Buffer) => {
-      screenshotCollector.addScreenshot(buffer);
-    };
-    v3.bus.on("agent_screensot_taken_event", screenshotHandler);
+    screenshotCollector.start();
 
     const agentResult = await agent.execute({
       instruction: params.ques,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
     });
 
-    // Clean up event listener and stop collecting
-    v3.bus.off("agent_screensot_taken_event", screenshotHandler);
     // Stop collecting and get all screenshots
     const screenshots = await screenshotCollector.stop();
 
