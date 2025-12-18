@@ -55,7 +55,7 @@ export const onlineMind2Web: EvalFunction = async ({
     const screenshotHandler = (buffer: Buffer) => {
       screenshotCollector.addScreenshot(buffer);
     };
-    v3.bus.on("agent_screensot_taken_event", screenshotHandler);
+    v3.bus.on("agent_screenshot_taken_event", screenshotHandler);
 
     screenshotCollector.start();
 
@@ -65,7 +65,7 @@ export const onlineMind2Web: EvalFunction = async ({
     });
 
     // Stop collecting, clean up event listener, and get all screenshots
-    v3.bus.off("agent_screensot_taken_event", screenshotHandler);
+    v3.bus.off("agent_screenshot_taken_event", screenshotHandler);
     const screenshots = await screenshotCollector.stop();
 
     logger.log({
