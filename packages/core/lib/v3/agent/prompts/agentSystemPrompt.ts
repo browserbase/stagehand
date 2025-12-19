@@ -67,6 +67,7 @@ function buildToolsSection(
     { name: "wait", description: "Wait for a specified time" },
     { name: "navback", description: "Navigate back in browser history" },
     { name: "scroll", description: "Scroll the page x pixels up or down" },
+    { name: "close", description: "Mark the task as complete or failed" },
   ];
 
   const domTools: ToolDefinition[] = [
@@ -91,6 +92,7 @@ function buildToolsSection(
     { name: "wait", description: "Wait for a specified time" },
     { name: "navback", description: "Navigate back in browser history" },
     { name: "scroll", description: "Scroll the page x pixels up or down" },
+    { name: "close", description: "Mark the task as complete or failed" },
   ];
 
   const baseTools = isHybridMode ? hybridTools : domTools;
