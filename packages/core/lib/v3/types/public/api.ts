@@ -353,6 +353,8 @@ export const SessionStartRequestSchema = z
     browserbaseSessionID: z.string().optional().meta({
       description: "Existing Browserbase session ID to resume",
     }),
+    // experimental is a V3 field but doesn't need to go over the wire - included because wire type imports options type
+    experimental: z.boolean().optional(),
     // V2 compatibility fields - only included because the server imports this type and supports V2
     // should never be used in v3 clients or v3-only server implementations
     waitForCaptchaSolves: z.boolean().optional().meta({
@@ -361,7 +363,6 @@ export const SessionStartRequestSchema = z
     actTimeoutMs: z.number().optional().meta({
       description: "Timeout in ms for act operations (deprecated, v2 only)",
     }),
-    experimental: z.boolean().optional(),
   })
   .meta({ id: "SessionStartRequest" });
 

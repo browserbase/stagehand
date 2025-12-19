@@ -97,7 +97,6 @@ async function main() {
       // Navigate
       NavigateOptions: Api.NavigateOptionsSchema,
       NavigateRequest: Api.NavigateRequestSchema,
-      NavigateResultData: Api.NavigateResultDataSchema,
       NavigateResult: Api.NavigateResultSchema,
       NavigateResponse: Api.NavigateResponseSchema,
       // Replay

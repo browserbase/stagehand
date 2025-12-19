@@ -1648,14 +1648,14 @@ components:
         browserbaseSessionID:
           description: Existing Browserbase session ID to resume
           type: string
+        experimental:
+          type: boolean
         waitForCaptchaSolves:
           description: Wait for captcha solves (deprecated, v2 only)
           type: boolean
         actTimeoutMs:
           description: Timeout in ms for act operations (deprecated, v2 only)
           type: number
-        experimental:
-          type: boolean
       required:
         - modelName
       additionalProperties: false
@@ -2061,14 +2061,14 @@ paths:
                 browserbaseSessionID:
                   description: Existing Browserbase session ID to resume
                   type: string
+                experimental:
+                  type: boolean
                 waitForCaptchaSolves:
                   description: Wait for captcha solves (deprecated, v2 only)
                   type: boolean
                 actTimeoutMs:
                   description: Timeout in ms for act operations (deprecated, v2 only)
                   type: number
-                experimental:
-                  type: boolean
               required:
                 - modelName
         required: true
