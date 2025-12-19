@@ -86,9 +86,10 @@ export class V3AgentHandler {
         mode: this.mode,
         systemInstructions: this.systemInstructions,
         isBrowserbase: this.v3.isBrowserbase,
+        excludeTools: options.excludeTools,
       });
 
-      const tools = this.createTools();
+      const tools = this.createTools(options.excludeTools);
       const allTools: ToolSet = { ...tools, ...this.mcpTools };
 
       // Use provided messages for continuation, or start fresh with the instruction
@@ -467,13 +468,14 @@ export class V3AgentHandler {
     };
   }
 
-  private createTools() {
+  private createTools(excludeTools?: string[]) {
     const provider = this.llmClient?.getLanguageModel?.()?.provider;
     return createAgentTools(this.v3, {
       executionModel: this.executionModel,
       logger: this.logger,
       mode: this.mode,
       provider,
+      excludeTools,
     });
   }
 
