@@ -168,9 +168,10 @@ export class DeepseekAIClient extends LLMClient {
             const formattedMessage: ChatCompletionSystemMessageParam = {
               ...message,
               role: "system",
-              content: contentParts
-                .map((c) => (c.type === "text" ? c.text : ""))
-                .join("\n"),
+              content: contentParts.filter(
+                (content): content is ChatCompletionContentPartText =>
+                  content.type === "text",
+              ),
             };
             return formattedMessage;
           } else if (message.role === "user") {
@@ -184,9 +185,10 @@ export class DeepseekAIClient extends LLMClient {
             const formattedMessage: ChatCompletionAssistantMessageParam = {
               ...message,
               role: "assistant",
-              content: contentParts
-                .map((c) => (c.type === "text" ? c.text : ""))
-                .join("\n"),
+              content: contentParts.filter(
+                (content): content is ChatCompletionContentPartText =>
+                  content.type === "text",
+              ),
             };
             return formattedMessage;
           }
@@ -230,10 +232,6 @@ export class DeepseekAIClient extends LLMClient {
         response: {
           value: JSON.stringify(response),
           type: "object",
-        },
-        requestId: {
-          value: requestId,
-          type: "string",
         },
       },
     });
