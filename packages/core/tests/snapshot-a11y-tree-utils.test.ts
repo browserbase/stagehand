@@ -130,7 +130,6 @@ describe("buildHierarchicalTree", () => {
         encodedId: "root",
         parentId: undefined,
         childIds: ["child"],
-        children: [],
       },
       {
         role: "StaticText",
@@ -158,16 +157,14 @@ describe("buildHierarchicalTree", () => {
         encodedId: "root",
         parentId: undefined,
         childIds: ["child"],
-        children: [
-          {
-            role: "StaticText",
-            name: "Ok",
-            nodeId: "child",
-            encodedId: "child",
-            parentId: "root",
-            childIds: [],
-          },
-        ],
+      },
+      {
+        role: "StaticText",
+        name: "Ok",
+        nodeId: "child",
+        encodedId: "child",
+        parentId: "root",
+        childIds: [],
       },
     ];
 
@@ -184,17 +181,14 @@ describe("buildHierarchicalTree", () => {
         encodedId: "root",
         parentId: undefined,
         childIds: ["child"],
-        children: [
-          {
-            role: "generic",
-            name: "",
-            nodeId: "child",
-            encodedId: "child",
-            parentId: "root",
-            childIds: [],
-            children: [],
-          },
-        ],
+      },
+      {
+        role: "generic",
+        name: "",
+        nodeId: "child",
+        encodedId: "child",
+        parentId: "root",
+        childIds: [],
       },
     ];
 
@@ -211,24 +205,22 @@ describe("buildHierarchicalTree", () => {
         encodedId: "root",
         parentId: undefined,
         childIds: ["child-a", "child-b"],
-        children: [
-          {
-            role: "StaticText",
-            name: "A",
-            nodeId: "child-a",
-            encodedId: "child-a",
-            parentId: "root",
-            childIds: [],
-          },
-          {
-            role: "StaticText",
-            name: "B",
-            nodeId: "child-b",
-            encodedId: "child-b",
-            parentId: "root",
-            childIds: [],
-          },
-        ],
+      },
+      {
+        role: "StaticText",
+        name: "A",
+        nodeId: "child-a",
+        encodedId: "child-a",
+        parentId: "root",
+        childIds: [],
+      },
+      {
+        role: "StaticText",
+        name: "B",
+        nodeId: "child-b",
+        encodedId: "child-b",
+        parentId: "root",
+        childIds: [],
       },
     ];
 
