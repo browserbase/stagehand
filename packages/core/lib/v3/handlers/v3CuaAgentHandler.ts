@@ -625,7 +625,7 @@ export class V3CuaAgentHandler {
       this.v3.bus.emit("agent_screenshot_taken_event", screenshotBuffer);
       const currentUrl = page.url();
       return await this.agentClient.captureScreenshot({
-        base64Image: screenshotBuffer,
+        base64Image: screenshotBuffer.toString("base64"),
         currentUrl,
       });
     } catch (e) {
