@@ -142,7 +142,11 @@ export class LLMProvider {
     modelName: AvailableModel,
     clientOptions?: ClientOptions,
   ): LLMClient {
-    if (modelName.includes("/") && !this.manual) {
+    // Check if model is explicitly in the map first (even with slash)
+    const provider = modelToProviderMap[modelName];
+
+    // If not in map and contains slash, try AISDK routing
+    if (!provider && modelName.includes("/") && !this.manual) {
       const firstSlashIndex = modelName.indexOf("/");
       const subProvider = modelName.substring(0, firstSlashIndex);
       const subModelName = modelName.substring(firstSlashIndex + 1);
@@ -159,8 +163,6 @@ export class LLMProvider {
         logger: this.logger,
       });
     }
-
-    const provider = modelToProviderMap[modelName];
     if (!provider) {
       throw new UnsupportedModelError(Object.keys(modelToProviderMap));
     }
