@@ -52,12 +52,21 @@ export const ModelNameSchema = z.string().meta({
   id: "ModelName",
   description:
     "Model name string with provider prefix (e.g., 'openai/gpt-5-nano', 'anthropic/claude-4.5-opus')",
+  match: /^(openai|anthropic|google|microsoft)\/.+$/,
   example: "openai/gpt-5-nano",
 });
 
 /** Detailed model configuration object */
 export const ModelConfigObjectSchema = z
   .object({
+    provider: z
+      .enum(["openai", "anthropic", "google", "microsoft"])
+      .optional()
+      .meta({
+        description:
+          "AI provider for the model (or provide a baseURL endpoint instead)",
+        example: "openai",
+      }),
     modelName: z.string().meta({
       description:
         "Model name string without prefix (e.g., 'gpt-5-nano', 'claude-4.5-opus')",
@@ -89,6 +98,9 @@ export const ActionSchema = z
     description: z.string().meta({
       description: "Human-readable description of the action",
       example: "Click the submit button",
+    }),
+    backendNodeId: z.number().optional().meta({
+      description: "Backend node ID for the element",
     }),
     method: z.string().optional().meta({
       description: "The method to execute (click, fill, etc.)",
@@ -571,6 +583,14 @@ export const ObserveResponseSchema = wrapResponse(
 
 export const AgentConfigSchema = z
   .object({
+    provider: z // cloud accepts provider: at the top level for legacy reasons, in the future we should remove it
+      .enum(["openai", "anthropic", "google", "microsoft"])
+      .optional()
+      .meta({
+        description:
+          "AI provider for the agent (legacy, use model: openai/gpt-5-nano instead)",
+        example: "openai",
+      }),
     model: ModelConfigSchema.optional(),
     systemPrompt: z.string().optional().meta({
       description: "Custom system prompt for the agent",
@@ -710,7 +730,7 @@ export const NavigateRequestSchema = z
       example: "https://example.com",
     }),
     options: NavigateOptionsSchema,
-    frameId: z.string().optional().meta({
+    frameId: z.string().meta({
       description: "Target frame ID for the navigation",
     }),
     streamResponse: z.boolean().optional().meta({

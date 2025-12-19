@@ -145,11 +145,21 @@ components:
       description:
         Model name string with provider prefix (e.g., 'openai/gpt-5-nano',
         'anthropic/claude-4.5-opus')
+      match: {}
       example: openai/gpt-5-nano
       type: string
     ModelConfigObject:
       type: object
       properties:
+        provider:
+          description: AI provider for the model (or provide a baseURL endpoint instead)
+          example: openai
+          type: string
+          enum:
+            - openai
+            - anthropic
+            - google
+            - microsoft
         modelName:
           description: Model name string without prefix (e.g., 'gpt-5-nano',
             'claude-4.5-opus')
@@ -182,6 +192,9 @@ components:
           description: Human-readable description of the action
           example: Click the submit button
           type: string
+        backendNodeId:
+          description: Backend node ID for the element
+          type: number
         method:
           description: The method to execute (click, fill, etc.)
           example: click
@@ -559,6 +572,17 @@ components:
     AgentConfig:
       type: object
       properties:
+        provider:
+          description:
+            "AI provider for the agent (legacy, use model: openai/gpt-5-nano
+            instead)"
+          example: openai
+          type: string
+          enum:
+            - openai
+            - anthropic
+            - google
+            - microsoft
         model:
           $ref: "#/components/schemas/ModelConfig"
         systemPrompt:
@@ -722,6 +746,7 @@ components:
           type: boolean
       required:
         - url
+        - frameId
     NavigateResult:
       type: object
       properties:
@@ -957,6 +982,15 @@ components:
     ModelConfigObjectOutput:
       type: object
       properties:
+        provider:
+          description: AI provider for the model (or provide a baseURL endpoint instead)
+          example: openai
+          type: string
+          enum:
+            - openai
+            - anthropic
+            - google
+            - microsoft
         modelName:
           description: Model name string without prefix (e.g., 'gpt-5-nano',
             'claude-4.5-opus')
@@ -990,6 +1024,9 @@ components:
           description: Human-readable description of the action
           example: Click the submit button
           type: string
+        backendNodeId:
+          description: Backend node ID for the element
+          type: number
         method:
           description: The method to execute (click, fill, etc.)
           example: click
@@ -1330,6 +1367,17 @@ components:
     AgentConfigOutput:
       type: object
       properties:
+        provider:
+          description:
+            "AI provider for the agent (legacy, use model: openai/gpt-5-nano
+            instead)"
+          example: openai
+          type: string
+          enum:
+            - openai
+            - anthropic
+            - google
+            - microsoft
         model:
           $ref: "#/components/schemas/ModelConfigOutput"
         systemPrompt:
