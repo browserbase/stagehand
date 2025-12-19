@@ -864,11 +864,14 @@ export class V3 {
               modelName: this.modelName,
               modelApiKey: this.modelClientOptions.apiKey,
               domSettleTimeoutMs: this.domSettleTimeoutMs,
-              verbose: this.verbose,
+              verbose: String(this.verbose) as "0" | "1" | "2",
               systemPrompt: this.opts.systemPrompt,
               selfHeal: this.opts.selfHeal,
+              waitForCaptchaSolves: this.opts.waitForCaptchaSolves,
+              actTimeoutMs: this.opts.actTimeoutMs,
               browserbaseSessionCreateParams: createSessionPayload,
               browserbaseSessionID: this.opts.browserbaseSessionID,
+              experimental: this.opts.experimental,
             });
             if (!available) {
               this.apiClient = null;

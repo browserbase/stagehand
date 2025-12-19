@@ -319,16 +319,15 @@ export const SessionStartRequestSchema = z
       example: 5000,
     }),
     verbose: z
-      .union([z.literal(0), z.literal(1), z.literal(2)])
+      .union([z.literal("0"), z.literal("1"), z.literal("2")])
       .optional()
       .meta({
         description: "Logging verbosity level (0=quiet, 1=normal, 2=debug)",
-        example: 1,
+        example: "1",
         override: ({ jsonSchema }: { jsonSchema: Record<string, unknown> }) => {
           delete jsonSchema.anyOf;
-          jsonSchema.type = "integer";
-          jsonSchema.minimum = 0;
-          jsonSchema.maximum = 2;
+          jsonSchema.type = "string";
+          jsonSchema.enum = ["0", "1", "2"];
         },
       }),
     systemPrompt: z.string().optional().meta({
