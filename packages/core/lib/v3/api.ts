@@ -147,9 +147,12 @@ export class StagehandAPIClient {
     verbose,
     systemPrompt,
     selfHeal,
+    waitForCaptchaSolves,
+    actTimeoutMs,
     browserbaseSessionCreateParams,
     browserbaseSessionID,
-    browser,
+    experimental,
+    // browser,  TODO for local browsers
   }: ClientSessionStartParams): Promise<Api.SessionStartResult> {
     if (!modelApiKey) {
       throw new StagehandAPIError("modelApiKey is required");
@@ -179,9 +182,12 @@ export class StagehandAPIClient {
       verbose,
       systemPrompt,
       selfHeal,
+      waitForCaptchaSolves,
+      actTimeoutMs,
       browserbaseSessionCreateParams,
       browserbaseSessionID,
-      browser,
+      experimental,
+      // browser, TODO: only send when connected to local fastify
     };
 
     const sessionResponse = await this.request("/sessions/start", {

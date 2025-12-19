@@ -38,6 +38,8 @@ export interface V3Options {
   experimental?: boolean;
   verbose?: 0 | 1 | 2;
   selfHeal?: boolean;
+  waitForCaptchaSolves?: boolean;
+  actTimeoutMs?: number;
   /** Disable pino logging backend (useful for tests or minimal environments). */
   disablePino?: boolean;
   /** Optional external logger hook for integrating with host apps. */
