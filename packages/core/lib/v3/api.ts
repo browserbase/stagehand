@@ -160,6 +160,11 @@ export class StagehandAPIClient {
       ? modelName.split("/")[0]
       : undefined;
 
+    const region = browserbaseSessionCreateParams?.region;
+    if (region && region !== "us-west-2") {
+      return { sessionId: browserbaseSessionID ?? null, available: false };
+    }
+
     this.logger({
       category: "init",
       message: "Creating new browserbase session...",
@@ -205,6 +210,11 @@ export class StagehandAPIClient {
     }
 
     this.sessionId = sessionResponseBody.data.sessionId;
+
+    // Temporary reroute for rollout
+    if (!sessionResponseBody.data?.available && browserbaseSessionID) {
+      sessionResponseBody.data.sessionId = browserbaseSessionID;
+    }
 
     return sessionResponseBody.data;
   }
@@ -314,11 +324,10 @@ export class StagehandAPIClient {
   ): Promise<SerializableResponse | null> {
     const requestBody: Api.NavigateRequest = { url, options, frameId };
 
-    const result = await this.execute<Api.NavigateResult>({
+    return this.execute<SerializableResponse | null>({
       method: "navigate",
       args: requestBody,
     });
-    return result.result as SerializableResponse | null;
   }
 
   async agentExecute(
