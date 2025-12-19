@@ -733,7 +733,7 @@ export const NavigateRequestSchema = z
       example: "https://example.com",
     }),
     options: NavigateOptionsSchema,
-    frameId: z.string().meta({
+    frameId: z.string().optional().meta({
       description: "Target frame ID for the navigation",
     }),
     streamResponse: z.boolean().optional().meta({
