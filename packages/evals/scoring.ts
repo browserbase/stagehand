@@ -16,9 +16,7 @@ import { EvalArgs, EvalInput, EvalResult } from "./types/evals";
 export function exactMatch(
   args: EvalArgs<EvalInput, boolean | { _success: boolean }, unknown>,
 ): EvalResult {
-  console.log(
-    `Task "${args.input.name}" returned: ${JSON.stringify(args.output, null, 2)}`,
-  );
+  console.log(`Task "${args.input.name}" returned: ${args.output}`);
 
   const expected = args.expected ?? true;
   if (expected === true) {
@@ -55,9 +53,7 @@ export function errorMatch(
     unknown
   >,
 ): EvalResult {
-  console.log(
-    `Task "${args.input.name}" returned: ${JSON.stringify(args.output, null, 2)}`,
-  );
+  console.log(`Task "${args.input.name}" returned: ${args.output}`);
 
   return {
     name: "Error rate",

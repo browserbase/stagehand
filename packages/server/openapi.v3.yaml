@@ -132,7 +132,7 @@ components:
           type: boolean
         ignoreHTTPSErrors:
           type: boolean
-        connectUrl:
+        cdpUrl:
           type: string
         connectTimeoutMs:
           type: number
@@ -142,15 +142,25 @@ components:
           type: boolean
       additionalProperties: false
     ModelName:
+      description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano',
+        'anthropic/claude-4.5-opus')
+      example: openai/gpt-5-nano
       type: string
     ModelConfigObject:
       type: object
       properties:
         modelName:
+          description: Model name string without prefix (e.g., 'gpt-5-nano',
+            'claude-4.5-opus')
+          example: gpt-5-nano
           type: string
         apiKey:
+          description: API key for the model provider
+          example: sk-some-openai-api-key
           type: string
         baseURL:
+          description: Base URL for the model provider
+          example: https://api.openai.com/v1
           type: string
           format: uri
       required:
@@ -160,15 +170,25 @@ components:
         - $ref: "#/components/schemas/ModelName"
         - $ref: "#/components/schemas/ModelConfigObject"
     Action:
+      description: Action object returned by observe and used by act
       type: object
       properties:
         selector:
+          description: CSS selector or XPath for the element
+          example: "[data-testid='submit-button']"
           type: string
         description:
+          description: Human-readable description of the action
+          example: Click the submit button
           type: string
         method:
+          description: The method to execute (click, fill, etc.)
+          example: click
           type: string
         arguments:
+          description: Arguments to pass to the method
+          example:
+            - Hello World
           type: array
           items:
             type: string
@@ -180,11 +200,15 @@ components:
       type: object
       properties:
         type:
+          description: Browser type to use
+          example: local
           type: string
           enum:
             - local
             - browserbase
-        connectUrl:
+        cdpUrl:
+          description: Chrome DevTools Protocol URL for connecting to existing browser
+          example: ws://localhost:9222
           type: string
         launchOptions:
           $ref: "#/components/schemas/LocalBrowserLaunchOptions"
@@ -360,14 +384,20 @@ components:
       type: object
       properties:
         sessionId:
+          description: Unique Browserbase session identifier
+          example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
           type: string
         connectUrl:
-          type: string
+          description: CDP WebSocket URL for connecting to the Browserbase cloud browser
+            (present when available)
+          example: wss://connect.browserbase.com/?signingKey=abc123
+          anyOf:
+            - type: string
+            - type: "null"
         available:
           type: boolean
       required:
         - sessionId
-        - connectUrl
         - available
       additionalProperties: false
     ActOptions:
@@ -376,23 +406,33 @@ components:
         model:
           $ref: "#/components/schemas/ModelConfig"
         variables:
+          description: Variables to substitute in the action instruction
+          example:
+            username: john_doe
           type: object
           additionalProperties:
             type: string
         timeout:
+          description: Timeout in ms for the action
+          example: 30000
           type: number
     ActRequest:
       type: object
       properties:
         input:
+          description: Natural language instruction or Action object
+          example: Click the login button
           anyOf:
             - type: string
             - $ref: "#/components/schemas/Action"
         options:
           $ref: "#/components/schemas/ActOptions"
         frameId:
+          description: Target frame ID for the action
           type: string
         streamResponse:
+          description: Whether to stream the response via SSE
+          example: true
           type: boolean
       required:
         - input
@@ -400,12 +440,19 @@ components:
       type: object
       properties:
         success:
+          description: Whether the action completed successfully
+          example: true
           type: boolean
         message:
+          description: Human-readable result message
+          example: Successfully clicked the login button
           type: string
         actionDescription:
+          description: Description of the action that was performed
+          example: Clicked button with text 'Login'
           type: string
         actions:
+          description: List of actions that were executed
           type: array
           items:
             $ref: "#/components/schemas/Action"
@@ -420,6 +467,7 @@ components:
         result:
           $ref: "#/components/schemas/ActResultData"
         actionId:
+          description: Action ID for tracking
           type: string
       required:
         - result
@@ -430,28 +478,41 @@ components:
         model:
           $ref: "#/components/schemas/ModelConfig"
         timeout:
+          description: Timeout in ms for the extraction
+          example: 30000
           type: number
         selector:
+          description: CSS selector to scope extraction to a specific element
+          example: "#main-content"
           type: string
     ExtractRequest:
       type: object
       properties:
         instruction:
+          description: Natural language instruction for what to extract
+          example: Extract all product names and prices from the page
           type: string
         schema:
+          description: JSON Schema defining the structure of data to extract
           type: object
           additionalProperties: true
         options:
           $ref: "#/components/schemas/ExtractOptions"
         frameId:
+          description: Target frame ID for the extraction
           type: string
         streamResponse:
+          description: Whether to stream the response via SSE
+          example: true
           type: boolean
     ExtractResult:
       type: object
       properties:
-        result: {}
+        result:
+          description: Extracted data matching the requested schema
+          type: unknown
         actionId:
+          description: Action ID for tracking
           type: string
       required:
         - result
@@ -461,19 +522,28 @@ components:
         model:
           $ref: "#/components/schemas/ModelConfig"
         timeout:
+          description: Timeout in ms for the observation
+          example: 30000
           type: number
         selector:
+          description: CSS selector to scope observation to a specific element
+          example: nav
           type: string
     ObserveRequest:
       type: object
       properties:
         instruction:
+          description: Natural language instruction for what actions to find
+          example: Find all clickable navigation links
           type: string
         options:
           $ref: "#/components/schemas/ObserveOptions"
         frameId:
+          description: Target frame ID for the observation
           type: string
         streamResponse:
+          description: Whether to stream the response via SSE
+          example: true
           type: boolean
     ObserveResult:
       type: object
@@ -483,6 +553,7 @@ components:
           items:
             $ref: "#/components/schemas/Action"
         actionId:
+          description: Action ID for tracking
           type: string
       required:
         - result
@@ -493,21 +564,28 @@ components:
         model:
           $ref: "#/components/schemas/ModelConfig"
         systemPrompt:
+          description: Custom system prompt for the agent
           type: string
         cua:
+          description: Enable Computer Use Agent mode
+          example: true
           type: boolean
     AgentAction:
       type: object
       properties:
         type:
+          description: Type of action taken
+          example: click
           type: string
         reasoning:
+          description: Agent's reasoning for taking this action
           type: string
         taskCompleted:
           type: boolean
         action:
           type: string
         timeMs:
+          description: Time taken for this action in ms
           type: number
         pageText:
           type: string
@@ -522,14 +600,17 @@ components:
       type: object
       properties:
         input_tokens:
+          example: 1500
           type: number
         output_tokens:
+          example: 250
           type: number
         reasoning_tokens:
           type: number
         cached_input_tokens:
           type: number
         inference_time_ms:
+          example: 2500
           type: number
       required:
         - input_tokens
@@ -539,14 +620,20 @@ components:
       type: object
       properties:
         success:
+          description: Whether the agent completed successfully
+          example: true
           type: boolean
         message:
+          description: Summary of what the agent accomplished
+          example: Successfully logged in and navigated to dashboard
           type: string
         actions:
           type: array
           items:
             $ref: "#/components/schemas/AgentAction"
         completed:
+          description: Whether the agent finished its task
+          example: true
           type: boolean
         metadata:
           type: object
@@ -562,10 +649,17 @@ components:
       type: object
       properties:
         instruction:
+          description: Natural language instruction for the agent
+          example: Log in with username 'demo' and password 'test123', then navigate to
+            settings
           type: string
         maxSteps:
+          description: Maximum number of steps the agent can take
+          example: 20
           type: number
         highlightCursor:
+          description: Whether to visually highlight the cursor during execution
+          example: true
           type: boolean
       required:
         - instruction
@@ -577,8 +671,11 @@ components:
         executeOptions:
           $ref: "#/components/schemas/AgentExecuteOptions"
         frameId:
+          description: Target frame ID for the agent
           type: string
         streamResponse:
+          description: Whether to stream the response via SSE
+          example: true
           type: boolean
       required:
         - agentConfig
@@ -595,10 +692,15 @@ components:
       type: object
       properties:
         referer:
+          description: Referer header to send with the request
           type: string
         timeout:
+          description: Timeout in ms for the navigation
+          example: 30000
           type: number
         waitUntil:
+          description: When to consider navigation complete
+          example: networkidle
           type: string
           enum:
             - load
@@ -608,12 +710,17 @@ components:
       type: object
       properties:
         url:
+          description: URL to navigate to
+          example: https://example.com
           type: string
         options:
           $ref: "#/components/schemas/NavigateOptions"
         frameId:
+          description: Target frame ID for the navigation
           type: string
         streamResponse:
+          description: Whether to stream the response via SSE
+          example: true
           type: boolean
       required:
         - url
@@ -621,10 +728,10 @@ components:
       type: object
       properties:
         result:
-          anyOf:
-            - {}
-            - type: "null"
+          description: Navigation response (Playwright Response object or null)
+          type: unknown
         actionId:
+          description: Action ID for tracking
           type: string
       required:
         - result
@@ -663,6 +770,7 @@ components:
           items:
             $ref: "#/components/schemas/ReplayPage"
     StreamEventStatus:
+      description: Current status of the streaming operation
       type: string
       enum:
         - starting
@@ -671,6 +779,7 @@ components:
         - finished
         - error
     StreamEventType:
+      description: Type of stream event - system events or log messages
       type: string
       enum:
         - system
@@ -680,8 +789,10 @@ components:
       properties:
         status:
           $ref: "#/components/schemas/StreamEventStatus"
-        result: {}
+        result:
+          description: Operation result (present when status is 'finished')
         error:
+          description: Error message (present when status is 'error')
           type: string
       required:
         - status
@@ -692,6 +803,7 @@ components:
           type: string
           const: running
         message:
+          description: Log message from the operation
           type: string
       required:
         - status
@@ -700,6 +812,7 @@ components:
       type: object
       properties:
         success:
+          description: Indicates whether the request was successful
           type: boolean
         data:
           $ref: "#/components/schemas/SessionStartResult"
@@ -711,6 +824,7 @@ components:
       type: object
       properties:
         success:
+          description: Indicates whether the request was successful
           type: boolean
       required:
         - success
@@ -719,6 +833,7 @@ components:
       type: object
       properties:
         success:
+          description: Indicates whether the request was successful
           type: boolean
         data:
           $ref: "#/components/schemas/ActResultOutput"
@@ -730,6 +845,7 @@ components:
       type: object
       properties:
         success:
+          description: Indicates whether the request was successful
           type: boolean
         data:
           $ref: "#/components/schemas/ExtractResultOutput"
@@ -741,6 +857,7 @@ components:
       type: object
       properties:
         success:
+          description: Indicates whether the request was successful
           type: boolean
         data:
           $ref: "#/components/schemas/ObserveResult"
@@ -752,6 +869,7 @@ components:
       type: object
       properties:
         success:
+          description: Indicates whether the request was successful
           type: boolean
         data:
           $ref: "#/components/schemas/AgentExecuteResultOutput"
@@ -763,6 +881,7 @@ components:
       type: object
       properties:
         success:
+          description: Indicates whether the request was successful
           type: boolean
         data:
           $ref: "#/components/schemas/NavigateResultOutput"
@@ -828,7 +947,7 @@ components:
           type: boolean
         ignoreHTTPSErrors:
           type: boolean
-        connectUrl:
+        cdpUrl:
           type: string
         connectTimeoutMs:
           type: number
@@ -841,10 +960,17 @@ components:
       type: object
       properties:
         modelName:
+          description: Model name string without prefix (e.g., 'gpt-5-nano',
+            'claude-4.5-opus')
+          example: gpt-5-nano
           type: string
         apiKey:
+          description: API key for the model provider
+          example: sk-some-openai-api-key
           type: string
         baseURL:
+          description: Base URL for the model provider
+          example: https://api.openai.com/v1
           type: string
           format: uri
       required:
@@ -858,11 +984,15 @@ components:
       type: object
       properties:
         type:
+          description: Browser type to use
+          example: local
           type: string
           enum:
             - local
             - browserbase
-        connectUrl:
+        cdpUrl:
+          description: Chrome DevTools Protocol URL for connecting to existing browser
+          example: ws://localhost:9222
           type: string
         launchOptions:
           $ref: "#/components/schemas/LocalBrowserLaunchOptionsOutput"
@@ -1050,22 +1180,34 @@ components:
         model:
           $ref: "#/components/schemas/ModelConfigOutput"
         variables:
+          description: Variables to substitute in the action instruction
+          example:
+            username: john_doe
           type: object
           additionalProperties:
             type: string
         timeout:
+          description: Timeout in ms for the action
+          example: 30000
           type: number
       additionalProperties: false
     ActResultDataOutput:
       type: object
       properties:
         success:
+          description: Whether the action completed successfully
+          example: true
           type: boolean
         message:
+          description: Human-readable result message
+          example: Successfully clicked the login button
           type: string
         actionDescription:
+          description: Description of the action that was performed
+          example: Clicked button with text 'Login'
           type: string
         actions:
+          description: List of actions that were executed
           type: array
           items:
             $ref: "#/components/schemas/Action"
@@ -1081,6 +1223,7 @@ components:
         result:
           $ref: "#/components/schemas/ActResultDataOutput"
         actionId:
+          description: Action ID for tracking
           type: string
       required:
         - result
@@ -1091,15 +1234,22 @@ components:
         model:
           $ref: "#/components/schemas/ModelConfigOutput"
         timeout:
+          description: Timeout in ms for the extraction
+          example: 30000
           type: number
         selector:
+          description: CSS selector to scope extraction to a specific element
+          example: "#main-content"
           type: string
       additionalProperties: false
     ExtractResultOutput:
       type: object
       properties:
-        result: {}
+        result:
+          description: Extracted data matching the requested schema
+          type: unknown
         actionId:
+          description: Action ID for tracking
           type: string
       required:
         - result
@@ -1110,8 +1260,12 @@ components:
         model:
           $ref: "#/components/schemas/ModelConfigOutput"
         timeout:
+          description: Timeout in ms for the observation
+          example: 30000
           type: number
         selector:
+          description: CSS selector to scope observation to a specific element
+          example: nav
           type: string
       additionalProperties: false
     AgentConfigOutput:
@@ -1120,22 +1274,28 @@ components:
         model:
           $ref: "#/components/schemas/ModelConfigOutput"
         systemPrompt:
+          description: Custom system prompt for the agent
           type: string
         cua:
+          description: Enable Computer Use Agent mode
+          example: true
           type: boolean
       additionalProperties: false
     AgentUsageOutput:
       type: object
       properties:
         input_tokens:
+          example: 1500
           type: number
         output_tokens:
+          example: 250
           type: number
         reasoning_tokens:
           type: number
         cached_input_tokens:
           type: number
         inference_time_ms:
+          example: 2500
           type: number
       required:
         - input_tokens
@@ -1146,14 +1306,20 @@ components:
       type: object
       properties:
         success:
+          description: Whether the agent completed successfully
+          example: true
           type: boolean
         message:
+          description: Summary of what the agent accomplished
+          example: Successfully logged in and navigated to dashboard
           type: string
         actions:
           type: array
           items:
             $ref: "#/components/schemas/AgentAction"
         completed:
+          description: Whether the agent finished its task
+          example: true
           type: boolean
         metadata:
           type: object
@@ -1170,10 +1336,17 @@ components:
       type: object
       properties:
         instruction:
+          description: Natural language instruction for the agent
+          example: Log in with username 'demo' and password 'test123', then navigate to
+            settings
           type: string
         maxSteps:
+          description: Maximum number of steps the agent can take
+          example: 20
           type: number
         highlightCursor:
+          description: Whether to visually highlight the cursor during execution
+          example: true
           type: boolean
       required:
         - instruction
@@ -1190,10 +1363,15 @@ components:
       type: object
       properties:
         referer:
+          description: Referer header to send with the request
           type: string
         timeout:
+          description: Timeout in ms for the navigation
+          example: 30000
           type: number
         waitUntil:
+          description: When to consider navigation complete
+          example: networkidle
           type: string
           enum:
             - load
@@ -1204,10 +1382,10 @@ components:
       type: object
       properties:
         result:
-          anyOf:
-            - {}
-            - type: "null"
+          description: Navigation response (Playwright Response object or null)
+          type: unknown
         actionId:
+          description: Action ID for tracking
           type: string
       required:
         - result
@@ -1255,8 +1433,10 @@ components:
       properties:
         status:
           $ref: "#/components/schemas/StreamEventStatus"
-        result: {}
+        result:
+          description: Operation result (present when status is 'finished')
         error:
+          description: Error message (present when status is 'error')
           type: string
       required:
         - status
@@ -1268,6 +1448,7 @@ components:
           type: string
           const: running
         message:
+          description: Log message from the operation
           type: string
       required:
         - status
@@ -1277,6 +1458,8 @@ components:
       type: object
       properties:
         id:
+          description: Unique session identifier
+          example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
           type: string
       required:
         - id
@@ -1285,19 +1468,27 @@ components:
       type: object
       properties:
         x-stream-response:
+          description: Whether to stream the response via SSE
+          example: "true"
           type: string
           enum:
             - "true"
             - "false"
         x-language:
+          description: Client SDK language
+          example: typescript
           type: string
           enum:
             - typescript
             - python
             - playground
         x-sdk-version:
+          description: Version of the Stagehand SDK
+          example: 3.0.6
           type: string
         x-sent-at:
+          description: ISO timestamp when request was sent
+          example: 2025-01-15T10:30:00Z
           type: string
           format: date-time
           pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
@@ -1320,32 +1511,38 @@ components:
       type: object
       properties:
         modelName:
+          description: Model name to use for AI operations
+          example: gpt-4o
           type: string
         domSettleTimeoutMs:
+          description: Timeout in ms to wait for DOM to settle
+          example: 5000
           type: number
         verbose:
-          anyOf:
-            - type: number
-              const: 0
-            - type: number
-              const: 1
-            - type: number
-              const: 2
-        debugDom:
-          type: boolean
+          description: Logging verbosity level (0=quiet, 1=normal, 2=debug)
+          example: 1
+          type: integer
+          minimum: 0
+          maximum: 2
         systemPrompt:
+          description: Custom system prompt for AI operations
           type: string
         browserbaseSessionCreateParams:
           $ref: "#/components/schemas/BrowserbaseSessionCreateParamsOutput"
         browser:
           $ref: "#/components/schemas/BrowserConfigOutput"
         selfHeal:
+          description: Enable self-healing for failed actions
+          example: true
           type: boolean
         waitForCaptchaSolves:
           type: boolean
         actTimeoutMs:
+          description: Timeout in ms for act operations
+          example: 30000
           type: number
         browserbaseSessionID:
+          description: Existing Browserbase session ID to resume
           type: string
         experimental:
           type: boolean
@@ -1360,6 +1557,7 @@ components:
       type: object
       properties:
         success:
+          description: Indicates whether the request was successful
           type: boolean
         data:
           $ref: "#/components/schemas/ReplayResultOutput"
@@ -1368,30 +1566,34 @@ components:
         - data
       additionalProperties: false
     StreamEvent:
+      description: "Server-Sent Event emitted during streaming responses. Events are
+        sent as `data: <JSON>\\n\\n`. Key order: data (with status first), type,
+        id."
       type: object
       properties:
-        id:
-          type: string
-          format: uuid
-          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
-        type:
-          $ref: "#/components/schemas/StreamEventType"
         data:
           anyOf:
             - $ref: "#/components/schemas/StreamEventSystemDataOutput"
             - $ref: "#/components/schemas/StreamEventLogDataOutput"
+        type:
+          $ref: "#/components/schemas/StreamEventType"
+        id:
+          description: Unique identifier for this event
+          example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
       required:
-        - id
-        - type
         - data
+        - type
+        - id
       additionalProperties: false
 paths:
   /v1/sessions/{id}/act:
     post:
       operationId: SessionAct
       summary: Perform an action
-      description:
-        Executes a browser action using natural language instructions or a
+      description: Executes a browser action using natural language instructions or a
         predefined Action object.
       requestBody:
         content:
@@ -1401,18 +1603,26 @@ paths:
         required: true
       parameters:
         - schema:
+            description: Unique session identifier
+            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
             type: string
           in: path
           name: id
           required: true
+          description: Unique session identifier
         - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
             type: string
             enum:
               - "true"
               - "false"
           in: header
           name: x-stream-response
+          description: Whether to stream the response via SSE
         - schema:
+            description: Client SDK language
+            example: typescript
             type: string
             enum:
               - typescript
@@ -1420,16 +1630,23 @@ paths:
               - playground
           in: header
           name: x-language
+          description: Client SDK language
         - schema:
+            description: Version of the Stagehand SDK
+            example: 3.0.6
             type: string
           in: header
           name: x-sdk-version
+          description: Version of the Stagehand SDK
         - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00Z
             type: string
             format: date-time
             pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
           in: header
           name: x-sent-at
+          description: ISO timestamp when request was sent
       responses:
         "200":
           description: Default Response
@@ -1444,18 +1661,26 @@ paths:
       description: Terminates the browser session and releases all associated resources.
       parameters:
         - schema:
+            description: Unique session identifier
+            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
             type: string
           in: path
           name: id
           required: true
+          description: Unique session identifier
         - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
             type: string
             enum:
               - "true"
               - "false"
           in: header
           name: x-stream-response
+          description: Whether to stream the response via SSE
         - schema:
+            description: Client SDK language
+            example: typescript
             type: string
             enum:
               - typescript
@@ -1463,16 +1688,23 @@ paths:
               - playground
           in: header
           name: x-language
+          description: Client SDK language
         - schema:
+            description: Version of the Stagehand SDK
+            example: 3.0.6
             type: string
           in: header
           name: x-sdk-version
+          description: Version of the Stagehand SDK
         - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00Z
             type: string
             format: date-time
             pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
           in: header
           name: x-sent-at
+          description: ISO timestamp when request was sent
       responses:
         "200":
           description: Default Response
@@ -1493,18 +1725,26 @@ paths:
         required: true
       parameters:
         - schema:
+            description: Unique session identifier
+            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
             type: string
           in: path
           name: id
           required: true
+          description: Unique session identifier
         - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
             type: string
             enum:
               - "true"
               - "false"
           in: header
           name: x-stream-response
+          description: Whether to stream the response via SSE
         - schema:
+            description: Client SDK language
+            example: typescript
             type: string
             enum:
               - typescript
@@ -1512,16 +1752,23 @@ paths:
               - playground
           in: header
           name: x-language
+          description: Client SDK language
         - schema:
+            description: Version of the Stagehand SDK
+            example: 3.0.6
             type: string
           in: header
           name: x-sdk-version
+          description: Version of the Stagehand SDK
         - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00Z
             type: string
             format: date-time
             pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
           in: header
           name: x-sent-at
+          description: ISO timestamp when request was sent
       responses:
         "200":
           description: Default Response
@@ -1542,18 +1789,26 @@ paths:
         required: true
       parameters:
         - schema:
+            description: Unique session identifier
+            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
             type: string
           in: path
           name: id
           required: true
+          description: Unique session identifier
         - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
             type: string
             enum:
               - "true"
               - "false"
           in: header
           name: x-stream-response
+          description: Whether to stream the response via SSE
         - schema:
+            description: Client SDK language
+            example: typescript
             type: string
             enum:
               - typescript
@@ -1561,16 +1816,23 @@ paths:
               - playground
           in: header
           name: x-language
+          description: Client SDK language
         - schema:
+            description: Version of the Stagehand SDK
+            example: 3.0.6
             type: string
           in: header
           name: x-sdk-version
+          description: Version of the Stagehand SDK
         - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00Z
             type: string
             format: date-time
             pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
           in: header
           name: x-sent-at
+          description: ISO timestamp when request was sent
       responses:
         "200":
           description: Default Response
@@ -1582,8 +1844,7 @@ paths:
     post:
       operationId: SessionObserve
       summary: Observe available actions
-      description:
-        Identifies and returns available actions on the current page that
+      description: Identifies and returns available actions on the current page that
         match the given instruction.
       requestBody:
         content:
@@ -1593,18 +1854,26 @@ paths:
         required: true
       parameters:
         - schema:
+            description: Unique session identifier
+            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
             type: string
           in: path
           name: id
           required: true
+          description: Unique session identifier
         - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
             type: string
             enum:
               - "true"
               - "false"
           in: header
           name: x-stream-response
+          description: Whether to stream the response via SSE
         - schema:
+            description: Client SDK language
+            example: typescript
             type: string
             enum:
               - typescript
@@ -1612,16 +1881,23 @@ paths:
               - playground
           in: header
           name: x-language
+          description: Client SDK language
         - schema:
+            description: Version of the Stagehand SDK
+            example: 3.0.6
             type: string
           in: header
           name: x-sdk-version
+          description: Version of the Stagehand SDK
         - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00Z
             type: string
             format: date-time
             pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
           in: header
           name: x-sent-at
+          description: ISO timestamp when request was sent
       responses:
         "200":
           description: Default Response
@@ -1633,8 +1909,7 @@ paths:
     post:
       operationId: SessionStart
       summary: Start a new browser session
-      description:
-        Creates a new browser session with the specified configuration.
+      description: Creates a new browser session with the specified configuration.
         Returns a session ID used for all subsequent operations.
       requestBody:
         content:
@@ -1643,32 +1918,38 @@ paths:
               type: object
               properties:
                 modelName:
+                  description: Model name to use for AI operations
+                  example: gpt-4o
                   type: string
                 domSettleTimeoutMs:
+                  description: Timeout in ms to wait for DOM to settle
+                  example: 5000
                   type: number
                 verbose:
-                  anyOf:
-                    - type: number
-                      const: 0
-                    - type: number
-                      const: 1
-                    - type: number
-                      const: 2
-                debugDom:
-                  type: boolean
+                  description: Logging verbosity level (0=quiet, 1=normal, 2=debug)
+                  example: 1
+                  type: integer
+                  minimum: 0
+                  maximum: 2
                 systemPrompt:
+                  description: Custom system prompt for AI operations
                   type: string
                 browserbaseSessionCreateParams:
                   $ref: "#/components/schemas/BrowserbaseSessionCreateParams"
                 browser:
                   $ref: "#/components/schemas/BrowserConfig"
                 selfHeal:
+                  description: Enable self-healing for failed actions
+                  example: true
                   type: boolean
                 waitForCaptchaSolves:
                   type: boolean
                 actTimeoutMs:
+                  description: Timeout in ms for act operations
+                  example: 30000
                   type: number
                 browserbaseSessionID:
+                  description: Existing Browserbase session ID to resume
                   type: string
                 experimental:
                   type: boolean
@@ -1678,13 +1959,18 @@ paths:
         required: true
       parameters:
         - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
             type: string
             enum:
               - "true"
               - "false"
           in: header
           name: x-stream-response
+          description: Whether to stream the response via SSE
         - schema:
+            description: Client SDK language
+            example: typescript
             type: string
             enum:
               - typescript
@@ -1692,16 +1978,23 @@ paths:
               - playground
           in: header
           name: x-language
+          description: Client SDK language
         - schema:
+            description: Version of the Stagehand SDK
+            example: 3.0.6
             type: string
           in: header
           name: x-sdk-version
+          description: Version of the Stagehand SDK
         - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00Z
             type: string
             format: date-time
             pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
           in: header
           name: x-sent-at
+          description: ISO timestamp when request was sent
       responses:
         "200":
           description: Default Response
@@ -1713,8 +2006,7 @@ paths:
     post:
       operationId: SessionAgentExecute
       summary: Execute an AI agent
-      description:
-        Runs an autonomous AI agent that can perform complex multi-step
+      description: Runs an autonomous AI agent that can perform complex multi-step
         browser tasks.
       requestBody:
         content:
@@ -1724,18 +2016,26 @@ paths:
         required: true
       parameters:
         - schema:
+            description: Unique session identifier
+            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
             type: string
           in: path
           name: id
           required: true
+          description: Unique session identifier
         - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
             type: string
             enum:
               - "true"
               - "false"
           in: header
           name: x-stream-response
+          description: Whether to stream the response via SSE
         - schema:
+            description: Client SDK language
+            example: typescript
             type: string
             enum:
               - typescript
@@ -1743,16 +2043,23 @@ paths:
               - playground
           in: header
           name: x-language
+          description: Client SDK language
         - schema:
+            description: Version of the Stagehand SDK
+            example: 3.0.6
             type: string
           in: header
           name: x-sdk-version
+          description: Version of the Stagehand SDK
         - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00Z
             type: string
             format: date-time
             pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
           in: header
           name: x-sent-at
+          description: ISO timestamp when request was sent
       responses:
         "200":
           description: Default Response

@@ -699,14 +699,14 @@ export class V3 {
           const lbo: LocalBrowserLaunchOptions =
             this.opts.localBrowserLaunchOptions ?? {};
 
-          // If a connect URL is provided, attach instead of launching.
-          if (lbo.connectUrl) {
+          // If a CDP URL is provided, attach instead of launching.
+          if (lbo.cdpUrl) {
             this.logger({
               category: "init",
               message: "Connecting to local browser",
               level: 1,
             });
-            this.ctx = await V3Context.create(lbo.connectUrl, {
+            this.ctx = await V3Context.create(lbo.cdpUrl, {
               env: "LOCAL",
             });
             const logCtx = SessionFileLogger.getContext();
@@ -721,7 +721,7 @@ export class V3 {
               chrome: {
                 kill: async () => {},
               } as unknown as import("chrome-launcher").LaunchedChrome,
-              ws: lbo.connectUrl,
+              ws: lbo.cdpUrl,
             };
             this.resetBrowserbaseSessionMetadata();
             // Post-connect settings (downloads and viewport) if provided

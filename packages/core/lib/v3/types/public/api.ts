@@ -39,7 +39,7 @@ export const LocalBrowserLaunchOptionsSchema = z
     deviceScaleFactor: z.number().optional(),
     hasTouch: z.boolean().optional(),
     ignoreHTTPSErrors: z.boolean().optional(),
-    connectUrl: z.string().optional(),
+    cdpUrl: z.string().optional(),
     connectTimeoutMs: z.number().optional(),
     downloadsPath: z.string().optional(),
     acceptDownloads: z.boolean().optional(),
@@ -126,7 +126,7 @@ export const BrowserConfigSchema = z
       description: "Browser type to use",
       example: "local",
     }),
-    connectUrl: z.string().optional().meta({
+    cdpUrl: z.string().optional().meta({
       description:
         "Chrome DevTools Protocol URL for connecting to existing browser",
       example: "ws://localhost:9222",
@@ -331,7 +331,6 @@ export const SessionStartRequestSchema = z
           jsonSchema.maximum = 2;
         },
       }),
-    debugDom: z.boolean().optional(),
     systemPrompt: z.string().optional().meta({
       description: "Custom system prompt for AI operations",
     }),

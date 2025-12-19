@@ -101,7 +101,7 @@ describe("local accessors", () => {
       disableAPI: true,
       verbose: 0,
       localBrowserLaunchOptions: {
-        connectUrl: "ws://local-existing-session",
+        cdpUrl: "ws://local-existing-session",
       },
     });
 

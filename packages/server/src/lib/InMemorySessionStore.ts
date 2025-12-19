@@ -1,12 +1,12 @@
 import { randomUUID } from "crypto";
 import type { V3Options, LogLine } from "@browserbasehq/stagehand";
 import { V3 } from "@browserbasehq/stagehand";
-import {
-  type SessionStore,
-  type CreateSessionParams,
-  type RequestContext,
-  type SessionCacheConfig,
-  type SessionStartResult,
+import type {
+  SessionStore,
+  CreateSessionParams,
+  RequestContext,
+  SessionCacheConfig,
+  SessionStartResult,
 } from "./SessionStore";
 
 const DEFAULT_MAX_CAPACITY = 100;
@@ -120,16 +120,8 @@ export class InMemorySessionStore implements SessionStore {
   }
 
   async startSession(params: CreateSessionParams): Promise<SessionStartResult> {
-    if (params.browserType === "browserbase" && !params.browserbaseSessionID) {
-      throw new Error(
-        "browserbaseSessionID is required for browserbase sessions",
-      );
-    }
-
-    const sessionId =
-      params.browserType === "browserbase"
-        ? params.browserbaseSessionID!
-        : randomUUID();
+    // Generate session ID or use provided browserbase session ID
+    const sessionId = params.browserbaseSessionID ?? randomUUID();
 
     // Store the session
     await this.createSession(sessionId, params);

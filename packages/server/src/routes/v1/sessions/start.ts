@@ -17,14 +17,14 @@ import { AISDK_PROVIDERS } from "../../../types/model.js";
 const startBodySchema = Api.SessionStartRequestSchema.superRefine(
   (value, ctx) => {
     if (value.browser?.type === "local") {
-      const hasConnect = Boolean(value.browser.connectUrl);
+      const hasConnect = Boolean(value.browser.cdpUrl);
       const hasLaunch = Boolean(value.browser.launchOptions);
       if (!hasConnect && !hasLaunch) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["browser"],
           message:
-            "When browser.type is 'local', provide either browser.connectUrl or browser.launchOptions.",
+            "When browser.type is 'local', provide either browser.cdpUrl or browser.launchOptions.",
         });
       }
     }
@@ -164,7 +164,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
 
     // For local browsers without a connectUrl, get it from browser.connectUrl
     if (browserType === "local") {
-      connectUrl = browser?.connectUrl;
+      connectUrl = browser?.cdpUrl;
     }
 
     const session = await sessionStore.startSession({
@@ -189,7 +189,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       localBrowserLaunchOptions:
         browserType === "local" && browser?.launchOptions
           ? {
-              connectUrl: browser?.connectUrl,
+              cdpUrl: browser?.cdpUrl,
               ...(browser?.launchOptions ?? {}),
             }
           : undefined,

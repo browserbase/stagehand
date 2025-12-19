@@ -52,8 +52,6 @@ export interface CreateSessionParams {
   connectUrl?: string;
 
   // Cloud-specific metadata fields
-  /** Debug DOM mode */
-  debugDom?: boolean;
   /** Act timeout in milliseconds */
   actTimeoutMs?: number;
   /** Client language (typescript, python, playground) */
