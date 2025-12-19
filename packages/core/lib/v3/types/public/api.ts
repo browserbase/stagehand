@@ -350,13 +350,16 @@ export const SessionStartRequestSchema = z
       description: "Enable self-healing for failed actions",
       example: true,
     }),
-    waitForCaptchaSolves: z.boolean().optional(),
-    actTimeoutMs: z.number().optional().meta({
-      description: "Timeout in ms for act operations",
-      example: 30000,
-    }),
     browserbaseSessionID: z.string().optional().meta({
       description: "Existing Browserbase session ID to resume",
+    }),
+    // V2 compatibility fields - only included because the server imports this type and supports V2
+    // should never be used in v3 clients or v3-only server implementations
+    waitForCaptchaSolves: z.boolean().optional().meta({
+      description: "Wait for captcha solves (deprecated, v2 only)",
+    }),
+    actTimeoutMs: z.number().optional().meta({
+      description: "Timeout in ms for act operations (deprecated, v2 only)",
     }),
     experimental: z.boolean().optional(),
   })

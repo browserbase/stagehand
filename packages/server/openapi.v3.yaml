@@ -1645,15 +1645,15 @@ components:
           description: Enable self-healing for failed actions
           example: true
           type: boolean
-        waitForCaptchaSolves:
-          type: boolean
-        actTimeoutMs:
-          description: Timeout in ms for act operations
-          example: 30000
-          type: number
         browserbaseSessionID:
           description: Existing Browserbase session ID to resume
           type: string
+        waitForCaptchaSolves:
+          description: Wait for captcha solves (deprecated, v2 only)
+          type: boolean
+        actTimeoutMs:
+          description: Timeout in ms for act operations (deprecated, v2 only)
+          type: number
         experimental:
           type: boolean
       required:
@@ -2058,15 +2058,15 @@ paths:
                   description: Enable self-healing for failed actions
                   example: true
                   type: boolean
-                waitForCaptchaSolves:
-                  type: boolean
-                actTimeoutMs:
-                  description: Timeout in ms for act operations
-                  example: 30000
-                  type: number
                 browserbaseSessionID:
                   description: Existing Browserbase session ID to resume
                   type: string
+                waitForCaptchaSolves:
+                  description: Wait for captcha solves (deprecated, v2 only)
+                  type: boolean
+                actTimeoutMs:
+                  description: Timeout in ms for act operations (deprecated, v2 only)
+                  type: number
                 experimental:
                   type: boolean
               required:

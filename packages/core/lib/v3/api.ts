@@ -147,11 +147,8 @@ export class StagehandAPIClient {
     verbose,
     systemPrompt,
     selfHeal,
-    waitForCaptchaSolves,
-    actTimeoutMs,
     browserbaseSessionCreateParams,
     browserbaseSessionID,
-    experimental,
     // browser,  TODO for local browsers
   }: ClientSessionStartParams): Promise<Api.SessionStartResult> {
     if (!modelApiKey) {
@@ -182,11 +179,8 @@ export class StagehandAPIClient {
       verbose,
       systemPrompt,
       selfHeal,
-      waitForCaptchaSolves,
-      actTimeoutMs,
       browserbaseSessionCreateParams,
       browserbaseSessionID,
-      experimental,
       // browser, TODO: only send when connected to local fastify
     };
 

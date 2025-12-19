@@ -38,6 +38,7 @@ export interface V3Options {
   experimental?: boolean;
   verbose?: 0 | 1 | 2;
   selfHeal?: boolean;
+  // V2 compatibility fields - only included because the server imports this type and supports V2
   waitForCaptchaSolves?: boolean;
   actTimeoutMs?: number;
   /** Disable pino logging backend (useful for tests or minimal environments). */
