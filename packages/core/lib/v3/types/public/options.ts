@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { LLMClient } from "../../llm/LLMClient";
 import { ModelConfiguration } from "./model";
 import { LogLine } from "./logs";
