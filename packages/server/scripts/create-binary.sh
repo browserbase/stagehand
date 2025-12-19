@@ -21,43 +21,55 @@ BLOB_PATH="${DIST_DIR}/sea-prep.blob"
 
 mkdir -p "${DIST_DIR}"
 
+# Detect host platform/arch (SEA injection uses the host Node binary, so cross-building isn't supported)
+HOST_OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+HOST_ARCH=$(uname -m)
+
+case "$HOST_OS" in
+    darwin)
+        HOST_PLATFORM="darwin"
+        ;;
+    linux)
+        HOST_PLATFORM="linux"
+        ;;
+    mingw*|msys*|cygwin*)
+        HOST_PLATFORM="win32"
+        ;;
+    *)
+        echo "Unknown OS: $HOST_OS"
+        exit 1
+        ;;
+esac
+
+case "$HOST_ARCH" in
+    x86_64|amd64)
+        HOST_ARCH="x64"
+        ;;
+    arm64|aarch64)
+        HOST_ARCH="arm64"
+        ;;
+    *)
+        echo "Unknown architecture: $HOST_ARCH"
+        exit 1
+        ;;
+esac
+
+HOST_PLATFORM_ARCH="${HOST_PLATFORM}-${HOST_ARCH}"
+
 # Auto-detect platform if not specified
 if [ -z "$1" ]; then
-    OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-    ARCH=$(uname -m)
-
-    case "$OS" in
-        darwin)
-            PLATFORM="darwin"
-            ;;
-        linux)
-            PLATFORM="linux"
-            ;;
-        mingw*|msys*|cygwin*)
-            PLATFORM="win32"
-            ;;
-        *)
-            echo "Unknown OS: $OS"
-            exit 1
-            ;;
-    esac
-
-    case "$ARCH" in
-        x86_64|amd64)
-            ARCH="x64"
-            ;;
-        arm64|aarch64)
-            ARCH="arm64"
-            ;;
-        *)
-            echo "Unknown architecture: $ARCH"
-            exit 1
-            ;;
-    esac
-
-    PLATFORM_ARCH="${PLATFORM}-${ARCH}"
+    PLATFORM_ARCH="${HOST_PLATFORM_ARCH}"
 else
     PLATFORM_ARCH="$1"
+fi
+
+# Reject cross-target builds; the output binary must match the host Node executable.
+if [[ "${PLATFORM_ARCH}" != "${HOST_PLATFORM_ARCH}" ]]; then
+    echo "Cross-platform builds are not supported."
+    echo "Requested: ${PLATFORM_ARCH}"
+    echo "Host:      ${HOST_PLATFORM_ARCH}"
+    echo "Run this script on the target OS/arch or use CI artifacts."
+    exit 1
 fi
 
 # Set binary name
@@ -74,7 +86,7 @@ echo "================================"
 
 # Check blob exists
 if [ ! -f "${BLOB_PATH}" ]; then
-    echo "Error: ${BLOB_PATH} not found. Run 'pnpm sea:build' first."
+    echo "Error: ${BLOB_PATH} not found. Run 'pnpm build:binary' first."
     exit 1
 fi
 
