@@ -53,6 +53,32 @@ describe("injectSubtrees", () => {
   [leaf] item`,
     );
   });
+
+  it("injects child outline only once when the same id repeats", () => {
+    const rootOutline = `[root] document
+  [iframe-1] iframe
+  [iframe-1] iframe`;
+    const iframeOutline = `[child-root] child`;
+
+    const merged = injectSubtrees(
+      rootOutline,
+      new Map([["iframe-1", iframeOutline]]),
+    );
+
+    expect(merged).toBe(
+      `[root] document
+  [iframe-1] iframe
+    [child-root] child
+  [iframe-1] iframe`,
+    );
+  });
+
+  it("returns the original outline when no encoded ids are matched", () => {
+    const outline = `[root] document\n  [leaf] item`;
+    expect(injectSubtrees(outline, new Map([["other", "[x] child"]]))).toBe(
+      outline,
+    );
+  });
 });
 
 describe("indentBlock", () => {
@@ -66,6 +92,12 @@ describe("diffCombinedTrees", () => {
   it("returns newly-added lines relative to previous outline", () => {
     const prev = `[root] document\n  [child] a`;
     const next = `[root] document\n  [child] a\n  [child-2] b`;
+    expect(diffCombinedTrees(prev, next)).toBe("[child-2] b");
+  });
+
+  it("normalizes indentation for added lines with stray spaces", () => {
+    const prev = `[root] document\n    [child] a`;
+    const next = `[root] document\n    [child] a\n        [child-2] b`;
     expect(diffCombinedTrees(prev, next)).toBe("[child-2] b");
   });
 });
