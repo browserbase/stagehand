@@ -177,7 +177,7 @@ export class V3 {
     }
 
     // Single place to react to the transport closing
-    this._immediateShutdown(`CDP transport closed: ${why}`).catch(() => { });
+    this._immediateShutdown(`CDP transport closed: ${why}`).catch(() => {});
   };
   public readonly experimental: boolean = false;
   public readonly logInferenceToFile: boolean = false;
@@ -720,7 +720,7 @@ export class V3 {
               kind: "LOCAL",
               // no LaunchedChrome when attaching externally; create a stub kill
               chrome: {
-                kill: async () => { },
+                kill: async () => {},
               } as unknown as import("chrome-launcher").LaunchedChrome,
               ws: lbo.cdpUrl,
             };
@@ -964,7 +964,7 @@ export class V3 {
             downloadPath: lbo.downloadsPath,
             eventsEnabled: true,
           })
-          .catch(() => { });
+          .catch(() => {});
       }
     } catch {
       // best-effort only
