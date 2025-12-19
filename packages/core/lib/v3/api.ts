@@ -209,12 +209,12 @@ export class StagehandAPIClient {
       throw new StagehandAPIError(sessionResponseBody.message);
     }
 
-    this.sessionId = sessionResponseBody.data.sessionId;
-
     // Temporary reroute for rollout
     if (!sessionResponseBody.data?.available && browserbaseSessionID) {
       sessionResponseBody.data.sessionId = browserbaseSessionID;
     }
+
+    this.sessionId = sessionResponseBody.data.sessionId;
 
     return sessionResponseBody.data;
   }
