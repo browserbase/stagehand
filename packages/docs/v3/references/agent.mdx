@@ -30,10 +30,10 @@ interface AgentConfig {
   systemPrompt?: string;
   integrations?: (Client | string)[];
   tools?: ToolSet;
-  cua?: boolean;
   model?: string | AgentModelConfig<string>;
   executionModel?: string | AgentModelConfig<string>;
   stream?: boolean; // Enable streaming mode (experimental)
+  mode?: "dom" | "hybrid" | "cua"; 
 }
 
 // AgentModelConfig for advanced configuration
@@ -89,10 +89,6 @@ interface AgentInstance {
   **Format:** `"provider/model"` (e.g., `"openai/gpt-4o-mini"`, `"google/gemini-2.0-flash-exp"`)
 </ParamField>
 
-<ParamField path="cua" type="boolean" optional>
-  Indicates whether Computer Use Agent (CUA) mode is enabled. When false, the agent uses standard tool-based operation instead of computer control.
-</ParamField>
-
 <ParamField path="integrations" type="(Client | string)[]" optional>
   MCP (Model Context Protocol) integrations for external tools and services.
 
@@ -108,7 +104,26 @@ interface AgentInstance {
   
   **Default:** `false`
   
-  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `cua: true`.</Warning>
+  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `mode: "cua"`.</Warning>
+</ParamField>
+
+<ParamField path="mode" type='"dom" | "hybrid" | "cua"' optional>
+  Tool mode for the agent. Determines which set of tools are available to the agent.
+  
+  **Modes:**
+  - `"dom"` (default): Uses DOM-based tools (`act`, `fillForm`) for structured page interactions. Works with any model.
+  - `"hybrid"`: Uses both DOM-based and coordinate-based tools (`act`, `click`, `type`, `dragAndDrop`, `clickAndHold`, `fillForm`) for visual/screenshot-based interactions. Requires models with reliable coordinate-based action capabilities.
+  - `"cua"`: Uses Computer Use Agent providers for screenshot-based automation.
+  
+  **Default:** `"dom"`
+  
+  <Warning>
+  **Hybrid Mode Model Requirements:** Only use hybrid mode with models that can reliably perform coordinate-based actions:
+  - **Google:** `google/gemini-3-flash-preview`
+  - **Anthropic:** `anthropic/claude-sonnet-4-20250514`, `anthropic/claude-sonnet-4-5-20250929`, `anthropic/claude-haiku-4-5-20251001`
+  
+  Requires `experimental: true` in Stagehand constructor.
+  </Warning>
 </ParamField>
 
 ### Execute Method
@@ -208,19 +223,19 @@ interface AgentStreamCallbacks {
 <ParamField path="messages" type="ModelMessage[]" optional>
   Previous conversation messages to continue from. Pass the `messages` from a previous `AgentResult` to continue that conversation.
 
-  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `cua: true`.</Warning>
+  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `mode: "cua"`.</Warning>
 </ParamField>
 
 <ParamField path="signal" type="AbortSignal" optional>
   An `AbortSignal` that can be used to cancel the agent execution. When aborted, the agent will stop and throw an `AgentAbortError`.
 
-  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `cua: true`.</Warning>
+  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `mode: "cua"`.</Warning>
 </ParamField>
 
 <ParamField path="callbacks" type="AgentExecuteCallbacks | AgentStreamCallbacks" optional>
   Callbacks to hook into the agent's execution lifecycle. The available callbacks depend on whether streaming is enabled.
 
-  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `cua: true`.</Warning>
+  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `mode: "cua"`.</Warning>
 
   <Expandable title="Non-Streaming Callbacks (AgentExecuteCallbacks)">
     <ParamField path="prepareStep" type="PrepareStepFunction<ToolSet>" optional>
@@ -644,6 +659,34 @@ const agent = stagehand.agent({
 });
 
 const result = await agent.execute("Use the external tool to process this data");
+```
+
+</Tab>
+<Tab title="Hybrid Mode">
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true, // Required for hybrid mode
+});
+await stagehand.init();
+
+// Create agent with hybrid mode for coordinate-based interactions
+const agent = stagehand.agent({
+  mode: "hybrid",
+  model: "google/gemini-3-flash-preview", // Use a model that supports coordinate-based actions
+});
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com/form");
+
+const result = await agent.execute({
+  instruction: "Fill out the registration form with test data",
+  maxSteps: 15,
+  highlightCursor: true, // Enabled by default in hybrid mode
+});
+
+console.log("Completed:", result.completed);
 ```
 
 </Tab>

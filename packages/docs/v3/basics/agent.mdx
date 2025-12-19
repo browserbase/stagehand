@@ -29,33 +29,37 @@ await agent.execute("apply for a job at browserbase")
 
 ## Using `agent()`
 
-There are two ways to create agents in Stagehand:
-1. Use a Computer Use Agent
-2. Use Agent with any LLM (non-computer-use)
+There are three ways to create agents in Stagehand:
+1. Use a Computer Use Agent (CUA mode)
+2. Use Agent with any LLM (DOM mode)
+3. Use Agent with vision and DOM (Hybrid mode)
 
 ### Feature Availability
 
-Some advanced features are only available with non-CUA agents:
+Some advanced features are only available with certain agent modes:
 
-| Feature | CUA  | Non-CUA |
-|:--------|-------------------|-------------------|
-| Basic execution | ✅ | ✅ |
-| Custom tools | ✅ | ✅ |
-| MCP integrations | ✅ | ✅ |
-| System prompt | ✅ | ✅ |
-| Streaming | ❌ | ✅ |
-| Callbacks | ❌ | ✅ |
-| Abort signal | ❌ | ✅ |
-| Message continuation | ❌ | ✅ |
+| Feature                  | CUA | DOM | Hybrid |
+|:-------------------------|:---:|:---:|:------:|
+| Basic execution          | ✅  | ✅  | ✅     |
+| Custom tools             | ✅  | ✅  | ✅     |
+| MCP integrations         | ✅  | ✅  | ✅     |
+| System prompt            | ✅  | ✅  | ✅     |
+| Streaming                | ❌  | ✅  | ✅     |
+| Callbacks                | ❌  | ✅  | ✅     |
+| Abort signal             | ❌  | ✅  | ✅     |
+| Message continuation     | ❌  | ✅  | ✅     |
+| DOM-based actions        | ❌  | ✅  | ✅     |
+| Coordinate-based actions | ✅  | ❌  | ✅     |
+| Visual cursor highlight  | ✅  | ❌  | ✅     |
 
 ### Computer Use Agents
 
-You can use specialized computer use models from either Google, OpenAI, or Anthropic as shown below, with `cua` set to `true`. To compare the performance of different computer use models, you can visit our [evals page](https://www.stagehand.dev/agent-evals).
+You can use specialized computer use models from either Google, OpenAI, or Anthropic as shown below, with `mode` set to `"cua"`. To compare the performance of different computer use models, you can visit our [evals page](https://www.stagehand.dev/agent-evals).
 
 <CodeGroup>
 ```typescript Google
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "google/gemini-2.5-computer-use-preview-10-2025",
         apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
@@ -72,7 +76,7 @@ await agent.execute({
 
 ```typescript OpenAI
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "openai/computer-use-preview",
         apiKey: process.env.OPENAI_API_KEY
@@ -88,7 +92,7 @@ await agent.execute({
 ```
 ```typescript Anthropic
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "anthropic/claude-sonnet-4-20250514",
         apiKey: process.env.ANTHROPIC_API_KEY
@@ -119,6 +123,65 @@ await agent.execute("apply for a job at Browserbase")
 <Card title="Available Agent Models" icon="robot" href="/v3/configuration/models#agent-models-with-cua-support">
   Check out the guide on how to use different models with Stagehand Agent.
 </Card>
+
+### Hybrid Mode
+
+Both DOM and CUA modes have their strengths and weaknesses. Hybrid mode combines them, giving the agent access to both coordinate-based and DOM-based tools to better account for where each may fall short.
+
+<Warning>
+**Model Requirements:** Hybrid mode requires models that can reliably perform coordinate-based actions from screenshots. The following models are recommended:
+- **Google:** `google/gemini-3-flash-preview`
+- **Anthropic:** `anthropic/claude-sonnet-4-20250514`, `anthropic/claude-sonnet-4-5-20250929`, `anthropic/claude-haiku-4-5-20251001`
+
+Other models may not reliably produce accurate coordinates for clicking and typing.
+
+**Our recommendation:** `google/gemini-3-flash-preview` for the best balance of reliability, speed, and cost.
+</Warning>
+
+<Note>Hybrid mode requires `experimental: true` in your Stagehand constructor.</Note>
+
+<CodeGroup>
+```typescript Hybrid Mode with Google
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  experimental: true, // Required for hybrid mode
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  mode: "hybrid",
+  model: "google/gemini-3-flash-preview",
+});
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
+
+await agent.execute({
+  instruction: "Click the sign up button and fill out the registration form",
+  maxSteps: 20,
+});
+```
+
+```typescript Hybrid Mode with Anthropic
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  experimental: true, // Required for hybrid mode
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  mode: "hybrid",
+  model: "anthropic/claude-haiku-4-5-20251001",
+  systemPrompt: "You are a helpful assistant that interacts with web pages visually.",
+});
+
+await agent.execute({
+  instruction: "Navigate the page and interact with the form elements",
+  maxSteps: 15,
+  highlightCursor: true, // Enabled by default in hybrid mode
+});
+```
+</CodeGroup>
 
 ### Return value of `agent()`?
 
@@ -210,7 +273,7 @@ import { tool } from "ai";
 import { z } from "zod/v3";
 
 const agent = stagehand.agent({
-  cua: true,
+  mode: "cua",
   model: "anthropic/claude-sonnet-4-20250514",
   tools: {
     searchDatabase: tool({
@@ -305,7 +368,7 @@ Agents can be enhanced with external tools and services through MCP (Model Conte
 <CodeGroup>
 ```typescript Pass URL
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "openai/computer-use-preview",
         apiKey: process.env.OPENAI_API_KEY
@@ -327,7 +390,7 @@ const supabaseClient = await connectToMCPServer(
 );
 
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "openai/computer-use-preview",
         apiKey: process.env.OPENAI_API_KEY
@@ -349,7 +412,7 @@ MCP integrations enable agents to be more powerful by combining browser automati
 Enable streaming mode to receive incremental responses from the agent. This is useful for building real-time UIs that show the agent's reasoning as it progresses.
 
 <Warning>
-**Non-CUA agents only.** Streaming, callbacks, abort signals, and message continuation are only available when using the standard agent (without `cua: true`). These features are not supported with Computer Use Agents.
+**Non-CUA agents only.** Streaming, callbacks, abort signals, and message continuation are only available when using the standard agent (without `mode: "cua"`). These features are not supported with Computer Use Agents.
 </Warning>
 
 <Note>These are experimental features. Set `experimental: true` in your Stagehand constructor to enable them.</Note>
