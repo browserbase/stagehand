@@ -7,7 +7,6 @@ import { ModelProvider } from "./v3/types/public/model";
 import { ZodPathSegments } from "./v3/types/private/internal";
 import type { StagehandZodSchema } from "./v3/zodCompat";
 import { isZod4Schema } from "./v3/zodCompat";
-import sharp from "sharp";
 
 const ID_PATTERN = /^\d+-\d+$/;
 
@@ -837,22 +836,4 @@ export function jsonSchemaToZod(schema: JsonSchema): ZodTypeAny {
     default:
       return z.any();
   }
-}
-
-export async function imageResize(
-  img: Buffer,
-  scaleFactor: number,
-): Promise<Buffer> {
-  const metadata = await sharp(img).metadata();
-  // calculate new dimensions
-  const width = Math.round(metadata.width * scaleFactor);
-  const height = Math.round(metadata.height * scaleFactor);
-  return await sharp(img)
-    .resize(width, height, { fit: "inside", kernel: sharp.kernel.lanczos3 })
-    .png({
-      compressionLevel: 9,
-      adaptiveFiltering: true,
-      palette: true,
-    })
-    .toBuffer();
 }
