@@ -1,0 +1,79 @@
+name: Build Server SEA Binaries
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+            binary_name: stagehand-linux-x64
+
+          - os: macos-latest
+            platform: darwin
+            arch: arm64
+            binary_name: stagehand-darwin-arm64
+
+          - os: macos-13
+            platform: darwin
+            arch: x64
+            binary_name: stagehand-darwin-x64
+
+          - os: windows-latest
+            platform: win32
+            arch: x64
+            binary_name: stagehand-win32-x64.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "23"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Linux + macOS: use the same script as local development.
+      - name: Build binary (Linux/macOS)
+        if: matrix.platform != 'win32'
+        shell: bash
+        run: CI=true pnpm --filter @browserbasehq/stagehand-server build:binary
+
+      # Windows: mirror the stagehand-binary workflow approach.
+      - name: Build binary (Windows)
+        if: matrix.platform == 'win32'
+        shell: powershell
+        run: |
+          pnpm --filter @browserbasehq/stagehand build
+          Set-Location packages/server
+          node -e "require('fs').mkdirSync('dist/sea',{recursive:true})"
+          pnpm exec esbuild src/server.ts --bundle --platform=node --format=cjs --outfile=dist/sea/bundle.cjs --log-level=warning
+          node --experimental-sea-config sea-config.json
+          $blob = "dist/sea/sea-prep.blob"
+          if (!(Test-Path $blob)) { throw "Missing blob at $blob; SEA blob generation failed." }
+          Copy-Item (Get-Command node).Source -Destination "dist/sea/${{ matrix.binary_name }}"
+          pnpm exec postject "dist/sea/${{ matrix.binary_name }}" NODE_SEA_BLOB $blob `
+            --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.binary_name }}
+          path: packages/server/dist/sea/${{ matrix.binary_name }}
+          retention-days: 30
