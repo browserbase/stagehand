@@ -746,6 +746,8 @@ export const NavigateRequestSchema = z
 
 export const NavigateResultSchema = z
   .object({
+    // SerializableResponse from types/private/api.ts - no Zod schema available
+    // as it wraps complex devtools-protocol types (Protocol.Network.Response)
     result: z.unknown().nullable().meta({
       description: "Navigation response (Playwright Response object or null)",
     }),
