@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --exclude test/api-client.integration.test.ts",
     "test:integration": "vitest run test/api-client.integration.test.ts",
-    "gen:openapi": "tsx scripts/gen-openapi.ts"
+    "gen:openapi": "tsx scripts/gen-openapi.ts; cd ../.. && prettier --write packages/server/openapi.v3.yaml"
   },
   "dependencies": {
     "@browserbasehq/sdk": "^2.4.0",
