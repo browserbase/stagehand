@@ -102,7 +102,6 @@ export const ActionSchema = z
         example: ["Hello World"],
       }),
   })
-  .strict()
   .meta({
     id: "Action",
     description: "Action object returned by observe and used by act",
@@ -177,7 +176,6 @@ const wrapResponse = <T extends z.ZodTypeAny>(resultSchema: T, name: string) =>
       }),
       data: resultSchema,
     })
-    .strict()
     .meta({ id: name });
 
 /** Standard error response */
@@ -350,7 +348,6 @@ export const SessionStartRequestSchema = z
     }),
     experimental: z.boolean().optional(),
   })
-  .strict()
   .meta({ id: "SessionStartRequest" });
 
 export const SessionStartResultSchema = z
@@ -366,7 +363,6 @@ export const SessionStartResultSchema = z
     }),
     available: z.boolean(),
   })
-  .strict()
   .meta({ id: "SessionStartResult" });
 
 export const SessionStartResponseSchema = wrapResponse(
@@ -460,7 +456,6 @@ export const ActResultSchema = z
       description: "Action ID for tracking",
     }),
   })
-  .strict()
   .meta({ id: "ActResult" });
 
 export const ActResponseSchema = wrapResponse(ActResultSchema, "ActResponse");
@@ -563,7 +558,6 @@ export const ObserveResultSchema = z
       description: "Action ID for tracking",
     }),
   })
-  .strict()
   .meta({ id: "ObserveResult" });
 
 export const ObserveResponseSchema = wrapResponse(
@@ -678,7 +672,6 @@ export const AgentExecuteResultSchema = z
   .object({
     result: AgentResultDataSchema,
   })
-  .strict()
   .meta({ id: "AgentExecuteResult" });
 
 export const AgentExecuteResponseSchema = wrapResponse(

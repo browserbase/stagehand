@@ -196,7 +196,6 @@ components:
       required:
         - selector
         - description
-      additionalProperties: false
     BrowserConfig:
       type: object
       properties:
@@ -401,7 +400,6 @@ components:
       required:
         - sessionId
         - available
-      additionalProperties: false
     ActOptions:
       type: object
       properties:
@@ -473,7 +471,6 @@ components:
           type: string
       required:
         - result
-      additionalProperties: false
     ExtractOptions:
       type: object
       properties:
@@ -559,7 +556,6 @@ components:
           type: string
       required:
         - result
-      additionalProperties: false
     AgentConfig:
       type: object
       properties:
@@ -690,7 +686,6 @@ components:
           $ref: "#/components/schemas/AgentResultData"
       required:
         - result
-      additionalProperties: false
     NavigateOptions:
       type: object
       properties:
@@ -818,7 +813,7 @@ components:
           description: Indicates whether the request was successful
           type: boolean
         data:
-          $ref: "#/components/schemas/SessionStartResult"
+          $ref: "#/components/schemas/SessionStartResultOutput"
       required:
         - success
         - data
@@ -863,7 +858,7 @@ components:
           description: Indicates whether the request was successful
           type: boolean
         data:
-          $ref: "#/components/schemas/ObserveResult"
+          $ref: "#/components/schemas/ObserveResultOutput"
       required:
         - success
         - data
@@ -983,6 +978,33 @@ components:
       anyOf:
         - $ref: "#/components/schemas/ModelName"
         - $ref: "#/components/schemas/ModelConfigObjectOutput"
+    ActionOutput:
+      description: Action object returned by observe and used by act
+      type: object
+      properties:
+        selector:
+          description: CSS selector or XPath for the element
+          example: "[data-testid='submit-button']"
+          type: string
+        description:
+          description: Human-readable description of the action
+          example: Click the submit button
+          type: string
+        method:
+          description: The method to execute (click, fill, etc.)
+          example: click
+          type: string
+        arguments:
+          description: Arguments to pass to the method
+          example:
+            - Hello World
+          type: array
+          items:
+            type: string
+      required:
+        - selector
+        - description
+      additionalProperties: false
     BrowserConfigOutput:
       type: object
       properties:
@@ -1177,6 +1199,27 @@ components:
           type: object
           additionalProperties: true
       additionalProperties: false
+    SessionStartResultOutput:
+      type: object
+      properties:
+        sessionId:
+          description: Unique Browserbase session identifier
+          example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
+          type: string
+        connectUrl:
+          description:
+            CDP WebSocket URL for connecting to the Browserbase cloud browser
+            (present when available)
+          example: wss://connect.browserbase.com/?signingKey=abc123
+          anyOf:
+            - type: string
+            - type: "null"
+        available:
+          type: boolean
+      required:
+        - sessionId
+        - available
+      additionalProperties: false
     ActOptionsOutput:
       type: object
       properties:
@@ -1213,7 +1256,7 @@ components:
           description: List of actions that were executed
           type: array
           items:
-            $ref: "#/components/schemas/Action"
+            $ref: "#/components/schemas/ActionOutput"
       required:
         - success
         - message
@@ -1270,6 +1313,19 @@ components:
           description: CSS selector to scope observation to a specific element
           example: nav
           type: string
+      additionalProperties: false
+    ObserveResultOutput:
+      type: object
+      properties:
+        result:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActionOutput"
+        actionId:
+          description: Action ID for tracking
+          type: string
+      required:
+        - result
       additionalProperties: false
     AgentConfigOutput:
       type: object
@@ -1967,7 +2023,6 @@ paths:
                   type: boolean
               required:
                 - modelName
-              additionalProperties: false
         required: true
       parameters:
         - schema:
