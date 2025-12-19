@@ -7,6 +7,9 @@ import { installV3PiercerIntoSession } from "./piercer";
 import { executionContexts } from "./executionContextRegistry";
 import type { StagehandAPIClient } from "../api";
 import { LocalBrowserLaunchOptions } from "../types/public";
+import { InitScriptSource } from "../types/private";
+import { normalizeInitScriptSource } from "./initScripts";
+import { TimeoutError, PageNotFoundError } from "../types/public/sdkErrors";
 
 type TargetId = string;
 type SessionId = string;
@@ -54,6 +57,7 @@ export class V3Context {
   private typeByTarget = new Map<TargetId, TargetType>();
   private _pageOrder: TargetId[] = [];
   private pendingCreatedTargetUrl = new Map<TargetId, string>();
+  private readonly initScripts: string[] = [];
 
   /**
    * Create a Context for a given CDP websocket URL and bootstrap target wiring.
@@ -67,7 +71,6 @@ export class V3Context {
     },
   ): Promise<V3Context> {
     const conn = await CdpConnection.connect(wsUrl);
-    await conn.enableAutoAttach();
     const ctx = new V3Context(
       conn,
       opts?.env ?? "LOCAL",
@@ -96,17 +99,52 @@ export class V3Context {
       }
       await new Promise((r) => setTimeout(r, 25));
     }
-    throw new Error(
-      `waitForFirstTopLevelPage timed out after ${timeoutMs}ms (no top-level Page)`,
+    throw new TimeoutError(
+      "waitForFirstTopLevelPage (no top-level Page)",
+      timeoutMs,
     );
   }
 
-  private async ensurePiercer(session: CDPSessionLike): Promise<void> {
-    const key = this.sessionKey(session);
-    if (this._piercerInstalled.has(key)) return;
+  private async waitForInitialTopLevelTargets(
+    targetIds: TargetId[],
+    timeoutMs = 3000,
+  ): Promise<void> {
+    if (!targetIds.length) return;
+    const pending = new Set(targetIds);
+    const deadline = Date.now() + timeoutMs;
+    while (pending.size && Date.now() < deadline) {
+      for (const tid of Array.from(pending)) {
+        if (this.pagesByTarget.has(tid)) {
+          pending.delete(tid);
+        }
+      }
+      if (!pending.size) return;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    if (pending.size) {
+      v3Logger({
+        category: "ctx",
+        message: "Timed out waiting for existing top-level targets to attach",
+        level: 2,
+        auxiliary: {
+          remainingTargets: {
+            value: JSON.stringify(Array.from(pending)),
+            type: "object",
+          },
+        },
+      });
+    }
+  }
 
-    await installV3PiercerIntoSession(session);
-    this._piercerInstalled.add(key);
+  private async ensurePiercer(session: CDPSessionLike): Promise<boolean> {
+    const key = this.sessionKey(session);
+    if (this._piercerInstalled.has(key)) return true;
+
+    const installed = await installV3PiercerIntoSession(session);
+    if (installed) {
+      this._piercerInstalled.add(key);
+    }
+    return installed;
   }
 
   /** Mark a page target as the most-recent one (active). */
@@ -171,6 +209,16 @@ export class V3Context {
     void this.conn.send("Target.activateTarget", { targetId }).catch(() => {});
   }
 
+  public async addInitScript<Arg>(
+    script: InitScriptSource<Arg>,
+    arg?: Arg,
+  ): Promise<void> {
+    const source = await normalizeInitScriptSource(script, arg);
+    this.initScripts.push(source);
+    const pages = this.pages();
+    await Promise.all(pages.map((page) => page.registerInitScript(source)));
+  }
+
   /**
    * Return top-level `Page`s (oldest → newest). OOPIF targets are not included.
    */
@@ -183,6 +231,12 @@ export class V3Context {
     }
     rows.sort((a, b) => a.created - b.created);
     return rows.map((r) => r.page);
+  }
+
+  private async applyInitScriptsToPage(page: Page): Promise<void> {
+    for (const source of this.initScripts) {
+      await page.registerInitScript(source);
+    }
   }
 
   /**
@@ -201,8 +255,7 @@ export class V3Context {
     rootMainFrameId: string,
   ): Promise<Protocol.Page.FrameTree> {
     const owner = this.resolvePageByMainFrameId(rootMainFrameId);
-    if (!owner)
-      throw new Error(`No Page found for mainFrameId=${rootMainFrameId}`);
+    if (!owner) throw new PageNotFoundError(`mainFrameId=${rootMainFrameId}`);
     return owner.asProtocolFrameTree(rootMainFrameId);
   }
 
@@ -225,7 +278,7 @@ export class V3Context {
       if (page) return page;
       await new Promise((r) => setTimeout(r, 25));
     }
-    throw new Error(`newPage timeout: target not attached (${targetId})`);
+    throw new TimeoutError(`newPage: target not attached (${targetId})`, 5000);
   }
 
   /**
@@ -255,11 +308,7 @@ export class V3Context {
     this.conn.on<Protocol.Target.AttachedToTargetEvent>(
       "Target.attachedToTarget",
       async (evt) => {
-        await this.onAttachedToTarget(
-          evt.targetInfo,
-          evt.sessionId,
-          evt.waitingForDebugger === true,
-        );
+        await this.onAttachedToTarget(evt.targetInfo, evt.sessionId);
       },
     );
 
@@ -305,14 +354,23 @@ export class V3Context {
       },
     );
 
+    // Only enable auto-attach after listeners are ready so replayed targets are captured.
+    await this.conn.enableAutoAttach();
+
     const targets = await this.conn.getTargets();
     for (const t of targets) {
+      if (t.attached) continue; // auto-attach already handled this target
       try {
         await this.conn.attachToTarget(t.targetId);
       } catch {
         // ignore attach race
       }
     }
+
+    const topLevelTargetIds = targets
+      .filter((t) => isTopLevelPage(t))
+      .map((t) => t.targetId);
+    await this.waitForInitialTopLevelTargets(topLevelTargetIds);
   }
 
   /**
@@ -326,7 +384,6 @@ export class V3Context {
   private async onAttachedToTarget(
     info: Protocol.Target.TargetInfo,
     sessionId: SessionId,
-    waitingForDebugger?: boolean, // Chrome paused this target at doc-start?
   ): Promise<void> {
     const session = this.conn.getSession(sessionId);
     if (!session) return;
@@ -334,29 +391,17 @@ export class V3Context {
     // Init guard
     if (this._sessionInit.has(sessionId)) return;
     this._sessionInit.add(sessionId);
+    await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
 
-    // Page domain first so frame events flow
-    const pageEnabled = await session
-      .send("Page.enable")
-      .then(() => true)
-      .catch(() => false);
-    if (!pageEnabled) {
-      if (waitingForDebugger) {
-        await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
-      }
-      return;
-    }
+    // Register for Runtime events before enabling it so we don't miss initial contexts.
+    executionContexts.attachSession(session);
+
+    const piercerReady = await this.ensurePiercer(session);
+    if (!piercerReady) return;
+
     await session
       .send("Page.setLifecycleEventsEnabled", { enabled: true })
       .catch(() => {});
-
-    // Proactively resume ASAP so navigation isn't stuck at about:blank
-    await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
-
-    // Capture main-world creations & inject piercer after resume
-    executionContexts.attachSession(session);
-    await session.send("Runtime.enable").catch(() => {});
-    await this.ensurePiercer(session);
 
     // Top-level handling
     if (isTopLevelPage(info)) {
@@ -366,6 +411,7 @@ export class V3Context {
         info.targetId,
         this.apiClient,
         this.localBrowserLaunchOptions,
+        this.env === "BROWSERBASE",
       );
       this.wireSessionToOwnerPage(sessionId, page);
       this.pagesByTarget.set(info.targetId, page);
@@ -381,11 +427,8 @@ export class V3Context {
       page.seedCurrentUrl(pendingSeedUrl ?? info.url ?? "");
       this._pushActive(info.targetId);
       this.installFrameEventBridges(sessionId, page);
+      await this.applyInitScriptsToPage(page);
 
-      // Resume only if Chrome actually paused
-      if (waitingForDebugger) {
-        await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
-      }
       return;
     }
 
@@ -418,72 +461,17 @@ export class V3Context {
         owner.adoptOopifSession(session, childMainId);
         this.sessionOwnerPage.set(sessionId, owner);
         this.installFrameEventBridges(sessionId, owner);
+        // Prime the execution-context registry so later lookups succeed even if
+        // the frame navigates before we issue a command.
+        void executionContexts
+          .waitForMainWorld(session, childMainId)
+          .catch(() => {});
       } else {
         this.pendingOopifByMainFrame.set(childMainId, sessionId);
       }
     } catch {
       // page.getFrameTree failed. Most likely was an ad iframe
       // that opened & closed before we could attach. ignore
-    }
-
-    /* TODO: for child OOPIFs, we rely on reloads for our script to be applied.
-     *  This is not ideal. We should figure out a way to pause them, and inject them
-     *  from the beginning.
-     */
-    // --- If Chrome did NOT pause this iframe (waitingForDebugger=false),
-    //     we missed doc-start. Do a one-time, best-effort child reload
-    //     so Page.addScriptToEvaluateOnNewDocument applies at creation time.
-    if (info.type === "iframe" && !waitingForDebugger) {
-      try {
-        // Ensure lifecycle events are enabled to observe load
-        await session
-          .send("Page.setLifecycleEventsEnabled", { enabled: true })
-          .catch(() => {});
-
-        const loadWait = new Promise<void>((resolve) => {
-          const handler = (evt: Protocol.Page.LifecycleEventEvent) => {
-            if (evt.name === "load") {
-              session.off("Page.lifecycleEvent", handler);
-              resolve();
-            }
-          };
-          session.on("Page.lifecycleEvent", handler);
-        });
-
-        // Cannot use Page.reload on child targets → use Runtime.evaluate
-        await session
-          .send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-            expression: "location.reload()",
-            returnByValue: true,
-            awaitPromise: false,
-          })
-          .catch(() => {});
-
-        // Wait up to ~3s for the child to finish loading (best effort)
-        await Promise.race([
-          loadWait,
-          new Promise<void>((r) => setTimeout(r, 3000)),
-        ]);
-
-        // After reload, our addScriptToEvaluateOnNewDocument runs at doc-start.
-        // We can optionally re-evaluate the piercer (idempotent), but not required.
-        await this.ensurePiercer(session);
-      } catch (e) {
-        v3Logger({
-          category: "ctx",
-          message: "child reload attempt failed (continuing)",
-          level: 2,
-          auxiliary: {
-            sessionId: { value: String(sessionId), type: "string" },
-            err: { value: String(e), type: "string" },
-          },
-        });
-      }
-    }
-
-    // Resume only if Chrome actually paused (rare for iframes in your logs)
-    if (waitingForDebugger) {
-      await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
     }
   }
 
@@ -670,6 +658,6 @@ export class V3Context {
       await new Promise((r) => setTimeout(r, 25));
     }
     if (immediate) return immediate;
-    throw new Error("awaitActivePage: no page available");
+    throw new PageNotFoundError("awaitActivePage: no page available");
   }
 }

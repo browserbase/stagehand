@@ -2,6 +2,8 @@
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp";
 import { Locator } from "./locator";
+import { StagehandEvalError } from "../types/public/sdkErrors";
+import { executionContexts } from "./executionContextRegistry";
 
 interface FrameManager {
   session: CDPSessionLike;
@@ -25,8 +27,14 @@ export class Frame implements FrameManager {
     public session: CDPSessionLike,
     public frameId: string,
     public pageId: string,
+    private readonly remoteBrowser: boolean,
   ) {
     this.sessionId = this.session.id ?? null;
+  }
+
+  /** True when the controlled browser runs on a different machine. */
+  public isBrowserRemote(): boolean {
+    return this.remoteBrowser;
   }
 
   /** DOM.getNodeForLocation → DOM.describeNode */
@@ -109,7 +117,7 @@ export class Frame implements FrameManager {
   }
 
   /**
-   * Evaluate a function or expression in this frame's isolated world.
+   * Evaluate a function or expression in this frame's main world.
    * - If a string is provided, treated as a JS expression.
    * - If a function is provided, it is stringified and invoked with the optional argument.
    */
@@ -118,7 +126,7 @@ export class Frame implements FrameManager {
     arg?: Arg,
   ): Promise<R> {
     await this.session.send("Runtime.enable").catch(() => {});
-    const contextId = await this.getExecutionContextId();
+    const contextId = await this.getMainWorldExecutionContextId();
 
     const isString = typeof pageFunctionOrExpression === "string";
     let expression: string;
@@ -150,7 +158,9 @@ export class Frame implements FrameManager {
       },
     );
     if (res.exceptionDetails) {
-      throw new Error(res.exceptionDetails.text ?? "Evaluation failed");
+      throw new StagehandEvalError(
+        res.exceptionDetails.text ?? "Evaluation failed",
+      );
     }
     return res.result.value as R;
   }
@@ -215,7 +225,14 @@ export class Frame implements FrameManager {
 
     const collect = (tree: Protocol.Page.FrameTree) => {
       if (tree.frame.parentId === this.frameId) {
-        frames.push(new Frame(this.session, tree.frame.id, this.pageId));
+        frames.push(
+          new Frame(
+            this.session,
+            tree.frame.id,
+            this.pageId,
+            this.remoteBrowser,
+          ),
+        );
       }
       tree.childFrames?.forEach(collect);
     };
@@ -227,16 +244,45 @@ export class Frame implements FrameManager {
   /** Wait for a lifecycle state (load/domcontentloaded/networkidle) */
   async waitForLoadState(
     state: "load" | "domcontentloaded" | "networkidle" = "load",
+    timeoutMs: number = 15_000,
   ): Promise<void> {
     await this.session.send("Page.enable");
-    await new Promise<void>((resolve) => {
+    const targetState = state.toLowerCase();
+    const timeout = Math.max(0, timeoutMs);
+    await new Promise<void>((resolve, reject) => {
+      let done = false;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        this.session.off("Page.lifecycleEvent", handler);
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        resolve();
+      };
       const handler = (evt: Protocol.Page.LifecycleEventEvent) => {
-        if (evt.frameId === this.frameId && evt.name === state) {
-          this.session.off("Page.lifecycleEvent", handler);
-          resolve();
+        const sameFrame = evt.frameId === this.frameId;
+        // need to normalize here because CDP lifecycle names look like 'DOMContentLoaded'
+        // but we accept 'domcontentloaded'
+        const lifecycleName = String(evt.name ?? "").toLowerCase();
+        if (sameFrame && lifecycleName === targetState) {
+          finish();
         }
       };
       this.session.on("Page.lifecycleEvent", handler);
+
+      timer = setTimeout(() => {
+        if (done) return;
+        done = true;
+        this.session.off("Page.lifecycleEvent", handler);
+        reject(
+          new Error(
+            `waitForLoadState(${state}) timed out after ${timeout}ms for frame ${this.frameId}`,
+          ),
+        );
+      }, timeout);
     });
   }
 
@@ -248,16 +294,8 @@ export class Frame implements FrameManager {
     return new Locator(this, selector, options);
   }
 
-  /** Create/get an isolated world for this frame and return its executionContextId */
-  private async getExecutionContextId(): Promise<number> {
-    await this.session.send("Page.enable");
-    await this.session.send("Runtime.enable");
-    const { executionContextId } = await this.session.send<{
-      executionContextId: number;
-    }>("Page.createIsolatedWorld", {
-      frameId: this.frameId,
-      worldName: "v3-world",
-    });
-    return executionContextId;
+  /** Resolve the main-world execution context id for this frame. */
+  private async getMainWorldExecutionContextId(): Promise<number> {
+    return executionContexts.waitForMainWorld(this.session, this.frameId, 1000);
   }
 }

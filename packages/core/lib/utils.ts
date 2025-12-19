@@ -1,13 +1,208 @@
 import { ZodSchemaValidationError } from "./v3/types/public/sdkErrors";
 import { Schema, Type } from "@google/genai";
-import { ZodFirstPartyTypeKind as Kind, z, ZodTypeAny } from "zod/v3";
+import { z, ZodTypeAny } from "zod";
+import z3 from "zod/v3";
 import { LogLine } from "./v3/types/public/logs";
 import { ModelProvider } from "./v3/types/public/model";
 import { ZodPathSegments } from "./v3/types/private/internal";
+import type { StagehandZodSchema } from "./v3/zodCompat";
+import { isZod4Schema } from "./v3/zodCompat";
+import sharp from "sharp";
 
 const ID_PATTERN = /^\d+-\d+$/;
 
-export function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
+const zFactories = {
+  v4: z,
+  v3: z3 as unknown as typeof z,
+};
+
+export function getZFactory(schema: StagehandZodSchema): typeof z {
+  return isZod4Schema(schema) ? zFactories.v4 : zFactories.v3;
+}
+
+const TYPE_NAME_MAP: Record<string, string> = {
+  ZodString: "string",
+  string: "string",
+  ZodNumber: "number",
+  number: "number",
+  ZodBoolean: "boolean",
+  boolean: "boolean",
+  ZodObject: "object",
+  object: "object",
+  ZodArray: "array",
+  array: "array",
+  ZodUnion: "union",
+  union: "union",
+  ZodIntersection: "intersection",
+  intersection: "intersection",
+  ZodOptional: "optional",
+  optional: "optional",
+  ZodNullable: "nullable",
+  nullable: "nullable",
+  ZodLiteral: "literal",
+  literal: "literal",
+  ZodEnum: "enum",
+  enum: "enum",
+  ZodDefault: "default",
+  default: "default",
+  ZodEffects: "effects",
+  effects: "effects",
+  pipe: "pipe",
+};
+
+function getZ4Def(schema: StagehandZodSchema) {
+  return (schema as SchemaInternals)._zod?.def as
+    | Record<string, unknown>
+    | undefined;
+}
+
+function getZ4Bag(schema: StagehandZodSchema) {
+  return (schema as SchemaInternals)._zod?.bag as
+    | Record<string, unknown>
+    | undefined;
+}
+
+function getZ3Def(schema: StagehandZodSchema) {
+  return (schema as SchemaInternals)._def as
+    | Record<string, unknown>
+    | undefined;
+}
+
+function getObjectShape(
+  schema: StagehandZodSchema,
+): Record<string, StagehandZodSchema> | undefined {
+  const z4Shape = getZ4Def(schema)?.shape as
+    | Record<string, StagehandZodSchema>
+    | undefined;
+  if (z4Shape) {
+    return z4Shape;
+  }
+
+  const z3Shape = getZ3Def(schema)?.shape;
+  if (!z3Shape) {
+    return undefined;
+  }
+
+  if (typeof z3Shape === "function") {
+    return (z3Shape as () => Record<string, StagehandZodSchema>)();
+  }
+
+  return z3Shape as Record<string, StagehandZodSchema>;
+}
+
+function getArrayElement(
+  schema: StagehandZodSchema,
+): StagehandZodSchema | undefined {
+  return (getZ4Def(schema)?.element ?? getZ3Def(schema)?.type) as
+    | StagehandZodSchema
+    | undefined;
+}
+
+function getInnerType(
+  schema: StagehandZodSchema,
+): StagehandZodSchema | undefined {
+  return (getZ4Def(schema)?.innerType ?? getZ3Def(schema)?.innerType) as
+    | StagehandZodSchema
+    | undefined;
+}
+
+function getUnionOptions(
+  schema: StagehandZodSchema,
+): StagehandZodSchema[] | undefined {
+  const z4Options = getZ4Def(schema)?.options;
+  if (Array.isArray(z4Options)) {
+    return z4Options as StagehandZodSchema[];
+  }
+  const z3Options = getZ3Def(schema)?.options;
+  return Array.isArray(z3Options)
+    ? (z3Options as StagehandZodSchema[])
+    : undefined;
+}
+
+function getIntersectionSides(schema: StagehandZodSchema): {
+  left?: StagehandZodSchema;
+  right?: StagehandZodSchema;
+} {
+  const z4Def = getZ4Def(schema);
+  if (z4Def?.left || z4Def?.right) {
+    return {
+      left: z4Def?.left as StagehandZodSchema | undefined,
+      right: z4Def?.right as StagehandZodSchema | undefined,
+    };
+  }
+  const z3Def = getZ3Def(schema);
+  return {
+    left: z3Def?.left as StagehandZodSchema | undefined,
+    right: z3Def?.right as StagehandZodSchema | undefined,
+  };
+}
+
+function getEnumValues(schema: StagehandZodSchema): string[] | undefined {
+  const z4Entries = getZ4Def(schema)?.entries;
+  if (z4Entries && typeof z4Entries === "object") {
+    return Object.values(z4Entries as Record<string, string>);
+  }
+  const z3Values = getZ3Def(schema)?.values;
+  return Array.isArray(z3Values) ? (z3Values as string[]) : undefined;
+}
+
+function getLiteralValues(schema: StagehandZodSchema): unknown[] {
+  const z4Values = getZ4Def(schema)?.values;
+  if (Array.isArray(z4Values)) {
+    return z4Values as unknown[];
+  }
+  const value = getZ3Def(schema)?.value;
+  return typeof value !== "undefined" ? [value] : [];
+}
+
+function getStringChecks(schema: StagehandZodSchema): unknown[] {
+  const z4Checks = getZ4Def(schema)?.checks;
+  if (Array.isArray(z4Checks)) {
+    return z4Checks;
+  }
+  const z3Checks = getZ3Def(schema)?.checks;
+  return Array.isArray(z3Checks) ? z3Checks : [];
+}
+
+function getStringFormat(schema: StagehandZodSchema): string | undefined {
+  const bagFormat = getZ4Bag(schema)?.format;
+  if (typeof bagFormat === "string") {
+    return bagFormat;
+  }
+  const z4Format = getZ4Def(schema)?.format;
+  if (typeof z4Format === "string") {
+    return z4Format;
+  }
+  const z3Format = getZ3Def(schema)?.format;
+  return typeof z3Format === "string" ? z3Format : undefined;
+}
+
+function getPipeEndpoints(schema: StagehandZodSchema): {
+  in?: StagehandZodSchema;
+  out?: StagehandZodSchema;
+} {
+  const z4Def = getZ4Def(schema);
+  if (z4Def?.in || z4Def?.out) {
+    return {
+      in: z4Def?.in as StagehandZodSchema | undefined,
+      out: z4Def?.out as StagehandZodSchema | undefined,
+    };
+  }
+  return {};
+}
+
+function getEffectsBaseSchema(
+  schema: StagehandZodSchema,
+): StagehandZodSchema | undefined {
+  return getZ3Def(schema)?.schema as StagehandZodSchema | undefined;
+}
+
+type SchemaInternals = {
+  _zod?: { def?: Record<string, unknown>; bag?: Record<string, unknown> };
+  _def?: Record<string, unknown>;
+};
+
+export function validateZodSchema(schema: StagehandZodSchema, data: unknown) {
   const result = schema.safeParse(data);
 
   if (result.success) {
@@ -46,33 +241,35 @@ function decorateGeminiSchema(
   return geminiSchema;
 }
 
-export function toGeminiSchema(zodSchema: z.ZodTypeAny): Schema {
+export function toGeminiSchema(zodSchema: StagehandZodSchema): Schema {
+  const normalizedSchema = zodSchema as z.ZodTypeAny;
   const zodType = getZodType(zodSchema);
-
   switch (zodType) {
-    case "ZodArray": {
+    case "array": {
+      const element = getArrayElement(zodSchema) ?? z.any();
       return decorateGeminiSchema(
         {
           type: Type.ARRAY,
-          items: toGeminiSchema(
-            (zodSchema as z.ZodArray<z.ZodTypeAny>).element,
-          ),
+          items: toGeminiSchema(element),
         },
-        zodSchema,
+        normalizedSchema,
       );
     }
-    case "ZodObject": {
+    case "object": {
       const properties: Record<string, Schema> = {};
       const required: string[] = [];
 
-      Object.entries((zodSchema as z.ZodObject<z.ZodRawShape>).shape).forEach(
-        ([key, value]: [string, z.ZodTypeAny]) => {
-          properties[key] = toGeminiSchema(value);
-          if (getZodType(value) !== "ZodOptional") {
-            required.push(key);
-          }
-        },
-      );
+      const shape = getObjectShape(zodSchema);
+      if (shape) {
+        Object.entries(shape).forEach(
+          ([key, value]: [string, StagehandZodSchema]) => {
+            properties[key] = toGeminiSchema(value);
+            if (getZodType(value) !== "optional") {
+              required.push(key);
+            }
+          },
+        );
+      }
 
       return decorateGeminiSchema(
         {
@@ -80,72 +277,101 @@ export function toGeminiSchema(zodSchema: z.ZodTypeAny): Schema {
           properties,
           required: required.length > 0 ? required : undefined,
         },
-        zodSchema,
+        normalizedSchema,
       );
     }
-    case "ZodString":
+    case "string":
       return decorateGeminiSchema(
         {
           type: Type.STRING,
         },
-        zodSchema,
+        normalizedSchema,
       );
-    case "ZodNumber":
+    case "number":
       return decorateGeminiSchema(
         {
           type: Type.NUMBER,
         },
-        zodSchema,
+        normalizedSchema,
       );
-    case "ZodBoolean":
+    case "boolean":
       return decorateGeminiSchema(
         {
           type: Type.BOOLEAN,
         },
-        zodSchema,
+        normalizedSchema,
       );
-    case "ZodEnum":
+    case "enum": {
+      const values = getEnumValues(zodSchema);
       return decorateGeminiSchema(
         {
           type: Type.STRING,
-          enum: zodSchema._def.values,
+          enum: values,
         },
-        zodSchema,
+        normalizedSchema,
       );
-    case "ZodDefault":
-    case "ZodNullable":
-    case "ZodOptional": {
-      const innerSchema = toGeminiSchema(zodSchema._def.innerType);
+    }
+    case "default":
+    case "nullable":
+    case "optional": {
+      const innerType = getInnerType(zodSchema) ?? z.any();
+      const innerSchema = toGeminiSchema(innerType);
       return decorateGeminiSchema(
         {
           ...innerSchema,
           nullable: true,
         },
-        zodSchema,
+        normalizedSchema,
       );
     }
-    case "ZodLiteral":
+    case "literal": {
+      const values = getLiteralValues(zodSchema);
       return decorateGeminiSchema(
         {
           type: Type.STRING,
-          enum: [zodSchema._def.value],
+          enum: values as string[],
         },
-        zodSchema,
+        normalizedSchema,
       );
+    }
+    case "pipe": {
+      const endpoints = getPipeEndpoints(zodSchema);
+      if (endpoints.in) {
+        return toGeminiSchema(endpoints.in);
+      }
+      return decorateGeminiSchema(
+        {
+          type: Type.STRING,
+        },
+        normalizedSchema,
+      );
+    }
+    // Standalone transforms and any unknown types fall through to default
     default:
       return decorateGeminiSchema(
         {
-          type: Type.OBJECT,
-          nullable: true,
+          type: Type.STRING,
         },
-        zodSchema,
+        normalizedSchema,
       );
   }
 }
 
 // Helper function to check the type of Zod schema
-export function getZodType(schema: z.ZodTypeAny): string {
-  return schema._def.typeName;
+export function getZodType(schema: StagehandZodSchema): string {
+  const schemaWithDef = schema as SchemaInternals & {
+    _zod?: { def?: { type?: string } };
+  };
+  const rawType =
+    (schemaWithDef._zod?.def?.type as string | undefined) ??
+    (schemaWithDef._def?.typeName as string | undefined) ??
+    (schemaWithDef._def?.type as string | undefined);
+
+  if (!rawType) {
+    return "unknown";
+  }
+
+  return TYPE_NAME_MAP[rawType] ?? rawType;
 }
 
 /**
@@ -162,83 +388,99 @@ export function getZodType(schema: z.ZodTypeAny): string {
  *   2. An array of {@link ZodPathSegments} objects representing each replaced field, including the path segments.
  */
 export function transformSchema(
-  schema: z.ZodTypeAny,
+  schema: StagehandZodSchema,
   currentPath: Array<string | number>,
-): [z.ZodTypeAny, ZodPathSegments[]] {
-  // 1) If it's a string with .url(), convert to z.number()
-  if (isKind(schema, Kind.ZodString)) {
+): [StagehandZodSchema, ZodPathSegments[]] {
+  if (isKind(schema, "string")) {
+    const checks = getStringChecks(schema);
+    const format = getStringFormat(schema);
     const hasUrlCheck =
-      schema._def.checks?.some(
-        (check: { kind: string }) => check.kind === "url",
-      ) ?? false;
+      checks.some((check) => {
+        const candidate = check as {
+          kind?: string;
+          format?: string;
+          _zod?: { def?: { check?: string; format?: string } };
+        };
+        return (
+          candidate.kind === "url" ||
+          candidate.format === "url" ||
+          candidate._zod?.def?.check === "url" ||
+          candidate._zod?.def?.format === "url"
+        );
+      }) || format === "url";
+
     if (hasUrlCheck) {
-      return [makeIdStringSchema(schema as z.ZodString), [{ segments: [] }]];
+      return [makeIdStringSchema(schema), [{ segments: [] }]];
     }
     return [schema, []];
   }
 
-  // 2) If it's an object, transform each field
-  if (isKind(schema, Kind.ZodObject)) {
-    // The shape is a raw object containing fields keyed by string (no symbols):
-    const shape = schema._def.shape() as Record<string, z.ZodTypeAny>;
-    const newShape: Record<string, z.ZodTypeAny> = {};
+  if (isKind(schema, "object")) {
+    const shape = getObjectShape(schema);
+    if (!shape) {
+      return [schema, []];
+    }
+    const newShape: Record<string, StagehandZodSchema> = {};
     const urlPaths: ZodPathSegments[] = [];
     let changed = false;
 
-    const shapeKeys = Object.keys(shape);
-
-    for (const key of shapeKeys) {
+    for (const key of Object.keys(shape)) {
       const child = shape[key];
       const [transformedChild, childPaths] = transformSchema(child, [
         ...currentPath,
         key,
       ]);
-
       if (transformedChild !== child) {
         changed = true;
       }
       newShape[key] = transformedChild;
-
-      if (childPaths.length > 0) {
-        for (const cp of childPaths) {
-          urlPaths.push({ segments: [key, ...cp.segments] });
-        }
-      }
+      childPaths.forEach((cp) => {
+        urlPaths.push({ segments: [key, ...cp.segments] });
+      });
     }
 
     if (changed) {
-      return [z.object(newShape), urlPaths];
+      const factory = getZFactory(schema);
+      return [
+        factory.object(newShape as Record<string, z.ZodTypeAny>),
+        urlPaths,
+      ];
     }
     return [schema, urlPaths];
   }
 
-  // 3) If it's an array, transform its item type
-  if (isKind(schema, Kind.ZodArray)) {
-    const itemType = schema._def.type as z.ZodTypeAny;
+  if (isKind(schema, "array")) {
+    const itemType = getArrayElement(schema);
+    if (!itemType) {
+      return [schema, []];
+    }
     const [transformedItem, childPaths] = transformSchema(itemType, [
       ...currentPath,
       "*",
     ]);
-    const changed = transformedItem !== itemType;
     const arrayPaths: ZodPathSegments[] = childPaths.map((cp) => ({
       segments: ["*", ...cp.segments],
     }));
-
-    if (changed) {
-      return [z.array(transformedItem), arrayPaths];
+    if (transformedItem !== itemType) {
+      const factory = getZFactory(schema);
+      return [
+        factory.array(transformedItem as unknown as z.ZodTypeAny),
+        arrayPaths,
+      ];
     }
     return [schema, arrayPaths];
   }
 
-  // 4) If it's a union, transform each option
-  if (isKind(schema, Kind.ZodUnion)) {
-    // Cast the union’s options to an array of ZodTypeAny
-    const unionOptions = schema._def.options as z.ZodTypeAny[];
-    const newOptions: z.ZodTypeAny[] = [];
+  if (isKind(schema, "union")) {
+    const unionOptions = getUnionOptions(schema);
+    if (!unionOptions || unionOptions.length === 0) {
+      return [schema, []];
+    }
+    const newOptions: StagehandZodSchema[] = [];
     let changed = false;
     let allPaths: ZodPathSegments[] = [];
 
-    unionOptions.forEach((option: z.ZodTypeAny, idx: number) => {
+    unionOptions.forEach((option, idx) => {
       const [newOption, childPaths] = transformSchema(option, [
         ...currentPath,
         `union_${idx}`,
@@ -251,67 +493,107 @@ export function transformSchema(
     });
 
     if (changed) {
-      // We assume at least two options remain:
+      const factory = getZFactory(schema);
       return [
-        z.union(newOptions as [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]]),
+        factory.union(
+          newOptions as unknown as [
+            z.ZodTypeAny,
+            z.ZodTypeAny,
+            ...z.ZodTypeAny[],
+          ],
+        ),
         allPaths,
       ];
     }
     return [schema, allPaths];
   }
 
-  // 5) If it's an intersection, transform left and right
-  if (isKind(schema, Kind.ZodIntersection)) {
-    const leftType = schema._def.left as z.ZodTypeAny;
-    const rightType = schema._def.right as z.ZodTypeAny;
-
-    const [left, leftPaths] = transformSchema(leftType, [
+  if (isKind(schema, "intersection")) {
+    const { left, right } = getIntersectionSides(schema);
+    if (!left || !right) {
+      return [schema, []];
+    }
+    const [newLeft, leftPaths] = transformSchema(left, [
       ...currentPath,
       "intersection_left",
     ]);
-    const [right, rightPaths] = transformSchema(rightType, [
+    const [newRight, rightPaths] = transformSchema(right, [
       ...currentPath,
       "intersection_right",
     ]);
-    const changed = left !== leftType || right !== rightType;
+    const changed = newLeft !== left || newRight !== right;
     const allPaths = [...leftPaths, ...rightPaths];
     if (changed) {
-      return [z.intersection(left, right), allPaths];
+      const factory = getZFactory(schema);
+      return [
+        factory.intersection(
+          newLeft as unknown as z.ZodTypeAny,
+          newRight as unknown as z.ZodTypeAny,
+        ),
+        allPaths,
+      ];
     }
     return [schema, allPaths];
   }
 
-  // 6) If it's optional, transform inner
-  if (isKind(schema, Kind.ZodOptional)) {
-    const innerType = schema._def.innerType as z.ZodTypeAny;
+  if (isKind(schema, "optional")) {
+    const innerType = getInnerType(schema);
+    if (!innerType) {
+      return [schema, []];
+    }
     const [inner, innerPaths] = transformSchema(innerType, currentPath);
     if (inner !== innerType) {
-      return [z.optional(inner), innerPaths];
+      return [
+        (inner as z.ZodTypeAny).optional() as unknown as StagehandZodSchema,
+        innerPaths,
+      ];
     }
     return [schema, innerPaths];
   }
 
-  // 7) If it's nullable, transform inner
-  if (isKind(schema, Kind.ZodNullable)) {
-    const innerType = schema._def.innerType as z.ZodTypeAny;
+  if (isKind(schema, "nullable")) {
+    const innerType = getInnerType(schema);
+    if (!innerType) {
+      return [schema, []];
+    }
     const [inner, innerPaths] = transformSchema(innerType, currentPath);
     if (inner !== innerType) {
-      return [z.nullable(inner), innerPaths];
+      return [
+        (inner as z.ZodTypeAny).nullable() as unknown as StagehandZodSchema,
+        innerPaths,
+      ];
     }
     return [schema, innerPaths];
   }
 
-  // 8) If it's an effect, transform base schema
-  if (isKind(schema, Kind.ZodEffects)) {
-    const baseSchema = schema._def.schema as z.ZodTypeAny;
-    const [newBaseSchema, basePaths] = transformSchema(baseSchema, currentPath);
-    if (newBaseSchema !== baseSchema) {
-      return [z.effect(newBaseSchema, schema._def.effect), basePaths];
+  if (isKind(schema, "pipe") && isZod4Schema(schema)) {
+    const { in: inSchema, out: outSchema } = getPipeEndpoints(schema);
+    if (!inSchema || !outSchema) {
+      return [schema, []];
     }
-    return [schema, basePaths];
+
+    const [newIn, inPaths] = transformSchema(inSchema, currentPath);
+    const [newOut, outPaths] = transformSchema(outSchema, currentPath);
+    const allPaths = [...inPaths, ...outPaths];
+
+    if (newIn !== inSchema || newOut !== outSchema) {
+      const result = z.pipe(
+        newIn as unknown as z.ZodTypeAny,
+        newOut as unknown as z.ZodTypeAny,
+      ) as StagehandZodSchema;
+      return [result, allPaths];
+    }
+    return [schema, allPaths];
   }
 
-  // 9) If none of the above, return as-is
+  if (isKind(schema, "effects")) {
+    const baseSchema = getEffectsBaseSchema(schema);
+    if (!baseSchema) {
+      return [schema, []];
+    }
+    return transformSchema(baseSchema, currentPath);
+  }
+
   return [schema, []];
 }
 
@@ -368,17 +650,18 @@ export function injectUrls(
   }
 }
 
-function isKind(s: z.ZodTypeAny, kind: Kind): boolean {
-  return (s as z.ZodTypeAny)._def.typeName === kind;
+// Helper to check if a schema is of a specific type
+function isKind(s: StagehandZodSchema, kind: string): boolean {
+  try {
+    return getZodType(s) === kind;
+  } catch {
+    return false;
+  }
 }
 
-function makeIdStringSchema(orig: z.ZodString): z.ZodString {
+function makeIdStringSchema(orig: StagehandZodSchema): StagehandZodSchema {
   const userDesc =
-    // Zod ≥3.23 exposes .description directly; fall back to _def for older minor versions
-    (orig as unknown as { description?: string }).description ??
-    (orig as unknown as { _def?: { description?: string } })._def
-      ?.description ??
-    "";
+    (orig as unknown as { description?: string }).description ?? "";
 
   const base =
     "This field must be the element-ID in the form 'frameId-backendId' " +
@@ -388,7 +671,8 @@ function makeIdStringSchema(orig: z.ZodString): z.ZodString {
       ? `${base} that follows this user-defined description: ${userDesc}`
       : base;
 
-  return z.string().regex(ID_PATTERN).describe(composed);
+  const factory = getZFactory(orig);
+  return factory.string().regex(ID_PATTERN).describe(composed);
 }
 
 /**
@@ -399,7 +683,8 @@ export const providerEnvVarMap: Partial<
 > = {
   openai: "OPENAI_API_KEY",
   anthropic: "ANTHROPIC_API_KEY",
-  google: ["GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
+  google: ["GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "GOOGLE_API_KEY"],
+  vertex: "GOOGLE_VERTEX_AI_API_KEY",
   groq: "GROQ_API_KEY",
   cerebras: "CEREBRAS_API_KEY",
   togetherai: "TOGETHER_AI_API_KEY",
@@ -464,6 +749,7 @@ export interface JsonSchemaProperty {
   minimum?: number;
   maximum?: number;
   description?: string;
+  format?: string; // JSON Schema format field (e.g., "uri", "url", "email", etc.)
 }
 export interface JsonSchema extends JsonSchemaProperty {
   type: string;
@@ -512,6 +798,17 @@ export function jsonSchemaToZod(schema: JsonSchema): ZodTypeAny {
         return z.string().refine((val) => schema.enum!.includes(val));
       }
       let zodString = z.string();
+
+      // Handle JSON Schema format field
+      if (schema.format === "uri" || schema.format === "url") {
+        zodString = zodString.url();
+      } else if (schema.format === "email") {
+        zodString = zodString.email();
+      } else if (schema.format === "uuid") {
+        zodString = zodString.uuid();
+      }
+      // Add more format handlers as needed
+
       if (schema.description) {
         zodString = zodString.describe(schema.description);
       }
@@ -540,4 +837,22 @@ export function jsonSchemaToZod(schema: JsonSchema): ZodTypeAny {
     default:
       return z.any();
   }
+}
+
+export async function imageResize(
+  img: Buffer,
+  scaleFactor: number,
+): Promise<Buffer> {
+  const metadata = await sharp(img).metadata();
+  // calculate new dimensions
+  const width = Math.round(metadata.width * scaleFactor);
+  const height = Math.round(metadata.height * scaleFactor);
+  return await sharp(img)
+    .resize(width, height, { fit: "inside", kernel: sharp.kernel.lanczos3 })
+    .png({
+      compressionLevel: 9,
+      adaptiveFiltering: true,
+      palette: true,
+    })
+    .toBuffer();
 }

@@ -1,4 +1,5 @@
 import { launch, LaunchedChrome } from "chrome-launcher";
+import { ConnectionTimeoutError } from "../types/public/sdkErrors";
 
 interface LaunchLocalOptions {
   chromePath?: string;
@@ -60,7 +61,7 @@ async function waitForWebSocketDebuggerUrl(
     await new Promise((r) => setTimeout(r, 250));
   }
 
-  throw new Error(
+  throw new ConnectionTimeoutError(
     `Timed out waiting for /json/version on port ${port}${
       lastErrMsg ? ` (last error: ${lastErrMsg})` : ""
     }`,

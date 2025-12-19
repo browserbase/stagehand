@@ -6,6 +6,7 @@ import {
   FunctionCall,
   GenerateContentConfig,
   Tool,
+  GoogleGenAIOptions,
 } from "@google/genai";
 import { LogLine } from "../types/public/logs";
 import {
@@ -14,8 +15,13 @@ import {
   AgentType,
   AgentExecutionOptions,
 } from "../types/public/agent";
+import { ClientOptions } from "../types/public/model";
 import { AgentClient } from "./AgentClient";
-import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
+import {
+  AgentScreenshotProviderError,
+  LLMResponseError,
+  StagehandClosedError,
+} from "../types/public/sdkErrors";
 import { buildGoogleCUASystemPrompt } from "../../prompt";
 import { compressGoogleConversationImages } from "./utils/imageCompression";
 import { mapKeyToPlaywright } from "./utils/cuaKeyMapping";
@@ -25,6 +31,12 @@ import {
   convertToolSetToFunctionDeclarations,
 } from "./utils/googleCustomToolHandler";
 import { ToolSet } from "ai";
+import {
+  SessionFileLogger,
+  formatCuaPromptPreview,
+  formatCuaResponsePreview,
+} from "../flowLogger";
+import { v7 as uuidv7 } from "uuid";
 
 /**
  * Client for Google's Computer Use Assistant API
@@ -42,11 +54,12 @@ export class GoogleCUAClient extends AgentClient {
     "ENVIRONMENT_BROWSER";
   private generateContentConfig: GenerateContentConfig;
   private tools?: ToolSet;
+  private baseURL?: string;
   constructor(
     type: AgentType,
     modelName: string,
     userProvidedInstructions?: string,
-    clientOptions?: Record<string, unknown>,
+    clientOptions?: ClientOptions,
     tools?: ToolSet,
   ) {
     super(type, modelName, userProvidedInstructions);
@@ -57,12 +70,16 @@ export class GoogleCUAClient extends AgentClient {
       (clientOptions?.apiKey as string) ||
       process.env.GEMINI_API_KEY ||
       process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
       "";
+    this.baseURL = clientOptions?.baseURL as string | undefined;
 
     // Initialize the Google Generative AI client
-    this.client = new GoogleGenAI({
+    const genAIOptions: GoogleGenAIOptions = {
       apiKey: this.apiKey,
-    });
+      ...(this.baseURL ? { httpOptions: { baseUrl: this.baseURL } } : {}),
+    };
+    this.client = new GoogleGenAI(genAIOptions);
 
     // Get environment if specified
     if (
@@ -92,6 +109,7 @@ export class GoogleCUAClient extends AgentClient {
     // Store client options for reference
     this.clientOptions = {
       apiKey: this.apiKey,
+      ...(this.baseURL ? { baseURL: this.baseURL } : {}),
     };
 
     // Initialize tools if provided
@@ -290,6 +308,15 @@ export class GoogleCUAClient extends AgentClient {
       let lastError: Error | null = null;
       let response: GenerateContentResponse | null = null;
 
+      // Log LLM request
+      const llmRequestId = uuidv7();
+      SessionFileLogger.logLlmRequest({
+        requestId: llmRequestId,
+        model: this.modelName,
+        operation: "CUA.generateContent",
+        prompt: formatCuaPromptPreview(compressedHistory),
+      });
+
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
           // Add exponential backoff delay for retries
@@ -312,7 +339,16 @@ export class GoogleCUAClient extends AgentClient {
 
           // Check if we have valid response content
           if (!response.candidates || response.candidates.length === 0) {
-            throw new Error("Response has no candidates!");
+            throw new LLMResponseError("agent", "Response has no candidates!");
+          }
+
+          const candidate = response.candidates[0];
+          if (!candidate.content || !candidate.content.parts) {
+            const reason = candidate.finishReason || "unknown";
+            throw new LLMResponseError(
+              "agent",
+              `Response has no content (finish reason: ${reason})`,
+            );
           }
 
           // Success - we have a valid response
@@ -346,6 +382,16 @@ export class GoogleCUAClient extends AgentClient {
       const endTime = Date.now();
       const elapsedMs = endTime - startTime;
       const { usageMetadata } = response;
+
+      // Log LLM response
+      SessionFileLogger.logLlmResponse({
+        requestId: llmRequestId,
+        model: this.modelName,
+        operation: "CUA.generateContent",
+        output: formatCuaResponsePreview(response),
+        inputTokens: usageMetadata?.promptTokenCount,
+        outputTokens: usageMetadata?.candidatesTokenCount,
+      });
 
       // Process the response
       const result = await this.processResponse(response, logger);
@@ -441,6 +487,9 @@ export class GoogleCUAClient extends AgentClient {
                 await new Promise((resolve) => setTimeout(resolve, delay));
               }
             } catch (actionError) {
+              if (actionError instanceof StagehandClosedError) {
+                throw actionError;
+              }
               logger({
                 category: "agent",
                 message: `Error executing action ${action.type}: ${actionError}`,

@@ -2,6 +2,10 @@
 title: Agent
 description: 'Automate complex workflows with AI powered browser agents'
 ---
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
 
 ## What is `agent()?`
 
@@ -28,6 +32,21 @@ await agent.execute("apply for a job at browserbase")
 There are two ways to create agents in Stagehand:
 1. Use a Computer Use Agent
 2. Use Agent with any LLM (non-computer-use)
+
+### Feature Availability
+
+Some advanced features are only available with non-CUA agents:
+
+| Feature | CUA  | Non-CUA |
+|:--------|-------------------|-------------------|
+| Basic execution | ✅ | ✅ |
+| Custom tools | ✅ | ✅ |
+| MCP integrations | ✅ | ✅ |
+| System prompt | ✅ | ✅ |
+| Streaming | ❌ | ✅ |
+| Callbacks | ❌ | ✅ |
+| Abort signal | ❌ | ✅ |
+| Message continuation | ❌ | ✅ |
 
 ### Computer Use Agents
 
@@ -85,6 +104,8 @@ await agent.execute({
 ```
 </CodeGroup>
 
+<Callout icon="code" color="#6ec202" iconType="regular">View or run the example template [here](https://www.browserbase.com/templates/gemini-cua)</Callout>
+
 ### Use Stagehand Agent with Any LLM
 
 Use the agent without specifying a provider to utilize any model or LLM provider:
@@ -137,6 +158,8 @@ When you use `agent()`, Stagehand will return a `Promise<AgentResult>` with the 
   usage: {
     input_tokens: 2040,
     output_tokens: 28,
+    reasoning_tokens: 12,
+    cached_input_tokens: 0,
     inference_time_ms: 14079
   }
 }
@@ -320,6 +343,306 @@ await agent.execute("Search for restaurants and save the first result to the dat
 <Tip>
 MCP integrations enable agents to be more powerful by combining browser automation with external APIs, databases, and services. The agent can intelligently decide when to use browser actions versus external tools.
 </Tip>
+
+## Streaming
+
+Enable streaming mode to receive incremental responses from the agent. This is useful for building real-time UIs that show the agent's reasoning as it progresses.
+
+<Warning>
+**Non-CUA agents only.** Streaming, callbacks, abort signals, and message continuation are only available when using the standard agent (without `cua: true`). These features are not supported with Computer Use Agents.
+</Warning>
+
+<Note>These are experimental features. Set `experimental: true` in your Stagehand constructor to enable them.</Note>
+
+### Enabling Streaming Mode
+
+Set `stream: true` in the agent configuration to enable streaming:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true, // Required for streaming
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+  stream: true, // Enable streaming mode
+});
+
+const streamResult = await agent.execute({
+  instruction: "Search for headphones on Amazon",
+  maxSteps: 20,
+});
+
+// Stream the text output incrementally
+for await (const delta of streamResult.textStream) {
+  process.stdout.write(delta);
+}
+
+// Get the final result after streaming completes
+const finalResult = await streamResult.result;
+console.log("Completed:", finalResult.completed);
+```
+
+### Stream Properties
+
+When streaming is enabled, `execute()` returns an `AgentStreamResult` with:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `textStream` | `AsyncIterable<string>` | Incremental text output from the agent |
+| `fullStream` | `AsyncIterable<StreamPart>` | All stream events including tool calls and messages |
+| `result` | `Promise<AgentResult>` | Final result after streaming completes |
+
+```typescript
+// Stream everything (tool calls, messages, etc.)
+for await (const event of streamResult.fullStream) {
+  console.log(event);
+}
+```
+
+## Callbacks
+
+Callbacks let you hook into the agent's execution lifecycle to monitor progress, log events, or modify behavior.
+
+<Note>**Non-CUA agents only.** Callbacks require `experimental: true` and are not available with Computer Use Agents.</Note>
+
+### Available Callbacks
+
+<Tabs>
+<Tab title="Non-Streaming">
+
+When `stream: false` (default), these callbacks are available:
+
+| Callback | Description |
+|----------|-------------|
+| `prepareStep` | Called before each LLM step to modify settings |
+| `onStepFinish` | Called when each step completes |
+
+```typescript
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+});
+
+await agent.execute({
+  instruction: "Fill out the contact form",
+  maxSteps: 10,
+  callbacks: {
+    prepareStep: async (stepContext) => {
+      console.log(`Starting step ${stepContext.stepNumber}`);
+      return stepContext; // Return modified or original context
+    },
+    onStepFinish: async (event) => {
+      console.log(`Step finished: ${event.finishReason}`);
+      if (event.toolCalls) {
+        for (const tc of event.toolCalls) {
+          console.log(`Tool called: ${tc.toolName}`);
+        }
+      }
+    },
+  },
+});
+```
+
+</Tab>
+
+<Tab title="Streaming">
+
+When `stream: true`, additional callbacks are available:
+
+| Callback | Description |
+|----------|-------------|
+| `prepareStep` | Called before each LLM step to modify settings |
+| `onStepFinish` | Called when each step completes |
+| `onChunk` | Called for each stream chunk |
+| `onFinish` | Called when streaming completes |
+| `onError` | Called when an error occurs |
+| `onAbort` | Called when the stream is aborted |
+
+```typescript
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+  stream: true,
+});
+
+const streamResult = await agent.execute({
+  instruction: "Search for products",
+  maxSteps: 15,
+  callbacks: {
+    onChunk: async (chunk) => {
+      // Called for each incremental chunk
+      console.log("Chunk received:", chunk);
+    },
+    onStepFinish: async (event) => {
+      console.log(`Step completed: ${event.finishReason}`);
+    },
+    onFinish: (event) => {
+      console.log("Stream finished!");
+      console.log("Total steps:", event.steps.length);
+    },
+    onError: ({ error }) => {
+      console.error("Stream error:", error);
+    },
+    onAbort: (event) => {
+      console.log("Stream aborted after", event.steps.length, "steps");
+    },
+  },
+});
+
+// Don't forget to consume the stream
+for await (const delta of streamResult.textStream) {
+  process.stdout.write(delta);
+}
+
+await streamResult.result;
+```
+
+</Tab>
+</Tabs>
+
+<Warning>
+Streaming-only callbacks (`onChunk`, `onFinish`, `onError`, `onAbort`) will throw an error if used without `stream: true`. If you need these callbacks, enable streaming in your agent configuration.
+</Warning>
+
+## Abort Signal
+
+Cancel agent execution at any time using an `AbortSignal`. This is useful for implementing timeouts or allowing users to stop long-running tasks.
+
+<Note>**Non-CUA agents only.** Abort signals require `experimental: true` and are not available with Computer Use Agents.</Note>
+
+### Basic Usage
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true, // Required for abort signal
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+});
+
+const controller = new AbortController();
+
+// Set a 30 second timeout
+setTimeout(() => controller.abort(), 30000);
+
+try {
+  const result = await agent.execute({
+    instruction: "Complete a complex multi-step task",
+    maxSteps: 50,
+    signal: controller.signal,
+  });
+} catch (error) {
+  if (error.name === "AgentAbortError") {
+    console.log("Task was cancelled");
+  }
+}
+```
+
+### Abort with Streaming
+
+Abort signals also work with streaming mode:
+
+```typescript
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+  stream: true,
+});
+
+const controller = new AbortController();
+
+const streamResult = await agent.execute({
+  instruction: "Describe every element on the page",
+  maxSteps: 50,
+  signal: controller.signal,
+  callbacks: {
+    onAbort: (event) => {
+      console.log(`Aborted after ${event.steps.length} steps`);
+    },
+  },
+});
+
+// Abort after receiving 10 chunks
+let chunkCount = 0;
+for await (const delta of streamResult.textStream) {
+  process.stdout.write(delta);
+  chunkCount++;
+  if (chunkCount >= 10) {
+    controller.abort();
+    break;
+  }
+}
+
+// The result promise will reject with AgentAbortError
+try {
+  await streamResult.result;
+} catch (error) {
+  console.log("Stream was aborted:", error.message);
+}
+```
+
+### Custom Abort Reasons
+
+You can pass a reason when aborting:
+
+```typescript
+controller.abort("User cancelled the operation");
+
+// The error message will include your reason
+// Error: "User cancelled the operation"
+```
+
+## Message Continuation
+
+Continue a conversation across multiple agent executions by passing the `messages` from a previous result. This is useful for multi-turn interactions or breaking complex tasks into steps while maintaining context.
+
+<Note>**Non-CUA agents only.** Message continuation requires `experimental: true` and is not available with Computer Use Agents.</Note>
+
+### Basic Continuation
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true, // Required for message continuation
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+});
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com/products");
+
+// First execution: search for products
+const firstResult = await agent.execute({
+  instruction: "Search for wireless headphones and note the top 3 results",
+  maxSteps: 10,
+});
+
+console.log("First task:", firstResult.message);
+
+// Continue with the same context: ask follow-up
+const secondResult = await agent.execute({
+  instruction: "Now filter by price under $100 and tell me which of those 3 are still available",
+  maxSteps: 10,
+  messages: firstResult.messages, // Pass previous conversation
+});
+
+console.log("Follow-up:", secondResult.message);
+
+// Continue further: take action based on conversation history
+const thirdResult = await agent.execute({
+  instruction: "Add the cheapest one to the cart",
+  maxSteps: 10,
+  messages: secondResult.messages, // Chain the conversation
+});
+
+console.log("Final action:", thirdResult.message);
+```
 
 ## Agent Execution Configuration
 

@@ -10,9 +10,19 @@ import {
   ComputerCallItem,
   FunctionCallItem,
 } from "../types/public/agent";
+import { ClientOptions } from "../types/public/model";
 import { AgentClient } from "./AgentClient";
-import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
+import {
+  AgentScreenshotProviderError,
+  StagehandClosedError,
+} from "../types/public/sdkErrors";
 import { ToolSet } from "ai";
+import {
+  SessionFileLogger,
+  formatCuaPromptPreview,
+  formatCuaResponsePreview,
+} from "../flowLogger";
+import { v7 as uuidv7 } from "uuid";
 
 /**
  * Client for OpenAI's Computer Use Assistant API
@@ -36,7 +46,7 @@ export class OpenAICUAClient extends AgentClient {
     type: AgentType,
     modelName: string,
     userProvidedInstructions?: string,
-    clientOptions?: Record<string, unknown>,
+    clientOptions?: ClientOptions,
     tools?: ToolSet,
   ) {
     super(type, modelName, userProvidedInstructions);
@@ -408,6 +418,15 @@ export class OpenAICUAClient extends AgentClient {
         requestParams.previous_response_id = previousResponseId;
       }
 
+      // Log LLM request
+      const llmRequestId = uuidv7();
+      SessionFileLogger.logLlmRequest({
+        requestId: llmRequestId,
+        model: this.modelName,
+        operation: "CUA.getAction",
+        prompt: formatCuaPromptPreview(inputItems),
+      });
+
       const startTime = Date.now();
       // Create the response using the OpenAI Responses API
       // @ts-expect-error - Force type to match what the OpenAI SDK expects
@@ -421,6 +440,16 @@ export class OpenAICUAClient extends AgentClient {
         output_tokens: response.usage.output_tokens,
         inference_time_ms: elapsedMs,
       };
+
+      // Log LLM response
+      SessionFileLogger.logLlmResponse({
+        requestId: llmRequestId,
+        model: this.modelName,
+        operation: "CUA.getAction",
+        output: formatCuaResponsePreview(response.output),
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      });
 
       // Store the response ID for future use
       this.lastResponseId = response.id;
@@ -521,6 +550,9 @@ export class OpenAICUAClient extends AgentClient {
 
           nextInputItems.push(outputItem);
         } catch (error) {
+          if (error instanceof StagehandClosedError) {
+            throw error;
+          }
           const errorMessage =
             error instanceof Error ? error.message : String(error);
 
@@ -587,6 +619,9 @@ export class OpenAICUAClient extends AgentClient {
 
             nextInputItems.push(errorOutputItem);
           } catch (screenshotError) {
+            if (screenshotError instanceof StagehandClosedError) {
+              throw screenshotError;
+            }
             // If we can't capture a screenshot, just send the error
             logger({
               category: "agent",
@@ -662,6 +697,9 @@ export class OpenAICUAClient extends AgentClient {
 
           nextInputItems.push(outputItem);
         } catch (error) {
+          if (error instanceof StagehandClosedError) {
+            throw error;
+          }
           const errorMessage =
             error instanceof Error ? error.message : String(error);
 

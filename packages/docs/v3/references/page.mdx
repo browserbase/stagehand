@@ -3,6 +3,10 @@ title: page
 description: 'Complete API reference for the Stagehand Page object'
 icon: 'page'
 ---
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
 <CardGroup cols={1}>
 <Card title="Page" icon="browser" href="/v3/references/page">
   Learn about the Stagehand Page object and browser navigation
@@ -248,6 +252,58 @@ await page.evaluate<R, Arg>(
 </ParamField>
 
 **Returns:** The result of the evaluation (must be JSON-serializable).
+
+## Initialization Scripts
+
+### addInitScript()
+
+Inject JavaScript that runs before any of the page's scripts on every navigation.
+
+```typescript
+await page.addInitScript<Arg>(
+  script: string | { path?: string; content?: string } | ((arg: Arg) => unknown),
+  arg?: Arg,
+): Promise<void>
+```
+
+<ParamField
+  path="script"
+  type="string | { path?: string; content?: string } | (arg: Arg) => unknown"
+  required
+>
+  Provide the script to inject. Pass raw source, reference a preload file on disk,
+  or supply a function that Stagehand serializes before sending to the browser.
+</ParamField>
+
+<ParamField path="arg" type="Arg" optional>
+  Extra data that is JSON-serialized and passed to your function. Only supported
+  when `script` is a function.
+</ParamField>
+
+This method:
+- Runs at document start for the current page (including adopted iframe sessions) on every navigation
+- Reinstalls the script for all future navigations of this page without affecting other pages
+- Mirrors Playwright's `page.addInitScript()` ordering semantics; use  [`context.addInitScript()`](/v3/references/context#addinitscript) to target every page in the context
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const context = stagehand.context;
+const page = await context.awaitActivePage();
+
+await page.addInitScript(() => {
+  window.Math.random = () => 42;
+});
+
+await page.goto("https://example.com", { waitUntil: "load" });
+
+const result = await page.evaluate(() => Math.random());
+console.log("Math.random() returned:", result);
+
+// Math.random() returned: 42
+```
 
 ## Screenshot
 

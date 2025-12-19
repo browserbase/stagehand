@@ -5,7 +5,7 @@ export const kith: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -15,7 +15,7 @@ export const kith: EvalFunction = async ({
       "https://kith.com/collections/nike-air-force-1/products/nkcw2288-111?variant=19439468707968",
     );
 
-    await v3Agent.execute({
+    await agent.execute({
       instruction:
         "add the shoes to cart, go to checkout, and fill the delivery information. Don't fill the payment information",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
@@ -28,7 +28,7 @@ export const kith: EvalFunction = async ({
     const success = evaluation === "YES";
 
     if (success) {
-      await v3Agent.execute({
+      await agent.execute({
         instruction:
           "fill the credit card information, do not submit the order just add placeholders",
         maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 10,

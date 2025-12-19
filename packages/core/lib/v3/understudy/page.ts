@@ -1,6 +1,7 @@
 import { Protocol } from "devtools-protocol";
 import { promises as fs } from "fs";
 import { v3Logger } from "../logger";
+import { logAction } from "../flowLogger";
 import type { CDPSessionLike } from "./cdp";
 import { CdpConnection } from "./cdp";
 import { Frame } from "./frame";
@@ -8,15 +9,21 @@ import { FrameLocator } from "./frameLocator";
 import { deepLocatorFromPage } from "./deepLocator";
 import { resolveXpathForLocation } from "./a11y/snapshot";
 import { FrameRegistry } from "./frameRegistry";
+import { executionContexts } from "./executionContextRegistry";
 import { LoadState } from "../types/public/page";
 import { NetworkManager } from "./networkManager";
 import { LifecycleWatcher } from "./lifecycleWatcher";
 import { NavigationResponseTracker } from "./navigationResponseTracker";
-import { Response } from "./response";
+import { Response, isSerializableResponse } from "./response";
 import { ConsoleMessage, ConsoleListener } from "./consoleMessage";
 import type { StagehandAPIClient } from "../api";
 import type { LocalBrowserLaunchOptions } from "../types/public";
 import type { Locator } from "./locator";
+import {
+  StagehandInvalidArgumentError,
+  StagehandEvalError,
+} from "../types/public/sdkErrors";
+import { normalizeInitScriptSource } from "./initScripts";
 import type {
   ScreenshotAnimationsOption,
   ScreenshotCaretOption,
@@ -36,6 +43,7 @@ import {
   withScreenshotTimeout,
   type ScreenshotCleanup,
 } from "./screenshotUtils";
+import { InitScriptSource } from "../types/private";
 /**
  * Page
  *
@@ -72,6 +80,7 @@ export class Page {
 
   /** cache Frames per frameId so everyone uses the same one */
   private readonly frameCache = new Map<string, Frame>();
+  private readonly browserIsRemote: boolean;
 
   /** Stable id for Frames created by this Page (use top-level TargetId). */
   private readonly pageId: string;
@@ -89,6 +98,8 @@ export class Page {
     string,
     (evt: Protocol.Runtime.ConsoleAPICalledEvent) => void
   >();
+  /** Document-start scripts installed across every session this page owns. */
+  private readonly initScripts: string[] = [];
 
   private constructor(
     private readonly conn: CdpConnection,
@@ -96,9 +107,11 @@ export class Page {
     private readonly _targetId: string,
     mainFrameId: string,
     apiClient?: StagehandAPIClient | null,
+    browserIsRemote = false,
   ) {
     this.pageId = _targetId;
     this.apiClient = apiClient ?? null;
+    this.browserIsRemote = browserIsRemote;
 
     // own the main session
     if (mainSession.id) this.sessions.set(mainSession.id, mainSession);
@@ -111,10 +124,44 @@ export class Page {
       this.mainSession,
       mainFrameId,
       this.pageId,
+      this.browserIsRemote,
     );
 
     this.networkManager = new NetworkManager();
     this.networkManager.trackSession(this.mainSession);
+  }
+
+  // Send a single init script to a specific CDP session.
+  private async installInitScriptOnSession(
+    session: CDPSessionLike,
+    source: string,
+  ): Promise<void> {
+    await session.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: source,
+    });
+  }
+
+  // Replay every previously registered init script onto a newly adopted session.
+  private async applyInitScriptsToSession(
+    session: CDPSessionLike,
+  ): Promise<void> {
+    for (const source of this.initScripts) {
+      await this.installInitScriptOnSession(session, source);
+    }
+  }
+
+  // Register a new init script and fan it out to all active sessions for this page.
+  public async registerInitScript(source: string): Promise<void> {
+    if (this.initScripts.includes(source)) return;
+    this.initScripts.push(source);
+
+    const installs: Array<Promise<void>> = [];
+    installs.push(this.installInitScriptOnSession(this.mainSession, source));
+    for (const session of this.sessions.values()) {
+      if (session === this.mainSession) continue;
+      installs.push(this.installInitScriptOnSession(session, source));
+    }
+    await Promise.all(installs);
   }
 
   // --- Optional visual cursor overlay management ---
@@ -213,6 +260,18 @@ export class Page {
     }
   }
 
+  public async addInitScript<Arg>(
+    script: InitScriptSource<Arg>,
+    arg?: Arg,
+  ): Promise<void> {
+    const source = await normalizeInitScriptSource(
+      script,
+      arg,
+      "page.addInitScript",
+    );
+    await this.registerInitScript(source);
+  }
+
   /**
    * Factory: create Page and seed registry with the shallow tree from Page.getFrameTree.
    * Assumes Page domain is already enabled on the session passed in.
@@ -223,6 +282,7 @@ export class Page {
     targetId: string,
     apiClient?: StagehandAPIClient | null,
     localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null,
+    browserIsRemote = false,
   ): Promise<Page> {
     await session.send("Page.enable").catch(() => {});
     await session
@@ -233,7 +293,14 @@ export class Page {
     }>("Page.getFrameTree");
     const mainFrameId = frameTree.frame.id;
 
-    const page = new Page(conn, session, targetId, mainFrameId, apiClient);
+    const page = new Page(
+      conn,
+      session,
+      targetId,
+      mainFrameId,
+      apiClient,
+      browserIsRemote,
+    );
     // Seed current URL from initial frame tree
     try {
       page._currentUrl = String(frameTree?.frame?.url ?? page._currentUrl);
@@ -300,7 +367,12 @@ export class Page {
     if (newRoot !== prevRoot) {
       const oldOrd = this.frameOrdinals.get(prevRoot) ?? 0;
       this.frameOrdinals.set(newRoot, oldOrd);
-      this.mainFrameWrapper = new Frame(this.mainSession, newRoot, this.pageId);
+      this.mainFrameWrapper = new Frame(
+        this.mainSession,
+        newRoot,
+        this.pageId,
+        this.browserIsRemote,
+      );
     }
 
     // Update cached URL if this navigation pertains to the current main frame
@@ -349,6 +421,8 @@ export class Page {
     if (childSession.id) this.sessions.set(childSession.id, childSession);
 
     this.networkManager.trackSession(childSession);
+
+    void this.applyInitScriptsToSession(childSession).catch(() => {});
 
     if (this.consoleListeners.size > 0) {
       this.installConsoleTap(childSession);
@@ -436,7 +510,7 @@ export class Page {
     if (hit) return hit;
 
     const sess = this.getSessionForFrame(frameId);
-    const f = new Frame(sess, frameId, this.pageId);
+    const f = new Frame(sess, frameId, this.pageId, this.browserIsRemote);
     this.frameCache.set(frameId, f);
     return f;
   }
@@ -456,7 +530,7 @@ export class Page {
 
   public on(event: "console", listener: ConsoleListener): Page {
     if (event !== "console") {
-      throw new Error(`Unsupported event: ${event}`);
+      throw new StagehandInvalidArgumentError(`Unsupported event: ${event}`);
     }
 
     const firstListener = this.consoleListeners.size === 0;
@@ -471,7 +545,7 @@ export class Page {
 
   public once(event: "console", listener: ConsoleListener): Page {
     if (event !== "console") {
-      throw new Error(`Unsupported event: ${event}`);
+      throw new StagehandInvalidArgumentError(`Unsupported event: ${event}`);
     }
 
     const wrapper: ConsoleListener = (message) => {
@@ -484,7 +558,7 @@ export class Page {
 
   public off(event: "console", listener: ConsoleListener): Page {
     if (event !== "console") {
-      throw new Error(`Unsupported event: ${event}`);
+      throw new StagehandInvalidArgumentError(`Unsupported event: ${event}`);
     }
 
     this.consoleListeners.delete(listener);
@@ -551,6 +625,7 @@ export class Page {
   /**
    * Close this top-level page (tab). Best-effort via Target.closeTarget.
    */
+  @logAction("Page.close")
   public async close(): Promise<void> {
     try {
       await this.conn.send("Target.closeTarget", { targetId: this._targetId });
@@ -685,6 +760,7 @@ export class Page {
    * Navigate the page; optionally wait for a lifecycle state.
    * Waits on the **current** main frame and follows root swaps during navigation.
    */
+  @logAction("Page.goto")
   async goto(
     url: string,
     options?: { waitUntil?: LoadState; timeoutMs?: number },
@@ -711,13 +787,20 @@ export class Page {
     try {
       // Route to API if available
       if (this.apiClient) {
-        await this.apiClient.goto(
+        const result = await this.apiClient.goto(
           url,
           { waitUntil: options?.waitUntil },
           this.mainFrameId(),
         );
         this._currentUrl = url;
-        return null;
+
+        if (isSerializableResponse(result)) {
+          return Response.fromSerializable(result, {
+            page: this,
+            session: this.mainSession,
+          });
+        }
+        return result;
       }
       const response =
         await this.mainSession.send<Protocol.Page.NavigateResponse>(
@@ -740,6 +823,7 @@ export class Page {
   /**
    * Reload the page; optionally wait for a lifecycle state.
    */
+  @logAction("Page.reload")
   async reload(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
@@ -786,6 +870,7 @@ export class Page {
   /**
    * Navigate back in history if possible; optionally wait for a lifecycle state.
    */
+  @logAction("Page.goBack")
   async goBack(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
@@ -838,6 +923,7 @@ export class Page {
   /**
    * Navigate forward in history if possible; optionally wait for a lifecycle state.
    */
+  @logAction("Page.goForward")
   async goForward(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
@@ -912,7 +998,7 @@ export class Page {
   async title(): Promise<string> {
     try {
       await this.mainSession.send("Runtime.enable").catch(() => {});
-      const ctxId = await this.createIsolatedWorldForCurrentMain();
+      const ctxId = await this.mainWorldExecutionContextId();
       const { result } =
         await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
           "Runtime.evaluate",
@@ -967,20 +1053,25 @@ export class Page {
    * timeout error is thrown.
    * @param options.type Image format (`"png"` by default).
    */
+  @logAction("Page.screenshot")
   async screenshot(options?: ScreenshotOptions): Promise<Buffer> {
     const opts = options ?? {};
     const type = opts.type ?? "png";
 
     if (type !== "png" && type !== "jpeg") {
-      throw new Error(`screenshot: unsupported image type "${type}"`);
+      throw new StagehandInvalidArgumentError(
+        `screenshot: unsupported image type "${type}"`,
+      );
     }
 
     if (opts.fullPage && opts.clip) {
-      throw new Error("screenshot: clip and fullPage cannot be used together");
+      throw new StagehandInvalidArgumentError(
+        "screenshot: clip and fullPage cannot be used together",
+      );
     }
 
     if (type === "png" && typeof opts.quality === "number") {
-      throw new Error(
+      throw new StagehandInvalidArgumentError(
         'screenshot: quality option is only valid for type="jpeg"',
       );
     }
@@ -1085,23 +1176,25 @@ export class Page {
    * Wait until the page reaches a lifecycle state on the current main frame.
    * Mirrors Playwright's API signatures.
    */
+  @logAction("Page.waitForLoadState")
   async waitForLoadState(state: LoadState, timeoutMs?: number): Promise<void> {
     await this.waitForMainLoadState(state, timeoutMs ?? 15000);
   }
 
   /**
-   * Evaluate a function or expression in the current main frame's isolated world.
+   * Evaluate a function or expression in the current main frame's main world.
    * - If a string is provided, it is treated as a JS expression.
    * - If a function is provided, it is stringified and invoked with the optional argument.
    * - The return value should be JSON-serializable. Non-serializable objects will
    *   best-effort serialize via JSON.stringify inside the page context.
    */
+  @logAction("Page.evaluate")
   async evaluate<R = unknown, Arg = unknown>(
     pageFunctionOrExpression: string | ((arg: Arg) => R | Promise<R>),
     arg?: Arg,
   ): Promise<R> {
     await this.mainSession.send("Runtime.enable").catch(() => {});
-    const ctxId = await this.createIsolatedWorldForCurrentMain();
+    const ctxId = await this.mainWorldExecutionContextId();
 
     const isString = typeof pageFunctionOrExpression === "string";
     let expression: string;
@@ -1110,19 +1203,17 @@ export class Page {
       expression = String(pageFunctionOrExpression);
     } else {
       const fnSrc = pageFunctionOrExpression.toString();
-      // Build an IIFE that calls the user's function with the argument and
-      // attempts to deep-serialize the result for returnByValue.
       const argJson = JSON.stringify(arg);
       expression = `(() => {
-        const __fn = ${fnSrc};
-        const __arg = ${argJson};
-        try {
-          const __res = __fn(__arg);
-          return Promise.resolve(__res).then(v => {
-            try { return JSON.parse(JSON.stringify(v)); } catch { return v; }
-          });
-        } catch (e) { throw e; }
-      })()`;
+          const __fn = ${fnSrc};
+          const __arg = ${argJson};
+          try {
+            const __res = __fn(__arg);
+            return Promise.resolve(__res).then(v => {
+              try { return JSON.parse(JSON.stringify(v)); } catch { return v; }
+            });
+          } catch (e) { throw e; }
+        })()`;
     }
 
     const { result, exceptionDetails } =
@@ -1141,7 +1232,7 @@ export class Page {
         exceptionDetails.text ||
         exceptionDetails.exception?.description ||
         "Evaluation failed";
-      throw new Error(msg);
+      throw new StagehandEvalError(msg);
     }
 
     return result?.value as R;
@@ -1151,6 +1242,7 @@ export class Page {
    * Force the page viewport to an exact CSS size and device scale factor.
    * Ensures screenshots match width x height pixels when deviceScaleFactor = 1.
    */
+  // @logAction("Page.setViewportSize")  // disabled because it's pretty noisy, can always re-enable if needed for debugging
   async setViewportSize(
     width: number,
     height: number,
@@ -1183,33 +1275,7 @@ export class Page {
    * on the top-level page target's session. Coordinates are relative to the
    * viewport origin (top-left). Does not scroll.
    */
-  async click(
-    x: number,
-    y: number,
-    options: {
-      button?: "left" | "right" | "middle";
-      clickCount?: number;
-      returnXpath: true;
-    },
-  ): Promise<string>;
-  async click(
-    x: number,
-    y: number,
-    options?: {
-      button?: "left" | "right" | "middle";
-      clickCount?: number;
-      returnXpath?: false;
-    },
-  ): Promise<void>;
-  async click(
-    x: number,
-    y: number,
-    options: {
-      button?: "left" | "right" | "middle";
-      clickCount?: number;
-      returnXpath: boolean;
-    },
-  ): Promise<void | string>;
+  @logAction("Page.click")
   async click(
     x: number,
     y: number,
@@ -1218,7 +1284,7 @@ export class Page {
       clickCount?: number;
       returnXpath?: boolean;
     },
-  ): Promise<void | string> {
+  ): Promise<string> {
     const button = options?.button ?? "left";
     const clickCount = options?.clickCount ?? 1;
 
@@ -1266,53 +1332,92 @@ export class Page {
       button: "none",
     } as Protocol.Input.DispatchMouseEventRequest);
 
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mousePressed",
-      x,
-      y,
-      button,
-      clickCount,
-    } as Protocol.Input.DispatchMouseEventRequest);
+    // Dispatch mouse pressed and released events for the given click count
+    for (let i = 1; i <= clickCount; i++) {
+      await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        type: "mousePressed",
+        x,
+        y,
+        button,
+        clickCount: i,
+      } as Protocol.Input.DispatchMouseEventRequest);
 
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseReleased",
-      x,
-      y,
-      button,
-      clickCount,
-    } as Protocol.Input.DispatchMouseEventRequest);
+      await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseReleased",
+        x,
+        y,
+        button,
+        clickCount: i,
+      } as Protocol.Input.DispatchMouseEventRequest);
+    }
 
-    if (options?.returnXpath) return xpathResult ?? "";
+    return xpathResult ?? "";
   }
 
-  async scroll(
+  /**
+   * Hover at absolute page coordinates (CSS pixels).
+   * Dispatches mouseMoved via CDP Input domain on the top-level page target's
+   * session.
+   */
+  @logAction("Page.hover")
+  async hover(
     x: number,
     y: number,
-    deltaX: number,
-    deltaY: number,
-    options: { returnXpath: true },
-  ): Promise<string>;
-  async scroll(
-    x: number,
-    y: number,
-    deltaX: number,
-    deltaY: number,
-    options?: { returnXpath?: false },
-  ): Promise<void>;
-  async scroll(
-    x: number,
-    y: number,
-    deltaX: number,
-    deltaY: number,
-    options: { returnXpath: boolean },
-  ): Promise<void | string>;
+    options?: { returnXpath?: boolean },
+  ): Promise<string> {
+    let xpathResult: string | undefined;
+    if (options?.returnXpath) {
+      try {
+        const hit = await resolveXpathForLocation(this, x, y);
+        if (hit) {
+          v3Logger({
+            category: "page",
+            message: "hover resolved hit",
+            level: 2,
+            auxiliary: {
+              frameId: { value: String(hit.frameId), type: "string" },
+              backendNodeId: {
+                value: String(hit.backendNodeId),
+                type: "string",
+              },
+              x: { value: String(x), type: "integer" },
+              y: { value: String(y), type: "integer" },
+            },
+          });
+          xpathResult = hit.absoluteXPath;
+        }
+      } catch {
+        v3Logger({
+          category: "page",
+          message: "Failed to resolve xpath for hover",
+          level: 2,
+          auxiliary: {
+            x: { value: String(x), type: "integer" },
+            y: { value: String(y), type: "integer" },
+          },
+        });
+      }
+    }
+
+    await this.updateCursor(x, y);
+    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+      type: "mouseMoved",
+      x,
+      y,
+      button: "none",
+    } as Protocol.Input.DispatchMouseEventRequest);
+
+    return xpathResult ?? "";
+  }
+
+  @logAction("Page.scroll")
   async scroll(
     x: number,
     y: number,
     deltaX: number,
     deltaY: number,
     options?: { returnXpath?: boolean },
-  ): Promise<void | string> {
+  ): Promise<string> {
     let xpathResult: string | undefined;
     if (options?.returnXpath) {
       try {
@@ -1341,49 +1446,14 @@ export class Page {
       deltaY,
     } as Protocol.Input.DispatchMouseEventRequest);
 
-    if (options?.returnXpath) return xpathResult ?? "";
+    return xpathResult ?? "";
   }
 
   /**
    * Drag from (fromX, fromY) to (toX, toY) using mouse events.
    * Sends mouseMoved → mousePressed → mouseMoved (steps) → mouseReleased.
    */
-  async dragAndDrop(
-    fromX: number,
-    fromY: number,
-    toX: number,
-    toY: number,
-    options: {
-      button?: "left" | "right" | "middle";
-      steps?: number;
-      delay?: number;
-      returnXpath: true;
-    },
-  ): Promise<[string, string]>;
-  async dragAndDrop(
-    fromX: number,
-    fromY: number,
-    toX: number,
-    toY: number,
-    options?: {
-      button?: "left" | "right" | "middle";
-      steps?: number;
-      delay?: number;
-      returnXpath?: false;
-    },
-  ): Promise<void>;
-  async dragAndDrop(
-    fromX: number,
-    fromY: number,
-    toX: number,
-    toY: number,
-    options: {
-      button?: "left" | "right" | "middle";
-      steps?: number;
-      delay?: number;
-      returnXpath: boolean;
-    },
-  ): Promise<void | [string, string]>;
+  @logAction("Page.dragAndDrop")
   async dragAndDrop(
     fromX: number,
     fromY: number,
@@ -1395,7 +1465,7 @@ export class Page {
       delay?: number;
       returnXpath?: boolean;
     },
-  ): Promise<void | [string, string]> {
+  ): Promise<[string, string]> {
     const button = options?.button ?? "left";
     const steps = Math.max(1, Math.floor(options?.steps ?? 1));
     const delay = Math.max(0, options?.delay ?? 0);
@@ -1479,7 +1549,7 @@ export class Page {
       clickCount: 1,
     } as Protocol.Input.DispatchMouseEventRequest);
 
-    if (options?.returnXpath) return [fromXpath ?? "", toXpath ?? ""];
+    return [fromXpath ?? "", toXpath ?? ""];
   }
 
   /**
@@ -1488,6 +1558,7 @@ export class Page {
    * and never falls back to Input.insertText. Optional delay applies between
    * successive characters.
    */
+  @logAction("Page.type")
   async type(
     text: string,
     options?: { delay?: number; withMistakes?: boolean },
@@ -1521,15 +1592,44 @@ export class Page {
         return;
       }
 
-      // Printable character: use text on keyDown to generate input
+      // Printable character: include key, code, and text for maximum compatibility
+      // Some sites (like Wordle) check event.key rather than relying on text input
+      const isLetter = /^[a-zA-Z]$/.test(ch);
+      const isDigit = /^[0-9]$/.test(ch);
+
+      let key = ch;
+      let code = "";
+      let windowsVirtualKeyCode: number | undefined;
+
+      if (isLetter) {
+        // For letters, key is the character, code is KeyX where X is uppercase
+        key = ch;
+        code = `Key${ch.toUpperCase()}`;
+        windowsVirtualKeyCode = ch.toUpperCase().charCodeAt(0);
+      } else if (isDigit) {
+        key = ch;
+        code = `Digit${ch}`;
+        windowsVirtualKeyCode = ch.charCodeAt(0);
+      } else if (ch === " ") {
+        key = " ";
+        code = "Space";
+        windowsVirtualKeyCode = 32;
+      }
+
       const down: Protocol.Input.DispatchKeyEventRequest = {
         type: "keyDown",
+        key,
+        code: code || undefined,
         text: ch,
         unmodifiedText: ch,
+        windowsVirtualKeyCode,
       };
       await this.mainSession.send("Input.dispatchKeyEvent", down);
       await this.mainSession.send("Input.dispatchKeyEvent", {
         type: "keyUp",
+        key,
+        code: code || undefined,
+        windowsVirtualKeyCode,
       } as Protocol.Input.DispatchKeyEventRequest);
     };
 
@@ -1585,6 +1685,7 @@ export class Page {
    * For printable characters, uses the text path on keyDown; for named keys, sets key/code/VK.
    * Supports key combinations with modifiers like "Cmd+A", "Ctrl+C", "Shift+Tab", etc.
    */
+  @logAction("Page.keyPress")
   async keyPress(key: string, options?: { delay?: number }): Promise<void> {
     const delay = Math.max(0, options?.delay ?? 0);
     const sleep = (ms: number) =>
@@ -1770,10 +1871,11 @@ export class Page {
     } as Protocol.Input.DispatchKeyEventRequest);
   }
 
-  /** Normalize modifier key names to match CDP expectations */
+  /** Normalize key names to match CDP expectations */
   private normalizeModifierKey(key: string): string {
-    const normalized = key.toLowerCase();
-    switch (normalized) {
+    const lower = key.toLowerCase();
+    switch (lower) {
+      // Modifier keys
       case "cmd":
       case "command":
         // On Mac, Cmd is Meta; elsewhere map to Control for common shortcuts
@@ -1782,11 +1884,56 @@ export class Page {
       case "windows":
         return "Meta";
       case "ctrl":
+      case "control":
         return "Control";
       case "option":
+      case "alt":
         return "Alt";
       case "shift":
         return "Shift";
+      case "meta":
+        return "Meta";
+      // Action keys
+      case "enter":
+      case "return":
+        return "Enter";
+      case "esc":
+      case "escape":
+        return "Escape";
+      case "backspace":
+        return "Backspace";
+      case "tab":
+        return "Tab";
+      case "space":
+      case "spacebar":
+        return " ";
+      case "delete":
+      case "del":
+        return "Delete";
+      // Arrow keys
+      case "left":
+      case "arrowleft":
+        return "ArrowLeft";
+      case "right":
+      case "arrowright":
+        return "ArrowRight";
+      case "up":
+      case "arrowup":
+        return "ArrowUp";
+      case "down":
+      case "arrowdown":
+        return "ArrowDown";
+      // Navigation keys
+      case "home":
+        return "Home";
+      case "end":
+        return "End";
+      case "pageup":
+      case "pgup":
+        return "PageUp";
+      case "pagedown":
+      case "pgdn":
+        return "PageDown";
       default:
         return key;
     }
@@ -1912,18 +2059,13 @@ export class Page {
 
   // ---- Page-level lifecycle waiter that follows main frame id swaps ----
 
-  /**
-   * Create an isolated world for the **current** main frame and return its context id.
-   */
-  private async createIsolatedWorldForCurrentMain(): Promise<number> {
-    await this.mainSession.send("Runtime.enable").catch(() => {});
-    const { executionContextId } = await this.mainSession.send<{
-      executionContextId: number;
-    }>("Page.createIsolatedWorld", {
-      frameId: this.mainFrameId(),
-      worldName: "v3-world",
-    });
-    return executionContextId;
+  /** Resolve the main-world execution context for the current main frame. */
+  private async mainWorldExecutionContextId(): Promise<number> {
+    return executionContexts.waitForMainWorld(
+      this.mainSession,
+      this.mainFrameId(),
+      1000,
+    );
   }
 
   /**
@@ -1942,7 +2084,7 @@ export class Page {
 
     // Fast path: check the *current* main frame's readyState.
     try {
-      const ctxId = await this.createIsolatedWorldForCurrentMain();
+      const ctxId = await this.mainWorldExecutionContextId();
       const { result } =
         await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
           "Runtime.evaluate",

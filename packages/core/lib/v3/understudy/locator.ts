@@ -3,10 +3,19 @@ import { Protocol } from "devtools-protocol";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { Buffer } from "buffer";
 import { locatorScriptSources } from "../dom/build/locatorScripts.generated";
 import type { Frame } from "./frame";
 import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver";
+import {
+  StagehandElementNotFoundError,
+  StagehandInvalidArgumentError,
+  ElementNotVisibleError,
+} from "../types/public/sdkErrors";
+import { normalizeInputFiles } from "./fileUploadUtils";
+import { SetInputFilesArgument } from "../types/public/locator";
+import { NormalizedFilePayload } from "../types/private/locator";
+
+const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
 
 type MouseButton = "left" | "right" | "middle";
 
@@ -64,40 +73,11 @@ export class Locator {
    * - Best‑effort dispatches change/input via CDP (Chrome does by default).
    * - Passing an empty array clears the selection.
    */
-  public async setInputFiles(
-    files:
-      | string
-      | string[]
-      | {
-          name: string;
-          mimeType: string;
-          buffer: ArrayBuffer | Uint8Array | Buffer | string;
-        }
-      | Array<{
-          name: string;
-          mimeType: string;
-          buffer: ArrayBuffer | Uint8Array | Buffer | string;
-        }>,
-  ): Promise<void> {
+  public async setInputFiles(files: SetInputFilesArgument): Promise<void> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode();
 
-    // Normalize to array
-    const items = Array.isArray(files)
-      ? (files as unknown[])
-      : [files as unknown];
-
     const tempFiles: string[] = [];
-    const filePaths: string[] = [];
-
-    // Helper: normalize various buffer-like inputs to Node Buffer
-    const toBuffer = (data: unknown): Buffer => {
-      if (Buffer.isBuffer(data)) return data;
-      if (data instanceof Uint8Array) return Buffer.from(data);
-      if (typeof data === "string") return Buffer.from(data);
-      if (data instanceof ArrayBuffer) return Buffer.from(new Uint8Array(data));
-      throw new Error("Unsupported file payload buffer type");
-    };
 
     try {
       // Validate element is an <input type="file">
@@ -112,51 +92,48 @@ export class Locator {
         );
         const ok = Boolean(res.result.value);
         if (!ok)
-          throw new Error('Target is not an <input type="file"> element');
+          throw new StagehandInvalidArgumentError(
+            'Target is not an <input type="file"> element',
+          );
       } catch (e) {
-        throw new Error(
+        throw new StagehandInvalidArgumentError(
           e instanceof Error
             ? e.message
             : "Unable to verify file input element",
         );
       }
 
-      // Build list of absolute file paths, creating temps for payloads
-      for (const it of items) {
-        if (typeof it === "string") {
-          filePaths.push(path.resolve(it));
-          continue;
-        }
-        if (
-          it &&
-          typeof it === "object" &&
-          "name" in it &&
-          "mimeType" in it &&
-          "buffer" in it
-        ) {
-          const payload = it as {
-            name: string;
-            mimeType: string;
-            buffer: ArrayBuffer | Uint8Array | Buffer | string;
-          };
-          const base = payload.name || "upload.bin";
-          const ext = path.extname(base);
-          const tmp = path.join(
-            os.tmpdir(),
-            `stagehand-upload-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`,
-          );
-          const buf = toBuffer(payload.buffer);
-          await fs.promises.writeFile(tmp, buf);
-          tempFiles.push(tmp);
-          filePaths.push(tmp);
-          continue;
-        }
-        throw new Error(
-          "Unsupported setInputFiles item – expected path or payload",
-        );
+      const normalized = await normalizeInputFiles(files);
+
+      if (!normalized.length) {
+        await session.send<never>("DOM.setFileInputFiles", {
+          objectId,
+          files: [],
+        });
+        return;
       }
 
-      // Apply files via CDP
+      if (this.frame.isBrowserRemote()) {
+        await this.assignFilesViaPayloadInjection(objectId, normalized);
+        return;
+      }
+
+      const filePaths: string[] = [];
+      for (const payload of normalized) {
+        if (payload.absolutePath) {
+          filePaths.push(payload.absolutePath);
+          continue;
+        }
+        const ext = path.extname(payload.name);
+        const tmp = path.join(
+          os.tmpdir(),
+          `stagehand-upload-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`,
+        );
+        await fs.promises.writeFile(tmp, payload.buffer);
+        tempFiles.push(tmp);
+        filePaths.push(tmp);
+      }
+
       await session.send<never>("DOM.setFileInputFiles", {
         objectId,
         files: filePaths,
@@ -173,6 +150,58 @@ export class Locator {
           // ignore
         }
       }
+    }
+  }
+
+  /**
+   * Remote browser fallback: build File objects inside the page and attach them via JS.
+   *
+   * When Stagehand is driving a browser that cannot see the local filesystem (Browserbase,
+   * remote CDP, etc.), CDP's DOM.setFileInputFiles would fail because Chrome can't reach
+   * our temp files. Instead we base64-encode the payloads, send them into the page, and
+   * let a DOM helper create File objects + dispatch change/input events.
+   */
+  private async assignFilesViaPayloadInjection(
+    objectId: Protocol.Runtime.RemoteObjectId,
+    files: NormalizedFilePayload[],
+  ): Promise<void> {
+    const session = this.frame.session;
+
+    for (const payload of files) {
+      if (payload.buffer.length > MAX_REMOTE_UPLOAD_BYTES) {
+        throw new StagehandInvalidArgumentError(
+          `setInputFiles(): file "${payload.name}" is larger than the 50MB limit for remote uploads`,
+        );
+      }
+    }
+
+    const serialized = files.map((payload) => ({
+      name: payload.name,
+      mimeType: payload.mimeType,
+      lastModified: payload.lastModified,
+      base64: payload.buffer.toString("base64"),
+    }));
+
+    const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+      "Runtime.callFunctionOn",
+      {
+        objectId,
+        functionDeclaration:
+          locatorScriptSources.assignFilePayloadsToInputElement,
+        arguments: [
+          {
+            value: serialized,
+          },
+        ],
+        returnByValue: true,
+      },
+    );
+
+    const ok = Boolean(res.result?.value);
+    if (!ok) {
+      throw new StagehandInvalidArgumentError(
+        "Unable to assign file payloads to remote input element",
+      );
     }
   }
 
@@ -220,7 +249,7 @@ export class Locator {
         "DOM.getBoxModel",
         { objectId },
       );
-      if (!box.model) throw new Error("Element not visible (no box model)");
+      if (!box.model) throw new ElementNotVisibleError(this.selector);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
       return { x: Math.round(cx), y: Math.round(cy) };
     } finally {
@@ -324,7 +353,7 @@ export class Locator {
         "DOM.getBoxModel",
         { objectId },
       );
-      if (!box.model) throw new Error("Element not visible (no box model)");
+      if (!box.model) throw new ElementNotVisibleError(this.selector);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
       await session.send<never>("Input.dispatchMouseEvent", {
@@ -367,7 +396,7 @@ export class Locator {
         "DOM.getBoxModel",
         { objectId },
       );
-      if (!box.model) throw new Error("Element not visible (no box model)");
+      if (!box.model) throw new ElementNotVisibleError(this.selector);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
       // Dispatch input (from the same session)
@@ -378,21 +407,24 @@ export class Locator {
         button: "none",
       } as Protocol.Input.DispatchMouseEventRequest);
 
-      await session.send<never>("Input.dispatchMouseEvent", {
-        type: "mousePressed",
-        x: cx,
-        y: cy,
-        button,
-        clickCount,
-      } as Protocol.Input.DispatchMouseEventRequest);
+      // Dispatch mouse pressed and released events for the given click count
+      for (let i = 1; i <= clickCount; i++) {
+        await session.send<never>("Input.dispatchMouseEvent", {
+          type: "mousePressed",
+          x: cx,
+          y: cy,
+          button,
+          clickCount: i,
+        } as Protocol.Input.DispatchMouseEventRequest);
 
-      await session.send<never>("Input.dispatchMouseEvent", {
-        type: "mouseReleased",
-        x: cx,
-        y: cy,
-        button,
-        clickCount,
-      } as Protocol.Input.DispatchMouseEventRequest);
+        await session.send<never>("Input.dispatchMouseEvent", {
+          type: "mouseReleased",
+          x: cx,
+          y: cy,
+          button,
+          clickCount: i,
+        } as Protocol.Input.DispatchMouseEventRequest);
+      }
     } finally {
       // release the element handle
       try {
@@ -571,7 +603,9 @@ export class Locator {
           typeof result?.reason === "string" && result.reason.length > 0
             ? result.reason
             : "Failed to fill element";
-        throw new Error(`Failed to fill element (${reason})`);
+        throw new StagehandInvalidArgumentError(
+          `Failed to fill element (${reason})`,
+        );
       }
 
       // Backward compatibility: if no status is returned (older bundle), fall back to setter logic.
@@ -797,7 +831,9 @@ export class Locator {
   nth(index: number): Locator {
     const value = Number(index);
     if (!Number.isFinite(value) || value < 0) {
-      throw new Error("locator().nth() expects a non-negative index");
+      throw new StagehandInvalidArgumentError(
+        "locator().nth() expects a non-negative index",
+      );
     }
 
     const nextIndex = Math.floor(value);
@@ -828,7 +864,7 @@ export class Locator {
       this.nthIndex,
     );
     if (!resolved) {
-      throw new Error(`Element not found for selector: ${this.selector}`);
+      throw new StagehandElementNotFoundError([this.selector]);
     }
 
     return resolved;
@@ -838,7 +874,7 @@ export class Locator {
   private centerFromBoxContent(content: number[]): { cx: number; cy: number } {
     // content is [x1,y1, x2,y2, x3,y3, x4,y4]
     if (!content || content.length < 8) {
-      throw new Error("Invalid box model content quad");
+      throw new StagehandInvalidArgumentError("Invalid box model content quad");
     }
     const xs = [content[0], content[2], content[4], content[6]];
     const ys = [content[1], content[3], content[5], content[7]];

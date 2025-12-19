@@ -5,7 +5,7 @@ export const nba_trades: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -13,7 +13,7 @@ export const nba_trades: EvalFunction = async ({
     const evaluator = new V3Evaluator(v3);
     await page.goto("https://www.espn.com/");
 
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction:
         "Find the latest Team transaction in the NBA within the past week.",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,

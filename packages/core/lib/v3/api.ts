@@ -1,6 +1,4 @@
 import makeFetchCookie from "fetch-cookie";
-import zodToJsonSchema from "zod-to-json-schema";
-import z from "zod/v3";
 import { Action } from "./types/public";
 import { STAGEHAND_VERSION } from "../version";
 import {
@@ -27,7 +25,13 @@ import {
   StagehandResponseBodyError,
   StagehandResponseParseError,
   StagehandServerError,
+  ExperimentalNotConfiguredError,
 } from "./types/public";
+import type { SerializableResponse } from "./types/private";
+import { toJsonSchema } from "./zodCompat";
+import type { StagehandZodSchema } from "./zodCompat";
+import { loadApiKeyFromEnv } from "../utils";
+import type { ModelConfiguration } from "./types/public/model";
 
 /**
  * API response structure for replay metrics endpoint
@@ -41,6 +45,8 @@ interface ReplayMetricsResponse {
         tokenUsage?: {
           inputTokens?: number;
           outputTokens?: number;
+          reasoningTokens?: number;
+          cachedInputTokens?: number;
           timeMs?: number;
         };
       }>;
@@ -54,6 +60,7 @@ export class StagehandAPIClient {
   private projectId: string;
   private sessionId?: string;
   private modelApiKey: string;
+  private modelProvider?: string;
   private logger: (message: LogLine) => void;
   private fetchWithCookies;
 
@@ -79,6 +86,10 @@ export class StagehandAPIClient {
       throw new StagehandAPIError("modelApiKey is required");
     }
     this.modelApiKey = modelApiKey;
+    // Extract provider from modelName (e.g., "openai/gpt-4o" -> "openai")
+    this.modelProvider = modelName?.includes("/")
+      ? modelName.split("/")[0]
+      : undefined;
 
     const region = browserbaseSessionCreateParams?.region;
     if (region && region !== "us-west-2") {
@@ -143,6 +154,9 @@ export class StagehandAPIClient {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { page: _, ...restOptions } = options;
       if (Object.keys(restOptions).length > 0) {
+        if (restOptions.model) {
+          restOptions.model = this.prepareModelConfig(restOptions.model);
+        }
         args.options = restOptions;
       }
     }
@@ -153,13 +167,13 @@ export class StagehandAPIClient {
     });
   }
 
-  async extract<T extends z.AnyZodObject>({
+  async extract<T extends StagehandZodSchema>({
     instruction,
     schema: zodSchema,
     options,
     frameId,
   }: APIExtractParameters): Promise<ExtractResult<T>> {
-    const jsonSchema = zodSchema ? zodToJsonSchema(zodSchema) : undefined;
+    const jsonSchema = zodSchema ? toJsonSchema(zodSchema) : undefined;
 
     const args: Record<string, unknown> = {
       schema: jsonSchema,
@@ -171,6 +185,9 @@ export class StagehandAPIClient {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { page: _, ...restOptions } = options;
       if (Object.keys(restOptions).length > 0) {
+        if (restOptions.model) {
+          restOptions.model = this.prepareModelConfig(restOptions.model);
+        }
         args.options = restOptions;
       }
     }
@@ -195,6 +212,9 @@ export class StagehandAPIClient {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { page: _, ...restOptions } = options;
       if (Object.keys(restOptions).length > 0) {
+        if (restOptions.model) {
+          restOptions.model = this.prepareModelConfig(restOptions.model);
+        }
         args.options = restOptions;
       }
     }
@@ -209,8 +229,8 @@ export class StagehandAPIClient {
     url: string,
     options?: { waitUntil?: "load" | "domcontentloaded" | "networkidle" },
     frameId?: string,
-  ): Promise<void> {
-    return this.execute<void>({
+  ): Promise<SerializableResponse | null> {
+    return this.execute<SerializableResponse | null>({
       method: "navigate",
       args: { url, options, frameId },
     });
@@ -223,9 +243,7 @@ export class StagehandAPIClient {
   ): Promise<AgentResult> {
     // Check if integrations are being used in API mode
     if (agentConfig.integrations && agentConfig.integrations.length > 0) {
-      throw new StagehandAPIError(
-        "MCP integrations are not supported in API mode. Set experimental: true to use MCP integrations.",
-      );
+      throw new ExperimentalNotConfiguredError("MCP integrations");
     }
     if (typeof executeOptions === "object") {
       if (executeOptions.page) {
@@ -282,18 +300,28 @@ export class StagehandAPIClient {
     const metrics: StagehandMetrics = {
       actPromptTokens: 0,
       actCompletionTokens: 0,
+      actReasoningTokens: 0,
+      actCachedInputTokens: 0,
       actInferenceTimeMs: 0,
       extractPromptTokens: 0,
       extractCompletionTokens: 0,
+      extractReasoningTokens: 0,
+      extractCachedInputTokens: 0,
       extractInferenceTimeMs: 0,
       observePromptTokens: 0,
       observeCompletionTokens: 0,
+      observeReasoningTokens: 0,
+      observeCachedInputTokens: 0,
       observeInferenceTimeMs: 0,
       agentPromptTokens: 0,
       agentCompletionTokens: 0,
+      agentReasoningTokens: 0,
+      agentCachedInputTokens: 0,
       agentInferenceTimeMs: 0,
       totalPromptTokens: 0,
       totalCompletionTokens: 0,
+      totalReasoningTokens: 0,
+      totalCachedInputTokens: 0,
       totalInferenceTimeMs: 0,
     };
 
@@ -309,36 +337,95 @@ export class StagehandAPIClient {
         if (tokenUsage) {
           const inputTokens = tokenUsage.inputTokens || 0;
           const outputTokens = tokenUsage.outputTokens || 0;
+          const reasoningTokens = tokenUsage.reasoningTokens || 0;
+          const cachedInputTokens = tokenUsage.cachedInputTokens || 0;
           const timeMs = tokenUsage.timeMs || 0;
 
           // Map method to metrics fields
           if (method === "act") {
             metrics.actPromptTokens += inputTokens;
             metrics.actCompletionTokens += outputTokens;
+            metrics.actReasoningTokens += reasoningTokens;
+            metrics.actCachedInputTokens += cachedInputTokens;
             metrics.actInferenceTimeMs += timeMs;
           } else if (method === "extract") {
             metrics.extractPromptTokens += inputTokens;
             metrics.extractCompletionTokens += outputTokens;
+            metrics.extractReasoningTokens += reasoningTokens;
+            metrics.extractCachedInputTokens += cachedInputTokens;
             metrics.extractInferenceTimeMs += timeMs;
           } else if (method === "observe") {
             metrics.observePromptTokens += inputTokens;
             metrics.observeCompletionTokens += outputTokens;
+            metrics.observeReasoningTokens += reasoningTokens;
+            metrics.observeCachedInputTokens += cachedInputTokens;
             metrics.observeInferenceTimeMs += timeMs;
           } else if (method === "agent") {
             metrics.agentPromptTokens += inputTokens;
             metrics.agentCompletionTokens += outputTokens;
+            metrics.agentReasoningTokens += reasoningTokens;
+            metrics.agentCachedInputTokens += cachedInputTokens;
             metrics.agentInferenceTimeMs += timeMs;
           }
 
           // Always update totals for any method with token usage
           metrics.totalPromptTokens += inputTokens;
           metrics.totalCompletionTokens += outputTokens;
+          metrics.totalReasoningTokens += reasoningTokens;
+          metrics.totalCachedInputTokens += cachedInputTokens;
           metrics.totalInferenceTimeMs += timeMs;
         }
       }
     }
 
     return metrics;
+  }
+
+  /**
+   * Prepares a model configuration for the API payload by ensuring
+   * the apiKey is included. If the model is passed as a string,
+   * it converts it to an object with modelName and apiKey.
+   * The apiKey is loaded from environment variables only if the provider
+   * differs from the one used during init.
+   */
+  private prepareModelConfig(
+    model: ModelConfiguration,
+  ): { modelName: string; apiKey: string } & Record<string, unknown> {
+    if (typeof model === "string") {
+      // Extract provider from model string (e.g., "openai/gpt-4o" -> "openai")
+      const provider = model.includes("/") ? model.split("/")[0] : undefined;
+      // Only load from env if provider differs from the original
+      const apiKey =
+        provider && provider !== this.modelProvider
+          ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
+          : this.modelApiKey;
+      return {
+        modelName: model,
+        apiKey,
+      };
+    }
+
+    // Model is an object - ensure apiKey is present
+    if (!model.apiKey) {
+      const provider = model.modelName?.includes("/")
+        ? model.modelName.split("/")[0]
+        : undefined;
+      // Only load from env if provider differs from the original
+      const apiKey =
+        provider && provider !== this.modelProvider
+          ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
+          : this.modelApiKey;
+      return {
+        ...model,
+        apiKey,
+      };
+    }
+
+    // Model object already has apiKey
+    return model as { modelName: string; apiKey: string } & Record<
+      string,
+      unknown
+    >;
   }
 
   private async execute<T>({
@@ -391,17 +478,25 @@ export class StagehandAPIClient {
 
           if (eventData.type === "system") {
             if (eventData.data.status === "error") {
-              throw new StagehandServerError(eventData.data.error);
+              const { error: errorMsg } = eventData.data;
+              // Throw plain Error to match local SDK behavior (useApi: false)
+              throw new Error(errorMsg);
             }
             if (eventData.data.status === "finished") {
               return eventData.data.result as T;
             }
           } else if (eventData.type === "log") {
+            const msg = eventData.data.message;
+            // Skip server-side internal logs that don't apply to API mode
+            if (msg?.message === "Connecting to local browser") {
+              continue;
+            }
             this.logger(eventData.data.message);
           }
         } catch (e) {
-          // Don't catch and re-throw StagehandServerError
-          if (e instanceof StagehandServerError) {
+          // Let Error instances pass through (server errors thrown above)
+          // Only wrap SyntaxError from JSON.parse as parse errors
+          if (e instanceof Error && !(e instanceof SyntaxError)) {
             throw e;
           }
 

@@ -10,14 +10,23 @@ import {
   ToolUseItem,
 } from "../types/public/agent";
 import { LogLine } from "../types/public/logs";
-import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
+import { ClientOptions } from "../types/public/model";
+import {
+  AgentScreenshotProviderError,
+  StagehandClosedError,
+} from "../types/public/sdkErrors";
 import Anthropic from "@anthropic-ai/sdk";
 import { ToolSet } from "ai";
-import { zodToJsonSchema } from "zod-to-json-schema";
-import { z } from "zod/v3";
 import { AgentClient } from "./AgentClient";
-import { mapKeyToPlaywright } from "./utils/cuaKeyMapping";
 import { compressConversationImages } from "./utils/imageCompression";
+import { toJsonSchema } from "../zodCompat";
+import type { StagehandZodSchema } from "../zodCompat";
+import {
+  SessionFileLogger,
+  formatCuaPromptPreview,
+  formatCuaResponsePreview,
+} from "../flowLogger";
+import { v7 as uuidv7 } from "uuid";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
 
@@ -41,7 +50,7 @@ export class AnthropicCUAClient extends AgentClient {
     type: AgentType,
     modelName: string,
     userProvidedInstructions?: string,
-    clientOptions?: Record<string, unknown>,
+    clientOptions?: ClientOptions,
     tools?: ToolSet,
   ) {
     super(type, modelName, userProvidedInstructions);
@@ -65,7 +74,7 @@ export class AnthropicCUAClient extends AgentClient {
     };
 
     if (this.baseURL) {
-      this.clientOptions.baseUrl = this.baseURL;
+      this.clientOptions.baseURL = this.baseURL;
     }
 
     // Initialize the Anthropic client
@@ -314,6 +323,9 @@ export class AnthropicCUAClient extends AgentClient {
             });
             await this.actionHandler(action);
           } catch (error) {
+            if (error instanceof StagehandClosedError) {
+              throw error;
+            }
             const errorMessage =
               error instanceof Error ? error.message : String(error);
             logger({
@@ -443,8 +455,10 @@ export class AnthropicCUAClient extends AgentClient {
       // Add custom tools if available
       if (this.tools && Object.keys(this.tools).length > 0) {
         const customTools = Object.entries(this.tools).map(([name, tool]) => {
+          const schema = tool.inputSchema as StagehandZodSchema;
+
           // Convert Zod schema to proper JSON schema format for Anthropic
-          const jsonSchema = zodToJsonSchema(tool.inputSchema as z.ZodType) as {
+          const jsonSchema = toJsonSchema(schema) as {
             properties?: Record<string, unknown>;
             required?: string[];
           };
@@ -478,6 +492,15 @@ export class AnthropicCUAClient extends AgentClient {
         requestParams.thinking = thinking;
       }
 
+      // Log LLM request
+      const llmRequestId = uuidv7();
+      SessionFileLogger.logLlmRequest({
+        requestId: llmRequestId,
+        model: this.modelName,
+        operation: "CUA.getAction",
+        prompt: formatCuaPromptPreview(messages),
+      });
+
       const startTime = Date.now();
       // Create the message using the Anthropic Messages API
       // @ts-expect-error - The Anthropic SDK types are stricter than what we need
@@ -489,6 +512,16 @@ export class AnthropicCUAClient extends AgentClient {
         output_tokens: response.usage.output_tokens,
         inference_time_ms: elapsedMs,
       };
+
+      // Log LLM response
+      SessionFileLogger.logLlmResponse({
+        requestId: llmRequestId,
+        model: this.modelName,
+        operation: "CUA.getAction",
+        output: formatCuaResponsePreview(response.content),
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      });
 
       // Store the message ID for future use
       this.lastMessageId = response.id;
@@ -769,17 +802,21 @@ export class AnthropicCUAClient extends AgentClient {
             text: input.text as string,
             ...input,
           };
-        } else if (action === "keypress") {
+        } else if (action === "keypress" || action === "key") {
           return {
             type: "keypress",
-            keys: input.keys as string[],
+            keys: [input.text as string],
             ...input,
           };
         } else if (action === "double_click" || action === "doubleClick") {
           return {
-            type: action,
-            x: input.x as number,
-            y: input.y as number,
+            type: "doubleClick",
+            x:
+              (input.x as number) ||
+              (input.coordinate ? (input.coordinate as number[])[0] : 0),
+            y:
+              (input.y as number) ||
+              (input.coordinate ? (input.coordinate as number[])[1] : 0),
             ...input,
           };
         } else if (action === "scroll") {
@@ -860,15 +897,6 @@ export class AnthropicCUAClient extends AgentClient {
         } else if (action === "wait") {
           return {
             type: "wait",
-            ...input,
-          };
-        } else if (action === "key") {
-          const text = input.text as string;
-          const mappedKey = mapKeyToPlaywright(text);
-
-          return {
-            type: "key",
-            text: mappedKey,
             ...input,
           };
         } else if (action === "left_click") {

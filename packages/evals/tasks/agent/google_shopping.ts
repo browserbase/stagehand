@@ -5,14 +5,14 @@ export const google_shopping: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
     const page = v3.context.pages()[0];
     await page.goto("https://www.google.com/shopping");
 
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction:
         "Find a drip coffee maker that is on sale and within $25-60 and has a black finish",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,

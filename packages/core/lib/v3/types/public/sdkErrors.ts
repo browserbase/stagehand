@@ -1,4 +1,4 @@
-import { ZodError } from "zod/v3";
+import { ZodError } from "zod";
 // Avoid .js extension so tsup/esbuild resolves TS source
 import { STAGEHAND_VERSION } from "../../../version";
 
@@ -209,6 +209,15 @@ export class ExperimentalNotConfiguredError extends StagehandError {
   }
 }
 
+export class CuaModelRequiredError extends StagehandError {
+  constructor(availableModels: readonly string[]) {
+    super(
+      `To use the computer use agent (CUA), please provide a CUA model in the agent constructor or stagehand config. ` +
+        `Try one of our supported CUA models: ${availableModels.join(", ")}`,
+    );
+  }
+}
+
 export class ZodSchemaValidationError extends Error {
   constructor(
     public readonly received: unknown,
@@ -272,5 +281,92 @@ export class StagehandShadowSegmentNotFoundError extends StagehandError {
       `Shadow segment '${segment}' matched no element inside shadow root` +
         (hint ? ` ${hint}` : ""),
     );
+  }
+}
+
+export class ElementNotVisibleError extends StagehandError {
+  constructor(selector: string) {
+    super(`Element not visible (no box model): ${selector}`);
+  }
+}
+
+export class ResponseBodyError extends StagehandError {
+  constructor(message: string) {
+    super(`Failed to retrieve response body: ${message}`);
+  }
+}
+
+export class ResponseParseError extends StagehandError {
+  constructor(message: string) {
+    super(`Failed to parse response: ${message}`);
+  }
+}
+
+export class TimeoutError extends StagehandError {
+  constructor(operation: string, timeoutMs: number) {
+    super(`${operation} timed out after ${timeoutMs}ms`);
+  }
+}
+
+export class ActTimeoutError extends TimeoutError {
+  constructor(timeoutMs: number) {
+    super("act()", timeoutMs);
+    this.name = "ActTimeoutError";
+  }
+}
+
+export class ExtractTimeoutError extends TimeoutError {
+  constructor(timeoutMs: number) {
+    super("extract()", timeoutMs);
+    this.name = "ExtractTimeoutError";
+  }
+}
+
+export class ObserveTimeoutError extends TimeoutError {
+  constructor(timeoutMs: number) {
+    super("observe()", timeoutMs);
+    this.name = "ObserveTimeoutError";
+  }
+}
+
+export class PageNotFoundError extends StagehandError {
+  constructor(identifier: string) {
+    super(`No Page found for ${identifier}`);
+  }
+}
+
+export class ConnectionTimeoutError extends StagehandError {
+  constructor(message: string) {
+    super(`Connection timeout: ${message}`);
+  }
+}
+
+export class StreamingCallbacksInNonStreamingModeError extends StagehandError {
+  public readonly invalidCallbacks: string[];
+
+  constructor(invalidCallbacks: string[]) {
+    super(
+      `Streaming-only callback(s) "${invalidCallbacks.join('", "')}" cannot be used in non-streaming mode. ` +
+        `Set 'stream: true' in AgentConfig to use these callbacks.`,
+    );
+    this.invalidCallbacks = invalidCallbacks;
+  }
+}
+
+export class AgentAbortError extends StagehandError {
+  public readonly reason: string;
+
+  constructor(reason?: string) {
+    const message = reason
+      ? `Agent execution was aborted: ${reason}`
+      : "Agent execution was aborted";
+    super(message);
+    this.reason = reason || "aborted";
+  }
+}
+
+export class StagehandClosedError extends StagehandError {
+  constructor() {
+    super("Stagehand session was closed");
   }
 }

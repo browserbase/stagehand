@@ -4,6 +4,7 @@ import { ToolSet } from "ai";
 import { AgentClient } from "../agent/AgentClient";
 import { AgentProvider } from "../agent/AgentProvider";
 import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping";
+import { ensureXPath } from "../agent/utils/xpath";
 import {
   ActionExecutionResult,
   AgentAction,
@@ -13,6 +14,8 @@ import {
 } from "../types/public/agent";
 import { LogLine } from "../types/public/logs";
 import { type Action, V3FunctionName } from "../types/public/methods";
+import { SessionFileLogger } from "../flowLogger";
+import { StagehandClosedError } from "../types/public/sdkErrors";
 
 export class V3CuaAgentHandler {
   private v3: V3;
@@ -45,9 +48,20 @@ export class V3CuaAgentHandler {
     this.agent = client;
   }
 
+  /**
+   * Ensures the V3 context is still available (not closed).
+   * Throws StagehandClosedError if stagehand.close() was called.
+   */
+  private ensureNotClosed(): void {
+    if (!this.v3.context) {
+      throw new StagehandClosedError();
+    }
+  }
+
   private setupAgentClient(): void {
     // Provide screenshots to the agent client
     this.agentClient.setScreenshotProvider(async () => {
+      this.ensureNotClosed();
       const page = await this.v3.context.awaitActivePage();
       const base64 = await page.screenshot({ fullPage: false });
       return base64.toString("base64"); // base64 png
@@ -55,9 +69,10 @@ export class V3CuaAgentHandler {
 
     // Provide action executor
     this.agentClient.setActionHandler(async (action) => {
+      this.ensureNotClosed();
       action.pageUrl = (await this.v3.context.awaitActivePage()).url();
 
-      const defaultDelay = 1000;
+      const defaultDelay = 500;
       const waitBetween =
         (this.options.clientOptions?.waitBetweenActions as number) ||
         defaultDelay;
@@ -71,7 +86,21 @@ export class V3CuaAgentHandler {
           }
         }
         await new Promise((r) => setTimeout(r, 300));
-        await this.executeAction(action);
+        // Skip logging for screenshot actions - they're no-ops, the actual
+        // Page.screenshot in captureAndSendScreenshot() is logged separately
+        const shouldLog = action.type !== "screenshot";
+        if (shouldLog) {
+          SessionFileLogger.logUnderstudyActionEvent({
+            actionType: `v3CUA.${action.type}`,
+            target: this.computePointerTarget(action),
+            args: [action],
+          });
+        }
+        try {
+          await this.executeAction(action);
+        } finally {
+          if (shouldLog) SessionFileLogger.logUnderstudyActionCompleted();
+        }
 
         action.timestamp = Date.now();
 
@@ -147,6 +176,8 @@ export class V3CuaAgentHandler {
         V3FunctionName.AGENT,
         result.usage.input_tokens,
         result.usage.output_tokens,
+        result.usage.reasoning_tokens ?? 0,
+        result.usage.cached_input_tokens ?? 0,
         inferenceTimeMs,
       );
     }
@@ -167,7 +198,7 @@ export class V3CuaAgentHandler {
             clickCount: (clickCount as number) ?? 1,
             returnXpath: true,
           });
-          const normalized = this.ensureXPath(xpath);
+          const normalized = ensureXPath(xpath);
           if (normalized) {
             const stagehandAction: Action = {
               selector: normalized,
@@ -198,7 +229,7 @@ export class V3CuaAgentHandler {
             clickCount: 2,
             returnXpath: true,
           });
-          const normalized = this.ensureXPath(xpath);
+          const normalized = ensureXPath(xpath);
           if (normalized) {
             const stagehandAction: Action = {
               selector: normalized,
@@ -228,7 +259,7 @@ export class V3CuaAgentHandler {
             clickCount: 3,
             returnXpath: true,
           });
-          const normalized = this.ensureXPath(xpath);
+          const normalized = ensureXPath(xpath);
           if (normalized) {
             const stagehandAction: Action = {
               selector: normalized,
@@ -254,7 +285,7 @@ export class V3CuaAgentHandler {
         await page.type(String(text ?? ""));
         if (recording) {
           const xpath = await computeActiveElementXpath(page);
-          const normalized = this.ensureXPath(xpath);
+          const normalized = ensureXPath(xpath);
           if (normalized) {
             const stagehandAction: Action = {
               selector: normalized,
@@ -330,8 +361,8 @@ export class V3CuaAgentHandler {
               returnXpath: true,
             });
             const [fromXpath, toXpath] = (xps as [string, string]) || ["", ""];
-            const from = this.ensureXPath(fromXpath);
-            const to = this.ensureXPath(toXpath);
+            const from = ensureXPath(fromXpath);
+            const to = ensureXPath(toXpath);
             if (from && to) {
               const stagehandAction: Action = {
                 selector: from,
@@ -367,7 +398,7 @@ export class V3CuaAgentHandler {
         return { success: true };
       }
       case "screenshot": {
-        // Already handled around actions
+        // No-op - screenshot is captured by captureAndSendScreenshot() after all actions
         return { success: true };
       }
       case "goto": {
@@ -420,11 +451,17 @@ export class V3CuaAgentHandler {
     }
   }
 
-  private ensureXPath(value: unknown): string | null {
-    if (typeof value !== "string") return null;
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    return trimmed.startsWith("xpath=") ? trimmed : `xpath=${trimmed}`;
+  // helper to make pointer target human-readable for logging
+  private computePointerTarget(action: AgentAction): string | undefined {
+    return typeof action.x === "number" && typeof action.y === "number"
+      ? `(${action.x}, ${action.y})`
+      : typeof action.selector === "string"
+        ? action.selector
+        : typeof action.input === "string"
+          ? action.input
+          : typeof action.description === "string"
+            ? action.description
+            : undefined;
   }
 
   private describePointerAction(kind: string, x: unknown, y: unknown): string {
@@ -513,6 +550,8 @@ export class V3CuaAgentHandler {
     try {
       const page = await this.v3.context.awaitActivePage();
       const base64Image = await page.screenshot({ fullPage: false });
+      // Emit screenshot event via the bus
+      this.v3.bus.emit("agent_screensot_taken_event", base64Image);
       const currentUrl = page.url();
       return await this.agentClient.captureScreenshot({
         base64Image,

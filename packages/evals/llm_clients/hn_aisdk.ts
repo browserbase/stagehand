@@ -1,6 +1,6 @@
 // import { Stagehand } from "@browserbasehq/stagehand";
 // import { EvalFunction } from "@/types/evals";
-// import { z } from "zod/v3";
+// import { z } from "zod";
 //
 // export const hn_aisdk: EvalFunction = async ({
 //   debugUrl,

@@ -1,4 +1,5 @@
 import {
+  ExperimentalNotConfiguredError,
   UnsupportedAISDKModelProviderError,
   UnsupportedModelError,
   UnsupportedModelProviderError,
@@ -18,6 +19,7 @@ import { LLMClient } from "./LLMClient";
 import { OpenAIClient } from "./OpenAIClient";
 import { DeepseekAIClient } from "./DeepseekAIClient";
 import { openai, createOpenAI } from "@ai-sdk/openai";
+import { vertex, createVertex } from "@ai-sdk/google-vertex";
 import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
 import { google, createGoogleGenerativeAI } from "@ai-sdk/google";
 import { xai, createXai } from "@ai-sdk/xai";
@@ -44,11 +46,13 @@ const AISDKProviders: Record<string, AISDKProvider> = {
   deepseek,
   perplexity,
   ollama,
+  vertex,
 };
 const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   openai: createOpenAI,
   anthropic: createAnthropic,
   google: createGoogleGenerativeAI,
+  vertex: createVertex,
   xai: createXai,
   azure: createAzure,
   groq: createGroq,
@@ -99,10 +103,9 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
 export function getAISDKLanguageModel(
   subProvider: string,
   subModelName: string,
-  apiKey?: string,
-  baseURL?: string,
+  clientOptions?: ClientOptions,
 ) {
-  if (apiKey) {
+  if (clientOptions && Object.keys(clientOptions).length > 0) {
     const creator = AISDKProvidersWithAPIKey[subProvider];
     if (!creator) {
       throw new UnsupportedAISDKModelProviderError(
@@ -110,12 +113,7 @@ export function getAISDKLanguageModel(
         Object.keys(AISDKProvidersWithAPIKey),
       );
     }
-    // Create the provider instance with the API key and baseURL if provided
-    const providerConfig: { apiKey: string; baseURL?: string } = { apiKey };
-    if (baseURL) {
-      providerConfig.baseURL = baseURL;
-    }
-    const provider = creator(providerConfig);
+    const provider = creator(clientOptions);
     // Get the specific model from the provider
     return provider(subModelName);
   } else {
@@ -141,6 +139,7 @@ export class LLMProvider {
   getClient(
     modelName: AvailableModel,
     clientOptions?: ClientOptions,
+    options?: { experimental?: boolean; disableAPI?: boolean },
   ): LLMClient {
     // Check if model is explicitly in the map first (even with slash)
     const provider = modelToProviderMap[modelName];
@@ -150,12 +149,18 @@ export class LLMProvider {
       const firstSlashIndex = modelName.indexOf("/");
       const subProvider = modelName.substring(0, firstSlashIndex);
       const subModelName = modelName.substring(firstSlashIndex + 1);
+      if (
+        subProvider === "vertex" &&
+        !options?.disableAPI &&
+        !options?.experimental
+      ) {
+        throw new ExperimentalNotConfiguredError("Vertex provider");
+      }
 
       const languageModel = getAISDKLanguageModel(
         subProvider,
         subModelName,
-        clientOptions?.apiKey,
-        clientOptions?.baseURL,
+        clientOptions,
       );
 
       return new AISdkClient({

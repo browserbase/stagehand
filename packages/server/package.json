@@ -1,0 +1,47 @@
+{
+  "name": "@browserbasehq/stagehand-server",
+  "version": "3.0.6",
+  "description": "Stagehand API server",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsc && tsc-alias",
+    "dev": "tsx watch src/server.ts",
+    "lint": "cd ../.. && prettier --check packages/server && cd packages/server && eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@browserbasehq/sdk": "^2.4.0",
+    "@browserbasehq/stagehand": "workspace:*",
+    "@fastify/cors": "^11.0.1",
+    "@t3-oss/env-core": "^0.13.8",
+    "dotenv": "^16.4.5",
+    "fastify": "^5.3.2",
+    "fastify-metrics": "^12.1.0",
+    "fastify-plugin": "^4.5.1",
+    "http-status-codes": "^2.3.0",
+    "pino": "^9.7.0",
+    "pino-pretty": "^11.3.0",
+    "playwright": "1.52.0",
+    "uuid": "^11.0.5",
+    "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.24.3"
+  },
+  "devDependencies": {
+    "@types/node": "22.13.1",
+    "eslint": "^9.7.0",
+    "openai": "4.87.1",
+    "tsc-alias": "^1.8.10",
+    "tsx": "^4.18.0",
+    "typescript": "~5.9.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/browserbase/stagehand.git",
+    "directory": "packages/server"
+  },
+  "bugs": {
+    "url": "https://github.com/browserbase/stagehand/issues"
+  },
+  "homepage": "https://stagehand.dev"
+}

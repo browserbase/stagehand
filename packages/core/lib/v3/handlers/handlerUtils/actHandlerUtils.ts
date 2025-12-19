@@ -5,6 +5,7 @@ import { Locator } from "../../understudy/locator";
 import { resolveLocatorWithHops } from "../../understudy/deepLocator";
 import type { Page } from "../../understudy/page";
 import { v3Logger } from "../../logger";
+import { SessionFileLogger } from "../../flowLogger";
 import { StagehandClickError } from "../../types/public/sdkErrors";
 
 export class UnderstudyCommandException extends Error {
@@ -73,6 +74,12 @@ export async function performUnderstudyMethod(
     domSettleTimeoutMs,
   };
 
+  SessionFileLogger.logUnderstudyActionEvent({
+    actionType: `Understudy.${method}`,
+    target: selectorRaw,
+    args: Array.from(args),
+  });
+
   try {
     const handler = METHOD_HANDLER_MAP[method] ?? null;
 
@@ -120,6 +127,8 @@ export async function performUnderstudyMethod(
       },
     });
     throw new UnderstudyCommandException(msg);
+  } finally {
+    SessionFileLogger.logUnderstudyActionCompleted();
   }
 }
 
@@ -144,6 +153,7 @@ const METHOD_HANDLER_MAP: Record<
   prevChunk: scrollToPreviousChunk,
   selectOptionFromDropdown: selectOption,
   selectOption: selectOption,
+  hover: hover,
 };
 
 export async function selectOption(ctx: UnderstudyMethodHandlerContext) {
@@ -492,6 +502,25 @@ async function scrollByElementHeight(
   }
 }
 
+export async function hover(ctx: UnderstudyMethodHandlerContext) {
+  const { locator, xpath } = ctx;
+  try {
+    await locator.hover();
+  } catch (e) {
+    v3Logger({
+      category: "action",
+      message: "error attempting to hover",
+      level: 0,
+      auxiliary: {
+        error: { value: e.message, type: "string" },
+        trace: { value: e.stack, type: "string" },
+        xpath: { value: xpath, type: "string" },
+      },
+    });
+    throw new UnderstudyCommandException(e.message);
+  }
+}
+
 /* ===================== Helpers ===================== */
 
 async function getFrameUrl(frame: Frame): Promise<string> {
@@ -508,8 +537,12 @@ export async function waitForDomNetworkQuiet(
   frame: Frame,
   timeoutMs?: number,
 ): Promise<void> {
-  const timeout = typeof timeoutMs === "number" ? timeoutMs : 5_000;
+  const overallTimeout =
+    typeof timeoutMs === "number" && Number.isFinite(timeoutMs)
+      ? Math.max(0, timeoutMs)
+      : 5_000;
   const client = frame.session;
+  const settleStart = Date.now();
 
   // Ensure a document exists; if not, wait for DOMContentLoaded on this frame.
   let hasDoc: boolean;
@@ -519,8 +552,16 @@ export async function waitForDomNetworkQuiet(
   } catch {
     hasDoc = false;
   }
-  if (!hasDoc) {
-    await frame.waitForLoadState("domcontentloaded").catch(() => {});
+  if (!hasDoc && overallTimeout > 0) {
+    await frame
+      .waitForLoadState("domcontentloaded", overallTimeout)
+      .catch(() => {});
+  }
+
+  const elapsed = Date.now() - settleStart;
+  const remainingBudget = Math.max(0, overallTimeout - elapsed);
+  if (remainingBudget === 0) {
+    return;
   }
 
   await client.send("Network.enable").catch(() => {});
@@ -633,7 +674,7 @@ export async function waitForDomNetworkQuiet(
         });
       }
       resolveDone();
-    }, timeout);
+    }, remainingBudget);
 
     const resolveDone = () => {
       client.off("Network.requestWillBeSent", onRequest);

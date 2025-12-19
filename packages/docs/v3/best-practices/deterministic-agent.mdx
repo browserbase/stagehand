@@ -3,6 +3,10 @@ title: Deterministic Agent Scripts
 sidebarTitle: Deterministic Agent
 description: Use auto-caching to convert agent workflows into fast, deterministic scripts
 ---
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
 
 Agent workflows are powerful for exploring and automating complex tasks, but they can be slow and non-deterministic. This guide shows you how to use Stagehand's built-in auto-caching to convert agent-discovered workflows into fast, deterministic scripts that run 10-100x faster.
 
@@ -301,44 +305,7 @@ const stagehand = new Stagehand({
 ```
 
 ## Advanced Patterns
-
-### Parameterized Agent Workflows
-
-Use variables to make cached workflows reusable with different inputs:
-
-```typescript
-async function executeLogin(username: string, password: string) {
-  const stagehand = new Stagehand({
-    env: "BROWSERBASE",
-    cacheDir: "cache/login"
-  });
-
-  await stagehand.init();
-  const page = stagehand.context.pages()[0];
-
-  await page.goto("https://example.com/login");
-
-  const agent = stagehand.agent({
-    model: "anthropic/claude-sonnet-4-20250514"
-  });
-
-  // Variables work with caching
-  const result = await agent.execute({
-    instruction: `Fill in username with "${username}" and password with "${password}", then click submit`,
-    maxSteps: 5
-  });
-
-  await stagehand.close();
-  return result.success;
-}
-
-// First user: Caches the workflow
-await executeLogin("user1@example.com", "password123");
-
-// Second user: Reuses cached workflow structure
-await executeLogin("user2@example.com", "differentpass");
-```
-
+ 
 ### Fallback to Fresh Exploration
 
 Combine caching with fallback for resilience:

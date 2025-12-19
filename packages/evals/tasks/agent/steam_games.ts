@@ -4,14 +4,14 @@ export const steam_games: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
     const page = v3.context.pages()[0];
     await page.goto("https://store.steampowered.com/");
 
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction:
         "Show most played games in Steam. And tell me the number of players in game at this time",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,

@@ -5,6 +5,7 @@ import type {
   AgentReplayActStep,
   AgentReplayFillFormStep,
   AgentReplayGotoStep,
+  AgentReplayKeysStep,
   AgentReplayNavBackStep,
   AgentReplayScrollStep,
   AgentReplayStep,
@@ -18,8 +19,9 @@ import type {
 import type {
   AvailableModel,
   AgentResult,
+  AgentStreamResult,
   AgentConfig,
-  AgentExecuteOptions,
+  AgentExecuteOptionsBase,
   Logger,
 } from "../types/public";
 import type { Page } from "../understudy/page";
@@ -73,7 +75,7 @@ export class AgentCache {
   }
 
   sanitizeExecuteOptions(
-    options?: AgentExecuteOptions,
+    options?: AgentExecuteOptionsBase,
   ): SanitizedAgentExecuteOptions {
     if (!options) return {};
     const sanitized: SanitizedAgentExecuteOptions = {};
@@ -107,13 +109,17 @@ export class AgentCache {
     const serializedExecutionModel = this.serializeAgentModelForCache(
       agentOptions?.executionModel,
     );
+
+    const isCuaMode =
+      agentOptions?.mode === "cua" || agentOptions?.cua === true;
+
     return JSON.stringify({
       v3Model: this.getBaseModelName(),
       systemPrompt: this.getSystemPrompt() ?? "",
       agent: {
-        cua: agentOptions?.cua ?? false,
+        cua: isCuaMode,
         model: serializedModel ?? null,
-        executionModel: agentOptions?.cua ? null : serializedExecutionModel,
+        executionModel: isCuaMode ? null : serializedExecutionModel,
         systemPrompt: agentOptions?.systemPrompt ?? null,
         toolKeys,
         integrations: integrationSignatures,
@@ -185,6 +191,135 @@ export class AgentCache {
     return await this.replayAgentCacheEntry(entry);
   }
 
+  /**
+   * Attempts to replay a cached agent execution and returns it as a stream result.
+   *
+   * This method exists because the agent API exposes two execution modes:
+   * - `execute()` - Returns a Promise<AgentResult> directly
+   * - `stream()` - Returns an AgentStreamResult with async iterables for real-time output
+   *
+   * When a cache hit occurs, we need to return the appropriate type for each mode:
+   * - For `execute()`, we use `tryReplay()` which returns AgentResult
+   * - For `stream()`, we use `tryReplayAsStream()` which wraps the result in a
+   *   stream-compatible interface
+   *
+   * This ensures consumers using `stream()` can still iterate over `textStream`
+   * and await `result` even when the response comes from cache, maintaining
+   * API consistency regardless of whether the result was cached or live.
+   */
+  async tryReplayAsStream(
+    context: AgentCacheContext,
+  ): Promise<AgentStreamResult | null> {
+    const result = await this.tryReplay(context);
+    if (!result) return null;
+    return this.createCachedStreamResult(result);
+  }
+
+  /**
+   * Creates a mock AgentStreamResult that wraps a cached AgentResult.
+   *
+   * AgentStreamResult (from the AI SDK) is a complex type with multiple async
+   * iterables and promises. When serving from cache, we don't have an actual
+   * LLM stream to consume - we just have the final result. This method creates
+   * a "fake" stream
+
+   * This approach lets cached responses be transparent to the consumer -
+   * they can use the same iteration patterns whether the result is live or cached.
+   */
+  private createCachedStreamResult(
+    cachedResult: AgentResult,
+  ): AgentStreamResult {
+    const message = cachedResult.message ?? "";
+
+    async function* textStreamGenerator(): AsyncGenerator<string> {
+      yield message;
+    }
+
+    async function* fullStreamGenerator(): AsyncGenerator<{
+      type: string;
+      textDelta?: string;
+    }> {
+      yield { type: "text-delta", textDelta: message };
+      yield { type: "finish" };
+    }
+
+    const mockStreamResult = {
+      textStream: textStreamGenerator(),
+      fullStream: fullStreamGenerator(),
+      result: Promise.resolve(cachedResult),
+      text: Promise.resolve(message),
+      usage: Promise.resolve({
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+      }),
+      finishReason: Promise.resolve("stop" as const),
+      experimental_providerMetadata: Promise.resolve(undefined),
+      response: Promise.resolve({
+        id: "cached",
+        timestamp: new Date(),
+        modelId: "cached",
+      }),
+      rawResponse: Promise.resolve({ headers: {} }),
+      warnings: Promise.resolve([]),
+      steps: Promise.resolve([]),
+      toolCalls: Promise.resolve([]),
+      toolResults: Promise.resolve([]),
+      [Symbol.asyncIterator]: () => textStreamGenerator(),
+    } as unknown as AgentStreamResult;
+
+    return mockStreamResult;
+  }
+
+  /**
+   * Wraps an AgentStreamResult with caching logic.
+   *
+   * This method handles the complexity of caching for streaming responses:
+   * 1. Begins recording agent replay steps
+   * 2. Wraps the stream's result promise to capture completion
+   * 3. On success: ends recording and stores the cache entry
+   * 4. On error: discards the recording
+   *
+   * This keeps the caching orchestration in AgentCache rather than
+   * spreading it across the V3 class.
+   *
+   * @param context - The cache context for this execution
+   * @param streamResult - The stream result from the agent handler
+   * @param beginRecording - Callback to start recording (from V3)
+   * @param endRecording - Callback to end recording and get steps (from V3)
+   * @param discardRecording - Callback to discard recording on error (from V3)
+   * @returns The wrapped stream result with caching enabled
+   */
+  wrapStreamForCaching(
+    context: AgentCacheContext,
+    streamResult: AgentStreamResult,
+    beginRecording: () => void,
+    endRecording: () => AgentReplayStep[],
+    discardRecording: () => void,
+  ): AgentStreamResult {
+    beginRecording();
+
+    const originalResultPromise = streamResult.result;
+    const wrappedResultPromise = originalResultPromise.then(
+      async (result) => {
+        const agentSteps = endRecording();
+
+        if (result.success && agentSteps.length > 0) {
+          await this.store(context, agentSteps, result);
+        }
+
+        return result;
+      },
+      (error) => {
+        discardRecording();
+        throw error;
+      },
+    );
+
+    streamResult.result = wrappedResultPromise;
+    return streamResult;
+  }
+
   async store(
     context: AgentCacheContext,
     steps: AgentReplayStep[],
@@ -199,7 +334,7 @@ export class AgentCache {
       options: context.options,
       configSignature: context.configSignature,
       steps: cloneForCache(steps),
-      result: cloneForCache(result),
+      result: this.pruneAgentResult(result),
       timestamp: new Date().toISOString(),
     };
 
@@ -228,6 +363,26 @@ export class AgentCache {
         steps: { value: String(steps.length), type: "string" },
       },
     });
+  }
+
+  /**
+   * Clone the agent result and prune bulky fields (e.g. screenshot base64 blobs)
+   * before persisting it to disk. This keeps cache entries compact without
+   * mutating the live AgentResult returned to callers.
+   */
+  private pruneAgentResult(result: AgentResult): AgentResult {
+    const cloned = cloneForCache(result);
+    if (!Array.isArray(cloned.actions)) {
+      return cloned;
+    }
+
+    for (const action of cloned.actions) {
+      if (action?.type === "screenshot") {
+        delete action.base64;
+      }
+    }
+
+    return cloned;
   }
 
   beginRecording(): void {
@@ -353,6 +508,8 @@ export class AgentCache {
       result.usage = {
         input_tokens: 0,
         output_tokens: 0,
+        reasoning_tokens: 0,
+        cached_input_tokens: 0,
         inference_time_ms: 0,
       };
       result.metadata = {
@@ -402,6 +559,9 @@ export class AgentCache {
       case "navback":
         await this.replayAgentNavBackStep(step as AgentReplayNavBackStep, ctx);
         return;
+      case "keys":
+        await this.replayAgentKeysStep(step as AgentReplayKeysStep, ctx);
+        return;
       case "close":
       case "extract":
       case "screenshot":
@@ -425,7 +585,7 @@ export class AgentCache {
     if (actions.length > 0) {
       const page = await ctx.awaitActivePage();
       for (const action of actions) {
-        await handler.actFromObserveResult(
+        await handler.takeDeterministicAction(
           action,
           page,
           this.domSettleTimeoutMs,
@@ -449,7 +609,7 @@ export class AgentCache {
     if (!Array.isArray(actions) || actions.length === 0) return;
     const page = await ctx.awaitActivePage();
     for (const action of actions) {
-      await handler.actFromObserveResult(
+      await handler.takeDeterministicAction(
         action,
         page,
         this.domSettleTimeoutMs,
@@ -501,5 +661,24 @@ export class AgentCache {
   ): Promise<void> {
     const page = await ctx.awaitActivePage();
     await page.goBack({ waitUntil: step.waitUntil ?? "domcontentloaded" });
+  }
+
+  private async replayAgentKeysStep(
+    step: AgentReplayKeysStep,
+    ctx: V3Context,
+  ): Promise<void> {
+    const page = await ctx.awaitActivePage();
+    const { method, text, keys, times } = step.playwrightArguments;
+    const repeatCount = Math.max(1, times ?? 1);
+
+    if (method === "type" && text) {
+      for (let i = 0; i < repeatCount; i++) {
+        await page.type(text, { delay: 100 });
+      }
+    } else if (method === "press" && keys) {
+      for (let i = 0; i < repeatCount; i++) {
+        await page.keyPress(keys, { delay: 100 });
+      }
+    }
   }
 }
