@@ -51,17 +51,8 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       );
     }
 
-    // Cast to Api.SessionStartRequest with properly typed browserbaseSessionCreateParams
-    // The API schema uses Record<string, unknown> for flexibility, but we need the SDK types here
-    type RequestBody = Omit<
-      Api.SessionStartRequest,
-      "browserbaseSessionCreateParams"
-    > & {
-      browserbaseSessionCreateParams?: Omit<
-        Browserbase.Sessions.SessionCreateParams,
-        "projectId"
-      > & { projectId?: string };
-    };
+    // Use the validated request body directly - fields come from Api.SessionStartRequestSchema
+    const body = request.body as Api.SessionStartRequest;
     const {
       modelName,
       domSettleTimeoutMs,
@@ -73,7 +64,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       browserbaseSessionID,
       experimental,
       browser,
-    } = request.body as RequestBody;
+    } = body;
     if (!modelName) {
       return error(reply, "Missing required model name");
     }

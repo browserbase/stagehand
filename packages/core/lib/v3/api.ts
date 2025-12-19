@@ -160,12 +160,6 @@ export class StagehandAPIClient {
       ? modelName.split("/")[0]
       : undefined;
 
-    const region = browserbaseSessionCreateParams?.region;
-    if (region && region !== "us-west-2") {
-      throw new StagehandAPIError(
-        `Unsupported Browserbase region requested: ${region}`,
-      );
-    }
     this.logger({
       category: "init",
       message: "Creating new browserbase session...",

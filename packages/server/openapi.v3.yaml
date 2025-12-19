@@ -746,7 +746,6 @@ components:
           type: boolean
       required:
         - url
-        - frameId
     NavigateResult:
       type: object
       properties:
