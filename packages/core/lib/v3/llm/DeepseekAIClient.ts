@@ -8,10 +8,10 @@ import {
   ChatCompletionSystemMessageParam,
   ChatCompletionUserMessageParam,
 } from "openai/resources/chat";
-import zodToJsonSchema from "zod-to-json-schema";
 import { LogLine } from "../types/public/logs";
 import { AvailableModel } from "../types/public/model";
 import { validateZodSchema } from "../../utils";
+import { toJsonSchema } from "../zodCompat";
 import {
   ChatCompletionOptions,
   ChatMessage,
@@ -97,7 +97,7 @@ export class DeepseekAIClient extends LLMClient {
     if (options.response_model) {
       try {
         const parsedSchema = JSON.stringify(
-          zodToJsonSchema(options.response_model.schema),
+          toJsonSchema(options.response_model.schema),
         );
         options.messages.push({
           role: "user",

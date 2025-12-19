@@ -112,7 +112,7 @@ importers:
         specifier: ^2.0.23
         version: 2.0.23(zod@4.1.12)
       '@ai-sdk/google-vertex':
-        specifier: ^3.0.70
+        specifier: ^3.0.85
         version: 3.0.85(zod@4.1.12)
       '@ai-sdk/groq':
         specifier: ^2.0.24
@@ -1355,6 +1355,7 @@ packages:
   '@mintlify/cli@4.0.682':
     resolution: {integrity: sha512-91XL+qCw9hm2KpMgKsNASIfUHYLhYwSmeoMRkE6p5Iy7P5dPAxJd+PUFPXdh4EGhMNALGRLHzm9rUoNvthM89w==}
     engines: {node: '>=18.0.0'}
+    deprecated: This version is deprecated. Please upgrade to version 4.0.423 or later.
     hasBin: true
 
   '@mintlify/common@1.0.496':
@@ -4144,6 +4145,7 @@ packages:
   mintlify@4.2.78:
     resolution: {integrity: sha512-g3naXSI7RsmxUNJ87mKzRefKaMdqbAhxfaPaMkApwmeDB0TROwwUO0CS6ZDsbV5Qq3Sm5kH4mEDieEpAE6JG8A==}
     engines: {node: '>=18.0.0'}
+    deprecated: This version is deprecated. Please upgrade to version 4.0.423 or later.
     hasBin: true
 
   mitt@3.0.1:
@@ -4701,7 +4703,7 @@ packages:
   puppeteer@22.15.0:
     resolution: {integrity: sha512-XjCY1SiSEi1T7iSYuxS82ft85kwDJUS7wj1Z0eGVXKdtr5g4xnVcbjwxhq5xBnpK/E7x1VZZoJDxpjAOasHT4Q==}
     engines: {node: '>=18'}
-    deprecated: < 24.9.0 is no longer supported
+    deprecated: < 24.15.0 is no longer supported
     hasBin: true
 
   qs@6.13.0:
