@@ -224,7 +224,6 @@ export class V3 {
 
   constructor(opts: V3Options) {
     V3._installProcessGuards();
-
     this.externalLogger = opts.logger;
     this.verbose = opts.verbose ?? 1;
     this.instanceId = uuidv7();
@@ -1607,9 +1606,7 @@ export class V3 {
       this,
       this.logger,
       agentLlmClient,
-      typeof options?.executionModel === "string"
-        ? options.executionModel
-        : options?.executionModel?.modelName,
+      options?.executionModel,
       options?.systemPrompt,
       tools,
       options?.mode,

@@ -23,6 +23,8 @@ import {
   CreateChatCompletionResponseError,
   ZodSchemaValidationError,
 } from "../types/public/sdkErrors";
+import { createDeepSeek } from "@ai-sdk/deepseek";
+import type { LanguageModelV2 } from "@ai-sdk/provider";
 
 export class DeepSeekAIClient extends LLMClient {
   public type = "deepseek" as const;
@@ -44,6 +46,19 @@ export class DeepSeekAIClient extends LLMClient {
       baseURL: "https://api.deepseek.com/v1",
     });
     this.modelName = modelName;
+  }
+
+  public getLanguageModel(): LanguageModelV2 {
+    // Use AI SDK's native DeepSeek provider with custom API key
+    const modelNameToUse = this.modelName.startsWith("deepseek/")
+      ? this.modelName.split("/")[1]
+      : this.modelName;
+
+    const deepseekProvider = createDeepSeek({
+      apiKey: this.clientOptions?.apiKey,
+    });
+
+    return deepseekProvider(modelNameToUse);
   }
 
   async createChatCompletion<T = LLMResponse>({

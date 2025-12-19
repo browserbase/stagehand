@@ -2,6 +2,8 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
 import type { LogLine } from "../../types/public/logs";
+import type { ModelConfiguration } from "../../types/public/model";
+
 function evaluateZodSchema(
   schemaStr: string,
   logger?: (message: LogLine) => void,
@@ -21,7 +23,7 @@ function evaluateZodSchema(
 
 export const extractTool = (
   v3: V3,
-  executionModel?: string,
+  executionModel?: ModelConfiguration,
   logger?: (message: LogLine) => void,
 ) =>
   tool({

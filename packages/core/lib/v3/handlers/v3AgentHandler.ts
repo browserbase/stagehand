@@ -33,6 +33,7 @@ import {
   StreamingCallbacksInNonStreamingModeError,
   AgentAbortError,
 } from "../types/public/sdkErrors";
+import { ModelConfiguration } from "../types/public/model";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -42,7 +43,7 @@ export class V3AgentHandler {
   private v3: V3;
   private logger: (message: LogLine) => void;
   private llmClient: LLMClient;
-  private executionModel?: string;
+  private executionModel?: ModelConfiguration;
   private systemInstructions?: string;
   private mcpTools?: ToolSet;
   private mode: AgentToolMode;
@@ -51,7 +52,7 @@ export class V3AgentHandler {
     v3: V3,
     logger: (message: LogLine) => void,
     llmClient: LLMClient,
-    executionModel?: string,
+    executionModel?: ModelConfiguration,
     systemInstructions?: string,
     mcpTools?: ToolSet,
     mode?: AgentToolMode,

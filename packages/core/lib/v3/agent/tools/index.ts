@@ -21,9 +21,10 @@ import type { ToolSet, InferUITools } from "ai";
 import type { V3 } from "../../v3";
 import type { LogLine } from "../../types/public/logs";
 import type { AgentToolMode } from "../../types/public/agent";
+import type { ModelConfiguration } from "../../types/public/model";
 
 export interface V3AgentToolOptions {
-  executionModel?: string;
+  executionModel?: ModelConfiguration;
   logger?: (message: LogLine) => void;
   /**
    * Tool mode determines which set of tools are available.

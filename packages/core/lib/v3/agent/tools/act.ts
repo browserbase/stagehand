@@ -2,8 +2,9 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
 import type { Action } from "../../types/public/methods";
+import type { ModelConfiguration } from "../../types/public/model";
 
-export const actTool = (v3: V3, executionModel?: string) =>
+export const actTool = (v3: V3, executionModel?: ModelConfiguration) =>
   tool({
     description:
       "Perform an action on the page (click, type). Provide a short, specific phrase that mentions the element type.",
