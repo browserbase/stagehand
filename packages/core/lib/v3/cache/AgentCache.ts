@@ -605,7 +605,7 @@ export class AgentCache {
     const actions =
       Array.isArray(step.actions) && step.actions.length > 0
         ? step.actions
-        : (step.observeResults ?? []);
+        : step.observeResults ?? [];
     if (!Array.isArray(actions) || actions.length === 0) return;
     const page = await ctx.awaitActivePage();
     for (const action of actions) {

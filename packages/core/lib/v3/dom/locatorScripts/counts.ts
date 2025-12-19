@@ -37,7 +37,7 @@ export function countCssMatchesPrimary(selectorRaw: string): number {
       const doc =
         root instanceof Document
           ? root
-          : ((root as Element)?.ownerDocument ?? document);
+          : (root as Element)?.ownerDocument ?? document;
       const walker = doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
       let node: Node | null;
       while ((node = walker.nextNode())) {
@@ -119,8 +119,8 @@ export function countCssMatchesPierce(selectorRaw: string): number {
         root instanceof Document
           ? root
           : root instanceof ShadowRoot
-            ? (root.host?.ownerDocument ?? document)
-            : ((root as Element).ownerDocument ?? document);
+            ? root.host?.ownerDocument ?? document
+            : (root as Element).ownerDocument ?? document;
       const walker = doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
       let node: Node | null;
       while ((node = walker.nextNode())) {
@@ -213,7 +213,7 @@ export function countTextMatches(rawNeedle: string): TextMatchResult {
       const doc =
         root instanceof Document
           ? root
-          : ((root as Element)?.ownerDocument ?? document);
+          : (root as Element)?.ownerDocument ?? document;
       return doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
     } catch {
       return null;

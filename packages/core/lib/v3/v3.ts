@@ -1596,7 +1596,7 @@ export class V3 {
     // Note: experimental validation is done at the call site before this method
     const tools = options?.integrations
       ? await resolveTools(options.integrations, options.tools)
-      : (options?.tools ?? {});
+      : options?.tools ?? {};
 
     const agentLlmClient = options?.model
       ? this.resolveLlmClient(options.model)
@@ -1743,7 +1743,7 @@ export class V3 {
             });
             const tools = options?.integrations
               ? await resolveTools(options.integrations, options.tools)
-              : (options?.tools ?? {});
+              : options?.tools ?? {};
 
             const handler = new V3CuaAgentHandler(
               this,

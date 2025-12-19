@@ -397,7 +397,7 @@ export class StagehandAPIClient {
       // Only load from env if provider differs from the original
       const apiKey =
         provider && provider !== this.modelProvider
-          ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
+          ? loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey
           : this.modelApiKey;
       return {
         modelName: model,
@@ -413,7 +413,7 @@ export class StagehandAPIClient {
       // Only load from env if provider differs from the original
       const apiKey =
         provider && provider !== this.modelProvider
-          ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
+          ? loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey
           : this.modelApiKey;
       return {
         ...model,

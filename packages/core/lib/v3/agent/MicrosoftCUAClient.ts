@@ -658,8 +658,8 @@ For each function call, return a json object with function name and arguments wi
         const originalContent =
           typeof lastMessage.content === "string"
             ? lastMessage.content
-            : (lastMessage.content.find((c) => c.type === "text")?.text ??
-              "Start task");
+            : lastMessage.content.find((c) => c.type === "text")?.text ??
+              "Start task";
 
         lastMessage.content = [
           {
