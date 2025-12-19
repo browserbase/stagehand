@@ -22,14 +22,14 @@ function isCborStackError(message: string): boolean {
  * childNodeCount stays accurate even when `children` are omitted; we use this to
  * decide whether DOM.describeNode must be re-run for that node.
  */
-function shouldExpandNode(node: Protocol.DOM.Node): boolean {
+export function shouldExpandNode(node: Protocol.DOM.Node): boolean {
   const declaredChildren = node.childNodeCount ?? 0;
   const realizedChildren = node.children?.length ?? 0;
   return declaredChildren > realizedChildren;
 }
 
 /** Merge an expanded DescribeNode payload back into the original shallow node. */
-function mergeDomNodes(
+export function mergeDomNodes(
   target: Protocol.DOM.Node,
   source: Protocol.DOM.Node,
 ): void {
@@ -40,7 +40,7 @@ function mergeDomNodes(
 }
 
 /** Helper that returns every nested collection we recurse through uniformly. */
-function collectDomTraversalTargets(
+export function collectDomTraversalTargets(
   node: Protocol.DOM.Node,
 ): Protocol.DOM.Node[] {
   const targets: Protocol.DOM.Node[] = [];
