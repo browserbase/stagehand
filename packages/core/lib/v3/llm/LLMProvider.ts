@@ -130,9 +130,7 @@ export function getAISDKLanguageModel(
 
 export class LLMProvider {
   private logger: (message: LogLine) => void;
-  private manual?: boolean = false;
-  constructor(logger: (message: LogLine) => void, manual?: boolean) {
-    this.manual = manual;
+  constructor(logger: (message: LogLine) => void) {
     this.logger = logger;
   }
 
@@ -145,7 +143,7 @@ export class LLMProvider {
     const provider = modelToProviderMap[modelName];
 
     // If not in map and contains slash, try AISDK routing
-    if (!provider && modelName.includes("/") && !this.manual) {
+    if (!provider && modelName.includes("/")) {
       const firstSlashIndex = modelName.indexOf("/");
       const subProvider = modelName.substring(0, firstSlashIndex);
       const subModelName = modelName.substring(firstSlashIndex + 1);
@@ -216,11 +214,8 @@ export class LLMProvider {
     }
   }
 
-  static getModelProvider(
-    modelName: AvailableModel,
-    manual: boolean = false,
-  ): ModelProvider {
-    if (modelName.includes("/") && !manual) {
+  static getModelProvider(modelName: AvailableModel): ModelProvider {
+    if (modelName.includes("/")) {
       const firstSlashIndex = modelName.indexOf("/");
       const subProvider = modelName.substring(0, firstSlashIndex);
       if (AISDKProviders[subProvider]) {

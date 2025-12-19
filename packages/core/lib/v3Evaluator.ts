@@ -30,19 +30,16 @@ const BatchEvaluationSchema = z.array(EvaluationSchema);
 
 export class V3Evaluator {
   private v3: V3;
-  private manual?: boolean;
   private modelName: AvailableModel;
   private modelClientOptions: ClientOptions | { apiKey: string };
   private silentLogger: (message: LogLine) => void = () => {};
 
   constructor(
     v3: V3,
-    manual?: boolean,
     modelName?: AvailableModel,
     modelClientOptions?: ClientOptions,
   ) {
     this.v3 = v3;
-    this.manual = manual;
     this.modelName = modelName || ("google/gemini-2.5-flash" as AvailableModel);
     this.modelClientOptions = modelClientOptions || {
       apiKey:
@@ -54,7 +51,7 @@ export class V3Evaluator {
 
   private getClient(): LLMClient {
     // Prefer a dedicated provider so we can override model per-evaluation
-    const provider = new LLMProvider(this.v3.logger, this.manual);
+    const provider = new LLMProvider(this.v3.logger);
     return provider.getClient(this.modelName, this.modelClientOptions);
   }
 
