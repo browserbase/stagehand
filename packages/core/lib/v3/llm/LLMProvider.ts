@@ -17,7 +17,7 @@ import { GoogleClient } from "./GoogleClient";
 import { GroqClient } from "./GroqClient";
 import { LLMClient } from "./LLMClient";
 import { OpenAIClient } from "./OpenAIClient";
-import { DeepseekAIClient } from "./DeepseekAIClient";
+import { DeepSeekAIClient } from "./DeepSeekAIClient";
 import { openai, createOpenAI } from "@ai-sdk/openai";
 import { vertex, createVertex } from "@ai-sdk/google-vertex";
 import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
@@ -202,7 +202,7 @@ export class LLMProvider {
           clientOptions,
         });
       case "deepseek":
-        return new DeepseekAIClient({
+        return new DeepSeekAIClient({
           logger: this.logger,
           modelName: availableModel,
           clientOptions,

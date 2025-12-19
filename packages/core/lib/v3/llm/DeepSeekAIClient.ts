@@ -24,7 +24,7 @@ import {
   ZodSchemaValidationError,
 } from "../types/public/sdkErrors";
 
-export class DeepseekAIClient extends LLMClient {
+export class DeepSeekAIClient extends LLMClient {
   public type = "deepseek" as const;
   private client: OpenAI;
   public clientOptions: ClientOptions;
@@ -277,7 +277,7 @@ export class DeepseekAIClient extends LLMClient {
         if (e instanceof ZodSchemaValidationError) {
           logger({
             category: "deepseek",
-            message: `Error during Deepseek chat completion: ${e.message}`,
+            message: `Error during DeepSeek chat completion: ${e.message}`,
             level: 0,
             auxiliary: {
               errorDetails: {
