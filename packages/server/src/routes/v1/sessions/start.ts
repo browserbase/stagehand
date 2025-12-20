@@ -190,7 +190,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
     return success(reply, {
       sessionId: session.sessionId,
       available: session.available,
-      cdpUrl: connectUrl ?? session.connectUrl ?? "",
+      cdpUrl: connectUrl ?? session.cdpUrl ?? "",
     });
   },
 );
