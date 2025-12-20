@@ -339,7 +339,7 @@ async function collectPerFrameMaps(
  * every frame. The prefix is the absolute XPath of the iframe element hosting
  * the frame, so we can later convert relative XPaths into cross-frame ones.
  */
-async function computeFramePrefixes(
+export async function computeFramePrefixes(
   page: Page,
   context: FrameContext,
   perFrameMaps: Map<string, FrameDomMaps>,
@@ -401,7 +401,7 @@ async function computeFramePrefixes(
  * merge URL maps, and stitch text outlines by nesting child trees under the
  * encoded id of their parent iframe host.
  */
-function mergeFramesIntoSnapshot(
+export function mergeFramesIntoSnapshot(
   context: FrameContext,
   perFrameMaps: Map<string, FrameDomMaps>,
   perFrameOutlines: Array<{ frameId: string; outline: string }>,
