@@ -27,6 +27,7 @@ jobs:
             {
               "bash": {
                 "gh issue*": "allow",
+                "gh pr*": "allow",
                 "*": "deny"
               },
               "webfetch": "deny"
