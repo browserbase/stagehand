@@ -205,6 +205,8 @@ export function mapModelToProvider(model: LegacyModel): LegacyProvider {
     case "gemini-2.0-flash":
     case "gemini-2.5-pro-preview-03-25":
     case "gemini-2.5-flash-preview-04-17":
+    case "gemini-3-flash-preview":
+    case "gemini-3-pro-preview":
       return "google";
     case "cerebras-llama-3.3-70b":
     case "cerebras-llama-3.1-8b":
