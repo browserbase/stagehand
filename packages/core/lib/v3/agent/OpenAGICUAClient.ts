@@ -27,8 +27,18 @@ export class OpenAGICUAClient extends AgentClient {
     super(type, modelName, userProvidedInstructions);
 
     // Process client options
-    this.apiKey = clientOptions?.apiKey ?? process.env.OPENAGI_API_KEY ?? "";
-    this.baseURL = clientOptions?.baseURL ?? undefined;
+    this.apiKey =
+      (clientOptions?.apiKey as string) || process.env.OPENAGI_API_KEY || "";
+    this.baseURL = (clientOptions?.baseURL as string) || undefined;
+
+    // Store client options for reference
+    this.clientOptions = {
+      apiKey: this.apiKey,
+    };
+
+    if (this.baseURL) {
+      this.clientOptions.baseURL = this.baseURL;
+    }
   }
 
   private denormalize(
@@ -226,7 +236,7 @@ export class OpenAGICUAClient extends AgentClient {
           for (const action of acts) {
             logger({
               category: "agent",
-              message: `  [${action.type}] ${action.argument}`,
+              message: `  [${action.type}] ${JSON.stringify(action)}`,
               level: 2,
             });
           }
