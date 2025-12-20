@@ -2,39 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { Protocol } from "devtools-protocol";
 
 import { captureHybridSnapshot } from "../lib/v3/understudy/a11y/snapshot";
-import type { CDPSessionLike } from "../lib/v3/understudy/cdp";
+import { MockCDPSession } from "./helpers/mockCDPSession";
 import type { Page } from "../lib/v3/understudy/page";
 import { StagehandDomProcessError } from "../lib/v3/types/public/sdkErrors";
+import { CDPSessionLike } from "../lib/v3/understudy/cdp";
 
 type Handler = (params?: Record<string, unknown>) => Promise<unknown> | unknown;
-
-class StubSession implements CDPSessionLike {
-  public readonly id = "stub-session";
-  public readonly calls: Array<{
-    method: string;
-    params?: Record<string, unknown>;
-  }> = [];
-
-  constructor(private readonly handlers: Record<string, Handler> = {}) {}
-
-  async send<R = unknown>(
-    method: string,
-    params: Record<string, unknown> = {},
-  ): Promise<R> {
-    this.calls.push({ method, params });
-    const handler = this.handlers[method];
-    if (!handler) return {} as R;
-    return (await handler(params)) as R;
-  }
-
-  on(): void {}
-  off(): void {}
-  async close(): Promise<void> {}
-
-  callsFor(method: string): Array<{ params?: Record<string, unknown> }> {
-    return this.calls.filter((c) => c.method === method);
-  }
-}
 
 function createFakePage(session: CDPSessionLike): Page {
   const frameTree: Protocol.Page.FrameTree = {
@@ -184,7 +157,7 @@ function makeCborError(): Error {
 describe("captureHybridSnapshot CBOR fallbacks", () => {
   it("retries DOM.getDocument with reduced depths before succeeding", async () => {
     let domCalls = 0;
-    const session = new StubSession({
+    const session = new MockCDPSession({
       ...baseHandlers,
       "DOM.getDocument": async (params) => {
         domCalls += 1;
@@ -205,7 +178,7 @@ describe("captureHybridSnapshot CBOR fallbacks", () => {
   });
 
   it("throws StagehandDomProcessError after all DOM.getDocument attempts fail", async () => {
-    const session = new StubSession({
+    const session = new MockCDPSession({
       ...baseHandlers,
       "DOM.getDocument": async () => {
         throw makeCborError();
@@ -222,7 +195,7 @@ describe("captureHybridSnapshot CBOR fallbacks", () => {
     let domAttempts = 0;
     let describeAttempts = 0;
 
-    const session = new StubSession({
+    const session = new MockCDPSession({
       ...baseHandlers,
       "DOM.getDocument": async (params) => {
         domAttempts += 1;
