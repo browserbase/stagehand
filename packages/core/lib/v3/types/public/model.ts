@@ -2,6 +2,7 @@ import type { ClientOptions as AnthropicClientOptionsBase } from "@anthropic-ai/
 import type { GoogleVertexProviderSettings as GoogleVertexProviderSettingsBase } from "@ai-sdk/google-vertex";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
 import type { ClientOptions as OpenAIClientOptionsBase } from "openai";
+import type { ClientOptions as OpenAGIClientOptionsBase } from "@oagi/oagi";
 import type { AgentProviderType } from "./agent";
 
 export type OpenAIClientOptions = Pick<
@@ -11,6 +12,11 @@ export type OpenAIClientOptions = Pick<
 
 export type AnthropicClientOptions = Pick<
   AnthropicClientOptionsBase,
+  "baseURL" | "apiKey"
+>;
+
+export type OpenAGIClientOptions = Pick<
+  OpenAGIClientOptionsBase,
   "baseURL" | "apiKey"
 >;
 
@@ -89,6 +95,8 @@ export type AvailableModel =
   | "gemini-2.0-flash"
   | "gemini-2.5-flash-preview-04-17"
   | "gemini-2.5-pro-preview-03-25"
+  | "lux-actor-1"
+  | "lux-thinker-1"
   | string;
 
 export type ModelProvider =
@@ -97,12 +105,14 @@ export type ModelProvider =
   | "cerebras"
   | "groq"
   | "google"
-  | "aisdk";
+  | "aisdk"
+  | "openagi";
 
 export type ClientOptions = (
   | OpenAIClientOptions
   | AnthropicClientOptions
   | GoogleVertexProviderSettings
+  | OpenAGIClientOptions
 ) & {
   apiKey?: string;
   provider?: AgentProviderType;
