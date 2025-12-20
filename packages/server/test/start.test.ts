@@ -41,7 +41,7 @@ vi.mock("../src/lib/sessionStoreManager.js", async () => {
   };
 });
 
-describe("/v1/sessions/start connectUrl responses", () => {
+describe("/v1/sessions/start cdpUrl responses", () => {
   let app: ReturnType<typeof fastify>;
 
   beforeEach(() => {
@@ -74,7 +74,7 @@ describe("/v1/sessions/start connectUrl responses", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
       success: boolean;
-      data: { sessionId: string; connectUrl?: string };
+      data: { sessionId: string; cdpUrl?: string };
     };
     expect(body.success).toBe(true);
     expect(body.data.sessionId).toBe(sessionId);
@@ -116,7 +116,7 @@ describe("/v1/sessions/start connectUrl responses", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
       success: boolean;
-      data: { sessionId: string; connectUrl?: string };
+      data: { sessionId: string; cdpUrl?: string };
     };
     expect(body.success).toBe(true);
     expect(body.data.sessionId).toBe("bb-123");

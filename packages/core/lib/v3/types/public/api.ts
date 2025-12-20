@@ -372,7 +372,7 @@ export const SessionStartResultSchema = z
       description: "Unique Browserbase session identifier",
       example: "c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123",
     }),
-    connectUrl: z.string().nullish().meta({
+    cdpUrl: z.string().nullish().meta({
       description:
         "CDP WebSocket URL for connecting to the Browserbase cloud browser (present when available)",
       example: "wss://connect.browserbase.com/?signingKey=abc123",

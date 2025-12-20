@@ -400,7 +400,7 @@ components:
           description: Unique Browserbase session identifier
           example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
           type: string
-        connectUrl:
+        cdpUrl:
           description:
             CDP WebSocket URL for connecting to the Browserbase cloud browser
             (present when available)
@@ -1242,7 +1242,7 @@ components:
           description: Unique Browserbase session identifier
           example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
           type: string
-        connectUrl:
+        cdpUrl:
           description:
             CDP WebSocket URL for connecting to the Browserbase cloud browser
             (present when available)
