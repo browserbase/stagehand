@@ -111,7 +111,7 @@ function buildFrameContext(page: Page): FrameContext {
  * Returns `null` when scoping fails (e.g., selector miss) so the caller can
  * fall back to the full multi-frame snapshot.
  */
-async function tryScopedSnapshot(
+export async function tryScopedSnapshot(
   page: Page,
   options: SnapshotOptions | undefined,
   context: FrameContext,
