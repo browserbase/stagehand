@@ -29,7 +29,9 @@ const collectCssMatches = (selector: string, limit: number): Element[] => {
 
     try {
       const ownerDocument =
-        root instanceof Document ? root : root.host?.ownerDocument ?? document;
+        root instanceof Document
+          ? root
+          : (root.host?.ownerDocument ?? document);
       const walker = ownerDocument.createTreeWalker(
         root,
         NodeFilter.SHOW_ELEMENT,
@@ -113,7 +115,9 @@ export function resolveCssSelectorPierce(
 
     try {
       const ownerDocument =
-        root instanceof Document ? root : root.host?.ownerDocument ?? document;
+        root instanceof Document
+          ? root
+          : (root.host?.ownerDocument ?? document);
       const walker = ownerDocument.createTreeWalker(
         root,
         NodeFilter.SHOW_ELEMENT,
@@ -225,7 +229,7 @@ export function resolveTextSelector(
       const doc =
         root instanceof Document
           ? root
-          : (root as Element)?.ownerDocument ?? document;
+          : ((root as Element)?.ownerDocument ?? document);
       return doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
     } catch {
       return null;

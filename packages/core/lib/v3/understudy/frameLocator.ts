@@ -36,7 +36,7 @@ export class FrameLocator {
   async resolveFrame(): Promise<Frame> {
     const parentFrame: Frame = this.parent
       ? await this.parent.resolveFrame()
-      : this.root ?? this.page.mainFrame();
+      : (this.root ?? this.page.mainFrame());
 
     // Resolve the iframe element inside the parent frame
     const tmp = parentFrame.locator(this.selector);
