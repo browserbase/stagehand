@@ -18,13 +18,13 @@ const NATIVE_FOCUSABLE_TAGS = new Set([
   "summary",
 ]);
 
-/** Check if a DOM node is focusable via tag or tabindex >= 0. */
+/** Check if a DOM node is interactive via tag or tabindex >= 0. */
 export function isNodeFocusable(node: Protocol.DOM.Node): boolean {
   const tag = String(node.nodeName ?? "").toLowerCase();
   if (NATIVE_FOCUSABLE_TAGS.has(tag)) return true;
 
   const attrs = node.attributes ?? [];
-  for (let i = 0; i < attrs.length; i += 2) {
+  for (let i = 0; i + 1 < attrs.length; i += 2) {
     if (attrs[i]?.toLowerCase() === "tabindex") {
       const val = parseInt(attrs[i + 1] ?? "", 10);
       if (!isNaN(val) && val >= 0) return true;
