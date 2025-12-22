@@ -234,7 +234,7 @@ const agent = stagehand.agent({
 
 ### Agent Hybrid Mode
 
-Hybrid mode uses coordinate-based tools (click, type, dragAndDrop) for visual interactions. This requires `experimental: true` and models that support reliable coordinate-based actions.
+Hybrid mode uses both DOM-based and coordinate-based tools (act, click, type, dragAndDrop) for visual interactions. This requires `experimental: true` and models that support reliable coordinate-based actions.
 
 **Recommended models for hybrid mode:**
 
