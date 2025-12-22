@@ -263,7 +263,7 @@ await agent.execute({
 **Agent modes:**
 
 - `"dom"` (default): Uses DOM-based tools (act, fillForm) - works with any model
-- `"hybrid"`: Uses both DOM-based and coordinate-based tools (click, type, dragAndDrop) - requires grounding-capable models
+- `"hybrid"`: Uses both DOM-based and coordinate-based tools (act, click, type, dragAndDrop) - requires grounding-capable models
 - `"cua"`: Uses Computer Use Agent providers
 
 ## Advanced Features
