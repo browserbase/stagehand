@@ -1,40 +1,14 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
-import { zodToJsonSchema } from "zod-to-json-schema";
-import { z } from "zod/v3";
+import type { ZodTypeAny } from "zod/v3";
+import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
+import { Api } from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
 import { createStreamingResponse } from "../../../../lib/stream.js";
 import { jsonSchemaToZod } from "../../../../lib/utils.js";
 import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
-
-interface ExtractParams {
-  id: string;
-}
-
-// Schema for V3
-export const extractSchema = z.object({
-  instruction: z.string().optional(),
-  schema: z.record(z.unknown()).optional(),
-  options: z
-    .object({
-      model: z
-        .string()
-        .or(
-          z.object({
-            modelName: z.string(),
-            apiKey: z.string().optional(),
-            baseURL: z.string().url().optional(),
-          }),
-        )
-        .optional(),
-      timeout: z.number().optional(),
-      selector: z.string().optional(),
-    })
-    .optional(),
-  frameId: z.string().optional(),
-});
 
 const extractRouteHandler: RouteHandlerMethod = withErrorHandling(
   async (request, reply) => {
@@ -44,7 +18,7 @@ const extractRouteHandler: RouteHandlerMethod = withErrorHandling(
         .send({ error: "Unauthorized" });
     }
 
-    const { id } = request.params as ExtractParams;
+    const { id } = request.params as Api.SessionIdParams;
 
     if (!id.length) {
       return reply.status(StatusCodes.BAD_REQUEST).send({
@@ -60,11 +34,11 @@ const extractRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<z.infer<typeof extractSchema>>({
+    return createStreamingResponse<Api.ExtractRequest>({
       sessionId: id,
       request,
       reply,
-      schema: extractSchema,
+      schema: Api.ExtractRequestSchema,
       handler: async ({ stagehand, data }) => {
         const { frameId } = data;
         const page = frameId
@@ -98,7 +72,7 @@ const extractRouteHandler: RouteHandlerMethod = withErrorHandling(
 
         if (data.instruction) {
           if (data.schema) {
-            const zodSchema = jsonSchemaToZod(data.schema) as z.AnyZodObject;
+            const zodSchema = jsonSchemaToZod(data.schema) as ZodTypeAny;
             result = await extractFn(data.instruction, zodSchema, safeOptions);
           } else {
             result = await extractFn(data.instruction, safeOptions);
@@ -118,15 +92,14 @@ const extractRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/extract",
   schema: {
-    params: {
-      type: "object",
-      properties: {
-        id: { type: "string" },
-      },
-      required: ["id"],
+    ...Api.Operations.SessionExtract,
+    headers: Api.SessionHeadersSchema,
+    params: Api.SessionIdParamsSchema,
+    body: Api.ExtractRequestSchema,
+    response: {
+      200: Api.ExtractResponseSchema,
     },
-    body: zodToJsonSchema(extractSchema),
-  },
+  } satisfies FastifyZodOpenApiSchema,
   handler: extractRouteHandler,
 };
 

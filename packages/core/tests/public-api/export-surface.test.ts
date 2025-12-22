@@ -15,6 +15,7 @@ import { publicErrorTypes } from "./public-error-types.test";
 
 const publicApiShape = {
   AISdkClient: Stagehand.AISdkClient,
+  Api: Stagehand.Api,
   AVAILABLE_CUA_MODELS: Stagehand.AVAILABLE_CUA_MODELS,
   AgentProvider: Stagehand.AgentProvider,
   AnnotatedScreenshotText: Stagehand.AnnotatedScreenshotText,
@@ -36,6 +37,7 @@ const publicApiShape = {
   isZod4Schema: Stagehand.isZod4Schema,
   jsonSchemaToZod: Stagehand.jsonSchemaToZod,
   loadApiKeyFromEnv: Stagehand.loadApiKeyFromEnv,
+  localBrowserLaunchOptionsSchema: Stagehand.localBrowserLaunchOptionsSchema,
   modelToAgentProviderMap: Stagehand.modelToAgentProviderMap,
   pageTextSchema: Stagehand.pageTextSchema,
   providerEnvVarMap: Stagehand.providerEnvVarMap,

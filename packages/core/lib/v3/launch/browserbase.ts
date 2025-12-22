@@ -3,13 +3,12 @@ import {
   BrowserbaseSessionNotFoundError,
   StagehandInitError,
 } from "../types/public/sdkErrors";
+import type { BrowserbaseSessionCreateParams } from "../types/public/api";
 
 export async function createBrowserbaseSession(
   apiKey: string,
   projectId: string,
-  params?: Omit<Browserbase.Sessions.SessionCreateParams, "projectId"> & {
-    projectId?: string;
-  },
+  params?: BrowserbaseSessionCreateParams,
   resumeSessionId?: string,
 ): Promise<{ ws: string; sessionId: string; bb: Browserbase }> {
   const bb = new Browserbase({ apiKey });
@@ -40,6 +39,7 @@ export async function createBrowserbaseSession(
     ...rest
   } = params ?? {};
 
+  // satisfies check ensures our BrowserbaseSessionCreateParamsSchema stays in sync with SDK
   const createPayload = {
     projectId: overrideProjectId ?? projectId,
     ...rest,

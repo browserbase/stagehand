@@ -1,38 +1,13 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import type { Action } from "@browserbasehq/stagehand";
-import { zodToJsonSchema } from "zod-to-json-schema";
-import { z } from "zod/v3";
+import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
+import { Api } from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
 import { createStreamingResponse } from "../../../../lib/stream.js";
 import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
-
-interface ObserveParams {
-  id: string;
-}
-
-export const observeSchema = z.object({
-  instruction: z.string().optional(),
-  options: z
-    .object({
-      model: z
-        .string()
-        .or(
-          z.object({
-            modelName: z.string(),
-            apiKey: z.string().optional(),
-            baseURL: z.string().url().optional(),
-          }),
-        )
-        .optional(),
-      timeout: z.number().optional(),
-      selector: z.string().optional(),
-    })
-    .optional(),
-  frameId: z.string().optional(),
-});
 
 const observeRouteHandler: RouteHandlerMethod = withErrorHandling(
   async (request, reply) => {
@@ -42,7 +17,7 @@ const observeRouteHandler: RouteHandlerMethod = withErrorHandling(
         .send({ error: "Unauthorized" });
     }
 
-    const { id } = request.params as ObserveParams;
+    const { id } = request.params as Api.SessionIdParams;
 
     if (!id.length) {
       return reply.status(StatusCodes.BAD_REQUEST).send({
@@ -58,11 +33,11 @@ const observeRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<z.infer<typeof observeSchema>>({
+    return createStreamingResponse<Api.ObserveRequest>({
       sessionId: id,
       request,
       reply,
-      schema: observeSchema,
+      schema: Api.ObserveRequestSchema,
       handler: async ({ stagehand, data }) => {
         const { frameId } = data;
         const page = frameId
@@ -109,15 +84,14 @@ const observeRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/observe",
   schema: {
-    params: {
-      type: "object",
-      properties: {
-        id: { type: "string" },
-      },
-      required: ["id"],
+    ...Api.Operations.SessionObserve,
+    headers: Api.SessionHeadersSchema,
+    params: Api.SessionIdParamsSchema,
+    body: Api.ObserveRequestSchema,
+    response: {
+      200: Api.ObserveResponseSchema,
     },
-    body: zodToJsonSchema(observeSchema),
-  },
+  } satisfies FastifyZodOpenApiSchema,
   handler: observeRouteHandler,
 };
 

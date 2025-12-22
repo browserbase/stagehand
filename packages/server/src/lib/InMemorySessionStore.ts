@@ -128,6 +128,7 @@ export class InMemorySessionStore implements SessionStore {
 
     return {
       sessionId,
+      cdpUrl: params.connectUrl ?? "",
       available: true,
     };
   }

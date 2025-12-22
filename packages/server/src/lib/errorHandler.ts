@@ -30,8 +30,7 @@ export class AppError extends Error {
    */
   getClientMessage(): string {
     if (this.isInternal) {
-      //eslint-disable-next-line no-magic-numbers
-      return this.statusCode >= 500
+      return this.statusCode >= StatusCodes.INTERNAL_SERVER_ERROR
         ? "An internal server error occurred"
         : "An error occurred while processing your request";
     }
