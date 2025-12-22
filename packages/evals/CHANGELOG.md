@@ -1,5 +1,14 @@
 # @browserbasehq/stagehand-evals
 
+## 1.1.6
+
+### Patch Changes
+
+- [#1373](https://github.com/browserbase/stagehand/pull/1373) [`cadd192`](https://github.com/browserbase/stagehand/commit/cadd192066c8aa5d19bb4d5daa630ed5981b5d7e) Thanks [@tkattkat](https://github.com/tkattkat)! - Update screenshot collector in agent evals cli
+
+- Updated dependencies [[`e0e22e0`](https://github.com/browserbase/stagehand/commit/e0e22e06bc752a8ffde30f3dbfa58d91e24e6c09), [`f261051`](https://github.com/browserbase/stagehand/commit/f2610517d74774374de9ee93191e663439ef55e5), [`6a5496f`](https://github.com/browserbase/stagehand/commit/6a5496f17dbb716be1ee1aaa4e5ba9d8c723b30b), [`fea1700`](https://github.com/browserbase/stagehand/commit/fea1700552af3319052f463685752501c8e71de3), [`5b288d9`](https://github.com/browserbase/stagehand/commit/5b288d9ac37406ff22460ac8050bea26b87a378e), [`e822f5a`](https://github.com/browserbase/stagehand/commit/e822f5a8898df9eb48ca32c321025f0c74b638f0), [`a890f16`](https://github.com/browserbase/stagehand/commit/a890f16fa3a752f308f858e5ab9c9a0faf6b3b34), [`934f492`](https://github.com/browserbase/stagehand/commit/934f492ec587bef81f0ce75b45a35b44ab545712), [`bd2db92`](https://github.com/browserbase/stagehand/commit/bd2db925f66a826d61d58be1611d55646cbdb560), [`05f5580`](https://github.com/browserbase/stagehand/commit/05f5580937c3c157550e3c25ae6671f44f562211), [`f56a9c2`](https://github.com/browserbase/stagehand/commit/f56a9c296d4ddce25a405358c66837f8ce4d679f), [`b40ae11`](https://github.com/browserbase/stagehand/commit/b40ae11391af49c3581fce27faa1b7483fc4a169), [`0d2b398`](https://github.com/browserbase/stagehand/commit/0d2b398cd40b32a9ecaf28ede70853036b7c91bd), [`cd01f29`](https://github.com/browserbase/stagehand/commit/cd01f290578eac703521f801ba3712f5332918f3), [`4d71162`](https://github.com/browserbase/stagehand/commit/4d71162beb119635b69b17637564a2bbd0e373e7)]:
+  - @browserbasehq/stagehand@3.0.7
+
 ## 1.1.5
 
 ### Patch Changes
