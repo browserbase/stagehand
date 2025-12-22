@@ -18,7 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js 20.x
         uses: actions/setup-node@v4
@@ -46,6 +48,37 @@ jobs:
           publish: pnpm run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag stagehand/server version for GitHub Releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          SERVER_VERSION="$(node -p "require('./packages/server/package.json').version")"
+          TAG="stagehand-server/v${SERVER_VERSION}"
+          BEFORE_SHA="${{ github.event.before }}"
+
+          if [ -n "${BEFORE_SHA}" ] && [ "${BEFORE_SHA}" != "0000000000000000000000000000000000000000" ]; then
+            BEFORE_VERSION="$(git show "${BEFORE_SHA}:packages/server/package.json" 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin)['version'])" 2>/dev/null || true)"
+            if [ -n "${BEFORE_VERSION}" ] && [ "${BEFORE_VERSION}" = "${SERVER_VERSION}" ]; then
+              echo "No @browserbasehq/stagehand-server version change (${SERVER_VERSION}); skipping tag."
+              exit 0
+            fi
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch --tags --force
+
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag already exists: ${TAG}"
+            exit 0
+          fi
+
+          git tag -a "${TAG}" -m "stagehand/server v${SERVER_VERSION}"
+          git push origin "${TAG}"
 
       - name: Publish Canary
         if: github.ref == 'refs/heads/main'

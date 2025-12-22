@@ -1,0 +1,63 @@
+name: Release stagehand/server
+
+on:
+  push:
+    tags:
+      - "stagehand-server/v*"
+
+permissions:
+  contents: write
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+env:
+  OAS_PATH: packages/server/openapi.v3.yaml
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Derive stagehand/server version
+        id: server_version
+        run: |
+          set -euo pipefail
+          TAG_NAME="${GITHUB_REF_NAME}"
+          VERSION="${TAG_NAME#stagehand-server/v}"
+          if [ "$VERSION" = "$TAG_NAME" ] || [ -z "$VERSION" ]; then
+            echo "Unexpected tag: $TAG_NAME" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag matches packages/server version
+        env:
+          TAG_VERSION: ${{ steps.server_version.outputs.version }}
+        run: |
+          set -euo pipefail
+          PKG_VERSION="$(node -p "require('./packages/server/package.json').version")"
+          if [ "${PKG_VERSION}" != "${TAG_VERSION}" ]; then
+            echo "Tag version (${TAG_VERSION}) does not match packages/server/package.json version (${PKG_VERSION})." >&2
+            exit 1
+          fi
+
+      - name: Prepare release assets directory
+        run: mkdir -p release-assets
+
+      - name: Prepare stagehand/server release assets
+        run: |
+          set -euo pipefail
+          cp "${{ env.OAS_PATH }}" "release-assets/openapi.v3.stagehand-server-${{ steps.server_version.outputs.version }}.yaml"
+
+      - name: Publish stagehand/server GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: stagehand/server v${{ steps.server_version.outputs.version }}
+          generate_release_notes: true
+          files: |
+            release-assets/openapi.v3.stagehand-server-${{ steps.server_version.outputs.version }}.yaml
