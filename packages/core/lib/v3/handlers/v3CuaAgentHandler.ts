@@ -431,7 +431,25 @@ export class V3CuaAgentHandler {
       case "move": {
         const { x, y } = action;
         if (typeof x === "number" && typeof y === "number") {
-          await page.hover(x, y);
+          if (recording) {
+            const xpath = await page.hover(x, y, { returnXpath: true });
+            const normalized = ensureXPath(xpath);
+            if (normalized) {
+              const stagehandAction: Action = {
+                selector: normalized,
+                description: this.describePointerAction("hover", x, y),
+                method: "hover",
+                arguments: [],
+              };
+              this.recordCuaActStep(
+                action,
+                [stagehandAction],
+                stagehandAction.description,
+              );
+            }
+          } else {
+            await page.hover(x, y);
+          }
         }
         return { success: true };
       }
