@@ -7,8 +7,6 @@ import { StatusCodes } from "http-status-codes";
 
 import { error } from "./response.js";
 
-const INTERNAL_SERVER_ERROR_STATUS_CODE = 500;
-
 export class AppError extends Error {
   statusCode: number;
   isInternal: boolean;
@@ -32,7 +30,7 @@ export class AppError extends Error {
    */
   getClientMessage(): string {
     if (this.isInternal) {
-      return this.statusCode >= INTERNAL_SERVER_ERROR_STATUS_CODE
+      return this.statusCode >= StatusCodes.INTERNAL_SERVER_ERROR
         ? "An internal server error occurred"
         : "An error occurred while processing your request";
     }

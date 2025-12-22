@@ -329,10 +329,7 @@ export const SessionStartRequestSchema = z
       example: 5000,
     }),
     verbose: z
-      .number()
-      .int()
-      .min(0)
-      .max(2)
+      .union([z.literal(0), z.literal(1), z.literal(2)])
       .optional()
       .meta({
         description: "Logging verbosity level (0=quiet, 1=normal, 2=debug)",
