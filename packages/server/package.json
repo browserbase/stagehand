@@ -5,27 +5,32 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "tsc && tsc-alias",
+    "build": "tsc && tsc-alias && pnpm run gen:openapi",
     "dev": "tsx watch src/server.ts",
     "lint": "cd ../.. && prettier --check packages/server && cd packages/server && eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --exclude test/api-client.integration.test.ts",
+    "test:integration": "vitest run test/api-client.integration.test.ts",
+    "gen:openapi": "tsx scripts/gen-openapi.ts; cd ../.. && prettier --write packages/server/openapi.v3.yaml"
   },
   "dependencies": {
     "@browserbasehq/sdk": "^2.4.0",
     "@browserbasehq/stagehand": "workspace:*",
     "@fastify/cors": "^11.0.1",
+    "@fastify/swagger": "^9.6.1",
+    "@fastify/swagger-ui": "^5.2.3",
     "@t3-oss/env-core": "^0.13.8",
     "dotenv": "^16.4.5",
     "fastify": "^5.3.2",
     "fastify-metrics": "^12.1.0",
     "fastify-plugin": "^4.5.1",
+    "fastify-zod-openapi": "^5.5.0",
     "http-status-codes": "^2.3.0",
     "pino": "^9.7.0",
     "pino-pretty": "^11.3.0",
     "playwright": "1.52.0",
     "uuid": "^11.0.5",
-    "zod": "^3.25.76",
-    "zod-to-json-schema": "^3.24.3"
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "@types/node": "22.13.1",
@@ -33,7 +38,8 @@
     "openai": "4.87.1",
     "tsc-alias": "^1.8.10",
     "tsx": "^4.18.0",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "vitest": "^4.0.8"
   },
   "repository": {
     "type": "git",

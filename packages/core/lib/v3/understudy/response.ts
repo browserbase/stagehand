@@ -367,7 +367,7 @@ export class Response {
       requestId: serialized.requestId,
       frameId: serialized.frameId,
       loaderId: serialized.loaderId,
-      response: serialized.response,
+      response: serialized.response as Protocol.Network.Response,
       fromServiceWorker: serialized.fromServiceWorkerFlag ?? false,
     });
 

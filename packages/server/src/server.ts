@@ -3,6 +3,17 @@ import { randomUUID } from "crypto";
 import cors from "@fastify/cors";
 import fastify from "fastify";
 import metricsPlugin from "fastify-metrics";
+import fastifySwagger from "@fastify/swagger";
+import fastifySwaggerUI from "@fastify/swagger-ui";
+import {
+  fastifyZodOpenApiPlugin,
+  fastifyZodOpenApiTransformers,
+  serializerCompiler,
+  validatorCompiler,
+  type FastifyZodOpenApiTypeProvider,
+  RequestValidationError,
+  ResponseSerializationError,
+} from "fastify-zod-openapi";
 import { StatusCodes } from "http-status-codes";
 
 import { logging } from "./lib/logging/index.js";
@@ -117,7 +128,54 @@ const start = async () => {
       });
     }
 
+    app.setValidatorCompiler(validatorCompiler);
+    app.setSerializerCompiler(serializerCompiler);
+
+    await app.register(fastifyZodOpenApiPlugin);
+
+    await app.register(fastifySwagger, {
+      openapi: {
+        info: {
+          title: "Stagehand API",
+          version: "3.0.5",
+        },
+        openapi: "3.1.0",
+      },
+      ...fastifyZodOpenApiTransformers,
+    });
+
+    await app.register(fastifySwaggerUI, {
+      routePrefix: "/documentation",
+    });
+
+    app.setSchemaErrorFormatter(function (errors, dataVar) {
+      const zodIssues = errors
+        .filter((err) => err instanceof RequestValidationError)
+        .map((err) => err.params.issue);
+      this.log.warn({ dataVar, zodIssues }, "request validation failed");
+      return new Error(`${dataVar} validation failed`);
+    });
+
     app.setErrorHandler((error, request, reply) => {
+      if ((error as { validation?: unknown }).validation) {
+        const zodIssues = (error as { validation: unknown[] }).validation
+          .filter((err) => err instanceof RequestValidationError)
+          .map((err) => (err as RequestValidationError).params.issue);
+
+        request.log.warn({ zodIssues }, "request validation failed");
+        return reply.status(StatusCodes.UNPROCESSABLE_ENTITY).send({
+          error: "Request validation failed",
+          issues: zodIssues,
+        });
+      }
+
+      if (error instanceof ResponseSerializationError) {
+        request.log.error({ err: error }, "response serialization failed");
+        return reply
+          .status(StatusCodes.INTERNAL_SERVER_ERROR)
+          .send({ error: "Response validation failed" });
+      }
+
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       request.log.error(`Server error: ${errorMessage}`);
@@ -134,9 +192,6 @@ const start = async () => {
         statusCode,
       });
     });
-
-    // disable the built-in validator
-    app.setValidatorCompiler(() => () => true);
 
     await app.register(metricsPlugin, {
       defaultMetrics: {
@@ -157,15 +212,17 @@ const start = async () => {
 
     initializeSessionStore();
 
-    await app.register(
-      (app, _opts, done) => {
-        app.route(actRoute);
-        app.route(endRoute);
-        app.route(extractRoute);
-        app.route(navigateRoute);
-        app.route(observeRoute);
-        app.route(startRoute);
-        app.route(agentExecuteRoute);
+    const appWithTypes = app.withTypeProvider<FastifyZodOpenApiTypeProvider>();
+
+    await appWithTypes.register(
+      (instance, _opts, done) => {
+        instance.route(actRoute);
+        instance.route(endRoute);
+        instance.route(extractRoute);
+        instance.route(navigateRoute);
+        instance.route(observeRoute);
+        instance.route(startRoute);
+        instance.route(agentExecuteRoute);
         done();
       },
       { prefix: "/v1" },
@@ -174,8 +231,8 @@ const start = async () => {
     logging(app);
 
     // Register health and readiness routes at the root level
-    app.route(healthcheckRoute);
-    app.route(readinessRoute);
+    appWithTypes.route(healthcheckRoute);
+    appWithTypes.route(readinessRoute);
     await app.ready();
 
     await app.listen({

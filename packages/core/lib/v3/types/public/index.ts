@@ -1,4 +1,6 @@
 export * from "./agent";
+// Export api.ts under namespace to avoid conflicts with methods.ts types
+export * as Api from "./api";
 export * from "./apiErrors";
 export * from "./logs";
 export * from "./methods";

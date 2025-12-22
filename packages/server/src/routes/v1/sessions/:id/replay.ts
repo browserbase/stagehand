@@ -5,35 +5,31 @@ import { Api } from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { withErrorHandling } from "../../../../lib/errorHandler.js";
-import { error, success } from "../../../../lib/response.js";
-import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
+import { error } from "../../../../lib/response.js";
 
-const endRouteHandler: RouteHandlerMethod = withErrorHandling(
+const replayRouteHandler: RouteHandlerMethod = withErrorHandling(
   async (request, reply) => {
     if (!(await authMiddleware(request))) {
       return error(reply, "Unauthorized", StatusCodes.UNAUTHORIZED);
     }
 
-    const { id: sessionId } = request.params as Api.SessionIdParams;
-    const sessionStore = getSessionStore();
-    await sessionStore.endSession(sessionId);
-
-    return success(reply, {});
+    return error(reply, "Not implemented", StatusCodes.NOT_IMPLEMENTED);
   },
 );
 
-const endRoute: RouteOptions = {
-  method: "POST",
-  url: "/sessions/:id/end",
+const replayRoute: RouteOptions = {
+  method: "GET",
+  url: "/sessions/:id/replay",
   schema: {
-    ...Api.Operations.SessionEnd,
+    ...Api.Operations.SessionReplay,
+    hide: true, // Hide from OpenAPI documentation
     headers: Api.SessionHeadersSchema,
     params: Api.SessionIdParamsSchema,
     response: {
-      200: Api.SessionEndResponseSchema,
+      200: Api.ReplayResponseSchema,
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: endRouteHandler,
+  handler: replayRouteHandler,
 };
 
-export default endRoute;
+export default replayRoute;
