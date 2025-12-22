@@ -169,8 +169,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       browserbaseProjectId: bbProjectId,
       modelName,
       domSettleTimeoutMs,
-      verbose:
-        verbose !== undefined ? (Number(verbose) as 0 | 1 | 2) : undefined,
+      verbose,
       systemPrompt,
       browserbaseSessionCreateParams,
       selfHeal,

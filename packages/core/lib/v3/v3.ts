@@ -864,7 +864,7 @@ export class V3 {
               modelName: this.modelName,
               modelApiKey: this.modelClientOptions.apiKey,
               domSettleTimeoutMs: this.domSettleTimeoutMs,
-              verbose: String(this.verbose) as "0" | "1" | "2",
+              verbose: this.verbose,
               systemPrompt: this.opts.systemPrompt,
               selfHeal: this.opts.selfHeal,
               browserbaseSessionCreateParams: createSessionPayload,

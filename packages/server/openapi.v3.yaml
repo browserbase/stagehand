@@ -1627,12 +1627,12 @@ components:
           type: number
         verbose:
           description: Logging verbosity level (0=quiet, 1=normal, 2=debug)
-          example: "1"
-          type: string
+          example: 1
+          type: number
           enum:
-            - "0"
-            - "1"
-            - "2"
+            - 0
+            - 1
+            - 2
         systemPrompt:
           description: Custom system prompt for AI operations
           type: string
@@ -2040,12 +2040,12 @@ paths:
                   type: number
                 verbose:
                   description: Logging verbosity level (0=quiet, 1=normal, 2=debug)
-                  example: "1"
-                  type: string
+                  example: 1
+                  type: number
                   enum:
-                    - "0"
-                    - "1"
-                    - "2"
+                    - 0
+                    - 1
+                    - 2
                 systemPrompt:
                   description: Custom system prompt for AI operations
                   type: string
