@@ -11,6 +11,7 @@ import { AnthropicCUAClient } from "./AnthropicCUAClient";
 import { OpenAICUAClient } from "./OpenAICUAClient";
 import { GoogleCUAClient } from "./GoogleCUAClient";
 import { MicrosoftCUAClient } from "./MicrosoftCUAClient";
+import { OpenAGICUAClient } from "./OpenAGICUAClient";
 
 // Map model names to their provider types
 export const modelToAgentProviderMap: Record<string, AgentProviderType> = {
@@ -23,6 +24,8 @@ export const modelToAgentProviderMap: Record<string, AgentProviderType> = {
   "claude-haiku-4-5-20251001": "anthropic",
   "gemini-2.5-computer-use-preview-10-2025": "google",
   "fara-7b": "microsoft",
+  "lux-actor-1": "openagi",
+  "lux-thinker-1": "openagi",
 };
 
 /**
@@ -91,9 +94,16 @@ export class AgentProvider {
             userProvidedInstructions,
             clientOptions,
           );
+        case "openagi":
+          return new OpenAGICUAClient(
+            type,
+            modelName,
+            userProvidedInstructions,
+            clientOptions,
+          );
         default:
           throw new UnsupportedModelProviderError(
-            ["openai", "anthropic", "google", "microsoft"],
+            ["openai", "anthropic", "google", "microsoft", "openagi"],
             "Computer Use Agent",
           );
       }
