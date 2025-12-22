@@ -168,13 +168,14 @@ export async function tryScopedSnapshot(
     const sameSessionAsParent =
       !!parentId &&
       ownerSession(page, parentId) === ownerSession(page, targetFrameId);
-    const { tagNameMap, xpathMap, scrollableMap } = await domMapsForSession(
-      owningSess,
-      targetFrameId,
-      pierce,
-      (fid, be) => `${page.getOrdinal(fid)}-${be}`,
-      sameSessionAsParent,
-    );
+    const { tagNameMap, xpathMap, scrollableMap, focusableMap } =
+      await domMapsForSession(
+        owningSess,
+        targetFrameId,
+        pierce,
+        (fid, be) => `${page.getOrdinal(fid)}-${be}`,
+        sameSessionAsParent,
+      );
 
     const { outline, urlMap, scopeApplied } = await a11yForFrame(
       owningSess,
@@ -184,6 +185,7 @@ export async function tryScopedSnapshot(
         tagNameMap,
         experimental: options?.experimental ?? false,
         scrollableMap,
+        focusableMap,
         encode: (backendNodeId) =>
           `${page.getOrdinal(targetFrameId)}-${backendNodeId}`,
       },
@@ -304,6 +306,7 @@ async function collectPerFrameMaps(
     const tagNameMap: Record<string, string> = {};
     const xpathMap: Record<string, string> = {};
     const scrollableMap: Record<string, boolean> = {};
+    const focusableMap: Record<string, boolean> = {};
     const enc = (be: number) => `${page.getOrdinal(frameId)}-${be}`;
     const baseAbs = idx.absByBe.get(docRootBe) ?? "/";
 
@@ -318,17 +321,25 @@ async function collectPerFrameMaps(
       const tag = idx.tagByBe.get(be);
       if (tag) tagNameMap[key] = tag;
       if (idx.scrollByBe.get(be)) scrollableMap[key] = true;
+      if (idx.focusableByBe.get(be)) focusableMap[key] = true;
     }
 
     const { outline, urlMap } = await a11yForFrame(sess, frameId, {
       experimental: options?.experimental ?? false,
       tagNameMap,
       scrollableMap,
+      focusableMap,
       encode: (backendNodeId) => `${page.getOrdinal(frameId)}-${backendNodeId}`,
     });
 
     perFrameOutlines.push({ frameId, outline });
-    perFrameMaps.set(frameId, { tagNameMap, xpathMap, scrollableMap, urlMap });
+    perFrameMaps.set(frameId, {
+      tagNameMap,
+      xpathMap,
+      scrollableMap,
+      focusableMap,
+      urlMap,
+    });
   }
 
   return { perFrameMaps, perFrameOutlines };

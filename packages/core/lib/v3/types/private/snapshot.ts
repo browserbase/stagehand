@@ -48,6 +48,7 @@ export type SessionDomIndex = {
   absByBe: Map<number, string>;
   tagByBe: Map<number, string>;
   scrollByBe: Map<number, boolean>;
+  focusableByBe: Map<number, boolean>;
   docRootOf: Map<number, number>;
   contentDocRootByIframe: Map<number, number>;
 };
@@ -56,6 +57,7 @@ export type FrameDomMaps = {
   tagNameMap: Record<string, string>;
   xpathMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
+  focusableMap: Record<string, boolean>;
   urlMap: Record<string, string>;
 };
 
@@ -103,6 +105,7 @@ export type A11yOptions = {
   experimental: boolean;
   tagNameMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
+  focusableMap: Record<string, boolean>;
   encode: (backendNodeId: number) => string;
 };
 

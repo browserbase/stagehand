@@ -151,10 +151,15 @@ export async function buildHierarchicalTree(
   const nodeMap = new Map<string, A11yNode>();
 
   for (const n of nodes) {
+    const isFocusable = n.encodedId
+      ? opts.focusableMap[n.encodedId] === true
+      : false;
+
     const keep =
       !!(n.name && n.name.trim()) ||
       !!(n.childIds && n.childIds.length) ||
-      !isStructural(n.role);
+      !isStructural(n.role) ||
+      isFocusable;
     if (!keep) continue;
     nodeMap.set(n.nodeId, { ...n });
   }
@@ -179,8 +184,20 @@ export async function buildHierarchicalTree(
   async function pruneStructuralSafe(node: A11yNode): Promise<A11yNode | null> {
     if (+node.nodeId < 0) return null;
 
+    const isFocusable = node.encodedId
+      ? opts.focusableMap[node.encodedId] === true
+      : false;
+
     const children = node.children ?? [];
     if (!children.length) {
+      if (isFocusable) {
+        let newRole = node.role;
+        if ((newRole === "generic" || newRole === "none") && node.encodedId) {
+          const tagName = opts.tagNameMap[node.encodedId];
+          if (tagName) newRole = tagName;
+        }
+        return { ...node, role: newRole };
+      }
       return isStructural(node.role) ? null : node;
     }
 
@@ -190,7 +207,7 @@ export async function buildHierarchicalTree(
 
     const prunedStatic = removeRedundantStaticTextChildren(node, cleanedKids);
 
-    if (isStructural(node.role)) {
+    if (isStructural(node.role) && !isFocusable) {
       if (prunedStatic.length === 1) return prunedStatic[0]!;
       if (prunedStatic.length === 0) return null;
     }

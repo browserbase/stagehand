@@ -31,6 +31,7 @@ describe("computeFramePrefixes", () => {
         {
           tagNameMap: {},
           scrollableMap: {},
+          focusableMap: {},
           urlMap: {},
           xpathMap: { "0-200": "/html[1]/body[1]/iframe[1]" },
         },
@@ -78,6 +79,7 @@ describe("computeFramePrefixes", () => {
         {
           tagNameMap: {},
           scrollableMap: {},
+          focusableMap: {},
           urlMap: {},
           xpathMap: { "0-200": "/iframe[1]" },
         },
@@ -87,6 +89,7 @@ describe("computeFramePrefixes", () => {
         {
           tagNameMap: {},
           scrollableMap: {},
+          focusableMap: {},
           urlMap: {},
           xpathMap: { "1-300": "/div[1]/iframe[1]" },
         },
@@ -125,6 +128,7 @@ describe("computeFramePrefixes", () => {
         {
           tagNameMap: {},
           scrollableMap: {},
+          focusableMap: {},
           urlMap: {},
           xpathMap: {},
         },
@@ -166,6 +170,7 @@ describe("mergeFramesIntoSnapshot", () => {
         {
           tagNameMap: {},
           scrollableMap: {},
+          focusableMap: {},
           urlMap: { "0-10": "https://example.com" },
           xpathMap: { "0-10": "/html[1]/body[1]" },
         },
@@ -175,6 +180,7 @@ describe("mergeFramesIntoSnapshot", () => {
         {
           tagNameMap: {},
           scrollableMap: {},
+          focusableMap: {},
           urlMap: { "1-20": "https://child.com" },
           xpathMap: { "1-20": "/div[1]/span[1]" },
         },
@@ -226,6 +232,7 @@ describe("mergeFramesIntoSnapshot", () => {
         {
           tagNameMap: {},
           scrollableMap: {},
+          focusableMap: {},
           urlMap: {},
           xpathMap: { "0-10": "/html[1]" },
         },
@@ -270,6 +277,7 @@ describe("mergeFramesIntoSnapshot", () => {
         {
           tagNameMap: {},
           scrollableMap: {},
+          focusableMap: {},
           urlMap: {},
           xpathMap: {},
         },
@@ -308,6 +316,7 @@ describe("mergeFramesIntoSnapshot", () => {
         {
           tagNameMap: {},
           scrollableMap: {},
+          focusableMap: {},
           urlMap: {},
           xpathMap: {},
         },

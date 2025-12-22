@@ -19,6 +19,7 @@ const defaultOpts: A11yOptions = {
   experimental: false,
   tagNameMap: {},
   scrollableMap: {},
+  focusableMap: {},
   encode: (backendNodeId: number) => `enc-${backendNodeId}`,
 };
 

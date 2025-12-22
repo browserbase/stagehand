@@ -8,6 +8,31 @@ import {
   normalizeXPath,
 } from "./xpathUtils";
 
+const NATIVE_FOCUSABLE_TAGS = new Set([
+  "a",
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "details",
+  "summary",
+]);
+
+/** Check if a DOM node is focusable via tag or tabindex >= 0. */
+export function isNodeFocusable(node: Protocol.DOM.Node): boolean {
+  const tag = String(node.nodeName ?? "").toLowerCase();
+  if (NATIVE_FOCUSABLE_TAGS.has(tag)) return true;
+
+  const attrs = node.attributes ?? [];
+  for (let i = 0; i < attrs.length; i += 2) {
+    if (attrs[i]?.toLowerCase() === "tabindex") {
+      const val = parseInt(attrs[i + 1] ?? "", 10);
+      if (!isNaN(val) && val >= 0) return true;
+    }
+  }
+  return false;
+}
+
 // starting from infinite depth (-1), exponentially shrink down to 1
 const DOM_DEPTH_ATTEMPTS = [-1, 256, 128, 64, 32, 16, 8, 4, 2, 1];
 const DESCRIBE_DEPTH_ATTEMPTS = [-1, 64, 32, 16, 8, 4, 2, 1];
@@ -184,6 +209,7 @@ export async function domMapsForSession(
   tagNameMap: Record<string, string>;
   xpathMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
+  focusableMap: Record<string, boolean>;
 }> {
   await session.send("DOM.enable").catch(() => {});
   const root = await getDomTreeWithFallback(session, pierce);
@@ -210,6 +236,7 @@ export async function domMapsForSession(
   const tagNameMap: Record<string, string> = {};
   const xpathMap: Record<string, string> = {};
   const scrollableMap: Record<string, boolean> = {};
+  const focusableMap: Record<string, boolean> = {};
 
   type StackEntry = { node: Protocol.DOM.Node; xpath: string };
   const stack: StackEntry[] = [{ node: startNode, xpath: "" }];
@@ -223,6 +250,7 @@ export async function domMapsForSession(
       xpathMap[encId] = xpath || "/";
       const isScrollable = node?.isScrollable === true;
       if (isScrollable) scrollableMap[encId] = true;
+      if (isNodeFocusable(node)) focusableMap[encId] = true;
     }
 
     const kids = node.children ?? [];
@@ -246,7 +274,7 @@ export async function domMapsForSession(
     }
   }
 
-  return { tagNameMap, xpathMap, scrollableMap };
+  return { tagNameMap, xpathMap, scrollableMap, focusableMap };
 }
 
 /**
@@ -264,6 +292,7 @@ export async function buildSessionDomIndex(
   const absByBe = new Map<number, string>();
   const tagByBe = new Map<number, string>();
   const scrollByBe = new Map<number, boolean>();
+  const focusableByBe = new Map<number, boolean>();
   const docRootOf = new Map<number, number>();
   const contentDocRootByIframe = new Map<number, number>();
 
@@ -277,6 +306,7 @@ export async function buildSessionDomIndex(
       absByBe.set(node.backendNodeId, xp || "/");
       tagByBe.set(node.backendNodeId, String(node.nodeName).toLowerCase());
       if (node?.isScrollable === true) scrollByBe.set(node.backendNodeId, true);
+      if (isNodeFocusable(node)) focusableByBe.set(node.backendNodeId, true);
       docRootOf.set(node.backendNodeId, docRootBe);
     }
 
@@ -306,6 +336,7 @@ export async function buildSessionDomIndex(
     absByBe,
     tagByBe,
     scrollByBe,
+    focusableByBe,
     docRootOf,
     contentDocRootByIframe,
   };
