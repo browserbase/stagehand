@@ -429,7 +429,10 @@ export class V3CuaAgentHandler {
         return { success: true };
       }
       case "move": {
-        // No direct cursor-only move; rely on overlay to show clicks/scrolls
+        const { x, y } = action;
+        if (typeof x === "number" && typeof y === "number") {
+          await page.hover(x, y);
+        }
         return { success: true };
       }
       case "wait": {
