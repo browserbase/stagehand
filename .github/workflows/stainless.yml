@@ -1,4 +1,4 @@
-name: Stainless SDK Builds
+name: Build SDKs for pull request
 
 on:
   pull_request:
@@ -7,91 +7,52 @@ on:
       - synchronize
       - reopened
       - closed
-    paths:
-      - "packages/server/openapi.v3.yaml"
-      - ".github/workflows/stainless.yml"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 env:
-  # Configure these as GitHub Actions Variables (Settings → Secrets and variables → Actions → Variables)
   STAINLESS_ORG: ${{ vars.STAINLESS_ORG }}
   STAINLESS_PROJECT: ${{ vars.STAINLESS_PROJECT }}
   OAS_PATH: packages/server/openapi.v3.yaml
 
 jobs:
   preview:
-    if: github.event_name != 'pull_request' || github.event.action != 'closed'
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
-      id-token: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
-      - name: Validate Stainless configuration
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -z "${STAINLESS_ORG}" ]]; then
-            echo "Missing STAINLESS_ORG. Set the Actions variable STAINLESS_ORG."
-            exit 1
-          fi
-          if [[ -z "${STAINLESS_PROJECT}" ]]; then
-            echo "Missing STAINLESS_PROJECT. Set the Actions variable STAINLESS_PROJECT."
-            exit 1
-          fi
-          if [[ ! -f "${OAS_PATH}" ]]; then
-            echo "OpenAPI spec not found at ${OAS_PATH}"
-            exit 1
-          fi
-
       - name: Run preview builds
         uses: stainless-api/upload-openapi-spec-action/preview@v1
         with:
+          stainless_api_key: ${{ secrets.STAINLESS_API_KEY }}
           org: ${{ env.STAINLESS_ORG }}
           project: ${{ env.STAINLESS_PROJECT }}
           oas_path: ${{ env.OAS_PATH }}
 
   merge:
-    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
+    if: github.event.action == 'closed' && github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
-      id-token: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
-
-      - name: Validate Stainless configuration
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -z "${STAINLESS_ORG}" ]]; then
-            echo "Missing STAINLESS_ORG. Set the Actions variable STAINLESS_ORG."
-            exit 1
-          fi
-          if [[ -z "${STAINLESS_PROJECT}" ]]; then
-            echo "Missing STAINLESS_PROJECT. Set the Actions variable STAINLESS_PROJECT."
-            exit 1
-          fi
-          if [[ ! -f "${OAS_PATH}" ]]; then
-            echo "OpenAPI spec not found at ${OAS_PATH}"
-            exit 1
-          fi
-
       - name: Run merge build
         uses: stainless-api/upload-openapi-spec-action/merge@v1
         with:
+          stainless_api_key: ${{ secrets.STAINLESS_API_KEY }}
           org: ${{ env.STAINLESS_ORG }}
           project: ${{ env.STAINLESS_PROJECT }}
           oas_path: ${{ env.OAS_PATH }}
