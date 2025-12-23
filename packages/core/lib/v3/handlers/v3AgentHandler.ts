@@ -273,6 +273,13 @@ export class V3AgentHandler {
         prepareStep: callbacks?.prepareStep,
         onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
         abortSignal: preparedOptions.signal,
+        providerOptions: wrappedModel.modelId.includes("gemini-3")
+          ? {
+              google: {
+                mediaResolution: "MEDIA_RESOLUTION_HIGH",
+              },
+            }
+          : undefined,
       });
 
       return this.consolidateMetricsAndResult(
@@ -407,6 +414,13 @@ export class V3AgentHandler {
         rejectResult(new AgentAbortError(reason));
       },
       abortSignal: options.signal,
+      providerOptions: wrappedModel.modelId.includes("gemini-3")
+        ? {
+            google: {
+              mediaResolution: "MEDIA_RESOLUTION_HIGH",
+            },
+          }
+        : undefined,
     });
 
     const agentStreamResult = streamResult as AgentStreamResult;
