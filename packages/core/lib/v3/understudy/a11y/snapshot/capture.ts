@@ -90,7 +90,7 @@ export async function captureHybridSnapshot(
  * without re-querying CDP. The map is intentionally shallow (frameId → parentId)
  * so it is serializable/testable without holding on to CDP handles.
  */
-function buildFrameContext(page: Page): FrameContext {
+export function buildFrameContext(page: Page): FrameContext {
   const rootId = page.mainFrameId();
   const frameTree = page.asProtocolFrameTree(rootId);
   const parentByFrame: FrameParentIndex = new Map();
@@ -233,7 +233,7 @@ export async function tryScopedSnapshot(
  * result so per-frame slices can share the structure. We key by session id
  * because same process iframes live inside the same session.
  */
-async function buildSessionIndexes(
+export async function buildSessionIndexes(
   page: Page,
   frames: string[],
   pierce: boolean,
@@ -260,7 +260,7 @@ async function buildSessionIndexes(
  *  - collects tag/xpath/scrollability maps for DOM-based lookups
  *  - fetches its AX tree to produce outlines and URL maps
  */
-async function collectPerFrameMaps(
+export async function collectPerFrameMaps(
   page: Page,
   context: FrameContext,
   sessionToIndex: Map<string, SessionDomIndex>,
