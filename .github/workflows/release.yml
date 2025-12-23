@@ -16,6 +16,10 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    outputs:
+      server_published: ${{ steps.server_meta.outputs.server_published }}
+      server_version: ${{ steps.server_meta.outputs.server_version }}
+      server_tag: ${{ steps.server_meta.outputs.server_tag }}
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -49,23 +53,34 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Tag stagehand/server version for GitHub Releases
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Detect stagehand/server publish
+        id: server_meta
         run: |
           set -euo pipefail
 
           SERVER_VERSION="$(node -p "require('./packages/server/package.json').version")"
           TAG="stagehand-server/v${SERVER_VERSION}"
-          BEFORE_SHA="${{ github.event.before }}"
 
-          if [ -n "${BEFORE_SHA}" ] && [ "${BEFORE_SHA}" != "0000000000000000000000000000000000000000" ]; then
-            BEFORE_VERSION="$(git show "${BEFORE_SHA}:packages/server/package.json" 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin)['version'])" 2>/dev/null || true)"
-            if [ -n "${BEFORE_VERSION}" ] && [ "${BEFORE_VERSION}" = "${SERVER_VERSION}" ]; then
-              echo "No @browserbasehq/stagehand-server version change (${SERVER_VERSION}); skipping tag."
-              exit 0
-            fi
+          SERVER_PUBLISHED="false"
+          if [ "${{ steps.changesets.outputs.published }}" = "true" ]; then
+            SERVER_PUBLISHED="$(node -e "const pkgs=JSON.parse(process.env.PUBLISHED_PACKAGES||'[]'); process.stdout.write(pkgs.some(p=>p.name==='@browserbasehq/stagehand-server')?'true':'false');")"
           fi
+
+          echo "server_version=${SERVER_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "server_tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "server_published=${SERVER_PUBLISHED}" >> "$GITHUB_OUTPUT"
+        env:
+          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
+
+      - name: Tag stagehand/server version for GitHub Releases
+        if: steps.server_meta.outputs.server_published == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          TAG="${{ steps.server_meta.outputs.server_tag }}"
+          SERVER_VERSION="${{ steps.server_meta.outputs.server_version }}"
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -87,3 +102,235 @@ jobs:
           pnpm run release-canary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  server_build_binaries:
+    name: Build stagehand/server binaries (${{ matrix.os }})
+    needs: release
+    if: needs.release.outputs.server_published == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+            binary_name: stagehand-server-linux-x64
+
+          - os: ubuntu-latest
+            platform: linux
+            arch: arm64
+            binary_name: stagehand-server-linux-arm64
+
+          - os: macos-latest
+            platform: darwin
+            arch: arm64
+            binary_name: stagehand-server-darwin-arm64
+
+          - os: macos-13
+            platform: darwin
+            arch: x64
+            binary_name: stagehand-server-darwin-x64
+
+          - os: windows-latest
+            platform: win32
+            arch: x64
+            binary_name: stagehand-server-win32-x64.exe
+
+          - os: windows-latest
+            platform: win32
+            arch: arm64
+            binary_name: stagehand-server-win32-arm64.exe
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: pnpm
+
+      - name: Install dependencies
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: pnpm install --frozen-lockfile
+
+      - name: Build binary (Linux/macOS x64/host arch)
+        if: matrix.platform != 'win32' && !(matrix.platform == 'linux' && matrix.arch == 'arm64')
+        shell: bash
+        run: |
+          CI=true pnpm --filter @browserbasehq/stagehand-server build:binary
+
+      - name: Build binary (Linux arm64)
+        if: matrix.platform == 'linux' && matrix.arch == 'arm64'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Intentionally build the core SDK package (not `@browserbasehq/stagehand-server`),
+          # since the SEA bundle depends on the built SDK output and the server's `build`
+          # also runs OpenAPI generation (unnecessary for binary packaging here).
+          pnpm --filter @browserbasehq/stagehand build
+          cd packages/server
+          mkdir -p dist/sea
+
+          pnpm exec esbuild src/server.ts \
+            --bundle \
+            --platform=node \
+            --format=cjs \
+            --outfile=dist/sea/bundle.cjs \
+            --log-level=warning
+
+          node --experimental-sea-config sea-config.json
+
+          BLOB="dist/sea/sea-prep.blob"
+          if [ ! -f "${BLOB}" ]; then
+            echo "Missing ${BLOB}; SEA blob generation failed." >&2
+            exit 1
+          fi
+
+          NODE_VERSION="$(node -p 'process.version')"
+          NODE_TARBALL="node-${NODE_VERSION}-linux-arm64.tar.xz"
+          NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_TARBALL}"
+
+          curl -fsSL "${NODE_URL}" -o "${NODE_TARBALL}"
+          tar -xJf "${NODE_TARBALL}"
+
+          NODE_EXE="node-${NODE_VERSION}-linux-arm64/bin/node"
+          if [ ! -f "${NODE_EXE}" ]; then
+            echo "Missing downloaded Node binary at ${NODE_EXE}" >&2
+            exit 1
+          fi
+
+          OUT="dist/sea/${{ matrix.binary_name }}"
+          cp "${NODE_EXE}" "${OUT}"
+          chmod +x "${OUT}"
+
+          pnpm exec postject "${OUT}" NODE_SEA_BLOB "${BLOB}" \
+            --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+
+          ls -lh "${OUT}"
+
+      - name: Build binary (Windows)
+        if: matrix.platform == 'win32' && matrix.arch == 'x64'
+        shell: powershell
+        run: |
+          # Intentionally build the core SDK package (not `@browserbasehq/stagehand-server`),
+          # since the SEA bundle depends on the built SDK output and the server's `build`
+          # also runs OpenAPI generation (unnecessary for binary packaging here).
+          pnpm --filter @browserbasehq/stagehand build
+          Set-Location packages/server
+          node -e "require('fs').mkdirSync('dist/sea',{recursive:true})"
+          pnpm exec esbuild src/server.ts --bundle --platform=node --format=cjs --outfile=dist/sea/bundle.cjs --log-level=warning
+          node --experimental-sea-config sea-config.json
+          $blob = "dist/sea/sea-prep.blob"
+          if (!(Test-Path $blob)) { throw "Missing blob at $blob; SEA blob generation failed." }
+          Copy-Item (Get-Command node).Source -Destination "dist/sea/${{ matrix.binary_name }}"
+          pnpm exec postject "dist/sea/${{ matrix.binary_name }}" NODE_SEA_BLOB $blob `
+            --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+
+      - name: Build binary (Windows arm64)
+        if: matrix.platform == 'win32' && matrix.arch == 'arm64'
+        shell: powershell
+        run: |
+          # Intentionally build the core SDK package (not `@browserbasehq/stagehand-server`),
+          # since the SEA bundle depends on the built SDK output and the server's `build`
+          # also runs OpenAPI generation (unnecessary for binary packaging here).
+          pnpm --filter @browserbasehq/stagehand build
+          Set-Location packages/server
+          node -e "require('fs').mkdirSync('dist/sea',{recursive:true})"
+          pnpm exec esbuild src/server.ts --bundle --platform=node --format=cjs --outfile=dist/sea/bundle.cjs --log-level=warning
+          node --experimental-sea-config sea-config.json
+
+          $blob = "dist/sea/sea-prep.blob"
+          if (!(Test-Path $blob)) { throw "Missing blob at $blob; SEA blob generation failed." }
+
+          $nodeVersion = node -p "process.version"
+          $zipName = "node-$nodeVersion-win-arm64.zip"
+          $url = "https://nodejs.org/dist/$nodeVersion/$zipName"
+
+          $tmp = Join-Path $env:RUNNER_TEMP "node-arm64"
+          Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+
+          $zipPath = Join-Path $tmp $zipName
+          Invoke-WebRequest -Uri $url -OutFile $zipPath
+          Expand-Archive -Path $zipPath -DestinationPath $tmp
+
+          $nodeExe = Join-Path $tmp "node-$nodeVersion-win-arm64\\node.exe"
+          if (!(Test-Path $nodeExe)) { throw "Missing downloaded Node binary at $nodeExe" }
+
+          Copy-Item $nodeExe -Destination "dist/sea/${{ matrix.binary_name }}"
+          pnpm exec postject "dist/sea/${{ matrix.binary_name }}" NODE_SEA_BLOB $blob `
+            --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.binary_name }}
+          path: packages/server/dist/sea/${{ matrix.binary_name }}
+          retention-days: 7
+
+  server_publish_release:
+    name: Publish stagehand/server GitHub Release
+    needs: [release, server_build_binaries]
+    if: needs.release.outputs.server_published == 'true'
+    runs-on: ubuntu-latest
+    env:
+      OAS_PATH: packages/server/openapi.v3.yaml
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare release assets directory
+        run: mkdir -p release-assets
+
+      - name: Prepare stagehand/server release assets
+        run: |
+          set -euo pipefail
+          cp "${{ env.OAS_PATH }}" "release-assets/openapi.v3.stagehand-server-${{ needs.release.outputs.server_version }}.yaml"
+
+      - name: Download SEA binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: stagehand-server-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-assets
+          # Only checksum binaries (exclude openapi yaml). Avoid failing if no matches.
+          shopt -s nullglob
+          files=(stagehand-server-*)
+          bins=()
+          for f in "${files[@]}"; do
+            [[ "$f" == *openapi* ]] && continue
+            [[ -f "$f" ]] && bins+=("$f")
+          done
+          : > checksums.sha256
+          if [ "${#bins[@]}" -gt 0 ]; then
+            shasum -a 256 "${bins[@]}" > checksums.sha256
+          fi
+
+      - name: Publish stagehand/server GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release.outputs.server_tag }}
+          name: stagehand/server v${{ needs.release.outputs.server_version }}
+          generate_release_notes: true
+          files: |
+            release-assets/openapi.v3.stagehand-server-${{ needs.release.outputs.server_version }}.yaml
+            release-assets/stagehand-server-*
+            release-assets/checksums.sha256
