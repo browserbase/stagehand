@@ -36,22 +36,16 @@ jobs:
         run: |
           set -euo pipefail
 
-          BEFORE_SHA="${{ github.event.before }}"
-          AFTER_SHA="${{ github.sha }}"
+          after_version="$(node -p "require('./packages/server/package.json').version")"
+          tag="stagehand-server/v${after_version}"
 
-          before_version=""
-          if [ -n "${BEFORE_SHA}" ] && [ "${BEFORE_SHA}" != "0000000000000000000000000000000000000000" ]; then
-            before_version="$(git show "${BEFORE_SHA}:packages/server/package.json" 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version" 2>/dev/null || true)"
-          fi
-
-          after_version="$(git show "${AFTER_SHA}:packages/server/package.json" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version")"
+          latest_tag="$(git tag -l 'stagehand-server/v*' --sort=-v:refname | head -n 1 || true)"
+          latest_version="${latest_tag#stagehand-server/v}"
 
           release="false"
-          if [ -n "${before_version}" ] && [ "${before_version}" != "${after_version}" ]; then
+          if [ -z "${latest_tag}" ] || [ "${latest_version}" != "${after_version}" ]; then
             release="true"
           fi
-
-          tag="stagehand-server/v${after_version}"
 
           echo "release=${release}" >> "$GITHUB_OUTPUT"
           echo "version=${after_version}" >> "$GITHUB_OUTPUT"
