@@ -8,6 +8,7 @@ import * as os from "os";
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function removeDirWithRetries(dir: string, retries = 10, delayMs = 500) {
+  let lastError: NodeJS.ErrnoException | undefined;
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -18,14 +19,20 @@ async function removeDirWithRetries(dir: string, retries = 10, delayMs = 500) {
       if (!isBusy) {
         throw err;
       }
+      lastError = err as NodeJS.ErrnoException;
       const hasMoreRetries = attempt < retries - 1;
       if (hasMoreRetries) {
         await sleep(delayMs);
         continue;
       }
-      // Bubble the last error if we've exhausted retries
-      throw err;
+      break;
     }
+  }
+
+  if (lastError) {
+    console.warn(
+      `Failed to delete temp userDataDir after ${retries} attempts: ${lastError.message}`,
+    );
   }
 }
 
