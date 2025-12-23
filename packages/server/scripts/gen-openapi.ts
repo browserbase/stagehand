@@ -15,13 +15,13 @@ import { Api } from "@browserbasehq/stagehand";
 import type { ZodOpenApiComponentsObject } from "zod-openapi";
 
 // Routes
-import actRoute from "../src/routes/v1/sessions/:id/act.js";
-import agentExecuteRoute from "../src/routes/v1/sessions/:id/agentExecute.js";
-import endRoute from "../src/routes/v1/sessions/:id/end.js";
-import extractRoute from "../src/routes/v1/sessions/:id/extract.js";
-import navigateRoute from "../src/routes/v1/sessions/:id/navigate.js";
-import observeRoute from "../src/routes/v1/sessions/:id/observe.js";
-import replayRoute from "../src/routes/v1/sessions/:id/replay.js";
+import actRoute from "../src/routes/v1/sessions/_id/act.js";
+import agentExecuteRoute from "../src/routes/v1/sessions/_id/agentExecute.js";
+import endRoute from "../src/routes/v1/sessions/_id/end.js";
+import extractRoute from "../src/routes/v1/sessions/_id/extract.js";
+import navigateRoute from "../src/routes/v1/sessions/_id/navigate.js";
+import observeRoute from "../src/routes/v1/sessions/_id/observe.js";
+import replayRoute from "../src/routes/v1/sessions/_id/replay.js";
 import startRoute from "../src/routes/v1/sessions/start.js";
 import healthcheckRoute from "../src/routes/healthcheck.js";
 import readinessRoute from "../src/routes/readiness.js";
