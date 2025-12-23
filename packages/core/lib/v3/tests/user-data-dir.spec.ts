@@ -5,6 +5,26 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function removeDirWithRetries(dir: string, retries = 5, delayMs = 200) {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException)?.code;
+      const isBusy = code === "EBUSY" || code === "EPERM";
+      const hasMoreRetries = attempt < retries - 1;
+      if (isBusy && hasMoreRetries) {
+        await sleep(delayMs);
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 test.describe("userDataDir persistence", () => {
   let v3: V3;
   let testDir: string;
@@ -18,7 +38,7 @@ test.describe("userDataDir persistence", () => {
   test.afterEach(async () => {
     await v3?.close?.().catch(() => {});
     if (testDir && fs.existsSync(testDir)) {
-      fs.rmSync(testDir, { recursive: true, force: true });
+      await removeDirWithRetries(testDir);
     }
   });
 
