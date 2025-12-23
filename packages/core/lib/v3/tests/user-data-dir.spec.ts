@@ -7,7 +7,7 @@ import * as os from "os";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function removeDirWithRetries(dir: string, retries = 5, delayMs = 200) {
+async function removeDirWithRetries(dir: string, retries = 10, delayMs = 500) {
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -15,11 +15,15 @@ async function removeDirWithRetries(dir: string, retries = 5, delayMs = 200) {
     } catch (err) {
       const code = (err as NodeJS.ErrnoException)?.code;
       const isBusy = code === "EBUSY" || code === "EPERM";
+      if (!isBusy) {
+        throw err;
+      }
       const hasMoreRetries = attempt < retries - 1;
-      if (isBusy && hasMoreRetries) {
+      if (hasMoreRetries) {
         await sleep(delayMs);
         continue;
       }
+      // Bubble the last error if we've exhausted retries
       throw err;
     }
   }
