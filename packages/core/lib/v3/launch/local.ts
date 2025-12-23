@@ -20,13 +20,14 @@ export async function launchLocalChrome(
     "--no-default-browser-check",
     "--disable-dev-shm-usage",
     "--site-per-process",
+    opts.userDataDir ? `--user-data-dir=${opts.userDataDir}` : undefined,
     ...(opts.chromeFlags ?? []),
   ].filter((f): f is string => typeof f === "string");
 
   const chrome = await launch({
     chromePath: opts.chromePath,
     chromeFlags,
-    userDataDir: opts.userDataDir,
+    ignoreDefaultFlags: true
   });
 
   const ws = await waitForWebSocketDebuggerUrl(
