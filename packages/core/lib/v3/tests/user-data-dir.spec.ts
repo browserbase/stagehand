@@ -10,7 +10,9 @@ test.describe("userDataDir persistence", () => {
   let testDir: string;
 
   test.beforeEach(() => {
-    testDir = fs.mkdtempSync(path.join(os.tmpdir(), "stagehand-userdata-test-"));
+    testDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "stagehand-userdata-test-"),
+    );
   });
 
   test.afterEach(async () => {
@@ -44,4 +46,3 @@ test.describe("userDataDir persistence", () => {
     expect(fs.existsSync(path.join(testDir, "Local State"))).toBe(true);
   });
 });
-
