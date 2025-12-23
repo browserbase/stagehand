@@ -69,7 +69,7 @@ jobs:
           after_version="$(git show "${AFTER_SHA}:packages/server/package.json" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version")"
 
           server_release="false"
-          if [ -z "${before_version}" ] || [ "${before_version}" != "${after_version}" ]; then
+          if [ -n "${before_version}" ] && [ "${before_version}" != "${after_version}" ]; then
             server_release="true"
           fi
 
