@@ -25,6 +25,11 @@ jobs:
             arch: x64
             binary_name: stagehand-server-linux-x64
 
+          - os: ubuntu-latest
+            platform: linux
+            arch: arm64
+            binary_name: stagehand-server-linux-arm64
+
           - os: macos-latest
             platform: darwin
             arch: arm64
@@ -39,6 +44,11 @@ jobs:
             platform: win32
             arch: x64
             binary_name: stagehand-server-win32-x64.exe
+
+          - os: windows-latest
+            platform: win32
+            arch: arm64
+            binary_name: stagehand-server-win32-arm64.exe
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -61,14 +71,61 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
         run: pnpm install --frozen-lockfile
 
-      - name: Build binary (Linux/macOS)
-        if: matrix.platform != 'win32'
+      - name: Build binary (Linux/macOS x64/host arch)
+        if: matrix.platform != 'win32' && !(matrix.platform == 'linux' && matrix.arch == 'arm64')
         shell: bash
         run: |
           CI=true pnpm --filter @browserbasehq/stagehand-server build:binary
 
+      - name: Build binary (Linux arm64)
+        if: matrix.platform == 'linux' && matrix.arch == 'arm64'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          pnpm --filter @browserbasehq/stagehand build
+          cd packages/server
+          mkdir -p dist/sea
+
+          pnpm exec esbuild src/server.ts \
+            --bundle \
+            --platform=node \
+            --format=cjs \
+            --outfile=dist/sea/bundle.cjs \
+            --log-level=warning
+
+          node --experimental-sea-config sea-config.json
+
+          BLOB="dist/sea/sea-prep.blob"
+          if [ ! -f "${BLOB}" ]; then
+            echo "Missing ${BLOB}; SEA blob generation failed." >&2
+            exit 1
+          fi
+
+          NODE_VERSION="$(node -p 'process.version')"
+          NODE_TARBALL="node-${NODE_VERSION}-linux-arm64.tar.xz"
+          NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_TARBALL}"
+
+          curl -fsSL "${NODE_URL}" -o "${NODE_TARBALL}"
+          tar -xJf "${NODE_TARBALL}"
+
+          NODE_EXE="node-${NODE_VERSION}-linux-arm64/bin/node"
+          if [ ! -f "${NODE_EXE}" ]; then
+            echo "Missing downloaded Node binary at ${NODE_EXE}" >&2
+            exit 1
+          fi
+
+          OUT="dist/sea/${{ matrix.binary_name }}"
+          cp "${NODE_EXE}" "${OUT}"
+          chmod +x "${OUT}"
+
+          pnpm exec postject "${OUT}" NODE_SEA_BLOB "${BLOB}" \
+            --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+
+          ls -lh "${OUT}"
+
       - name: Build binary (Windows)
-        if: matrix.platform == 'win32'
+        if: matrix.platform == 'win32' && matrix.arch == 'x64'
         shell: powershell
         run: |
           pnpm --filter @browserbasehq/stagehand build
@@ -79,6 +136,38 @@ jobs:
           $blob = "dist/sea/sea-prep.blob"
           if (!(Test-Path $blob)) { throw "Missing blob at $blob; SEA blob generation failed." }
           Copy-Item (Get-Command node).Source -Destination "dist/sea/${{ matrix.binary_name }}"
+          pnpm exec postject "dist/sea/${{ matrix.binary_name }}" NODE_SEA_BLOB $blob `
+            --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+
+      - name: Build binary (Windows arm64)
+        if: matrix.platform == 'win32' && matrix.arch == 'arm64'
+        shell: powershell
+        run: |
+          pnpm --filter @browserbasehq/stagehand build
+          Set-Location packages/server
+          node -e "require('fs').mkdirSync('dist/sea',{recursive:true})"
+          pnpm exec esbuild src/server.ts --bundle --platform=node --format=cjs --outfile=dist/sea/bundle.cjs --log-level=warning
+          node --experimental-sea-config sea-config.json
+
+          $blob = "dist/sea/sea-prep.blob"
+          if (!(Test-Path $blob)) { throw "Missing blob at $blob; SEA blob generation failed." }
+
+          $nodeVersion = node -p "process.version"
+          $zipName = "node-$nodeVersion-win-arm64.zip"
+          $url = "https://nodejs.org/dist/$nodeVersion/$zipName"
+
+          $tmp = Join-Path $env:RUNNER_TEMP "node-arm64"
+          Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+
+          $zipPath = Join-Path $tmp $zipName
+          Invoke-WebRequest -Uri $url -OutFile $zipPath
+          Expand-Archive -Path $zipPath -DestinationPath $tmp
+
+          $nodeExe = Join-Path $tmp "node-$nodeVersion-win-arm64\\node.exe"
+          if (!(Test-Path $nodeExe)) { throw "Missing downloaded Node binary at $nodeExe" }
+
+          Copy-Item $nodeExe -Destination "dist/sea/${{ matrix.binary_name }}"
           pnpm exec postject "dist/sea/${{ matrix.binary_name }}" NODE_SEA_BLOB $blob `
             --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
 
