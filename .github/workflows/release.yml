@@ -17,7 +17,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     outputs:
-      server_published: ${{ steps.server_meta.outputs.server_published }}
+      server_release: ${{ steps.server_meta.outputs.server_release }}
       server_version: ${{ steps.server_meta.outputs.server_version }}
       server_tag: ${{ steps.server_meta.outputs.server_tag }}
     steps:
@@ -53,27 +53,34 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Detect stagehand/server publish
+      - name: Detect stagehand/server release
         id: server_meta
         run: |
           set -euo pipefail
 
-          SERVER_VERSION="$(node -p "require('./packages/server/package.json').version")"
-          TAG="stagehand-server/v${SERVER_VERSION}"
+          BEFORE_SHA="${{ github.event.before }}"
+          AFTER_SHA="${{ github.sha }}"
 
-          SERVER_PUBLISHED="false"
-          if [ "${{ steps.changesets.outputs.published }}" = "true" ]; then
-            SERVER_PUBLISHED="$(node -e "const pkgs=JSON.parse(process.env.PUBLISHED_PACKAGES||'[]'); process.stdout.write(pkgs.some(p=>p.name==='@browserbasehq/stagehand-server')?'true':'false');")"
+          before_version=""
+          if [ -n "${BEFORE_SHA}" ] && [ "${BEFORE_SHA}" != "0000000000000000000000000000000000000000" ]; then
+            before_version="$(git show "${BEFORE_SHA}:packages/server/package.json" 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version" 2>/dev/null || true)"
           fi
 
-          echo "server_version=${SERVER_VERSION}" >> "$GITHUB_OUTPUT"
+          after_version="$(git show "${AFTER_SHA}:packages/server/package.json" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version")"
+
+          server_release="false"
+          if [ -z "${before_version}" ] || [ "${before_version}" != "${after_version}" ]; then
+            server_release="true"
+          fi
+
+          TAG="stagehand-server/v${after_version}"
+
+          echo "server_version=${after_version}" >> "$GITHUB_OUTPUT"
           echo "server_tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "server_published=${SERVER_PUBLISHED}" >> "$GITHUB_OUTPUT"
-        env:
-          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
+          echo "server_release=${server_release}" >> "$GITHUB_OUTPUT"
 
       - name: Tag stagehand/server version for GitHub Releases
-        if: steps.server_meta.outputs.server_published == 'true'
+        if: steps.server_meta.outputs.server_release == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -81,6 +88,7 @@ jobs:
 
           TAG="${{ steps.server_meta.outputs.server_tag }}"
           SERVER_VERSION="${{ steps.server_meta.outputs.server_version }}"
+          TARGET_SHA="${{ github.sha }}"
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -92,7 +100,7 @@ jobs:
             exit 0
           fi
 
-          git tag -a "${TAG}" -m "stagehand/server v${SERVER_VERSION}"
+          git tag -a "${TAG}" "${TARGET_SHA}" -m "stagehand/server v${SERVER_VERSION}"
           git push origin "${TAG}"
 
       - name: Publish Canary
@@ -106,7 +114,7 @@ jobs:
   server_build_binaries:
     name: Build stagehand/server binaries (${{ matrix.os }})
     needs: release
-    if: needs.release.outputs.server_published == 'true'
+    if: needs.release.outputs.server_release == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -281,7 +289,7 @@ jobs:
   server_publish_release:
     name: Publish stagehand/server GitHub Release
     needs: [release, server_build_binaries]
-    if: needs.release.outputs.server_published == 'true'
+    if: needs.release.outputs.server_release == 'true'
     runs-on: ubuntu-latest
     env:
       OAS_PATH: packages/server/openapi.v3.yaml
