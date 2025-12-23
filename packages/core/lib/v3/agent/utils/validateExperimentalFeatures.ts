@@ -23,7 +23,6 @@ export interface AgentValidationOptions {
  * This utility consolidates all validation checks for both CUA and non-CUA agent paths:
  * - Invalid argument errors for CUA (streaming, abort signal, message continuation are not supported)
  * - Experimental feature checks for integrations and tools (both CUA and non-CUA)
- * - Experimental feature checks for hybrid mode (requires experimental: true)
  * - Experimental feature checks for non-CUA only (callbacks, signal, messages, streaming)
  *
  * Throws StagehandInvalidArgumentError for invalid/unsupported configurations.
@@ -70,9 +69,6 @@ export function validateExperimentalFeatures(
     agentConfig?.tools && Object.keys(agentConfig.tools).length > 0;
   if (hasIntegrations || hasTools) {
     features.push("MCP integrations and custom tools");
-  }
-  if (agentConfig?.mode === "hybrid") {
-    features.push("hybrid mode");
   }
 
   // Check streaming mode (either explicit or derived from config) - only for non-CUA
