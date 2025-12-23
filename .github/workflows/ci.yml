@@ -21,7 +21,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  run-windows-user-data-dir-test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run userDataDir spec on Windows
+        env:
+          HEADLESS: true
+          OPENAI_API_KEY: test
+        run: pnpm --filter @browserbasehq/stagehand run test -- lib/v3/tests/user-data-dir.spec.ts
+
   determine-changes:
+    needs: [run-windows-user-data-dir-test]
     runs-on: ubuntu-latest
     outputs:
       core: ${{ steps.filter.outputs.core }}
