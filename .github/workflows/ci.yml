@@ -27,15 +27,6 @@ jobs:
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            package.json
-            pnpm-lock.yaml
-            pnpm-workspace.yaml
-            tsconfig.json
-            turbo.json
-            packages/core
-          sparse-checkout-cone-mode: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
