@@ -1,65 +1,50 @@
 import { describe, it, expect, vi } from "vitest";
+import { OpenAICUAClient } from "../lib/v3/agent/OpenAICUAClient";
+import { GoogleCUAClient } from "../lib/v3/agent/GoogleCUAClient";
+import type {
+  SafetyCheck,
+  SafetyConfirmationHandler,
+} from "../lib/v3/types/public/agent";
+import type { LogLine } from "../lib/v3/types/public/logs";
 
-// Mock types to test the safety confirmation logic in isolation
-type SafetyCheck = {
-  id: string;
-  code: string;
-  message: string;
-};
+type LoggerMock = (message: LogLine) => void;
 
-type SafetyConfirmationResponse = {
-  acknowledged: boolean;
-};
-
-type SafetyConfirmationHandler = (
-  checks: SafetyCheck[],
-) => Promise<SafetyConfirmationResponse>;
-
-// Extracted logic that mirrors OpenAICUAClient.handleSafetyConfirmation
-async function handleSafetyConfirmation(
-  pendingSafetyChecks: SafetyCheck[],
-  handler: SafetyConfirmationHandler | undefined,
-): Promise<SafetyCheck[] | undefined> {
-  if (handler) {
-    const response = await handler(pendingSafetyChecks);
-    if (response.acknowledged) {
-      return pendingSafetyChecks;
-    } else {
-      return undefined;
-    }
+const openAISafetyInvoker = (
+  OpenAICUAClient.prototype as unknown as {
+    handleSafetyConfirmation: (
+      this: OpenAICUAClient,
+      pendingSafetyChecks: SafetyCheck[],
+      logger: LoggerMock,
+    ) => Promise<SafetyCheck[] | undefined>;
   }
-  // Auto-acknowledge when no handler
-  return pendingSafetyChecks;
+).handleSafetyConfirmation;
+
+const googleSafetyInvoker = (
+  GoogleCUAClient.prototype as unknown as {
+    handleSafetyConfirmation: (
+      this: GoogleCUAClient,
+      safetyDecision: unknown,
+      logger: LoggerMock,
+    ) => Promise<string | undefined>;
+  }
+).handleSafetyConfirmation;
+
+function createOpenAIClient(): OpenAICUAClient {
+  return new OpenAICUAClient(
+    "openai",
+    "openai/computer-use-preview",
+    "test instructions",
+    { apiKey: "test" },
+  );
 }
 
-// Extracted logic that mirrors GoogleCUAClient.handleSafetyConfirmation
-async function handleGoogleSafetyConfirmation(
-  safetyDecision: unknown,
-  handler: SafetyConfirmationHandler | undefined,
-): Promise<string | undefined> {
-  const safetyMessage =
-    typeof safetyDecision === "object"
-      ? JSON.stringify(safetyDecision, null, 2)
-      : String(safetyDecision);
-
-  const safetyChecks: SafetyCheck[] = [
-    {
-      id: "google-safety-decision",
-      code: "safety_decision",
-      message: safetyMessage,
-    },
-  ];
-
-  if (handler) {
-    const response = await handler(safetyChecks);
-    if (response.acknowledged) {
-      return "true";
-    } else {
-      return undefined;
-    }
-  }
-  // Auto-acknowledge when no handler
-  return "true";
+function createGoogleClient(): GoogleCUAClient {
+  return new GoogleCUAClient(
+    "google",
+    "google/gemini-2.5-computer-use-preview-10-2025",
+    "test instructions",
+    { apiKey: "test" },
+  );
 }
 
 describe("Safety Confirmation Handler", () => {
@@ -73,23 +58,35 @@ describe("Safety Confirmation Handler", () => {
     ];
 
     it("returns checks when handler acknowledges", async () => {
-      const handler = vi.fn().mockResolvedValue({ acknowledged: true });
-      const result = await handleSafetyConfirmation(mockChecks, handler);
+      const client = createOpenAIClient();
+      const handler: SafetyConfirmationHandler = vi.fn(async () => ({
+        acknowledged: true,
+      }));
+      client.setSafetyConfirmationHandler(handler);
+      const logger = vi.fn<LoggerMock>();
+      const result = await openAISafetyInvoker.call(client, mockChecks, logger);
 
       expect(handler).toHaveBeenCalledWith(mockChecks);
       expect(result).toEqual(mockChecks);
     });
 
     it("returns undefined when handler rejects", async () => {
-      const handler = vi.fn().mockResolvedValue({ acknowledged: false });
-      const result = await handleSafetyConfirmation(mockChecks, handler);
+      const client = createOpenAIClient();
+      const handler: SafetyConfirmationHandler = vi.fn(async () => ({
+        acknowledged: false,
+      }));
+      client.setSafetyConfirmationHandler(handler);
+      const logger = vi.fn<LoggerMock>();
+      const result = await openAISafetyInvoker.call(client, mockChecks, logger);
 
       expect(handler).toHaveBeenCalledWith(mockChecks);
       expect(result).toBeUndefined();
     });
 
     it("auto-acknowledges when no handler is set", async () => {
-      const result = await handleSafetyConfirmation(mockChecks, undefined);
+      const client = createOpenAIClient();
+      const logger = vi.fn<LoggerMock>();
+      const result = await openAISafetyInvoker.call(client, mockChecks, logger);
       expect(result).toEqual(mockChecks);
     });
   });
@@ -101,10 +98,16 @@ describe("Safety Confirmation Handler", () => {
     };
 
     it("returns 'true' when handler acknowledges", async () => {
-      const handler = vi.fn().mockResolvedValue({ acknowledged: true });
-      const result = await handleGoogleSafetyConfirmation(
+      const client = createGoogleClient();
+      const handler: SafetyConfirmationHandler = vi.fn(async () => ({
+        acknowledged: true,
+      }));
+      client.setSafetyConfirmationHandler(handler);
+      const logger = vi.fn<LoggerMock>();
+      const result = await googleSafetyInvoker.call(
+        client,
         mockDecision,
-        handler,
+        logger,
       );
 
       expect(handler).toHaveBeenCalledWith([
@@ -118,10 +121,16 @@ describe("Safety Confirmation Handler", () => {
     });
 
     it("returns undefined when handler rejects", async () => {
-      const handler = vi.fn().mockResolvedValue({ acknowledged: false });
-      const result = await handleGoogleSafetyConfirmation(
+      const client = createGoogleClient();
+      const handler: SafetyConfirmationHandler = vi.fn(async () => ({
+        acknowledged: false,
+      }));
+      client.setSafetyConfirmationHandler(handler);
+      const logger = vi.fn<LoggerMock>();
+      const result = await googleSafetyInvoker.call(
+        client,
         mockDecision,
-        handler,
+        logger,
       );
 
       expect(handler).toHaveBeenCalled();
@@ -129,18 +138,27 @@ describe("Safety Confirmation Handler", () => {
     });
 
     it("auto-acknowledges when no handler is set", async () => {
-      const result = await handleGoogleSafetyConfirmation(
+      const client = createGoogleClient();
+      const logger = vi.fn<LoggerMock>();
+      const result = await googleSafetyInvoker.call(
+        client,
         mockDecision,
-        undefined,
+        logger,
       );
       expect(result).toBe("true");
     });
 
     it("handles string safety decisions", async () => {
-      const handler = vi.fn().mockResolvedValue({ acknowledged: true });
-      const result = await handleGoogleSafetyConfirmation(
+      const client = createGoogleClient();
+      const handler: SafetyConfirmationHandler = vi.fn(async () => ({
+        acknowledged: true,
+      }));
+      client.setSafetyConfirmationHandler(handler);
+      const logger = vi.fn<LoggerMock>();
+      const result = await googleSafetyInvoker.call(
+        client,
         "Simple string decision",
-        handler,
+        logger,
       );
 
       expect(handler).toHaveBeenCalledWith([
