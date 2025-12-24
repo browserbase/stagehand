@@ -62,7 +62,7 @@ test.describe("Agent cache self-heal (e2e)", () => {
     );
 
     // Second run should replay from cache, self-heal, and update the file.
-    await page.goto(url);
+    await page.goto(url, { waitUntil: "networkidle" });
     const replayResult = await agent.execute({ instruction, maxSteps: 20 });
     expect(replayResult.success).toBe(true);
 
@@ -75,10 +75,16 @@ test.describe("Agent cache self-heal (e2e)", () => {
 });
 
 async function locateAgentCacheFile(cacheDir: string): Promise<string> {
-  const entries = await fs.readdir(cacheDir);
-  const agentFiles = entries.filter((file) => file.startsWith("agent-"));
-  expect(agentFiles.length).toBeGreaterThan(0);
-  return path.join(cacheDir, agentFiles[0]!);
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    const entries = await fs.readdir(cacheDir);
+    const agentFiles = entries.filter((file) => file.startsWith("agent-"));
+    if (agentFiles.length > 0) {
+      return path.join(cacheDir, agentFiles[0]!);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  throw new Error("Timed out waiting for agent cache entry to be written");
 }
 
 async function readCacheEntry(cachePath: string): Promise<CachedAgentEntry> {
