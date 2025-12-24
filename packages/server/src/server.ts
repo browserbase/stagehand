@@ -23,12 +23,12 @@ import {
 } from "./lib/sessionStoreManager.js";
 import healthcheckRoute from "./routes/healthcheck.js";
 import readinessRoute, { setReady, setUnready } from "./routes/readiness.js";
-import actRoute from "./routes/v1/sessions/:id/act.js";
-import agentExecuteRoute from "./routes/v1/sessions/:id/agentExecute.js";
-import endRoute from "./routes/v1/sessions/:id/end.js";
-import extractRoute from "./routes/v1/sessions/:id/extract.js";
-import navigateRoute from "./routes/v1/sessions/:id/navigate.js";
-import observeRoute from "./routes/v1/sessions/:id/observe.js";
+import actRoute from "./routes/v1/sessions/_id/act.js";
+import agentExecuteRoute from "./routes/v1/sessions/_id/agentExecute.js";
+import endRoute from "./routes/v1/sessions/_id/end.js";
+import extractRoute from "./routes/v1/sessions/_id/extract.js";
+import navigateRoute from "./routes/v1/sessions/_id/navigate.js";
+import observeRoute from "./routes/v1/sessions/_id/observe.js";
 import startRoute from "./routes/v1/sessions/start.js";
 
 // Constants for graceful shutdown

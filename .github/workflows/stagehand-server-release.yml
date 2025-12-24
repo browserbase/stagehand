@@ -77,7 +77,7 @@ jobs:
           git push origin "${TAG}"
 
   build_binaries:
-    name: Build SEA binaries (${{ matrix.os }})
+    name: Build SEA binaries (${{ matrix.binary_name }})
     needs: detect
     if: needs.detect.outputs.release == 'true'
     strategy:
@@ -94,12 +94,12 @@ jobs:
             arch: arm64
             binary_name: stagehand-server-linux-arm64
 
-          - os: macos-latest
+          - os: macos-15
             platform: darwin
             arch: arm64
             binary_name: stagehand-server-darwin-arm64
 
-          - os: macos-13
+          - os: macos-15-intel
             platform: darwin
             arch: x64
             binary_name: stagehand-server-darwin-x64
