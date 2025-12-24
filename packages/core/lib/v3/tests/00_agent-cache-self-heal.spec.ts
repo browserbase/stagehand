@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import type { TestInfo } from "@playwright/test";
 import fs from "fs/promises";
 import path from "path";
 import { V3 } from "../v3";
@@ -9,6 +10,8 @@ import type {
   CachedAgentEntry,
 } from "../types/private/cache";
 
+const LOG_PREFIX = "[agent-cache-self-heal]";
+
 test.describe("Agent cache self-heal (e2e)", () => {
   let v3: V3;
   let cacheDir: string;
@@ -17,7 +20,7 @@ test.describe("Agent cache self-heal (e2e)", () => {
   test.beforeEach(async ({}, testInfo) => {
     await fs.mkdir(testInfo.outputDir, { recursive: true });
     cacheDir = await fs.mkdtemp(path.join(testInfo.outputDir, "agent-cache-"));
-    console.log("[agent-cache-self-heal] initial cache contents", {
+    console.log(`${LOG_PREFIX} initial cache contents`, {
       cacheDir,
       entries: await fs.readdir(cacheDir),
     });
@@ -33,7 +36,7 @@ test.describe("Agent cache self-heal (e2e)", () => {
     await v3?.close?.().catch(() => {});
   });
 
-  test("replays heal corrupted selectors", async () => {
+  test("replays heal corrupted selectors", async ({}, testInfo) => {
     test.setTimeout(120_000);
 
     const agent = v3.agent({
@@ -50,6 +53,7 @@ test.describe("Agent cache self-heal (e2e)", () => {
 
     const cachePath = await locateAgentCacheFile(cacheDir);
     const originalEntry = await readCacheEntry(cachePath);
+    await logCacheSnapshot("original", cachePath, originalEntry, testInfo);
     const originalActionStep = findFirstActionStep(originalEntry);
     expect(originalActionStep).toBeDefined();
     const originalSelector = originalActionStep?.actions?.[0]?.selector;
@@ -64,10 +68,7 @@ test.describe("Agent cache self-heal (e2e)", () => {
       JSON.stringify(originalEntry, null, 2),
       "utf8",
     );
-    console.log("[agent-cache-self-heal] cache after corruption", {
-      cacheDir,
-      entries: await fs.readdir(cacheDir),
-    });
+    await logCacheSnapshot("corrupted", cachePath, originalEntry, testInfo);
 
     // Second run should replay from cache, self-heal, and update the file.
     await page.goto(url, { waitUntil: "networkidle" });
@@ -75,11 +76,12 @@ test.describe("Agent cache self-heal (e2e)", () => {
     expect(replayResult.success).toBe(true);
 
     const healedEntry = await readCacheEntry(cachePath);
+    await logCacheSnapshot("healed", cachePath, healedEntry, testInfo);
     const healedActionStep = findFirstActionStep(healedEntry);
     expect(healedActionStep?.actions?.[0]?.selector).toBe(originalSelector);
     expect(healedActionStep?.actions?.[0]?.selector).not.toBe("xpath=/yeee");
     expect(healedEntry.timestamp).not.toBe(originalEntry.timestamp);
-    console.log("[agent-cache-self-heal] cache after replay", {
+    console.log(`${LOG_PREFIX} cache after replay`, {
       cacheDir,
       entries: await fs.readdir(cacheDir),
     });
@@ -105,6 +107,66 @@ async function readCacheEntry(cachePath: string): Promise<CachedAgentEntry> {
 }
 
 type StepWithActions = AgentReplayActStep | AgentReplayFillFormStep;
+
+async function logCacheSnapshot(
+  label: string,
+  cachePath: string,
+  entry: CachedAgentEntry,
+  testInfo: TestInfo,
+): Promise<void> {
+  const summary = summarizeCacheEntry(entry);
+  console.log(`${LOG_PREFIX} ${label} cache summary`, {
+    cachePath,
+    timestamp: entry.timestamp,
+    stepCount: entry.steps.length,
+    selectors: summary,
+  });
+  await attachCacheFile(label, cachePath, testInfo);
+}
+
+async function attachCacheFile(
+  label: string,
+  cachePath: string,
+  testInfo: TestInfo,
+): Promise<void> {
+  const safeLabel = label
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]/g, "-")
+    .replace(/-+/g, "-");
+  const attachmentPath = testInfo.outputPath(
+    `${safeLabel || "snapshot"}-agent-cache.json`,
+  );
+  await fs.copyFile(cachePath, attachmentPath);
+  await testInfo.attach(`${label}-cache`, {
+    path: attachmentPath,
+    contentType: "application/json",
+  });
+}
+
+function summarizeCacheEntry(entry: CachedAgentEntry): Array<{
+  index: number;
+  type: string;
+  selectors: string[];
+}> {
+  return entry.steps.map((step, index) => {
+    const selectors = extractSelectors(step);
+    return {
+      index,
+      type: step.type,
+      selectors: selectors.slice(0, 3),
+    };
+  });
+}
+
+function extractSelectors(step: AgentReplayStep): string[] {
+  const actions = (step as StepWithActions).actions;
+  if (!Array.isArray(actions)) {
+    return [];
+  }
+  return actions
+    .map((action) => action?.selector)
+    .filter((selector): selector is string => typeof selector === "string");
+}
 
 function findFirstActionStep(
   entry: CachedAgentEntry,

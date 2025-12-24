@@ -184,7 +184,7 @@ jobs:
         run: pnpm --filter @browserbasehq/stagehand run test:vitest
 
   run-e2e-local-tests:
-    needs: [run-lint, run-build]
+    needs: [run-lint, run-build, run-agent-cache-self-heal-test]
     runs-on: ubuntu-latest
     timeout-minutes: 50
     if: >
@@ -234,8 +234,73 @@ jobs:
       - name: Run local E2E Tests (Deterministic Playwright)
         run: pnpm run e2e:local --log-order=stream
 
-  run-e2e-bb-tests:
+  run-agent-cache-self-heal-test:
     needs: [run-lint, run-build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: >
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+      HEADLESS: true
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install stable Chromium
+        run: |
+          set -euo pipefail
+          CHROME_VERSION=$(curl -s https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json | jq -r '.channels.Stable.version')
+          DOWNLOAD_URL="https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chrome-linux64.zip"
+          INSTALL_DIR="${RUNNER_TEMP}/chrome-stable"
+          mkdir -p "$INSTALL_DIR"
+          curl -sSL "$DOWNLOAD_URL" -o "$INSTALL_DIR/chrome-linux64.zip"
+          unzip -q "$INSTALL_DIR/chrome-linux64.zip" -d "$INSTALL_DIR"
+          CHROME_BIN="$INSTALL_DIR/chrome-linux64/chrome"
+          chmod +x "$CHROME_BIN"
+          echo "Installed Chromium version: $CHROME_VERSION"
+          "$CHROME_BIN" --version
+          echo "CHROME_PATH=$CHROME_BIN" >> $GITHUB_ENV
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Stagehand
+        run: pnpm run build
+
+      - name: Run agent cache self-heal test only
+        run: >-
+          pnpm run e2e:local --
+          --project=default
+          --workers=1
+          --reporter=line
+          --trace=on
+          --output=agent-cache-debug
+          packages/core/lib/v3/tests/00_agent-cache-self-heal.spec.ts
+
+      - name: Upload agent cache debug artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-cache-self-heal-artifacts
+          path: agent-cache-debug
+
+  run-e2e-bb-tests:
+    needs: [run-lint, run-build, run-agent-cache-self-heal-test]
     runs-on: ubuntu-latest
     timeout-minutes: 50
     if: >
