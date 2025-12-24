@@ -29,6 +29,7 @@ test.describe("Agent cache self-heal (e2e)", () => {
       ...v3TestConfig,
       cacheDir,
       selfHeal: true,
+      verbose: 2,
     });
     await v3.init();
   });
