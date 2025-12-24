@@ -371,7 +371,8 @@ export class OpenAICUAClient extends AgentClient {
         level: 1,
       });
 
-      const response = await this.safetyConfirmationHandler(pendingSafetyChecks);
+      const response =
+        await this.safetyConfirmationHandler(pendingSafetyChecks);
 
       if (response.acknowledged) {
         logger({
@@ -591,7 +592,8 @@ export class OpenAICUAClient extends AgentClient {
                 };
                 acknowledged_safety_checks?: SafetyCheck[];
               };
-              computerCallOutput.acknowledged_safety_checks = acknowledgedChecks;
+              computerCallOutput.acknowledged_safety_checks =
+                acknowledgedChecks;
             }
           }
 
@@ -657,7 +659,8 @@ export class OpenAICUAClient extends AgentClient {
                   };
                   acknowledged_safety_checks?: SafetyCheck[];
                 };
-                computerCallOutput.acknowledged_safety_checks = acknowledgedChecks;
+                computerCallOutput.acknowledged_safety_checks =
+                  acknowledgedChecks;
               }
             }
 
