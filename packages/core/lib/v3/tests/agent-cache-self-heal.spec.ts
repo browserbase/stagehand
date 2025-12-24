@@ -40,7 +40,7 @@ test.describe("Agent cache self-heal (e2e)", () => {
       "https://browserbase.github.io/stagehand-eval-sites/sites/shadow-dom/";
     const instruction = "click the button";
 
-    await page.goto(url, {waitUntil: "networkidle"});
+    await page.goto(url, { waitUntil: "networkidle" });
     const firstResult = await agent.execute({ instruction, maxSteps: 20 });
     expect(firstResult.success).toBe(true);
 
