@@ -7,6 +7,7 @@ import { v3TestConfig } from "./v3.config";
 import type {
   AgentReplayActStep,
   AgentReplayFillFormStep,
+  AgentReplayStep,
   CachedAgentEntry,
 } from "../types/private/cache";
 
@@ -36,6 +37,7 @@ test.describe("Agent cache self-heal (e2e)", () => {
     await v3?.close?.().catch(() => {});
   });
 
+  // eslint-disable-next-line no-empty-pattern
   test("replays heal corrupted selectors", async ({}, testInfo) => {
     test.setTimeout(120_000);
 
