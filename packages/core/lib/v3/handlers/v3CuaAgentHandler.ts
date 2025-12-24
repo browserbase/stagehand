@@ -173,13 +173,9 @@ export class V3CuaAgentHandler {
 
     void this.updateClientViewport();
     void this.updateClientUrl();
-
-    if (this.options.onSafetyConfirmation) {
-      this.setSafetyConfirmationHandler(this.options.onSafetyConfirmation);
-    }
   }
 
-  setSafetyConfirmationHandler(handler: SafetyConfirmationHandler): void {
+  setSafetyConfirmationHandler(handler?: SafetyConfirmationHandler): void {
     if (
       this.agentClient instanceof GoogleCUAClient ||
       this.agentClient instanceof OpenAICUAClient
@@ -195,6 +191,8 @@ export class V3CuaAgentHandler {
       typeof optionsOrInstruction === "string"
         ? { instruction: optionsOrInstruction }
         : optionsOrInstruction;
+
+    this.setSafetyConfirmationHandler(options.callbacks?.onSafetyConfirmation);
 
     this.highlightCursor = options.highlightCursor !== false;
 

@@ -147,7 +147,7 @@ export class GoogleCUAClient extends AgentClient {
     this.updateGenerateContentConfig();
   }
 
-  setSafetyConfirmationHandler(handler: SafetyConfirmationHandler): void {
+  setSafetyConfirmationHandler(handler?: SafetyConfirmationHandler): void {
     this.safetyConfirmationHandler = handler;
   }
 

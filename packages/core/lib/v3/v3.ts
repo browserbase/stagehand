@@ -42,6 +42,7 @@ import {
 } from "./types/private";
 import {
   AgentConfig,
+  AgentExecuteCallbacks,
   AgentExecuteOptions,
   AgentStreamExecuteOptions,
   AgentResult,
@@ -1619,6 +1620,15 @@ export class V3 {
         ? { instruction: instructionOrOptions }
         : instructionOrOptions;
 
+    const callbacksWithSafety = resolvedOptions.callbacks as
+      | AgentExecuteCallbacks
+      | undefined;
+    if (callbacksWithSafety?.onSafetyConfirmation) {
+      throw new StagehandInvalidArgumentError(
+        'onSafetyConfirmation callback is only supported when using mode: "cua" agents.',
+      );
+    }
+
     if (resolvedOptions.page) {
       const normalizedPage = await this.normalizeToV3Page(resolvedOptions.page);
       this.ctx!.setActivePage(normalizedPage);
@@ -1754,7 +1764,6 @@ export class V3 {
                 userProvidedInstructions:
                   options.systemPrompt ??
                   `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
-                onSafetyConfirmation: options?.onSafetyConfirmation,
               },
               tools,
             );

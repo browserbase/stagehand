@@ -109,7 +109,7 @@ export class OpenAICUAClient extends AgentClient {
     this.tools = tools;
   }
 
-  setSafetyConfirmationHandler(handler: SafetyConfirmationHandler): void {
+  setSafetyConfirmationHandler(handler?: SafetyConfirmationHandler): void {
     this.safetyConfirmationHandler = handler;
   }
 

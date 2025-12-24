@@ -105,6 +105,13 @@ type StreamingCallbackNotAvailable =
   "This callback requires 'stream: true' in AgentConfig. Set stream: true to use streaming callbacks like onChunk, onFinish, onError, and onAbort.";
 
 /**
+ * Error message for safety confirmation callback misuse.
+ * Safety confirmations are only available for non-streaming CUA agent executions.
+ */
+type SafetyConfirmationCallbackNotAvailable =
+  "Safety confirmation callbacks are only available via non-streaming AgentExecuteOptions.callbacks when using mode: 'cua'.";
+
+/**
  * Callbacks specific to the non-streaming execute method.
  */
 export interface AgentExecuteCallbacks extends AgentCallbacks {
@@ -112,6 +119,11 @@ export interface AgentExecuteCallbacks extends AgentCallbacks {
    * Callback called when each step (LLM call) is finished.
    */
   onStepFinish?: GenerateTextOnStepFinishCallback<ToolSet>;
+  /**
+   * Callback for handling safety confirmation requests from CUA providers.
+   * Only available when running an agent configured with mode: "cua".
+   */
+  onSafetyConfirmation?: SafetyConfirmationHandler;
 
   /**
    * NOT AVAILABLE in non-streaming mode.
@@ -206,6 +218,11 @@ export interface AgentStreamCallbacks extends AgentCallbacks {
   onAbort?: (event: {
     steps: Array<StepResult<ToolSet>>;
   }) => PromiseLike<void> | void;
+  /**
+   * NOT AVAILABLE in streaming mode.
+   * Safety confirmations currently require non-streaming execute() on CUA agents.
+   */
+  onSafetyConfirmation?: SafetyConfirmationCallbackNotAvailable;
 }
 
 /**
@@ -292,10 +309,6 @@ export interface AgentHandlerOptions {
   clientOptions?: ClientOptions;
   userProvidedInstructions?: string;
   experimental?: boolean;
-  /**
-   * Callback for handling safety confirmation requests from CUA providers.
-   */
-  onSafetyConfirmation?: SafetyConfirmationHandler;
 }
 
 export interface ActionExecutionResult {
@@ -338,11 +351,16 @@ export interface SafetyConfirmationResponse {
  * ```typescript
  * const agent = stagehand.agent({
  *   mode: "cua",
- *   onSafetyConfirmation: async (checks) => {
- *     console.log("Safety checks:", checks);
- *     const userApproved = await showConfirmationDialog(checks);
- *     return { acknowledged: userApproved };
- *   }
+ * });
+ * await agent.execute({
+ *   instruction: "...",
+ *   callbacks: {
+ *     onSafetyConfirmation: async (checks) => {
+ *       console.log("Safety checks:", checks);
+ *       const userApproved = await showConfirmationDialog(checks);
+ *       return { acknowledged: userApproved };
+ *     },
+ *   },
  * });
  * ```
  */
@@ -497,25 +515,6 @@ export type AgentConfig = {
    * - 'cua': Uses Computer Use Agent (CUA) providers for screenshot-based automation
    */
   mode?: AgentToolMode;
-  /**
-   * Callback for handling safety confirmation requests from CUA providers.
-   * When set, the agent will call this function instead of auto-accepting safety checks.
-   * This allows the user to review and approve/reject potentially risky actions.
-   *
-   * If not set, safety checks are automatically acknowledged (default behavior).
-   *
-   * @example
-   * ```typescript
-   * const agent = stagehand.agent({
-   *   mode: "cua",
-   *   onSafetyConfirmation: async (checks) => {
-   *     const approved = await showUserConfirmationDialog(checks);
-   *     return { acknowledged: approved };
-   *   }
-   * });
-   * ```
-   */
-  onSafetyConfirmation?: SafetyConfirmationHandler;
 };
 
 /**
