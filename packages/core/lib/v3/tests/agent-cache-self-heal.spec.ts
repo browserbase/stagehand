@@ -5,6 +5,7 @@ import { V3 } from "../v3";
 import { v3TestConfig } from "./v3.config";
 import type {
   AgentReplayActStep,
+  AgentReplayFillFormStep,
   CachedAgentEntry,
 } from "../types/private/cache";
 
@@ -40,18 +41,19 @@ test.describe("Agent cache self-heal (e2e)", () => {
     const instruction = "click the button";
 
     await page.goto(url);
-    await agent.execute({ instruction, maxSteps: 20 });
+    const firstResult = await agent.execute({ instruction, maxSteps: 20 });
+    expect(firstResult.success).toBe(true);
 
     const cachePath = await locateAgentCacheFile(cacheDir);
     const originalEntry = await readCacheEntry(cachePath);
-    const originalActStep = findFirstActStep(originalEntry);
-    expect(originalActStep).toBeDefined();
-    const originalSelector = originalActStep?.actions?.[0]?.selector;
+    const originalActionStep = findFirstActionStep(originalEntry);
+    expect(originalActionStep).toBeDefined();
+    const originalSelector = originalActionStep?.actions?.[0]?.selector;
     expect(typeof originalSelector).toBe("string");
 
     // Corrupt the cached selector so the replay needs to self-heal.
-    if (originalActStep?.actions?.[0]) {
-      originalActStep.actions[0].selector = "xpath=/yeee";
+    if (originalActionStep?.actions?.[0]) {
+      originalActionStep.actions[0].selector = "xpath=/yeee";
     }
     await fs.writeFile(
       cachePath,
@@ -65,9 +67,9 @@ test.describe("Agent cache self-heal (e2e)", () => {
     expect(replayResult.success).toBe(true);
 
     const healedEntry = await readCacheEntry(cachePath);
-    const healedActStep = findFirstActStep(healedEntry);
-    expect(healedActStep?.actions?.[0]?.selector).toBe(originalSelector);
-    expect(healedActStep?.actions?.[0]?.selector).not.toBe("xpath=/yeee");
+    const healedActionStep = findFirstActionStep(healedEntry);
+    expect(healedActionStep?.actions?.[0]?.selector).toBe(originalSelector);
+    expect(healedActionStep?.actions?.[0]?.selector).not.toBe("xpath=/yeee");
     expect(healedEntry.timestamp).not.toBe(originalEntry.timestamp);
   });
 });
@@ -84,13 +86,13 @@ async function readCacheEntry(cachePath: string): Promise<CachedAgentEntry> {
   return JSON.parse(raw) as CachedAgentEntry;
 }
 
-function findFirstActStep(
+type StepWithActions = AgentReplayActStep | AgentReplayFillFormStep;
+
+function findFirstActionStep(
   entry: CachedAgentEntry,
-): AgentReplayActStep | undefined {
-  return entry.steps.find(
-    (step): step is AgentReplayActStep =>
-      step.type === "act" &&
-      Array.isArray(step.actions) &&
-      step.actions.length > 0,
-  );
+): StepWithActions | undefined {
+  return entry.steps.find((step) => {
+    const actions = (step as StepWithActions).actions;
+    return Array.isArray(actions) && actions.length > 0;
+  }) as StepWithActions | undefined;
 }
