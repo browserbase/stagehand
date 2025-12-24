@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { V3 } from "../../lib/v3";
 
-const INSTRUCTION = "scroll down and click on the last hn story";
+const INSTRUCTION = "click the button";
 
 async function main() {
   console.log(`\n${chalk.bold("Stagehand V3 🤘 Operator Example")}\n`);
@@ -10,6 +10,7 @@ async function main() {
   const v3 = new V3({
     env: "LOCAL",
     verbose: 2,
+    cacheDir: "agent-cache",
   });
 
   await v3.init();
@@ -17,17 +18,13 @@ async function main() {
   try {
     const startPage = v3.context.pages()[0];
     await startPage.goto(
-      "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/",
+      "https://browserbase.github.io/stagehand-eval-sites/sites/shadow-dom/",
     );
     const agent = v3.agent({
       cua: false,
       model: "google/gemini-2.0-flash",
       executionModel: "google/gemini-2.0-flash",
     });
-    // {
-    //   model: "computer-use-preview-2025-03-11",
-    //   provider: "openai",
-    // }
 
     // Execute the agent
     console.log(`${chalk.cyan("↳")} Instruction: ${INSTRUCTION}`);
