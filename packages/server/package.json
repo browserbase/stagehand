@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-server",
-  "version": "3.1.2",
+  "version": "3.1.3",
   "description": "Stagehand API server",
   "type": "module",
   "private": true,
@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --exclude test/api-client.integration.test.ts",
     "test:integration": "vitest run test/api-client.integration.test.ts",
-    "gen:openapi": "tsx scripts/gen-openapi.ts; cd ../.. && prettier --write packages/server/openapi.v3.yaml"
+    "gen:openapi": "tsx scripts/gen-openapi.ts && prettier --write openapi.v3.yaml"
   },
   "dependencies": {
     "@browserbasehq/sdk": "^2.4.0",
