@@ -29,6 +29,7 @@ import type { Page } from "../understudy/page";
 import type { V3Context } from "../understudy/context";
 import { CacheStorage } from "./CacheStorage";
 import { cloneForCache, safeGetPageUrl } from "./utils";
+import * as nodePath from "node:path";
 
 const SENSITIVE_CONFIG_KEYS = new Set(["apikey", "api_key", "api-key"]);
 
@@ -355,9 +356,12 @@ export class AgentCache {
       return;
     }
 
+    const absolutePath =
+      typeof path === "string" && path.length > 0 ? nodePath.resolve(path) : "";
+
     this.logger({
       category: "cache",
-      message: "agent cache stored",
+      message: `agent cache stored at path ${path} \nabsolute path: ${absolutePath} `,
       level: 2,
       auxiliary: {
         instruction: { value: context.instruction, type: "string" },
