@@ -105,6 +105,13 @@ type StreamingCallbackNotAvailable =
   "This callback requires 'stream: true' in AgentConfig. Set stream: true to use streaming callbacks like onChunk, onFinish, onError, and onAbort.";
 
 /**
+ * Error message for safety confirmation callback misuse.
+ * Safety confirmations are only available for non-streaming CUA agent executions.
+ */
+type SafetyConfirmationCallbackNotAvailable =
+  "Safety confirmation callbacks are only available via non-streaming AgentExecuteOptions.callbacks when using mode: 'cua'.";
+
+/**
  * Callbacks specific to the non-streaming execute method.
  */
 export interface AgentExecuteCallbacks extends AgentCallbacks {
@@ -112,6 +119,11 @@ export interface AgentExecuteCallbacks extends AgentCallbacks {
    * Callback called when each step (LLM call) is finished.
    */
   onStepFinish?: GenerateTextOnStepFinishCallback<ToolSet>;
+  /**
+   * Callback for handling safety confirmation requests from CUA providers.
+   * Only available when running an agent configured with mode: "cua".
+   */
+  onSafetyConfirmation?: SafetyConfirmationHandler;
 
   /**
    * NOT AVAILABLE in non-streaming mode.
@@ -206,6 +218,11 @@ export interface AgentStreamCallbacks extends AgentCallbacks {
   onAbort?: (event: {
     steps: Array<StepResult<ToolSet>>;
   }) => PromiseLike<void> | void;
+  /**
+   * NOT AVAILABLE in streaming mode.
+   * Safety confirmations currently require non-streaming execute() on CUA agents.
+   */
+  onSafetyConfirmation?: SafetyConfirmationCallbackNotAvailable;
 }
 
 /**
@@ -352,6 +369,57 @@ export interface ActionExecutionResult {
   error?: string;
   data?: unknown;
 }
+
+/**
+ * Represents a safety check that requires user confirmation before proceeding.
+ * These are issued by CUA providers (OpenAI, Google) when the agent attempts
+ * potentially risky actions.
+ */
+export interface SafetyCheck {
+  /** Unique identifier for this safety check */
+  id: string;
+  /** Code identifying the type of safety concern */
+  code: string;
+  /** Human-readable description of the safety concern */
+  message: string;
+}
+
+/**
+ * Response from the user for a safety confirmation request.
+ */
+export interface SafetyConfirmationResponse {
+  /** Whether the user acknowledged/approved the safety checks */
+  acknowledged: boolean;
+}
+
+/**
+ * Callback for handling safety confirmation requests.
+ * Called when the CUA provider issues safety checks that require user confirmation.
+ * The callback should return a promise that resolves when the user has made a decision.
+ *
+ * @param safetyChecks - Array of safety checks requiring confirmation
+ * @returns Promise resolving to the user's response
+ *
+ * @example
+ * ```typescript
+ * const agent = stagehand.agent({
+ *   mode: "cua",
+ * });
+ * await agent.execute({
+ *   instruction: "...",
+ *   callbacks: {
+ *     onSafetyConfirmation: async (checks) => {
+ *       console.log("Safety checks:", checks);
+ *       const userApproved = await showConfirmationDialog(checks);
+ *       return { acknowledged: userApproved };
+ *     },
+ *   },
+ * });
+ * ```
+ */
+export type SafetyConfirmationHandler = (
+  safetyChecks: SafetyCheck[],
+) => Promise<SafetyConfirmationResponse>;
 
 // Anthropic types:
 
