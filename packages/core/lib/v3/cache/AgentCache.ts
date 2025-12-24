@@ -768,7 +768,7 @@ export class AgentCache {
       this.logger({
         category: "cache",
         message: "failed to update agent cache entry after self-heal",
-        level: 1,
+        level: 0,
         auxiliary: {
           error: { value: String(error), type: "string" },
         },
