@@ -239,6 +239,59 @@ export interface AgentExecuteOptionsBase {
    * ```
    */
   signal?: AbortSignal;
+  /**
+   * Tools to exclude from this execution.
+   * Pass an array of tool names to prevent the agent from using those tools.
+   *
+   * **Note:** Not supported in CUA mode (`mode: "cua"`).
+   *
+   * **Available tools by mode:**
+   *
+   * **DOM mode (default):**
+   * - `act` - Perform semantic actions (click, type, etc.)
+   * - `fillForm` - Fill form fields using DOM selectors
+   * - `ariaTree` - Get accessibility tree of the page
+   * - `extract` - Extract structured data from page
+   * - `goto` - Navigate to a URL
+   * - `scroll` - Scroll using semantic directions (up/down/left/right)
+   * - `keys` - Press keyboard keys
+   * - `navback` - Navigate back in history
+   * - `screenshot` - Take a screenshot
+   * - `think` - Agent reasoning/planning step
+   * - `wait` - Wait for time or condition
+   * - `close` - Mark task as complete
+   * - `search` - Web search (requires BRAVE_API_KEY)
+   *
+   * **Hybrid mode:**
+   * - `click` - Click at specific coordinates
+   * - `type` - Type text at coordinates
+   * - `dragAndDrop` - Drag from one point to another
+   * - `clickAndHold` - Click and hold at coordinates
+   * - `fillFormVision` - Fill forms using vision/coordinates
+   * - `act` - Perform semantic actions
+   * - `ariaTree` - Get accessibility tree
+   * - `extract` - Extract data from page
+   * - `goto` - Navigate to URL
+   * - `scroll` - Scroll using coordinates
+   * - `keys` - Press keyboard keys
+   * - `navback` - Navigate back
+   * - `screenshot` - Take screenshot
+   * - `think` - Agent reasoning step
+   * - `wait` - Wait for time/condition
+   * - `close` - Mark task complete
+   * - `search` - Web search (requires BRAVE_API_KEY)
+   *
+   * @experimental
+   * @example
+   * ```typescript
+   * // Exclude screenshot and extract tools
+   * const result = await agent.execute({
+   *   instruction: "Click the submit button",
+   *   excludeTools: ["screenshot", "extract"]
+   * });
+   * ```
+   */
+  excludeTools?: string[];
 }
 
 /**

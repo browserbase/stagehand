@@ -35,28 +35,44 @@ export interface V3AgentToolOptions {
    * The model provider. Used for model-specific coordinate handling
    */
   provider?: string;
+  /**
+   * Tools to exclude from the available toolset.
+   * These tools will be filtered out after mode-based filtering.
+   */
+  excludeTools?: string[];
 }
 
 /**
- * Filters tools based on the agent mode.
+ * Filters tools based on mode and explicit exclusions.
  * - 'dom' mode: Removes coordinate-based tools (click, type, dragAndDrop, clickAndHold, fillFormVision)
  * - 'hybrid' mode: Removes DOM-based form tool (fillForm) in favor of coordinate-based fillFormVision
+ * - excludeTools: Additional tools to remove from the toolset
  */
-function filterToolsByMode(tools: ToolSet, mode: AgentToolMode): ToolSet {
+function filterTools(
+  tools: ToolSet,
+  mode: AgentToolMode,
+  excludeTools?: string[],
+): ToolSet {
   const filtered: ToolSet = { ...tools };
 
+  // Mode-based filtering
   if (mode === "hybrid") {
-    // Hybrid mode: Remove DOM-based fillForm, keep coordinate-based tools
     delete filtered.fillForm;
-    return filtered;
+  } else {
+    // DOM mode (default)
+    delete filtered.click;
+    delete filtered.type;
+    delete filtered.dragAndDrop;
+    delete filtered.clickAndHold;
+    delete filtered.fillFormVision;
   }
 
-  // DOM mode (default): Remove coordinate-based tools, keep DOM-based tools
-  delete filtered.click;
-  delete filtered.type;
-  delete filtered.dragAndDrop;
-  delete filtered.clickAndHold;
-  delete filtered.fillFormVision;
+  if (excludeTools) {
+    for (const toolName of excludeTools) {
+      delete filtered[toolName];
+    }
+  }
+
   return filtered;
 }
 
@@ -64,6 +80,7 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const executionModel = options?.executionModel;
   const mode = options?.mode ?? "dom";
   const provider = options?.provider;
+  const excludeTools = options?.excludeTools;
 
   const allTools: ToolSet = {
     act: actTool(v3, executionModel),
@@ -90,7 +107,7 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     allTools.search = searchTool(v3);
   }
 
-  return filterToolsByMode(allTools, mode);
+  return filterTools(allTools, mode, excludeTools);
 }
 
 export type AgentTools = ReturnType<typeof createAgentTools>;

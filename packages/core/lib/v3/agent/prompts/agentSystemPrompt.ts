@@ -7,6 +7,8 @@ export interface AgentSystemPromptOptions {
   systemInstructions?: string;
   /** Whether running on Browserbase (enables captcha solver messaging) */
   isBrowserbase?: boolean;
+  /** Tools to exclude from the system prompt */
+  excludeTools?: string[];
 }
 
 /**
@@ -15,6 +17,103 @@ export interface AgentSystemPromptOptions {
  * @param options - The prompt configuration options
  * @returns The formatted system prompt string
  */
+interface ToolDefinition {
+  name: string;
+  description: string;
+}
+
+function buildToolsSection(
+  isHybridMode: boolean,
+  hasSearch: boolean,
+  excludeTools?: string[],
+): string {
+  const excludeSet = new Set(excludeTools ?? []);
+
+  const hybridTools: ToolDefinition[] = [
+    {
+      name: "screenshot",
+      description: "Take a compressed JPEG screenshot for quick visual context",
+    },
+    {
+      name: "ariaTree",
+      description:
+        "Get an accessibility (ARIA) hybrid tree for full page context",
+    },
+    {
+      name: "click",
+      description:
+        "Click on an element (PREFERRED - more reliable when element is visible in viewport)",
+    },
+    {
+      name: "type",
+      description:
+        "Type text into an element (PREFERRED - more reliable when element is visible in viewport)",
+    },
+    {
+      name: "act",
+      description:
+        "Perform a specific atomic action (click, type, etc.) - ONLY use when element is in ariaTree but NOT visible in screenshot. Less reliable but can interact with out-of-viewport elements.",
+    },
+    { name: "dragAndDrop", description: "Drag and drop an element" },
+    { name: "clickAndHold", description: "Click and hold on an element" },
+    { name: "keys", description: "Press a keyboard key" },
+    {
+      name: "fillFormVision",
+      description: "Fill out a form using coordinates",
+    },
+    { name: "think", description: "Think about the task" },
+    { name: "extract", description: "Extract structured data" },
+    { name: "goto", description: "Navigate to a URL" },
+    { name: "wait", description: "Wait for a specified time" },
+    { name: "navback", description: "Navigate back in browser history" },
+    { name: "scroll", description: "Scroll the page x pixels up or down" },
+    { name: "close", description: "Mark the task as complete or failed" },
+  ];
+
+  const domTools: ToolDefinition[] = [
+    {
+      name: "screenshot",
+      description: "Take a compressed JPEG screenshot for quick visual context",
+    },
+    {
+      name: "ariaTree",
+      description:
+        "Get an accessibility (ARIA) hybrid tree for full page context",
+    },
+    {
+      name: "act",
+      description: "Perform a specific atomic action (click, type)",
+    },
+    { name: "keys", description: "Press a keyboard key" },
+    { name: "fillForm", description: "Fill out a form" },
+    { name: "think", description: "Think about the task" },
+    { name: "extract", description: "Extract structured data" },
+    { name: "goto", description: "Navigate to a URL" },
+    { name: "wait", description: "Wait for a specified time" },
+    { name: "navback", description: "Navigate back in browser history" },
+    { name: "scroll", description: "Scroll the page x pixels up or down" },
+    { name: "close", description: "Mark the task as complete or failed" },
+  ];
+
+  const baseTools = isHybridMode ? hybridTools : domTools;
+
+  if (hasSearch) {
+    baseTools.push({
+      name: "search",
+      description:
+        "Perform a web search and return results. Prefer this over navigating to Google and searching within the page for reliability and efficiency.",
+    });
+  }
+
+  const filteredTools = baseTools.filter((tool) => !excludeSet.has(tool.name));
+
+  const toolLines = filteredTools
+    .map((tool) => `    <tool name="${tool.name}">${tool.description}</tool>`)
+    .join("\n");
+
+  return `<tools>\n${toolLines}\n  </tools>`;
+}
+
 export function buildAgentSystemPrompt(
   options: AgentSystemPromptOptions,
 ): string {
@@ -24,6 +123,7 @@ export function buildAgentSystemPrompt(
     mode,
     systemInstructions,
     isBrowserbase = false,
+    excludeTools,
   } = options;
   const localeDate = new Date().toLocaleDateString();
   const isoDate = new Date().toISOString();
@@ -32,42 +132,8 @@ export function buildAgentSystemPrompt(
   const isHybridMode = mode === "hybrid";
   const hasSearch = Boolean(process.env.BRAVE_API_KEY);
 
-  const searchToolLine = hasSearch
-    ? `\n    <tool name="search">Perform a web search and return results. Prefer this over navigating to Google and searching within the page for reliability and efficiency.</tool>`
-    : "";
-
-  // Tools section differs based on mode
-  const toolsSection = isHybridMode
-    ? `<tools>
-    <tool name="screenshot">Take a compressed JPEG screenshot for quick visual context</tool>
-    <tool name="ariaTree">Get an accessibility (ARIA) hybrid tree for full page context</tool>
-    <tool name="click">Click on an element (PREFERRED - more reliable when element is visible in viewport)</tool>
-    <tool name="type">Type text into an element (PREFERRED - more reliable when element is visible in viewport)</tool>
-    <tool name="act">Perform a specific atomic action (click, type, etc.) - ONLY use when element is in ariaTree but NOT visible in screenshot. Less reliable but can interact with out-of-viewport elements.</tool>
-    <tool name="dragAndDrop">Drag and drop an element</tool>
-    <tool name="clickAndHold">Click and hold on an element</tool>
-    <tool name="keys">Press a keyboard key</tool>
-    <tool name="fillFormVision">Fill out a form using coordinates</tool>
-    <tool name="think">Think about the task</tool>
-    <tool name="extract">Extract structured data</tool>
-    <tool name="goto">Navigate to a URL</tool>
-    <tool name="wait|navback">Control timing and navigation</tool>
-    <tool name="scroll">Scroll the page x pixels up or down</tool>
-    ${searchToolLine}
-  </tools>`
-    : `<tools>
-    <tool name="screenshot">Take a compressed JPEG screenshot for quick visual context</tool>
-    <tool name="ariaTree">Get an accessibility (ARIA) hybrid tree for full page context</tool>
-    <tool name="act">Perform a specific atomic action (click, type)</tool>
-    <tool name="keys">Press a keyboard key</tool>
-    <tool name="fillForm">Fill out a form</tool>
-    <tool name="think">Think about the task</tool>
-    <tool name="extract">Extract structured data</tool>
-    <tool name="goto">Navigate to a URL</tool>
-    <tool name="wait|navback">Control timing and navigation</tool>
-    <tool name="scroll">Scroll the page x pixels up or down</tool>
-    ${searchToolLine}
-  </tools>`;
+  // Tools section differs based on mode and excluded tools
+  const toolsSection = buildToolsSection(isHybridMode, hasSearch, excludeTools);
 
   // Strategy differs based on mode
   const strategyItems = isHybridMode
