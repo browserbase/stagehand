@@ -21,9 +21,10 @@ export interface AgentValidationOptions {
  * Validates agent configuration and experimental feature usage.
  *
  * This utility consolidates all validation checks for both CUA and non-CUA agent paths:
- * - Invalid argument errors for CUA (streaming, abort signal, message continuation are not supported)
+ * - Invalid argument errors for CUA (streaming, abort signal, message continuation, excludeTools are not supported)
  * - Experimental feature checks for integrations and tools (both CUA and non-CUA)
- * - Experimental feature checks for non-CUA only (callbacks, signal, messages, streaming)
+ * - Experimental feature checks for hybrid mode (requires experimental: true)
+ * - Experimental feature checks for non-CUA only (callbacks, signal, messages, streaming, excludeTools)
  *
  * Throws StagehandInvalidArgumentError for invalid/unsupported configurations.
  * Throws ExperimentalNotConfiguredError if experimental features are used without experimental mode.
@@ -48,6 +49,12 @@ export function validateExperimentalFeatures(
     }
     if (executeOptions?.messages) {
       unsupportedFeatures.push("message continuation");
+    }
+    if (
+      executeOptions?.excludeTools &&
+      executeOptions.excludeTools.length > 0
+    ) {
+      unsupportedFeatures.push("excludeTools");
     }
 
     if (unsupportedFeatures.length > 0) {
@@ -86,6 +93,9 @@ export function validateExperimentalFeatures(
     }
     if (executeOptions.messages) {
       features.push("message continuation");
+    }
+    if (executeOptions.excludeTools && executeOptions.excludeTools.length > 0) {
+      features.push("excludeTools");
     }
   }
 

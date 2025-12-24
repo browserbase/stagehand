@@ -193,6 +193,7 @@ describe("Stagehand public API types", () => {
       highlightCursor?: boolean;
       messages?: Stagehand.ModelMessage[];
       signal?: AbortSignal;
+      excludeTools?: string[];
       callbacks?: Stagehand.AgentExecuteCallbacks;
     };
 
@@ -209,6 +210,7 @@ describe("Stagehand public API types", () => {
       highlightCursor?: boolean;
       messages?: Stagehand.ModelMessage[];
       signal?: AbortSignal;
+      excludeTools?: string[];
       callbacks?: Stagehand.AgentStreamCallbacks;
     };
 
