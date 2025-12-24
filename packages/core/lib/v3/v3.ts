@@ -42,6 +42,7 @@ import {
 } from "./types/private";
 import {
   AgentConfig,
+  AgentExecuteCallbacks,
   AgentExecuteOptions,
   AgentStreamExecuteOptions,
   AgentResult,
@@ -1618,6 +1619,15 @@ export class V3 {
       typeof instructionOrOptions === "string"
         ? { instruction: instructionOrOptions }
         : instructionOrOptions;
+
+    const callbacksWithSafety = resolvedOptions.callbacks as
+      | AgentExecuteCallbacks
+      | undefined;
+    if (callbacksWithSafety?.onSafetyConfirmation) {
+      throw new StagehandInvalidArgumentError(
+        'onSafetyConfirmation callback is only supported when using mode: "cua" agents.',
+      );
+    }
 
     if (resolvedOptions.page) {
       const normalizedPage = await this.normalizeToV3Page(resolvedOptions.page);

@@ -69,7 +69,16 @@ test.describe("Locator count() method tests", () => {
     const page = v3.context.pages()[0];
 
     await page.goto(
-      "data:text/html,<div id='host'></div><script>const host = document.getElementById('host'); const shadow = host.attachShadow({mode: 'open'}); shadow.innerHTML = '<button>1</button><button>2</button>';</script>",
+      "data:text/html," +
+        encodeURIComponent(
+          '<div id="host"></div>' +
+            "<script>" +
+            'const host = document.getElementById("host");' +
+            'const shadow = host.attachShadow({mode: "open"});' +
+            'shadow.innerHTML = "<button>1</button><button>2</button>";' +
+            "</script>",
+        ),
+      { waitUntil: "load", timeoutMs: 30000 },
     );
 
     // Wait a bit for shadow DOM to be attached
