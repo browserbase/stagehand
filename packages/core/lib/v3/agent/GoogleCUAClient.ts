@@ -14,6 +14,8 @@ import {
   AgentResult,
   AgentType,
   AgentExecutionOptions,
+  SafetyCheck,
+  SafetyConfirmationHandler,
 } from "../types/public/agent";
 import { ClientOptions } from "../types/public/model";
 import { AgentClient } from "./AgentClient";
@@ -56,6 +58,7 @@ export class GoogleCUAClient extends AgentClient {
   private generateContentConfig: GenerateContentConfig;
   private tools?: ToolSet;
   private baseURL?: string;
+  private safetyConfirmationHandler?: SafetyConfirmationHandler;
   constructor(
     type: AgentType,
     modelName: string,
@@ -142,6 +145,61 @@ export class GoogleCUAClient extends AgentClient {
   setTools(tools: ToolSet): void {
     this.tools = tools;
     this.updateGenerateContentConfig();
+  }
+
+  setSafetyConfirmationHandler(handler: SafetyConfirmationHandler): void {
+    this.safetyConfirmationHandler = handler;
+  }
+
+  private async handleSafetyConfirmation(
+    safetyDecision: unknown,
+    logger: (message: LogLine) => void,
+  ): Promise<string | undefined> {
+    const safetyMessage =
+      typeof safetyDecision === "object"
+        ? JSON.stringify(safetyDecision, null, 2)
+        : String(safetyDecision);
+
+    const safetyChecks: SafetyCheck[] = [
+      {
+        id: "google-safety-decision",
+        code: "safety_decision",
+        message: safetyMessage,
+      },
+    ];
+
+    if (this.safetyConfirmationHandler) {
+      logger({
+        category: "agent",
+        message: `Requesting safety confirmation for Google safety decision: ${safetyMessage}`,
+        level: 1,
+      });
+
+      const response = await this.safetyConfirmationHandler(safetyChecks);
+
+      if (response.acknowledged) {
+        logger({
+          category: "agent",
+          message: `Safety decision acknowledged by user`,
+          level: 1,
+        });
+        return "true";
+      } else {
+        logger({
+          category: "agent",
+          message: `Safety decision rejected by user`,
+          level: 1,
+        });
+        return undefined;
+      }
+    }
+
+    logger({
+      category: "agent",
+      message: `Auto-acknowledging Google safety decision`,
+      level: 2,
+    });
+    return "true";
   }
 
   /**
@@ -531,15 +589,22 @@ export class GoogleCUAClient extends AgentClient {
               // Create one function response for each computer use function call
               // Following Python SDK pattern: FunctionResponse with parts containing inline_data
               for (const functionCall of computerUseFunctionCalls) {
+                let safetyAcknowledgement: string | undefined;
+                if (functionCall.args?.safety_decision) {
+                  safetyAcknowledgement = await this.handleSafetyConfirmation(
+                    functionCall.args.safety_decision,
+                    logger,
+                  );
+                }
+
                 const functionResponsePart: Part = {
                   functionResponse: {
                     name: functionCall.name,
                     response: {
                       url: this.currentUrl || "",
-                      // Acknowledge safety decision for evals
-                      ...(functionCall.args?.safety_decision
+                      ...(safetyAcknowledgement !== undefined
                         ? {
-                            safety_acknowledgement: "true",
+                            safety_acknowledgement: safetyAcknowledgement,
                           }
                         : {}),
                     },

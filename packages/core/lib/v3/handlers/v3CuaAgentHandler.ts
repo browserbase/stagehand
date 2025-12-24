@@ -14,6 +14,7 @@ import {
   AgentExecuteOptions,
   AgentHandlerOptions,
   AgentResult,
+  SafetyConfirmationHandler,
 } from "../types/public/agent";
 import { LogLine } from "../types/public/logs";
 import { type Action, V3FunctionName } from "../types/public/methods";
@@ -172,6 +173,19 @@ export class V3CuaAgentHandler {
 
     void this.updateClientViewport();
     void this.updateClientUrl();
+
+    if (this.options.onSafetyConfirmation) {
+      this.setSafetyConfirmationHandler(this.options.onSafetyConfirmation);
+    }
+  }
+
+  setSafetyConfirmationHandler(handler: SafetyConfirmationHandler): void {
+    if (
+      this.agentClient instanceof GoogleCUAClient ||
+      this.agentClient instanceof OpenAICUAClient
+    ) {
+      this.agentClient.setSafetyConfirmationHandler(handler);
+    }
   }
 
   async execute(

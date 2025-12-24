@@ -9,6 +9,8 @@ import {
   ResponseItem,
   ComputerCallItem,
   FunctionCallItem,
+  SafetyCheck,
+  SafetyConfirmationHandler,
 } from "../types/public/agent";
 import { ClientOptions } from "../types/public/model";
 import { AgentClient } from "./AgentClient";
@@ -42,6 +44,7 @@ export class OpenAICUAClient extends AgentClient {
   private reasoningItems: Map<string, ResponseItem> = new Map();
   private environment: string = "browser"; // "browser", "mac", "windows", or "ubuntu"
   private tools?: ToolSet;
+  private safetyConfirmationHandler?: SafetyConfirmationHandler;
 
   constructor(
     type: AgentType,
@@ -104,6 +107,10 @@ export class OpenAICUAClient extends AgentClient {
 
   setTools(tools: ToolSet): void {
     this.tools = tools;
+  }
+
+  setSafetyConfirmationHandler(handler: SafetyConfirmationHandler): void {
+    this.safetyConfirmationHandler = handler;
   }
 
   /**
@@ -353,6 +360,44 @@ export class OpenAICUAClient extends AgentClient {
     );
   }
 
+  private async handleSafetyConfirmation(
+    pendingSafetyChecks: SafetyCheck[],
+    logger: (message: LogLine) => void,
+  ): Promise<SafetyCheck[] | undefined> {
+    if (this.safetyConfirmationHandler) {
+      logger({
+        category: "agent",
+        message: `Requesting safety confirmation for ${pendingSafetyChecks.length} check(s): ${pendingSafetyChecks.map((c) => c.code).join(", ")}`,
+        level: 1,
+      });
+
+      const response = await this.safetyConfirmationHandler(pendingSafetyChecks);
+
+      if (response.acknowledged) {
+        logger({
+          category: "agent",
+          message: `Safety checks acknowledged by user`,
+          level: 1,
+        });
+        return pendingSafetyChecks;
+      } else {
+        logger({
+          category: "agent",
+          message: `Safety checks rejected by user`,
+          level: 1,
+        });
+        return undefined;
+      }
+    }
+
+    logger({
+      category: "agent",
+      message: `Auto-acknowledging ${pendingSafetyChecks.length} safety check(s)`,
+      level: 2,
+    });
+    return pendingSafetyChecks;
+  }
+
   private isFunctionCallItem(item: ResponseItem): item is FunctionCallItem {
     return (
       item.type === "function_call" &&
@@ -522,35 +567,32 @@ export class OpenAICUAClient extends AgentClient {
                 image_url: string;
                 current_url?: string;
               };
-              acknowledged_safety_checks?: Array<{
-                id: string;
-                code: string;
-                message: string;
-              }>;
+              acknowledged_safety_checks?: SafetyCheck[];
             };
             computerCallOutput.output.current_url = this.currentUrl;
           }
 
-          // Add any safety checks that need to be acknowledged
           if (
             item.pending_safety_checks &&
             item.pending_safety_checks.length > 0
           ) {
-            const computerCallOutput = outputItem as {
-              type: "computer_call_output";
-              call_id: string;
-              output: {
-                type: "input_image";
-                image_url: string;
+            const acknowledgedChecks = await this.handleSafetyConfirmation(
+              item.pending_safety_checks,
+              logger,
+            );
+
+            if (acknowledgedChecks) {
+              const computerCallOutput = outputItem as {
+                type: "computer_call_output";
+                call_id: string;
+                output: {
+                  type: "input_image";
+                  image_url: string;
+                };
+                acknowledged_safety_checks?: SafetyCheck[];
               };
-              acknowledged_safety_checks?: Array<{
-                id: string;
-                code: string;
-                message: string;
-              }>;
-            };
-            computerCallOutput.acknowledged_safety_checks =
-              item.pending_safety_checks;
+              computerCallOutput.acknowledged_safety_checks = acknowledgedChecks;
+            }
           }
 
           nextInputItems.push(outputItem);
@@ -591,35 +633,32 @@ export class OpenAICUAClient extends AgentClient {
                   image_url: string;
                   current_url?: string;
                 };
-                acknowledged_safety_checks?: Array<{
-                  id: string;
-                  code: string;
-                  message: string;
-                }>;
+                acknowledged_safety_checks?: SafetyCheck[];
               };
               computerCallOutput.output.current_url = this.currentUrl;
             }
 
-            // Add any safety checks that need to be acknowledged
             if (
               item.pending_safety_checks &&
               item.pending_safety_checks.length > 0
             ) {
-              const computerCallOutput = errorOutputItem as {
-                type: "computer_call_output";
-                call_id: string;
-                output: {
-                  type: "input_image";
-                  image_url: string;
+              const acknowledgedChecks = await this.handleSafetyConfirmation(
+                item.pending_safety_checks,
+                logger,
+              );
+
+              if (acknowledgedChecks) {
+                const computerCallOutput = errorOutputItem as {
+                  type: "computer_call_output";
+                  call_id: string;
+                  output: {
+                    type: "input_image";
+                    image_url: string;
+                  };
+                  acknowledged_safety_checks?: SafetyCheck[];
                 };
-                acknowledged_safety_checks?: Array<{
-                  id: string;
-                  code: string;
-                  message: string;
-                }>;
-              };
-              computerCallOutput.acknowledged_safety_checks =
-                item.pending_safety_checks;
+                computerCallOutput.acknowledged_safety_checks = acknowledgedChecks;
+              }
             }
 
             nextInputItems.push(errorOutputItem);

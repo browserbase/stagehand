@@ -292,6 +292,10 @@ export interface AgentHandlerOptions {
   clientOptions?: ClientOptions;
   userProvidedInstructions?: string;
   experimental?: boolean;
+  /**
+   * Callback for handling safety confirmation requests from CUA providers.
+   */
+  onSafetyConfirmation?: SafetyConfirmationHandler;
 }
 
 export interface ActionExecutionResult {
@@ -299,6 +303,52 @@ export interface ActionExecutionResult {
   error?: string;
   data?: unknown;
 }
+
+/**
+ * Represents a safety check that requires user confirmation before proceeding.
+ * These are issued by CUA providers (OpenAI, Google) when the agent attempts
+ * potentially risky actions.
+ */
+export interface SafetyCheck {
+  /** Unique identifier for this safety check */
+  id: string;
+  /** Code identifying the type of safety concern */
+  code: string;
+  /** Human-readable description of the safety concern */
+  message: string;
+}
+
+/**
+ * Response from the user for a safety confirmation request.
+ */
+export interface SafetyConfirmationResponse {
+  /** Whether the user acknowledged/approved the safety checks */
+  acknowledged: boolean;
+}
+
+/**
+ * Callback for handling safety confirmation requests.
+ * Called when the CUA provider issues safety checks that require user confirmation.
+ * The callback should return a promise that resolves when the user has made a decision.
+ *
+ * @param safetyChecks - Array of safety checks requiring confirmation
+ * @returns Promise resolving to the user's response
+ *
+ * @example
+ * ```typescript
+ * const agent = stagehand.agent({
+ *   mode: "cua",
+ *   onSafetyConfirmation: async (checks) => {
+ *     console.log("Safety checks:", checks);
+ *     const userApproved = await showConfirmationDialog(checks);
+ *     return { acknowledged: userApproved };
+ *   }
+ * });
+ * ```
+ */
+export type SafetyConfirmationHandler = (
+  safetyChecks: SafetyCheck[],
+) => Promise<SafetyConfirmationResponse>;
 
 // Anthropic types:
 
@@ -447,6 +497,25 @@ export type AgentConfig = {
    * - 'cua': Uses Computer Use Agent (CUA) providers for screenshot-based automation
    */
   mode?: AgentToolMode;
+  /**
+   * Callback for handling safety confirmation requests from CUA providers.
+   * When set, the agent will call this function instead of auto-accepting safety checks.
+   * This allows the user to review and approve/reject potentially risky actions.
+   *
+   * If not set, safety checks are automatically acknowledged (default behavior).
+   *
+   * @example
+   * ```typescript
+   * const agent = stagehand.agent({
+   *   mode: "cua",
+   *   onSafetyConfirmation: async (checks) => {
+   *     const approved = await showUserConfirmationDialog(checks);
+   *     return { acknowledged: approved };
+   *   }
+   * });
+   * ```
+   */
+  onSafetyConfirmation?: SafetyConfirmationHandler;
 };
 
 /**

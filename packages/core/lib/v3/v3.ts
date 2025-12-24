@@ -1754,6 +1754,7 @@ export class V3 {
                 userProvidedInstructions:
                   options.systemPrompt ??
                   `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
+                onSafetyConfirmation: options?.onSafetyConfirmation,
               },
               tools,
             );
