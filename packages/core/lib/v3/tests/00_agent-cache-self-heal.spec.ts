@@ -17,6 +17,10 @@ test.describe("Agent cache self-heal (e2e)", () => {
   test.beforeEach(async ({}, testInfo) => {
     await fs.mkdir(testInfo.outputDir, { recursive: true });
     cacheDir = await fs.mkdtemp(path.join(testInfo.outputDir, "agent-cache-"));
+    console.log("[agent-cache-self-heal] initial cache contents", {
+      cacheDir,
+      entries: await fs.readdir(cacheDir),
+    });
     v3 = new V3({
       ...v3TestConfig,
       cacheDir,
@@ -60,6 +64,10 @@ test.describe("Agent cache self-heal (e2e)", () => {
       JSON.stringify(originalEntry, null, 2),
       "utf8",
     );
+    console.log("[agent-cache-self-heal] cache after corruption", {
+      cacheDir,
+      entries: await fs.readdir(cacheDir),
+    });
 
     // Second run should replay from cache, self-heal, and update the file.
     await page.goto(url, { waitUntil: "networkidle" });
@@ -71,6 +79,10 @@ test.describe("Agent cache self-heal (e2e)", () => {
     expect(healedActionStep?.actions?.[0]?.selector).toBe(originalSelector);
     expect(healedActionStep?.actions?.[0]?.selector).not.toBe("xpath=/yeee");
     expect(healedEntry.timestamp).not.toBe(originalEntry.timestamp);
+    console.log("[agent-cache-self-heal] cache after replay", {
+      cacheDir,
+      entries: await fs.readdir(cacheDir),
+    });
   });
 });
 
