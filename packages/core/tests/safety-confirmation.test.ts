@@ -154,4 +154,3 @@ describe("Safety Confirmation Handler", () => {
     });
   });
 });
-
