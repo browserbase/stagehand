@@ -77,9 +77,6 @@ export function validateExperimentalFeatures(
   if (hasIntegrations || hasTools) {
     features.push("MCP integrations and custom tools");
   }
-  if (agentConfig?.mode === "hybrid") {
-    features.push("hybrid mode");
-  }
 
   // Check streaming mode (either explicit or derived from config) - only for non-CUA
   if (!isCuaMode && (isStreaming || agentConfig?.stream)) {

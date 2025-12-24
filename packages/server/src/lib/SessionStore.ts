@@ -1,11 +1,14 @@
 import type {
+  Api,
   LocalBrowserLaunchOptions,
   LogLine,
   V3,
 } from "@browserbasehq/stagehand";
-import type { SessionStartResult } from "./schemas";
 
-export type { SessionStartResult };
+/**
+ * Result from SessionStore.startSession().
+ */
+export type SessionStartResult = Api.SessionStartResult;
 
 /**
  * Parameters for creating a new session.
@@ -45,9 +48,10 @@ export interface CreateSessionParams {
   /** Local browser launch overrides when browserType is local */
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
 
+  /** WebSocket URL for connecting to the browser (returned to client) */
+  connectUrl?: string;
+
   // Cloud-specific metadata fields
-  /** Debug DOM mode */
-  debugDom?: boolean;
   /** Act timeout in milliseconds */
   actTimeoutMs?: number;
   /** Client language (typescript, python, playground) */

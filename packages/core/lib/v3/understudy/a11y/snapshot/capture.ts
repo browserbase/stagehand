@@ -90,7 +90,7 @@ export async function captureHybridSnapshot(
  * without re-querying CDP. The map is intentionally shallow (frameId → parentId)
  * so it is serializable/testable without holding on to CDP handles.
  */
-function buildFrameContext(page: Page): FrameContext {
+export function buildFrameContext(page: Page): FrameContext {
   const rootId = page.mainFrameId();
   const frameTree = page.asProtocolFrameTree(rootId);
   const parentByFrame: FrameParentIndex = new Map();
@@ -111,7 +111,7 @@ function buildFrameContext(page: Page): FrameContext {
  * Returns `null` when scoping fails (e.g., selector miss) so the caller can
  * fall back to the full multi-frame snapshot.
  */
-async function tryScopedSnapshot(
+export async function tryScopedSnapshot(
   page: Page,
   options: SnapshotOptions | undefined,
   context: FrameContext,
@@ -233,7 +233,7 @@ async function tryScopedSnapshot(
  * result so per-frame slices can share the structure. We key by session id
  * because same process iframes live inside the same session.
  */
-async function buildSessionIndexes(
+export async function buildSessionIndexes(
   page: Page,
   frames: string[],
   pierce: boolean,
@@ -260,7 +260,7 @@ async function buildSessionIndexes(
  *  - collects tag/xpath/scrollability maps for DOM-based lookups
  *  - fetches its AX tree to produce outlines and URL maps
  */
-async function collectPerFrameMaps(
+export async function collectPerFrameMaps(
   page: Page,
   context: FrameContext,
   sessionToIndex: Map<string, SessionDomIndex>,
@@ -339,7 +339,7 @@ async function collectPerFrameMaps(
  * every frame. The prefix is the absolute XPath of the iframe element hosting
  * the frame, so we can later convert relative XPaths into cross-frame ones.
  */
-async function computeFramePrefixes(
+export async function computeFramePrefixes(
   page: Page,
   context: FrameContext,
   perFrameMaps: Map<string, FrameDomMaps>,
@@ -401,7 +401,7 @@ async function computeFramePrefixes(
  * merge URL maps, and stitch text outlines by nesting child trees under the
  * encoded id of their parent iframe host.
  */
-function mergeFramesIntoSnapshot(
+export function mergeFramesIntoSnapshot(
   context: FrameContext,
   perFrameMaps: Map<string, FrameDomMaps>,
   perFrameOutlines: Array<{ frameId: string; outline: string }>,

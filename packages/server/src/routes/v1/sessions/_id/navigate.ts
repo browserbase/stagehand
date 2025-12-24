@@ -1,31 +1,12 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
-import { zodToJsonSchema } from "zod-to-json-schema";
-import { z } from "zod/v3";
+import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
+import { Api } from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
 import { createStreamingResponse } from "../../../../lib/stream.js";
 import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
-
-interface NavigateParams {
-  id: string;
-}
-
-export const navigateSchema = z.object({
-  url: z.string({
-    invalid_type_error: "`url` must be a string",
-    required_error: "`url` is required",
-  }),
-  options: z
-    .object({
-      referer: z.string().optional(),
-      timeout: z.number().optional(),
-      waitUntil: z.enum(["load", "domcontentloaded", "networkidle"]).optional(),
-    })
-    .optional(),
-  frameId: z.string().optional(),
-});
 
 const navigateRouteHandler: RouteHandlerMethod = withErrorHandling(
   async (request, reply) => {
@@ -35,7 +16,7 @@ const navigateRouteHandler: RouteHandlerMethod = withErrorHandling(
         .send({ error: "Unauthorized" });
     }
 
-    const { id } = request.params as NavigateParams;
+    const { id } = request.params as Api.SessionIdParams;
 
     if (!id.length) {
       return reply.status(StatusCodes.BAD_REQUEST).send({
@@ -51,11 +32,11 @@ const navigateRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<z.infer<typeof navigateSchema>>({
+    return createStreamingResponse<Api.NavigateRequest>({
       sessionId: id,
       request,
       reply,
-      schema: navigateSchema,
+      schema: Api.NavigateRequestSchema,
       handler: async ({ stagehand, data }) => {
         const page = data.frameId
           ? stagehand.context.resolvePageByMainFrameId(data.frameId)
@@ -78,15 +59,14 @@ const navigateRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/navigate",
   schema: {
-    params: {
-      type: "object",
-      properties: {
-        id: { type: "string" },
-      },
-      required: ["id"],
+    ...Api.Operations.SessionNavigate,
+    headers: Api.SessionHeadersSchema,
+    params: Api.SessionIdParamsSchema,
+    body: Api.NavigateRequestSchema,
+    response: {
+      200: Api.NavigateResponseSchema,
     },
-    body: zodToJsonSchema(navigateSchema),
-  },
+  } satisfies FastifyZodOpenApiSchema,
   handler: navigateRouteHandler,
 };
 

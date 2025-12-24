@@ -1,39 +1,12 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
-import { zodToJsonSchema } from "zod-to-json-schema";
-import { z } from "zod/v3";
+import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
+import { Api } from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
 import { createStreamingResponse } from "../../../../lib/stream.js";
 import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
-
-interface AgentExecuteParams {
-  id: string;
-}
-
-const agentExecuteSchema = z.object({
-  agentConfig: z.object({
-    model: z
-      .string()
-      .or(
-        z.object({
-          modelName: z.string(),
-          apiKey: z.string().optional(),
-          baseURL: z.string().url().optional(),
-        }),
-      )
-      .optional(),
-    systemPrompt: z.string().optional(),
-    cua: z.boolean().optional(),
-  }),
-  executeOptions: z.object({
-    instruction: z.string(),
-    maxSteps: z.number().optional(),
-    highlightCursor: z.boolean().optional(),
-  }),
-  frameId: z.string().optional(),
-});
 
 const agentExecuteRouteHandler: RouteHandlerMethod = withErrorHandling(
   async (request, reply) => {
@@ -43,7 +16,7 @@ const agentExecuteRouteHandler: RouteHandlerMethod = withErrorHandling(
         .send({ error: "Unauthorized" });
     }
 
-    const { id } = request.params as AgentExecuteParams;
+    const { id } = request.params as Api.SessionIdParams;
 
     if (!id.length) {
       return reply.status(StatusCodes.BAD_REQUEST).send({
@@ -59,11 +32,11 @@ const agentExecuteRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<z.infer<typeof agentExecuteSchema>>({
+    return createStreamingResponse<Api.AgentExecuteRequest>({
       sessionId: id,
       request,
       reply,
-      schema: agentExecuteSchema,
+      schema: Api.AgentExecuteRequestSchema,
       handler: async ({ stagehand, data }) => {
         const { agentConfig, executeOptions } = data;
         const { frameId } = data;
@@ -110,15 +83,14 @@ const agentExecuteRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/:id/agentExecute",
   schema: {
-    params: {
-      type: "object",
-      properties: {
-        id: { type: "string" },
-      },
-      required: ["id"],
+    ...Api.Operations.SessionAgentExecute,
+    headers: Api.SessionHeadersSchema,
+    params: Api.SessionIdParamsSchema,
+    body: Api.AgentExecuteRequestSchema,
+    response: {
+      200: Api.AgentExecuteResponseSchema,
     },
-    body: zodToJsonSchema(agentExecuteSchema),
-  },
+  } satisfies FastifyZodOpenApiSchema,
   handler: agentExecuteRouteHandler,
 };
 

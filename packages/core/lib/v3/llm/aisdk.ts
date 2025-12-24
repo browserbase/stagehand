@@ -18,6 +18,7 @@ import { LogLine } from "../types/public/logs";
 import { AvailableModel } from "../types/public/model";
 import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
 import { SessionFileLogger, formatLlmPromptPreview } from "../flowLogger";
+import { toJsonSchema } from "../zodCompat";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
@@ -144,6 +145,20 @@ export class AISdkClient extends LLMClient {
         operation: "generateObject",
         prompt: promptPreview,
       });
+
+      const isDeepSeek = this.model.modelId.includes("deepseek");
+
+      if (isDeepSeek) {
+        const parsedSchema = JSON.stringify(
+          toJsonSchema(options.response_model.schema),
+        );
+
+        formattedMessages.push({
+          role: "user",
+          content: `Respond in this zod schema format:\n${parsedSchema}\n
+You must respond in JSON format. respond WITH JSON. Do not include any other text, formatting or markdown in your output. Do not include \`\`\` or \`\`\`json in your response. Only the JSON object itself.`,
+        });
+      }
 
       try {
         objectResponse = await generateObject({

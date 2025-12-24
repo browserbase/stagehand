@@ -1,6 +1,10 @@
 import type { RouteHandler, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import Browserbase from "@browserbasehq/sdk";
+import { Api } from "@browserbasehq/stagehand";
+import type { SessionRetrieveResponse } from "@browserbasehq/sdk/resources/sessions/sessions";
+import { type FastifyZodOpenApiSchema } from "fastify-zod-openapi";
+import { z } from "zod/v4";
 
 import { authMiddleware } from "../../../lib/auth.js";
 import { withErrorHandling } from "../../../lib/errorHandler.js";
@@ -9,30 +13,23 @@ import { error, success } from "../../../lib/response.js";
 import { getSessionStore } from "../../../lib/sessionStoreManager.js";
 import { AISDK_PROVIDERS } from "../../../types/model.js";
 
-/**
- * Parameters for creating a new session (request body shape)
- */
-interface ConstructorParams {
-  modelName: string;
-  domSettleTimeoutMs?: number;
-  verbose?: 0 | 1 | 2;
-  systemPrompt?: string;
-  browser?: {
-    type?: "local" | "browserbase";
-    cdpUrl?: string;
-    launchOptions?: Record<string, unknown>;
-    sessionCreateParams?: Record<string, unknown>;
-    sessionId?: string;
-  };
-  browserbaseSessionCreateParams?: Omit<
-    Browserbase.Sessions.SessionCreateParams,
-    "projectId"
-  > & { projectId?: string };
-  selfHeal?: boolean;
-  waitForCaptchaSolves?: boolean;
-  browserbaseSessionID?: string;
-  experimental?: boolean;
-}
+// Extended schema with custom refinement for local browser validation
+const startBodySchema = Api.SessionStartRequestSchema.superRefine(
+  (value, ctx) => {
+    if (value.browser?.type === "local") {
+      const hasConnect = Boolean(value.browser.cdpUrl);
+      const hasLaunch = Boolean(value.browser.launchOptions);
+      if (!hasConnect && !hasLaunch) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["browser"],
+          message:
+            "When browser.type is 'local', provide either browser.cdpUrl or browser.launchOptions.",
+        });
+      }
+    }
+  },
+);
 
 const startRouteHandler: RouteHandler = withErrorHandling(
   async (request, reply) => {
@@ -54,6 +51,8 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       );
     }
 
+    // Use the validated request body directly - fields come from Api.SessionStartRequestSchema
+    const body = request.body as Api.SessionStartRequest;
     const {
       modelName,
       domSettleTimeoutMs,
@@ -65,8 +64,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       browserbaseSessionID,
       experimental,
       browser,
-    } = request.body as ConstructorParams;
-
+    } = body;
     if (!modelName) {
       return error(reply, "Missing required model name");
     }
@@ -90,10 +88,12 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       }
     }
 
-    const browserType = browser?.type ?? "local";
+    const browserType = browser?.type ?? "browserbase";
 
     let bbApiKey: string | undefined;
     let bbProjectId: string | undefined;
+    let browserbaseSessionId: string | undefined;
+    let connectUrl: string | undefined;
 
     if (browserType === "browserbase") {
       bbApiKey = getOptionalHeader(request, "x-bb-api-key");
@@ -105,27 +105,80 @@ const startRouteHandler: RouteHandler = withErrorHandling(
           "Missing required headers for browserbase sessions",
         );
       }
+
+      const bb = new Browserbase({ apiKey: bbApiKey });
+
+      if (browserbaseSessionID) {
+        const existing = await bb.sessions.retrieve(browserbaseSessionID);
+        browserbaseSessionId = existing?.id;
+        connectUrl = existing?.connectUrl;
+        if (!browserbaseSessionId) {
+          return error(reply, "Failed to retrieve browserbase session");
+        }
+        if (!connectUrl) {
+          return error(reply, "Browserbase session missing connectUrl");
+        }
+      } else {
+        const createPayload = {
+          projectId: browserbaseSessionCreateParams?.projectId ?? bbProjectId,
+          ...browserbaseSessionCreateParams,
+          browserSettings: {
+            ...(browserbaseSessionCreateParams?.browserSettings ?? {}),
+            viewport: browserbaseSessionCreateParams?.browserSettings
+              ?.viewport ?? {
+              width: 1288,
+              height: 711,
+            },
+          },
+          userMetadata: {
+            ...(browserbaseSessionCreateParams?.userMetadata ?? {}),
+            stagehand: "true",
+          },
+        } satisfies Browserbase.Sessions.SessionCreateParams;
+
+        const created = (await bb.sessions.create(
+          createPayload,
+        )) as SessionRetrieveResponse;
+
+        browserbaseSessionId = created?.id;
+        connectUrl = created?.connectUrl;
+        if (!browserbaseSessionId) {
+          return error(reply, "Failed to create browserbase session");
+        }
+        if (!connectUrl) {
+          return error(reply, "Browserbase session missing connectUrl");
+        }
+      }
     }
 
     const sessionStore = getSessionStore();
+
+    // For local browsers without a connectUrl, get it from browser.connectUrl
+    if (browserType === "local") {
+      connectUrl = browser?.cdpUrl;
+    }
+
     const session = await sessionStore.startSession({
       browserType,
-      browserbaseSessionID,
+      connectUrl,
+      browserbaseSessionID:
+        browserType === "browserbase"
+          ? (browserbaseSessionId ?? browserbaseSessionID)
+          : undefined,
       browserbaseApiKey: bbApiKey,
       browserbaseProjectId: bbProjectId,
       modelName,
       domSettleTimeoutMs,
       verbose,
       systemPrompt,
-      browserbaseSessionCreateParams:
-        browser?.sessionCreateParams ?? browserbaseSessionCreateParams,
+      browserbaseSessionCreateParams,
       selfHeal,
       waitForCaptchaSolves,
       clientLanguage,
       sdkVersion,
       experimental,
       localBrowserLaunchOptions:
-        browserType === "local" && (browser?.cdpUrl || browser?.launchOptions)
+        browserType === "local" && browser?.launchOptions
           ? {
               cdpUrl: browser?.cdpUrl,
               ...(browser?.launchOptions ?? {}),
@@ -136,6 +189,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
     return success(reply, {
       sessionId: session.sessionId,
       available: session.available,
+      cdpUrl: connectUrl ?? session.cdpUrl ?? "",
     });
   },
 );
@@ -144,70 +198,13 @@ const startRoute: RouteOptions = {
   method: "POST",
   url: "/sessions/start",
   schema: {
-    body: {
-      type: "object",
-      properties: {
-        modelName: {
-          type: "string",
-        },
-        domSettleTimeoutMs: {
-          type: "number",
-        },
-        verbose: {
-          type: "number",
-          enum: [0, 1, 2],
-        },
-        debugDom: {
-          type: "boolean",
-        },
-        systemPrompt: {
-          type: "string",
-        },
-        browserbaseSessionCreateParams: {
-          type: "object",
-        },
-        browser: {
-          type: "object",
-          properties: {
-            type: {
-              type: "string",
-              enum: ["local", "browserbase"],
-            },
-            cdpUrl: {
-              type: "string",
-            },
-            launchOptions: {
-              type: "object",
-            },
-            sessionCreateParams: {
-              type: "object",
-            },
-            sessionId: {
-              type: "string",
-            },
-          },
-          additionalProperties: false,
-        },
-        selfHeal: {
-          type: "boolean",
-        },
-        waitForCaptchaSolves: {
-          type: "boolean",
-        },
-        actTimeoutMs: {
-          type: "number",
-        },
-        browserbaseSessionID: {
-          type: "string",
-        },
-        experimental: {
-          type: "boolean",
-        },
-      },
-      required: ["modelName"],
-      additionalProperties: false,
+    ...Api.Operations.SessionStart,
+    headers: Api.SessionHeadersSchema,
+    body: startBodySchema,
+    response: {
+      200: Api.SessionStartResponseSchema,
     },
-  },
+  } satisfies FastifyZodOpenApiSchema,
   handler: startRouteHandler,
 };
 

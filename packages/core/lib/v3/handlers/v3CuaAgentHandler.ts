@@ -3,6 +3,9 @@ import { V3 } from "../v3";
 import { ToolSet } from "ai";
 import { AgentClient } from "../agent/AgentClient";
 import { AgentProvider } from "../agent/AgentProvider";
+import { GoogleCUAClient } from "../agent/GoogleCUAClient";
+import { OpenAICUAClient } from "../agent/OpenAICUAClient";
+import { MicrosoftCUAClient } from "../agent/MicrosoftCUAClient";
 import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping";
 import { ensureXPath } from "../agent/utils/xpath";
 import {
@@ -16,6 +19,24 @@ import { LogLine } from "../types/public/logs";
 import { type Action, V3FunctionName } from "../types/public/methods";
 import { SessionFileLogger } from "../flowLogger";
 import { StagehandClosedError } from "../types/public/sdkErrors";
+
+function getPNGDimensions(buffer: Buffer): { width: number; height: number } {
+  if (
+    buffer.length < 24 ||
+    buffer[0] !== 0x89 ||
+    buffer[1] !== 0x50 ||
+    buffer[2] !== 0x4e ||
+    buffer[3] !== 0x47
+  ) {
+    throw new Error("Invalid PNG file");
+  }
+
+  // Read width and height from IHDR chunk (big-endian)
+  const width = buffer.readUInt32BE(16);
+  const height = buffer.readUInt32BE(20);
+
+  return { width, height };
+}
 
 export class V3CuaAgentHandler {
   private v3: V3;
@@ -63,8 +84,30 @@ export class V3CuaAgentHandler {
     this.agentClient.setScreenshotProvider(async () => {
       this.ensureNotClosed();
       const page = await this.v3.context.awaitActivePage();
-      const base64 = await page.screenshot({ fullPage: false });
-      return base64.toString("base64"); // base64 png
+      const screenshotBuffer = await page.screenshot({ fullPage: false });
+
+      // For Google, OpenAI, and Microsoft CUA, extract screenshot dimensions and set them
+      if (
+        this.agentClient instanceof GoogleCUAClient ||
+        this.agentClient instanceof OpenAICUAClient ||
+        this.agentClient instanceof MicrosoftCUAClient
+      ) {
+        try {
+          const dimensions = getPNGDimensions(screenshotBuffer);
+          this.agentClient.setScreenshotSize(
+            dimensions.width,
+            dimensions.height,
+          );
+        } catch (e) {
+          this.logger({
+            category: "agent",
+            message: `Could not read screenshot dimensions: ${e}`,
+            level: 1,
+          });
+        }
+      }
+
+      return screenshotBuffer.toString("base64"); // base64 png
     });
 
     // Provide action executor
@@ -386,7 +429,28 @@ export class V3CuaAgentHandler {
         return { success: true };
       }
       case "move": {
-        // No direct cursor-only move; rely on overlay to show clicks/scrolls
+        const { x, y } = action;
+        if (typeof x === "number" && typeof y === "number") {
+          if (recording) {
+            const xpath = await page.hover(x, y, { returnXpath: true });
+            const normalized = ensureXPath(xpath);
+            if (normalized) {
+              const stagehandAction: Action = {
+                selector: normalized,
+                description: this.describePointerAction("hover", x, y),
+                method: "hover",
+                arguments: [],
+              };
+              this.recordCuaActStep(
+                action,
+                [stagehandAction],
+                stagehandAction.description,
+              );
+            }
+          } else {
+            await page.hover(x, y);
+          }
+        }
         return { success: true };
       }
       case "wait": {
@@ -549,12 +613,34 @@ export class V3CuaAgentHandler {
     });
     try {
       const page = await this.v3.context.awaitActivePage();
-      const base64Image = await page.screenshot({ fullPage: false });
+      const screenshotBuffer = await page.screenshot({ fullPage: false });
+
+      // For Google, OpenAI, and Microsoft CUA, extract screenshot dimensions and set them
+      if (
+        this.agentClient instanceof GoogleCUAClient ||
+        this.agentClient instanceof OpenAICUAClient ||
+        this.agentClient instanceof MicrosoftCUAClient
+      ) {
+        try {
+          const dimensions = getPNGDimensions(screenshotBuffer);
+          this.agentClient.setScreenshotSize(
+            dimensions.width,
+            dimensions.height,
+          );
+        } catch (e) {
+          this.logger({
+            category: "agent",
+            message: `Could not read screenshot dimensions: ${e}`,
+            level: 1,
+          });
+        }
+      }
+
       // Emit screenshot event via the bus
-      this.v3.bus.emit("agent_screensot_taken_event", base64Image);
+      this.v3.bus.emit("agent_screenshot_taken_event", screenshotBuffer);
       const currentUrl = page.url();
       return await this.agentClient.captureScreenshot({
-        base64Image,
+        base64Image: screenshotBuffer.toString("base64"),
         currentUrl,
       });
     } catch (e) {

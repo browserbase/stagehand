@@ -1,48 +1,16 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
-import type { ActResult, Action } from "@browserbasehq/stagehand";
-import { zodToJsonSchema } from "zod-to-json-schema";
-import { z } from "zod/v3";
+import type { ZodTypeAny } from "zod/v3";
+import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
+import { Api } from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
 import { createStreamingResponse } from "../../../../lib/stream.js";
+import { jsonSchemaToZod } from "../../../../lib/utils.js";
 import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
 
-interface ActParams {
-  id: string;
-}
-
-// Schema for V3
-export const actSchema = z.object({
-  input: z.string().or(
-    z.object({
-      selector: z.string(),
-      description: z.string(),
-      method: z.string().optional(),
-      arguments: z.array(z.string()).optional(),
-    }),
-  ),
-  options: z
-    .object({
-      model: z
-        .string()
-        .or(
-          z.object({
-            modelName: z.string(),
-            apiKey: z.string().optional(),
-            baseURL: z.string().url().optional(),
-          }),
-        )
-        .optional(),
-      variables: z.record(z.string()).optional(),
-      timeout: z.number().optional(),
-    })
-    .optional(),
-  frameId: z.string().optional(),
-});
-
-const actRouteHandler: RouteHandlerMethod = withErrorHandling(
+const extractRouteHandler: RouteHandlerMethod = withErrorHandling(
   async (request, reply) => {
     if (!(await authMiddleware(request))) {
       return reply
@@ -50,7 +18,7 @@ const actRouteHandler: RouteHandlerMethod = withErrorHandling(
         .send({ error: "Unauthorized" });
     }
 
-    const { id } = request.params as ActParams;
+    const { id } = request.params as Api.SessionIdParams;
 
     if (!id.length) {
       return reply.status(StatusCodes.BAD_REQUEST).send({
@@ -66,11 +34,11 @@ const actRouteHandler: RouteHandlerMethod = withErrorHandling(
       });
     }
 
-    return createStreamingResponse<z.infer<typeof actSchema>>({
+    return createStreamingResponse<Api.ExtractRequest>({
       sessionId: id,
       request,
       reply,
-      schema: actSchema,
+      schema: Api.ExtractRequestSchema,
       handler: async ({ stagehand, data }) => {
         const { frameId } = data;
         const page = frameId
@@ -98,34 +66,41 @@ const actRouteHandler: RouteHandlerMethod = withErrorHandling(
           page,
         };
 
-        let result: ActResult;
-        if (typeof data.input === "string") {
-          result = await stagehand.act(data.input, safeOptions);
+        const extractFn = stagehand.extract.bind(stagehand);
+
+        let result: unknown;
+
+        if (data.instruction) {
+          if (data.schema) {
+            const zodSchema = jsonSchemaToZod(data.schema) as ZodTypeAny;
+            result = await extractFn(data.instruction, zodSchema, safeOptions);
+          } else {
+            result = await extractFn(data.instruction, safeOptions);
+          }
         } else {
-          result = await stagehand.act(data.input as Action, safeOptions);
+          result = await extractFn(safeOptions);
         }
 
         return { result };
       },
-      operation: "act",
+      operation: "extract",
     });
   },
 );
 
-const actRoute: RouteOptions = {
+const extractRoute: RouteOptions = {
   method: "POST",
-  url: "/sessions/:id/act",
+  url: "/sessions/:id/extract",
   schema: {
-    params: {
-      type: "object",
-      properties: {
-        id: { type: "string" },
-      },
-      required: ["id"],
+    ...Api.Operations.SessionExtract,
+    headers: Api.SessionHeadersSchema,
+    params: Api.SessionIdParamsSchema,
+    body: Api.ExtractRequestSchema,
+    response: {
+      200: Api.ExtractResponseSchema,
     },
-    body: zodToJsonSchema(actSchema),
-  },
-  handler: actRouteHandler,
+  } satisfies FastifyZodOpenApiSchema,
+  handler: extractRouteHandler,
 };
 
-export default actRoute;
+export default extractRoute;
