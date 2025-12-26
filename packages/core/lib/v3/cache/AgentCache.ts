@@ -17,11 +17,12 @@ import type {
   AgentCacheDeps,
 } from "../types/private";
 import type {
-  AvailableModel,
+  Action,
   AgentResult,
   AgentStreamResult,
   AgentConfig,
   AgentExecuteOptionsBase,
+  AvailableModel,
   Logger,
 } from "../types/public";
 import type { Page } from "../understudy/page";
@@ -188,7 +189,7 @@ export class AgentCache {
       },
     });
 
-    return await this.replayAgentCacheEntry(entry);
+    return await this.replayAgentCacheEntry(context, entry);
   }
 
   /**
@@ -495,14 +496,20 @@ export class AgentCache {
   }
 
   private async replayAgentCacheEntry(
+    context: AgentCacheContext,
     entry: CachedAgentEntry,
   ): Promise<AgentResult | null> {
     const ctx = this.getContext();
     const handler = this.getActHandler();
     if (!ctx || !handler) return null;
     try {
+      const updatedSteps: AgentReplayStep[] = [];
+      let stepsChanged = false;
       for (const step of entry.steps ?? []) {
-        await this.executeAgentReplayStep(step, ctx, handler);
+        const replayedStep =
+          (await this.executeAgentReplayStep(step, ctx, handler)) ?? step;
+        stepsChanged ||= replayedStep !== step;
+        updatedSteps.push(replayedStep);
       }
       const result = cloneForCache(entry.result);
       result.usage = {
@@ -517,6 +524,9 @@ export class AgentCache {
         cacheHit: true,
         cacheTimestamp: entry.timestamp,
       };
+      if (stepsChanged) {
+        await this.refreshAgentCacheEntry(context, entry, updatedSteps);
+      }
       return result;
     } catch (err) {
       this.logger({
@@ -535,44 +545,47 @@ export class AgentCache {
     step: AgentReplayStep,
     ctx: V3Context,
     handler: ActHandler,
-  ): Promise<void> {
+  ): Promise<AgentReplayStep> {
     switch (step.type) {
       case "act":
-        await this.replayAgentActStep(step as AgentReplayActStep, ctx, handler);
-        return;
+        return await this.replayAgentActStep(
+          step as AgentReplayActStep,
+          ctx,
+          handler,
+        );
       case "fillForm":
-        await this.replayAgentFillFormStep(
+        return await this.replayAgentFillFormStep(
           step as AgentReplayFillFormStep,
           ctx,
           handler,
         );
-        return;
       case "goto":
         await this.replayAgentGotoStep(step as AgentReplayGotoStep, ctx);
-        return;
+        return step;
       case "scroll":
         await this.replayAgentScrollStep(step as AgentReplayScrollStep, ctx);
-        return;
+        return step;
       case "wait":
         await this.replayAgentWaitStep(step as AgentReplayWaitStep);
-        return;
+        return step;
       case "navback":
         await this.replayAgentNavBackStep(step as AgentReplayNavBackStep, ctx);
-        return;
+        return step;
       case "keys":
         await this.replayAgentKeysStep(step as AgentReplayKeysStep, ctx);
-        return;
+        return step;
       case "close":
       case "extract":
       case "screenshot":
       case "ariaTree":
-        return;
+        return step;
       default:
         this.logger({
           category: "cache",
           message: `agent cache skipping step type: ${step.type}`,
           level: 2,
         });
+        return step;
     }
   }
 
@@ -580,42 +593,64 @@ export class AgentCache {
     step: AgentReplayActStep,
     ctx: V3Context,
     handler: ActHandler,
-  ): Promise<void> {
+  ): Promise<AgentReplayActStep> {
     const actions = Array.isArray(step.actions) ? step.actions : [];
     if (actions.length > 0) {
       const page = await ctx.awaitActivePage();
+      const updatedActions: Action[] = [];
       for (const action of actions) {
-        await handler.takeDeterministicAction(
+        const result = await handler.takeDeterministicAction(
           action,
           page,
           this.domSettleTimeoutMs,
           this.getDefaultLlmClient(),
         );
+        if (result.success && Array.isArray(result.actions)) {
+          updatedActions.push(...cloneForCache(result.actions));
+        } else {
+          updatedActions.push(cloneForCache(action));
+        }
       }
-      return;
+      if (this.haveActionsChanged(actions, updatedActions)) {
+        return { ...step, actions: updatedActions };
+      }
+      return step;
     }
     await this.act(step.instruction, { timeout: step.timeout });
+    return step;
   }
 
   private async replayAgentFillFormStep(
     step: AgentReplayFillFormStep,
     ctx: V3Context,
     handler: ActHandler,
-  ): Promise<void> {
+  ): Promise<AgentReplayFillFormStep> {
     const actions =
       Array.isArray(step.actions) && step.actions.length > 0
         ? step.actions
         : (step.observeResults ?? []);
-    if (!Array.isArray(actions) || actions.length === 0) return;
+    if (!Array.isArray(actions) || actions.length === 0) {
+      return step;
+    }
     const page = await ctx.awaitActivePage();
+    const updatedActions: Action[] = [];
     for (const action of actions) {
-      await handler.takeDeterministicAction(
+      const result = await handler.takeDeterministicAction(
         action,
         page,
         this.domSettleTimeoutMs,
         this.getDefaultLlmClient(),
       );
+      if (result.success && Array.isArray(result.actions)) {
+        updatedActions.push(...cloneForCache(result.actions));
+      } else {
+        updatedActions.push(cloneForCache(action));
+      }
     }
+    if (this.haveActionsChanged(actions, updatedActions)) {
+      return { ...step, actions: updatedActions };
+    }
+    return step;
   }
 
   private async replayAgentGotoStep(
@@ -680,5 +715,74 @@ export class AgentCache {
         await page.keyPress(keys, { delay: 100 });
       }
     }
+  }
+
+  private haveActionsChanged(original: Action[], updated: Action[]): boolean {
+    if (original.length !== updated.length) {
+      return true;
+    }
+    for (let i = 0; i < original.length; i += 1) {
+      const orig = original[i];
+      const next = updated[i];
+      if (!orig || !next) {
+        return true;
+      }
+      if (orig.selector !== next.selector) {
+        return true;
+      }
+      if ((orig.description ?? "") !== (next.description ?? "")) {
+        return true;
+      }
+      if ((orig.method ?? "") !== (next.method ?? "")) {
+        return true;
+      }
+      const origArgs = Array.isArray(orig.arguments) ? orig.arguments : [];
+      const nextArgs = Array.isArray(next.arguments) ? next.arguments : [];
+      if (origArgs.length !== nextArgs.length) {
+        return true;
+      }
+      for (let j = 0; j < origArgs.length; j += 1) {
+        if (origArgs[j] !== nextArgs[j]) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private async refreshAgentCacheEntry(
+    context: AgentCacheContext,
+    entry: CachedAgentEntry,
+    updatedSteps: AgentReplayStep[],
+  ): Promise<void> {
+    const updatedEntry: CachedAgentEntry = {
+      ...entry,
+      steps: cloneForCache(updatedSteps),
+      timestamp: new Date().toISOString(),
+    };
+    const { error, path } = await this.storage.writeJson(
+      `agent-${context.cacheKey}.json`,
+      updatedEntry,
+    );
+    if (error && path) {
+      this.logger({
+        category: "cache",
+        message: "failed to update agent cache entry after self-heal",
+        level: 0,
+        auxiliary: {
+          error: { value: String(error), type: "string" },
+        },
+      });
+      return;
+    }
+    this.logger({
+      category: "cache",
+      message: "agent cache entry updated after self-heal",
+      level: 2,
+      auxiliary: {
+        instruction: { value: context.instruction, type: "string" },
+        steps: { value: String(updatedSteps.length), type: "string" },
+      },
+    });
   }
 }
