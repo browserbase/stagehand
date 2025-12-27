@@ -1,5 +1,55 @@
 # @browserbasehq/stagehand
 
+## 3.0.7
+
+### Patch Changes
+
+- [#1461](https://github.com/browserbase/stagehand/pull/1461) [`0f3991e`](https://github.com/browserbase/stagehand/commit/0f3991eedc0aaff72ef718dda3ddb0839cf4a464) Thanks [@tkattkat](https://github.com/tkattkat)! - Move hybrid mode out of experimental
+
+- [#1433](https://github.com/browserbase/stagehand/pull/1433) [`e0e22e0`](https://github.com/browserbase/stagehand/commit/e0e22e06bc752a8ffde30f3dbfa58d91e24e6c09) Thanks [@tkattkat](https://github.com/tkattkat)! - Put hybrid mode behind experimental
+
+- [#1456](https://github.com/browserbase/stagehand/pull/1456) [`f261051`](https://github.com/browserbase/stagehand/commit/f2610517d74774374de9ee93191e663439ef55e5) Thanks [@shrey150](https://github.com/shrey150)! - Invoke page.hover for agent move action
+
+- [#1473](https://github.com/browserbase/stagehand/pull/1473) [`e021674`](https://github.com/browserbase/stagehand/commit/e021674f9641c1c5f9d0c1817c3fdf599eea124d) Thanks [@shrey150](https://github.com/shrey150)! - Add safety confirmation support for OpenAI + Google CUA
+
+- [#1399](https://github.com/browserbase/stagehand/pull/1399) [`6a5496f`](https://github.com/browserbase/stagehand/commit/6a5496f17dbb716be1ee1aaa4e5ba9d8c723b30b) Thanks [@tkattkat](https://github.com/tkattkat)! - Ensure cua agent is killed when stagehand.close is called
+
+- [#1436](https://github.com/browserbase/stagehand/pull/1436) [`fea1700`](https://github.com/browserbase/stagehand/commit/fea1700552af3319052f463685752501c8e71de3) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix auto-load key for act/extract/observe parametrized models on api
+
+- [#1439](https://github.com/browserbase/stagehand/pull/1439) [`5b288d9`](https://github.com/browserbase/stagehand/commit/5b288d9ac37406ff22460ac8050bea26b87a378e) Thanks [@tkattkat](https://github.com/tkattkat)! - Remove base64 from agent actions array ( still present in messages object )
+
+- [#1408](https://github.com/browserbase/stagehand/pull/1408) [`e822f5a`](https://github.com/browserbase/stagehand/commit/e822f5a8898df9eb48ca32c321025f0c74b638f0) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - allow for act() cache hit when variable values change
+
+- [#1472](https://github.com/browserbase/stagehand/pull/1472) [`638efc7`](https://github.com/browserbase/stagehand/commit/638efc7fea401bc43dd05dceedf4c13a3495a728) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: agent cache not refreshed on action failure
+
+- [#1424](https://github.com/browserbase/stagehand/pull/1424) [`a890f16`](https://github.com/browserbase/stagehand/commit/a890f16fa3a752f308f858e5ab9c9a0faf6b3b34) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: "Error: -32000 Failed to convert response to JSON: CBOR: stack limit exceeded"
+
+- [#1418](https://github.com/browserbase/stagehand/pull/1418) [`934f492`](https://github.com/browserbase/stagehand/commit/934f492ec587bef81f0ce75b45a35b44ab545712) Thanks [@miguelg719](https://github.com/miguelg719)! - Cleanup handlers and bus listeners on close
+
+- [#1430](https://github.com/browserbase/stagehand/pull/1430) [`bd2db92`](https://github.com/browserbase/stagehand/commit/bd2db925f66a826d61d58be1611d55646cbdb560) Thanks [@shrey150](https://github.com/shrey150)! - Fix CUA model coordinate translation
+
+- [#1465](https://github.com/browserbase/stagehand/pull/1465) [`51e0170`](https://github.com/browserbase/stagehand/commit/51e01709ce1c947c1947b4e2cb0b1f4f97b77182) Thanks [@miguelg719](https://github.com/miguelg719)! - Add media resolution high provider option to gemini 3 hybrid agent
+
+- [#1431](https://github.com/browserbase/stagehand/pull/1431) [`05f5580`](https://github.com/browserbase/stagehand/commit/05f5580937c3c157550e3c25ae6671f44f562211) Thanks [@tkattkat](https://github.com/tkattkat)! - Update the cache handling for agent
+
+- [#1432](https://github.com/browserbase/stagehand/pull/1432) [`f56a9c2`](https://github.com/browserbase/stagehand/commit/f56a9c296d4ddce25a405358c66837f8ce4d679f) Thanks [@tkattkat](https://github.com/tkattkat)! - Deprecate cua: true in favor of mode: "cua"
+
+- [#1406](https://github.com/browserbase/stagehand/pull/1406) [`b40ae11`](https://github.com/browserbase/stagehand/commit/b40ae11391af49c3581fce27faa1b7483fc4a169) Thanks [@tkattkat](https://github.com/tkattkat)! - Add support for hovering with coordinates ( page.hover )
+
+- [#1407](https://github.com/browserbase/stagehand/pull/1407) [`0d2b398`](https://github.com/browserbase/stagehand/commit/0d2b398cd40b32a9ecaf28ede70853036b7c91bd) Thanks [@tkattkat](https://github.com/tkattkat)! - Clean up page methods
+
+- [#1412](https://github.com/browserbase/stagehand/pull/1412) [`cd01f29`](https://github.com/browserbase/stagehand/commit/cd01f290578eac703521f801ba3712f5332918f3) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: load GOOGLE_API_KEY from .env
+
+- [#1462](https://github.com/browserbase/stagehand/pull/1462) [`a734fca`](https://github.com/browserbase/stagehand/commit/a734fca0b4573753767d3ebc48ec414baf4f23e1) Thanks [@shrey150](https://github.com/shrey150)! - fix: correctly pass userDataDir to chrome launcher
+
+- [#1466](https://github.com/browserbase/stagehand/pull/1466) [`b342acf`](https://github.com/browserbase/stagehand/commit/b342acfaae058127fb57664644c5fd965db02bf2) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - move playwright to optional dependencies
+
+- [#1440](https://github.com/browserbase/stagehand/pull/1440) [`2987cd1`](https://github.com/browserbase/stagehand/commit/2987cd1e5ffabefa9411936609635d4a638faed5) Thanks [@tkattkat](https://github.com/tkattkat)! - [Feature] support excluding tools from agent
+
+- [#1455](https://github.com/browserbase/stagehand/pull/1455) [`dfab1d5`](https://github.com/browserbase/stagehand/commit/dfab1d566299c8c5a63f20565a6da07dc8f61ccd) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - update aisdk client to better enforce structured output with deepseek models
+
+- [#1428](https://github.com/browserbase/stagehand/pull/1428) [`4d71162`](https://github.com/browserbase/stagehand/commit/4d71162beb119635b69b17637564a2bbd0e373e7) Thanks [@tkattkat](https://github.com/tkattkat)! - Add "hybrid" mode to stagehand agent
+
 ## 3.0.6
 
 ### Patch Changes
