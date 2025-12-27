@@ -232,6 +232,40 @@ const agent = stagehand.agent({
 });
 ```
 
+### Agent Hybrid Mode
+
+Hybrid mode uses both DOM-based and coordinate-based tools (act, click, type, dragAndDrop) for visual interactions. This requires `experimental: true` and models that support reliable coordinate-based actions.
+
+**Recommended models for hybrid mode:**
+
+- `google/gemini-3-flash-preview`
+- `anthropic/claude-sonnet-4-20250514`, `anthropic/claude-sonnet-4-5-20250929`, `anthropic/claude-haiku-4-5-20251001`
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true, // Required for hybrid mode
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  mode: "hybrid",
+  model: "google/gemini-3-flash-preview",
+});
+
+await agent.execute({
+  instruction: "Click the submit button and fill the form",
+  maxSteps: 20,
+  highlightCursor: true, // Enabled by default in hybrid mode
+});
+```
+
+**Agent modes:**
+
+- `"dom"` (default): Uses DOM-based tools (act, fillForm) - works with any model
+- `"hybrid"`: Uses both DOM-based and coordinate-based tools (act, click, type, dragAndDrop) - requires grounding-capable models
+- `"cua"`: Uses Computer Use Agent providers
+
 ## Advanced Features
 
 ### DeepLocator (XPath Targeting)
