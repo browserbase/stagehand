@@ -110,7 +110,6 @@ function compressScreenshotMessage(message: {
       if (typedPart.output?.value) {
         typedPart.output.value = placeholder;
       }
-      // Also set result for consistency
       if (typedPart.result) {
         typedPart.result = placeholder;
       }
@@ -134,11 +133,9 @@ function compressAriaTreeMessage(message: {
           text: "ARIA tree extracted for context of page elements",
         },
       ];
-      // Compress output.value
       if (typedPart.output?.value) {
         typedPart.output.value = placeholder;
       }
-      // Also set result for consistency
       if (typedPart.result) {
         typedPart.result = placeholder;
       }
