@@ -2,15 +2,13 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
 import type { Action } from "../../types/public/methods";
-import {
-  processCoordinates,
-  isGoogleProvider,
-} from "../utils/coordinateNormalization";
+import type {
+  ClickToolResult,
+  ModelOutputContentItem,
+} from "../../types/public/agent";
+import { processCoordinates } from "../utils/coordinateNormalization";
 import { ensureXPath } from "../utils/xpath";
-
-function waitForTimeout(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
 
 export const clickTool = (v3: V3, provider?: string) =>
   tool({
@@ -26,7 +24,7 @@ export const clickTool = (v3: V3, provider?: string) =>
         .array(z.number())
         .describe("The (x, y) coordinates to click on"),
     }),
-    execute: async ({ describe, coordinates }) => {
+    execute: async ({ describe, coordinates }): Promise<ClickToolResult> => {
       try {
         const page = await v3.context.awaitActivePage();
         const processed = processCoordinates(
@@ -53,10 +51,7 @@ export const clickTool = (v3: V3, provider?: string) =>
           returnXpath: shouldCollectXpath,
         });
 
-        // Google models need extra delay for page to settle after click
-        if (isGoogleProvider(provider)) {
-          await waitForTimeout(1000);
-        }
+        const screenshotBase64 = await waitAndCaptureScreenshot(page);
 
         // Record as an "act" step with proper Action for deterministic replay (only when caching)
         if (shouldCollectXpath) {
@@ -81,6 +76,7 @@ export const clickTool = (v3: V3, provider?: string) =>
           success: true,
           describe,
           coordinates: [processed.x, processed.y],
+          screenshotBase64,
         };
       } catch (error) {
         return {
@@ -88,5 +84,39 @@ export const clickTool = (v3: V3, provider?: string) =>
           error: `Error clicking: ${(error as Error).message}`,
         };
       }
+    },
+    toModelOutput: (result) => {
+      if (result.success) {
+        const content: ModelOutputContentItem[] = [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: result.success,
+              describe: result.describe,
+              coordinates: result.coordinates,
+            }),
+          },
+        ];
+        if (result.screenshotBase64) {
+          content.push({
+            type: "media",
+            mediaType: "image/png",
+            data: result.screenshotBase64,
+          });
+        }
+        return { type: "content", value: content };
+      }
+      return {
+        type: "content",
+        value: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: result.success,
+              error: result.error,
+            }),
+          },
+        ],
+      };
     },
   });

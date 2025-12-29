@@ -2,8 +2,13 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
 import type { Action } from "../../types/public/methods";
+import type {
+  DragAndDropToolResult,
+  ModelOutputContentItem,
+} from "../../types/public/agent";
 import { processCoordinates } from "../utils/coordinateNormalization";
 import { ensureXPath } from "../utils/xpath";
+import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
 
 export const dragAndDropTool = (v3: V3, provider?: string) =>
   tool({
@@ -18,7 +23,11 @@ export const dragAndDropTool = (v3: V3, provider?: string) =>
         .array(z.number())
         .describe("The (x, y) coordinates to end the drag and drop at"),
     }),
-    execute: async ({ describe, startCoordinates, endCoordinates }) => {
+    execute: async ({
+      describe,
+      startCoordinates,
+      endCoordinates,
+    }): Promise<DragAndDropToolResult> => {
       try {
         const page = await v3.context.awaitActivePage();
         const processedStart = processCoordinates(
@@ -60,6 +69,8 @@ export const dragAndDropTool = (v3: V3, provider?: string) =>
           { returnXpath: shouldCollectXpath },
         );
 
+        const screenshotBase64 = await waitAndCaptureScreenshot(page);
+
         // Record as "act" step with proper Action for deterministic replay (only when caching)
         if (shouldCollectXpath) {
           const normalizedFrom = ensureXPath(fromXpath);
@@ -80,12 +91,49 @@ export const dragAndDropTool = (v3: V3, provider?: string) =>
           }
         }
 
-        return { success: true, describe };
+        return {
+          success: true,
+          describe,
+          screenshotBase64,
+        };
       } catch (error) {
         return {
           success: false,
           error: `Error dragging: ${(error as Error).message}`,
         };
       }
+    },
+    toModelOutput: (result) => {
+      if (result.success) {
+        const content: ModelOutputContentItem[] = [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: result.success,
+              describe: result.describe,
+            }),
+          },
+        ];
+        if (result.screenshotBase64) {
+          content.push({
+            type: "media",
+            mediaType: "image/png",
+            data: result.screenshotBase64,
+          });
+        }
+        return { type: "content", value: content };
+      }
+      return {
+        type: "content",
+        value: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: result.success,
+              error: result.error,
+            }),
+          },
+        ],
+      };
     },
   });

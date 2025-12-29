@@ -1,7 +1,12 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
+import type {
+  ScrollVisionToolResult,
+  ModelOutputContentItem,
+} from "../../types/public/agent";
 import { processCoordinates } from "../utils/coordinateNormalization";
+import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
 
 /**
  * Simple scroll tool for DOM mode (non-grounding models).
@@ -74,7 +79,11 @@ export const scrollVisionTool = (v3: V3, provider?: string) =>
         ),
       percentage: z.number().min(1).max(200).optional(),
     }),
-    execute: async ({ direction, coordinates, percentage = 80 }) => {
+    execute: async ({
+      direction,
+      coordinates,
+      percentage = 80,
+    }): Promise<ScrollVisionToolResult> => {
       const page = await v3.context.awaitActivePage();
 
       const { w, h } = await page.mainFrame().evaluate<{
@@ -120,6 +129,8 @@ export const scrollVisionTool = (v3: V3, provider?: string) =>
 
       await page.scroll(cx, cy, 0, deltaY);
 
+      const screenshotBase64 = await waitAndCaptureScreenshot(page, 100);
+
       v3.recordAgentReplayStep({
         type: "scroll",
         deltaX: 0,
@@ -133,6 +144,27 @@ export const scrollVisionTool = (v3: V3, provider?: string) =>
           ? `Scrolled ${percentage}% ${direction} at (${cx}, ${cy})`
           : `Scrolled ${percentage}% ${direction}`,
         scrolledPixels: scrollDistance,
+        screenshotBase64,
       };
+    },
+    toModelOutput: (result) => {
+      const content: ModelOutputContentItem[] = [
+        {
+          type: "text",
+          text: JSON.stringify({
+            success: result.success,
+            message: result.message,
+            scrolledPixels: result.scrolledPixels,
+          }),
+        },
+      ];
+      if (result.screenshotBase64) {
+        content.push({
+          type: "media",
+          mediaType: "image/png",
+          data: result.screenshotBase64,
+        });
+      }
+      return { type: "content", value: content };
     },
   });

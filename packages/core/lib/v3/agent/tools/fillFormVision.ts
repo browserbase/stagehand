@@ -2,8 +2,13 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
 import type { Action } from "../../types/public/methods";
+import type {
+  FillFormVisionToolResult,
+  ModelOutputContentItem,
+} from "../../types/public/agent";
 import { processCoordinates } from "../utils/coordinateNormalization";
 import { ensureXPath } from "../utils/xpath";
+import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
 
 export const fillFormVisionTool = (v3: V3, provider?: string) =>
   tool({
@@ -44,7 +49,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
         )
         .min(2, "Provide at least two fields to fill"),
     }),
-    execute: async ({ fields }) => {
+    execute: async ({ fields }): Promise<FillFormVisionToolResult> => {
       try {
         const page = await v3.context.awaitActivePage();
 
@@ -105,6 +110,8 @@ MANDATORY USE CASES (always use fillFormVision for these):
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
 
+        const screenshotBase64 = await waitAndCaptureScreenshot(page, 100);
+
         // Record as "act" step with proper Actions for deterministic replay (only when caching)
         if (shouldCollectXpath && actions.length > 0) {
           v3.recordAgentReplayStep({
@@ -118,6 +125,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
         return {
           success: true,
           playwrightArguments: processedFields,
+          screenshotBase64,
         };
       } catch (error) {
         return {
@@ -125,5 +133,38 @@ MANDATORY USE CASES (always use fillFormVision for these):
           error: `Error filling form: ${(error as Error).message}`,
         };
       }
+    },
+    toModelOutput: (result) => {
+      if (result.success) {
+        const content: ModelOutputContentItem[] = [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: result.success,
+              fieldsCount: result.playwrightArguments?.length ?? 0,
+            }),
+          },
+        ];
+        if (result.screenshotBase64) {
+          content.push({
+            type: "media",
+            mediaType: "image/png",
+            data: result.screenshotBase64,
+          });
+        }
+        return { type: "content", value: content };
+      }
+      return {
+        type: "content",
+        value: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: result.success,
+              error: result.error,
+            }),
+          },
+        ],
+      };
     },
   });
