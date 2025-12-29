@@ -55,13 +55,14 @@ export const dragAndDropTool = (v3: V3, provider?: string) =>
           },
         });
 
-        // Use returnXpath to get XPaths of both start and end elements for caching
+        // Only request XPath when caching is enabled to avoid unnecessary computation
+        const shouldCollectXpath = v3.isAgentReplayActive();
         const [fromXpath, toXpath] = await page.dragAndDrop(
           processedStart.x,
           processedStart.y,
           processedEnd.x,
           processedEnd.y,
-          { returnXpath: true },
+          { returnXpath: shouldCollectXpath },
         );
 
         // Wait for page to settle after drag and drop
@@ -71,22 +72,24 @@ export const dragAndDropTool = (v3: V3, provider?: string) =>
         const screenshotBuffer = await page.screenshot({ fullPage: false });
         const screenshotBase64 = screenshotBuffer.toString("base64");
 
-        // Record as "act" step with proper Action for deterministic replay
-        const normalizedFrom = ensureXPath(fromXpath);
-        const normalizedTo = ensureXPath(toXpath);
-        if (normalizedFrom && normalizedTo) {
-          const action: Action = {
-            selector: normalizedFrom,
-            description: describe,
-            method: "dragAndDrop",
-            arguments: [normalizedTo],
-          };
-          v3.recordAgentReplayStep({
-            type: "act",
-            instruction: describe,
-            actions: [action],
-            actionDescription: describe,
-          });
+        // Record as "act" step with proper Action for deterministic replay (only when caching)
+        if (shouldCollectXpath) {
+          const normalizedFrom = ensureXPath(fromXpath);
+          const normalizedTo = ensureXPath(toXpath);
+          if (normalizedFrom && normalizedTo) {
+            const action: Action = {
+              selector: normalizedFrom,
+              description: describe,
+              method: "dragAndDrop",
+              arguments: [normalizedTo],
+            };
+            v3.recordAgentReplayStep({
+              type: "act",
+              instruction: describe,
+              actions: [action],
+              actionDescription: describe,
+            });
+          }
         }
 
         return {

@@ -41,9 +41,10 @@ export const clickTool = (v3: V3, provider?: string) =>
           },
         });
 
-        // Use returnXpath to get the XPath of the clicked element for caching
+        // Only request XPath when caching is enabled to avoid unnecessary computation
+        const shouldCollectXpath = v3.isAgentReplayActive();
         const xpath = await page.click(processed.x, processed.y, {
-          returnXpath: true,
+          returnXpath: shouldCollectXpath,
         });
 
         // Wait for page to settle after click
@@ -53,21 +54,23 @@ export const clickTool = (v3: V3, provider?: string) =>
         const screenshotBuffer = await page.screenshot({ fullPage: false });
         const screenshotBase64 = screenshotBuffer.toString("base64");
 
-        // Record as an "act" step with proper Action for deterministic replay
-        const normalizedXpath = ensureXPath(xpath);
-        if (normalizedXpath) {
-          const action: Action = {
-            selector: normalizedXpath,
-            description: describe,
-            method: "click",
-            arguments: [],
-          };
-          v3.recordAgentReplayStep({
-            type: "act",
-            instruction: describe,
-            actions: [action],
-            actionDescription: describe,
-          });
+        // Record as an "act" step with proper Action for deterministic replay (only when caching)
+        if (shouldCollectXpath) {
+          const normalizedXpath = ensureXPath(xpath);
+          if (normalizedXpath) {
+            const action: Action = {
+              selector: normalizedXpath,
+              description: describe,
+              method: "click",
+              arguments: [],
+            };
+            v3.recordAgentReplayStep({
+              type: "act",
+              instruction: describe,
+              actions: [action],
+              actionDescription: describe,
+            });
+          }
         }
 
         return {
