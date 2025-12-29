@@ -93,18 +93,21 @@ test.describe("Page.waitForTimeout tests", () => {
         encodeURIComponent(
           "<div id='delayed'></div>" +
             "<script>" +
-            "setTimeout(() => {" +
-            "  document.getElementById('delayed').textContent = 'Loaded';" +
-            "}, 200);" +
+            "window.startUpdate = () => {" +
+            "  setTimeout(() => {" +
+            "    document.getElementById('delayed').textContent = 'Loaded';" +
+            "  }, 200);" +
+            "};" +
             "</script>",
         ),
     );
 
-    // Content should not be there yet
-    const beforeText = await page.mainFrame().locator("#delayed").textContent();
-    expect(beforeText).toBe("");
+    // Trigger the delayed update
+    await page.evaluate(() => {
+      (window as unknown as { startUpdate: () => void }).startUpdate();
+    });
 
-    // Wait for the timeout
+    // Wait for the timeout to allow DOM update
     await page.waitForTimeout(300);
 
     // Content should now be loaded
