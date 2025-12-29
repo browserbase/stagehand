@@ -1182,6 +1182,15 @@ export class Page {
   }
 
   /**
+   * Wait for a specified amount of time.
+   *
+   * @param ms The number of milliseconds to wait.
+   */
+  async waitForTimeout(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
    * Evaluate a function or expression in the current main frame's main world.
    * - If a string is provided, it is treated as a JS expression.
    * - If a function is provided, it is stringified and invoked with the optional argument.
