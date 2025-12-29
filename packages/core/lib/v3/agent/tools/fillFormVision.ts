@@ -73,37 +73,40 @@ MANDATORY USE CASES (always use fillFormVision for these):
           },
         });
 
-        // Collect actions with XPaths for cache replay
+        // Only request XPath when caching is enabled to avoid unnecessary computation
+        const shouldCollectXpath = v3.isAgentReplayActive();
         const actions: Action[] = [];
 
         for (const field of processedFields) {
-          // Click the field with returnXpath to get the element's XPath
+          // Click the field, only requesting XPath when caching is enabled
           const xpath = await page.click(
             field.coordinates.x,
             field.coordinates.y,
             {
-              returnXpath: true,
+              returnXpath: shouldCollectXpath,
             },
           );
           await page.type(field.value);
 
-          // Build Action with XPath for deterministic replay
-          const normalizedXpath = ensureXPath(xpath);
-          if (normalizedXpath) {
-            actions.push({
-              selector: normalizedXpath,
-              description: field.action,
-              method: "type",
-              arguments: [field.value],
-            });
+          // Build Action with XPath for deterministic replay (only when caching)
+          if (shouldCollectXpath) {
+            const normalizedXpath = ensureXPath(xpath);
+            if (normalizedXpath) {
+              actions.push({
+                selector: normalizedXpath,
+                description: field.action,
+                method: "type",
+                arguments: [field.value],
+              });
+            }
           }
 
           // Small delay between fields
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
 
-        // Record as "act" step with proper Actions for deterministic replay
-        if (actions.length > 0) {
+        // Record as "act" step with proper Actions for deterministic replay (only when caching)
+        if (shouldCollectXpath && actions.length > 0) {
           v3.recordAgentReplayStep({
             type: "act",
             instruction: `Fill ${fields.length} form fields`,

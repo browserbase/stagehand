@@ -47,31 +47,35 @@ export const clickAndHoldTool = (v3: V3, provider?: string) =>
           },
         });
 
+        // Only request XPath when caching is enabled to avoid unnecessary computation
+        const shouldCollectXpath = v3.isAgentReplayActive();
+
         // Use dragAndDrop from same point to same point with delay to simulate click and hold
-        // returnXpath gives us the xpath of the element at that position
         const [xpath] = await page.dragAndDrop(
           processed.x,
           processed.y,
           processed.x,
           processed.y,
-          { delay: duration, returnXpath: true },
+          { delay: duration, returnXpath: shouldCollectXpath },
         );
 
-        // Record as "act" step with proper Action for deterministic replay
-        const normalizedXpath = ensureXPath(xpath);
-        if (normalizedXpath) {
-          const action: Action = {
-            selector: normalizedXpath,
-            description: describe,
-            method: "clickAndHold",
-            arguments: [String(duration)],
-          };
-          v3.recordAgentReplayStep({
-            type: "act",
-            instruction: describe,
-            actions: [action],
-            actionDescription: describe,
-          });
+        // Record as "act" step with proper Action for deterministic replay (only when caching)
+        if (shouldCollectXpath) {
+          const normalizedXpath = ensureXPath(xpath);
+          if (normalizedXpath) {
+            const action: Action = {
+              selector: normalizedXpath,
+              description: describe,
+              method: "clickAndHold",
+              arguments: [String(duration)],
+            };
+            v3.recordAgentReplayStep({
+              type: "act",
+              instruction: describe,
+              actions: [action],
+              actionDescription: describe,
+            });
+          }
         }
 
         return { success: true, describe };
