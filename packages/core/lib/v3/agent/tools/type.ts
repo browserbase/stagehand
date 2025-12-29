@@ -48,9 +48,10 @@ export const typeTool = (v3: V3, provider?: string) =>
           },
         });
 
-        // Click the element first with returnXpath to get the element's XPath
+        // Only request XPath when caching is enabled to avoid unnecessary computation
+        const shouldCollectXpath = v3.isAgentReplayActive();
         const xpath = await page.click(processed.x, processed.y, {
-          returnXpath: true,
+          returnXpath: shouldCollectXpath,
         });
 
         // Google models need extra delay for page to settle after click
@@ -60,21 +61,23 @@ export const typeTool = (v3: V3, provider?: string) =>
 
         await page.type(text);
 
-        // Record as an "act" step with proper Action for deterministic replay
-        const normalizedXpath = ensureXPath(xpath);
-        if (normalizedXpath) {
-          const action: Action = {
-            selector: normalizedXpath,
-            description: describe,
-            method: "type",
-            arguments: [text],
-          };
-          v3.recordAgentReplayStep({
-            type: "act",
-            instruction: describe,
-            actions: [action],
-            actionDescription: describe,
-          });
+        // Record as an "act" step with proper Action for deterministic replay (only when caching)
+        if (shouldCollectXpath) {
+          const normalizedXpath = ensureXPath(xpath);
+          if (normalizedXpath) {
+            const action: Action = {
+              selector: normalizedXpath,
+              description: describe,
+              method: "type",
+              arguments: [text],
+            };
+            v3.recordAgentReplayStep({
+              type: "act",
+              instruction: describe,
+              actions: [action],
+              actionDescription: describe,
+            });
+          }
         }
 
         return { success: true, describe, text };
