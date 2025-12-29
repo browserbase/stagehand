@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
-import type { AgentToolMode, WaitToolResult } from "../../types/public/agent";
+import type { AgentToolMode, WaitToolResult, ModelOutputContentItem } from "../../types/public/agent";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
 
 export const waitTool = (v3: V3, mode?: AgentToolMode) =>
@@ -37,36 +37,22 @@ export const waitTool = (v3: V3, mode?: AgentToolMode) =>
       return { success: true, waited: timeMs };
     },
     toModelOutput: (result) => {
+      const content: ModelOutputContentItem[] = [
+        {
+          type: "text",
+          text: JSON.stringify({
+            success: result.success,
+            waited: result.waited,
+          }),
+        },
+      ];
       if (result.screenshotBase64) {
-        return {
-          type: "content",
-          value: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: result.success,
-                waited: result.waited,
-              }),
-            },
-            {
-              type: "media",
-              mediaType: "image/png",
-              data: result.screenshotBase64,
-            },
-          ],
-        };
+        content.push({
+          type: "media",
+          mediaType: "image/png",
+          data: result.screenshotBase64,
+        });
       }
-      return {
-        type: "content",
-        value: [
-          {
-            type: "text",
-            text: JSON.stringify({
-              success: result.success,
-              waited: result.waited,
-            }),
-          },
-        ],
-      };
+      return { type: "content", value: content };
     },
   });

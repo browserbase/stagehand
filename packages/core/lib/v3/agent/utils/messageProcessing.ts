@@ -62,7 +62,7 @@ export function processMessages(messages: ModelMessage[]): number {
 
   // Find indices of all vision-related tool results (screenshots + vision actions)
   // and ariaTree results
-  const visionIndices: { index: number; isScreenshot: boolean }[] = [];
+  const visionIndices: number[] = [];
   const ariaTreeIndices: number[] = [];
 
   for (let i = 0; i < messages.length; i++) {
@@ -70,10 +70,7 @@ export function processMessages(messages: ModelMessage[]): number {
     if (isToolMessage(message)) {
       const content = message.content as unknown[];
       if (content.some(isVisionPart)) {
-        visionIndices.push({
-          index: i,
-          isScreenshot: content.some(isScreenshotPart),
-        });
+        visionIndices.push(i);
       }
       if (content.some(isAriaTreePart)) {
         ariaTreeIndices.push(i);
@@ -84,14 +81,12 @@ export function processMessages(messages: ModelMessage[]): number {
   // Compress old vision results (keep 2 most recent across all vision tools)
   if (visionIndices.length > 2) {
     const toCompress = visionIndices.slice(0, visionIndices.length - 2);
-    for (const { index, isScreenshot } of toCompress) {
+    for (const index of toCompress) {
       const message = messages[index];
       if (isToolMessage(message)) {
-        if (isScreenshot) {
-          compressScreenshotMessage(message);
-        } else {
-          compressVisionActionMessage(message);
-        }
+        // Both functions are safe to call - they only modify their respective part types
+        compressScreenshotMessage(message);
+        compressVisionActionMessage(message);
         compressedCount++;
       }
     }

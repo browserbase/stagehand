@@ -596,6 +596,14 @@ export interface NonStreamingAgentInstance {
 // Vision Action Tool Result Types
 // =============================================================================
 
+/**
+ * Content item type for toModelOutput return values.
+ * Used in tool definitions to return text and/or media to the model.
+ */
+export type ModelOutputContentItem =
+  | { type: "text"; text: string }
+  | { type: "media"; mediaType: string; data: string };
+
 export interface ClickToolResult {
   success: boolean;
   describe?: string;

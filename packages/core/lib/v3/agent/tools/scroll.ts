@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
-import type { ScrollVisionToolResult } from "../../types/public/agent";
+import type { ScrollVisionToolResult, ModelOutputContentItem } from "../../types/public/agent";
 import { processCoordinates } from "../utils/coordinateNormalization";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
 
@@ -145,38 +145,23 @@ export const scrollVisionTool = (v3: V3, provider?: string) =>
       };
     },
     toModelOutput: (result) => {
+      const content: ModelOutputContentItem[] = [
+        {
+          type: "text",
+          text: JSON.stringify({
+            success: result.success,
+            message: result.message,
+            scrolledPixels: result.scrolledPixels,
+          }),
+        },
+      ];
       if (result.screenshotBase64) {
-        return {
-          type: "content",
-          value: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: result.success,
-                message: result.message,
-                scrolledPixels: result.scrolledPixels,
-              }),
-            },
-            {
-              type: "media",
-              mediaType: "image/png",
-              data: result.screenshotBase64,
-            },
-          ],
-        };
+        content.push({
+          type: "media",
+          mediaType: "image/png",
+          data: result.screenshotBase64,
+        });
       }
-      return {
-        type: "content",
-        value: [
-          {
-            type: "text",
-            text: JSON.stringify({
-              success: result.success,
-              message: result.message,
-              scrolledPixels: result.scrolledPixels,
-            }),
-          },
-        ],
-      };
+      return { type: "content", value: content };
     },
   });

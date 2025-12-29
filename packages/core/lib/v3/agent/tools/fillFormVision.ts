@@ -2,7 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
 import type { Action } from "../../types/public/methods";
-import type { FillFormVisionToolResult } from "../../types/public/agent";
+import type { FillFormVisionToolResult, ModelOutputContentItem } from "../../types/public/agent";
 import { processCoordinates } from "../utils/coordinateNormalization";
 import { ensureXPath } from "../utils/xpath";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
@@ -132,24 +132,24 @@ MANDATORY USE CASES (always use fillFormVision for these):
       }
     },
     toModelOutput: (result) => {
-      if (result.screenshotBase64) {
-        return {
-          type: "content",
-          value: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: result.success,
-                fieldsCount: result.playwrightArguments?.length ?? 0,
-              }),
-            },
-            {
-              type: "media",
-              mediaType: "image/png",
-              data: result.screenshotBase64,
-            },
-          ],
-        };
+      if (result.success) {
+        const content: ModelOutputContentItem[] = [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: result.success,
+              fieldsCount: result.playwrightArguments?.length ?? 0,
+            }),
+          },
+        ];
+        if (result.screenshotBase64) {
+          content.push({
+            type: "media",
+            mediaType: "image/png",
+            data: result.screenshotBase64,
+          });
+        }
+        return { type: "content", value: content };
       }
       return {
         type: "content",
