@@ -72,9 +72,7 @@ test.describe("Page.waitForTimeout tests", () => {
   test("waitForTimeout works with async/await syntax", async () => {
     const page = v3.context.pages()[0];
 
-    await page.goto(
-      "data:text/html," + encodeURIComponent("<div>Test</div>"),
-    );
+    await page.goto("data:text/html," + encodeURIComponent("<div>Test</div>"));
 
     const results: number[] = [];
 
@@ -117,9 +115,7 @@ test.describe("Page.waitForTimeout tests", () => {
   test("waitForTimeout with small increments", async () => {
     const page = v3.context.pages()[0];
 
-    await page.goto(
-      "data:text/html," + encodeURIComponent("<div>Test</div>"),
-    );
+    await page.goto("data:text/html," + encodeURIComponent("<div>Test</div>"));
 
     const startTime = Date.now();
 
@@ -166,4 +162,3 @@ test.describe("Page.waitForTimeout tests", () => {
     await timeoutPromise;
   });
 });
-
