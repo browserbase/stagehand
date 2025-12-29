@@ -66,7 +66,6 @@ export const dragAndDropTool = (v3: V3, provider?: string) =>
           { returnXpath: shouldCollectXpath },
         );
 
-        // Wait for page to settle and capture screenshot
         const screenshotBase64 = await waitAndCaptureScreenshot(page);
 
         // Record as "act" step with proper Action for deterministic replay (only when caching)
