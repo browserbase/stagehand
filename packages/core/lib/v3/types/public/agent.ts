@@ -638,3 +638,9 @@ export interface ScrollVisionToolResult {
   scrolledPixels: number;
   screenshotBase64?: string;
 }
+
+export interface WaitToolResult {
+  success: boolean;
+  waited: number;
+  screenshotBase64?: string;
+}

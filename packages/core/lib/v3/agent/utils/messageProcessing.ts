@@ -5,6 +5,7 @@ const VISION_ACTION_TOOLS = [
   "click",
   "type",
   "dragAndDrop",
+  "wait",
   "fillFormVision",
   "scroll",
 ];

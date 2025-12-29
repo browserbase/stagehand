@@ -1,14 +1,15 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
+import type { AgentToolMode, WaitToolResult } from "../../types/public/agent";
 
-export const waitTool = (v3: V3) =>
+export const waitTool = (v3: V3, mode?: AgentToolMode) =>
   tool({
     description: "Wait for a specified time",
     inputSchema: z.object({
       timeMs: z.number().describe("Time in milliseconds"),
     }),
-    execute: async ({ timeMs }) => {
+    execute: async ({ timeMs }): Promise<WaitToolResult> => {
       v3.logger({
         category: "agent",
         message: `Agent calling tool: wait`,
@@ -24,6 +25,53 @@ export const waitTool = (v3: V3) =>
       if (timeMs > 0) {
         v3.recordAgentReplayStep({ type: "wait", timeMs });
       }
+
+      // Take screenshot after wait in hybrid mode for visual feedback
+      if (mode === "hybrid") {
+        try {
+          const page = await v3.context.awaitActivePage();
+          const screenshotBuffer = await page.screenshot({ fullPage: false });
+          const screenshotBase64 = screenshotBuffer.toString("base64");
+          return { success: true, waited: timeMs, screenshotBase64 };
+        } catch {
+          // If screenshot fails, return without it
+          return { success: true, waited: timeMs };
+        }
+      }
+
       return { success: true, waited: timeMs };
+    },
+    toModelOutput: (result) => {
+      if (result.screenshotBase64) {
+        return {
+          type: "content",
+          value: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: result.success,
+                waited: result.waited,
+              }),
+            },
+            {
+              type: "media",
+              mediaType: "image/png",
+              data: result.screenshotBase64,
+            },
+          ],
+        };
+      }
+      return {
+        type: "content",
+        value: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: result.success,
+              waited: result.waited,
+            }),
+          },
+        ],
+      };
     },
   });
