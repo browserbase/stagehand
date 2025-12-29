@@ -2,7 +2,10 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
 import type { Action } from "../../types/public/methods";
-import type { TypeToolResult, ModelOutputContentItem } from "../../types/public/agent";
+import type {
+  TypeToolResult,
+  ModelOutputContentItem,
+} from "../../types/public/agent";
 import { processCoordinates } from "../utils/coordinateNormalization";
 import { ensureXPath } from "../utils/xpath";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
