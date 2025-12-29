@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
 import type { AgentToolMode, WaitToolResult } from "../../types/public/agent";
+import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
 
 export const waitTool = (v3: V3, mode?: AgentToolMode) =>
   tool({
@@ -28,15 +29,9 @@ export const waitTool = (v3: V3, mode?: AgentToolMode) =>
 
       // Take screenshot after wait in hybrid mode for visual feedback
       if (mode === "hybrid") {
-        try {
-          const page = await v3.context.awaitActivePage();
-          const screenshotBuffer = await page.screenshot({ fullPage: false });
-          const screenshotBase64 = screenshotBuffer.toString("base64");
-          return { success: true, waited: timeMs, screenshotBase64 };
-        } catch {
-          // If screenshot fails, return without it
-          return { success: true, waited: timeMs };
-        }
+        const page = await v3.context.awaitActivePage();
+        const screenshotBase64 = await waitAndCaptureScreenshot(page, 0);
+        return { success: true, waited: timeMs, screenshotBase64 };
       }
 
       return { success: true, waited: timeMs };

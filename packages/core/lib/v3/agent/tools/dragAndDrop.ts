@@ -5,6 +5,7 @@ import type { Action } from "../../types/public/methods";
 import type { DragAndDropToolResult } from "../../types/public/agent";
 import { processCoordinates } from "../utils/coordinateNormalization";
 import { ensureXPath } from "../utils/xpath";
+import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
 
 export const dragAndDropTool = (v3: V3, provider?: string) =>
   tool({
@@ -65,12 +66,8 @@ export const dragAndDropTool = (v3: V3, provider?: string) =>
           { returnXpath: shouldCollectXpath },
         );
 
-        // Wait for page to settle after drag and drop
-        await page.waitForTimeout(500);
-
-        // Take screenshot after action for visual feedback
-        const screenshotBuffer = await page.screenshot({ fullPage: false });
-        const screenshotBase64 = screenshotBuffer.toString("base64");
+        // Wait for page to settle and capture screenshot
+        const screenshotBase64 = await waitAndCaptureScreenshot(page);
 
         // Record as "act" step with proper Action for deterministic replay (only when caching)
         if (shouldCollectXpath) {

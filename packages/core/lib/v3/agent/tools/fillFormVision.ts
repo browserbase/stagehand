@@ -5,6 +5,7 @@ import type { Action } from "../../types/public/methods";
 import type { FillFormVisionToolResult } from "../../types/public/agent";
 import { processCoordinates } from "../utils/coordinateNormalization";
 import { ensureXPath } from "../utils/xpath";
+import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
 
 export const fillFormVisionTool = (v3: V3, provider?: string) =>
   tool({
@@ -106,12 +107,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
 
-        // Wait for page to settle after filling all fields
-        await page.waitForTimeout(500);
-
-        // Take screenshot after action for visual feedback
-        const screenshotBuffer = await page.screenshot({ fullPage: false });
-        const screenshotBase64 = screenshotBuffer.toString("base64");
+        const screenshotBase64 = await waitAndCaptureScreenshot(page, 100);
 
         // Record as "act" step with proper Actions for deterministic replay (only when caching)
         if (shouldCollectXpath && actions.length > 0) {

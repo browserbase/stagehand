@@ -5,6 +5,7 @@ import type { Action } from "../../types/public/methods";
 import type { TypeToolResult } from "../../types/public/agent";
 import { processCoordinates } from "../utils/coordinateNormalization";
 import { ensureXPath } from "../utils/xpath";
+import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
 
 export const typeTool = (v3: V3, provider?: string) =>
   tool({
@@ -54,12 +55,7 @@ export const typeTool = (v3: V3, provider?: string) =>
 
         await page.type(text);
 
-        // Wait for page to settle after typing
-        await page.waitForTimeout(500);
-
-        // Take screenshot after action for visual feedback
-        const screenshotBuffer = await page.screenshot({ fullPage: false });
-        const screenshotBase64 = screenshotBuffer.toString("base64");
+        const screenshotBase64 = await waitAndCaptureScreenshot(page);
 
         // Record as an "act" step with proper Action for deterministic replay (only when caching)
         if (shouldCollectXpath) {

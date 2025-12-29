@@ -1,6 +1,32 @@
 import { AgentAction } from "../../types/public/agent";
 import { ActionMappingOptions } from "../../types/private/agent";
 
+/**
+ * Keys to exclude from tool outputs when mapping to actions.
+ * These are large data fields that shouldn't be included in the actions array.
+ * Users can access this data through result.messages if needed.
+ */
+const EXCLUDED_OUTPUT_KEYS = ["screenshotBase64"] as const;
+
+/**
+ * Strips excluded keys (like screenshotBase64) from a tool output object.
+ */
+function stripExcludedKeys(
+  output: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(output)) {
+    if (
+      !EXCLUDED_OUTPUT_KEYS.includes(
+        key as (typeof EXCLUDED_OUTPUT_KEYS)[number],
+      )
+    ) {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
 export function mapToolResultToActions({
   toolCallName,
   toolResult,
@@ -106,11 +132,18 @@ function createStandardAction(
     return action;
   }
 
-  // Spread the output from the tool result if it exists, exclude ariaTree tool result as it is very large and unnecessary
-  // todo : add better typing for every tool to avoid type casting
+  // Spread the output from the tool result if it exists
+  // Exclude ariaTree tool result as it is very large and unnecessary
   if (toolCallName !== "ariaTree" && toolResult) {
-    const { output } = toolResult as { output: unknown };
-    Object.assign(action, output);
+    const result = toolResult as { output?: unknown };
+    const output = result.output;
+
+    if (output && typeof output === "object" && !Array.isArray(output)) {
+      const cleanedOutput = stripExcludedKeys(
+        output as Record<string, unknown>,
+      );
+      Object.assign(action, cleanedOutput);
+    }
   }
 
   return action;
