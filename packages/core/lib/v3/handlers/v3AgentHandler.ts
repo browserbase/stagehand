@@ -11,6 +11,7 @@ import {
   type StepResult,
   type GenerateTextOnStepFinishCallback,
   type StreamTextOnStepFinishCallback,
+  type PrepareStepFunction,
 } from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { LLMClient } from "../llm/LLMClient";
@@ -101,13 +102,10 @@ export class V3AgentHandler {
         throw new MissingLLMConfigurationError();
       }
       const baseModel = this.llmClient.getLanguageModel();
+      //to do - we likely do not need middleware anymore
       const wrappedModel = wrapLanguageModel({
         model: baseModel,
         middleware: {
-          transformParams: async ({ params }) => {
-            const { processedPrompt } = processMessages(params);
-            return { ...params, prompt: processedPrompt } as typeof params;
-          },
           ...SessionFileLogger.createLlmLoggingMiddleware(baseModel.modelId),
         },
       });
@@ -129,6 +127,17 @@ export class V3AgentHandler {
       });
       throw error;
     }
+  }
+  private createPrepareStep(
+    userCallback?: PrepareStepFunction<ToolSet>,
+  ): PrepareStepFunction<ToolSet> {
+    return async (options) => {
+      processMessages(options.messages);
+      if (userCallback) {
+        return userCallback(options);
+      }
+      return options;
+    };
   }
 
   private createStepHandler(
@@ -271,7 +280,7 @@ export class V3AgentHandler {
         stopWhen: (result) => this.handleStop(result, maxSteps),
         temperature: 1,
         toolChoice: "auto",
-        prepareStep: callbacks?.prepareStep,
+        prepareStep: this.createPrepareStep(callbacks?.prepareStep),
         onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
         abortSignal: preparedOptions.signal,
         providerOptions: wrappedModel.modelId.includes("gemini-3")
@@ -383,7 +392,7 @@ export class V3AgentHandler {
       stopWhen: (result) => this.handleStop(result, maxSteps),
       temperature: 1,
       toolChoice: "auto",
-      prepareStep: callbacks?.prepareStep,
+      prepareStep: this.createPrepareStep(callbacks?.prepareStep),
       onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
       onError: (event) => {
         if (callbacks?.onError) {
