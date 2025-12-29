@@ -99,7 +99,7 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     scroll: mode === "hybrid" ? scrollVisionTool(v3, provider) : scrollTool(v3),
     think: thinkTool(),
     type: typeTool(v3, provider),
-    wait: waitTool(v3),
+    wait: waitTool(v3, mode),
   };
 
   // Only include search tool if BRAVE_API_KEY is configured

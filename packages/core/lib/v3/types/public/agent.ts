@@ -591,3 +591,64 @@ export interface NonStreamingAgentInstance {
     instructionOrOptions: string | AgentExecuteOptions,
   ) => Promise<AgentResult>;
 }
+
+// =============================================================================
+// Vision Action Tool Result Types
+// =============================================================================
+
+/**
+ * Content item type for toModelOutput return values.
+ * Used in tool definitions to return text and/or media to the model.
+ */
+export type ModelOutputContentItem =
+  | { type: "text"; text: string }
+  | { type: "media"; mediaType: string; data: string };
+
+export interface ClickToolResult {
+  success: boolean;
+  describe?: string;
+  coordinates?: number[];
+  error?: string;
+  screenshotBase64?: string;
+}
+
+export interface TypeToolResult {
+  success: boolean;
+  describe?: string;
+  text?: string;
+  error?: string;
+  screenshotBase64?: string;
+}
+
+export interface DragAndDropToolResult {
+  success: boolean;
+  describe?: string;
+  error?: string;
+  screenshotBase64?: string;
+}
+
+export interface FillFormField {
+  action: string;
+  value: string;
+  coordinates: { x: number; y: number };
+}
+
+export interface FillFormVisionToolResult {
+  success: boolean;
+  playwrightArguments?: FillFormField[];
+  error?: string;
+  screenshotBase64?: string;
+}
+
+export interface ScrollVisionToolResult {
+  success: boolean;
+  message: string;
+  scrolledPixels: number;
+  screenshotBase64?: string;
+}
+
+export interface WaitToolResult {
+  success: boolean;
+  waited: number;
+  screenshotBase64?: string;
+}

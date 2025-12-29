@@ -11,6 +11,7 @@ import chalk from "chalk";
 
 // Load environment variables
 dotenv.config();
+
 async function main() {
   console.log(`\n${chalk.bold("Stagehand 🤘 Operator Example")}\n`);
   // Initialize Stagehand
