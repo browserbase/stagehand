@@ -2,8 +2,10 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
 import type { Action } from "../../types/public/methods";
+import type { DragAndDropToolResult } from "../../types/public/agent";
 import { processCoordinates } from "../utils/coordinateNormalization";
 import { ensureXPath } from "../utils/xpath";
+import { waitForTimeout, POST_ACTION_DELAY_MS } from "../utils/timing";
 
 export const dragAndDropTool = (v3: V3, provider?: string) =>
   tool({
@@ -18,7 +20,11 @@ export const dragAndDropTool = (v3: V3, provider?: string) =>
         .array(z.number())
         .describe("The (x, y) coordinates to end the drag and drop at"),
     }),
-    execute: async ({ describe, startCoordinates, endCoordinates }) => {
+    execute: async ({
+      describe,
+      startCoordinates,
+      endCoordinates,
+    }): Promise<DragAndDropToolResult> => {
       try {
         const page = await v3.context.awaitActivePage();
         const processedStart = processCoordinates(
@@ -59,6 +65,13 @@ export const dragAndDropTool = (v3: V3, provider?: string) =>
           { returnXpath: true },
         );
 
+        // Wait for page to settle after drag and drop
+        await waitForTimeout(POST_ACTION_DELAY_MS);
+
+        // Take screenshot after action for visual feedback
+        const screenshotBuffer = await page.screenshot({ fullPage: false });
+        const screenshotBase64 = screenshotBuffer.toString("base64");
+
         // Record as "act" step with proper Action for deterministic replay
         const normalizedFrom = ensureXPath(fromXpath);
         const normalizedTo = ensureXPath(toXpath);
@@ -77,12 +90,49 @@ export const dragAndDropTool = (v3: V3, provider?: string) =>
           });
         }
 
-        return { success: true, describe };
+        return {
+          success: true,
+          describe,
+          screenshotBase64,
+        };
       } catch (error) {
         return {
           success: false,
           error: `Error dragging: ${(error as Error).message}`,
         };
       }
+    },
+    toModelOutput: (result) => {
+      if (result.screenshotBase64) {
+        return {
+          type: "content",
+          value: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: result.success,
+                describe: result.describe,
+              }),
+            },
+            {
+              type: "media",
+              mediaType: "image/png",
+              data: result.screenshotBase64,
+            },
+          ],
+        };
+      }
+      return {
+        type: "content",
+        value: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: result.success,
+              error: result.error,
+            }),
+          },
+        ],
+      };
     },
   });

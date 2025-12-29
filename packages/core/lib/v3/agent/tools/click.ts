@@ -2,15 +2,10 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
 import type { Action } from "../../types/public/methods";
-import {
-  processCoordinates,
-  isGoogleProvider,
-} from "../utils/coordinateNormalization";
+import type { ClickToolResult } from "../../types/public/agent";
+import { processCoordinates } from "../utils/coordinateNormalization";
 import { ensureXPath } from "../utils/xpath";
-
-function waitForTimeout(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+import { waitForTimeout, POST_ACTION_DELAY_MS } from "../utils/timing";
 
 export const clickTool = (v3: V3, provider?: string) =>
   tool({
@@ -26,7 +21,7 @@ export const clickTool = (v3: V3, provider?: string) =>
         .array(z.number())
         .describe("The (x, y) coordinates to click on"),
     }),
-    execute: async ({ describe, coordinates }) => {
+    execute: async ({ describe, coordinates }): Promise<ClickToolResult> => {
       try {
         const page = await v3.context.awaitActivePage();
         const processed = processCoordinates(
@@ -52,10 +47,12 @@ export const clickTool = (v3: V3, provider?: string) =>
           returnXpath: true,
         });
 
-        // Google models need extra delay for page to settle after click
-        if (isGoogleProvider(provider)) {
-          await waitForTimeout(1000);
-        }
+        // Wait for page to settle after click
+        await waitForTimeout(POST_ACTION_DELAY_MS);
+
+        // Take screenshot after action for visual feedback
+        const screenshotBuffer = await page.screenshot({ fullPage: false });
+        const screenshotBase64 = screenshotBuffer.toString("base64");
 
         // Record as an "act" step with proper Action for deterministic replay
         const normalizedXpath = ensureXPath(xpath);
@@ -78,6 +75,7 @@ export const clickTool = (v3: V3, provider?: string) =>
           success: true,
           describe,
           coordinates: [processed.x, processed.y],
+          screenshotBase64,
         };
       } catch (error) {
         return {
@@ -85,5 +83,39 @@ export const clickTool = (v3: V3, provider?: string) =>
           error: `Error clicking: ${(error as Error).message}`,
         };
       }
+    },
+    toModelOutput: (result) => {
+      if (result.screenshotBase64) {
+        return {
+          type: "content",
+          value: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: result.success,
+                describe: result.describe,
+                coordinates: result.coordinates,
+              }),
+            },
+            {
+              type: "media",
+              mediaType: "image/png",
+              data: result.screenshotBase64,
+            },
+          ],
+        };
+      }
+      return {
+        type: "content",
+        value: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: result.success,
+              error: result.error,
+            }),
+          },
+        ],
+      };
     },
   });

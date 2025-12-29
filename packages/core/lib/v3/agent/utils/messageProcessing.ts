@@ -1,5 +1,14 @@
 import type { ModelMessage } from "ai";
 
+// Vision action tools that include screenshots in their results
+const VISION_ACTION_TOOLS = [
+  "click",
+  "type",
+  "dragAndDrop",
+  "fillFormVision",
+  "scroll",
+];
+
 function isToolMessage(
   message: unknown,
 ): message is { role: "tool"; content: unknown[] } {
@@ -19,6 +28,16 @@ function isScreenshotPart(part: unknown): boolean {
   );
 }
 
+function isVisionActionPart(part: unknown): boolean {
+  if (!part || typeof part !== "object") return false;
+  const toolName = (part as { toolName?: unknown }).toolName;
+  return typeof toolName === "string" && VISION_ACTION_TOOLS.includes(toolName);
+}
+
+function isVisionPart(part: unknown): boolean {
+  return isScreenshotPart(part) || isVisionActionPart(part);
+}
+
 function isAriaTreePart(part: unknown): boolean {
   return (
     !!part &&
@@ -31,7 +50,7 @@ function isAriaTreePart(part: unknown): boolean {
  * Compress old screenshot/ariaTree data in messages in-place.
  *
  * Strategy:
- * - Keep only the 2 most recent screenshots (replace older ones with placeholder)
+ * - Keep only the 2 most recent vision results (screenshots OR vision action tools like click/type/etc)
  * - Keep only the 1 most recent ariaTree (replace older ones with placeholder)
  *
  * @param messages - The messages array to modify in-place
@@ -40,16 +59,20 @@ function isAriaTreePart(part: unknown): boolean {
 export function processMessages(messages: ModelMessage[]): number {
   let compressedCount = 0;
 
-  // Find indices of screenshot and ariaTree tool results
-  const screenshotIndices: number[] = [];
+  // Find indices of all vision-related tool results (screenshots + vision actions)
+  // and ariaTree results
+  const visionIndices: { index: number; isScreenshot: boolean }[] = [];
   const ariaTreeIndices: number[] = [];
 
   for (let i = 0; i < messages.length; i++) {
     const message = messages[i];
     if (isToolMessage(message)) {
       const content = message.content as unknown[];
-      if (content.some(isScreenshotPart)) {
-        screenshotIndices.push(i);
+      if (content.some(isVisionPart)) {
+        visionIndices.push({
+          index: i,
+          isScreenshot: content.some(isScreenshotPart),
+        });
       }
       if (content.some(isAriaTreePart)) {
         ariaTreeIndices.push(i);
@@ -57,13 +80,17 @@ export function processMessages(messages: ModelMessage[]): number {
     }
   }
 
-  // Compress old screenshots (keep 2 most recent)
-  if (screenshotIndices.length > 2) {
-    const toCompress = screenshotIndices.slice(0, screenshotIndices.length - 2);
-    for (const idx of toCompress) {
-      const message = messages[idx];
+  // Compress old vision results (keep 2 most recent across all vision tools)
+  if (visionIndices.length > 2) {
+    const toCompress = visionIndices.slice(0, visionIndices.length - 2);
+    for (const { index, isScreenshot } of toCompress) {
+      const message = messages[index];
       if (isToolMessage(message)) {
-        compressScreenshotMessage(message);
+        if (isScreenshot) {
+          compressScreenshotMessage(message);
+        } else {
+          compressVisionActionMessage(message);
+        }
         compressedCount++;
       }
     }
@@ -112,6 +139,39 @@ function compressScreenshotMessage(message: {
       }
       if (typedPart.result) {
         typedPart.result = placeholder;
+      }
+    }
+  }
+}
+
+/**
+ * Compress vision action message content in-place by removing the screenshot
+ * but keeping the action result text
+ */
+function compressVisionActionMessage(message: {
+  role: "tool";
+  content: unknown[];
+}): void {
+  for (const part of message.content) {
+    if (isVisionActionPart(part)) {
+      const typedPart = part as ToolResultPart;
+
+      // For vision action tools, filter out the media content but keep the text result
+      if (typedPart.output?.value && Array.isArray(typedPart.output.value)) {
+        typedPart.output.value = typedPart.output.value.filter(
+          (item) =>
+            item &&
+            typeof item === "object" &&
+            (item as { type?: string }).type !== "media",
+        );
+      }
+      if (typedPart.result && Array.isArray(typedPart.result)) {
+        typedPart.result = typedPart.result.filter(
+          (item) =>
+            item &&
+            typeof item === "object" &&
+            (item as { type?: string }).type !== "media",
+        );
       }
     }
   }

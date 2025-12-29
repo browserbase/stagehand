@@ -1,7 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
+import type { ScrollVisionToolResult } from "../../types/public/agent";
 import { processCoordinates } from "../utils/coordinateNormalization";
+import { waitForTimeout, POST_ACTION_DELAY_MS } from "../utils/timing";
 
 /**
  * Simple scroll tool for DOM mode (non-grounding models).
@@ -74,7 +76,11 @@ export const scrollVisionTool = (v3: V3, provider?: string) =>
         ),
       percentage: z.number().min(1).max(200).optional(),
     }),
-    execute: async ({ direction, coordinates, percentage = 80 }) => {
+    execute: async ({
+      direction,
+      coordinates,
+      percentage = 80,
+    }): Promise<ScrollVisionToolResult> => {
       const page = await v3.context.awaitActivePage();
 
       const { w, h } = await page.mainFrame().evaluate<{
@@ -120,6 +126,13 @@ export const scrollVisionTool = (v3: V3, provider?: string) =>
 
       await page.scroll(cx, cy, 0, deltaY);
 
+      // Wait for page to settle after scroll
+      await waitForTimeout(POST_ACTION_DELAY_MS);
+
+      // Take screenshot after action for visual feedback
+      const screenshotBuffer = await page.screenshot({ fullPage: false });
+      const screenshotBase64 = screenshotBuffer.toString("base64");
+
       v3.recordAgentReplayStep({
         type: "scroll",
         deltaX: 0,
@@ -133,6 +146,42 @@ export const scrollVisionTool = (v3: V3, provider?: string) =>
           ? `Scrolled ${percentage}% ${direction} at (${cx}, ${cy})`
           : `Scrolled ${percentage}% ${direction}`,
         scrolledPixels: scrollDistance,
+        screenshotBase64,
+      };
+    },
+    toModelOutput: (result) => {
+      if (result.screenshotBase64) {
+        return {
+          type: "content",
+          value: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: result.success,
+                message: result.message,
+                scrolledPixels: result.scrolledPixels,
+              }),
+            },
+            {
+              type: "media",
+              mediaType: "image/png",
+              data: result.screenshotBase64,
+            },
+          ],
+        };
+      }
+      return {
+        type: "content",
+        value: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: result.success,
+              message: result.message,
+              scrolledPixels: result.scrolledPixels,
+            }),
+          },
+        ],
       };
     },
   });
