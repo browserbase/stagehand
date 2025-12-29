@@ -5,7 +5,7 @@ import { logAction } from "../flowLogger";
 import type { CDPSessionLike } from "./cdp";
 import { CdpConnection } from "./cdp";
 import { Frame } from "./frame";
-import { FrameLocator, frameLocatorFromFrame } from "./frameLocator";
+import { FrameLocator } from "./frameLocator";
 import { deepLocatorFromPage } from "./deepLocator";
 import { resolveXpathForLocation } from "./a11y/snapshot";
 import { FrameRegistry } from "./frameRegistry";
