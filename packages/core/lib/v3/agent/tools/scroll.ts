@@ -3,7 +3,6 @@ import { z } from "zod";
 import type { V3 } from "../../v3";
 import type { ScrollVisionToolResult } from "../../types/public/agent";
 import { processCoordinates } from "../utils/coordinateNormalization";
-import { waitForTimeout, POST_ACTION_DELAY_MS } from "../utils/timing";
 
 /**
  * Simple scroll tool for DOM mode (non-grounding models).
@@ -127,7 +126,7 @@ export const scrollVisionTool = (v3: V3, provider?: string) =>
       await page.scroll(cx, cy, 0, deltaY);
 
       // Wait for page to settle after scroll
-      await waitForTimeout(POST_ACTION_DELAY_MS);
+      await page.waitForTimeout(500);
 
       // Take screenshot after action for visual feedback
       const screenshotBuffer = await page.screenshot({ fullPage: false });

@@ -5,7 +5,6 @@ import type { Action } from "../../types/public/methods";
 import type { DragAndDropToolResult } from "../../types/public/agent";
 import { processCoordinates } from "../utils/coordinateNormalization";
 import { ensureXPath } from "../utils/xpath";
-import { waitForTimeout, POST_ACTION_DELAY_MS } from "../utils/timing";
 
 export const dragAndDropTool = (v3: V3, provider?: string) =>
   tool({
@@ -66,7 +65,7 @@ export const dragAndDropTool = (v3: V3, provider?: string) =>
         );
 
         // Wait for page to settle after drag and drop
-        await waitForTimeout(POST_ACTION_DELAY_MS);
+        await page.waitForTimeout(500);
 
         // Take screenshot after action for visual feedback
         const screenshotBuffer = await page.screenshot({ fullPage: false });
