@@ -24,6 +24,7 @@ import {
   StagehandEvalError,
 } from "../types/public/sdkErrors";
 import { normalizeInitScriptSource } from "./initScripts";
+import { buildLocatorInvocation } from "./locatorInvocation";
 import type {
   ScreenshotAnimationsOption,
   ScreenshotCaretOption,
@@ -44,6 +45,7 @@ import {
   type ScreenshotCleanup,
 } from "./screenshotUtils";
 import { InitScriptSource } from "../types/private";
+
 /**
  * Page
  *
@@ -1227,157 +1229,14 @@ export class Page {
       return this.waitForSelectorWithHops(parts, { state, timeout, pierceShadow });
     }
 
-    // Single frame - use MutationObserver with shadow DOM piercing
-    return this.evaluate(
-      (args: {
-        selector: string;
-        state: string;
-        timeout: number;
-        pierceShadow: boolean;
-      }) => {
-        return new Promise<boolean>((resolve, reject) => {
-          const { selector, state, timeout, pierceShadow } = args;
-
-          // Deep querySelector that pierces shadow DOM
-          const deepQuerySelector = (
-            root: Document | ShadowRoot | Element,
-            sel: string,
-          ): Element | null => {
-            // Try regular querySelector first
-            const el = root.querySelector(sel);
-            if (el) return el;
-
-            if (!pierceShadow) return null;
-
-            // Search shadow roots recursively
-            const searchShadows = (node: Element): Element | null => {
-              if (node.shadowRoot) {
-                const found = node.shadowRoot.querySelector(sel);
-                if (found) return found;
-                for (const child of Array.from(node.shadowRoot.children)) {
-                  const result = searchShadows(child);
-                  if (result) return result;
-                }
-              }
-              for (const child of Array.from(node.children)) {
-                const result = searchShadows(child);
-                if (result) return result;
-              }
-              return null;
-            };
-
-            // Search from document.body or documentElement
-            const startNode =
-              root instanceof Document
-                ? root.documentElement || root.body
-                : root;
-            if (startNode instanceof Element) {
-              return searchShadows(startNode);
-            }
-            return null;
-          };
-
-          // Check if element matches the desired state
-          const checkState = (el: Element | null): boolean => {
-            if (state === "detached") {
-              return el === null;
-            }
-            if (state === "attached") {
-              return el !== null;
-            }
-            if (el === null) {
-              return false;
-            }
-            if (state === "hidden") {
-              const style = window.getComputedStyle(el);
-              return (
-                style.display === "none" ||
-                style.visibility === "hidden" ||
-                style.opacity === "0" ||
-                (el as HTMLElement).offsetParent === null
-              );
-            }
-            // state === 'visible'
-            const style = window.getComputedStyle(el);
-            const rect = el.getBoundingClientRect();
-            return (
-              style.display !== "none" &&
-              style.visibility !== "hidden" &&
-              style.opacity !== "0" &&
-              rect.width > 0 &&
-              rect.height > 0
-            );
-          };
-
-          // Check immediately
-          const el = deepQuerySelector(document, selector);
-          if (checkState(el)) {
-            resolve(true);
-            return;
-          }
-
-          // Set up MutationObserver
-          const observers: MutationObserver[] = [];
-
-          const cleanup = () => {
-            for (const obs of observers) {
-              obs.disconnect();
-            }
-          };
-
-          const check = () => {
-            const el = deepQuerySelector(document, selector);
-            if (checkState(el)) {
-              cleanup();
-              resolve(true);
-            }
-          };
-
-          // Observe document
-          const mainObserver = new MutationObserver(check);
-          mainObserver.observe(document.body || document.documentElement, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            attributeFilter: ["style", "class", "hidden", "disabled"],
-          });
-          observers.push(mainObserver);
-
-          // Also observe shadow roots if piercing
-          if (pierceShadow) {
-            const observeShadowRoots = (node: Element) => {
-              if (node.shadowRoot) {
-                const shadowObserver = new MutationObserver(check);
-                shadowObserver.observe(node.shadowRoot, {
-                  childList: true,
-                  subtree: true,
-                  attributes: true,
-                  attributeFilter: ["style", "class", "hidden", "disabled"],
-                });
-                observers.push(shadowObserver);
-                for (const child of Array.from(node.shadowRoot.children)) {
-                  observeShadowRoots(child);
-                }
-              }
-              for (const child of Array.from(node.children)) {
-                observeShadowRoots(child);
-              }
-            };
-            observeShadowRoots(document.documentElement || document.body);
-          }
-
-          setTimeout(() => {
-            cleanup();
-            reject(
-              new Error(
-                `waitForSelector: Timeout ${timeout}ms exceeded waiting for "${selector}" to be ${state}`,
-              ),
-            );
-          }, timeout);
-        });
-      },
-      { selector, state, timeout, pierceShadow },
-    );
+    // Single frame - use the bundled waitForSelector from locatorScripts
+    const expression = buildLocatorInvocation("waitForSelector", [
+      JSON.stringify(selector),
+      JSON.stringify(state),
+      String(timeout),
+      String(pierceShadow),
+    ]);
+    return this.evaluate(expression);
   }
 
   /**
@@ -1409,135 +1268,13 @@ export class Page {
     const elapsed = Date.now() - startTime;
     const remainingTimeout = Math.max(0, timeout - elapsed);
 
-    // Wait for selector in the target frame
-    return targetFrame.evaluate(
-      (args: {
-        selector: string;
-        state: string;
-        timeout: number;
-        pierceShadow: boolean;
-      }) => {
-        return new Promise<boolean>((resolve, reject) => {
-          const { selector, state, timeout, pierceShadow } = args;
-
-          const deepQuerySelector = (
-            root: Document | ShadowRoot | Element,
-            sel: string,
-          ): Element | null => {
-            const el = root.querySelector(sel);
-            if (el) return el;
-            if (!pierceShadow) return null;
-
-            const searchShadows = (node: Element): Element | null => {
-              if (node.shadowRoot) {
-                const found = node.shadowRoot.querySelector(sel);
-                if (found) return found;
-                for (const child of Array.from(node.shadowRoot.children)) {
-                  const result = searchShadows(child);
-                  if (result) return result;
-                }
-              }
-              for (const child of Array.from(node.children)) {
-                const result = searchShadows(child);
-                if (result) return result;
-              }
-              return null;
-            };
-
-            const startNode =
-              root instanceof Document
-                ? root.documentElement || root.body
-                : root;
-            if (startNode instanceof Element) {
-              return searchShadows(startNode);
-            }
-            return null;
-          };
-
-          const checkState = (el: Element | null): boolean => {
-            if (state === "detached") return el === null;
-            if (state === "attached") return el !== null;
-            if (el === null) return false;
-            if (state === "hidden") {
-              const style = window.getComputedStyle(el);
-              return (
-                style.display === "none" ||
-                style.visibility === "hidden" ||
-                style.opacity === "0" ||
-                (el as HTMLElement).offsetParent === null
-              );
-            }
-            const style = window.getComputedStyle(el);
-            const rect = el.getBoundingClientRect();
-            return (
-              style.display !== "none" &&
-              style.visibility !== "hidden" &&
-              style.opacity !== "0" &&
-              rect.width > 0 &&
-              rect.height > 0
-            );
-          };
-
-          const el = deepQuerySelector(document, selector);
-          if (checkState(el)) {
-            resolve(true);
-            return;
-          }
-
-          const observers: MutationObserver[] = [];
-          const cleanup = () => observers.forEach((o) => o.disconnect());
-
-          const check = () => {
-            const el = deepQuerySelector(document, selector);
-            if (checkState(el)) {
-              cleanup();
-              resolve(true);
-            }
-          };
-
-          const mainObserver = new MutationObserver(check);
-          mainObserver.observe(document.body || document.documentElement, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            attributeFilter: ["style", "class", "hidden", "disabled"],
-          });
-          observers.push(mainObserver);
-
-          if (pierceShadow) {
-            const observeShadowRoots = (node: Element) => {
-              if (node.shadowRoot) {
-                const shadowObserver = new MutationObserver(check);
-                shadowObserver.observe(node.shadowRoot, {
-                  childList: true,
-                  subtree: true,
-                  attributes: true,
-                  attributeFilter: ["style", "class", "hidden", "disabled"],
-                });
-                observers.push(shadowObserver);
-                for (const child of Array.from(node.shadowRoot.children)) {
-                  observeShadowRoots(child);
-                }
-              }
-              for (const child of Array.from(node.children)) {
-                observeShadowRoots(child);
-              }
-            };
-            observeShadowRoots(document.documentElement || document.body);
-          }
-
-          setTimeout(() => {
-            cleanup();
-            reject(
-              new Error(
-                `waitForSelector: Timeout ${timeout}ms exceeded waiting for "${selector}" to be ${state}`,
-              ),
-            );
-          }, timeout);
-        });
-      },
-      { selector: finalSelector, state, timeout: remainingTimeout, pierceShadow },
-    );
+    const expression = buildLocatorInvocation("waitForSelector", [
+      JSON.stringify(finalSelector),
+      JSON.stringify(state),
+      String(remainingTimeout),
+      String(pierceShadow),
+    ]);
+    return targetFrame.evaluate(expression);
   }
 
   /**
