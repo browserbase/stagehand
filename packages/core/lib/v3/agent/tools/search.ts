@@ -94,7 +94,7 @@ export const searchTool = (v3: V3) =>
           arguments: {
             value: JSON.stringify({ query }),
             type: "object",
-          }
+          },
         },
       });
 

@@ -44,7 +44,7 @@ export const typeTool = (v3: V3, provider?: string) =>
           level: 1,
           auxiliary: {
             arguments: {
-              value: JSON.stringify({ describe, text, }),
+              value: JSON.stringify({ describe, text }),
               type: "object",
             },
           },
