@@ -297,6 +297,7 @@ export class V3AgentHandler {
         state,
         messages,
         result,
+        maxSteps,
       );
     } catch (error) {
       // Re-throw validation errors that should propagate to the caller
@@ -410,6 +411,7 @@ export class V3AgentHandler {
           state,
           messages,
           event,
+          maxSteps,
         );
         resolveResult(result);
       },
@@ -446,11 +448,23 @@ export class V3AgentHandler {
       text?: string;
       usage?: LanguageModelUsage;
       response?: { messages?: ModelMessage[] };
+      steps?: StepResult<ToolSet>[];
     },
+    maxSteps?: number,
   ): AgentResult {
     if (!state.finalMessage) {
       const allReasoning = state.collectedReasoning.join(" ").trim();
-      state.finalMessage = allReasoning || result.text || "";
+
+      if (!state.completed && maxSteps && result.steps?.length >= maxSteps) {
+        this.logger({
+          category: "agent",
+          message: `Agent stopped: reached maximum steps (${maxSteps})`,
+          level: 1,
+        });
+        state.finalMessage = `Agent stopped: reached maximum steps (${maxSteps})`;
+      } else {
+        state.finalMessage = allReasoning || result.text || "";
+      }
     }
 
     const endTime = Date.now();
