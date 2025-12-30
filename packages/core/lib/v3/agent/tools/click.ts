@@ -39,8 +39,8 @@ export const clickTool = (v3: V3, provider?: string) =>
           level: 1,
           auxiliary: {
             arguments: {
-              value: JSON.stringify({ describe, coordinates, processed }),
-              type: "string",
+              value: JSON.stringify({ describe }),
+              type: "object",
             },
           },
         });

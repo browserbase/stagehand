@@ -38,11 +38,9 @@ export const clickAndHoldTool = (v3: V3, provider?: string) =>
             arguments: {
               value: JSON.stringify({
                 describe,
-                coordinates,
-                processed,
                 duration,
               }),
-              type: "string",
+              type: "object",
             },
           },
         });

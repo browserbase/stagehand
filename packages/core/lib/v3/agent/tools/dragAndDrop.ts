@@ -49,12 +49,8 @@ export const dragAndDropTool = (v3: V3, provider?: string) =>
             arguments: {
               value: JSON.stringify({
                 describe,
-                startCoordinates,
-                endCoordinates,
-                processedStart,
-                processedEnd,
               }),
-              type: "string",
+              type: "object",
             },
           },
         });
