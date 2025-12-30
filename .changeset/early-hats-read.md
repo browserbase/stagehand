@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-improve logging when agent hits max steps
+improve logging in agent 
