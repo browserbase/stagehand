@@ -73,7 +73,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
           auxiliary: {
             arguments: {
               value: JSON.stringify({ fields, processedFields }),
-              type: "string",
+              type: "object",
             },
           },
         });

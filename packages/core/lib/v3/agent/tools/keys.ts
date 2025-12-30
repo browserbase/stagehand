@@ -28,7 +28,7 @@ Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) a
           auxiliary: {
             arguments: {
               value: JSON.stringify({ method, value, repeat }),
-              type: "string",
+              type: "object",
             },
           },
         });

@@ -93,8 +93,8 @@ export const searchTool = (v3: V3) =>
         auxiliary: {
           arguments: {
             value: JSON.stringify({ query }),
-            type: "string",
-          },
+            type: "object",
+          }
         },
       });
 
