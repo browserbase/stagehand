@@ -1,5 +1,19 @@
 # @browserbasehq/stagehand
 
+## 3.0.8
+
+### Patch Changes
+
+- [#1486](https://github.com/browserbase/stagehand/pull/1486) [`692ffa0`](https://github.com/browserbase/stagehand/commit/692ffa0346ad3d121686aba503c0a22844293efa) Thanks [@tkattkat](https://github.com/tkattkat)! - improve logging in agent
+
+- [#1481](https://github.com/browserbase/stagehand/pull/1481) [`3d5af07`](https://github.com/browserbase/stagehand/commit/3d5af07f66d6d26d1f5ac4bd9be7183c3381dd92) Thanks [@tkattkat](https://github.com/tkattkat)! - add waitForTimeout to page
+
+- [#1483](https://github.com/browserbase/stagehand/pull/1483) [`16d72fb`](https://github.com/browserbase/stagehand/commit/16d72fb4c4081dd33bf45605d75c27644ea4c00e) Thanks [@tkattkat](https://github.com/tkattkat)! - Optimize screenshot handling in agent hybrid mode
+
+- [#1480](https://github.com/browserbase/stagehand/pull/1480) [`091296e`](https://github.com/browserbase/stagehand/commit/091296e438bb2374c8bb10ef6c08283978145ebf) Thanks [@tkattkat](https://github.com/tkattkat)! - Update agent to only calculate xpath when caching is enabled
+
+- [#1478](https://github.com/browserbase/stagehand/pull/1478) [`2cb78d0`](https://github.com/browserbase/stagehand/commit/2cb78d0f5ddef9f7337a9a2fe3137f1421df700a) Thanks [@tkattkat](https://github.com/tkattkat)! - update agent message handling
+
 ## 3.0.7
 
 ### Patch Changes
