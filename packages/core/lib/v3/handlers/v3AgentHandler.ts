@@ -448,13 +448,14 @@ export class V3AgentHandler {
       text?: string;
       usage?: LanguageModelUsage;
       response?: { messages?: ModelMessage[] };
+      steps?: StepResult<ToolSet>[];
     },
     maxSteps?: number,
   ): AgentResult {
     if (!state.finalMessage) {
       const allReasoning = state.collectedReasoning.join(" ").trim();
 
-      if (!state.completed && maxSteps) {
+      if (!state.completed && maxSteps && result.steps?.length >= maxSteps) {
         this.logger({
           category: "agent",
           message: `Agent stopped: reached maximum steps (${maxSteps})`,
