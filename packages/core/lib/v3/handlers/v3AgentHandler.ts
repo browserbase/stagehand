@@ -460,7 +460,7 @@ export class V3AgentHandler {
           message: `Agent stopped: reached maximum steps (${maxSteps})`,
           level: 1,
         });
-        state.finalMessage = `Agent stopped: reached maximum steps (${maxSteps})`
+        state.finalMessage = `Agent stopped: reached maximum steps (${maxSteps})`;
       } else {
         state.finalMessage = allReasoning || result.text || "";
       }
