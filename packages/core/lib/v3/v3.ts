@@ -985,20 +985,22 @@ export class V3 {
         const authHandler = ({
           requestId,
         }: Protocol.Fetch.AuthRequiredEvent) => {
-          session.send("Fetch.continueWithAuth", {
-            requestId,
-            authChallengeResponse: {
-              response: "ProvideCredentials",
-              username: lbo.proxy!.username!,
-              password: lbo.proxy!.password!,
-            },
-          });
+          session
+            .send("Fetch.continueWithAuth", {
+              requestId,
+              authChallengeResponse: {
+                response: "ProvideCredentials",
+                username: lbo.proxy!.username!,
+                password: lbo.proxy!.password!,
+              },
+            })
+            .catch(() => {});
         };
 
         const requestPausedHandler = ({
           requestId,
         }: Protocol.Fetch.RequestPausedEvent) => {
-          session.send("Fetch.continueRequest", { requestId });
+          session.send("Fetch.continueRequest", { requestId }).catch(() => {});
         };
 
         session.on("Fetch.authRequired", authHandler);
