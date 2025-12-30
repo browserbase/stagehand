@@ -82,6 +82,7 @@ import { validateExperimentalFeatures } from "./agent/utils/validateExperimental
 import { SessionFileLogger, logStagehandStep } from "./flowLogger";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard";
 import { ActTimeoutError } from "./types/public/sdkErrors";
+import type { Protocol } from "devtools-protocol";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
@@ -194,6 +195,7 @@ export class V3 {
   private actCache: ActCache;
   private agentCache: AgentCache;
   private apiClient: StagehandAPIClient | null = null;
+  private proxyAuthHandlers: Map<string, () => void> = new Map();
 
   public stagehandMetrics: StagehandMetrics = {
     actPromptTokens: 0,
@@ -966,6 +968,48 @@ export class V3 {
           })
           .catch(() => {});
       }
+      // Proxy authentication
+      if (lbo.proxy?.username && lbo.proxy?.password) {
+        const page = await this.ctx?.awaitActivePage();
+        if (!page) return;
+
+        const session = page.getSessionForFrame(page.mainFrameId());
+        if (!session) return;
+
+        // Pauses requests until proxy auth is done
+        await session.send("Fetch.enable", {
+          handleAuthRequests: true,
+        });
+
+        // Submits the required authChallengeResponse
+        const authHandler = ({
+          requestId,
+        }: Protocol.Fetch.AuthRequiredEvent) => {
+          session.send("Fetch.continueWithAuth", {
+            requestId,
+            authChallengeResponse: {
+              response: "ProvideCredentials",
+              username: lbo.proxy!.username!,
+              password: lbo.proxy!.password!,
+            },
+          });
+        };
+
+        const requestPausedHandler = ({
+          requestId,
+        }: Protocol.Fetch.RequestPausedEvent) => {
+          session.send("Fetch.continueRequest", { requestId });
+        };
+
+        session.on("Fetch.authRequired", authHandler);
+        session.on("Fetch.requestPaused", requestPausedHandler);
+
+        // Cleanup listeners
+        this.proxyAuthHandlers.set(page.targetId(), () => {
+          session.off("Fetch.authRequired", authHandler);
+          session.off("Fetch.requestPaused", requestPausedHandler);
+        });
+      }
     } catch {
       // best-effort only
     }
@@ -1393,6 +1437,16 @@ export class V3 {
       this.actHandler = null;
       this.extractHandler = null;
       this.observeHandler = null;
+      // Cleanup all proxy auth listeners
+      for (const cleanup of this.proxyAuthHandlers.values()) {
+        try {
+          cleanup();
+        } catch {
+          // ignore
+        }
+      }
+      this.proxyAuthHandlers.clear();
+      this.proxyAuthHandlers = null;
       // Remove from global registry
       V3._instances.delete(this);
     }
