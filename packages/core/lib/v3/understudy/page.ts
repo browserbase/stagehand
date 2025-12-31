@@ -7,7 +7,8 @@ import { CdpConnection } from "./cdp";
 import { Frame } from "./frame";
 import { FrameLocator } from "./frameLocator";
 import { deepLocatorFromPage } from "./deepLocator";
-import { resolveXpathForLocation } from "./a11y/snapshot";
+import { resolveXpathForLocation, captureHybridSnapshot } from "./a11y/snapshot";
+import type { HybridSnapshot, SnapshotOptions } from "../types/private";
 import { FrameRegistry } from "./frameRegistry";
 import { executionContexts } from "./executionContextRegistry";
 import { LoadState } from "../types/public/page";
@@ -2064,6 +2065,26 @@ export class Page {
     return list
       .filter((c) => !c.startsWith("insert"))
       .map((c) => c.substring(0, c.length - 1));
+  }
+
+  // ---- Snapshot API ----
+
+  /**
+   * Capture a hybrid DOM + Accessibility snapshot of the page.
+   *
+   * Returns a combined tree representation with XPath and URL maps for every
+   * element. This is the same snapshot format used internally by act/extract/observe.
+   *
+   * @param options Optional configuration for the snapshot capture.
+   * @param options.focusSelector Filter the snapshot to a specific element/subtree.
+   *   Supports XPath (prefixed with `xpath=` or starting with `/`) and CSS with iframe hops via `>>`.
+   * @param options.pierceShadow Pierce shadow DOM when walking the document (default: true).
+   * @param options.experimental Enable experimental traversal tweaks in the Accessibility layer.
+   * @returns A HybridSnapshot containing the combined tree, XPath map, URL map, and per-frame data.
+   */
+  @logAction("Page.snapshot")
+  async snapshot(options?: SnapshotOptions): Promise<HybridSnapshot> {
+    return captureHybridSnapshot(this, options);
   }
 
   // ---- Page-level lifecycle waiter that follows main frame id swaps ----
