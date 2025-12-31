@@ -392,89 +392,23 @@ await page.screenshot(options?: ScreenshotOptions): Promise<Buffer>
 
 ### snapshot()
 
-Capture a hybrid DOM + Accessibility snapshot of the page. This method exposes Stagehand's internal page representation, which combines DOM structure with accessibility tree information across all frames.
+Capture a hybrid DOM + Accessibility snapshot of the page.
 
 ```typescript
 await page.snapshot(options?: SnapshotOptions): Promise<HybridSnapshot>
 ```
 
 <ParamField path="focusSelector" type="string" optional>
-  Filter the snapshot to a specific element/subtree using a selector.
-  Supports XPath (prefixed with `xpath=` or starting with `/`) and CSS selectors.
-  Can cross iframes using the `>>` syntax.
+  Filter the snapshot to a specific element using a selector.
 </ParamField>
 
 <ParamField path="pierceShadow" type="boolean" optional>
-  Pierce shadow DOM when capturing the DOM structure.
+  Pierce shadow DOM when capturing.
 
   **Default:** `true`
 </ParamField>
 
-<ParamField path="experimental" type="boolean" optional>
-  Enable experimental accessibility tree traversal tweaks.
-
-  **Default:** `false`
-</ParamField>
-
 **Returns:** A `Promise<HybridSnapshot>` containing the snapshot data.
-
-#### HybridSnapshot
-
-The returned snapshot object contains:
-
-```typescript
-interface HybridSnapshot {
-  /** Merged accessibility tree outline across every frame */
-  combinedTree: string;
-  /** EncodedId -> absolute XPath mapping */
-  combinedXpathMap: Record<string, string>;
-  /** EncodedId -> URL extracted from accessibility properties */
-  combinedUrlMap: Record<string, string>;
-  /** Per-frame payloads with original relative data (for debugging) */
-  perFrame?: PerFrameSnapshot[];
-}
-```
-
-#### PerFrameSnapshot
-
-Each per-frame snapshot contains:
-
-```typescript
-interface PerFrameSnapshot {
-  frameId: string;
-  outline: string;
-  xpathMap: Record<string, string>;
-  urlMap: Record<string, string>;
-}
-```
-
-#### Example Usage
-
-```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
-import type { HybridSnapshot } from "@browserbasehq/stagehand";
-
-const stagehand = new Stagehand({ env: "LOCAL" });
-await stagehand.init();
-const page = stagehand.context.pages()[0];
-
-await page.goto("https://example.com");
-
-// Capture full page snapshot
-const snapshot: HybridSnapshot = await page.snapshot();
-console.log("Accessibility tree:", snapshot.combinedTree);
-console.log("XPath mappings:", Object.keys(snapshot.combinedXpathMap).length);
-
-// Capture snapshot focused on a specific element
-const focusedSnapshot = await page.snapshot({
-  focusSelector: "//main",
-});
-
-// Capture without piercing shadow DOM
-const noShadowSnapshot = await page.snapshot({
-  pierceShadow: false,
-});
-```
 
 ## Viewport
 
@@ -770,11 +704,8 @@ capture is produced.
 interface SnapshotOptions {
   focusSelector?: string;
   pierceShadow?: boolean;
-  experimental?: boolean;
 }
 ```
-
-Options for capturing hybrid snapshots with `page.snapshot()`.
 
 ### HybridSnapshot
 
@@ -783,24 +714,8 @@ interface HybridSnapshot {
   combinedTree: string;
   combinedXpathMap: Record<string, string>;
   combinedUrlMap: Record<string, string>;
-  perFrame?: PerFrameSnapshot[];
 }
 ```
-
-The result of `page.snapshot()`, containing merged accessibility tree data across all frames.
-
-### PerFrameSnapshot
-
-```typescript
-interface PerFrameSnapshot {
-  frameId: string;
-  outline: string;
-  xpathMap: Record<string, string>;
-  urlMap: Record<string, string>;
-}
-```
-
-Per-frame snapshot data for debugging and advanced use cases.
 
 ## Error Handling
 
