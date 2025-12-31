@@ -11,3 +11,10 @@ export type { ConsoleListener } from "../../understudy/consoleMessage";
 
 export type LoadState = "load" | "domcontentloaded" | "networkidle";
 export { Response } from "../../understudy/response";
+
+// Snapshot types for page.snapshot() method
+export type {
+  HybridSnapshot,
+  SnapshotOptions,
+  PerFrameSnapshot,
+} from "../private/snapshot";

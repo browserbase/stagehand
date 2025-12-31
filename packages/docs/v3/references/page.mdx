@@ -388,6 +388,28 @@ await page.screenshot(options?: ScreenshotOptions): Promise<Buffer>
 
 **Returns:** A `Promise<Buffer>` containing the screenshot image data.
 
+## Snapshot
+
+### snapshot()
+
+Capture a hybrid DOM + Accessibility snapshot of the page.
+
+```typescript
+await page.snapshot(options?: SnapshotOptions): Promise<HybridSnapshot>
+```
+
+<ParamField path="focusSelector" type="string" optional>
+  Filter the snapshot to a specific element using a selector.
+</ParamField>
+
+<ParamField path="pierceShadow" type="boolean" optional>
+  Pierce shadow DOM when capturing.
+
+  **Default:** `true`
+</ParamField>
+
+**Returns:** A `Promise<HybridSnapshot>` containing the snapshot data.
+
 ## Viewport
 
 ### setViewportSize()
@@ -675,6 +697,25 @@ interface ScreenshotOptions {
 
 Matches Playwright's screenshot signature with sensible defaults to control how a
 capture is produced.
+
+### SnapshotOptions
+
+```typescript
+interface SnapshotOptions {
+  focusSelector?: string;
+  pierceShadow?: boolean;
+}
+```
+
+### HybridSnapshot
+
+```typescript
+interface HybridSnapshot {
+  combinedTree: string;
+  combinedXpathMap: Record<string, string>;
+  combinedUrlMap: Record<string, string>;
+}
+```
 
 ## Error Handling
 
