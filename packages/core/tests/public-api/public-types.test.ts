@@ -27,6 +27,7 @@ type ExpectedExportedTypes = {
   ObserveOptions: Stagehand.ObserveOptions;
   V3FunctionName: Stagehand.V3FunctionName;
   // Types from agent.ts
+  Tool: Stagehand.Tool;
   AgentAction: Stagehand.AgentAction;
   AgentResult: Stagehand.AgentResult;
   AgentExecuteOptions: Stagehand.AgentExecuteOptions;
