@@ -1,21 +1,34 @@
-import { describe, expectTypeOf, it } from "vitest";
+import { describe, expectTypeOf, it, expect } from "vitest";
 import * as Stagehand from "../../dist/index.js";
-import type { Tool } from "ai";
+import { tool as aiTool, type Tool } from "ai";
+import { z } from "zod";
 
 /**
- * Test to verify the Tool type from AI SDK is properly re-exported from Stagehand.
- * This allows users to import Tool from @browserbasehq/stagehand instead of ai-sdk directly.
+ * Test to verify tool-related exports from Stagehand.
+ * Users should be able to create custom tools using the exported `tool` function
+ * without needing to install the ai package directly.
  */
-describe("Tool type export from AI SDK", () => {
+describe("Tool exports from AI SDK", () => {
   it("exports Tool type that matches AI SDK Tool type", () => {
-    // The Tool type from Stagehand should be equivalent to the Tool type from ai
     expectTypeOf<Stagehand.Tool>().toEqualTypeOf<Tool>();
   });
 
-  it("Tool type is usable for defining tools", () => {
-    // Verify the Tool type can be used to define a tool (basic type compatibility check)
-    type TestTool = Stagehand.Tool;
-    const _checkType: TestTool = undefined as unknown as TestTool;
-    void _checkType;
+  it("exports tool function that matches AI SDK tool function", () => {
+    expect(Stagehand.tool).toBe(aiTool);
+  });
+
+  it("tool function can be used to define custom tools", () => {
+    const customTool = Stagehand.tool({
+      description: "A test tool",
+      inputSchema: z.object({
+        input: z.string(),
+      }),
+      execute: async ({ input }) => {
+        return { result: `Processed: ${input}` };
+      },
+    });
+
+    expect(customTool).toBeDefined();
+    expect(customTool.description).toBe("A test tool");
   });
 });
