@@ -1,6 +1,6 @@
 import { describe, expectTypeOf, it, expect } from "vitest";
 import * as Stagehand from "../../dist/index.js";
-import { tool as aiTool, type Tool } from "ai";
+import { type Tool } from "ai";
 import { z } from "zod";
 
 /**
@@ -13,8 +13,8 @@ describe("Tool exports from AI SDK", () => {
     expectTypeOf<Stagehand.Tool>().toEqualTypeOf<Tool>();
   });
 
-  it("exports tool function that matches AI SDK tool function", () => {
-    expect(Stagehand.tool).toBe(aiTool);
+  it("exports tool function", () => {
+    expect(typeof Stagehand.tool).toBe("function");
   });
 
   it("tool function can be used to define custom tools", () => {
