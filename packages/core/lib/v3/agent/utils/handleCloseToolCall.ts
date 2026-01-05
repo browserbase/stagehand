@@ -1,14 +1,16 @@
 import { generateText, ModelMessage, LanguageModel, ToolSet } from "ai";
 import { z } from "zod";
 import { tool } from "ai";
-
+import { LogLine } from "../../types/public/logs";
+import { StagehandZodObject, StagehandZodSchema } from "../../zodCompat";
 interface CloseResult {
   reasoning: string;
   taskComplete: boolean;
   messages: ModelMessage[];
+  output?: Record<string, unknown>;
 }
 
-const closeToolSchema = z.object({
+const baseCloseSchema = z.object({
   reasoning: z
     .string()
     .describe("Brief summary of what actions were taken and the outcome"),
@@ -26,31 +28,64 @@ export async function handleCloseToolCall(options: {
   model: LanguageModel;
   inputMessages: ModelMessage[];
   instruction: string;
+  outputSchema?: StagehandZodObject;
+  logger: (message: LogLine) => void;
 }): Promise<CloseResult> {
-  const { model, inputMessages, instruction } = options;
+  const { model, inputMessages, instruction, outputSchema, logger } = options;
 
-  const systemPrompt = `You are evaluating a web automation task that was just attempted.
+  logger({
+    category: "agent",
+    message: 'Agent calling tool: close',
+    level: 1,
+  });
+  // Merge base close schema with user-provided output schema if present
+  const closeToolSchema = outputSchema
+    ? baseCloseSchema.extend({
+        output: outputSchema.describe(
+          "The specific data the user requested from this task",
+        ),
+      })
+    : baseCloseSchema;
 
-The original task was:
+  const outputInstructions = outputSchema
+    ? `\n\nThe user also requested the following information from this task. Provide it in the "output" field:\n${JSON.stringify(
+        Object.fromEntries(
+          Object.entries(outputSchema.shape).map(([key, value]) => [
+            key,
+            (value).description || "no description",
+          ]),
+        ),
+        null,
+        2,
+      )}`
+    : "";
+
+  const systemPrompt = `You are a web automation assistant that was tasked with completing a task.
+
+The task was:
 "${instruction}"
 
-Review the conversation history to determine:
-1. Whether the task was successfully completed
-2. If it was not completed, why not. What went wrong? 
+Review what was accomplished and provide your final assessment in whether the task was completed successfully. you have been provided with the history of the actions taken so far, use this to determine if the task was completed successfully.${outputInstructions}
 
-You must call the "close" tool with your assessment.`;
+Call the "close" tool with:
+1. A brief summary of what was done
+2. Whether the task was completed successfully${outputSchema ? "\n3. The requested output data based on what you found" : ""}`;
 
   const closeTool = tool({
-    description: "Provide your final assessment of the task completion status.",
+    description: outputSchema
+      ? "Complete the task with your assessment and the requested output data."
+      : "Complete the task with your final assessment.",
     inputSchema: closeToolSchema,
-    execute: async ({ reasoning, taskComplete }) => {
-      return { success: true, reasoning, taskComplete };
+    execute: async (params) => {
+      return { success: true, ...params };
     },
   });
 
   const userPrompt: ModelMessage = {
     role: "user",
-    content: "Based on the actions taken, did the task complete successfully? Call the close tool with your assessment.",
+    content: outputSchema
+      ? "Provide your final assessment and the requested output data."
+      : "Provide your final assessment.",
   };
 
   const result = await generateText({
@@ -59,12 +94,13 @@ You must call the "close" tool with your assessment.`;
     messages: [...inputMessages, userPrompt],
     tools: { close: closeTool } as ToolSet,
     toolChoice: { type: "tool", toolName: "close" },
-    maxOutputTokens: 512,
   });
 
   const closeToolCall = result.toolCalls.find((tc) => tc.toolName === "close");
-  // Include the user prompt + response messages for complete history
-  const outputMessages: ModelMessage[] = [userPrompt, ...(result.response?.messages || [])];
+  const outputMessages: ModelMessage[] = [
+    userPrompt,
+    ...(result.response?.messages || []),
+  ];
 
   if (!closeToolCall) {
     return {
@@ -74,12 +110,19 @@ You must call the "close" tool with your assessment.`;
     };
   }
 
-  const input = closeToolCall.input as z.infer<typeof closeToolSchema>;
+  const input = closeToolCall.input as z.infer<typeof baseCloseSchema> & {
+    output?: Record<string, unknown>;
+  };
+  logger({
+    category: "agent",
+    message: `Task completed`,
+    level: 1,
+  });
 
   return {
     reasoning: input.reasoning,
     taskComplete: input.taskComplete,
     messages: outputMessages,
+    output: input.output,
   };
 }
-

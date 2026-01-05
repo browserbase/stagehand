@@ -3,7 +3,6 @@ import { actTool } from "./act";
 import { screenshotTool } from "./screenshot";
 import { waitTool } from "./wait";
 import { navBackTool } from "./navback";
-import { closeTool } from "./close";
 import { ariaTreeTool } from "./ariaTree";
 import { fillFormTool } from "./fillform";
 import { scrollTool, scrollVisionTool } from "./scroll";
@@ -121,7 +120,6 @@ export type AgentToolTypesMap = {
   ariaTree: ReturnType<typeof ariaTreeTool>;
   click: ReturnType<typeof clickTool>;
   clickAndHold: ReturnType<typeof clickAndHoldTool>;
-  close: ReturnType<typeof closeTool>;
   dragAndDrop: ReturnType<typeof dragAndDropTool>;
   extract: ReturnType<typeof extractTool>;
   fillForm: ReturnType<typeof fillFormTool>;

@@ -14,6 +14,7 @@ import {
   type StreamTextOnStepFinishCallback,
   type PrepareStepFunction,
 } from "ai";
+import { StagehandZodObject } from "../zodCompat";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { LLMClient } from "../llm/LLMClient";
 import { SessionFileLogger } from "../flowLogger";
@@ -295,14 +296,22 @@ export class V3AgentHandler {
       });
 
       const allMessages = [...messages, ...(result.response?.messages || [])];
-      const finalMessages = await this.ensureClosed(state, wrappedModel, allMessages, preparedOptions.instruction);
+      const closeResult = await this.ensureClosed(
+        state,
+        wrappedModel,
+        allMessages,
+        preparedOptions.instruction,
+        preparedOptions.output,
+        this.logger,
+      );
 
       return this.consolidateMetricsAndResult(
         startTime,
         state,
-        finalMessages,
+        closeResult.messages,
         result,
         maxSteps,
+        closeResult.output,
       );
     } catch (error) {
       // Re-throw validation errors that should propagate to the caller
@@ -407,22 +416,30 @@ export class V3AgentHandler {
         handleError(event.error);
       },
       onChunk: callbacks?.onChunk,
-      onFinish: async (event) => {
+      onFinish: (event) => {
         if (callbacks?.onFinish) {
           callbacks.onFinish(event);
         }
 
         const allMessages = [...messages, ...(event.response?.messages || [])];
-        const finalMessages = await this.ensureClosed(state, wrappedModel, allMessages, options.instruction);
-
-        const result = this.consolidateMetricsAndResult(
-          startTime,
+        this.ensureClosed(
           state,
-          finalMessages,
-          event,
-          maxSteps,
-        );
-        resolveResult(result);
+          wrappedModel,
+          allMessages,
+          options.instruction,
+          options.output,
+          this.logger,
+        ).then((closeResult) => {
+          const result = this.consolidateMetricsAndResult(
+            startTime,
+            state,
+            closeResult.messages,
+            event,
+            maxSteps,
+            closeResult.output,
+          );
+          resolveResult(result);
+        });
       },
       onAbort: (event) => {
         if (callbacks?.onAbort) {
@@ -460,6 +477,7 @@ export class V3AgentHandler {
       steps?: StepResult<ToolSet>[];
     },
     maxSteps?: number,
+    output?: Record<string, unknown>,
   ): AgentResult {
     if (!state.finalMessage) {
       const allReasoning = state.collectedReasoning.join(" ").trim();
@@ -501,6 +519,7 @@ export class V3AgentHandler {
       message: state.finalMessage || "Task execution completed",
       actions: state.actions,
       completed: state.completed,
+      output,
       usage: result.usage
         ? {
             input_tokens: result.usage.inputTokens || 0,
@@ -539,17 +558,25 @@ export class V3AgentHandler {
   /**
    * Ensures the close tool is called at the end of agent execution.
    * If the agent didn't naturally call close, forces a close tool call.
-   * Returns the messages from the close call to be used in the final result.
+   * Returns the messages and any extracted output from the close call.
    */
   private async ensureClosed(
     state: AgentState,
     model: LanguageModel,
     messages: ModelMessage[],
     instruction: string,
-  ): Promise<ModelMessage[]> {
-    if (state.completed) return messages;
+    outputSchema?: StagehandZodObject,
+    logger?: (message: LogLine) => void,
+  ): Promise<{ messages: ModelMessage[]; output?: Record<string, unknown> }> {
+    if (state.completed) return { messages };
 
-    const closeResult = await handleCloseToolCall({ model, inputMessages: messages, instruction });
+    const closeResult = await handleCloseToolCall({
+      model,
+      inputMessages: messages,
+      instruction,
+      outputSchema,
+      logger,
+    });
 
     state.completed = closeResult.taskComplete;
     state.finalMessage = closeResult.reasoning;
@@ -574,13 +601,10 @@ export class V3AgentHandler {
       state.actions.push(action);
     }
 
-    this.logger({
-      category: "agent",
-      message: `Forced close: taskComplete=${closeResult.taskComplete}`,
-      level: 1,
-    });
-
-    return [...messages, ...closeResult.messages];
+    return {
+      messages: [...messages, ...closeResult.messages],
+      output: closeResult.output,
+    };
   }
 
   /**
