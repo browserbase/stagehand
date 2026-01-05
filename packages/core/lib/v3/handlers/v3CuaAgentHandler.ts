@@ -80,43 +80,20 @@ export class V3CuaAgentHandler {
     }
   }
 
-  private async waitForPageReady(timeoutMs: number = 10000): Promise<void> {
-    const page = await this.v3.context.awaitActivePage();
-
-    try {
-      // Check if page is currently loading
-      const readyState = await page
-        .mainFrame()
-        .evaluate<string>("document.readyState");
-
-      if (readyState === "loading") {
-        this.logger({
-          category: "agent",
-          message: `Page is loading (readyState: ${readyState}), waiting for DOM...`,
-          level: 1,
-        });
-        await page.waitForLoadState("domcontentloaded", timeoutMs);
-      }
-    } catch {
-      // If we can't check readyState (e.g., context destroyed during nav),
-      // wait for domcontentloaded as a safe fallback
-      this.logger({
-        category: "agent",
-        message: `Could not check readyState, waiting for DOM...`,
-        level: 1,
-      });
-      await page.waitForLoadState("domcontentloaded", timeoutMs).catch(() => {});
-    }
-  }
-
   private async takeScreenshotWithTimeout(
     timeoutMs: number = 10000,
   ): Promise<Buffer> {
-    // Wait for page to be ready before attempting screenshot
-    await this.waitForPageReady(timeoutMs);
-
     const page = await this.v3.context.awaitActivePage();
-    return await page.screenshot({ fullPage: false });
+
+    const screenshotPromise = page.screenshot({ fullPage: false });
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(
+        () => reject(new Error(`Screenshot timed out after ${timeoutMs}ms`)),
+        timeoutMs,
+      );
+    });
+
+    return await Promise.race([screenshotPromise, timeoutPromise]);
   }
 
   private setupAgentClient(): void {
