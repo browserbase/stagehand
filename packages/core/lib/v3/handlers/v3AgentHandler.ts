@@ -7,6 +7,7 @@ import {
   ToolSet,
   wrapLanguageModel,
   stepCountIs,
+  LanguageModel,
   type LanguageModelUsage,
   type StepResult,
   type GenerateTextOnStepFinishCallback,
@@ -34,6 +35,7 @@ import {
   StreamingCallbacksInNonStreamingModeError,
   AgentAbortError,
 } from "../types/public/sdkErrors";
+import { handleCloseToolCall } from "../agent/utils/handleCloseToolCall";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -292,10 +294,13 @@ export class V3AgentHandler {
           : undefined,
       });
 
+      const allMessages = [...messages, ...(result.response?.messages || [])];
+      const finalMessages = await this.ensureClosed(state, wrappedModel, allMessages, preparedOptions.instruction);
+
       return this.consolidateMetricsAndResult(
         startTime,
         state,
-        messages,
+        finalMessages,
         result,
         maxSteps,
       );
@@ -402,14 +407,18 @@ export class V3AgentHandler {
         handleError(event.error);
       },
       onChunk: callbacks?.onChunk,
-      onFinish: (event) => {
+      onFinish: async (event) => {
         if (callbacks?.onFinish) {
           callbacks.onFinish(event);
         }
+
+        const allMessages = [...messages, ...(event.response?.messages || [])];
+        const finalMessages = await this.ensureClosed(state, wrappedModel, allMessages, options.instruction);
+
         const result = this.consolidateMetricsAndResult(
           startTime,
           state,
-          messages,
+          finalMessages,
           event,
           maxSteps,
         );
@@ -525,6 +534,53 @@ export class V3AgentHandler {
       return true;
     }
     return stepCountIs(maxSteps)(result);
+  }
+
+  /**
+   * Ensures the close tool is called at the end of agent execution.
+   * If the agent didn't naturally call close, forces a close tool call.
+   * Returns the messages from the close call to be used in the final result.
+   */
+  private async ensureClosed(
+    state: AgentState,
+    model: LanguageModel,
+    messages: ModelMessage[],
+    instruction: string,
+  ): Promise<ModelMessage[]> {
+    if (state.completed) return messages;
+
+    const closeResult = await handleCloseToolCall({ model, inputMessages: messages, instruction });
+
+    state.completed = closeResult.taskComplete;
+    state.finalMessage = closeResult.reasoning;
+
+    const closeAction = mapToolResultToActions({
+      toolCallName: "close",
+      toolResult: {
+        success: true,
+        reasoning: closeResult.reasoning,
+        taskComplete: closeResult.taskComplete,
+      },
+      args: {
+        reasoning: closeResult.reasoning,
+        taskComplete: closeResult.taskComplete,
+      },
+      reasoning: closeResult.reasoning,
+    });
+
+    for (const action of closeAction) {
+      action.pageUrl = state.currentPageUrl;
+      action.timestamp = Date.now();
+      state.actions.push(action);
+    }
+
+    this.logger({
+      category: "agent",
+      message: `Forced close: taskComplete=${closeResult.taskComplete}`,
+      level: 1,
+    });
+
+    return [...messages, ...closeResult.messages];
   }
 
   /**
