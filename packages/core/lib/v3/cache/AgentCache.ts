@@ -154,7 +154,10 @@ export class AgentCache {
     };
   }
 
-  async tryReplay(context: AgentCacheContext): Promise<AgentResult | null> {
+  async tryReplay(
+    context: AgentCacheContext,
+    llmClientOverride?: LLMClient,
+  ): Promise<AgentResult | null> {
     if (!this.enabled) return null;
 
     const {
@@ -189,7 +192,7 @@ export class AgentCache {
       },
     });
 
-    return await this.replayAgentCacheEntry(context, entry);
+    return await this.replayAgentCacheEntry(context, entry, llmClientOverride);
   }
 
   /**
@@ -210,8 +213,9 @@ export class AgentCache {
    */
   async tryReplayAsStream(
     context: AgentCacheContext,
+    llmClientOverride?: LLMClient,
   ): Promise<AgentStreamResult | null> {
-    const result = await this.tryReplay(context);
+    const result = await this.tryReplay(context, llmClientOverride);
     if (!result) return null;
     return this.createCachedStreamResult(result);
   }
@@ -498,16 +502,23 @@ export class AgentCache {
   private async replayAgentCacheEntry(
     context: AgentCacheContext,
     entry: CachedAgentEntry,
+    llmClientOverride?: LLMClient,
   ): Promise<AgentResult | null> {
     const ctx = this.getContext();
     const handler = this.getActHandler();
     if (!ctx || !handler) return null;
+    const effectiveClient = llmClientOverride ?? this.getDefaultLlmClient();
     try {
       const updatedSteps: AgentReplayStep[] = [];
       let stepsChanged = false;
       for (const step of entry.steps ?? []) {
         const replayedStep =
-          (await this.executeAgentReplayStep(step, ctx, handler)) ?? step;
+          (await this.executeAgentReplayStep(
+            step,
+            ctx,
+            handler,
+            effectiveClient,
+          )) ?? step;
         stepsChanged ||= replayedStep !== step;
         updatedSteps.push(replayedStep);
       }
@@ -545,6 +556,7 @@ export class AgentCache {
     step: AgentReplayStep,
     ctx: V3Context,
     handler: ActHandler,
+    llmClient: LLMClient,
   ): Promise<AgentReplayStep> {
     switch (step.type) {
       case "act":
@@ -552,12 +564,14 @@ export class AgentCache {
           step as AgentReplayActStep,
           ctx,
           handler,
+          llmClient,
         );
       case "fillForm":
         return await this.replayAgentFillFormStep(
           step as AgentReplayFillFormStep,
           ctx,
           handler,
+          llmClient,
         );
       case "goto":
         await this.replayAgentGotoStep(step as AgentReplayGotoStep, ctx);
@@ -593,6 +607,7 @@ export class AgentCache {
     step: AgentReplayActStep,
     ctx: V3Context,
     handler: ActHandler,
+    llmClient: LLMClient,
   ): Promise<AgentReplayActStep> {
     const actions = Array.isArray(step.actions) ? step.actions : [];
     if (actions.length > 0) {
@@ -603,7 +618,7 @@ export class AgentCache {
           action,
           page,
           this.domSettleTimeoutMs,
-          this.getDefaultLlmClient(),
+          llmClient,
         );
         if (result.success && Array.isArray(result.actions)) {
           updatedActions.push(...cloneForCache(result.actions));
@@ -624,6 +639,7 @@ export class AgentCache {
     step: AgentReplayFillFormStep,
     ctx: V3Context,
     handler: ActHandler,
+    llmClient: LLMClient,
   ): Promise<AgentReplayFillFormStep> {
     const actions =
       Array.isArray(step.actions) && step.actions.length > 0
@@ -639,7 +655,7 @@ export class AgentCache {
         action,
         page,
         this.domSettleTimeoutMs,
-        this.getDefaultLlmClient(),
+        llmClient,
       );
       if (result.success && Array.isArray(result.actions)) {
         updatedActions.push(...cloneForCache(result.actions));
