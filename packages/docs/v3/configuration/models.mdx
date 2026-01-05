@@ -571,7 +571,7 @@ For OpenAI, you can pass configuration directly without using `llmClient` using 
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
   model: {
-    model: "openai/gpt-5",
+    modelName: "openai/gpt-5",
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: "https://custom-openai-endpoint.com/v1"
   }
@@ -588,7 +588,7 @@ For Anthropic, you can pass configuration directly without using `llmClient` usi
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
   model: {
-    model: "anthropic/claude-haiku-4-5",
+    modelName: "anthropic/claude-haiku-4-5",
     apiKey: process.env.ANTHROPIC_API_KEY,
     baseURL: "https://custom-anthropic-endpoint.com",
   },
