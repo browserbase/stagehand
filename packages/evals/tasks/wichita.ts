@@ -32,8 +32,8 @@ export const wichita: EvalFunction = async ({
         level: 0,
         auxiliary: {
           expected: {
-            value: `${expectedNumber}`,
-            type: "string",
+            value: expectedNumber.toString(),
+            type: "integer",
           },
           actual: {
             value: total_results.toString(),
@@ -43,7 +43,7 @@ export const wichita: EvalFunction = async ({
       });
       return {
         _success: false,
-        error: "Total number of results is not within the expected range",
+        error: "Total number of results does not match expected",
         total_results,
         debugUrl,
         sessionUrl,
