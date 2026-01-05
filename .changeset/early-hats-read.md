@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-improve logging in agent 
+improve logging in agent
