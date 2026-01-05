@@ -181,19 +181,24 @@ export class StagehandContext {
   private async handleNewPlaywrightPage(pwPage: PlaywrightPage): Promise<void> {
     if (pwPage.isClosed()) return;
 
-    pwPage.once("close", () => {
-      const shPage = this.pageMap.get(pwPage);
-      if (shPage && this.activeStagehandPage === shPage) {
-        const openPages = this.intContext.pages();
-        for (const p of openPages) {
-          const sp = this.pageMap.get(p);
-          if (sp && sp !== shPage) {
-            this.setActivePage(sp);
-            break;
+    // Only register close handler once per page
+    if (!this.pageMap.has(pwPage)) {
+      pwPage.once("close", () => {
+        const shPage = this.pageMap.get(pwPage);
+        if (shPage) {
+          if (shPage.frameId) this.unregisterFrameId(shPage.frameId);
+          if (this.activeStagehandPage === shPage) {
+            for (const p of this.intContext.pages()) {
+              const sp = this.pageMap.get(p);
+              if (sp && sp !== shPage) {
+                this.setActivePage(sp);
+                break;
+              }
+            }
           }
         }
-      }
-    });
+      });
+    }
 
     try {
       let stagehandPage = this.pageMap.get(pwPage);
@@ -237,23 +242,6 @@ export class StagehandContext {
       }
       throw err;
     }
-
-    pwPage.once("close", () => {
-      if (shPage.frameId) this.unregisterFrameId(shPage.frameId);
-
-      if (this.activeStagehandPage === shPage) {
-        const openPages = this.intContext.pages();
-        if (openPages.length > 0) {
-          for (const p of openPages) {
-            const sp = this.pageMap.get(p);
-            if (sp && sp !== shPage) {
-              this.setActivePage(sp);
-              break;
-            }
-          }
-        }
-      }
-    });
 
     session.on(
       "Page.frameNavigated",
