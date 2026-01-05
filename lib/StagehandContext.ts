@@ -179,11 +179,39 @@ export class StagehandContext {
   }
 
   private async handleNewPlaywrightPage(pwPage: PlaywrightPage): Promise<void> {
-    let stagehandPage = this.pageMap.get(pwPage);
-    if (!stagehandPage) {
-      stagehandPage = await this.createStagehandPage(pwPage);
+    if (pwPage.isClosed()) return;
+
+    pwPage.once("close", () => {
+      const shPage = this.pageMap.get(pwPage);
+      if (shPage && this.activeStagehandPage === shPage) {
+        const openPages = this.intContext.pages();
+        for (const p of openPages) {
+          const sp = this.pageMap.get(p);
+          if (sp && sp !== shPage) {
+            this.setActivePage(sp);
+            break;
+          }
+        }
+      }
+    });
+
+    try {
+      let stagehandPage = this.pageMap.get(pwPage);
+      if (!stagehandPage) {
+        stagehandPage = await this.createStagehandPage(pwPage);
+      }
+      this.setActivePage(stagehandPage);
+    } catch (err) {
+      const msg = (err as Error).message ?? "";
+      if (
+        msg.includes("No target with given id") ||
+        msg.includes("Target closed") ||
+        msg.includes("Target page, context or browser has been closed")
+      ) {
+        return;
+      }
+      throw err;
     }
-    this.setActivePage(stagehandPage);
   }
 
   private async attachFrameNavigatedListener(
@@ -191,11 +219,40 @@ export class StagehandContext {
   ): Promise<void> {
     const shPage = this.pageMap.get(pwPage);
     if (!shPage) return;
-    const session: CDPSession = await this.intContext.newCDPSession(pwPage);
-    await session.send("Page.enable");
+
+    if (pwPage.isClosed()) return;
+
+    let session: CDPSession;
+    try {
+      session = await this.intContext.newCDPSession(pwPage);
+      await session.send("Page.enable");
+    } catch (err) {
+      const msg = (err as Error).message ?? "";
+      if (
+        msg.includes("No target with given id") ||
+        msg.includes("Target closed") ||
+        msg.includes("Target page, context or browser has been closed")
+      ) {
+        return;
+      }
+      throw err;
+    }
 
     pwPage.once("close", () => {
       if (shPage.frameId) this.unregisterFrameId(shPage.frameId);
+
+      if (this.activeStagehandPage === shPage) {
+        const openPages = this.intContext.pages();
+        if (openPages.length > 0) {
+          for (const p of openPages) {
+            const sp = this.pageMap.get(p);
+            if (sp && sp !== shPage) {
+              this.setActivePage(sp);
+              break;
+            }
+          }
+        }
+      }
     });
 
     session.on(
