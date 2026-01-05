@@ -153,8 +153,10 @@ await page.title(): Promise<string>
 Click at absolute page coordinates.
 
 ```typescript
-await page.click(x: number, y: number, options?: ClickOptions): Promise<void | string>
+await page.click(x: number, y: number, options?: ClickOptions): Promise<string>
 ```
+
+**Returns:** A string containing the XPath of the clicked element when `returnXpath` is `true`, otherwise an empty string.
 
 <ParamField path="x" type="number" required>
   X coordinate in CSS pixels.
@@ -181,7 +183,131 @@ await page.click(x: number, y: number, options?: ClickOptions): Promise<void | s
     </ParamField>
 
     <ParamField path="returnXpath" type="boolean">
-      If `true`, returns the XPath of the clicked element instead of void.
+      If `true`, the returned string contains the XPath of the clicked element. If `false`, returns an empty string.
+
+      Default: `false`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### hover()
+
+Hover at absolute page coordinates without clicking.
+
+```typescript
+await page.hover(x: number, y: number, options?: HoverOptions): Promise<string>
+```
+
+**Returns:** A string containing the XPath of the hovered element when `returnXpath` is `true`, otherwise an empty string.
+
+<ParamField path="x" type="number" required>
+  X coordinate in CSS pixels.
+</ParamField>
+
+<ParamField path="y" type="number" required>
+  Y coordinate in CSS pixels.
+</ParamField>
+
+<ParamField path="options" type="object" optional>
+  Optional hover configuration.
+
+  <Expandable title="properties">
+    <ParamField path="returnXpath" type="boolean">
+      If `true`, the returned string contains the XPath of the hovered element. If `false`, returns an empty string.
+
+      Default: `false`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### scroll()
+
+Scroll at absolute page coordinates using mouse wheel events.
+
+```typescript
+await page.scroll(x: number, y: number, deltaX: number, deltaY: number, options?: ScrollOptions): Promise<string>
+```
+
+**Returns:** A string containing the XPath of the element at the scroll position when `returnXpath` is `true`, otherwise an empty string.
+
+<ParamField path="x" type="number" required>
+  X coordinate in CSS pixels where the scroll occurs.
+</ParamField>
+
+<ParamField path="y" type="number" required>
+  Y coordinate in CSS pixels where the scroll occurs.
+</ParamField>
+
+<ParamField path="deltaX" type="number" required>
+  Horizontal scroll amount in pixels. Positive values scroll right.
+</ParamField>
+
+<ParamField path="deltaY" type="number" required>
+  Vertical scroll amount in pixels. Positive values scroll down.
+</ParamField>
+
+<ParamField path="options" type="object" optional>
+  Optional scroll configuration.
+
+  <Expandable title="properties">
+    <ParamField path="returnXpath" type="boolean">
+      If `true`, the returned string contains the XPath of the element at the scroll position. If `false`, returns an empty string.
+
+      Default: `false`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### dragAndDrop()
+
+Drag from one position to another using mouse events.
+
+```typescript
+const [fromXpath, toXpath] = await page.dragAndDrop(fromX, fromY, toX, toY, options?)
+```
+
+**Returns:** An array of two strings containing the XPaths of the elements at the start and end positions when `returnXpath` is `true`, otherwise empty strings.
+
+<ParamField path="fromX" type="number" required>
+  Starting X coordinate in CSS pixels.
+</ParamField>
+
+<ParamField path="fromY" type="number" required>
+  Starting Y coordinate in CSS pixels.
+</ParamField>
+
+<ParamField path="toX" type="number" required>
+  Ending X coordinate in CSS pixels.
+</ParamField>
+
+<ParamField path="toY" type="number" required>
+  Ending Y coordinate in CSS pixels.
+</ParamField>
+
+<ParamField path="options" type="object" optional>
+  Optional drag configuration.
+
+  <Expandable title="properties">
+    <ParamField path="button" type="string">
+      Mouse button to use: `"left"` | `"right"` | `"middle"`
+
+      Default: `"left"`
+    </ParamField>
+
+    <ParamField path="steps" type="number">
+      Number of intermediate mouse move events during the drag.
+
+      Default: `1`
+    </ParamField>
+
+    <ParamField path="delay" type="number">
+      Delay in milliseconds between intermediate move events.
+
+      Default: `0`
+    </ParamField>
+
+    <ParamField path="returnXpath" type="boolean">
+      If `true`, the returned array contains the XPaths of the elements at the start and end positions. If `false`, returns empty strings.
 
       Default: `false`
     </ParamField>
@@ -570,6 +696,22 @@ await page.click(100, 200);
 
 // Double click
 await page.click(100, 200, { clickCount: 2 });
+
+// Click and get the XPath of the clicked element
+const xpath = await page.click(100, 200, { returnXpath: true });
+console.log("Clicked element xpath:", xpath); // e.g., "/html/body/div[1]/button"
+
+// Hover at coordinates
+await page.hover(300, 150);
+
+// Hover and get the XPath of the hovered element
+const hoverXpath = await page.hover(300, 150, { returnXpath: true });
+
+// Scroll down at a position
+await page.scroll(400, 300, 0, 200); // scroll down 200px
+
+// Drag and drop between two points
+const [fromXpath, toXpath] = await page.dragAndDrop(100, 100, 300, 300, { returnXpath: true });
 
 // Type text
 await page.type("Hello, World!");
