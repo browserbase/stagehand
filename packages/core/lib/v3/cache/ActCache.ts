@@ -67,6 +67,7 @@ export class ActCache {
     context: ActCacheContext,
     page: Page,
     timeout?: number,
+    llmClientOverride?: LLMClient,
   ): Promise<ActResult | null> {
     if (!this.enabled) return null;
 
@@ -130,7 +131,13 @@ export class ActCache {
       },
     });
 
-    return await this.replayCachedActions(context, entry, page, timeout);
+    return await this.replayCachedActions(
+      context,
+      entry,
+      page,
+      timeout,
+      llmClientOverride,
+    );
   }
 
   async store(context: ActCacheContext, result: ActResult): Promise<void> {
@@ -191,11 +198,13 @@ export class ActCache {
     entry: CachedActEntry,
     page: Page,
     timeout?: number,
+    llmClientOverride?: LLMClient,
   ): Promise<ActResult> {
     const handler = this.getActHandler();
     if (!handler) {
       throw new StagehandNotInitializedError("act()");
     }
+    const effectiveClient = llmClientOverride ?? this.getDefaultLlmClient();
 
     const execute = async (): Promise<ActResult> => {
       const actionResults: ActResult[] = [];
@@ -204,7 +213,7 @@ export class ActCache {
           action,
           page,
           this.domSettleTimeoutMs,
-          this.getDefaultLlmClient(),
+          effectiveClient,
           undefined,
           context.variables,
         );
