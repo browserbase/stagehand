@@ -9,27 +9,24 @@ export const wichita: EvalFunction = async ({
 }) => {
   try {
     const page = v3.context.pages()[0];
-    await page.goto("https://www.wichitafallstx.gov/Bids.aspx");
+    await page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/wichita/",
+    );
 
     await v3.act('Click on "Show Closed/Awarded/Cancelled bids"');
 
     const result = await v3.extract(
       "Extract the total number of bids that the search produced.",
       z.object({
-        total_results: z.string(),
+        total_results: z.number(),
       }),
     );
 
     const { total_results } = result;
 
-    const expectedNumber = 418;
-    const extractedNumber = parseInt(total_results.replace(/[^\d]/g, ""), 10);
+    const expectedNumber = 430;
 
-    const isWithinRange =
-      extractedNumber >= expectedNumber - 10 &&
-      extractedNumber <= expectedNumber + 10;
-
-    if (!isWithinRange) {
+    if (total_results !== expectedNumber) {
       logger.error({
         message: "Total number of results is not within the expected range",
         level: 0,
@@ -39,7 +36,7 @@ export const wichita: EvalFunction = async ({
             type: "string",
           },
           actual: {
-            value: extractedNumber.toString(),
+            value: total_results.toString(),
             type: "integer",
           },
         },
@@ -47,7 +44,7 @@ export const wichita: EvalFunction = async ({
       return {
         _success: false,
         error: "Total number of results is not within the expected range",
-        extractedNumber,
+        total_results,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
@@ -56,7 +53,7 @@ export const wichita: EvalFunction = async ({
 
     return {
       _success: true,
-      extractedNumber,
+      total_results,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
