@@ -70,7 +70,7 @@ async function example() {
     console.log(
       "❌ Whoops, looks like we didn't make it to the correct page. " +
         "\nThanks for testing out this new Stagehand feature!" +
-        "\nReach us on Slack if you have any feedback/questions/suggestions!",
+        "\nReach us on Discord if you have any feedback/questions/suggestions!",
     );
   }
 }

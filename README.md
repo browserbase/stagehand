@@ -20,10 +20,10 @@
       <img alt="MIT License" src="media/light_license.svg" />
     </picture>
   </a>
-  <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-3hgv6bwqu-s7MXXgPd7_rD53aViGo1MQ">
+  <a href="https://stagehand.dev/discord">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="media/dark_slack.svg" />
-      <img alt="Slack Community" src="media/light_slack.svg" />
+      <source media="(prefers-color-scheme: dark)" srcset="media/dark_discord.svg" />
+      <img alt="Discord Community" src="media/light_discord.svg" />
     </picture>
   </a>
 </p>
@@ -137,10 +137,10 @@ In your project's `package.json` set:
 
 ## Contributing
 
-> [!NOTE]  
-> We highly value contributions to Stagehand! For questions or support, please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-3hgv6bwqu-s7MXXgPd7_rD53aViGo1MQ).
+> [!NOTE]
+> We highly value contributions to Stagehand! For questions or support, please join our [Discord community](https://stagehand.dev/discord).
 
-At a high level, we're focused on improving reliability, extensibility, speed, and cost in that order of priority. If you're interested in contributing, **bug fixes and small improvements are the best way to get started**. For more involved features, we strongly recommend reaching out to [Miguel Gonzalez](https://x.com/miguel_gonzf) or [Paul Klein](https://x.com/pk_iv) in our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-3hgv6bwqu-s7MXXgPd7_rD53aViGo1MQ) before starting to ensure that your contribution aligns with our goals.
+At a high level, we're focused on improving reliability, extensibility, speed, and cost in that order of priority. If you're interested in contributing, **bug fixes and small improvements are the best way to get started**. For more involved features, we strongly recommend reaching out to [Miguel Gonzalez](https://x.com/miguel_gonzf) or [Paul Klein](https://x.com/pk_iv) in our [Discord community](https://stagehand.dev/discord) before starting to ensure that your contribution aligns with our goals.
 
 <!-- For more information, please see our [Contributing Guide](https://docs.stagehand.dev/examples/contributing). -->
 

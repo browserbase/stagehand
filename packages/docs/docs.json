@@ -226,7 +226,7 @@
       "anchors": [
         {
           "anchor": "Discord",
-          "href": "https://discord.gg/stagehand",
+          "href": "https://stagehand.dev/discord",
           "icon": "discord"
         },
         {
@@ -251,7 +251,7 @@
     "links": [
       {
         "label": "Discord",
-        "href": "https://discord.gg/stagehand"
+        "href": "https://stagehand.dev/discord"
       },
       {
         "label": "Support",
@@ -261,11 +261,10 @@
   },
   "footer": {
     "socials": {
-      "discord": "https://discord.gg/stagehand",
+      "discord": "https://stagehand.dev/discord",
       "x": "https://x.com/stagehanddev",
       "github": "https://github.com/browserbase/stagehand",
-      "linkedin": "https://linkedin.com/company/browserbasehq",
-      "slack": "https://stagehand.dev/slack"
+      "linkedin": "https://linkedin.com/company/browserbasehq"
     }
   },
   "integrations": {
