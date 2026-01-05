@@ -93,7 +93,22 @@ export class V3CuaAgentHandler {
       );
     });
 
-    return await Promise.race([screenshotPromise, timeoutPromise]);
+    try {
+      return await Promise.race([screenshotPromise, timeoutPromise]);
+    } catch {
+      // Screenshot timed out - likely navigation in progress
+      this.logger({
+        category: "agent",
+        message: `Screenshot timed out, waiting 5s and retrying...`,
+        level: 1,
+      });
+
+      // Wait a bit for navigation to settle, then retry
+      await new Promise((r) => setTimeout(r, 7000));
+
+      const retryPage = await this.v3.context.awaitActivePage();
+      return await retryPage.screenshot({ fullPage: false });
+    }
   }
 
   private setupAgentClient(): void {
