@@ -28,11 +28,11 @@ export const wichita: EvalFunction = async ({
 
     if (total_results !== expectedNumber) {
       logger.error({
-        message: "Total number of results is not within the expected range",
+        message: "Total number of results does not match expected",
         level: 0,
         auxiliary: {
           expected: {
-            value: `${expectedNumber} ± 10`,
+            value: `${expectedNumber}`,
             type: "string",
           },
           actual: {
