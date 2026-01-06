@@ -83,19 +83,14 @@ export const ModelConfigObjectSchema = z
   })
   .meta({ id: "ModelConfigObject" });
 
-/** Model configuration - string model name or detailed config */
-export const ModelConfigSchema = z
-  .union([ModelNameSchema, ModelConfigObjectSchema])
-  .meta({ id: "ModelConfig" });
-
 /**
- * Model config schema with OpenAPI override for simplified documentation.
+ * Model configuration - string model name or detailed config.
  * Runtime accepts both string and object formats, but OpenAPI shows only the recommended object format.
  */
-export const ModelConfigWithOverrideSchema = z
+export const ModelConfigSchema = z
   .union([ModelNameSchema, ModelConfigObjectSchema])
-  .optional()
   .meta({
+    id: "ModelConfig",
     description: "Model configuration",
     // Simplify to recommended format in OpenAPI output
     override: ({ jsonSchema }: { jsonSchema: Record<string, unknown> }) => {
@@ -446,7 +441,7 @@ export const SessionEndResponseSchema = z
 
 export const ActOptionsSchema = z
   .object({
-    model: ModelConfigWithOverrideSchema,
+    model: ModelConfigSchema.optional(),
     variables: z
       .record(z.string(), z.string())
       .optional()
@@ -517,7 +512,7 @@ export const ActResponseSchema = wrapResponse(ActResultSchema, "ActResponse");
 
 export const ExtractOptionsSchema = z
   .object({
-    model: ModelConfigWithOverrideSchema,
+    model: ModelConfigSchema.optional(),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the extraction",
       example: 30000,
@@ -572,7 +567,7 @@ export const ExtractResponseSchema = wrapResponse(
 
 export const ObserveOptionsSchema = z
   .object({
-    model: ModelConfigWithOverrideSchema,
+    model: ModelConfigSchema.optional(),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the observation",
       example: 30000,
@@ -632,7 +627,7 @@ export const AgentConfigSchema = z
         example: "openai",
         deprecated: true,
       }),
-    model: ModelConfigWithOverrideSchema,
+    model: ModelConfigSchema.optional(),
     systemPrompt: z.string().optional().meta({
       description: "Custom system prompt for the agent",
     }),

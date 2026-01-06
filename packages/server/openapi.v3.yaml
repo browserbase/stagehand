@@ -141,38 +141,19 @@ components:
         acceptDownloads:
           type: boolean
       additionalProperties: false
-    ModelName:
-      description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano',
-        'anthropic/claude-4.5-opus')
-      match: {}
-      example: openai/gpt-5-nano
-      type: string
-    ModelConfigObject:
+    ModelConfig:
+      description: Model configuration
       type: object
       properties:
-        provider:
-          description: AI provider for the model (or provide a baseURL endpoint instead)
-          example: openai
-          type: string
-          enum:
-            - openai
-            - anthropic
-            - google
-            - microsoft
         modelName:
-          description: Model name string without prefix (e.g., 'gpt-5-nano',
-            'claude-4.5-opus')
-          example: gpt-5-nano
           type: string
+          description: Model name with provider prefix (e.g., 'openai/gpt-4.1-mini',
+            'anthropic/claude-sonnet-4-20250514'). The provider prefix is
+            required.
+          example: openai/gpt-4.1-mini
         apiKey:
+          type: string
           description: API key for the model provider
-          example: sk-some-openai-api-key
-          type: string
-        baseURL:
-          description: Base URL for the model provider
-          example: https://api.openai.com/v1
-          type: string
-          format: uri
       required:
         - modelName
     Action:
@@ -411,20 +392,7 @@ components:
       type: object
       properties:
         model:
-          description: Model configuration
-          type: object
-          properties:
-            modelName:
-              type: string
-              description: Model name with provider prefix (e.g., 'openai/gpt-4.1-mini',
-                'anthropic/claude-sonnet-4-20250514'). The provider prefix is
-                required.
-              example: openai/gpt-4.1-mini
-            apiKey:
-              type: string
-              description: API key for the model provider
-          required:
-            - modelName
+          $ref: "#/components/schemas/ModelConfig"
         variables:
           description: Variables to substitute in the action instruction
           example:
@@ -495,20 +463,7 @@ components:
       type: object
       properties:
         model:
-          description: Model configuration
-          type: object
-          properties:
-            modelName:
-              type: string
-              description: Model name with provider prefix (e.g., 'openai/gpt-4.1-mini',
-                'anthropic/claude-sonnet-4-20250514'). The provider prefix is
-                required.
-              example: openai/gpt-4.1-mini
-            apiKey:
-              type: string
-              description: API key for the model provider
-          required:
-            - modelName
+          $ref: "#/components/schemas/ModelConfig"
         timeout:
           description: Timeout in ms for the extraction
           example: 30000
@@ -552,20 +507,7 @@ components:
       type: object
       properties:
         model:
-          description: Model configuration
-          type: object
-          properties:
-            modelName:
-              type: string
-              description: Model name with provider prefix (e.g., 'openai/gpt-4.1-mini',
-                'anthropic/claude-sonnet-4-20250514'). The provider prefix is
-                required.
-              example: openai/gpt-4.1-mini
-            apiKey:
-              type: string
-              description: API key for the model provider
-          required:
-            - modelName
+          $ref: "#/components/schemas/ModelConfig"
         timeout:
           description: Timeout in ms for the observation
           example: 30000
@@ -617,20 +559,7 @@ components:
             - google
             - microsoft
         model:
-          description: Model configuration
-          type: object
-          properties:
-            modelName:
-              type: string
-              description: Model name with provider prefix (e.g., 'openai/gpt-4.1-mini',
-                'anthropic/claude-sonnet-4-20250514'). The provider prefix is
-                required.
-              example: openai/gpt-4.1-mini
-            apiKey:
-              type: string
-              description: API key for the model provider
-          required:
-            - modelName
+          $ref: "#/components/schemas/ModelConfig"
         systemPrompt:
           description: Custom system prompt for the agent
           type: string
@@ -1023,35 +952,6 @@ components:
         acceptDownloads:
           type: boolean
       additionalProperties: false
-    ModelConfigObjectOutput:
-      type: object
-      properties:
-        provider:
-          description: AI provider for the model (or provide a baseURL endpoint instead)
-          example: openai
-          type: string
-          enum:
-            - openai
-            - anthropic
-            - google
-            - microsoft
-        modelName:
-          description: Model name string without prefix (e.g., 'gpt-5-nano',
-            'claude-4.5-opus')
-          example: gpt-5-nano
-          type: string
-        apiKey:
-          description: API key for the model provider
-          example: sk-some-openai-api-key
-          type: string
-        baseURL:
-          description: Base URL for the model provider
-          example: https://api.openai.com/v1
-          type: string
-          format: uri
-      required:
-        - modelName
-      additionalProperties: false
     ActionOutput:
       description: Action object returned by observe and used by act
       type: object
@@ -1300,20 +1200,7 @@ components:
       type: object
       properties:
         model:
-          description: Model configuration
-          type: object
-          properties:
-            modelName:
-              type: string
-              description: Model name with provider prefix (e.g., 'openai/gpt-4.1-mini',
-                'anthropic/claude-sonnet-4-20250514'). The provider prefix is
-                required.
-              example: openai/gpt-4.1-mini
-            apiKey:
-              type: string
-              description: API key for the model provider
-          required:
-            - modelName
+          $ref: "#/components/schemas/ModelConfig"
         variables:
           description: Variables to substitute in the action instruction
           example:
@@ -1367,20 +1254,7 @@ components:
       type: object
       properties:
         model:
-          description: Model configuration
-          type: object
-          properties:
-            modelName:
-              type: string
-              description: Model name with provider prefix (e.g., 'openai/gpt-4.1-mini',
-                'anthropic/claude-sonnet-4-20250514'). The provider prefix is
-                required.
-              example: openai/gpt-4.1-mini
-            apiKey:
-              type: string
-              description: API key for the model provider
-          required:
-            - modelName
+          $ref: "#/components/schemas/ModelConfig"
         timeout:
           description: Timeout in ms for the extraction
           example: 30000
@@ -1406,20 +1280,7 @@ components:
       type: object
       properties:
         model:
-          description: Model configuration
-          type: object
-          properties:
-            modelName:
-              type: string
-              description: Model name with provider prefix (e.g., 'openai/gpt-4.1-mini',
-                'anthropic/claude-sonnet-4-20250514'). The provider prefix is
-                required.
-              example: openai/gpt-4.1-mini
-            apiKey:
-              type: string
-              description: API key for the model provider
-          required:
-            - modelName
+          $ref: "#/components/schemas/ModelConfig"
         timeout:
           description: Timeout in ms for the observation
           example: 30000
@@ -1457,20 +1318,7 @@ components:
             - google
             - microsoft
         model:
-          description: Model configuration
-          type: object
-          properties:
-            modelName:
-              type: string
-              description: Model name with provider prefix (e.g., 'openai/gpt-4.1-mini',
-                'anthropic/claude-sonnet-4-20250514'). The provider prefix is
-                required.
-              example: openai/gpt-4.1-mini
-            apiKey:
-              type: string
-              description: API key for the model provider
-          required:
-            - modelName
+          $ref: "#/components/schemas/ModelConfig"
         systemPrompt:
           description: Custom system prompt for the agent
           type: string
@@ -1652,10 +1500,41 @@ components:
         - status
         - message
       additionalProperties: false
-    ModelConfig:
-      anyOf:
-        - $ref: "#/components/schemas/ModelName"
-        - $ref: "#/components/schemas/ModelConfigObjectOutput"
+    ModelName:
+      description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano',
+        'anthropic/claude-4.5-opus')
+      match: {}
+      example: openai/gpt-5-nano
+      type: string
+    ModelConfigObject:
+      type: object
+      properties:
+        provider:
+          description: AI provider for the model (or provide a baseURL endpoint instead)
+          example: openai
+          type: string
+          enum:
+            - openai
+            - anthropic
+            - google
+            - microsoft
+        modelName:
+          description: Model name string without prefix (e.g., 'gpt-5-nano',
+            'claude-4.5-opus')
+          example: gpt-5-nano
+          type: string
+        apiKey:
+          description: API key for the model provider
+          example: sk-some-openai-api-key
+          type: string
+        baseURL:
+          description: Base URL for the model provider
+          example: https://api.openai.com/v1
+          type: string
+          format: uri
+      required:
+        - modelName
+      additionalProperties: false
     SessionIdParams:
       type: object
       properties:
