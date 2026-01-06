@@ -152,7 +152,7 @@ const parseXPathSteps = (xpath: string): XPathStep[] => {
 
     // Parse step: tagName[@attr='value'][index]
     // Match tag name (everything before first [)
-    const tagMatch = rawStep.match(/^([^\[]+)/);
+    const tagMatch = rawStep.match(/^([^[]+)/);
     const tagRaw = (tagMatch?.[1] ?? "*").trim();
     const tag = tagRaw === "" ? "*" : tagRaw.toLowerCase();
 
