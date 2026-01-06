@@ -1,4 +1,4 @@
-import { createAgentTools } from "../agent/tools";
+import { createAgentTools, createGoogleCuaTools } from "../agent/tools";
 import { buildAgentSystemPrompt } from "../agent/prompts/agentSystemPrompt";
 import { LogLine } from "../types/public/logs";
 import { V3 } from "../v3";
@@ -94,7 +94,10 @@ export class V3AgentHandler {
       });
 
       const tools = this.createTools(options.excludeTools);
-      const allTools: ToolSet = { ...tools, ...this.mcpTools };
+      // For CUA mode, only use CUA tools (don't merge with MCP/user tools)
+      // because Google's computerUse provides the native tool definitions
+      const allTools: ToolSet =
+        this.mode === "cua" ? tools : { ...tools, ...this.mcpTools };
 
       // Use provided messages for continuation, or start fresh with the instruction
       const messages: ModelMessage[] = options.messages?.length
@@ -224,9 +227,9 @@ export class V3AgentHandler {
       typeof instructionOrOptions === "object" ? instructionOrOptions : null;
     const signal = options?.signal;
 
-    // Highlight cursor defaults to true for hybrid mode, can be overridden
+    // Highlight cursor defaults to true for hybrid/cua modes, can be overridden
     const shouldHighlightCursor =
-      options?.highlightCursor ?? this.mode === "hybrid";
+      options?.highlightCursor ?? (this.mode === "hybrid" || this.mode === "cua");
 
     const state: AgentState = {
       collectedReasoning: [],
@@ -249,8 +252,8 @@ export class V3AgentHandler {
         initialPageUrl,
       } = await this.prepareAgent(instructionOrOptions);
 
-      // Enable cursor overlay for hybrid mode (coordinate-based interactions)
-      if (shouldHighlightCursor && this.mode === "hybrid") {
+      // Enable cursor overlay for hybrid/cua modes (coordinate-based interactions)
+      if (shouldHighlightCursor && (this.mode === "hybrid" || this.mode === "cua")) {
         const page = await this.v3.context.awaitActivePage();
         await page.enableCursorOverlay().catch(() => {});
       }
@@ -349,9 +352,9 @@ export class V3AgentHandler {
     const streamOptions =
       typeof instructionOrOptions === "object" ? instructionOrOptions : null;
 
-    // Highlight cursor defaults to true for hybrid mode, can be overridden
+    // Highlight cursor defaults to true for hybrid/cua modes, can be overridden
     const shouldHighlightCursor =
-      streamOptions?.highlightCursor ?? this.mode === "hybrid";
+      streamOptions?.highlightCursor ?? (this.mode === "hybrid" || this.mode === "cua");
 
     const {
       options,
@@ -363,8 +366,8 @@ export class V3AgentHandler {
       initialPageUrl,
     } = await this.prepareAgent(instructionOrOptions);
 
-    // Enable cursor overlay for hybrid mode (coordinate-based interactions)
-    if (shouldHighlightCursor && this.mode === "hybrid") {
+    // Enable cursor overlay for hybrid/cua modes (coordinate-based interactions)
+    if (shouldHighlightCursor && (this.mode === "hybrid" || this.mode === "cua")) {
       const page = await this.v3.context.awaitActivePage();
       await page.enableCursorOverlay().catch(() => {});
     }
@@ -401,9 +404,9 @@ export class V3AgentHandler {
 
     const streamResult = this.llmClient.streamText({
       model: wrappedModel,
-      system: systemPrompt,
+      system: 'you are a computer use agent that can navigate websites and perform actions on the page',
       messages,
-      tools: allTools,
+      tools: createGoogleCuaTools(this.v3),
       stopWhen: (result) => this.handleStop(result, maxSteps),
       temperature: 1,
       toolChoice: "auto",
@@ -534,6 +537,13 @@ export class V3AgentHandler {
   }
 
   private createTools(excludeTools?: string[]) {
+    // Use Google CUA tools for "cua" mode
+    // These provide coordinate-based tools (click_at, type_text_at, etc.)
+    // that execute actions and return screenshots
+    if (this.mode === "cua") {
+      return createGoogleCuaTools(this.v3);
+    }
+
     const provider = this.llmClient?.getLanguageModel?.()?.provider;
     return createAgentTools(this.v3, {
       executionModel: this.executionModel,

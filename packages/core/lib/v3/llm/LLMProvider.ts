@@ -32,6 +32,123 @@ import { perplexity, createPerplexity } from "@ai-sdk/perplexity";
 import { ollama } from "ollama-ai-provider-v2";
 import { AISDKProvider, AISDKCustomProvider } from "../types/public/model";
 
+/**
+ * Check if a model name indicates Google Computer Use capability
+ */
+function isGoogleCuaModel(modelName: string): boolean {
+  return modelName.includes("computer-use");
+}
+
+/**
+ * Creates a custom fetch wrapper for Google CUA models.
+ *
+ * This enables a hybrid approach:
+ * 1. AI SDK tools are defined locally with execute functions
+ * 2. We strip functionDeclarations from requests and inject computerUse
+ * 3. Google returns function calls using its native CUA tools (click_at, etc.)
+ * 4. AI SDK matches these to our locally registered tools and calls execute()
+ *
+ * Additionally, we transform function responses to include the URL field
+ * that Google CUA requires.
+ */
+function createGoogleCuaFetch(
+  environment: "ENVIRONMENT_BROWSER" | "ENVIRONMENT_DESKTOP" = "ENVIRONMENT_BROWSER",
+): typeof fetch {
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.body && typeof init.body === "string") {
+      try {
+        const body = JSON.parse(init.body);
+
+        // Replace functionDeclarations with computerUse
+        // Our AI SDK tools are still registered locally for execution
+        // but we let Google provide the tool definitions via computerUse
+        body.tools = [{ computerUse: { environment } }];
+
+        // Remove toolConfig since computerUse handles tool selection
+        delete body.toolConfig;
+
+        // Transform function responses to Google CUA format
+        // AI SDK sends: functionResponse, then inlineData (screenshot), then text
+        // Google CUA expects: functionResponse with parts: [{ inlineData }] inside it
+        if (body.contents && Array.isArray(body.contents)) {
+          for (const content of body.contents) {
+            if (content.parts && Array.isArray(content.parts)) {
+              const newParts: Record<string, unknown>[] = [];
+              let lastFunctionResponse: Record<string, unknown> | null = null;
+
+              for (const part of content.parts) {
+                if (part.functionResponse) {
+                  // If we had a previous function response without screenshot, push it
+                  if (lastFunctionResponse) {
+                    newParts.push(lastFunctionResponse);
+                  }
+
+                  // Extract URL from the response content
+                  let url = "";
+                  if (part.functionResponse.response?.content) {
+                    try {
+                      const parsed = JSON.parse(
+                        part.functionResponse.response.content,
+                      );
+                      url = parsed.url || "";
+                    } catch {
+                      // Not JSON, ignore
+                    }
+                  }
+
+                  // Build Google CUA format function response (without screenshot yet)
+                  lastFunctionResponse = {
+                    functionResponse: {
+                      name: part.functionResponse.name,
+                      response: { url },
+                    },
+                  };
+                } else if (part.inlineData && lastFunctionResponse) {
+                  // This is a screenshot - attach it to the previous function response
+                  const fr = lastFunctionResponse.functionResponse as Record<string, unknown>;
+                  fr.parts = [
+                    {
+                      inlineData: {
+                        mimeType: part.inlineData.mimeType || "image/png",
+                        data: part.inlineData.data,
+                      },
+                    },
+                  ];
+                  // Push the complete function response with screenshot
+                  newParts.push(lastFunctionResponse);
+                  lastFunctionResponse = null;
+                } else if (part.text && part.text.includes("Tool executed successfully")) {
+                  // Skip the AI SDK's auto-generated success message
+                  continue;
+                } else {
+                  // Keep other parts as-is
+                  newParts.push(part);
+                }
+              }
+
+              // Push any remaining function response without screenshot
+              if (lastFunctionResponse) {
+                newParts.push(lastFunctionResponse);
+              }
+
+              content.parts = newParts;
+            }
+          }
+        }
+
+        init = {
+          ...init,
+          body: JSON.stringify(body),
+        };
+      } catch {
+        // If JSON parsing fails, pass through unchanged
+      }
+    }
+
+    return fetch(input, init);
+  };
+}
+
 const AISDKProviders: Record<string, AISDKProvider> = {
   openai,
   anthropic,
@@ -102,6 +219,18 @@ export function getAISDKLanguageModel(
   subModelName: string,
   clientOptions?: ClientOptions,
 ) {
+  // Special handling for Google CUA models
+  // We inject computerUse config but keep our AI SDK tools registered locally for execution
+  // This allows Google's native CUA while routing execution through our tool handlers
+  if (subProvider === "google" && isGoogleCuaModel(subModelName)) {
+    const cuaFetch = createGoogleCuaFetch("ENVIRONMENT_BROWSER");
+    const provider = createGoogleGenerativeAI({
+      ...clientOptions,
+      fetch: cuaFetch,
+    });
+    return provider(subModelName);
+  }
+
   if (clientOptions && Object.keys(clientOptions).length > 0) {
     const creator = AISDKProvidersWithAPIKey[subProvider];
     if (!creator) {

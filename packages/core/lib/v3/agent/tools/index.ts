@@ -16,6 +16,9 @@ import { fillFormVisionTool } from "./fillFormVision";
 import { thinkTool } from "./think";
 import { searchTool } from "./search";
 
+// Google CUA tools
+export { createGoogleCuaTools } from "./cuaTools";
+
 import type { ToolSet, InferUITools } from "ai";
 import type { V3 } from "../../v3";
 import type { LogLine } from "../../types/public/logs";

@@ -1725,7 +1725,7 @@ export class V3 {
       },
     });
 
-    // If CUA mode is enabled (via mode: "cua" or deprecated cua: true), use the computer-use agent path
+    // If CUA mode is enabled (via mode: "cua" or deprecated cua: true), validate model
     if (isCuaMode) {
       // Validate agent config at creation time (includes CUA+streaming conflict check)
       validateExperimentalFeatures({
@@ -1738,117 +1738,12 @@ export class V3 {
         ...this.modelClientOptions,
       };
 
-      const { modelName, isCua, clientOptions } = resolveModel(modelToUse);
+      const { isCua } = resolveModel(modelToUse);
 
       if (!isCua) {
         throw new CuaModelRequiredError(AVAILABLE_CUA_MODELS);
       }
-
-      const agentConfigSignature =
-        this.agentCache.buildConfigSignature(options);
-      return {
-        execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
-          withInstanceLogContext(this.instanceId, async () => {
-            validateExperimentalFeatures({
-              isExperimental: this.experimental,
-              agentConfig: options,
-              executeOptions:
-                typeof instructionOrOptions === "object"
-                  ? instructionOrOptions
-                  : null,
-            });
-
-            SessionFileLogger.logAgentTaskStarted({
-              invocation: "Agent.execute",
-              args: [instructionOrOptions],
-            });
-            const tools = options?.integrations
-              ? await resolveTools(options.integrations, options.tools)
-              : (options?.tools ?? {});
-
-            const handler = new V3CuaAgentHandler(
-              this,
-              this.logger,
-              {
-                modelName,
-                clientOptions,
-                userProvidedInstructions:
-                  options.systemPrompt ??
-                  `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
-              },
-              tools,
-            );
-
-            const resolvedOptions: AgentExecuteOptions =
-              typeof instructionOrOptions === "string"
-                ? { instruction: instructionOrOptions }
-                : instructionOrOptions;
-            if (resolvedOptions.page) {
-              const normalizedPage = await this.normalizeToV3Page(
-                resolvedOptions.page,
-              );
-              this.ctx!.setActivePage(normalizedPage);
-            }
-            const instruction = resolvedOptions.instruction.trim();
-            const sanitizedOptions =
-              this.agentCache.sanitizeExecuteOptions(resolvedOptions);
-
-            let cacheContext: AgentCacheContext | null = null;
-            if (this.agentCache.shouldAttemptCache(instruction)) {
-              const startPage = await this.ctx!.awaitActivePage();
-              cacheContext = await this.agentCache.prepareContext({
-                instruction,
-                options: sanitizedOptions,
-                configSignature: agentConfigSignature,
-                page: startPage,
-              });
-              if (cacheContext) {
-                const replayed = await this.agentCache.tryReplay(cacheContext);
-                if (replayed) {
-                  SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
-                  return replayed;
-                }
-              }
-            }
-
-            let agentSteps: AgentReplayStep[] = [];
-            const recording = !!cacheContext;
-            if (recording) {
-              this.beginAgentReplayRecording();
-            }
-
-            let result: AgentResult;
-            try {
-              if (this.apiClient && !this.experimental) {
-                const page = await this.ctx!.awaitActivePage();
-                result = await this.apiClient.agentExecute(
-                  options,
-                  resolvedOptions,
-                  page.mainFrameId(),
-                );
-              } else {
-                result = await handler.execute(instructionOrOptions);
-              }
-              if (recording) {
-                agentSteps = this.endAgentReplayRecording();
-              }
-
-              if (cacheContext && result.success && agentSteps.length > 0) {
-                await this.agentCache.store(cacheContext, agentSteps, result);
-              }
-
-              return result;
-            } catch (err) {
-              if (recording) this.discardAgentReplayRecording();
-              throw err;
-            } finally {
-              if (recording) {
-                this.discardAgentReplayRecording();
-              }
-              SessionFileLogger.logAgentTaskCompleted();
-            }
-          }),
-      };
+      // Fall through to use V3AgentHandler with mode: "cua"
     }
 
     // Default: AISDK tools-based agent

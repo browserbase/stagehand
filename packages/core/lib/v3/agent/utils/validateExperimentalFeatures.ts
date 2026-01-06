@@ -41,9 +41,7 @@ export function validateExperimentalFeatures(
   if (isCuaMode) {
     const unsupportedFeatures: string[] = [];
 
-    if (agentConfig?.stream) {
-      unsupportedFeatures.push("streaming");
-    }
+
     if (executeOptions?.signal) {
       unsupportedFeatures.push("abort signal");
     }
