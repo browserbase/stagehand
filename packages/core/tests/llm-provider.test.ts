@@ -26,6 +26,21 @@ describe("getAISDKLanguageModel", () => {
       });
       expect(model).toBeDefined();
     });
+
+    it("works with custom baseURL", () => {
+      const model = getAISDKLanguageModel("ollama", "llama3.2", {
+        baseURL: "http://custom-ollama:11434",
+      });
+      expect(model).toBeDefined();
+    });
+
+    it("works even when apiKey is mistakenly provided", () => {
+      // Ollama doesn't need an API key, but users might set one anyway
+      const model = getAISDKLanguageModel("ollama", "llama3.2", {
+        apiKey: "unnecessary-key",
+      });
+      expect(model).toBeDefined();
+    });
   });
 
   describe("providers with API keys", () => {
