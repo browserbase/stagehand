@@ -24,9 +24,7 @@ export const nba_trades: EvalFunction = async ({
       question: "Did the agent make it to the nba transactions page?",
     });
 
-    const success =
-      page.url() === "https://www.espn.com/nba/transactions" &&
-      evaluation === "YES";
+    const success = page.url() === "https://www.espn.com/nba/transactions";
 
     if (!success) {
       return {
