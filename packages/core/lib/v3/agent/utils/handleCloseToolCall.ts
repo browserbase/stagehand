@@ -35,7 +35,7 @@ export async function handleCloseToolCall(options: {
 
   logger({
     category: "agent",
-    message: 'Agent calling tool: close',
+    message: "Agent calling tool: close",
     level: 1,
   });
   // Merge base close schema with user-provided output schema if present
@@ -52,7 +52,7 @@ export async function handleCloseToolCall(options: {
         Object.fromEntries(
           Object.entries(outputSchema.shape).map(([key, value]) => [
             key,
-            (value).description || "no description",
+            value.description || "no description",
           ]),
         ),
         null,

@@ -557,7 +557,6 @@ export class V3AgentHandler {
 
   /**
    * Ensures the close tool is called at the end of agent execution.
-   * If the agent didn't naturally call close, forces a close tool call.
    * Returns the messages and any extracted output from the close call.
    */
   private async ensureClosed(
