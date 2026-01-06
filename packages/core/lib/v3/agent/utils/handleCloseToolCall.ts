@@ -2,7 +2,7 @@ import { generateText, ModelMessage, LanguageModel, ToolSet } from "ai";
 import { z } from "zod";
 import { tool } from "ai";
 import { LogLine } from "../../types/public/logs";
-import { StagehandZodObject, StagehandZodSchema } from "../../zodCompat";
+import { StagehandZodObject } from "../../zodCompat";
 interface CloseResult {
   reasoning: string;
   taskComplete: boolean;
