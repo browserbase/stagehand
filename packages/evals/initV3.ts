@@ -159,6 +159,7 @@ export async function initV3({
     } else {
       agent = v3.agent({
         model: modelName,
+        mode: "hybrid",
         executionModel: "google/gemini-2.5-flash",
       });
     }
