@@ -18,6 +18,9 @@ import { StagehandZodObject } from "../../zodCompat";
 
 // Re-export ModelMessage for consumers who want to use it for conversation continuation
 export type { ModelMessage } from "ai";
+
+// Re-export Tool type for consumers who want to define custom tools
+export type { Tool } from "ai";
 import { Page as PlaywrightPage } from "playwright-core";
 import { Page as PuppeteerPage } from "puppeteer-core";
 import { Page as PatchrightPage } from "patchright-core";

@@ -1058,6 +1058,9 @@ export class V3 {
 
       // Resolve page from options or default
       const page = await this.resolvePage(options?.page);
+      const actCacheLlmClient = options?.model
+        ? this.resolveLlmClient(options.model)
+        : undefined;
 
       let actCacheContext: Awaited<
         ReturnType<typeof this.actCache.prepareContext>
@@ -1077,6 +1080,7 @@ export class V3 {
             actCacheContext,
             page,
             options?.timeout,
+            actCacheLlmClient,
           );
           if (cachedResult) {
             this.addToHistory(
@@ -1593,6 +1597,7 @@ export class V3 {
     resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions;
     instruction: string;
     cacheContext: AgentCacheContext | null;
+    llmClient: LLMClient;
   }> {
     // Note: experimental validation is done at the call site before this method
     const tools = options?.integrations
@@ -1647,7 +1652,13 @@ export class V3 {
         })
       : null;
 
-    return { handler, resolvedOptions, instruction, cacheContext };
+    return {
+      handler,
+      resolvedOptions,
+      instruction,
+      cacheContext,
+      llmClient: agentLlmClient,
+    };
   }
 
   /**
@@ -1868,7 +1879,7 @@ export class V3 {
 
           // Streaming mode
           if (isStreaming) {
-            const { handler, resolvedOptions, cacheContext } =
+            const { handler, resolvedOptions, cacheContext, llmClient } =
               await this.prepareAgentExecution(
                 options,
                 instructionOrOptions,
@@ -1876,8 +1887,10 @@ export class V3 {
               );
 
             if (cacheContext) {
-              const replayed =
-                await this.agentCache.tryReplayAsStream(cacheContext);
+              const replayed = await this.agentCache.tryReplayAsStream(
+                cacheContext,
+                llmClient,
+              );
               if (replayed) {
                 SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
                 return replayed;
@@ -1907,7 +1920,7 @@ export class V3 {
           }
 
           // Non-streaming mode (default)
-          const { handler, resolvedOptions, cacheContext } =
+          const { handler, resolvedOptions, cacheContext, llmClient } =
             await this.prepareAgentExecution(
               options,
               instructionOrOptions,
@@ -1915,7 +1928,10 @@ export class V3 {
             );
 
           if (cacheContext) {
-            const replayed = await this.agentCache.tryReplay(cacheContext);
+            const replayed = await this.agentCache.tryReplay(
+              cacheContext,
+              llmClient,
+            );
             if (replayed) {
               SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
               return replayed;
