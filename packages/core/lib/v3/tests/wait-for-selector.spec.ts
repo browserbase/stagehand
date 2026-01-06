@@ -43,7 +43,9 @@ test.describe("Page.waitForSelector tests", () => {
           ),
       );
 
-      const result = await page.waitForSelector("#delayed-btn", { timeout: 5000 });
+      const result = await page.waitForSelector("#delayed-btn", {
+        timeout: 5000,
+      });
       expect(result).toBe(true);
     });
 
@@ -56,7 +58,9 @@ test.describe("Page.waitForSelector tests", () => {
           ),
       );
 
-      const result = await page.waitForSelector("#hidden-div", { state: "attached" });
+      const result = await page.waitForSelector("#hidden-div", {
+        state: "attached",
+      });
       expect(result).toBe(true);
     });
 
@@ -126,7 +130,9 @@ test.describe("Page.waitForSelector tests", () => {
 
     test("state 'detached' resolves immediately for non-existent element", async () => {
       const page = v3.context.pages()[0];
-      await page.goto("data:text/html," + encodeURIComponent("<div>Content</div>"));
+      await page.goto(
+        "data:text/html," + encodeURIComponent("<div>Content</div>"),
+      );
 
       const result = await page.waitForSelector("#does-not-exist", {
         state: "detached",
@@ -139,7 +145,9 @@ test.describe("Page.waitForSelector tests", () => {
   test.describe("Timeout behavior", () => {
     test("throws on timeout when element never appears", async () => {
       const page = v3.context.pages()[0];
-      await page.goto("data:text/html," + encodeURIComponent("<div>No button here</div>"));
+      await page.goto(
+        "data:text/html," + encodeURIComponent("<div>No button here</div>"),
+      );
 
       let error: Error | null = null;
       try {
@@ -155,7 +163,9 @@ test.describe("Page.waitForSelector tests", () => {
 
     test("respects custom timeout duration", async () => {
       const page = v3.context.pages()[0];
-      await page.goto("data:text/html," + encodeURIComponent("<div>Content</div>"));
+      await page.goto(
+        "data:text/html," + encodeURIComponent("<div>Content</div>"),
+      );
 
       const startTime = Date.now();
       try {
@@ -174,7 +184,10 @@ test.describe("Page.waitForSelector tests", () => {
   test.describe("CSS selector variants", () => {
     test("works with class selectors", async () => {
       const page = v3.context.pages()[0];
-      await page.goto("data:text/html," + encodeURIComponent('<div class="my-class">Content</div>'));
+      await page.goto(
+        "data:text/html," +
+          encodeURIComponent('<div class="my-class">Content</div>'),
+      );
 
       const result = await page.waitForSelector(".my-class");
       expect(result).toBe(true);
@@ -184,7 +197,9 @@ test.describe("Page.waitForSelector tests", () => {
       const page = v3.context.pages()[0];
       await page.goto(
         "data:text/html," +
-          encodeURIComponent('<input type="email" data-testid="email-input" />'),
+          encodeURIComponent(
+            '<input type="email" data-testid="email-input" />',
+          ),
       );
 
       const result = await page.waitForSelector('[data-testid="email-input"]');
@@ -204,7 +219,9 @@ test.describe("Page.waitForSelector tests", () => {
           ),
       );
 
-      const result = await page.waitForSelector(".container #login-form button[type='submit']");
+      const result = await page.waitForSelector(
+        ".container #login-form button[type='submit']",
+      );
       expect(result).toBe(true);
     });
 
@@ -212,7 +229,9 @@ test.describe("Page.waitForSelector tests", () => {
       const page = v3.context.pages()[0];
       await page.goto(
         "data:text/html," +
-          encodeURIComponent('<ul><li id="first">First</li><li id="second">Second</li></ul>'),
+          encodeURIComponent(
+            '<ul><li id="first">First</li><li id="second">Second</li></ul>',
+          ),
       );
 
       const result = await page.waitForSelector("li:first-child");
@@ -464,12 +483,17 @@ test.describe("Page.waitForSelector tests", () => {
       const page = v3.context.pages()[0];
       await page.goto(
         "data:text/html," +
-          encodeURIComponent('<div id="container"><span class="target">Target</span></div>'),
+          encodeURIComponent(
+            '<div id="container"><span class="target">Target</span></div>',
+          ),
       );
 
-      const result = await page.waitForSelector("xpath=//span[@class='target']", {
-        timeout: 5000,
-      });
+      const result = await page.waitForSelector(
+        "xpath=//span[@class='target']",
+        {
+          timeout: 5000,
+        },
+      );
       expect(result).toBe(true);
     });
 
@@ -538,10 +562,13 @@ test.describe("Page.waitForSelector tests", () => {
       );
       await page.waitForTimeout(100);
 
-      const result = await page.waitForSelector("//button[@id='shadow-xpath-btn']", {
-        pierceShadow: true,
-        timeout: 5000,
-      });
+      const result = await page.waitForSelector(
+        "//button[@id='shadow-xpath-btn']",
+        {
+          pierceShadow: true,
+          timeout: 5000,
+        },
+      );
       expect(result).toBe(true);
     });
 
@@ -566,20 +593,27 @@ test.describe("Page.waitForSelector tests", () => {
       );
       await page.waitForTimeout(100);
 
-      const result = await page.waitForSelector("//span[@id='xpath-closed-target']", {
-        pierceShadow: true,
-        timeout: 5000,
-      });
+      const result = await page.waitForSelector(
+        "//span[@id='xpath-closed-target']",
+        {
+          pierceShadow: true,
+          timeout: 5000,
+        },
+      );
       expect(result).toBe(true);
     });
 
     test("XPath times out for non-existent element", async () => {
       const page = v3.context.pages()[0];
-      await page.goto("data:text/html," + encodeURIComponent("<div>Content</div>"));
+      await page.goto(
+        "data:text/html," + encodeURIComponent("<div>Content</div>"),
+      );
 
       let error: Error | null = null;
       try {
-        await page.waitForSelector("//button[@id='nonexistent']", { timeout: 300 });
+        await page.waitForSelector("//button[@id='nonexistent']", {
+          timeout: 300,
+        });
       } catch (e) {
         error = e as Error;
       }
@@ -597,7 +631,9 @@ test.describe("Page.waitForSelector tests", () => {
           ),
       );
 
-      const result = await page.waitForSelector("//p[@id='deep-p']", { timeout: 5000 });
+      const result = await page.waitForSelector("//p[@id='deep-p']", {
+        timeout: 5000,
+      });
       expect(result).toBe(true);
     });
 
@@ -605,7 +641,9 @@ test.describe("Page.waitForSelector tests", () => {
       const page = v3.context.pages()[0];
       await page.goto(
         "data:text/html," +
-          encodeURIComponent('<div id="hidden-xpath" style="display: none;">Hidden</div>'),
+          encodeURIComponent(
+            '<div id="hidden-xpath" style="display: none;">Hidden</div>',
+          ),
       );
 
       const result = await page.waitForSelector("//div[@id='hidden-xpath']", {
@@ -617,7 +655,9 @@ test.describe("Page.waitForSelector tests", () => {
 
     test("XPath state 'detached' for non-existent element", async () => {
       const page = v3.context.pages()[0];
-      await page.goto("data:text/html," + encodeURIComponent("<div>Content</div>"));
+      await page.goto(
+        "data:text/html," + encodeURIComponent("<div>Content</div>"),
+      );
 
       const result = await page.waitForSelector("//span[@id='never-exists']", {
         state: "detached",
@@ -646,9 +686,12 @@ test.describe("Page.waitForSelector tests", () => {
       );
       await page.waitForTimeout(100);
 
-      const result = await page.waitForSelector("iframe#my-frame >> #frame-btn", {
-        timeout: 5000,
-      });
+      const result = await page.waitForSelector(
+        "iframe#my-frame >> #frame-btn",
+        {
+          timeout: 5000,
+        },
+      );
       expect(result).toBe(true);
     });
 
@@ -703,9 +746,12 @@ test.describe("Page.waitForSelector tests", () => {
           ),
       );
 
-      const result = await page.waitForSelector("iframe#delay-frame >> #delayed-in-frame", {
-        timeout: 5000,
-      });
+      const result = await page.waitForSelector(
+        "iframe#delay-frame >> #delayed-in-frame",
+        {
+          timeout: 5000,
+        },
+      );
       expect(result).toBe(true);
     });
   });
@@ -721,12 +767,17 @@ test.describe("Page.waitForSelector tests", () => {
       );
 
       // Should be attached but not visible
-      const attached = await page.waitForSelector("#vis-hidden", { state: "attached" });
+      const attached = await page.waitForSelector("#vis-hidden", {
+        state: "attached",
+      });
       expect(attached).toBe(true);
 
       let error: Error | null = null;
       try {
-        await page.waitForSelector("#vis-hidden", { state: "visible", timeout: 200 });
+        await page.waitForSelector("#vis-hidden", {
+          state: "visible",
+          timeout: 200,
+        });
       } catch (e) {
         error = e as Error;
       }
@@ -737,15 +788,22 @@ test.describe("Page.waitForSelector tests", () => {
       const page = v3.context.pages()[0];
       await page.goto(
         "data:text/html," +
-          encodeURIComponent('<div id="transparent" style="opacity: 0;">Transparent</div>'),
+          encodeURIComponent(
+            '<div id="transparent" style="opacity: 0;">Transparent</div>',
+          ),
       );
 
-      const attached = await page.waitForSelector("#transparent", { state: "attached" });
+      const attached = await page.waitForSelector("#transparent", {
+        state: "attached",
+      });
       expect(attached).toBe(true);
 
       let error: Error | null = null;
       try {
-        await page.waitForSelector("#transparent", { state: "visible", timeout: 200 });
+        await page.waitForSelector("#transparent", {
+          state: "visible",
+          timeout: 200,
+        });
       } catch (e) {
         error = e as Error;
       }
@@ -756,15 +814,22 @@ test.describe("Page.waitForSelector tests", () => {
       const page = v3.context.pages()[0];
       await page.goto(
         "data:text/html," +
-          encodeURIComponent('<div id="zero-size" style="width: 0; height: 0;">Zero</div>'),
+          encodeURIComponent(
+            '<div id="zero-size" style="width: 0; height: 0;">Zero</div>',
+          ),
       );
 
-      const attached = await page.waitForSelector("#zero-size", { state: "attached" });
+      const attached = await page.waitForSelector("#zero-size", {
+        state: "attached",
+      });
       expect(attached).toBe(true);
 
       let error: Error | null = null;
       try {
-        await page.waitForSelector("#zero-size", { state: "visible", timeout: 200 });
+        await page.waitForSelector("#zero-size", {
+          state: "visible",
+          timeout: 200,
+        });
       } catch (e) {
         error = e as Error;
       }
@@ -887,7 +952,9 @@ test.describe("Page.waitForSelector tests", () => {
           ),
       );
 
-      const result = await page.waitForSelector("#loaded-btn", { timeout: 5000 });
+      const result = await page.waitForSelector("#loaded-btn", {
+        timeout: 5000,
+      });
       expect(result).toBe(true);
     });
 
@@ -967,4 +1034,3 @@ test.describe("Page.waitForSelector tests", () => {
     });
   });
 });
-

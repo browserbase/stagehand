@@ -5,8 +5,8 @@ import { logAction } from "../flowLogger";
 import type { CDPSessionLike } from "./cdp";
 import { CdpConnection } from "./cdp";
 import { Frame } from "./frame";
-import { FrameLocator, frameLocatorFromFrame } from "./frameLocator";
-import { deepLocatorFromPage } from "./deepLocator";
+import { FrameLocator } from "./frameLocator";
+import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator";
 import { resolveXpathForLocation } from "./a11y/snapshot";
 import { FrameRegistry } from "./frameRegistry";
 import { executionContexts } from "./executionContextRegistry";
@@ -1217,54 +1217,10 @@ export class Page {
     const timeout = options?.timeout ?? 30000;
     const state = options?.state ?? "visible";
     const pierceShadow = options?.pierceShadow ?? true;
-
-    // Check for iframe hop notation
-    const parts = selector
-      .split(">>")
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    if (parts.length > 1) {
-      // Has iframe hops - resolve to target frame first, then wait there
-      return this.waitForSelectorWithHops(parts, { state, timeout, pierceShadow });
-    }
-
-    // Single frame - use the bundled waitForSelector from locatorScripts
-    const expression = buildLocatorInvocation("waitForSelector", [
-      JSON.stringify(selector),
-      JSON.stringify(state),
-      String(timeout),
-      String(pierceShadow),
-    ]);
-    return this.evaluate(expression);
-  }
-
-  /**
-   * Internal helper: Wait for selector after resolving iframe hops via '>>' notation.
-   */
-  private async waitForSelectorWithHops(
-    parts: string[],
-    options: {
-      state: "attached" | "detached" | "visible" | "hidden";
-      timeout: number;
-      pierceShadow: boolean;
-    },
-  ): Promise<boolean> {
-    const { state, timeout, pierceShadow } = options;
     const startTime = Date.now();
-
-    // Build FrameLocator chain for all but the last segment
-    const root = this.mainFrame();
-    let fl = frameLocatorFromFrame(this, root, parts[0]!);
-
-    for (let i = 1; i < parts.length - 1; i++) {
-      fl = fl.frameLocator(parts[i]!);
-    }
-
-    // Resolve to target frame
-    const targetFrame = await fl.resolveFrame();
-    const finalSelector = parts[parts.length - 1]!;
-
+    const root = this.mainFrameWrapper;
+    const { frame: targetFrame, selector: finalSelector } =
+      await resolveLocatorTarget(this, root, selector);
     const elapsed = Date.now() - startTime;
     const remainingTimeout = Math.max(0, timeout - elapsed);
 

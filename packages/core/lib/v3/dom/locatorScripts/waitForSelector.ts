@@ -91,7 +91,7 @@ const deepQuerySelector = (
       const ownerDoc =
         currentRoot instanceof Document
           ? currentRoot
-          : currentRoot.host?.ownerDocument ?? document;
+          : (currentRoot.host?.ownerDocument ?? document);
       const walker = ownerDoc.createTreeWalker(
         currentRoot,
         NodeFilter.SHOW_ELEMENT,
@@ -161,7 +161,9 @@ const parseXPathSteps = (xpath: string): XPathStep[] => {
     const index = indexMatch ? Math.max(1, Number(indexMatch[1])) : null;
 
     // Match attribute predicate [@attr='value'] or [@attr="value"]
-    const attrMatch = rawStep.match(/\[@([a-zA-Z_][\w-]*)\s*=\s*['"]([^'"]*)['"]\]/);
+    const attrMatch = rawStep.match(
+      /\[@([a-zA-Z_][\w-]*)\s*=\s*['"]([^'"]*)['"]\]/,
+    );
     const attrName = attrMatch ? attrMatch[1] : null;
     const attrValue = attrMatch ? attrMatch[2] : null;
 
@@ -269,7 +271,9 @@ const deepXPathQuery = (
   }
 
   // Traverse composed tree following XPath steps
-  let current: Array<Document | Element | ShadowRoot | DocumentFragment> = [document];
+  let current: Array<Document | Element | ShadowRoot | DocumentFragment> = [
+    document,
+  ];
 
   for (const step of steps) {
     const next: Element[] = [];
@@ -277,9 +281,10 @@ const deepXPathQuery = (
 
     for (const root of current) {
       if (!root) continue;
-      const pool = step.axis === "child"
-        ? composedChildren(root)
-        : composedDescendants(root);
+      const pool =
+        step.axis === "child"
+          ? composedChildren(root)
+          : composedDescendants(root);
       if (!pool.length) continue;
 
       // Filter by tag name
@@ -432,8 +437,10 @@ export function waitForSelector(
   pierceShadowRaw?: boolean,
 ): Promise<boolean> {
   const selector = String(selectorRaw ?? "").trim();
-  const state = (String(stateRaw ?? "visible") as WaitForSelectorState) || "visible";
-  const timeout = typeof timeoutRaw === "number" && timeoutRaw > 0 ? timeoutRaw : 30000;
+  const state =
+    (String(stateRaw ?? "visible") as WaitForSelectorState) || "visible";
+  const timeout =
+    typeof timeoutRaw === "number" && timeoutRaw > 0 ? timeoutRaw : 30000;
   const pierceShadow = pierceShadowRaw !== false;
 
   return new Promise<boolean>((resolve, reject) => {
@@ -511,4 +518,3 @@ export function waitForSelector(
     }, timeout);
   });
 }
-
