@@ -43,6 +43,7 @@ const publicApiShape = {
   providerEnvVarMap: Stagehand.providerEnvVarMap,
   toGeminiSchema: Stagehand.toGeminiSchema,
   toJsonSchema: Stagehand.toJsonSchema,
+  tool: Stagehand.tool,
   transformSchema: Stagehand.transformSchema,
   trimTrailingTextNode: Stagehand.trimTrailingTextNode,
   validateZodSchema: Stagehand.validateZodSchema,
