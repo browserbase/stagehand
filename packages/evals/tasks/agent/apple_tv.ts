@@ -25,7 +25,6 @@ export const apple_tv: EvalFunction = async ({
       answer: agentResult.message,
     });
 
-    const url = page.url();
     const success = result.evaluation === "YES";
     if (!success) {
       return {
