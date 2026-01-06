@@ -102,7 +102,11 @@ export function getAISDKLanguageModel(
   subModelName: string,
   clientOptions?: ClientOptions,
 ) {
-  if (clientOptions && Object.keys(clientOptions).length > 0) {
+  const hasValidOptions =
+    clientOptions &&
+    Object.values(clientOptions).some((v) => v !== undefined && v !== null);
+
+  if (hasValidOptions) {
     const creator = AISDKProvidersWithAPIKey[subProvider];
     if (!creator) {
       throw new UnsupportedAISDKModelProviderError(
