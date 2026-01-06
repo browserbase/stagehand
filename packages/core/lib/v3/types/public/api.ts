@@ -88,6 +88,39 @@ export const ModelConfigSchema = z
   .union([ModelNameSchema, ModelConfigObjectSchema])
   .meta({ id: "ModelConfig" });
 
+/**
+ * Model config schema with OpenAPI override for simplified documentation.
+ * Runtime accepts both string and object formats, but OpenAPI shows only the recommended object format.
+ */
+export const ModelConfigWithOverrideSchema = z
+  .union([ModelNameSchema, ModelConfigObjectSchema])
+  .optional()
+  .meta({
+    description: "Model configuration",
+    // Simplify to recommended format in OpenAPI output
+    override: ({ jsonSchema }: { jsonSchema: Record<string, unknown> }) => {
+      // Remove the anyOf/oneOf that allows string | object
+      delete jsonSchema.anyOf;
+      delete jsonSchema.oneOf;
+      delete jsonSchema.$ref;
+      // Set to the simplified object format
+      jsonSchema.type = "object";
+      jsonSchema.properties = {
+        modelName: {
+          type: "string",
+          description:
+            "Model name with provider prefix (e.g., 'openai/gpt-4.1-mini', 'anthropic/claude-sonnet-4-20250514'). The provider prefix is required.",
+          example: "openai/gpt-4.1-mini",
+        },
+        apiKey: {
+          type: "string",
+          description: "API key for the model provider",
+        },
+      };
+      jsonSchema.required = ["modelName"];
+    },
+  });
+
 /** Action object returned by observe and used by act */
 export const ActionSchema = z
   .object({
@@ -413,7 +446,7 @@ export const SessionEndResponseSchema = z
 
 export const ActOptionsSchema = z
   .object({
-    model: ModelConfigSchema.optional(),
+    model: ModelConfigWithOverrideSchema,
     variables: z
       .record(z.string(), z.string())
       .optional()
@@ -484,7 +517,7 @@ export const ActResponseSchema = wrapResponse(ActResultSchema, "ActResponse");
 
 export const ExtractOptionsSchema = z
   .object({
-    model: ModelConfigSchema.optional(),
+    model: ModelConfigWithOverrideSchema,
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the extraction",
       example: 30000,
@@ -539,7 +572,7 @@ export const ExtractResponseSchema = wrapResponse(
 
 export const ObserveOptionsSchema = z
   .object({
-    model: ModelConfigSchema.optional(),
+    model: ModelConfigWithOverrideSchema,
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the observation",
       example: 30000,
@@ -589,15 +622,17 @@ export const ObserveResponseSchema = wrapResponse(
 
 export const AgentConfigSchema = z
   .object({
-    provider: z // cloud accepts provider: at the top level for legacy reasons, in the future we should remove it
+    // NOTE: provider is accepted at runtime for legacy reasons
+    provider: z
       .enum(["openai", "anthropic", "google", "microsoft"])
       .optional()
       .meta({
         description:
-          "AI provider for the agent (legacy, use model: openai/gpt-5-nano instead)",
+          "Deprecated: Use model.modelName with provider prefix instead (e.g., 'openai/gpt-4.1-mini')",
         example: "openai",
+        deprecated: true,
       }),
-    model: ModelConfigSchema.optional(),
+    model: ModelConfigWithOverrideSchema,
     systemPrompt: z.string().optional().meta({
       description: "Custom system prompt for the agent",
     }),

@@ -142,8 +142,7 @@ components:
           type: boolean
       additionalProperties: false
     ModelName:
-      description:
-        Model name string with provider prefix (e.g., 'openai/gpt-5-nano',
+      description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano',
         'anthropic/claude-4.5-opus')
       match: {}
       example: openai/gpt-5-nano
@@ -176,10 +175,6 @@ components:
           format: uri
       required:
         - modelName
-    ModelConfig:
-      anyOf:
-        - $ref: "#/components/schemas/ModelName"
-        - $ref: "#/components/schemas/ModelConfigObject"
     Action:
       description: Action object returned by observe and used by act
       type: object
@@ -401,8 +396,7 @@ components:
           example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
           type: string
         cdpUrl:
-          description:
-            CDP WebSocket URL for connecting to the Browserbase cloud browser
+          description: CDP WebSocket URL for connecting to the Browserbase cloud browser
             (present when available)
           example: wss://connect.browserbase.com/?signingKey=abc123
           anyOf:
@@ -417,7 +411,20 @@ components:
       type: object
       properties:
         model:
-          $ref: "#/components/schemas/ModelConfig"
+          description: Model configuration
+          type: object
+          properties:
+            modelName:
+              type: string
+              description: Model name with provider prefix (e.g., 'openai/gpt-4.1-mini',
+                'anthropic/claude-sonnet-4-20250514'). The provider prefix is
+                required.
+              example: openai/gpt-4.1-mini
+            apiKey:
+              type: string
+              description: API key for the model provider
+          required:
+            - modelName
         variables:
           description: Variables to substitute in the action instruction
           example:
@@ -488,7 +495,20 @@ components:
       type: object
       properties:
         model:
-          $ref: "#/components/schemas/ModelConfig"
+          description: Model configuration
+          type: object
+          properties:
+            modelName:
+              type: string
+              description: Model name with provider prefix (e.g., 'openai/gpt-4.1-mini',
+                'anthropic/claude-sonnet-4-20250514'). The provider prefix is
+                required.
+              example: openai/gpt-4.1-mini
+            apiKey:
+              type: string
+              description: API key for the model provider
+          required:
+            - modelName
         timeout:
           description: Timeout in ms for the extraction
           example: 30000
@@ -532,7 +552,20 @@ components:
       type: object
       properties:
         model:
-          $ref: "#/components/schemas/ModelConfig"
+          description: Model configuration
+          type: object
+          properties:
+            modelName:
+              type: string
+              description: Model name with provider prefix (e.g., 'openai/gpt-4.1-mini',
+                'anthropic/claude-sonnet-4-20250514'). The provider prefix is
+                required.
+              example: openai/gpt-4.1-mini
+            apiKey:
+              type: string
+              description: API key for the model provider
+          required:
+            - modelName
         timeout:
           description: Timeout in ms for the observation
           example: 30000
@@ -573,10 +606,10 @@ components:
       type: object
       properties:
         provider:
-          description:
-            "AI provider for the agent (legacy, use model: openai/gpt-5-nano
-            instead)"
+          description: "Deprecated: Use model.modelName with provider prefix instead
+            (e.g., 'openai/gpt-4.1-mini')"
           example: openai
+          deprecated: true
           type: string
           enum:
             - openai
@@ -584,7 +617,20 @@ components:
             - google
             - microsoft
         model:
-          $ref: "#/components/schemas/ModelConfig"
+          description: Model configuration
+          type: object
+          properties:
+            modelName:
+              type: string
+              description: Model name with provider prefix (e.g., 'openai/gpt-4.1-mini',
+                'anthropic/claude-sonnet-4-20250514'). The provider prefix is
+                required.
+              example: openai/gpt-4.1-mini
+            apiKey:
+              type: string
+              description: API key for the model provider
+          required:
+            - modelName
         systemPrompt:
           description: Custom system prompt for the agent
           type: string
@@ -672,8 +718,7 @@ components:
       properties:
         instruction:
           description: Natural language instruction for the agent
-          example:
-            Log in with username 'demo' and password 'test123', then navigate to
+          example: Log in with username 'demo' and password 'test123', then navigate to
             settings
           type: string
         maxSteps:
@@ -1007,10 +1052,6 @@ components:
       required:
         - modelName
       additionalProperties: false
-    ModelConfigOutput:
-      anyOf:
-        - $ref: "#/components/schemas/ModelName"
-        - $ref: "#/components/schemas/ModelConfigObjectOutput"
     ActionOutput:
       description: Action object returned by observe and used by act
       type: object
@@ -1243,8 +1284,7 @@ components:
           example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
           type: string
         cdpUrl:
-          description:
-            CDP WebSocket URL for connecting to the Browserbase cloud browser
+          description: CDP WebSocket URL for connecting to the Browserbase cloud browser
             (present when available)
           example: wss://connect.browserbase.com/?signingKey=abc123
           anyOf:
@@ -1260,7 +1300,20 @@ components:
       type: object
       properties:
         model:
-          $ref: "#/components/schemas/ModelConfigOutput"
+          description: Model configuration
+          type: object
+          properties:
+            modelName:
+              type: string
+              description: Model name with provider prefix (e.g., 'openai/gpt-4.1-mini',
+                'anthropic/claude-sonnet-4-20250514'). The provider prefix is
+                required.
+              example: openai/gpt-4.1-mini
+            apiKey:
+              type: string
+              description: API key for the model provider
+          required:
+            - modelName
         variables:
           description: Variables to substitute in the action instruction
           example:
@@ -1314,7 +1367,20 @@ components:
       type: object
       properties:
         model:
-          $ref: "#/components/schemas/ModelConfigOutput"
+          description: Model configuration
+          type: object
+          properties:
+            modelName:
+              type: string
+              description: Model name with provider prefix (e.g., 'openai/gpt-4.1-mini',
+                'anthropic/claude-sonnet-4-20250514'). The provider prefix is
+                required.
+              example: openai/gpt-4.1-mini
+            apiKey:
+              type: string
+              description: API key for the model provider
+          required:
+            - modelName
         timeout:
           description: Timeout in ms for the extraction
           example: 30000
@@ -1340,7 +1406,20 @@ components:
       type: object
       properties:
         model:
-          $ref: "#/components/schemas/ModelConfigOutput"
+          description: Model configuration
+          type: object
+          properties:
+            modelName:
+              type: string
+              description: Model name with provider prefix (e.g., 'openai/gpt-4.1-mini',
+                'anthropic/claude-sonnet-4-20250514'). The provider prefix is
+                required.
+              example: openai/gpt-4.1-mini
+            apiKey:
+              type: string
+              description: API key for the model provider
+          required:
+            - modelName
         timeout:
           description: Timeout in ms for the observation
           example: 30000
@@ -1367,10 +1446,10 @@ components:
       type: object
       properties:
         provider:
-          description:
-            "AI provider for the agent (legacy, use model: openai/gpt-5-nano
-            instead)"
+          description: "Deprecated: Use model.modelName with provider prefix instead
+            (e.g., 'openai/gpt-4.1-mini')"
           example: openai
+          deprecated: true
           type: string
           enum:
             - openai
@@ -1378,7 +1457,20 @@ components:
             - google
             - microsoft
         model:
-          $ref: "#/components/schemas/ModelConfigOutput"
+          description: Model configuration
+          type: object
+          properties:
+            modelName:
+              type: string
+              description: Model name with provider prefix (e.g., 'openai/gpt-4.1-mini',
+                'anthropic/claude-sonnet-4-20250514'). The provider prefix is
+                required.
+              example: openai/gpt-4.1-mini
+            apiKey:
+              type: string
+              description: API key for the model provider
+          required:
+            - modelName
         systemPrompt:
           description: Custom system prompt for the agent
           type: string
@@ -1443,8 +1535,7 @@ components:
       properties:
         instruction:
           description: Natural language instruction for the agent
-          example:
-            Log in with username 'demo' and password 'test123', then navigate to
+          example: Log in with username 'demo' and password 'test123', then navigate to
             settings
           type: string
         maxSteps:
@@ -1561,6 +1652,10 @@ components:
         - status
         - message
       additionalProperties: false
+    ModelConfig:
+      anyOf:
+        - $ref: "#/components/schemas/ModelName"
+        - $ref: "#/components/schemas/ModelConfigObjectOutput"
     SessionIdParams:
       type: object
       properties:
@@ -1675,8 +1770,7 @@ components:
         - data
       additionalProperties: false
     StreamEvent:
-      description:
-        "Server-Sent Event emitted during streaming responses. Events are
+      description: "Server-Sent Event emitted during streaming responses. Events are
         sent as `data: <JSON>\\n\\n`. Key order: data (with status first), type,
         id."
       type: object
@@ -1703,8 +1797,7 @@ paths:
     post:
       operationId: SessionAct
       summary: Perform an action
-      description:
-        Executes a browser action using natural language instructions or a
+      description: Executes a browser action using natural language instructions or a
         predefined Action object.
       requestBody:
         content:
@@ -1955,8 +2048,7 @@ paths:
     post:
       operationId: SessionObserve
       summary: Observe available actions
-      description:
-        Identifies and returns available actions on the current page that
+      description: Identifies and returns available actions on the current page that
         match the given instruction.
       requestBody:
         content:
@@ -2021,8 +2113,7 @@ paths:
     post:
       operationId: SessionStart
       summary: Start a new browser session
-      description:
-        Creates a new browser session with the specified configuration.
+      description: Creates a new browser session with the specified configuration.
         Returns a session ID used for all subsequent operations.
       requestBody:
         content:
@@ -2120,8 +2211,7 @@ paths:
     post:
       operationId: SessionAgentExecute
       summary: Execute an AI agent
-      description:
-        Runs an autonomous AI agent that can perform complex multi-step
+      description: Runs an autonomous AI agent that can perform complex multi-step
         browser tasks.
       requestBody:
         content:
