@@ -29,7 +29,7 @@ import { togetherai, createTogetherAI } from "@ai-sdk/togetherai";
 import { mistral, createMistral } from "@ai-sdk/mistral";
 import { deepseek, createDeepSeek } from "@ai-sdk/deepseek";
 import { perplexity, createPerplexity } from "@ai-sdk/perplexity";
-import { ollama } from "ollama-ai-provider-v2";
+import { ollama, createOllama } from "ollama-ai-provider-v2";
 import { AISDKProvider, AISDKCustomProvider } from "../types/public/model";
 
 const AISDKProviders: Record<string, AISDKProvider> = {
@@ -60,6 +60,7 @@ const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   mistral: createMistral,
   deepseek: createDeepSeek,
   perplexity: createPerplexity,
+  ollama: createOllama,
 };
 
 const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
@@ -102,7 +103,11 @@ export function getAISDKLanguageModel(
   subModelName: string,
   clientOptions?: ClientOptions,
 ) {
-  if (clientOptions && Object.keys(clientOptions).length > 0) {
+  const hasValidOptions =
+    clientOptions &&
+    Object.values(clientOptions).some((v) => v !== undefined && v !== null);
+
+  if (hasValidOptions) {
     const creator = AISDKProvidersWithAPIKey[subProvider];
     if (!creator) {
       throw new UnsupportedAISDKModelProviderError(
