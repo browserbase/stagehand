@@ -1,0 +1,215 @@
+# yaml-language-server: $schema=https://app.stainless.com/config-internal.schema.json
+
+# The main edition for the config, see the [docs] for more information.
+#
+# [docs]: https://www.stainless.com/docs/reference/editions
+edition: 2025-10-10
+
+organization:
+  # Name of your organization or company, used to determine the name of the client
+  name: stagehand
+  # Link to your API documentation.
+  docs: https://docs.stagehand.dev
+  # Contact email for bug reports, questions, and support requests.
+  contact: ''
+
+# `targets` define the output targets and their customization options, such as
+# whether to emit the Node SDK and what its package name should be.
+targets:
+  python:
+    # The edition for this target, see the [docs] for more information.
+    #
+    # [docs]: https://www.stainless.com/docs/reference/editions
+    edition: python.2025-11-20
+    package_name: stagehand
+    production_repo: browserbase/stagehand-python#stainless
+    publish:
+      pypi: true
+    project_name: stagehand-alpha
+  go:
+    edition: go.2025-10-08
+    package_name: stagehand
+    production_repo: browserbase/stagehand-go
+    options:
+      enable_v2: true
+  java:
+    edition: java.2025-10-08
+    reverse_domain: com.browserbase.api
+    package_name: stagehand
+    production_repo: browserbase/stagehand-java
+    publish:
+      maven: false
+  kotlin:
+    edition: kotlin.2025-10-08
+    reverse_domain: com.browserbase.api
+    package_name: stagehand
+    production_repo: browserbase/stagehand-kotlin
+    publish:
+      maven: false
+  ruby:
+    edition: ruby.2025-10-08
+    gem_name: stagehand
+    production_repo: browserbase/stagehand-ruby
+    publish:
+      rubygems: false
+  typescript:
+    edition: typescript.2025-10-10
+    package_name: stagehand-sdk
+    production_repo: null
+    publish:
+      npm: false
+    options:
+      mcp_server:
+        package_name: stagehand-mcp
+        enable_all_resources: true
+  php:
+    edition: php.2025-10-08
+    package_name: stagehand
+    production_repo: browserbase/stagehand-php
+    composer_package_name: browserbase/stagehand
+  cli:
+    edition: cli.2025-10-08
+    binary_name: stagehand
+    production_repo: browserbase/stagehand-cli
+  csharp:
+    edition: csharp.2025-10-08
+    package_name: stagehand
+    production_repo: browserbase/stagehand-net
+    publish:
+      nuget: false
+
+# `environments` are a map of the name of the environment (e.g. "sandbox",
+# "production") to the corresponding url to use.
+environments:
+  production: https://api.stagehand.browserbase.com
+  # dev: https://api.stagehand.dev.browserbase.com
+  # local: http://localhost:5000/v1
+
+# `resources` define the structure and organization for your API, such as how
+# methods and models are grouped together and accessed. See the [configuration
+# guide] for more information.
+#
+# [configuration guide]: https://www.stainless.com/docs/guides/configure#resources
+resources:
+  sessions:
+    models:
+      action: '#/components/schemas/Action'
+      model_config: '#/components/schemas/ModelConfig'
+      stream_event: '#/components/schemas/StreamEvent'
+    methods:
+      start: post /v1/sessions/start
+      act:
+        endpoint: post /v1/sessions/{id}/act
+        type: http
+        streaming:
+          param_discriminator: streamResponse
+          stream_event_model: sessions.stream_event
+          params_type_name: streamResponse
+      extract:
+        endpoint: post /v1/sessions/{id}/extract
+        type: http
+        streaming:
+          param_discriminator: streamResponse
+          stream_event_model: sessions.stream_event
+          params_type_name: streamResponse
+      observe:
+        endpoint: post /v1/sessions/{id}/observe
+        type: http
+        streaming:
+          param_discriminator: streamResponse
+          stream_event_model: sessions.stream_event
+          params_type_name: streamResponse
+      execute:
+        endpoint: post /v1/sessions/{id}/agentExecute
+        type: http
+        streaming:
+          param_discriminator: streamResponse
+          stream_event_model: sessions.stream_event
+          params_type_name: streamResponse
+      navigate: post /v1/sessions/{id}/navigate
+      end: post /v1/sessions/{id}/end
+
+streaming:
+  on_event:
+    - data_starts_with: finished
+      handle: done
+    - data_starts_with: error
+      handle: error
+    - event_type: null
+      handle: yield
+
+settings:
+  # All generated integration tests that hit the prism mock http server are marked
+  # as skipped. Removing this setting or setting it to false enables tests, but
+  # doing so may result in test failures due to bugs in the test server.
+  #
+  # [prism mock http server]: https://stoplight.io/open-source/prism
+  disable_mock_tests: true
+  license: Apache-2.0
+
+# `client_settings` define settings for the API client, such as extra constructor
+# arguments (used for authentication), retry behavior, idempotency, etc.
+client_settings:
+  opts:
+    BROWSERBASE_API_KEY:
+      type: string
+      read_env: BROWSERBASE_API_KEY
+      description: Your [Browserbase API Key](https://www.browserbase.com/settings)
+      nullable: false
+      auth:
+        security_scheme: BBApiKeyAuth
+    BROWSERBASE_PROJECT_ID:
+      type: string
+      read_env: BROWSERBASE_PROJECT_ID
+      description: Your [Browserbase Project ID](https://www.browserbase.com/settings)
+      nullable: false
+      auth:
+        security_scheme: BBProjectIdAuth
+    MODEL_API_KEY:
+      type: string
+      read_env: MODEL_API_KEY
+      description: Your LLM provider API key (e.g. OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.)
+      nullable: false
+      auth:
+        security_scheme: LLMModelApiKeyAuth
+
+security_schemes:
+  BBApiKeyAuth:
+    type: apiKey
+    in: header
+    name: x-bb-api-key
+  BBProjectIdAuth:
+    type: apiKey
+    in: header
+    name: x-bb-project-id
+  LLMModelApiKeyAuth:
+    type: apiKey
+    in: header
+    name: x-model-api-key
+
+security:
+  - BBApiKeyAuth: []
+    BBProjectIdAuth: []
+    LLMModelApiKeyAuth: []
+
+# `readme` is used to configure the code snippets that will be rendered in the
+# README.md of various SDKs.
+readme:
+  example_requests:
+    default:
+      type: request
+      endpoint: post /v1/sessions/start
+      params:
+        modelName: 'openai/gpt-5-nano'
+    headline:
+      type: request
+      endpoint: post /v1/sessions/{id}/act
+      params:
+        input: 'click the first link on the page'
+        id: '00000000-your-session-id-000000000000'
+
+diagnostics:
+  ignored:
+    Ruby/NameNotAllowed: true
+    Ruby/NameShadowedBuiltin: true
+

@@ -392,6 +392,12 @@ export const SessionStartResponseSchema = wrapResponse(
 // Session End
 // =============================================================================
 
+/** Session end request - empty JSON object (required). */
+export const SessionEndRequestSchema = z
+  .object({})
+  .strict()
+  .meta({ id: "SessionEndRequest" });
+
 export const SessionEndResultSchema = z
   .object({})
   .strict()

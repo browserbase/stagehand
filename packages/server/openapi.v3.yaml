@@ -413,6 +413,10 @@ components:
       required:
         - sessionId
         - available
+    SessionEndRequest:
+      type: object
+      properties: {}
+      additionalProperties: false
     ActOptions:
       type: object
       properties:
@@ -1770,6 +1774,12 @@ paths:
       operationId: SessionEnd
       summary: End a browser session
       description: Terminates the browser session and releases all associated resources.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionEndRequest"
+        required: true
       parameters:
         - schema:
             description: Unique session identifier
