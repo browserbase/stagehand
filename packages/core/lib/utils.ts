@@ -695,6 +695,8 @@ export const providerEnvVarMap: Partial<
   google_legacy: "GOOGLE_API_KEY",
 };
 
+const providersWithoutApiKey = new Set(["ollama"]);
+
 /**
  * Loads an API key for a provider, checking environment variables.
  * @param provider The name of the provider (e.g., 'openai', 'anthropic')
@@ -711,11 +713,13 @@ export function loadApiKeyFromEnv(
 
   const envVarName = providerEnvVarMap[provider];
   if (!envVarName) {
-    logger({
-      category: "init",
-      message: `No known environment variable for provider '${provider}'`,
-      level: 0,
-    });
+    if (!providersWithoutApiKey.has(provider)) {
+      logger({
+        category: "init",
+        message: `No known environment variable for provider '${provider}'`,
+        level: 0,
+      });
+    }
     return undefined;
   }
 
