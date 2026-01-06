@@ -1,5 +1,5 @@
 import fastify from "fastify";
-import { afterAll, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { serializerCompiler, validatorCompiler } from "fastify-zod-openapi";
 
 import endRoute from "../src/routes/v1/sessions/_id/end.js";
@@ -30,8 +30,8 @@ describe("/v1/sessions/:id/end body requirements", () => {
     app.route(endRoute);
   });
 
-  afterAll(async () => {
-    await app.close();
+  afterEach(async () => {
+    await app?.close();
   });
 
   test("returns 400 if JSON content-type has an empty body", async () => {
