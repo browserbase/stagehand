@@ -47,69 +47,98 @@ export const LocalBrowserLaunchOptionsSchema = z
   .strict()
   .meta({ id: "LocalBrowserLaunchOptions" });
 
-/** Simple model name string */
-export const ModelNameSchema = z.string().meta({
+/** Simple model config name string */
+export const ModelConfigStringSchema = z.string().meta({
   id: "ModelName",
   description:
     "Model name string with provider prefix (e.g., 'openai/gpt-5-nano', 'anthropic/claude-4.5-opus')",
-  match: /^(openai|anthropic|google|microsoft)\/.+$/,
+  match: /^(openai|anthropic|google|microsoft|ollama|deepseek)\/.+$/,
   example: "openai/gpt-5-nano",
 });
 
 /** Detailed model configuration object */
 export const ModelConfigObjectSchema = z
   .object({
+    // provider is accepted at runtime for legacy reasons but excluded from OpenAPI
     provider: z
-      .enum(["openai", "anthropic", "google", "microsoft"])
+      .enum([
+        "openai",
+        "anthropic",
+        "google",
+        "microsoft",
+        // "ollama",
+        // "deepseek",
+      ])
       .optional()
       .meta({
         description:
-          "AI provider for the model (or provide a baseURL endpoint instead)",
+          "AI provider for the model. (deprecated, prefer new {modelName: 'openai/gpt-5-nano', apiKey, baseURL?} format instead)",
         example: "openai",
       }),
     modelName: z.string().meta({
       description:
-        "Model name string without prefix (e.g., 'gpt-5-nano', 'claude-4.5-opus')",
-      example: "gpt-5-nano",
+        "Model name string with provider prefix (e.g., 'openai/gpt-5-nano', 'anthropic/claude-opus-4-5-20251101')",
+      example: "openai/gpt-5-nano",
     }),
     apiKey: z.string().optional().meta({
-      description: "API key for the model provider",
-      example: "sk-some-openai-api-key",
+      description:
+        "API key for the LLM provider (overrides x-model-api-key header if both are present)",
+      example: "sk-some-llm-provider-api-key",
     }),
     baseURL: z.string().url().optional().meta({
-      description: "Base URL for the model provider",
-      example: "https://api.openai.com/v1",
+      description:
+        "Optional custom LLM provider API URL (e.g. for AWS Bedrock or Azure OpenAI)",
+      example: "https://bedrock-runtime.us-east-1.amazonaws.com",
     }),
   })
-  .meta({ id: "ModelConfigObject" });
+  .meta({
+    id: "ModelConfigObject",
+    // Remove deprecated provider key from OpenAPI output - modelName should include provider prefix
+    override: ({ jsonSchema }: { jsonSchema: Record<string, unknown> }) => {
+      const props = jsonSchema.properties as
+        | Record<string, unknown>
+        | undefined;
+      if (props) {
+        delete props.provider;
+      }
+    },
+  });
 
 /**
- * Model configuration - string model name or detailed config.
- * Runtime accepts both string and object formats, but OpenAPI shows only the recommended object format.
+ * Model configuration - flat string model name or detailed config object.
+ * Runtime accepts both basic string model name and detailed config object formats,
+ * but OpenAPI shows only the recommended object format in the docs.
  */
 export const ModelConfigSchema = z
-  .union([ModelNameSchema, ModelConfigObjectSchema])
+  .union([ModelConfigStringSchema, ModelConfigObjectSchema])
   .meta({
     id: "ModelConfig",
-    description: "Model configuration",
-    // Simplify to recommended format in OpenAPI output
+    description: "LLM provider and model configuration",
+    // Simplify to recommended object format in OpenAPI output
     override: ({ jsonSchema }: { jsonSchema: Record<string, unknown> }) => {
-      // Remove the anyOf/oneOf that allows string | object
+      // Remove the anyOf/oneOf union - only show object format in docs
       delete jsonSchema.anyOf;
       delete jsonSchema.oneOf;
-      delete jsonSchema.$ref;
-      // Set to the simplified object format
+      // Inline the object schema (mirrors ModelConfigObjectSchema without provider)
       jsonSchema.type = "object";
       jsonSchema.properties = {
         modelName: {
           type: "string",
           description:
-            "Model name with provider prefix (e.g., 'openai/gpt-4.1-mini', 'anthropic/claude-sonnet-4-20250514'). The provider prefix is required.",
-          example: "openai/gpt-4.1-mini",
+            "Model name with provider prefix (e.g., 'openai/gpt-5-nano', 'anthropic/claude-opus-4-5-20251101')",
+          example: "openai/gpt-5-nano",
         },
         apiKey: {
           type: "string",
-          description: "API key for the model provider",
+          description:
+            "API key for the LLM provider (overrides any x-model-api-key header)",
+        },
+        baseURL: {
+          type: "string",
+          format: "uri",
+          description:
+            "Optional custom LLM provider API URL (e.g. for AWS Bedrock or Azure OpenAI)",
+          example: "https://bedrock-runtime.us-east-1.amazonaws.com",
         },
       };
       jsonSchema.required = ["modelName"];
@@ -623,7 +652,7 @@ export const AgentConfigSchema = z
       .optional()
       .meta({
         description:
-          "Deprecated: Use model.modelName with provider prefix instead (e.g., 'openai/gpt-4.1-mini')",
+          "Deprecated: Use model.modelName with provider prefix instead (e.g., 'openai/gpt-5-nano')",
         example: "openai",
         deprecated: true,
       }),

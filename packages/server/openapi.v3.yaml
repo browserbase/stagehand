@@ -76,6 +76,13 @@ components:
         id: $response.body#/data/sessionId
       description: End the session and release resources
   schemas:
+    ModelName:
+      description:
+        Model name string with provider prefix (e.g., 'openai/gpt-5-nano',
+        'anthropic/claude-4.5-opus')
+      match: {}
+      example: openai/gpt-5-nano
+      type: string
     LocalBrowserLaunchOptions:
       type: object
       properties:
@@ -142,18 +149,25 @@ components:
           type: boolean
       additionalProperties: false
     ModelConfig:
-      description: Model configuration
+      description: LLM provider and model configuration
       type: object
       properties:
         modelName:
           type: string
-          description: Model name with provider prefix (e.g., 'openai/gpt-4.1-mini',
-            'anthropic/claude-sonnet-4-20250514'). The provider prefix is
-            required.
-          example: openai/gpt-4.1-mini
+          description:
+            Model name with provider prefix (e.g., 'openai/gpt-5-nano',
+            'anthropic/claude-opus-4-5-20251101')
+          example: openai/gpt-5-nano
         apiKey:
           type: string
-          description: API key for the model provider
+          description: API key for the LLM provider (overrides any x-model-api-key header)
+        baseURL:
+          type: string
+          format: uri
+          description:
+            Optional custom LLM provider API URL (e.g. for AWS Bedrock or Azure
+            OpenAI)
+          example: https://bedrock-runtime.us-east-1.amazonaws.com
       required:
         - modelName
     Action:
@@ -377,7 +391,8 @@ components:
           example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
           type: string
         cdpUrl:
-          description: CDP WebSocket URL for connecting to the Browserbase cloud browser
+          description:
+            CDP WebSocket URL for connecting to the Browserbase cloud browser
             (present when available)
           example: wss://connect.browserbase.com/?signingKey=abc123
           anyOf:
@@ -548,8 +563,9 @@ components:
       type: object
       properties:
         provider:
-          description: "Deprecated: Use model.modelName with provider prefix instead
-            (e.g., 'openai/gpt-4.1-mini')"
+          description:
+            "Deprecated: Use model.modelName with provider prefix instead
+            (e.g., 'openai/gpt-5-nano')"
           example: openai
           deprecated: true
           type: string
@@ -647,7 +663,8 @@ components:
       properties:
         instruction:
           description: Natural language instruction for the agent
-          example: Log in with username 'demo' and password 'test123', then navigate to
+          example:
+            Log in with username 'demo' and password 'test123', then navigate to
             settings
           type: string
         maxSteps:
@@ -1184,7 +1201,8 @@ components:
           example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
           type: string
         cdpUrl:
-          description: CDP WebSocket URL for connecting to the Browserbase cloud browser
+          description:
+            CDP WebSocket URL for connecting to the Browserbase cloud browser
             (present when available)
           example: wss://connect.browserbase.com/?signingKey=abc123
           anyOf:
@@ -1307,8 +1325,9 @@ components:
       type: object
       properties:
         provider:
-          description: "Deprecated: Use model.modelName with provider prefix instead
-            (e.g., 'openai/gpt-4.1-mini')"
+          description:
+            "Deprecated: Use model.modelName with provider prefix instead
+            (e.g., 'openai/gpt-5-nano')"
           example: openai
           deprecated: true
           type: string
@@ -1383,7 +1402,8 @@ components:
       properties:
         instruction:
           description: Natural language instruction for the agent
-          example: Log in with username 'demo' and password 'test123', then navigate to
+          example:
+            Log in with username 'demo' and password 'test123', then navigate to
             settings
           type: string
         maxSteps:
@@ -1500,36 +1520,26 @@ components:
         - status
         - message
       additionalProperties: false
-    ModelName:
-      description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano',
-        'anthropic/claude-4.5-opus')
-      match: {}
-      example: openai/gpt-5-nano
-      type: string
     ModelConfigObject:
       type: object
       properties:
-        provider:
-          description: AI provider for the model (or provide a baseURL endpoint instead)
-          example: openai
-          type: string
-          enum:
-            - openai
-            - anthropic
-            - google
-            - microsoft
         modelName:
-          description: Model name string without prefix (e.g., 'gpt-5-nano',
-            'claude-4.5-opus')
-          example: gpt-5-nano
+          description:
+            Model name string with provider prefix (e.g., 'openai/gpt-5-nano',
+            'anthropic/claude-opus-4-5-20251101')
+          example: openai/gpt-5-nano
           type: string
         apiKey:
-          description: API key for the model provider
-          example: sk-some-openai-api-key
+          description:
+            API key for the LLM provider (overrides x-model-api-key header if
+            both are present)
+          example: sk-some-llm-provider-api-key
           type: string
         baseURL:
-          description: Base URL for the model provider
-          example: https://api.openai.com/v1
+          description:
+            Optional custom LLM provider API URL (e.g. for AWS Bedrock or Azure
+            OpenAI)
+          example: https://bedrock-runtime.us-east-1.amazonaws.com
           type: string
           format: uri
       required:
@@ -1649,7 +1659,8 @@ components:
         - data
       additionalProperties: false
     StreamEvent:
-      description: "Server-Sent Event emitted during streaming responses. Events are
+      description:
+        "Server-Sent Event emitted during streaming responses. Events are
         sent as `data: <JSON>\\n\\n`. Key order: data (with status first), type,
         id."
       type: object
@@ -1676,7 +1687,8 @@ paths:
     post:
       operationId: SessionAct
       summary: Perform an action
-      description: Executes a browser action using natural language instructions or a
+      description:
+        Executes a browser action using natural language instructions or a
         predefined Action object.
       requestBody:
         content:
@@ -1927,7 +1939,8 @@ paths:
     post:
       operationId: SessionObserve
       summary: Observe available actions
-      description: Identifies and returns available actions on the current page that
+      description:
+        Identifies and returns available actions on the current page that
         match the given instruction.
       requestBody:
         content:
@@ -1992,7 +2005,8 @@ paths:
     post:
       operationId: SessionStart
       summary: Start a new browser session
-      description: Creates a new browser session with the specified configuration.
+      description:
+        Creates a new browser session with the specified configuration.
         Returns a session ID used for all subsequent operations.
       requestBody:
         content:
@@ -2090,7 +2104,8 @@ paths:
     post:
       operationId: SessionAgentExecute
       summary: Execute an AI agent
-      description: Runs an autonomous AI agent that can perform complex multi-step
+      description:
+        Runs an autonomous AI agent that can perform complex multi-step
         browser tasks.
       requestBody:
         content:
