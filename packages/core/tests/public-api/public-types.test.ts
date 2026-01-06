@@ -195,6 +195,7 @@ describe("Stagehand public API types", () => {
       messages?: Stagehand.ModelMessage[];
       signal?: AbortSignal;
       excludeTools?: string[];
+      outputSchema?: Stagehand.StagehandZodSchema;
       callbacks?: Stagehand.AgentExecuteCallbacks;
     };
 
@@ -212,6 +213,7 @@ describe("Stagehand public API types", () => {
       messages?: Stagehand.ModelMessage[];
       signal?: AbortSignal;
       excludeTools?: string[];
+      outputSchema?: Stagehand.StagehandZodSchema;
       callbacks?: Stagehand.AgentStreamCallbacks;
     };
 
@@ -237,7 +239,7 @@ describe("Stagehand public API types", () => {
   });
 
   describe("AgentResult", () => {
-    type ExpectedAgentResult = {
+    type ExpectedAgentResult<TOutput = unknown> = {
       success: boolean;
       message: string;
       actions: Stagehand.AgentAction[];
@@ -251,10 +253,18 @@ describe("Stagehand public API types", () => {
         inference_time_ms: number;
       };
       messages?: Stagehand.ModelMessage[];
+      output?: TOutput;
     };
 
     it("matches expected type shape", () => {
       expectTypeOf<Stagehand.AgentResult>().toEqualTypeOf<ExpectedAgentResult>();
+    });
+
+    it("supports generic output type", () => {
+      type CustomOutput = { stockPrice: string; change?: string };
+      expectTypeOf<
+        Stagehand.AgentResult<CustomOutput>
+      >().toEqualTypeOf<ExpectedAgentResult<CustomOutput>>();
     });
   });
 

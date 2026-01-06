@@ -24,6 +24,7 @@ import { Page as PlaywrightPage } from "playwright-core";
 import { Page as PuppeteerPage } from "puppeteer-core";
 import { Page as PatchrightPage } from "patchright-core";
 import { Page } from "../../understudy/page";
+import type { StagehandZodSchema, InferStagehandSchema } from "../../zodCompat";
 
 export interface AgentContext {
   options: AgentExecuteOptionsBase;
@@ -56,7 +57,7 @@ export interface AgentAction {
   [key: string]: unknown;
 }
 
-export interface AgentResult {
+export interface AgentResult<TOutput = unknown> {
   success: boolean;
   message: string;
   actions: AgentAction[];
@@ -75,6 +76,11 @@ export interface AgentResult {
    * @experimental
    */
   messages?: ModelMessage[];
+  /**
+   * Structured output extracted using outputSchema.
+   * @experimental
+   */
+  output?: TOutput;
 }
 
 export type AgentStreamResult = StreamTextResult<ToolSet, never> & {
@@ -312,6 +318,25 @@ export interface AgentExecuteOptionsBase {
    * ```
    */
   excludeTools?: string[];
+  /**
+   * Zod schema for extracting structured output after execution.
+   * @experimental
+   * @example
+   * ```typescript
+   * import { z } from "zod";
+   *
+   * const result = await agent.execute({
+   *   instruction: "Search for the stock price of NVDA",
+   *   outputSchema: z.object({
+   *     stockPrice: z.string(),
+   *     change: z.string().optional(),
+   *   }),
+   * });
+   *
+   * console.log(result.output?.stockPrice);
+   * ```
+   */
+  outputSchema?: StagehandZodSchema;
 }
 
 /**
@@ -362,6 +387,7 @@ export interface AgentExecutionOptions<
 
 export interface AgentHandlerOptions {
   modelName: string;
+  fullModelName: string;
   clientOptions?: ClientOptions;
   userProvidedInstructions?: string;
   experimental?: boolean;

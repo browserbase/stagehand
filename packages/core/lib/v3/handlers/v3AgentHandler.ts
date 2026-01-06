@@ -34,6 +34,7 @@ import {
   StreamingCallbacksInNonStreamingModeError,
   AgentAbortError,
 } from "../types/public/sdkErrors";
+import type { StagehandZodSchema } from "../zodCompat";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -292,13 +293,33 @@ export class V3AgentHandler {
           : undefined,
       });
 
-      return this.consolidateMetricsAndResult(
+      const agentResult = this.consolidateMetricsAndResult(
         startTime,
         state,
         messages,
         result,
         maxSteps,
       );
+
+      if (preparedOptions.outputSchema) {
+        try {
+          const output = await this.extractOutput(preparedOptions.outputSchema);
+          agentResult.output = output;
+          this.logger({
+            category: "agent",
+            message: `Extraction completed successfully`,
+            level: 0,
+          });
+        } catch (error) {
+          this.logger({
+            category: "agent",
+            message: `Failed to extract output: ${getErrorMessage(error)}`,
+            level: 0,
+          });
+        }
+      }
+
+      return agentResult;
     } catch (error) {
       // Re-throw validation errors that should propagate to the caller
       if (error instanceof StreamingCallbacksInNonStreamingModeError) {
@@ -402,7 +423,7 @@ export class V3AgentHandler {
         handleError(event.error);
       },
       onChunk: callbacks?.onChunk,
-      onFinish: (event) => {
+      onFinish: async (event) => {
         if (callbacks?.onFinish) {
           callbacks.onFinish(event);
         }
@@ -413,6 +434,20 @@ export class V3AgentHandler {
           event,
           maxSteps,
         );
+
+        if (options.outputSchema) {
+          try {
+            const output = await this.extractOutput(options.outputSchema);
+            result.output = output;
+          } catch (error) {
+            this.logger({
+              category: "agent",
+              message: `Failed to extract output: ${getErrorMessage(error)}`,
+              level: 1,
+            });
+          }
+        }
+
         resolveResult(result);
       },
       onAbort: (event) => {
@@ -514,6 +549,23 @@ export class V3AgentHandler {
       provider,
       excludeTools,
     });
+  }
+
+  private async extractOutput(schema: StagehandZodSchema): Promise<unknown> {
+    this.logger({
+      category: "agent",
+      message: "Extracting structured output from page",
+      level: 1,
+    });
+
+    // Use the same model as the agent for extraction
+    const modelName = this.llmClient?.modelName;
+
+    return await this.v3.extract(
+      "Extract the requested data from the current page state based on the provided schema",
+      schema,
+      modelName ? { model: modelName } : undefined,
+    );
   }
 
   private handleStop(

@@ -1738,7 +1738,8 @@ export class V3 {
         ...this.modelClientOptions,
       };
 
-      const { modelName, isCua, clientOptions } = resolveModel(modelToUse);
+      const { modelName, fullModelName, isCua, clientOptions } =
+        resolveModel(modelToUse);
 
       if (!isCua) {
         throw new CuaModelRequiredError(AVAILABLE_CUA_MODELS);
@@ -1771,6 +1772,7 @@ export class V3 {
               this.logger,
               {
                 modelName,
+                fullModelName,
                 clientOptions,
                 userProvidedInstructions:
                   options.systemPrompt ??

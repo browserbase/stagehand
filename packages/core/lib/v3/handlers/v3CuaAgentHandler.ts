@@ -20,6 +20,7 @@ import { LogLine } from "../types/public/logs";
 import { type Action, V3FunctionName } from "../types/public/methods";
 import { SessionFileLogger } from "../flowLogger";
 import { StagehandClosedError } from "../types/public/sdkErrors";
+import type { StagehandZodSchema } from "../zodCompat";
 
 function getPNGDimensions(buffer: Buffer): { width: number; height: number } {
   if (
@@ -236,7 +237,40 @@ export class V3CuaAgentHandler {
         inferenceTimeMs,
       );
     }
+
+    if (options.outputSchema) {
+      try {
+        const output = await this.extractOutput(options.outputSchema);
+        result.output = output;
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        this.logger({
+          category: "agent",
+          message: `Failed to extract output: ${errorMessage}`,
+          level: 1,
+        });
+      }
+    }
+
     return result;
+  }
+
+  private async extractOutput(schema: StagehandZodSchema): Promise<unknown> {
+    this.logger({
+      category: "agent",
+      message: "Extracting structured output from page",
+      level: 1,
+    });
+
+    // Use the full model name (with provider prefix) for extraction
+    const modelName = this.options?.fullModelName;
+
+    return await this.v3.extract(
+      "Extract the requested data from the current page state based on the provided schema",
+      schema,
+      modelName ? { model: modelName } : undefined,
+    );
   }
 
   private async executeAction(

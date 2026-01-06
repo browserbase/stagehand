@@ -28,11 +28,13 @@ export class AISdkClient extends LLMClient {
   constructor({
     model,
     logger,
+    modelName,
   }: {
     model: LanguageModelV2;
     logger?: (message: LogLine) => void;
+    modelName?: string;
   }) {
-    super(model.modelId as AvailableModel);
+    super((modelName ?? model.modelId) as AvailableModel);
     this.model = model;
     this.logger = logger;
   }

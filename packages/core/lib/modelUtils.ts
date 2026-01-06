@@ -17,6 +17,7 @@ export function splitModelName(model: string): {
 export function resolveModel(model: string | ModelConfiguration): {
   provider: string;
   modelName: string;
+  fullModelName: string;
   clientOptions: ClientOptions;
   isCua: boolean;
 } {
@@ -56,6 +57,7 @@ export function resolveModel(model: string | ModelConfiguration): {
   return {
     provider,
     modelName: parsedModelName,
+    fullModelName: modelString,
     clientOptions,
     isCua,
   };
