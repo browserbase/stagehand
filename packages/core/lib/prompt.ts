@@ -81,6 +81,94 @@ ONLY print the content using the print_extracted_data tool provided.`;
   };
 }
 
+// scrape
+export function buildScrapeSystemPrompt(
+  isUsingPrintScrapedDataTool: boolean = false,
+  userProvidedInstructions?: string,
+): ChatMessage {
+  const baseContent = `You are scraping content on behalf of a user.
+  If a user asks you to scrape a 'list' of information, or 'all' information, 
+  YOU MUST SCRAPE ALL OF THE INFORMATION THAT THE USER REQUESTS.
+   
+  You will be given:
+1. An instruction
+2. `;
+
+  const contentDetail = `A list of DOM elements to scrape from.`;
+
+  const instructions = `
+You MUST return only the element IDs for the content you identify. Every value must be the element ID in the form "frameId-backendId" (e.g. "0-432"). Never return the literal text/content itself.
+If no matching element exists, return null or an empty string (still as an ID field) to signal that the value was not found.
+  `.trim();
+
+  const toolInstructions = isUsingPrintScrapedDataTool
+    ? `
+ONLY print the content using the print_scraped_data tool provided.
+ONLY print the content using the print_scraped_data tool provided.
+  `.trim()
+    : "";
+
+  const additionalInstructions =
+    "If a user is attempting to scrape links, URLs, text, or any other attribute, always respond with the ID of the element that contains that information. " +
+    "Do not attempt to reconstruct or quote the actual content—only return the ID.";
+
+  const userInstructions = buildUserInstructionsString(
+    userProvidedInstructions,
+  );
+
+  const content =
+    `${baseContent}${contentDetail}\n\n${instructions}\n${toolInstructions}${
+      additionalInstructions ? `\n\n${additionalInstructions}` : ""
+    }${userInstructions ? `\n\n${userInstructions}` : ""}`.replace(/\s+/g, " ");
+
+  return {
+    role: "system",
+    content,
+  };
+}
+
+export function buildScrapeUserPrompt(
+  instruction: string,
+  domElements: string,
+  isUsingPrintScrapedDataTool: boolean = false,
+): ChatMessage {
+  let content = `Instruction: ${instruction}
+DOM: ${domElements}
+
+Return only element IDs (frameId-backendId, e.g. "0-123"). Do not output literal text.`;
+
+  if (isUsingPrintScrapedDataTool) {
+    content += `
+ONLY print the content using the print_scraped_data tool provided.
+ONLY print the content using the print_scraped_data tool provided.`;
+  }
+
+  return {
+    role: "user",
+    content,
+  };
+}
+
+export function buildScrapeRegexSystemPrompt(): ChatMessage {
+  const content = `You help clean and refine scraped text so it matches a Zod schema and is properly formatted, even when the sample already validates.
+Respond with JSON {"rules": [{"path": string, "regex": string, "replacement"?: string, "flags"?: string}, ...]} describing only the fields that need cleanup.
+- Use dot notation for path; include "*" to apply across all entries at that level (e.g., companies.*.batch).
+- Always emit rules when they improve cleanliness or enforce the schema (trim whitespace, drop units, normalize punctuation, etc.).
+- Keep regex simple: anchors (^, $), literal characters (letters, digits, units, punctuation), character classes, ., and shortcuts like \\s / \\d / \\w with basic quantifiers (*, +, ?). Do NOT use lookarounds, backreferences, named groups, or unicode escapes. Keep each pattern on a single line under 120 characters.
+- replacement defaults to empty string, flags default to "g".`;
+  return { role: "system", content: content.replace(/\s+/g, " ") };
+}
+
+export function buildScrapeRegexUserPrompt(params: {
+  schema: string;
+  sample: string;
+  error: string;
+}): ChatMessage {
+  const { schema, sample, error } = params;
+  const content = `Schema (JSON):\n${schema}\n\nScraped data sample:\n${sample}\n\nCleanup context (this may describe validation failures or general refinement goals):\n${error}\n\nRespond with JSON {"regex": string, "replacement"?: string, "flags"?: string}. Use regex replacements to fix validation issues and clean or normalize the data so it best matches the schema, even when it already validates.`;
+  return { role: "user", content };
+}
+
 const metadataSystemPrompt = `You are an AI assistant tasked with evaluating the progress and completion status of an extraction task.
 Analyze the extraction response and determine if the task is completed or if more information is needed.
 Strictly abide by the following criteria:

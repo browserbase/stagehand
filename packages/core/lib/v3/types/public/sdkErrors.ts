@@ -322,6 +322,13 @@ export class ExtractTimeoutError extends TimeoutError {
   }
 }
 
+export class ScrapeTimeoutError extends TimeoutError {
+  constructor(timeoutMs: number) {
+    super("scrape()", timeoutMs);
+    this.name = "ScrapeTimeoutError";
+  }
+}
+
 export class ObserveTimeoutError extends TimeoutError {
   constructor(timeoutMs: number) {
     super("observe()", timeoutMs);

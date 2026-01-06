@@ -9,6 +9,11 @@ export interface StagehandMetrics {
   extractReasoningTokens: number;
   extractCachedInputTokens: number;
   extractInferenceTimeMs: number;
+  scrapePromptTokens: number;
+  scrapeCompletionTokens: number;
+  scrapeReasoningTokens: number;
+  scrapeCachedInputTokens: number;
+  scrapeInferenceTimeMs: number;
   observePromptTokens: number;
   observeCompletionTokens: number;
   observeReasoningTokens: number;

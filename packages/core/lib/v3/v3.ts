@@ -15,9 +15,11 @@ import { loadApiKeyFromEnv } from "../utils";
 import { StagehandLogger, LoggerOptions } from "../logger";
 import { ActCache } from "./cache/ActCache";
 import { AgentCache } from "./cache/AgentCache";
+import { ScrapeCache } from "./cache/ScrapeCache";
 import { CacheStorage } from "./cache/CacheStorage";
 import { ActHandler } from "./handlers/actHandler";
 import { ExtractHandler } from "./handlers/extractHandler";
+import { ScrapeHandler } from "./handlers/scrapeHandler";
 import { ObserveHandler } from "./handlers/observeHandler";
 import { V3AgentHandler } from "./handlers/v3AgentHandler";
 import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler";
@@ -35,10 +37,13 @@ import { resolveTools } from "./mcp/utils";
 import {
   ActHandlerParams,
   ExtractHandlerParams,
+  ScrapeHandlerParams,
   ObserveHandlerParams,
   AgentReplayStep,
   InitState,
   AgentCacheContext,
+  ScrapeCacheContext,
+  ScrapeRegexRule,
 } from "./types/private";
 import {
   AgentConfig,
@@ -53,7 +58,11 @@ import {
   ActOptions,
   ActResult,
   defaultExtractSchema,
+  defaultScrapeSchema,
   ExtractOptions,
+  ScrapeOptions,
+  ScrapeResult,
+  SCRAPE_SCHEMA_FIELD,
   HistoryEntry,
   ObserveOptions,
   pageTextSchema,
@@ -82,9 +91,13 @@ import { validateExperimentalFeatures } from "./agent/utils/validateExperimental
 import { SessionFileLogger, logStagehandStep } from "./flowLogger";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard";
 import { ActTimeoutError } from "./types/public/sdkErrors";
+import { resolveScrapeReferences } from "./handlers/handlerUtils/scrapeResolver";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
+const SCRAPE_CACHE_KEY_FIELD = "__stagehandScrapeCacheKey";
+const SCRAPE_REGEX_RULES_FIELD = "__stagehandScrapeRegexRules";
+const SCRAPE_CACHE_HIT_FIELD = "__stagehandScrapeCacheHit";
 
 type ResolvedModelConfiguration = {
   modelName: AvailableModel;
@@ -139,6 +152,7 @@ export class V3 {
   private state: InitState = { kind: "UNINITIALIZED" };
   private actHandler: ActHandler | null = null;
   private extractHandler: ExtractHandler | null = null;
+  private scrapeHandler: ScrapeHandler | null = null;
   private observeHandler: ObserveHandler | null = null;
   private ctx: V3Context | null = null;
   public llmClient!: LLMClient;
@@ -193,6 +207,7 @@ export class V3 {
   private cacheStorage: CacheStorage;
   private actCache: ActCache;
   private agentCache: AgentCache;
+  private scrapeCache: ScrapeCache;
   private apiClient: StagehandAPIClient | null = null;
 
   public stagehandMetrics: StagehandMetrics = {
@@ -206,6 +221,11 @@ export class V3 {
     extractReasoningTokens: 0,
     extractCachedInputTokens: 0,
     extractInferenceTimeMs: 0,
+    scrapePromptTokens: 0,
+    scrapeCompletionTokens: 0,
+    scrapeReasoningTokens: 0,
+    scrapeCachedInputTokens: 0,
+    scrapeInferenceTimeMs: 0,
     observePromptTokens: 0,
     observeCompletionTokens: 0,
     observeReasoningTokens: 0,
@@ -325,6 +345,10 @@ export class V3 {
       getSystemPrompt: () => opts.systemPrompt,
       domSettleTimeoutMs: this.domSettleTimeoutMs,
       act: this.act.bind(this),
+    });
+    this.scrapeCache = new ScrapeCache({
+      storage: this.cacheStorage,
+      logger: this.logger,
     });
 
     this.opts = opts;
@@ -486,6 +510,14 @@ export class V3 {
         this.stagehandMetrics.extractInferenceTimeMs += inferenceTimeMs;
         break;
 
+      case V3FunctionName.SCRAPE:
+        this.stagehandMetrics.scrapePromptTokens += promptTokens;
+        this.stagehandMetrics.scrapeCompletionTokens += completionTokens;
+        this.stagehandMetrics.scrapeReasoningTokens += reasoningTokens;
+        this.stagehandMetrics.scrapeCachedInputTokens += cachedInputTokens;
+        this.stagehandMetrics.scrapeInferenceTimeMs += inferenceTimeMs;
+        break;
+
       case V3FunctionName.OBSERVE:
         this.stagehandMetrics.observePromptTokens += promptTokens;
         this.stagehandMetrics.observeCompletionTokens += completionTokens;
@@ -637,6 +669,31 @@ export class V3 {
           this.domSettleTimeoutMs,
         );
         this.extractHandler = new ExtractHandler(
+          this.llmClient,
+          this.modelName,
+          this.modelClientOptions,
+          (model) => this.resolveLlmClient(model),
+          this.opts.systemPrompt ?? "",
+          this.logInferenceToFile,
+          this.experimental,
+          (
+            functionName,
+            promptTokens,
+            completionTokens,
+            reasoningTokens,
+            cachedInputTokens,
+            inferenceTimeMs,
+          ) =>
+            this.updateMetrics(
+              functionName,
+              promptTokens,
+              completionTokens,
+              reasoningTokens,
+              cachedInputTokens,
+              inferenceTimeMs,
+            ),
+        );
+        this.scrapeHandler = new ScrapeHandler(
           this.llmClient,
           this.modelName,
           this.modelClientOptions,
@@ -1199,7 +1256,7 @@ export class V3 {
         );
       }
 
-      // If instruction without schema → defaultExtractSchema
+      // If instruction without schema → defaultScrapeSchema
       const effectiveSchema =
         instruction && !schema ? defaultExtractSchema : schema;
 
@@ -1242,6 +1299,294 @@ export class V3 {
       );
       return result;
     });
+  }
+
+  /**
+   * Run an "scrape" instruction through the ScrapeHandler.
+   *
+   * Accepted forms:
+   * - scrape() → pageText
+   * - scrape(options) → pageText
+   * - scrape(instruction) → defaultScrapeSchema
+   * - scrape(instruction, schema) → schema-inferred
+   * - scrape(instruction, schema, options)
+   */
+
+  async scrape(): Promise<z.infer<typeof pageTextSchema>>;
+  async scrape(options: ScrapeOptions): Promise<z.infer<typeof pageTextSchema>>;
+  async scrape(
+    instruction: string,
+    options?: ScrapeOptions,
+  ): Promise<ScrapeResult<typeof defaultScrapeSchema>>;
+  async scrape<T extends StagehandZodSchema>(
+    instruction: string,
+    schema: T,
+    options?: ScrapeOptions,
+  ): Promise<ScrapeResult<T>>;
+
+  @logStagehandStep("Stagehand.scrape", "SCRAPE")
+  async scrape(
+    a?: string | ScrapeOptions,
+    b?: StagehandZodSchema | ScrapeOptions,
+    c?: ScrapeOptions,
+  ): Promise<unknown> {
+    return await withInstanceLogContext(this.instanceId, async () => {
+      if (!this.scrapeHandler) {
+        throw new StagehandNotInitializedError("scrape()");
+      }
+
+      // Normalize args
+      let instruction: string | undefined;
+      let schema: StagehandZodSchema | undefined;
+      let options: ScrapeOptions | undefined;
+
+      if (typeof a === "string") {
+        instruction = a;
+        const isZodSchema = (val: unknown): val is StagehandZodSchema =>
+          !!val &&
+          typeof val === "object" &&
+          "parse" in val &&
+          "safeParse" in val;
+        if (isZodSchema(b)) {
+          schema = b as StagehandZodSchema;
+          options = c as ScrapeOptions | undefined;
+        } else {
+          options = b as ScrapeOptions | undefined;
+        }
+      } else {
+        // a is options or undefined
+        options = (a as ScrapeOptions) || undefined;
+      }
+
+      if (!instruction && schema) {
+        throw new StagehandInvalidArgumentError(
+          "scrape(): schema provided without instruction",
+        );
+      }
+
+      // If instruction without schema → defaultExtractSchema
+      const effectiveSchema =
+        instruction && !schema ? defaultScrapeSchema : schema;
+
+      const page = await this.resolvePage(options?.page);
+
+      let cacheContext: ScrapeCacheContext | null = null;
+      let cachedResult: ScrapeResult<StagehandZodSchema> | null = null;
+      if (effectiveSchema && this.scrapeCache.enabled) {
+        cacheContext = await this.scrapeCache.prepareContext({
+          instruction,
+          schema: effectiveSchema as StagehandZodSchema,
+          page,
+          options,
+        });
+        if (cacheContext) {
+          const cachedEntry = await this.scrapeCache.tryReplay(cacheContext);
+          if (cachedEntry) {
+            cachedResult =
+              cachedEntry.references as ScrapeResult<StagehandZodSchema>;
+            this.attachScrapeResolver(
+              cachedResult,
+              effectiveSchema as StagehandZodSchema,
+              cacheContext.cacheKey,
+              cachedEntry.regexRules,
+              true,
+            );
+          }
+        }
+      }
+
+      if (cachedResult) {
+        const historySchemaDescriptor = effectiveSchema
+          ? toJsonSchema(effectiveSchema)
+          : undefined;
+        this.addToHistory(
+          "scrape",
+          {
+            instruction,
+            selector: options?.selector,
+            timeout: options?.timeout,
+            schema: historySchemaDescriptor,
+          },
+          cachedResult,
+        );
+        if (!effectiveSchema) {
+          return cachedResult;
+        }
+        return cachedResult as ScrapeResult<typeof effectiveSchema>;
+      }
+
+      const handlerParams: ScrapeHandlerParams<StagehandZodSchema> = {
+        instruction,
+        schema: effectiveSchema as StagehandZodSchema | undefined,
+        model: options?.model,
+        timeout: options?.timeout,
+        selector: options?.selector,
+        page,
+      };
+      if (this.apiClient) {
+        throw new StagehandInvalidArgumentError(
+          "scrape() is not supported when using the Stagehand API.",
+        );
+      }
+
+      const result =
+        await this.scrapeHandler.scrape<StagehandZodSchema>(handlerParams);
+
+      this.attachScrapeResolver(
+        result,
+        effectiveSchema as StagehandZodSchema | undefined,
+        cacheContext?.cacheKey,
+      );
+
+      if (cacheContext) {
+        void this.scrapeCache.store(cacheContext, {
+          references: result as ScrapeResult<StagehandZodSchema>,
+          regexRules: this.getScrapeResultRegexRules(result),
+        });
+      }
+
+      const historySchemaDescriptor = effectiveSchema
+        ? toJsonSchema(effectiveSchema)
+        : undefined;
+      this.addToHistory(
+        "scrape",
+        {
+          instruction,
+          selector: options?.selector,
+          timeout: options?.timeout,
+          schema: historySchemaDescriptor,
+        },
+        result,
+      );
+      if (!effectiveSchema) {
+        return result;
+      }
+      return result as ScrapeResult<typeof effectiveSchema>;
+    });
+  }
+
+  async resolveScrape<T extends StagehandZodSchema>(
+    result: ScrapeResult<T>,
+    options?: { page?: AnyPage },
+  ): Promise<InferStagehandSchema<T>> {
+    return await withInstanceLogContext(this.instanceId, async () => {
+      const page = await this.resolvePage(options?.page);
+      const schema = (
+        result as { __stagehandScrapeSchema?: StagehandZodSchema }
+      ).__stagehandScrapeSchema;
+      const cacheKey = (result as Record<string, unknown>)[
+        SCRAPE_CACHE_KEY_FIELD
+      ] as string | undefined;
+      const skipRegexCleanup =
+        (result as Record<string, unknown>)[SCRAPE_CACHE_HIT_FIELD] === true;
+      const initialRules = this.getScrapeResultRegexRules(result);
+      return (await resolveScrapeReferences(
+        result,
+        page,
+        schema,
+        this.llmClient,
+        this.logger,
+        initialRules,
+        skipRegexCleanup,
+        (rules) => {
+          this.setScrapeResultRegexRules(result, rules);
+          if (cacheKey) {
+            void this.scrapeCache.updateRegexRules(cacheKey, rules);
+          }
+        },
+      )) as InferStagehandSchema<T>;
+    });
+  }
+
+  private attachScrapeResolver(
+    result: unknown,
+    schema?: StagehandZodSchema,
+    cacheKey?: string,
+    initialRules?: ScrapeRegexRule[],
+    cacheHit?: boolean,
+  ): void {
+    if (!result || typeof result !== "object") {
+      return;
+    }
+    const existing = (result as { resolve?: unknown }).resolve;
+    if (typeof existing === "function") {
+      return;
+    }
+    const target = result as Record<string, unknown>;
+    if (schema) {
+      this.setHiddenProperty(target, SCRAPE_SCHEMA_FIELD, schema);
+    }
+    if (cacheKey) {
+      this.setHiddenProperty(target, SCRAPE_CACHE_KEY_FIELD, cacheKey);
+    }
+    this.setHiddenProperty(
+      target,
+      SCRAPE_REGEX_RULES_FIELD,
+      initialRules ?? [],
+    );
+    this.setHiddenProperty(target, SCRAPE_CACHE_HIT_FIELD, cacheHit ?? false);
+    this.setHiddenProperty(target, "resolve", (options?: { page?: AnyPage }) =>
+      this.resolveScrape(result as ScrapeResult<StagehandZodSchema>, options),
+    );
+  }
+
+  private getScrapeResultRegexRules(
+    result: unknown,
+  ): ScrapeRegexRule[] | undefined {
+    if (!result || typeof result !== "object") {
+      return undefined;
+    }
+    return (result as Record<string, unknown>)[SCRAPE_REGEX_RULES_FIELD] as
+      | ScrapeRegexRule[]
+      | undefined;
+  }
+
+  private setScrapeResultRegexRules(
+    result: unknown,
+    rules: ScrapeRegexRule[],
+  ): void {
+    if (!result || typeof result !== "object") {
+      return;
+    }
+    this.setHiddenProperty(
+      result as Record<string, unknown>,
+      SCRAPE_REGEX_RULES_FIELD,
+      rules,
+    );
+  }
+
+  private setHiddenProperty(
+    target: Record<string, unknown>,
+    key: string,
+    value: unknown,
+  ): void {
+    const descriptor = Object.getOwnPropertyDescriptor(target, key);
+    if (descriptor && !descriptor.configurable) {
+      if (descriptor.value === value) {
+        return;
+      }
+      if (descriptor.writable) {
+        try {
+          target[key] = value as never;
+          return;
+        } catch {
+          return;
+        }
+      }
+      return;
+    }
+
+    try {
+      Reflect.deleteProperty(target, key);
+      Object.defineProperty(target, key, {
+        value,
+        enumerable: false,
+        configurable: true,
+        writable: true,
+      });
+    } catch {
+      // ignore
+    }
   }
 
   /**

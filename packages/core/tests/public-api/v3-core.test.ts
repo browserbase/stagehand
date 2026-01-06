@@ -11,6 +11,7 @@ describe("V3 Core public API types", () => {
         options?: Stagehand.ActOptions,
       ) => Promise<Stagehand.ActResult>;
       extract: (...args: unknown[]) => Promise<unknown>;
+      scrape: (...args: unknown[]) => Promise<unknown>;
       observe: (...args: unknown[]) => Promise<Stagehand.Action[]>;
       agent: (config?: Stagehand.AgentConfig) => {
         execute: (
@@ -31,6 +32,10 @@ describe("V3 Core public API types", () => {
       logger: (logLine: Stagehand.LogLine) => void;
       isAgentReplayActive: () => boolean;
       recordAgentReplayStep: (step: unknown) => void;
+      resolveScrape: <T extends Stagehand.StagehandZodSchema>(
+        result: Stagehand.ScrapeResult<T>,
+        options?: { page?: Stagehand.AnyPage },
+      ) => Promise<Stagehand.InferStagehandSchema<T>>;
     };
 
     type StagehandInstance = InstanceType<typeof Stagehand.Stagehand>;
@@ -63,6 +68,16 @@ describe("V3 Core public API types", () => {
       );
     });
 
+    it("resolveScrape resolves references", () => {
+      const mockSchema = {} as Stagehand.StagehandZodSchema;
+      const mockResult = {} as Stagehand.ScrapeResult<typeof mockSchema>;
+      void mockSchema; // Mark as used to satisfy ESLint
+      expectTypeOf<StagehandInstance["resolveScrape"]>().toBeCallableWith(
+        mockResult,
+        {} as { page?: Stagehand.AnyPage },
+      );
+    });
+
     it("agent execute accepts page option", () => {
       type AgentReturn = ReturnType<StagehandInstance["agent"]>;
       const mockPage = {} as Stagehand.AnyPage;
@@ -85,6 +100,11 @@ describe("V3 Core public API types", () => {
       extractReasoningTokens: number;
       extractCachedInputTokens: number;
       extractInferenceTimeMs: number;
+      scrapePromptTokens: number;
+      scrapeCompletionTokens: number;
+      scrapeReasoningTokens: number;
+      scrapeCachedInputTokens: number;
+      scrapeInferenceTimeMs: number;
       observePromptTokens: number;
       observeCompletionTokens: number;
       observeReasoningTokens: number;
@@ -139,6 +159,7 @@ describe("V3 Core public API types", () => {
     const expectedFunctionNames = [
       "ACT",
       "EXTRACT",
+      "SCRAPE",
       "OBSERVE",
       "AGENT",
     ] as const;

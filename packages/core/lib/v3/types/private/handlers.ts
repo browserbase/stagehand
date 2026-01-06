@@ -19,6 +19,15 @@ export interface ExtractHandlerParams<T extends StagehandZodSchema> {
   page: Page;
 }
 
+export interface ScrapeHandlerParams<T extends StagehandZodSchema> {
+  instruction?: string;
+  schema?: T;
+  model?: ModelConfiguration;
+  timeout?: number;
+  selector?: string;
+  page: Page;
+}
+
 export interface ObserveHandlerParams {
   instruction?: string;
   model?: ModelConfiguration;

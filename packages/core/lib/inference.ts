@@ -9,6 +9,10 @@ import {
   buildMetadataSystemPrompt,
   buildObserveSystemPrompt,
   buildObserveUserMessage,
+  buildScrapeSystemPrompt,
+  buildScrapeUserPrompt,
+  buildScrapeRegexSystemPrompt,
+  buildScrapeRegexUserPrompt,
 } from "./prompt";
 import { appendSummary, writeTimestampedTxtFile } from "./inferenceLogUtils";
 import type { InferStagehandSchema, StagehandZodObject } from "./v3/zodCompat";
@@ -16,7 +20,7 @@ import type { InferStagehandSchema, StagehandZodObject } from "./v3/zodCompat";
 // Re-export for backward compatibility
 export type { LLMParsedResponse, LLMUsage } from "./v3/llm/LLMClient";
 
-export async function extract<T extends StagehandZodObject>({
+async function runExtraction<T extends StagehandZodObject>({
   instruction,
   domElements,
   schema,
@@ -208,6 +212,222 @@ export async function extract<T extends StagehandZodObject>({
 
   return {
     ...extractedData,
+    metadata: {
+      completed: metadataResponseCompleted,
+      progress: metadataResponseProgress,
+    },
+    prompt_tokens: totalPromptTokens,
+    completion_tokens: totalCompletionTokens,
+    reasoning_tokens: totalReasoningTokens,
+    cached_input_tokens: totalCachedInputTokens,
+    inference_time_ms: totalInferenceTimeMs,
+  };
+}
+
+export async function extract<T extends StagehandZodObject>(params: {
+  instruction: string;
+  domElements: string;
+  schema: T;
+  llmClient: LLMClient;
+  userProvidedInstructions?: string;
+  logger: (message: LogLine) => void;
+  logInferenceToFile?: boolean;
+}) {
+  return runExtraction(params);
+}
+
+export async function scrape<T extends StagehandZodObject>({
+  instruction,
+  domElements,
+  schema,
+  llmClient,
+  userProvidedInstructions,
+  logger,
+  logInferenceToFile = false,
+}: {
+  instruction: string;
+  domElements: string;
+  schema: T;
+  llmClient: LLMClient;
+  userProvidedInstructions?: string;
+  logger: (message: LogLine) => void;
+  logInferenceToFile?: boolean;
+}) {
+  const metadataSchema = z.object({
+    progress: z
+      .string()
+      .describe(
+        "progress of what has been extracted so far, as concise as possible",
+      ),
+    completed: z
+      .boolean()
+      .describe(
+        "true if the goal is now accomplished. Use this conservatively, only when sure that the goal has been completed.",
+      ),
+  });
+
+  type ExtractionResponse = InferStagehandSchema<T>;
+  type MetadataResponse = z.infer<typeof metadataSchema>;
+
+  const isUsingAnthropic = llmClient.type === "anthropic";
+  const isGPT5 = llmClient.modelName.includes("gpt-5");
+
+  const scrapeCallMessages: ChatMessage[] = [
+    buildScrapeSystemPrompt(isUsingAnthropic, userProvidedInstructions),
+    buildScrapeUserPrompt(instruction, domElements, isUsingAnthropic),
+  ];
+
+  let scrapeCallFile = "";
+  let scrapeCallTimestamp = "";
+  if (logInferenceToFile) {
+    const { fileName, timestamp } = writeTimestampedTxtFile(
+      "scrape_summary",
+      "scrape_call",
+      {
+        modelCall: "scrape",
+        messages: scrapeCallMessages,
+      },
+    );
+    scrapeCallFile = fileName;
+    scrapeCallTimestamp = timestamp;
+  }
+
+  const scrapeStartTime = Date.now();
+  const scrapeResponse =
+    await llmClient.createChatCompletion<ExtractionResponse>({
+      options: {
+        messages: scrapeCallMessages,
+        response_model: {
+          schema,
+          name: "Scrape",
+        },
+        temperature: isGPT5 ? 1 : 0.1,
+        top_p: 1,
+        frequency_penalty: 0,
+        presence_penalty: 0,
+      },
+      logger,
+    });
+  const scrapeEndTime = Date.now();
+
+  const { data: scrapedData, usage: scrapeUsage } = scrapeResponse;
+
+  let scrapeResponseFile = "";
+  if (logInferenceToFile) {
+    const { fileName } = writeTimestampedTxtFile(
+      "scrape_summary",
+      "scrape_response",
+      {
+        modelResponse: "scrape",
+        rawResponse: scrapedData,
+      },
+    );
+    scrapeResponseFile = fileName;
+
+    appendSummary("scrape", {
+      scrape_inference_type: "scrape",
+      timestamp: scrapeCallTimestamp,
+      LLM_input_file: scrapeCallFile,
+      LLM_output_file: scrapeResponseFile,
+      prompt_tokens: scrapeUsage?.prompt_tokens ?? 0,
+      completion_tokens: scrapeUsage?.completion_tokens ?? 0,
+      reasoning_tokens: scrapeUsage?.reasoning_tokens ?? 0,
+      cached_input_tokens: scrapeUsage?.cached_input_tokens ?? 0,
+      inference_time_ms: scrapeEndTime - scrapeStartTime,
+    });
+  }
+
+  const metadataCallMessages: ChatMessage[] = [
+    buildMetadataSystemPrompt(),
+    buildMetadataPrompt(instruction, scrapedData),
+  ];
+
+  let metadataCallFile = "";
+  let metadataCallTimestamp = "";
+  if (logInferenceToFile) {
+    const { fileName, timestamp } = writeTimestampedTxtFile(
+      "scrape_summary",
+      "metadata_call",
+      {
+        modelCall: "metadata",
+        messages: metadataCallMessages,
+      },
+    );
+    metadataCallFile = fileName;
+    metadataCallTimestamp = timestamp;
+  }
+
+  const metadataStartTime = Date.now();
+  const metadataResponse =
+    await llmClient.createChatCompletion<MetadataResponse>({
+      options: {
+        messages: metadataCallMessages,
+        response_model: {
+          name: "Metadata",
+          schema: metadataSchema,
+        },
+        temperature: isGPT5 ? 1 : 0.1,
+        top_p: 1,
+        frequency_penalty: 0,
+        presence_penalty: 0,
+      },
+      logger,
+    });
+  const metadataEndTime = Date.now();
+
+  const {
+    data: {
+      completed: metadataResponseCompleted,
+      progress: metadataResponseProgress,
+    },
+    usage: metadataResponseUsage,
+  } = metadataResponse;
+
+  let metadataResponseFile = "";
+  if (logInferenceToFile) {
+    const { fileName } = writeTimestampedTxtFile(
+      "scrape_summary",
+      "metadata_response",
+      {
+        modelResponse: "metadata",
+        completed: metadataResponseCompleted,
+        progress: metadataResponseProgress,
+      },
+    );
+    metadataResponseFile = fileName;
+
+    appendSummary("scrape", {
+      scrape_inference_type: "metadata",
+      timestamp: metadataCallTimestamp,
+      LLM_input_file: metadataCallFile,
+      LLM_output_file: metadataResponseFile,
+      prompt_tokens: metadataResponseUsage?.prompt_tokens ?? 0,
+      completion_tokens: metadataResponseUsage?.completion_tokens ?? 0,
+      reasoning_tokens: metadataResponseUsage?.reasoning_tokens ?? 0,
+      cached_input_tokens: metadataResponseUsage?.cached_input_tokens ?? 0,
+      inference_time_ms: metadataEndTime - metadataStartTime,
+    });
+  }
+
+  const totalPromptTokens =
+    (scrapeUsage?.prompt_tokens ?? 0) +
+    (metadataResponseUsage?.prompt_tokens ?? 0);
+
+  const totalCompletionTokens =
+    (scrapeUsage?.completion_tokens ?? 0) +
+    (metadataResponseUsage?.completion_tokens ?? 0);
+
+  const totalInferenceTimeMs =
+    scrapeEndTime - scrapeStartTime + (metadataEndTime - metadataStartTime);
+  const totalReasoningTokens =
+    (scrapeUsage?.reasoning_tokens ?? 0) +
+    (metadataResponseUsage?.reasoning_tokens ?? 0);
+  const totalCachedInputTokens =
+    (scrapeUsage?.cached_input_tokens ?? 0) +
+    (metadataResponseUsage?.cached_input_tokens ?? 0);
+
+  return {
+    ...scrapedData,
     metadata: {
       completed: metadataResponseCompleted,
       progress: metadataResponseProgress,
@@ -488,4 +708,89 @@ export async function act({
     inference_time_ms: usageTimeMs,
     twoStep: actData.twoStep,
   };
+}
+const MAX_REGEX_PATTERN_LENGTH = 128;
+const FORBIDDEN_REGEX_SEGMENTS = [
+  /\(\?/, // disallow lookarounds and special group syntax
+  /\\[pPxXuUkKgGqQcC]/, // disallow unicode classes, backreferences, control sequences
+  /\\0[0-9]/, // disallow octal references
+  /\\N\{/,
+];
+
+function isAllowedRegexPattern(pattern: string): boolean {
+  if (pattern.length === 0 || pattern.length > MAX_REGEX_PATTERN_LENGTH) {
+    return false;
+  }
+  if (pattern.includes("\n") || pattern.includes("\r")) {
+    return false;
+  }
+  for (const fragment of FORBIDDEN_REGEX_SEGMENTS) {
+    if (fragment.test(pattern)) {
+      return false;
+    }
+  }
+  try {
+    // Ensure JavaScript can compile the regex.
+    new RegExp(pattern);
+  } catch {
+    return false;
+  }
+  return true;
+}
+
+const allowedRegexSchema = z.object({
+  rules: z
+    .array(
+      z.object({
+        path: z.string(),
+        regex: z.string().refine(isAllowedRegexPattern, {
+          message:
+            "Regex must be <= 128 chars, single-line, and avoid advanced tokens like lookarounds or unicode escapes.",
+        }),
+        replacement: z.string().default(""),
+        flags: z.literal("g").default("g"),
+      }),
+    )
+    .min(1),
+});
+
+export async function generateScrapeRegex({
+  schema,
+  sample,
+  error,
+  llmClient,
+  logger,
+}: {
+  schema: string;
+  sample: string;
+  error: string;
+  llmClient: LLMClient;
+  logger: (message: LogLine) => void;
+}): Promise<z.infer<typeof allowedRegexSchema> | null> {
+  const messages: ChatMessage[] = [
+    buildScrapeRegexSystemPrompt(),
+    buildScrapeRegexUserPrompt({ schema, sample, error }),
+  ];
+
+  const response = await llmClient.createChatCompletion<
+    z.infer<typeof allowedRegexSchema>
+  >({
+    options: {
+      messages,
+      response_model: {
+        schema: allowedRegexSchema,
+        name: "ScrapeRegex",
+      },
+      temperature: 0,
+      top_p: 1,
+    },
+    logger,
+  });
+
+  if (!response.data) {
+    return null;
+  }
+
+  const parsed = allowedRegexSchema.parse(response.data);
+  return parsed;
 }

@@ -95,7 +95,7 @@ export function buildChildXPathSegments(kids: Protocol.DOM.Node[]): string[] {
     const key = `${child.nodeType}:${tag}`;
     const idx = (ctr[key] = (ctr[key] ?? 0) + 1);
     if (child.nodeType === 3) {
-      segs.push(`text()[${idx}]`);
+      segs.push(`text()[normalize-space()][${idx}]`);
     } else if (child.nodeType === 8) {
       segs.push(`comment()[${idx}]`);
     } else {

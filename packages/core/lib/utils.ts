@@ -8,7 +8,11 @@ import { ZodPathSegments } from "./v3/types/private/internal";
 import type { StagehandZodSchema } from "./v3/zodCompat";
 import { isZod4Schema } from "./v3/zodCompat";
 
-const ID_PATTERN = /^\d+-\d+$/;
+export const ID_PATTERN = /^\d+-\d+$/;
+
+export function isElementId(value: unknown): value is string {
+  return typeof value === "string" && ID_PATTERN.test(value);
+}
 
 const zFactories = {
   v4: z,
@@ -658,7 +662,139 @@ function isKind(s: StagehandZodSchema, kind: string): boolean {
   }
 }
 
-function makeIdStringSchema(orig: StagehandZodSchema): StagehandZodSchema {
+export function coerceSchemaToElementIds(
+  schema: StagehandZodSchema,
+): StagehandZodSchema {
+  const kind = getZodType(schema);
+
+  if (kind === "object") {
+    const shape = getObjectShape(schema);
+    if (!shape) {
+      return makeIdStringSchema(schema);
+    }
+    const newShape: Record<string, StagehandZodSchema> = {};
+    let changed = false;
+    for (const key of Object.keys(shape)) {
+      const originalChild = shape[key];
+      const coercedChild = coerceSchemaToElementIds(originalChild);
+      newShape[key] = coercedChild;
+      changed = changed || coercedChild !== originalChild;
+    }
+    if (changed) {
+      const factory = getZFactory(schema);
+      return factory.object(newShape as Record<string, z.ZodTypeAny>);
+    }
+    return schema;
+  }
+
+  if (kind === "array") {
+    const itemType = getArrayElement(schema);
+    if (!itemType) {
+      return makeIdStringSchema(schema);
+    }
+    const coercedItem = coerceSchemaToElementIds(itemType);
+    if (coercedItem !== itemType) {
+      const factory = getZFactory(schema);
+      return factory.array(coercedItem as z.ZodTypeAny);
+    }
+    return schema;
+  }
+
+  if (kind === "union") {
+    const options = getUnionOptions(schema);
+    if (!options || options.length === 0) {
+      return makeIdStringSchema(schema);
+    }
+    const coercedOptions = options.map(coerceSchemaToElementIds);
+    const changed = coercedOptions.some((opt, idx) => opt !== options[idx]);
+    if (changed) {
+      const factory = getZFactory(schema);
+      return factory.union(
+        coercedOptions as unknown as [
+          z.ZodTypeAny,
+          z.ZodTypeAny,
+          ...z.ZodTypeAny[],
+        ],
+      );
+    }
+    return schema;
+  }
+
+  if (kind === "intersection") {
+    const { left, right } = getIntersectionSides(schema);
+    if (!left || !right) {
+      return makeIdStringSchema(schema);
+    }
+    const newLeft = coerceSchemaToElementIds(left);
+    const newRight = coerceSchemaToElementIds(right);
+    if (newLeft !== left || newRight !== right) {
+      const factory = getZFactory(schema);
+      return factory.intersection(
+        newLeft as unknown as z.ZodTypeAny,
+        newRight as unknown as z.ZodTypeAny,
+      );
+    }
+    return schema;
+  }
+
+  if (kind === "optional") {
+    const innerType = getInnerType(schema);
+    if (!innerType) {
+      return makeIdStringSchema(schema);
+    }
+    const coercedInner = coerceSchemaToElementIds(innerType);
+    if (coercedInner !== innerType) {
+      return (
+        coercedInner as z.ZodTypeAny
+      ).optional() as unknown as StagehandZodSchema;
+    }
+    return schema;
+  }
+
+  if (kind === "nullable") {
+    const innerType = getInnerType(schema);
+    if (!innerType) {
+      return makeIdStringSchema(schema);
+    }
+    const coercedInner = coerceSchemaToElementIds(innerType);
+    if (coercedInner !== innerType) {
+      return (
+        coercedInner as z.ZodTypeAny
+      ).nullable() as unknown as StagehandZodSchema;
+    }
+    return schema;
+  }
+
+  if (kind === "pipe" && isZod4Schema(schema)) {
+    const endpoints = getPipeEndpoints(schema);
+    if (!endpoints.in || !endpoints.out) {
+      return makeIdStringSchema(schema);
+    }
+    const newIn = coerceSchemaToElementIds(endpoints.in);
+    const newOut = coerceSchemaToElementIds(endpoints.out);
+    if (newIn !== endpoints.in || newOut !== endpoints.out) {
+      return z.pipe(
+        newIn as unknown as z.ZodTypeAny,
+        newOut as unknown as z.ZodTypeAny,
+      ) as StagehandZodSchema;
+    }
+    return schema;
+  }
+
+  if (kind === "effects") {
+    const baseSchema = getEffectsBaseSchema(schema);
+    if (!baseSchema) {
+      return makeIdStringSchema(schema);
+    }
+    return coerceSchemaToElementIds(baseSchema);
+  }
+
+  return makeIdStringSchema(schema);
+}
+
+export function makeIdStringSchema(
+  orig: StagehandZodSchema,
+): StagehandZodSchema {
   const userDesc =
     (orig as unknown as { description?: string }).description ?? "";
 

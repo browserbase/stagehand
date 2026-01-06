@@ -418,6 +418,11 @@ export class StagehandAPIClient {
       extractReasoningTokens: 0,
       extractCachedInputTokens: 0,
       extractInferenceTimeMs: 0,
+      scrapePromptTokens: 0,
+      scrapeCompletionTokens: 0,
+      scrapeReasoningTokens: 0,
+      scrapeCachedInputTokens: 0,
+      scrapeInferenceTimeMs: 0,
       observePromptTokens: 0,
       observeCompletionTokens: 0,
       observeReasoningTokens: 0,
@@ -464,6 +469,12 @@ export class StagehandAPIClient {
             metrics.extractReasoningTokens += reasoningTokens;
             metrics.extractCachedInputTokens += cachedInputTokens;
             metrics.extractInferenceTimeMs += timeMs;
+          } else if (method === "scrape") {
+            metrics.scrapePromptTokens += inputTokens;
+            metrics.scrapeCompletionTokens += outputTokens;
+            metrics.scrapeReasoningTokens += reasoningTokens;
+            metrics.scrapeCachedInputTokens += cachedInputTokens;
+            metrics.scrapeInferenceTimeMs += timeMs;
           } else if (method === "observe") {
             metrics.observePromptTokens += inputTokens;
             metrics.observeCompletionTokens += outputTokens;

@@ -21,9 +21,13 @@ type ExpectedExportedTypes = {
   ActOptions: Stagehand.ActOptions;
   ActResult: Stagehand.ActResult;
   ExtractResult: Stagehand.ExtractResult<Stagehand.StagehandZodSchema>;
+  ScrapeResult: Stagehand.ScrapeResult<Stagehand.StagehandZodSchema>;
   Action: Stagehand.Action;
   HistoryEntry: Stagehand.HistoryEntry;
   ExtractOptions: Stagehand.ExtractOptions;
+  ScrapeOptions: Stagehand.ScrapeOptions;
+  ScrapeElementId: Stagehand.ScrapeElementId;
+  ScrapeElementReference: Stagehand.ScrapeElementReference;
   ObserveOptions: Stagehand.ObserveOptions;
   V3FunctionName: Stagehand.V3FunctionName;
   // Types from agent.ts
@@ -163,6 +167,45 @@ describe("Stagehand public API types", () => {
     });
   });
 
+  describe("ScrapeOptions", () => {
+    type ExpectedScrapeOptions = {
+      model?: Stagehand.ModelConfiguration;
+      timeout?: number;
+      selector?: string;
+      page?: Stagehand.AnyPage;
+    };
+
+    it("matches expected type shape", () => {
+      expectTypeOf<Stagehand.ScrapeOptions>().toEqualTypeOf<ExpectedScrapeOptions>();
+    });
+  });
+
+  describe("ScrapeElementId", () => {
+    it("is assignable to string", () => {
+      expectTypeOf<Stagehand.ScrapeElementId>().toExtend<string>();
+    });
+  });
+
+  describe("ScrapeElementReference", () => {
+    type ExpectedReference = {
+      id: Stagehand.ScrapeElementId;
+      xpath?: string;
+    };
+
+    it("matches expected shape", () => {
+      expectTypeOf<Stagehand.ScrapeElementReference>().toEqualTypeOf<ExpectedReference>();
+    });
+  });
+
+  describe("ScrapeResult", () => {
+    type Schema = Stagehand.StagehandZodSchema;
+    it("has resolve method", () => {
+      expectTypeOf<
+        Stagehand.ScrapeResult<Schema>["resolve"]
+      >().toBeCallableWith({});
+    });
+  });
+
   describe("Action", () => {
     type ExpectedAction = {
       selector: string;
@@ -284,7 +327,7 @@ describe("Stagehand public API types", () => {
 
   describe("HistoryEntry", () => {
     type ExpectedHistoryEntry = {
-      method: "act" | "extract" | "observe" | "navigate" | "agent";
+      method: "act" | "extract" | "scrape" | "observe" | "navigate" | "agent";
       parameters: unknown;
       result: unknown;
       timestamp: string;

@@ -149,3 +149,42 @@ export interface CachedAgentEntry {
   result: AgentResult;
   timestamp: string;
 }
+
+export interface ScrapeCacheContext {
+  cacheKey: string;
+  instruction?: string;
+  pageUrl: string;
+  schemaHash: string;
+  schemaJson: string;
+  selector?: string;
+  modelSignature?: string;
+}
+
+export interface ScrapeCacheDeps {
+  storage: CacheStorage;
+  logger: Logger;
+}
+
+export interface ScrapeRegexRule {
+  path: string;
+  regex: string;
+  replacement?: string;
+  flags?: string;
+}
+
+export interface CachedScrapeEntry {
+  version: 1;
+  instruction?: string;
+  url: string;
+  schemaHash: string;
+  schemaJson?: string;
+  selector?: string;
+  modelSignature?: string;
+  references: unknown;
+  regexRules?: ScrapeRegexRule[];
+  prompts?: {
+    system?: string;
+    user?: string;
+  };
+  timestamp: string;
+}
