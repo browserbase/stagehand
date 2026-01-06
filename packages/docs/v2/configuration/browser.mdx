@@ -74,7 +74,7 @@ const stagehand = new Stagehand({
   projectId: process.env.BROWSERBASE_PROJECT_ID,
   browserbaseSessionCreateParams: {
     proxies: true,
-    region: "us-west-2",
+    region: "us-west-2", // Stagehand API only supports us-west-2
     browserSettings: {
       viewport: { width: 1920, height: 1080 },
       blockAds: true,
@@ -96,7 +96,7 @@ stagehand = Stagehand(
     project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
     browserbase_session_create_params={
         "proxies": True,
-        "region": "us-west-2",
+        "region": "us-west-2",  # Stagehand API only supports us-west-2
         "browser_settings": {
             "viewport": {"width": 1920, "height": 1080},
             "block_ads": True,
@@ -116,7 +116,7 @@ stagehand = Stagehand(
       browserbaseSessionCreateParams: {
         projectId: process.env.BROWSERBASE_PROJECT_ID!,
         proxies: true,
-        region: "us-west-2",
+        region: "us-west-2", // Stagehand API only supports us-west-2
         timeout: 3600, // 1 hour session timeout
         keepAlive: true, // Available on Startup plan
         browserSettings: {
@@ -151,7 +151,7 @@ stagehand = Stagehand(
         browserbase_session_create_params={
             "project_id": os.getenv("BROWSERBASE_PROJECT_ID"),
             "proxies": True,
-            "region": "us-west-2",
+            "region": "us-west-2",  # Stagehand API only supports us-west-2
             "timeout": 3600,  # 1 hour session timeout
             "keep_alive": True,  # Available on Startup plan
             "browser_settings": {

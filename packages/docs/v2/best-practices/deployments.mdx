@@ -70,7 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       // optional session params
       browserbaseSessionCreateParams: {
         projectId: process.env.BROWSERBASE_PROJECT_ID!,
-        region: "us-west-2",
+        region: "us-west-2", // Stagehand API only supports us-west-2
         browserSettings: {
           blockAds: true,
         },

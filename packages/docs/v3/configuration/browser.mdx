@@ -65,7 +65,7 @@ const stagehand = new Stagehand({
   projectId: process.env.BROWSERBASE_PROJECT_ID,
   browserbaseSessionCreateParams: {
     proxies: true,
-    region: "us-west-2",
+    region: "us-west-2", // Stagehand API only supports us-west-2
     browserSettings: {
       viewport: { width: 1920, height: 1080 },
       blockAds: true,
@@ -77,6 +77,10 @@ await stagehand.init();
 console.log("Session ID:", stagehand.sessionId);
 ```
 
+<Warning>
+**Region Note:** The Stagehand API only supports `us-west-2`. If you specify a different region, set `disableAPI: true`.
+</Warning>
+
 <Accordion title="Advanced Browserbase Configuration Example">
     ```typescript
 const stagehand = new Stagehand({
@@ -86,7 +90,7 @@ const stagehand = new Stagehand({
       browserbaseSessionCreateParams: {
         projectId: process.env.BROWSERBASE_PROJECT_ID!,
         proxies: true,
-        region: "us-west-2",
+        region: "us-west-2", // Stagehand API only supports us-west-2
         timeout: 3600, // 1 hour session timeout
         keepAlive: true, // Available on Startup plan
         browserSettings: {
@@ -278,5 +282,30 @@ Setting `domSettleTimeout` too low may cause actions to fail on elements that ar
 - Increase session timeout in `browserbaseSessionCreateParams.timeout`
 - Use `keepAlive: true` for long-running sessions
 - Monitor session usage to avoid unexpected terminations
+</Accordion>
+
+<Accordion title="Internal Server Error with Stagehand API">
+If you see `An internal server error occurred` pointing to `StagehandAPIClient`, this is likely a region mismatch. The Stagehand API is only available in `us-west-2`.
+
+**Solutions:**
+- Use `region: "us-west-2"` in your `browserbaseSessionCreateParams`
+- Or set `disableAPI: true` when using other regions
+
+```typescript
+// Option 1: Use us-west-2
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  browserbaseSessionCreateParams: {
+    region: "us-west-2",
+  },
+});
+
+// Option 2: Disable API for other regions
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  disableAPI: true,
+  browserbaseSessionID: "your-us-east-1-session-id",
+});
+```
 </Accordion>
 </AccordionGroup>
