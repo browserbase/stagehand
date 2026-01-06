@@ -52,7 +52,7 @@ export const ModelConfigStringSchema = z.string().meta({
   id: "ModelName",
   description:
     "Model name string with provider prefix (e.g., 'openai/gpt-5-nano', 'anthropic/claude-4.5-opus')",
-  match: /^(openai|anthropic|google|microsoft|ollama|deepseek)\/.+$/,
+  pattern: "^(openai|anthropic|google|microsoft|ollama|deepseek)/.+$",
   example: "openai/gpt-5-nano",
 });
 
