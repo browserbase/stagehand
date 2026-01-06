@@ -311,6 +311,87 @@ const stagehand = new Stagehand({
 
 ---
 
+## File-Based Session Logging
+
+Enable detailed file-based logging for all Stagehand operations by setting a config directory. This creates comprehensive logs for `agent.execute`, `act`, `observe`, `extract`, CDP events, and LLM requests/responses.
+
+### Setup
+
+Add to your shell configuration (`~/.zshrc`, `~/.bashrc`, etc.):
+
+```bash
+export BROWSERBASE_CONFIG_DIR=~/.config/browserbase
+```
+
+Then reload your shell or run `source ~/.zshrc`.
+
+### Usage
+
+Run your Stagehand script as normal:
+
+```bash
+tsx run_some_script_that_imports_stagehand.ts
+```
+
+Logs are written to `~/.config/browserbase/sessions/<session-id>/` with a `latest` symlink pointing to the most recent session.
+
+### Viewing Logs
+
+<Tabs>
+<Tab title="Real-time Monitoring">
+Follow all logs as they happen:
+
+```bash
+tail -f ~/.config/browserbase/sessions/latest/*.log
+```
+
+Or watch specific log types:
+
+```bash
+# LLM requests and responses only
+tail -f ~/.config/browserbase/sessions/latest/llm_events.log
+
+# CDP (Chrome DevTools Protocol) events only
+tail -f ~/.config/browserbase/sessions/latest/cdp_events.log
+```
+</Tab>
+
+<Tab title="Chronological Review">
+View unified output sorted by timestamp:
+
+```bash
+cat ~/.config/browserbase/sessions/latest/*.log | sort
+```
+</Tab>
+
+<Tab title="Historical Sessions">
+Browse previous session logs:
+
+```bash
+ls ~/.config/browserbase/sessions/
+# Output: 2025-01-06_14-30-45_abc123  2025-01-06_15-45-12_def456  latest
+
+cat ~/.config/browserbase/sessions/2025-01-06_14-30-45_abc123/*.log | sort
+```
+</Tab>
+</Tabs>
+
+### Log Files
+
+Each session directory contains:
+
+| File | Contents |
+|------|----------|
+| `llm_events.log` | LLM requests and responses for act, extract, observe, and agent operations |
+| `cdp_events.log` | Chrome DevTools Protocol calls and events |
+| `stagehand.log` | General Stagehand operations and state changes |
+
+<Note>
+This is especially useful for debugging agent workflows where you need to trace the full sequence of LLM decisions, browser actions, and CDP interactions.
+</Note>
+
+---
+
 ## LLM Inference Debugging
 
 <Warning>
