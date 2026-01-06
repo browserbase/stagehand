@@ -41,8 +41,6 @@ export const google_maps_2: EvalFunction = async ({
       agentReasoning: agentResult.message,
     });
 
-  
-
     console.log(`reasoning: ${reasoning}`);
 
     if (evaluation !== "YES") {

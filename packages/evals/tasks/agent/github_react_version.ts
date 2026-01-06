@@ -13,7 +13,6 @@ export const github_react_version: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://github.com/");
 
-
     const screenshotCollector = new ScreenshotCollector(v3, {
       interval: 3000,
       maxScreenshots: 15,
