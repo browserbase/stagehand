@@ -415,7 +415,9 @@ components:
         - available
     SessionEndRequest:
       type: object
-      properties: {}
+      properties:
+        _forceBody:
+          not: {}
       additionalProperties: false
     ActOptions:
       type: object
