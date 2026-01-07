@@ -211,7 +211,7 @@ importers:
       '@ai-sdk/provider':
         specifier: ^2.0.0
         version: 2.0.0
-      '@browserbasehq/stagehand':
+      '@natewong1313/stagehand':
         specifier: workspace:*
         version: link:../core
       ai:
@@ -248,9 +248,6 @@ importers:
       '@browserbasehq/sdk':
         specifier: ^2.4.0
         version: 2.5.0
-      '@browserbasehq/stagehand':
-        specifier: workspace:*
-        version: link:../core
       '@fastify/cors':
         specifier: ^11.0.1
         version: 11.1.0
@@ -260,6 +257,9 @@ importers:
       '@fastify/swagger-ui':
         specifier: ^5.2.3
         version: 5.2.3
+      '@natewong1313/stagehand':
+        specifier: workspace:*
+        version: link:../core
       '@t3-oss/env-core':
         specifier: ^0.13.8
         version: 0.13.8(arktype@2.1.20)(typescript@5.9.3)(zod@4.2.1)

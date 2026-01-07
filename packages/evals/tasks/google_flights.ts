@@ -1,5 +1,5 @@
 import { EvalFunction } from "../types/evals";
-import { Action } from "@browserbasehq/stagehand";
+import { Action } from "@natewong1313/stagehand";
 
 /**
  * This eval attempts to click on an element that should not pass the playwright actionability check

@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
-import type { V3Options, LogLine } from "@browserbasehq/stagehand";
-import { V3 } from "@browserbasehq/stagehand";
+import type { V3Options, LogLine } from "@natewong1313/stagehand";
+import { V3 } from "@natewong1313/stagehand";
 import type {
   SessionStore,
   CreateSessionParams,

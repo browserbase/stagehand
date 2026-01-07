@@ -14,12 +14,12 @@ import type {
   ModelConfiguration,
   V3Options,
   AgentModelConfig,
-} from "@browserbasehq/stagehand";
+} from "@natewong1313/stagehand";
 import {
   loadApiKeyFromEnv,
   modelToAgentProviderMap,
   V3,
-} from "@browserbasehq/stagehand";
+} from "@natewong1313/stagehand";
 import dotenv from "dotenv";
 import { env } from "./env";
 import { EvalLogger } from "./logger";

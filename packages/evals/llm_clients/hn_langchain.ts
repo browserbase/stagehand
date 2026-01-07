@@ -2,7 +2,7 @@
 // import { z } from "zod";
 // import { LangchainClient } from "@/examples/external_clients/langchain";
 // import { ChatOpenAI } from "@langchain/openai";
-// import { Stagehand } from "@browserbasehq/stagehand";
+// import { Stagehand } from "@natewong1313/stagehand";
 //
 // export const hn_langchain: EvalFunction = async ({
 //   logger,

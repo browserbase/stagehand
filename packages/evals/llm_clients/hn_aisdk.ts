@@ -1,4 +1,4 @@
-// import { Stagehand } from "@browserbasehq/stagehand";
+// import { Stagehand } from "@natewong1313/stagehand";
 // import { EvalFunction } from "@/types/evals";
 // import { z } from "zod";
 //

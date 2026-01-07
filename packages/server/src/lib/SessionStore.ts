@@ -3,7 +3,7 @@ import type {
   LocalBrowserLaunchOptions,
   LogLine,
   V3,
-} from "@browserbasehq/stagehand";
+} from "@natewong1313/stagehand";
 
 /**
  * Result from SessionStore.startSession().

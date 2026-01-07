@@ -1,6 +1,6 @@
 import { EvalFunction } from "../../types/evals";
-import { V3Evaluator } from "@browserbasehq/stagehand";
-import type { AvailableModel } from "@browserbasehq/stagehand";
+import { V3Evaluator } from "@natewong1313/stagehand";
+import type { AvailableModel } from "@natewong1313/stagehand";
 import { z } from "zod";
 
 export const google_maps_2: EvalFunction = async ({

@@ -12,7 +12,7 @@
 
 import fs from "fs";
 import path from "path";
-import { AvailableModel } from "@browserbasehq/stagehand";
+import { AvailableModel } from "@natewong1313/stagehand";
 import { filterByEvalName } from "./args";
 import { AgentModelEntry } from "./types/evals";
 

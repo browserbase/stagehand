@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { V3Evaluator } from "@browserbasehq/stagehand";
+import { V3Evaluator } from "@natewong1313/stagehand";
 
 /**
  * Data-driven GAIA agent eval

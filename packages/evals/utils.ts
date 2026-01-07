@@ -8,7 +8,7 @@
  *   and eval name or category.
  */
 import fs from "fs";
-import { LogLine } from "@browserbasehq/stagehand";
+import { LogLine } from "@natewong1313/stagehand";
 import stringComparison from "string-comparison";
 const { jaroWinkler } = stringComparison;
 

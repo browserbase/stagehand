@@ -50,7 +50,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run Build
-        run: pnpm run build
+        run: pnpm --filter @natewong1313/stagehand run build
 
       - name: Run Vitest
-        run: pnpm run test:vitest
+        run: pnpm --filter @natewong1313/stagehand run test:vitest

@@ -2,7 +2,7 @@ import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import type { ZodTypeAny } from "zod/v3";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
-import { Api } from "@browserbasehq/stagehand";
+import { Api } from "@natewong1313/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";

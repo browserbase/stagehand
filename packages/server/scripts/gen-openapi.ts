@@ -11,7 +11,7 @@ import {
   validatorCompiler,
   type FastifyZodOpenApiTypeProvider,
 } from "fastify-zod-openapi";
-import { Api } from "@browserbasehq/stagehand";
+import { Api } from "@natewong1313/stagehand";
 import type { ZodOpenApiComponentsObject } from "zod-openapi";
 
 // Routes

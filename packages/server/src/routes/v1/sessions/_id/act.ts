@@ -1,8 +1,8 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
-import type { ActResult, Action } from "@browserbasehq/stagehand";
+import type { ActResult, Action } from "@natewong1313/stagehand";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
-import { Api } from "@browserbasehq/stagehand";
+import { Api } from "@natewong1313/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";

@@ -1,7 +1,7 @@
 import type { RouteHandler, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import Browserbase from "@browserbasehq/sdk";
-import { Api } from "@browserbasehq/stagehand";
+import { Api } from "@natewong1313/stagehand";
 import type { SessionRetrieveResponse } from "@browserbasehq/sdk/resources/sessions/sessions";
 import { type FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 import { z } from "zod/v4";

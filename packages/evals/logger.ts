@@ -12,8 +12,8 @@
  */
 import { logLineToString } from "./utils";
 import { LogLineEval } from "./types/evals";
-import { LogLine } from "@browserbasehq/stagehand";
-import type { V3 } from "@browserbasehq/stagehand";
+import { LogLine } from "@natewong1313/stagehand";
+import type { V3 } from "@natewong1313/stagehand";
 
 /**
  * parseLogLine:

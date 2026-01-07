@@ -1,4 +1,4 @@
-import { V3Evaluator } from "@browserbasehq/stagehand";
+import { V3Evaluator } from "@natewong1313/stagehand";
 import { EvalFunction } from "../../types/evals";
 
 export const all_recipes: EvalFunction = async ({
