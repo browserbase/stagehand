@@ -998,6 +998,12 @@ export class V3 {
               .catch(() => {});
           };
 
+          this.logger({
+            category: "init",
+            message: "finished proxy auth",
+            level: 1,
+          });
+
           const requestPausedHandler = ({
             requestId,
           }: Protocol.Fetch.RequestPausedEvent) => {
