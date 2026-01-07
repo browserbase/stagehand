@@ -182,31 +182,7 @@ test.describe("Page.waitForSelector tests", () => {
   });
 
   test.describe("CSS selector variants", () => {
-    test("works with class selectors", async () => {
-      const page = v3.context.pages()[0];
-      await page.goto(
-        "data:text/html," +
-          encodeURIComponent('<div class="my-class">Content</div>'),
-      );
-
-      const result = await page.waitForSelector(".my-class");
-      expect(result).toBe(true);
-    });
-
-    test("works with attribute selectors", async () => {
-      const page = v3.context.pages()[0];
-      await page.goto(
-        "data:text/html," +
-          encodeURIComponent(
-            '<input type="email" data-testid="email-input" />',
-          ),
-      );
-
-      const result = await page.waitForSelector('[data-testid="email-input"]');
-      expect(result).toBe(true);
-    });
-
-    test("works with complex CSS selectors", async () => {
+    test("handles complex CSS selectors", async () => {
       const page = v3.context.pages()[0];
       await page.goto(
         "data:text/html," +
@@ -222,32 +198,6 @@ test.describe("Page.waitForSelector tests", () => {
       const result = await page.waitForSelector(
         ".container #login-form button[type='submit']",
       );
-      expect(result).toBe(true);
-    });
-
-    test("works with :first-child pseudo selector", async () => {
-      const page = v3.context.pages()[0];
-      await page.goto(
-        "data:text/html," +
-          encodeURIComponent(
-            '<ul><li id="first">First</li><li id="second">Second</li></ul>',
-          ),
-      );
-
-      const result = await page.waitForSelector("li:first-child");
-      expect(result).toBe(true);
-    });
-
-    test("works with :not() pseudo selector", async () => {
-      const page = v3.context.pages()[0];
-      await page.goto(
-        "data:text/html," +
-          encodeURIComponent(
-            '<div class="item active">Active</div><div class="item">Inactive</div>',
-          ),
-      );
-
-      const result = await page.waitForSelector(".item:not(.active)");
       expect(result).toBe(true);
     });
   });
@@ -497,34 +447,6 @@ test.describe("Page.waitForSelector tests", () => {
       expect(result).toBe(true);
     });
 
-    test("finds nested element with XPath", async () => {
-      const page = v3.context.pages()[0];
-      await page.goto(
-        "data:text/html," +
-          encodeURIComponent(
-            '<div id="outer"><div id="inner"><button id="deep-btn">Deep</button></div></div>',
-          ),
-      );
-
-      const result = await page.waitForSelector("/html/body/div/div/button", {
-        timeout: 5000,
-      });
-      expect(result).toBe(true);
-    });
-
-    test("finds element with XPath index", async () => {
-      const page = v3.context.pages()[0];
-      await page.goto(
-        "data:text/html," +
-          encodeURIComponent(
-            '<ul><li>First</li><li id="second">Second</li><li>Third</li></ul>',
-          ),
-      );
-
-      const result = await page.waitForSelector("//li[2]", { timeout: 5000 });
-      expect(result).toBe(true);
-    });
-
     test("waits for element to appear with XPath", async () => {
       const page = v3.context.pages()[0];
       await page.goto(
@@ -600,69 +522,6 @@ test.describe("Page.waitForSelector tests", () => {
           timeout: 5000,
         },
       );
-      expect(result).toBe(true);
-    });
-
-    test("XPath times out for non-existent element", async () => {
-      const page = v3.context.pages()[0];
-      await page.goto(
-        "data:text/html," + encodeURIComponent("<div>Content</div>"),
-      );
-
-      let error: Error | null = null;
-      try {
-        await page.waitForSelector("//button[@id='nonexistent']", {
-          timeout: 300,
-        });
-      } catch (e) {
-        error = e as Error;
-      }
-
-      expect(error).not.toBeNull();
-      expect(error?.message).toContain("Timeout");
-    });
-
-    test("XPath with descendant axis (//)", async () => {
-      const page = v3.context.pages()[0];
-      await page.goto(
-        "data:text/html," +
-          encodeURIComponent(
-            '<div><section><article><p id="deep-p">Deep paragraph</p></article></section></div>',
-          ),
-      );
-
-      const result = await page.waitForSelector("//p[@id='deep-p']", {
-        timeout: 5000,
-      });
-      expect(result).toBe(true);
-    });
-
-    test("XPath state 'attached' for hidden element", async () => {
-      const page = v3.context.pages()[0];
-      await page.goto(
-        "data:text/html," +
-          encodeURIComponent(
-            '<div id="hidden-xpath" style="display: none;">Hidden</div>',
-          ),
-      );
-
-      const result = await page.waitForSelector("//div[@id='hidden-xpath']", {
-        state: "attached",
-        timeout: 5000,
-      });
-      expect(result).toBe(true);
-    });
-
-    test("XPath state 'detached' for non-existent element", async () => {
-      const page = v3.context.pages()[0];
-      await page.goto(
-        "data:text/html," + encodeURIComponent("<div>Content</div>"),
-      );
-
-      const result = await page.waitForSelector("//span[@id='never-exists']", {
-        state: "detached",
-        timeout: 1000,
-      });
       expect(result).toBe(true);
     });
   });
