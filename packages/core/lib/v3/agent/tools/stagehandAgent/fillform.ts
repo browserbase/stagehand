@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
-import type { V3 } from "../../v3";
-import type { Action } from "../../types/public/methods";
+import type { V3 } from "../../../v3";
+import type { Action } from "../../../types/public/methods";
 
 export const fillFormTool = (v3: V3, executionModel?: string) =>
   tool({

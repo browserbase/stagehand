@@ -1,23 +1,35 @@
-import { gotoTool } from "./goto";
-import { actTool } from "./act";
-import { screenshotTool } from "./screenshot";
-import { waitTool } from "./wait";
-import { navBackTool } from "./navback";
-import { ariaTreeTool } from "./ariaTree";
-import { fillFormTool } from "./fillform";
-import { scrollTool, scrollVisionTool } from "./scroll";
-import { extractTool } from "./extract";
-import { clickTool } from "./click";
-import { typeTool } from "./type";
-import { dragAndDropTool } from "./dragAndDrop";
-import { clickAndHoldTool } from "./clickAndHold";
-import { keysTool } from "./keys";
-import { fillFormVisionTool } from "./fillFormVision";
-import { thinkTool } from "./think";
-import { searchTool } from "./search";
+/**
+ * Agent Tools Index
+ *
+ * This module exports tools for Stagehand agents:
+ * - stagehandAgent: Standard web automation tools (act, click, type, etc.)
+ * - googleCua: Google Computer Use Agent tools (click_at, type_text_at, etc.)
+ */
+
+// Stagehand Agent tools
+import {
+  gotoTool,
+  actTool,
+  screenshotTool,
+  waitTool,
+  navBackTool,
+  ariaTreeTool,
+  fillFormTool,
+  scrollTool,
+  scrollVisionTool,
+  extractTool,
+  clickTool,
+  typeTool,
+  dragAndDropTool,
+  clickAndHoldTool,
+  keysTool,
+  fillFormVisionTool,
+  thinkTool,
+  searchTool,
+} from "./stagehandAgent";
 
 // Google CUA tools
-export { createGoogleCuaTools } from "./cuaTools";
+export { createGoogleCuaTools } from "./googleCua";
 
 import type { ToolSet, InferUITools } from "ai";
 import type { V3 } from "../../v3";

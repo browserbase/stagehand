@@ -1,12 +1,12 @@
 import { tool } from "ai";
 import { z } from "zod";
-import type { V3 } from "../../v3";
+import type { V3 } from "../../../v3";
 import type {
   ScrollVisionToolResult,
   ModelOutputContentItem,
-} from "../../types/public/agent";
-import { processCoordinates } from "../utils/coordinateNormalization";
-import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
+} from "../../../types/public/agent";
+import { processCoordinates } from "../../utils/coordinateNormalization";
+import { waitAndCaptureScreenshot } from "../../utils/screenshotHandler";
 
 /**
  * Simple scroll tool for DOM mode (non-grounding models).

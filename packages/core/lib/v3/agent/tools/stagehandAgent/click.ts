@@ -1,35 +1,30 @@
 import { tool } from "ai";
 import { z } from "zod";
-import type { V3 } from "../../v3";
-import type { Action } from "../../types/public/methods";
+import type { V3 } from "../../../v3";
+import type { Action } from "../../../types/public/methods";
 import type {
-  TypeToolResult,
+  ClickToolResult,
   ModelOutputContentItem,
-} from "../../types/public/agent";
-import { processCoordinates } from "../utils/coordinateNormalization";
-import { ensureXPath } from "../utils/xpath";
-import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
+} from "../../../types/public/agent";
+import { processCoordinates } from "../../utils/coordinateNormalization";
+import { ensureXPath } from "../../utils/xpath";
+import { waitAndCaptureScreenshot } from "../../utils/screenshotHandler";
 
-export const typeTool = (v3: V3, provider?: string) =>
+export const clickTool = (v3: V3, provider?: string) =>
   tool({
     description:
-      "Type text into an element using its coordinates. This will click the element and then type the text into it (this is the most reliable way to type into an element, always use this over act, unless the element is not visible in the screenshot, but shown in ariaTree)",
+      "Click on an element using its coordinates (this is the most reliable way to click on an element, always use this over act, unless the element is not visible in the screenshot, but shown in ariaTree)",
     inputSchema: z.object({
       describe: z
         .string()
         .describe(
-          "Describe the element to type into in a short, specific phrase that mentions the element type and a good visual description",
+          "Describe the element to click on in a short, specific phrase that mentions the element type and a good visual description",
         ),
-      text: z.string().describe("The text to type into the element"),
       coordinates: z
         .array(z.number())
-        .describe("The (x, y) coordinates to type into the element"),
+        .describe("The (x, y) coordinates to click on"),
     }),
-    execute: async ({
-      describe,
-      coordinates,
-      text,
-    }): Promise<TypeToolResult> => {
+    execute: async ({ describe, coordinates }): Promise<ClickToolResult> => {
       try {
         const page = await v3.context.awaitActivePage();
         const processed = processCoordinates(
@@ -40,11 +35,11 @@ export const typeTool = (v3: V3, provider?: string) =>
 
         v3.logger({
           category: "agent",
-          message: `Agent calling tool: type`,
+          message: `Agent calling tool: click`,
           level: 1,
           auxiliary: {
             arguments: {
-              value: JSON.stringify({ describe, text }),
+              value: JSON.stringify({ describe }),
               type: "object",
             },
           },
@@ -56,8 +51,6 @@ export const typeTool = (v3: V3, provider?: string) =>
           returnXpath: shouldCollectXpath,
         });
 
-        await page.type(text);
-
         const screenshotBase64 = await waitAndCaptureScreenshot(page);
 
         // Record as an "act" step with proper Action for deterministic replay (only when caching)
@@ -67,8 +60,8 @@ export const typeTool = (v3: V3, provider?: string) =>
             const action: Action = {
               selector: normalizedXpath,
               description: describe,
-              method: "type",
-              arguments: [text],
+              method: "click",
+              arguments: [],
             };
             v3.recordAgentReplayStep({
               type: "act",
@@ -82,13 +75,13 @@ export const typeTool = (v3: V3, provider?: string) =>
         return {
           success: true,
           describe,
-          text,
+          coordinates: [processed.x, processed.y],
           screenshotBase64,
         };
       } catch (error) {
         return {
           success: false,
-          error: `Error typing: ${(error as Error).message}`,
+          error: `Error clicking: ${(error as Error).message}`,
         };
       }
     },
@@ -100,7 +93,7 @@ export const typeTool = (v3: V3, provider?: string) =>
             text: JSON.stringify({
               success: result.success,
               describe: result.describe,
-              text: result.text,
+              coordinates: result.coordinates,
             }),
           },
         ];

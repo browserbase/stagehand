@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
-import type { V3 } from "../../v3";
-import type { LogLine } from "../../types/public/logs";
+import type { V3 } from "../../../v3";
+import type { LogLine } from "../../../types/public/logs";
 function evaluateZodSchema(
   schemaStr: string,
   logger?: (message: LogLine) => void,
