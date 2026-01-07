@@ -353,11 +353,13 @@ const checkState = (
   if (state === "hidden") {
     try {
       const style = window.getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
       return (
         style.display === "none" ||
         style.visibility === "hidden" ||
         style.opacity === "0" ||
-        (el as HTMLElement).offsetParent === null
+        rect.width === 0 ||
+        rect.height === 0
       );
     } catch {
       return false;
@@ -446,6 +448,7 @@ export function waitForSelector(
   return new Promise<boolean>((resolve, reject) => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let domReadyHandler: (() => void) | null = null;
+    let settled = false;
     const clearTimer = (): void => {
       if (timeoutId !== null) {
         clearTimeout(timeoutId);
@@ -456,6 +459,7 @@ export function waitForSelector(
     // Check immediately
     const el = findElement(selector, pierceShadow);
     if (checkState(el, state)) {
+      settled = true;
       resolve(true);
       return;
     }
@@ -473,8 +477,10 @@ export function waitForSelector(
     };
 
     const check = (): void => {
+      if (settled) return;
       const el = findElement(selector, pierceShadow);
       if (checkState(el, state)) {
+        settled = true;
         clearTimer();
         cleanup();
         resolve(true);
@@ -492,6 +498,8 @@ export function waitForSelector(
       };
       document.addEventListener("DOMContentLoaded", domReadyHandler);
       timeoutId = setTimeout(() => {
+        if (settled) return;
+        settled = true;
         clearTimer();
         cleanup();
         reject(
@@ -527,6 +535,8 @@ export function waitForSelector(
 
     // Set up timeout
     timeoutId = setTimeout(() => {
+      if (settled) return;
+      settled = true;
       clearTimer();
       cleanup();
       reject(
