@@ -249,7 +249,7 @@ test.describe("Stagehand agent hybrid mode", () => {
 
       await agent.execute({
         instruction:
-          "Use the ariaTree to understand the page, then describe what you see briefly and mark the task as complete.",
+          "Use the ariaTree to understand the page, then provide the final requested output or a summary of the page.",
         maxSteps: 5,
         callbacks: {
           onStepFinish: async (event: StepResult<ToolSet>) => {
