@@ -424,10 +424,10 @@ const setupShadowObservers = (
  * Wait for an element matching the selector to reach the specified state.
  * Supports both CSS selectors and XPath expressions (prefix with "xpath=" or start with "/").
  *
- * @param selector - CSS selector or XPath expression to wait for
- * @param state - Element state: 'attached' | 'detached' | 'visible' | 'hidden'
- * @param timeout - Maximum time to wait in milliseconds
- * @param pierceShadow - Whether to search inside shadow DOM
+ * @param selectorRaw - CSS selector or XPath expression to wait for
+ * @param stateRaw - Element state: 'attached' | 'detached' | 'visible' | 'hidden'
+ * @param timeoutRaw - Maximum time to wait in milliseconds
+ * @param pierceShadowRaw - Whether to search inside shadow DOM
  * @returns Promise that resolves to true when condition is met, or rejects on timeout
  */
 export function waitForSelector(
@@ -444,6 +444,15 @@ export function waitForSelector(
   const pierceShadow = pierceShadowRaw !== false;
 
   return new Promise<boolean>((resolve, reject) => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let domReadyHandler: (() => void) | null = null;
+    const clearTimer = (): void => {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    };
+
     // Check immediately
     const el = findElement(selector, pierceShadow);
     if (checkState(el, state)) {
@@ -457,11 +466,16 @@ export function waitForSelector(
       for (const obs of observers) {
         obs.disconnect();
       }
+      if (domReadyHandler) {
+        document.removeEventListener("DOMContentLoaded", domReadyHandler);
+        domReadyHandler = null;
+      }
     };
 
     const check = (): void => {
       const el = findElement(selector, pierceShadow);
       if (checkState(el, state)) {
+        clearTimer();
         cleanup();
         resolve(true);
       }
@@ -470,11 +484,15 @@ export function waitForSelector(
     // Handle case where document.body is not ready yet
     const observeRoot = document.body || document.documentElement;
     if (!observeRoot) {
-      document.addEventListener("DOMContentLoaded", () => {
+      domReadyHandler = (): void => {
+        document.removeEventListener("DOMContentLoaded", domReadyHandler!);
+        domReadyHandler = null;
         check();
         setupObservers();
-      });
-      setTimeout(() => {
+      };
+      document.addEventListener("DOMContentLoaded", domReadyHandler);
+      timeoutId = setTimeout(() => {
+        clearTimer();
         cleanup();
         reject(
           new Error(
@@ -508,7 +526,8 @@ export function waitForSelector(
     setupObservers();
 
     // Set up timeout
-    setTimeout(() => {
+    timeoutId = setTimeout(() => {
+      clearTimer();
       cleanup();
       reject(
         new Error(
