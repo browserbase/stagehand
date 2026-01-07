@@ -1,6 +1,6 @@
 {
   "name": "@natewong1313/stagehand",
-  "version": "3.0.7",
+  "version": "3.0.8",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
