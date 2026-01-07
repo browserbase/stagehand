@@ -623,8 +623,16 @@ interface LogLine {
 Now that you have logging configured, explore additional debugging and monitoring tools in [the Observability guide](/v3/configuration/observability):
 
 <CardGroup cols={2}>
+<Card title="History API" icon="clock-rotate-left" href="/v3/best-practices/history">
+Track all LLM operations (act, extract, observe, agent) with parameters, results, and timestamps. Perfect for debugging sequences and replaying workflows.
+</Card>
+
 <Card title="Metrics API" icon="chart-line" href="/v3/configuration/observability#real-time-metrics--monitoring">
 Monitor token usage and performance in real-time. Track costs per operation, identify expensive calls, and optimize resource usage.
+</Card>
+
+<Card title="LLM Inference Debugging" icon="microscope" href="/v3/configuration/logging#llm-inference-debugging">
+Save complete LLM request/response dumps to disk. See exactly what DOM was sent to the LLM and why it made specific decisions.
 </Card>
 
 <Card title="Browserbase Session Monitoring" icon="video" href="/v3/configuration/observability#browserbase-session-monitoring">
