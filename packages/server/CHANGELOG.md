@@ -1,5 +1,12 @@
 # @browserbasehq/stagehand-server
 
+## 3.2.1
+
+### Patch Changes
+
+- Updated dependencies [[`692ffa0`](https://github.com/natewong1313/stagehand/commit/692ffa0346ad3d121686aba503c0a22844293efa), [`72ac775`](https://github.com/natewong1313/stagehand/commit/72ac775a831d6f0f376ceda4426525f93cc21452), [`3d5af07`](https://github.com/natewong1313/stagehand/commit/3d5af07f66d6d26d1f5ac4bd9be7183c3381dd92), [`16d72fb`](https://github.com/natewong1313/stagehand/commit/16d72fb4c4081dd33bf45605d75c27644ea4c00e), [`088c4cc`](https://github.com/natewong1313/stagehand/commit/088c4cc31dc924bb232a9d5a09ab42cd961c2d36), [`091296e`](https://github.com/natewong1313/stagehand/commit/091296e438bb2374c8bb10ef6c08283978145ebf), [`2cb78d0`](https://github.com/natewong1313/stagehand/commit/2cb78d0f5ddef9f7337a9a2fe3137f1421df700a)]:
+  - @natewong1313/stagehand@3.0.8
+
 ## 3.2.0
 
 ### Minor Changes
