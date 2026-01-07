@@ -507,13 +507,6 @@ export class V3AgentHandler {
       );
     }
 
-    // Combine input messages with response messages for full conversation history
-    const responseMessages = result.response?.messages || [];
-    const fullMessages: ModelMessage[] = [
-      ...inputMessages,
-      ...responseMessages,
-    ];
-
     return {
       success: state.completed,
       message: state.finalMessage || "Task execution completed",
@@ -529,7 +522,7 @@ export class V3AgentHandler {
             inference_time_ms: inferenceTimeMs,
           }
         : undefined,
-      messages: fullMessages,
+      messages: inputMessages,
     };
   }
 
