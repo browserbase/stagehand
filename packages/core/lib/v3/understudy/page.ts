@@ -1887,6 +1887,7 @@ export class Page {
       // Modifier keys
       case "cmd":
       case "command":
+      case "controlormeta":
         // On Mac, Cmd is Meta; elsewhere map to Control for common shortcuts
         return this.isMacOS() ? "Meta" : "Control";
       case "win":
