@@ -893,6 +893,7 @@ test.describe("Page.waitForSelector tests", () => {
               "  count++;" +
               "  const div = document.createElement('div');" +
               "  div.id = 'item-' + count;" +
+              "  div.textContent = 'item';" +
               "  document.getElementById('container').appendChild(div);" +
               "  if (count >= 10) clearInterval(interval);" +
               "}, 50);" +
