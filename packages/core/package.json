@@ -1,5 +1,5 @@
 {
-  "name": "@browserbasehq/stagehand",
+  "name": "@natewong1313/stagehand",
   "version": "3.0.7",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "main": "./dist/index.js",
@@ -100,11 +100,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/browserbase/stagehand.git",
+    "url": "git+https://github.com/natewong1313/stagehand.git",
     "directory": "packages/core"
   },
   "bugs": {
-    "url": "https://github.com/browserbase/stagehand/issues"
+    "url": "https://github.com/natewong1313/stagehand/issues"
   },
   "homepage": "https://stagehand.dev"
 }
