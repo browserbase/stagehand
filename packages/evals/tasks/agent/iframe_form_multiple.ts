@@ -1,5 +1,6 @@
 import { EvalFunction } from "../../types/evals";
 import { V3Evaluator } from "@browserbasehq/stagehand";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 export const iframe_form_multiple: EvalFunction = async ({
   debugUrl,
@@ -14,57 +15,60 @@ export const iframe_form_multiple: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-form-filling/",
     );
 
+    // Start collecting screenshots throughout the agent's journey
+    const screenshotCollector = new ScreenshotCollector(v3, {
+      interval: 3000,
+      maxScreenshots: 15,
+    });
+    screenshotCollector.start();
+
+    const instruction =
+      "Fill in the first name with 'John', the last name with 'Smith', the email with 'john.smith@example.com', and select the email radio button as preferred contact method";
     const agentResult = await agent.execute({
-      instruction:
-        "Fill in the form name with 'John Smith', the email with 'john.smith@example.com', and select the 'Are you the domain owner?' option as 'No'",
+      instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 10,
     });
-    logger.log(agentResult);
 
-    await page.scroll(0, 0, 0, -1000);
-    const evaluator = new V3Evaluator(v3);
-    const results = await evaluator.batchAsk({
-      questions: [
-        { question: "Is the form name input filled with 'John Smith'?" },
-        {
-          question:
-            "Is the form email input filled with 'john.smith@example.com'?",
-        },
-      ],
+    // Stop and collect all screenshots from the journey
+    const screenshots = await screenshotCollector.stop();
+
+    logger.log({
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
+      level: 1,
     });
 
-    for (const r of results) {
-      if (r.evaluation !== "YES" && r.evaluation !== "NO") {
-        return {
-          _success: false,
-          observations: "Evaluator provided an invalid response",
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
-      if (r.evaluation === "NO") {
-        return {
-          _success: false,
-          observations: r.reasoning,
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
-    }
+    const evaluator = new V3Evaluator(v3);
+    const { evaluation, reasoning } = await evaluator.ask({
+      question: `Did the agent complete this task successfully? ${instruction}. The form should have: first name = 'John', last name = 'Smith', email = 'john.smith@example.com', and the email radio button selected as preferred contact method.`,
+      screenshot: screenshots,
+      agentReasoning: agentResult.message,
+    });
 
+    console.log(`reasoning: ${reasoning}`);
+
+    const success = evaluation === "YES";
+
+    if (!success) {
+      return {
+        _success: false,
+        message: reasoning,
+        debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
+      };
+    }
     return {
       _success: true,
-      observations: "All fields were filled correctly",
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       _success: false,
-      error: error,
+      message: errorMessage,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),

@@ -13,7 +13,7 @@ export const sf_library_card: EvalFunction = async ({
     await page.goto("https://sflib1.sfpl.org/selfreg");
     const agentResult = await agent.execute({
       instruction: "Fill in the 'street Address' field with '166 Geary St'",
-      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 3,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 1,
     });
     logger.log(agentResult);
     const evaluator = new V3Evaluator(v3);
