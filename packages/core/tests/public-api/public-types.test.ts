@@ -195,6 +195,7 @@ describe("Stagehand public API types", () => {
       messages?: Stagehand.ModelMessage[];
       signal?: AbortSignal;
       excludeTools?: string[];
+      output?: Stagehand.StagehandZodObject;
       callbacks?: Stagehand.AgentExecuteCallbacks;
     };
 
@@ -212,6 +213,7 @@ describe("Stagehand public API types", () => {
       messages?: Stagehand.ModelMessage[];
       signal?: AbortSignal;
       excludeTools?: string[];
+      output?: Stagehand.StagehandZodObject;
       callbacks?: Stagehand.AgentStreamCallbacks;
     };
 
@@ -251,6 +253,7 @@ describe("Stagehand public API types", () => {
         inference_time_ms: number;
       };
       messages?: Stagehand.ModelMessage[];
+      output?: Record<string, unknown>;
     };
 
     it("matches expected type shape", () => {

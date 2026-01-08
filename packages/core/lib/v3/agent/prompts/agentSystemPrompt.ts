@@ -67,7 +67,6 @@ function buildToolsSection(
     { name: "wait", description: "Wait for a specified time" },
     { name: "navback", description: "Navigate back in browser history" },
     { name: "scroll", description: "Scroll the page x pixels up or down" },
-    { name: "close", description: "Mark the task as complete or failed" },
   ];
 
   const domTools: ToolDefinition[] = [
@@ -92,7 +91,6 @@ function buildToolsSection(
     { name: "wait", description: "Wait for a specified time" },
     { name: "navback", description: "Navigate back in browser history" },
     { name: "scroll", description: "Scroll the page x pixels up or down" },
-    { name: "close", description: "Mark the task as complete or failed" },
   ];
 
   const baseTools = isHybridMode ? hybridTools : domTools;
@@ -224,8 +222,6 @@ export function buildAgentSystemPrompt(
     <item>Always start by understanding the current page state</item>
     <item>Use the screenshot tool to verify page state when needed</item>
     <item>Use appropriate tools for each action</item>
-    <item>When the task is complete, use the "close" tool with taskComplete: true</item>
-    <item>If the task cannot be completed, use "close" with taskComplete: false</item>
   </guidelines>
   ${pageUnderstandingProtocol}
   <navigation>
