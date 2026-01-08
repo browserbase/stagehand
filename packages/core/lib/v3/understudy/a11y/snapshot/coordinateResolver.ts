@@ -42,6 +42,7 @@ export async function resolveXpathForLocation(
       let sy = 0;
       try {
         await curSession.send("Runtime.enable").catch(() => {});
+        await curSession.send("Runtime.disable").catch(() => {});
         const ctxId = await executionContexts
           .waitForMainWorld(curSession, curFrameId)
           .catch(() => {});
