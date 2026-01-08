@@ -36,7 +36,7 @@ import {
   StreamingCallbacksInNonStreamingModeError,
   AgentAbortError,
 } from "../types/public/sdkErrors";
-import { handleCloseToolCall } from "../agent/utils/handleCloseToolCall";
+import { handleDoneToolCall } from "../agent/utils/handleDoneToolCall";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -171,13 +171,13 @@ export class V3AgentHandler {
             });
           }
 
-          if (toolCall.toolName === "close") {
+          if (toolCall.toolName === "done") {
             state.completed = true;
             if (args?.taskComplete) {
-              const closeReasoning = args.reasoning;
+              const doneReasoning = args.reasoning;
               const allReasoning = state.collectedReasoning.join(" ");
-              state.finalMessage = closeReasoning
-                ? `${allReasoning} ${closeReasoning}`.trim()
+              state.finalMessage = doneReasoning
+                ? `${allReasoning} ${doneReasoning}`.trim()
                 : allReasoning || "Task completed successfully";
             }
           }
@@ -296,7 +296,7 @@ export class V3AgentHandler {
       });
 
       const allMessages = [...messages, ...(result.response?.messages || [])];
-      const closeResult = await this.ensureClosed(
+      const doneResult = await this.ensureDone(
         state,
         wrappedModel,
         allMessages,
@@ -308,10 +308,10 @@ export class V3AgentHandler {
       return this.consolidateMetricsAndResult(
         startTime,
         state,
-        closeResult.messages,
+        doneResult.messages,
         result,
         maxSteps,
-        closeResult.output,
+        doneResult.output,
       );
     } catch (error) {
       // Re-throw validation errors that should propagate to the caller
@@ -422,21 +422,21 @@ export class V3AgentHandler {
         }
 
         const allMessages = [...messages, ...(event.response?.messages || [])];
-        this.ensureClosed(
+        this.ensureDone(
           state,
           wrappedModel,
           allMessages,
           options.instruction,
           options.output,
           this.logger,
-        ).then((closeResult) => {
+        ).then((doneResult) => {
           const result = this.consolidateMetricsAndResult(
             startTime,
             state,
-            closeResult.messages,
+            doneResult.messages,
             event,
             maxSteps,
-            closeResult.output,
+            doneResult.output,
           );
           resolveResult(result);
         });
@@ -542,17 +542,17 @@ export class V3AgentHandler {
     maxSteps: number,
   ): boolean | PromiseLike<boolean> {
     const lastStep = result.steps[result.steps.length - 1];
-    if (lastStep?.toolCalls?.some((tc) => tc.toolName === "close")) {
+    if (lastStep?.toolCalls?.some((tc) => tc.toolName === "done")) {
       return true;
     }
     return stepCountIs(maxSteps)(result);
   }
 
   /**
-   * Ensures the close tool is called at the end of agent execution.
-   * Returns the messages and any extracted output from the close call.
+   * Ensures the done tool is called at the end of agent execution.
+   * Returns the messages and any extracted output from the done call.
    */
-  private async ensureClosed(
+  private async ensureDone(
     state: AgentState,
     model: LanguageModel,
     messages: ModelMessage[],
@@ -562,7 +562,7 @@ export class V3AgentHandler {
   ): Promise<{ messages: ModelMessage[]; output?: Record<string, unknown> }> {
     if (state.completed) return { messages };
 
-    const closeResult = await handleCloseToolCall({
+    const doneResult = await handleDoneToolCall({
       model,
       inputMessages: messages,
       instruction,
@@ -570,32 +570,32 @@ export class V3AgentHandler {
       logger,
     });
 
-    state.completed = closeResult.taskComplete;
-    state.finalMessage = closeResult.reasoning;
+    state.completed = doneResult.taskComplete;
+    state.finalMessage = doneResult.reasoning;
 
-    const closeAction = mapToolResultToActions({
-      toolCallName: "close",
+    const doneAction = mapToolResultToActions({
+      toolCallName: "done",
       toolResult: {
         success: true,
-        reasoning: closeResult.reasoning,
-        taskComplete: closeResult.taskComplete,
+        reasoning: doneResult.reasoning,
+        taskComplete: doneResult.taskComplete,
       },
       args: {
-        reasoning: closeResult.reasoning,
-        taskComplete: closeResult.taskComplete,
+        reasoning: doneResult.reasoning,
+        taskComplete: doneResult.taskComplete,
       },
-      reasoning: closeResult.reasoning,
+      reasoning: doneResult.reasoning,
     });
 
-    for (const action of closeAction) {
+    for (const action of doneAction) {
       action.pageUrl = state.currentPageUrl;
       action.timestamp = Date.now();
       state.actions.push(action);
     }
 
     return {
-      messages: [...messages, ...closeResult.messages],
-      output: closeResult.output,
+      messages: [...messages, ...doneResult.messages],
+      output: doneResult.output,
     };
   }
 
