@@ -15,6 +15,7 @@
       "og:site_name": "Stagehand Docs"
     }
   },
+  "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
   "navigation": {
     "versions": [
       {
@@ -217,6 +218,78 @@
               "v2/references/extract",
               "v2/references/observe",
               "v2/references/agent"
+            ]
+          }
+        ]
+      },
+      {
+        "version": "Python",
+        "groups": [
+          {
+            "group": "API Reference",
+            "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
+            "pages": [
+              "POST /v1/sessions/start",
+              "POST /v1/sessions/{id}/navigate",
+              "POST /v1/sessions/{id}/observe",
+              "POST /v1/sessions/{id}/act",
+              "POST /v1/sessions/{id}/extract",
+              "POST /v1/sessions/{id}/agentExecute",
+              "POST /v1/sessions/{id}/end"
+            ]
+          }
+        ]
+      },
+      {
+        "version": "Go",
+        "groups": [
+          {
+            "group": "API Reference",
+            "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
+            "pages": [
+              "POST /v1/sessions/start",
+              "POST /v1/sessions/{id}/navigate",
+              "POST /v1/sessions/{id}/observe",
+              "POST /v1/sessions/{id}/act",
+              "POST /v1/sessions/{id}/extract",
+              "POST /v1/sessions/{id}/agentExecute",
+              "POST /v1/sessions/{id}/end"
+            ]
+          }
+        ]
+      },
+      {
+        "version": "Java",
+        "groups": [
+          {
+            "group": "API Reference",
+            "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
+            "pages": [
+              "POST /v1/sessions/start",
+              "POST /v1/sessions/{id}/navigate",
+              "POST /v1/sessions/{id}/observe",
+              "POST /v1/sessions/{id}/act",
+              "POST /v1/sessions/{id}/extract",
+              "POST /v1/sessions/{id}/agentExecute",
+              "POST /v1/sessions/{id}/end"
+            ]
+          }
+        ]
+      },
+      {
+        "version": "Ruby",
+        "groups": [
+          {
+            "group": "API Reference",
+            "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
+            "pages": [
+              "POST /v1/sessions/start",
+              "POST /v1/sessions/{id}/navigate",
+              "POST /v1/sessions/{id}/observe",
+              "POST /v1/sessions/{id}/act",
+              "POST /v1/sessions/{id}/extract",
+              "POST /v1/sessions/{id}/agentExecute",
+              "POST /v1/sessions/{id}/end"
             ]
           }
         ]
