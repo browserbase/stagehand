@@ -34,7 +34,6 @@ test.describe("Stagehand agent hybrid mode", () => {
       expect(tools).toHaveProperty("scroll");
       expect(tools).toHaveProperty("wait");
       expect(tools).toHaveProperty("navback");
-      expect(tools).toHaveProperty("close");
       expect(tools).toHaveProperty("keys");
       expect(tools).toHaveProperty("think");
 
@@ -65,7 +64,6 @@ test.describe("Stagehand agent hybrid mode", () => {
       expect(tools).toHaveProperty("scroll");
       expect(tools).toHaveProperty("wait");
       expect(tools).toHaveProperty("navback");
-      expect(tools).toHaveProperty("close");
       expect(tools).toHaveProperty("keys");
       expect(tools).toHaveProperty("think");
 
@@ -212,7 +210,7 @@ test.describe("Stagehand agent hybrid mode", () => {
 
       await agent.execute({
         instruction:
-          "Take a screenshot to see the page, then use close tool with taskComplete: true",
+          "Take a screenshot to see the page, then describe what you see briefly and mark the task as complete.",
         maxSteps: 5,
         callbacks: {
           onStepFinish: async (event: StepResult<ToolSet>) => {
@@ -232,9 +230,8 @@ test.describe("Stagehand agent hybrid mode", () => {
       expect(toolCalls.length).toBeGreaterThan(0);
 
       const toolNames = toolCalls.map((tc) => tc.toolName);
-      // Should include screenshot (hybrid mode emphasizes visual) and close
+      // Should include screenshot (hybrid mode emphasizes visual)
       expect(toolNames).toContain("screenshot");
-      expect(toolNames).toContain("close");
     });
 
     test("DOM mode agent uses DOM-based tools", async () => {
@@ -252,7 +249,7 @@ test.describe("Stagehand agent hybrid mode", () => {
 
       await agent.execute({
         instruction:
-          "Use the ariaTree to understand the page, then use close tool with taskComplete: true",
+          "Use the ariaTree to understand the page, then provide the final requested output or a summary of the page.",
         maxSteps: 5,
         callbacks: {
           onStepFinish: async (event: StepResult<ToolSet>) => {
@@ -271,9 +268,9 @@ test.describe("Stagehand agent hybrid mode", () => {
       // Should have captured tool calls
       expect(toolCalls.length).toBeGreaterThan(0);
 
-      // Should include close
+      // Should include ariaTree (DOM mode emphasizes aria-based interaction)
       const toolNames = toolCalls.map((tc) => tc.toolName);
-      expect(toolNames).toContain("close");
+      expect(toolNames).toContain("ariaTree");
     });
   });
 
