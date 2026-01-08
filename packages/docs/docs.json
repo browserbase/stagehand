@@ -123,6 +123,19 @@
             "pages": [
               "v3/migrations/v2"
             ]
+          },
+          {
+            "group": "API Reference",
+            "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
+            "pages": [
+              "POST /v1/sessions/start",
+              "POST /v1/sessions/{id}/navigate",
+              "POST /v1/sessions/{id}/observe",
+              "POST /v1/sessions/{id}/act",
+              "POST /v1/sessions/{id}/extract",
+              "POST /v1/sessions/{id}/agentExecute",
+              "POST /v1/sessions/{id}/end"
+            ]
           }
         ]
       },
@@ -226,17 +239,43 @@
         "version": "Python",
         "groups": [
           {
+            "group": "First Steps",
+            "pages": ["v3/first-steps/introduction", "v3/first-steps/quickstart", "v3/first-steps/installation", "v3/first-steps/ai-rules"]
+          },
+          {
+            "group": "The Basics",
+            "pages": ["v3/basics/act", "v3/basics/extract", "v3/basics/observe", "v3/basics/agent", "v3/basics/evals"]
+          },
+          {
+            "group": "Configuration",
+            "pages": ["v3/configuration/browser", "v3/configuration/observability", "v3/configuration/logging", "v3/configuration/models"]
+          },
+          {
+            "group": "Best Practices",
+            "pages": ["v3/best-practices/caching", "v3/best-practices/cost-optimization", "v3/best-practices/deterministic-agent", "v3/best-practices/using-multiple-tabs", "v3/best-practices/deployments", "v3/best-practices/history", "v3/best-practices/computer-use", "v3/best-practices/agent-fallbacks", "v3/best-practices/prompting-best-practices", "v3/best-practices/mcp-integrations", "v3/best-practices/speed-optimization"]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              {"group": "MCP Server", "pages": ["v3/integrations/mcp/introduction", "v3/integrations/mcp/setup", "v3/integrations/mcp/tools", "v3/integrations/mcp/configuration"]},
+              {"group": "CrewAI", "pages": ["v3/integrations/crew-ai/introduction", "v3/integrations/crew-ai/configuration"]},
+              {"group": "Langchain", "pages": ["v3/integrations/langchain/introduction", "v3/integrations/langchain/configuration"]},
+              {"group": "Next.js + Vercel", "pages": ["v3/integrations/vercel/introduction", "v3/integrations/vercel/configuration"]},
+              "v3/integrations/playwright", "v3/integrations/puppeteer", "v3/integrations/selenium"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": ["v3/references/stagehand", "v3/references/act", "v3/references/extract", "v3/references/observe", "v3/references/agent", "v3/references/context", "v3/references/page", "v3/references/locator", "v3/references/deeplocator", "v3/references/response"]
+          },
+          {
+            "group": "Migration Guides",
+            "pages": ["v3/migrations/v2"]
+          },
+          {
             "group": "API Reference",
             "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
-            "pages": [
-              "POST /v1/sessions/start",
-              "POST /v1/sessions/{id}/navigate",
-              "POST /v1/sessions/{id}/observe",
-              "POST /v1/sessions/{id}/act",
-              "POST /v1/sessions/{id}/extract",
-              "POST /v1/sessions/{id}/agentExecute",
-              "POST /v1/sessions/{id}/end"
-            ]
+            "pages": ["POST /v1/sessions/start", "POST /v1/sessions/{id}/navigate", "POST /v1/sessions/{id}/observe", "POST /v1/sessions/{id}/act", "POST /v1/sessions/{id}/extract", "POST /v1/sessions/{id}/agentExecute", "POST /v1/sessions/{id}/end"]
           }
         ]
       },
@@ -244,17 +283,43 @@
         "version": "Go",
         "groups": [
           {
+            "group": "First Steps",
+            "pages": ["v3/first-steps/introduction", "v3/first-steps/quickstart", "v3/first-steps/installation", "v3/first-steps/ai-rules"]
+          },
+          {
+            "group": "The Basics",
+            "pages": ["v3/basics/act", "v3/basics/extract", "v3/basics/observe", "v3/basics/agent", "v3/basics/evals"]
+          },
+          {
+            "group": "Configuration",
+            "pages": ["v3/configuration/browser", "v3/configuration/observability", "v3/configuration/logging", "v3/configuration/models"]
+          },
+          {
+            "group": "Best Practices",
+            "pages": ["v3/best-practices/caching", "v3/best-practices/cost-optimization", "v3/best-practices/deterministic-agent", "v3/best-practices/using-multiple-tabs", "v3/best-practices/deployments", "v3/best-practices/history", "v3/best-practices/computer-use", "v3/best-practices/agent-fallbacks", "v3/best-practices/prompting-best-practices", "v3/best-practices/mcp-integrations", "v3/best-practices/speed-optimization"]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              {"group": "MCP Server", "pages": ["v3/integrations/mcp/introduction", "v3/integrations/mcp/setup", "v3/integrations/mcp/tools", "v3/integrations/mcp/configuration"]},
+              {"group": "CrewAI", "pages": ["v3/integrations/crew-ai/introduction", "v3/integrations/crew-ai/configuration"]},
+              {"group": "Langchain", "pages": ["v3/integrations/langchain/introduction", "v3/integrations/langchain/configuration"]},
+              {"group": "Next.js + Vercel", "pages": ["v3/integrations/vercel/introduction", "v3/integrations/vercel/configuration"]},
+              "v3/integrations/playwright", "v3/integrations/puppeteer", "v3/integrations/selenium"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": ["v3/references/stagehand", "v3/references/act", "v3/references/extract", "v3/references/observe", "v3/references/agent", "v3/references/context", "v3/references/page", "v3/references/locator", "v3/references/deeplocator", "v3/references/response"]
+          },
+          {
+            "group": "Migration Guides",
+            "pages": ["v3/migrations/v2"]
+          },
+          {
             "group": "API Reference",
             "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
-            "pages": [
-              "POST /v1/sessions/start",
-              "POST /v1/sessions/{id}/navigate",
-              "POST /v1/sessions/{id}/observe",
-              "POST /v1/sessions/{id}/act",
-              "POST /v1/sessions/{id}/extract",
-              "POST /v1/sessions/{id}/agentExecute",
-              "POST /v1/sessions/{id}/end"
-            ]
+            "pages": ["POST /v1/sessions/start", "POST /v1/sessions/{id}/navigate", "POST /v1/sessions/{id}/observe", "POST /v1/sessions/{id}/act", "POST /v1/sessions/{id}/extract", "POST /v1/sessions/{id}/agentExecute", "POST /v1/sessions/{id}/end"]
           }
         ]
       },
@@ -262,17 +327,43 @@
         "version": "Java",
         "groups": [
           {
+            "group": "First Steps",
+            "pages": ["v3/first-steps/introduction", "v3/first-steps/quickstart", "v3/first-steps/installation", "v3/first-steps/ai-rules"]
+          },
+          {
+            "group": "The Basics",
+            "pages": ["v3/basics/act", "v3/basics/extract", "v3/basics/observe", "v3/basics/agent", "v3/basics/evals"]
+          },
+          {
+            "group": "Configuration",
+            "pages": ["v3/configuration/browser", "v3/configuration/observability", "v3/configuration/logging", "v3/configuration/models"]
+          },
+          {
+            "group": "Best Practices",
+            "pages": ["v3/best-practices/caching", "v3/best-practices/cost-optimization", "v3/best-practices/deterministic-agent", "v3/best-practices/using-multiple-tabs", "v3/best-practices/deployments", "v3/best-practices/history", "v3/best-practices/computer-use", "v3/best-practices/agent-fallbacks", "v3/best-practices/prompting-best-practices", "v3/best-practices/mcp-integrations", "v3/best-practices/speed-optimization"]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              {"group": "MCP Server", "pages": ["v3/integrations/mcp/introduction", "v3/integrations/mcp/setup", "v3/integrations/mcp/tools", "v3/integrations/mcp/configuration"]},
+              {"group": "CrewAI", "pages": ["v3/integrations/crew-ai/introduction", "v3/integrations/crew-ai/configuration"]},
+              {"group": "Langchain", "pages": ["v3/integrations/langchain/introduction", "v3/integrations/langchain/configuration"]},
+              {"group": "Next.js + Vercel", "pages": ["v3/integrations/vercel/introduction", "v3/integrations/vercel/configuration"]},
+              "v3/integrations/playwright", "v3/integrations/puppeteer", "v3/integrations/selenium"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": ["v3/references/stagehand", "v3/references/act", "v3/references/extract", "v3/references/observe", "v3/references/agent", "v3/references/context", "v3/references/page", "v3/references/locator", "v3/references/deeplocator", "v3/references/response"]
+          },
+          {
+            "group": "Migration Guides",
+            "pages": ["v3/migrations/v2"]
+          },
+          {
             "group": "API Reference",
             "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
-            "pages": [
-              "POST /v1/sessions/start",
-              "POST /v1/sessions/{id}/navigate",
-              "POST /v1/sessions/{id}/observe",
-              "POST /v1/sessions/{id}/act",
-              "POST /v1/sessions/{id}/extract",
-              "POST /v1/sessions/{id}/agentExecute",
-              "POST /v1/sessions/{id}/end"
-            ]
+            "pages": ["POST /v1/sessions/start", "POST /v1/sessions/{id}/navigate", "POST /v1/sessions/{id}/observe", "POST /v1/sessions/{id}/act", "POST /v1/sessions/{id}/extract", "POST /v1/sessions/{id}/agentExecute", "POST /v1/sessions/{id}/end"]
           }
         ]
       },
@@ -280,17 +371,43 @@
         "version": "Ruby",
         "groups": [
           {
+            "group": "First Steps",
+            "pages": ["v3/first-steps/introduction", "v3/first-steps/quickstart", "v3/first-steps/installation", "v3/first-steps/ai-rules"]
+          },
+          {
+            "group": "The Basics",
+            "pages": ["v3/basics/act", "v3/basics/extract", "v3/basics/observe", "v3/basics/agent", "v3/basics/evals"]
+          },
+          {
+            "group": "Configuration",
+            "pages": ["v3/configuration/browser", "v3/configuration/observability", "v3/configuration/logging", "v3/configuration/models"]
+          },
+          {
+            "group": "Best Practices",
+            "pages": ["v3/best-practices/caching", "v3/best-practices/cost-optimization", "v3/best-practices/deterministic-agent", "v3/best-practices/using-multiple-tabs", "v3/best-practices/deployments", "v3/best-practices/history", "v3/best-practices/computer-use", "v3/best-practices/agent-fallbacks", "v3/best-practices/prompting-best-practices", "v3/best-practices/mcp-integrations", "v3/best-practices/speed-optimization"]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              {"group": "MCP Server", "pages": ["v3/integrations/mcp/introduction", "v3/integrations/mcp/setup", "v3/integrations/mcp/tools", "v3/integrations/mcp/configuration"]},
+              {"group": "CrewAI", "pages": ["v3/integrations/crew-ai/introduction", "v3/integrations/crew-ai/configuration"]},
+              {"group": "Langchain", "pages": ["v3/integrations/langchain/introduction", "v3/integrations/langchain/configuration"]},
+              {"group": "Next.js + Vercel", "pages": ["v3/integrations/vercel/introduction", "v3/integrations/vercel/configuration"]},
+              "v3/integrations/playwright", "v3/integrations/puppeteer", "v3/integrations/selenium"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": ["v3/references/stagehand", "v3/references/act", "v3/references/extract", "v3/references/observe", "v3/references/agent", "v3/references/context", "v3/references/page", "v3/references/locator", "v3/references/deeplocator", "v3/references/response"]
+          },
+          {
+            "group": "Migration Guides",
+            "pages": ["v3/migrations/v2"]
+          },
+          {
             "group": "API Reference",
             "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
-            "pages": [
-              "POST /v1/sessions/start",
-              "POST /v1/sessions/{id}/navigate",
-              "POST /v1/sessions/{id}/observe",
-              "POST /v1/sessions/{id}/act",
-              "POST /v1/sessions/{id}/extract",
-              "POST /v1/sessions/{id}/agentExecute",
-              "POST /v1/sessions/{id}/end"
-            ]
+            "pages": ["POST /v1/sessions/start", "POST /v1/sessions/{id}/navigate", "POST /v1/sessions/{id}/observe", "POST /v1/sessions/{id}/act", "POST /v1/sessions/{id}/extract", "POST /v1/sessions/{id}/agentExecute", "POST /v1/sessions/{id}/end"]
           }
         ]
       }
