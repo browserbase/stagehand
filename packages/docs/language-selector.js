@@ -1,24 +1,19 @@
-// Auto-select code sample language based on the current version
-// This script makes the selection instant and invisible to users
+// Dropdown selection manager and language selector for Stagehand docs
+// Handles: 1) Sidebar dropdown selection state 2) API Reference language selection
 
 (function() {
-  // Map version names to their corresponding SDK language labels
-  const versionToLanguage = {
-    'python': 'Python',
-    'go': 'Go',
-    'java': 'Java',
-    'ruby': 'Ruby',
-    'v3': 'Javascript',
-    'v2': 'Javascript'
-  };
-
-  let lastVersion = null;
-  let isSelecting = false;
-
-  // Inject CSS to hide dropdown during programmatic selection
-  const style = document.createElement('style');
-  style.id = 'stagehand-lang-selector-style';
-  style.textContent = `
+  // ============================================
+  // PART 1: Sidebar Dropdown Selection Manager
+  // ============================================
+  
+  const DROPDOWN_OPTIONS = ['Documentation', 'API Reference'];
+  let currentSelectedDropdown = 'Documentation';
+  
+  // Inject CSS for styling
+  const dropdownStyle = document.createElement('style');
+  dropdownStyle.id = 'stagehand-dropdown-style';
+  dropdownStyle.textContent = `
+    /* Hide dropdown during programmatic selection */
     .stagehand-selecting [role="menu"],
     .stagehand-selecting [role="listbox"] {
       opacity: 0 !important;
@@ -26,7 +21,116 @@
       transition: none !important;
     }
   `;
-  document.head.appendChild(style);
+  document.head.appendChild(dropdownStyle);
+  
+  function getDropdownButton() {
+    // Find the dropdown button in the sidebar
+    const buttons = document.querySelectorAll('button');
+    for (const btn of buttons) {
+      const text = (btn.textContent || '').trim();
+      if (DROPDOWN_OPTIONS.includes(text)) {
+        return btn;
+      }
+    }
+    return null;
+  }
+  
+  function getDropdownMenu() {
+    // Find the open dropdown menu
+    return document.querySelector('menu[role="menu"], [role="menu"]');
+  }
+  
+  function updateButtonText(newText) {
+    const button = getDropdownButton();
+    if (!button) return;
+    
+    // Find the paragraph or text element inside the button
+    const paragraph = button.querySelector('p');
+    if (paragraph) {
+      paragraph.textContent = newText;
+    }
+  }
+  
+  function setupMenuClickHandler() {
+    // Use event delegation on document to catch menu item clicks
+    document.addEventListener('click', (e) => {
+      const target = e.target;
+      
+      // Check if we clicked on a dropdown menu item
+      const menuItem = target.closest('[role="menu"] a, menu a');
+      if (!menuItem) return;
+      
+      const text = (menuItem.textContent || '').trim();
+      
+      // Check if it's one of our dropdown options
+      for (const option of DROPDOWN_OPTIONS) {
+        if (text.includes(option)) {
+          currentSelectedDropdown = option;
+          
+          // Store in sessionStorage
+          try {
+            sessionStorage.setItem('stagehand-selected-dropdown', option);
+          } catch (err) {
+            // Ignore storage errors
+          }
+          
+          // Update button text after a short delay (after menu closes)
+          setTimeout(() => {
+            updateButtonText(option);
+          }, 50);
+          
+          break;
+        }
+      }
+    }, true); // Use capture phase
+  }
+  
+  function restoreDropdownSelection() {
+    // Restore from sessionStorage if available
+    try {
+      const stored = sessionStorage.getItem('stagehand-selected-dropdown');
+      if (stored && DROPDOWN_OPTIONS.includes(stored)) {
+        currentSelectedDropdown = stored;
+        updateButtonText(stored);
+      }
+    } catch (err) {
+      // Ignore storage errors
+    }
+  }
+  
+  function initDropdownManager() {
+    // Set up click handler
+    setupMenuClickHandler();
+    
+    // Restore selection after page load
+    setTimeout(restoreDropdownSelection, 500);
+    
+    // Also restore on navigation (Mintlify re-renders)
+    const observer = new MutationObserver(() => {
+      // Check if button needs updating
+      const button = getDropdownButton();
+      if (button) {
+        const currentText = (button.textContent || '').trim();
+        if (currentText !== currentSelectedDropdown && DROPDOWN_OPTIONS.includes(currentSelectedDropdown)) {
+          updateButtonText(currentSelectedDropdown);
+        }
+      }
+    });
+    
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true
+    });
+  }
+  
+  // ============================================
+  // PART 2: API Reference Language Selector
+  // ============================================
+  
+  const supportedLanguages = ['Javascript', 'Python', 'Go', 'Java', 'Ruby', 'cURL', 'PHP'];
+  let lastSelectedLanguage = null;
+  let isSelecting = false;
+  let languageChangeObserver = null;
 
   function simulateClick(element) {
     if (!element) return;
@@ -44,24 +148,28 @@
     });
   }
 
-  function getSelectedVersion() {
+  function isV3Selected() {
     const buttons = document.querySelectorAll('button');
     for (const btn of buttons) {
       const text = (btn.textContent || '').trim().toLowerCase();
-      if (Object.keys(versionToLanguage).some(v => text === v)) {
-        return text;
+      if (text === 'v3') {
+        return true;
       }
     }
-    return null;
+    return false;
+  }
+
+  function isApiReferencePage() {
+    return window.location.pathname.includes('/api-reference') || 
+           window.location.pathname.includes('/v1/sessions');
   }
 
   function getCurrentLanguageDropdown() {
     const paragraphs = document.querySelectorAll('p');
-    const languages = ['Javascript', 'Python', 'Go', 'Java', 'Ruby', 'cURL', 'PHP'];
     
     for (const p of paragraphs) {
       const text = (p.textContent || '').trim();
-      if (languages.includes(text)) {
+      if (supportedLanguages.includes(text)) {
         const parentDiv = p.closest('div');
         if (parentDiv && parentDiv.querySelector('.lucide-chevrons-up-down')) {
           return { element: parentDiv, language: text };
@@ -69,6 +177,11 @@
       }
     }
     return null;
+  }
+
+  function getCurrentSelectedLanguage() {
+    const dropdown = getCurrentLanguageDropdown();
+    return dropdown ? dropdown.language : null;
   }
 
   function waitForMenuAndSelect(targetLanguage, attempts = 0) {
@@ -88,10 +201,8 @@
 
     for (const item of menuItems) {
       const text = (item.textContent || '').trim();
-      // Use exact match to avoid "Java" matching "Javascript"
       if (text === targetLanguage) {
         simulateClick(item);
-        // Clean up after a short delay
         setTimeout(() => {
           document.body.classList.remove('stagehand-selecting');
           isSelecting = false;
@@ -111,64 +222,106 @@
     if (current.language === targetLanguage) return;
     
     isSelecting = true;
-    
-    // Hide dropdown animation by adding class to body
     document.body.classList.add('stagehand-selecting');
-    
-    // Click to open dropdown
     simulateClick(current.element);
-    
-    // Immediately look for menu items
     setTimeout(() => waitForMenuAndSelect(targetLanguage), 10);
   }
 
-  function autoSelectLanguage() {
-    if (!window.location.pathname.includes('/api-reference')) return;
-    
-    const version = getSelectedVersion();
-    if (!version) return;
-    
-    const targetLanguage = versionToLanguage[version];
-    if (!targetLanguage) return;
-    
-    selectLanguage(targetLanguage);
-  }
-
-  function checkAndUpdate() {
-    if (!window.location.pathname.includes('/api-reference')) {
-      lastVersion = null;
+  function handleLanguageChange() {
+    if (!isV3Selected() || !isApiReferencePage()) {
+      lastSelectedLanguage = null;
       return;
     }
-    
-    const currentVersion = getSelectedVersion();
-    if (currentVersion && currentVersion !== lastVersion) {
-      lastVersion = currentVersion;
-      setTimeout(autoSelectLanguage, 300);
+
+    const currentLanguage = getCurrentSelectedLanguage();
+    if (currentLanguage && currentLanguage !== lastSelectedLanguage) {
+      lastSelectedLanguage = currentLanguage;
+      document.dispatchEvent(new CustomEvent('stagehand-language-changed', {
+        detail: { language: currentLanguage }
+      }));
     }
   }
 
-  function init() {
-    setTimeout(() => {
-      lastVersion = getSelectedVersion();
-      autoSelectLanguage();
-    }, 1000);
-    
-    setInterval(checkAndUpdate, 300);
+  function setupLanguageObserver() {
+    if (languageChangeObserver) {
+      languageChangeObserver.disconnect();
+    }
+
+    languageChangeObserver = new MutationObserver(() => {
+      handleLanguageChange();
+    });
+
+    languageChangeObserver.observe(document.body, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['class', 'aria-selected']
+    });
   }
 
+  function initLanguageSelector() {
+    if (!isV3Selected() || !isApiReferencePage()) {
+      return;
+    }
+
+    setTimeout(() => {
+      lastSelectedLanguage = getCurrentSelectedLanguage();
+      handleLanguageChange();
+    }, 1000);
+
+    setupLanguageObserver();
+
+    setInterval(() => {
+      if (isV3Selected() && isApiReferencePage()) {
+        handleLanguageChange();
+      }
+    }, 500);
+  }
+
+  function checkAndReinit() {
+    if (isV3Selected() && isApiReferencePage()) {
+      initLanguageSelector();
+    } else {
+      if (languageChangeObserver) {
+        languageChangeObserver.disconnect();
+        languageChangeObserver = null;
+      }
+      lastSelectedLanguage = null;
+    }
+  }
+
+  // ============================================
+  // INITIALIZATION
+  // ============================================
+  
+  function init() {
+    // Initialize dropdown manager (always)
+    initDropdownManager();
+    
+    // Initialize language selector (only on API reference pages)
+    checkAndReinit();
+  }
+
+  // Initialize on page load
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(init, 500);
+    });
   } else {
-    init();
+    setTimeout(init, 500);
   }
 
   // Re-run when URL changes (SPA navigation)
   let lastUrl = location.href;
-  new MutationObserver(() => {
+  const urlObserver = new MutationObserver(() => {
     if (location.href !== lastUrl) {
       lastUrl = location.href;
-      lastVersion = null;
-      setTimeout(autoSelectLanguage, 1000);
+      setTimeout(() => {
+        restoreDropdownSelection();
+        checkAndReinit();
+      }, 500);
     }
-  }).observe(document.body, { subtree: true, childList: true });
+  });
+  urlObserver.observe(document.body, { subtree: true, childList: true });
 })();
