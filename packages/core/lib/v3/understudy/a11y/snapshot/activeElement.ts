@@ -30,10 +30,12 @@ export async function computeActiveElementXpath(
   for (const fid of frames) {
     const sess = page.getSessionForFrame(fid);
     try {
-      await sess.send("Runtime.enable").catch(() => {});
+      // Use isolated world for stealth - page scripts can't see our evaluation
       const ctxId = await executionContexts
-        .waitForMainWorld(sess, fid, 1000)
-        .catch(() => {});
+        .getOrCreateIsolatedWorld(sess, fid)
+        .catch(() =>
+          executionContexts.waitForMainWorld(sess, fid, 1000).catch(() => {}),
+        );
       const hasFocusExpr = buildA11yInvocation("documentHasFocusStrict", []);
       const evalParams = ctxId
         ? {
@@ -59,10 +61,14 @@ export async function computeActiveElementXpath(
 
   let objectId: string | undefined;
   try {
-    await focusedSession.send("Runtime.enable").catch(() => {});
+    // Use isolated world for stealth
     const ctxId = await executionContexts
+      .getOrCreateIsolatedWorld(focusedSession, focusedFrameId)
+      .catch(() =>
+        executionContexts
       .waitForMainWorld(focusedSession, focusedFrameId, 1000)
-      .catch(() => {});
+          .catch(() => {}),
+      );
     const activeExpr = buildA11yInvocation("resolveDeepActiveElement", []);
     const evalParams = ctxId
       ? {

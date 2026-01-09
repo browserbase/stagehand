@@ -1,3 +1,14 @@
+// Helper to get the stealth backdoor via Symbol (invisible to fingerprinting)
+const getV3Backdoor = () => {
+  const V3_BACKDOOR_KEY = Symbol.for("__stagehandV3__");
+  return (window as unknown as Record<symbol, unknown>)[V3_BACKDOOR_KEY] as
+    | {
+        getClosedRoot: (host: Element) => ShadowRoot | null;
+        resolveSimpleXPath: (xp: string) => Element | null;
+      }
+    | undefined;
+};
+
 export interface TextMatchSample {
   tag: string;
   id: string;
@@ -67,7 +78,7 @@ export function countCssMatchesPierce(selectorRaw: string): number {
   const selector = String(selectorRaw ?? "").trim();
   if (!selector) return 0;
 
-  const backdoor = window.__stagehandV3__;
+  const backdoor = getV3Backdoor();
   if (!backdoor || typeof backdoor.getClosedRoot !== "function") {
     try {
       return document.querySelectorAll(selector).length;
@@ -184,7 +195,7 @@ export function countTextMatches(rawNeedle: string): TextMatchResult {
     return !!text && text.toLowerCase().includes(needleLc);
   };
 
-  const backdoor = window.__stagehandV3__;
+  const backdoor = getV3Backdoor();
   const getClosedRoot: (host: Element) => ShadowRoot | null =
     backdoor && typeof backdoor.getClosedRoot === "function"
       ? (host: Element): ShadowRoot | null => {
@@ -344,7 +355,7 @@ export function countXPathMatchesMainWorld(rawXp: string): number {
   const steps = parseSteps(xp);
   if (!steps.length) return 0;
 
-  const backdoor = window.__stagehandV3__;
+  const backdoor = getV3Backdoor();
   const getClosedRoot: (host: Element) => ShadowRoot | null =
     backdoor && typeof backdoor.getClosedRoot === "function"
       ? (host: Element): ShadowRoot | null => {

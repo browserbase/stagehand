@@ -199,7 +199,10 @@ export async function resolveCssFocusFrameAndTail(
   return { targetFrameId: ctxFrameId, tailSelector, absPrefix };
 }
 
-/** Resolve an XPath to a Runtime remoteObjectId in the given CDP session. */
+/**
+ * Resolve an XPath to a Runtime remoteObjectId in the given CDP session.
+ * Uses an isolated world to hide evaluation from page-level detection scripts.
+ */
 export async function resolveObjectIdForXPath(
   session: CDPSessionLike,
   xpath: string,
@@ -208,10 +211,16 @@ export async function resolveObjectIdForXPath(
   let contextId: number | undefined;
   try {
     if (frameId) {
+      // Use isolated world for stealth - page scripts can't see our evaluation
       contextId = await executionContexts
+        .getOrCreateIsolatedWorld(session, frameId)
+        .catch(() =>
+          // Fallback to main world if isolated world creation fails
+          executionContexts
         .waitForMainWorld(session, frameId, 800)
         .catch(
           () => executionContexts.getMainWorld(session, frameId) ?? undefined,
+            ),
         );
     }
   } catch {
@@ -234,7 +243,10 @@ export async function resolveObjectIdForXPath(
   return result?.objectId ?? null;
 }
 
-/** Resolve a CSS selector (supports '>>' within the same frame only) to a Runtime objectId. */
+/**
+ * Resolve a CSS selector (supports '>>' within the same frame only) to a Runtime objectId.
+ * Uses an isolated world to hide evaluation from page-level detection scripts.
+ */
 export async function resolveObjectIdForCss(
   session: CDPSessionLike,
   selector: string,
@@ -243,10 +255,16 @@ export async function resolveObjectIdForCss(
   let contextId: number | undefined;
   try {
     if (frameId) {
+      // Use isolated world for stealth - page scripts can't see our evaluation
       contextId = await executionContexts
+        .getOrCreateIsolatedWorld(session, frameId)
+        .catch(() =>
+          // Fallback to main world if isolated world creation fails
+          executionContexts
         .waitForMainWorld(session, frameId, 800)
         .catch(
           () => executionContexts.getMainWorld(session, frameId) ?? undefined,
+            ),
         );
     }
   } catch {

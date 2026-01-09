@@ -1,6 +1,15 @@
 export function rerenderMissingShadowHosts(): void {
   try {
-    const piercer = window.__stagehandV3__;
+    // Use Symbol.for() to access the same global symbol used by the piercer
+    const V3_BACKDOOR_KEY = Symbol.for("__stagehandV3__");
+    const piercer = (window as unknown as Record<symbol, unknown>)[
+      V3_BACKDOOR_KEY
+    ] as
+      | {
+          getClosedRoot: (host: Element) => ShadowRoot | null;
+          stats?: () => { open: number; closed: number };
+        }
+      | undefined;
     if (!piercer || typeof piercer.getClosedRoot !== "function") return;
 
     const needsReset: Element[] = [];

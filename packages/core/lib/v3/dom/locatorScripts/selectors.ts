@@ -1,3 +1,14 @@
+// Helper to get the stealth backdoor via Symbol (invisible to fingerprinting)
+const getV3Backdoor = () => {
+  const V3_BACKDOOR_KEY = Symbol.for("__stagehandV3__");
+  return (window as unknown as Record<symbol, unknown>)[V3_BACKDOOR_KEY] as
+    | {
+        getClosedRoot: (host: Element) => ShadowRoot | null;
+        resolveSimpleXPath: (xp: string) => Element | null;
+      }
+    | undefined;
+};
+
 const parseTargetIndex = (value: unknown): number => {
   const num = Number(value ?? 0);
   if (!Number.isFinite(num) || num < 0) return 0;
@@ -75,7 +86,7 @@ export function resolveCssSelectorPierce(
   if (!selector) return null;
 
   const targetIndex = parseTargetIndex(targetIndexRaw);
-  const backdoor = window.__stagehandV3__;
+  const backdoor = getV3Backdoor();
   if (!backdoor || typeof backdoor.getClosedRoot !== "function") {
     const matches = collectCssMatches(selector, targetIndex + 1);
     return matches[targetIndex] ?? null;
@@ -193,7 +204,7 @@ export function resolveTextSelector(
     return !!text && text.toLowerCase().includes(needleLc);
   };
 
-  const backdoor = window.__stagehandV3__;
+  const backdoor = getV3Backdoor();
   const getClosedRoot: (host: Element) => ShadowRoot | null =
     backdoor && typeof backdoor.getClosedRoot === "function"
       ? (host: Element): ShadowRoot | null => {
@@ -309,7 +320,7 @@ export function resolveXPathMainWorld(
   if (!xp) return null;
 
   const targetIndex = parseTargetIndex(targetIndexRaw);
-  const backdoor = window.__stagehandV3__;
+  const backdoor = getV3Backdoor();
 
   if (targetIndex === 0) {
     try {

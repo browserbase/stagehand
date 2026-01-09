@@ -25,20 +25,27 @@ type V3InternalState = {
   debug: boolean;
 };
 
+// Use Symbols to hide markers from Object.getOwnPropertyNames() detection
+// Symbol.for() creates a global registry symbol so we can access it across contexts
+const V3_INJECTED_KEY = Symbol.for("__stagehandV3Injected__");
+const V3_BACKDOOR_KEY = Symbol.for("__stagehandV3__");
+const V3_PATCHED_KEY = Symbol.for("__v3Patched__");
+const V3_STATE_KEY = Symbol.for("__v3State__");
+
 declare global {
   interface Window {
-    __stagehandV3Injected?: boolean;
-    __stagehandV3__?: StagehandV3Backdoor;
+    [V3_INJECTED_KEY]?: boolean;
+    [V3_BACKDOOR_KEY]?: StagehandV3Backdoor;
   }
 }
 
 export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
   // hardcoded debug (remove later if desired)
-  const DEBUG = true;
+  const DEBUG = false; // Disabled by default for stealth
 
   type PatchedFn = Element["attachShadow"] & {
-    __v3Patched?: boolean;
-    __v3State?: V3InternalState;
+    [V3_PATCHED_KEY]?: boolean;
+    [V3_STATE_KEY]?: V3InternalState;
   };
 
   const bindBackdoor = (state: V3InternalState): void => {
@@ -185,7 +192,9 @@ export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
       return result;
     };
 
-    window.__stagehandV3__ = {
+    // Use Symbol key to completely hide from Object.keys() AND Object.getOwnPropertyNames()
+    // Symbols are not enumerated by either method - only Object.getOwnPropertySymbols()
+    (window as Window)[V3_BACKDOOR_KEY] = {
       getClosedRoot: (host: Element) => hostToRoot.get(host),
       stats: () => ({
         installed: true,
@@ -201,9 +210,9 @@ export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
   // Look at the *current* function on the prototype. If it's already our patched
   // function, reuse its shared state and rebind the backdoor (no new WeakMap).
   const currentFn = Element.prototype.attachShadow as PatchedFn;
-  if (currentFn.__v3Patched && currentFn.__v3State) {
-    currentFn.__v3State.debug = DEBUG; // keep debug toggle consistent
-    bindBackdoor(currentFn.__v3State);
+  if (currentFn[V3_PATCHED_KEY] && currentFn[V3_STATE_KEY]) {
+    currentFn[V3_STATE_KEY].debug = DEBUG; // keep debug toggle consistent
+    bindBackdoor(currentFn[V3_STATE_KEY]);
     // idempotent: do not log "installed" again
     return;
   }
@@ -240,9 +249,20 @@ export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
     return root;
   } as PatchedFn;
 
-  // Mark the *patched* function with metadata so re-entry sees it
-  patched.__v3Patched = true;
-  patched.__v3State = state;
+  // Mark the *patched* function with Symbol metadata so re-entry sees it
+  // Symbols are invisible to Object.keys(), Object.getOwnPropertyNames()
+  (patched as PatchedFn)[V3_PATCHED_KEY] = true;
+  (patched as PatchedFn)[V3_STATE_KEY] = state;
+
+  // Override toString to return native-looking output (stealth)
+  Object.defineProperty(patched, "toString", {
+    value: function () {
+      return "function attachShadow() { [native code] }";
+    },
+    enumerable: false,
+    configurable: true,
+    writable: true,
+  });
 
   Object.defineProperty(Element.prototype, "attachShadow", {
     configurable: true,
@@ -269,7 +289,9 @@ export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
     }
   }
 
-  window.__stagehandV3Injected = true;
+  // Use Symbol key to completely hide from fingerprinting detection
+  // Symbols are invisible to Object.keys() AND Object.getOwnPropertyNames()
+  (window as Window)[V3_INJECTED_KEY] = true;
   bindBackdoor(state);
 
   if (state.debug) {

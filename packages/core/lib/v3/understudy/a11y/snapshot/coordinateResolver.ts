@@ -41,10 +41,12 @@ export async function resolveXpathForLocation(
       let sx = 0;
       let sy = 0;
       try {
-        await curSession.send("Runtime.enable").catch(() => {});
+        // Use isolated world for stealth - page scripts can't see our evaluation
         const ctxId = await executionContexts
-          .waitForMainWorld(curSession, curFrameId)
-          .catch(() => {});
+          .getOrCreateIsolatedWorld(curSession, curFrameId)
+          .catch(() =>
+            executionContexts.waitForMainWorld(curSession, curFrameId).catch(() => {}),
+          );
         const scrollExpr = buildA11yInvocation("getScrollOffsets", []);
         const evalParams = ctxId
           ? {

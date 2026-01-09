@@ -21,7 +21,7 @@ export async function a11yForFrame(
   opts: A11yOptions,
 ): Promise<AccessibilityTreeResult> {
   await session.send("Accessibility.enable").catch(() => {});
-  await session.send("Runtime.enable").catch(() => {});
+  // Note: Runtime.enable removed - now handled via isolated worlds in focusSelectors
   await session.send("DOM.enable").catch(() => {});
 
   let nodes: Protocol.Accessibility.AXNode[] = [];
