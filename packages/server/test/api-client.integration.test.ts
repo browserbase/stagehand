@@ -42,9 +42,7 @@ describe.skipIf(!canRun)(
       "x-bb-api-key": BROWSERBASE_API_KEY!,
       "x-bb-project-id": BROWSERBASE_PROJECT_ID!,
       "x-model-api-key": MODEL_API_KEY!,
-      "x-language": "typescript",
       "x-stream-response": "false",
-      "x-sdk-version": "3.0.0",
     };
 
     async function apiRequest(

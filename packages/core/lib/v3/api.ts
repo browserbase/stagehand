@@ -1,6 +1,5 @@
 import makeFetchCookie from "fetch-cookie";
 import { loadApiKeyFromEnv } from "../utils";
-import { STAGEHAND_VERSION } from "../version";
 import {
   StagehandAPIError,
   StagehandAPIUnauthorizedError,
@@ -653,9 +652,6 @@ export class StagehandAPIClient {
       // we want real-time logs, so we stream the response
       "x-stream-response": "true",
       "x-model-api-key": this.modelApiKey,
-      "x-sent-at": new Date().toISOString(),
-      "x-language": "typescript",
-      "x-sdk-version": STAGEHAND_VERSION,
     };
     if (options.method === "POST" && options.body) {
       defaultHeaders["Content-Type"] = "application/json";

@@ -8,7 +8,6 @@ import { z } from "zod/v4";
 
 import { authMiddleware } from "../../../lib/auth.js";
 import { withErrorHandling } from "../../../lib/errorHandler.js";
-import { getOptionalHeader } from "../../../lib/header.js";
 import { error, success } from "../../../lib/response.js";
 import { getSessionStore } from "../../../lib/sessionStoreManager.js";
 import { AISDK_PROVIDERS } from "../../../types/model.js";
@@ -35,20 +34,6 @@ const startRouteHandler: RouteHandler = withErrorHandling(
   async (request, reply) => {
     if (!(await authMiddleware(request))) {
       return error(reply, "Unauthorized", StatusCodes.UNAUTHORIZED);
-    }
-
-    const sdkVersion = getOptionalHeader(request, "x-sdk-version");
-
-    const clientLanguage = request.headers["x-language"] as string | undefined;
-    if (
-      clientLanguage &&
-      !["typescript", "python", "playground"].includes(clientLanguage)
-    ) {
-      return error(
-        reply,
-        "Invalid client language header",
-        StatusCodes.BAD_REQUEST,
-      );
     }
 
     // Use the validated request body directly - fields come from Api.SessionStartRequestSchema
@@ -174,8 +159,6 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       browserbaseSessionCreateParams,
       selfHeal,
       waitForCaptchaSolves,
-      clientLanguage,
-      sdkVersion,
       experimental,
       localBrowserLaunchOptions:
         browserType === "local" && browser?.launchOptions

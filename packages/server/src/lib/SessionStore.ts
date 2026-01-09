@@ -54,10 +54,6 @@ export interface CreateSessionParams {
   // Cloud-specific metadata fields
   /** Act timeout in milliseconds */
   actTimeoutMs?: number;
-  /** Client language (typescript, python, playground) */
-  clientLanguage?: string;
-  /** SDK version */
-  sdkVersion?: string;
 }
 
 /**
