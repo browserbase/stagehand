@@ -24,7 +24,10 @@ import type {
   ObserveOptions,
   Api,
 } from "./types/public";
-import type { SerializableResponse } from "./types/private";
+import type {
+  SerializableResponse,
+  SerializedAgentCacheEntry,
+} from "./types/private";
 import type { ModelConfiguration } from "./types/public/model";
 import { toJsonSchema } from "./zodCompat";
 import type { StagehandZodSchema } from "./zodCompat";
@@ -50,6 +53,7 @@ interface StagehandAPIConstructorParams {
   apiKey: string;
   projectId: string;
   logger: (message: LogLine) => void;
+  enableAgentCacheHeader?: boolean;
 }
 
 /**
@@ -87,6 +91,7 @@ interface ExecuteActionParams {
   method: "act" | "extract" | "observe" | "navigate" | "end" | "agentExecute";
   args?: ApiRequestBody;
   params?: Record<string, string>;
+  headers?: Record<string, string>;
 }
 
 /**
@@ -131,13 +136,31 @@ export class StagehandAPIClient {
   private modelProvider?: string;
   private logger: (message: LogLine) => void;
   private fetchWithCookies;
+  private agentCacheHeader?: Record<string, string>;
+  private pendingAgentCacheEntry: SerializedAgentCacheEntry | null = null;
 
-  constructor({ apiKey, projectId, logger }: StagehandAPIConstructorParams) {
+  constructor({
+    apiKey,
+    projectId,
+    logger,
+    enableAgentCacheHeader,
+  }: StagehandAPIConstructorParams) {
     this.apiKey = apiKey;
     this.projectId = projectId;
     this.logger = logger;
     // Create a single cookie jar instance that will persist across all requests
     this.fetchWithCookies = makeFetchCookie(fetch);
+    if (enableAgentCacheHeader) {
+      this.agentCacheHeader = {
+        "x-stagehand-agent-cache-enabled": "true",
+      };
+    }
+  }
+
+  consumeAgentCacheEntry(): SerializedAgentCacheEntry | null {
+    const entry = this.pendingAgentCacheEntry;
+    this.pendingAgentCacheEntry = null;
+    return entry;
   }
 
   async init({
@@ -334,6 +357,7 @@ export class StagehandAPIClient {
     agentConfig: AgentConfig,
     executeOptions: AgentExecuteOptions | string,
     frameId?: string,
+    options?: { cache?: boolean },
   ): Promise<AgentResult> {
     // Check if integrations are being used in API mode (not supported)
     if (agentConfig.integrations && agentConfig.integrations.length > 0) {
@@ -359,9 +383,14 @@ export class StagehandAPIClient {
       frameId,
     };
 
+    const headers =
+      options?.cache && this.agentCacheHeader
+        ? this.agentCacheHeader
+        : undefined;
     return this.execute<AgentResult>({
       method: "agentExecute",
       args: requestBody,
+      headers,
     });
   }
 
@@ -539,15 +568,21 @@ export class StagehandAPIClient {
     method,
     args,
     params,
+    headers,
   }: ExecuteActionParams): Promise<T> {
+    this.pendingAgentCacheEntry = null;
     const urlParams = new URLSearchParams(params as Record<string, string>);
     const queryString = urlParams.toString();
     const url = `/sessions/${this.sessionId}/${method}${queryString ? `?${queryString}` : ""}`;
 
-    const response = await this.request(url, {
-      method: "POST",
-      body: JSON.stringify(args),
-    });
+    const response = await this.request(
+      url,
+      {
+        method: "POST",
+        body: JSON.stringify(args),
+      },
+      headers,
+    );
 
     if (!response.ok) {
       const errorBody = await response.text();
@@ -590,6 +625,12 @@ export class StagehandAPIClient {
               throw new Error(errorMsg);
             }
             if (eventData.data.status === "finished") {
+              if ("cacheEntry" in eventData.data) {
+                this.pendingAgentCacheEntry = (eventData.data.cacheEntry ??
+                  null) as SerializedAgentCacheEntry | null;
+              } else {
+                this.pendingAgentCacheEntry = null;
+              }
               return eventData.data.result as T;
             }
           } else if (eventData.type === "log") {
@@ -628,6 +669,12 @@ export class StagehandAPIClient {
               eventData.type === "system" &&
               eventData.data.status === "finished"
             ) {
+              if ("cacheEntry" in eventData.data) {
+                this.pendingAgentCacheEntry = (eventData.data.cacheEntry ??
+                  null) as SerializedAgentCacheEntry | null;
+              } else {
+                this.pendingAgentCacheEntry = null;
+              }
               return eventData.data.result as T;
             }
           } catch {
@@ -645,7 +692,11 @@ export class StagehandAPIClient {
     }
   }
 
-  private async request(path: string, options: RequestInit): Promise<Response> {
+  private async request(
+    path: string,
+    options: RequestInit,
+    extraHeaders?: Record<string, string>,
+  ): Promise<Response> {
     const defaultHeaders: Record<string, string> = {
       "x-bb-api-key": this.apiKey,
       "x-bb-project-id": this.projectId,
@@ -667,6 +718,7 @@ export class StagehandAPIClient {
         ...options,
         headers: {
           ...defaultHeaders,
+          ...(extraHeaders ?? {}),
           ...options.headers,
         },
       },

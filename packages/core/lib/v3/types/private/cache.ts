@@ -35,6 +35,17 @@ export type AgentCacheDeps = {
   getSystemPrompt: () => string | undefined;
   domSettleTimeoutMs?: number;
   act: ActFn;
+  /**
+   * When true, the cache remains "enabled" even if no persistent storage is
+   * configured. This allows us to record cache entries purely in memory so they
+   * can be transferred elsewhere (e.g. streamed back to an API client).
+   */
+  allowRecordingWithoutStorage?: boolean;
+  /**
+   * When true, the AgentCache keeps the most recent entry in memory so callers
+   * can retrieve it (to send over the wire, for example).
+   */
+  captureEntries?: boolean;
 };
 
 export type ActCacheContext = {
@@ -148,4 +159,9 @@ export interface CachedAgentEntry {
   steps: AgentReplayStep[];
   result: AgentResult;
   timestamp: string;
+}
+
+export interface SerializedAgentCacheEntry {
+  cacheKey: string;
+  entry: CachedAgentEntry;
 }

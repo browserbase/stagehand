@@ -29,6 +29,7 @@ import type { Page } from "../understudy/page";
 import type { V3Context } from "../understudy/context";
 import { CacheStorage } from "./CacheStorage";
 import { cloneForCache, safeGetPageUrl } from "./utils";
+import type { SerializedAgentCacheEntry } from "../types/private";
 
 const SENSITIVE_CONFIG_KEYS = new Set(["apikey", "api_key", "api-key"]);
 
@@ -42,8 +43,11 @@ export class AgentCache {
   private readonly getSystemPrompt: () => string | undefined;
   private readonly domSettleTimeoutMs?: number;
   private readonly act: ActFn;
+  private readonly allowRecordingWithoutStorage: boolean;
+  private captureEntries: boolean;
 
   private recording: AgentReplayStep[] | null = null;
+  private capturedEntry: SerializedAgentCacheEntry | null = null;
 
   constructor({
     storage,
@@ -55,6 +59,8 @@ export class AgentCache {
     getSystemPrompt,
     domSettleTimeoutMs,
     act,
+    allowRecordingWithoutStorage = false,
+    captureEntries = false,
   }: AgentCacheDeps) {
     this.storage = storage;
     this.logger = logger;
@@ -65,10 +71,12 @@ export class AgentCache {
     this.getSystemPrompt = getSystemPrompt;
     this.domSettleTimeoutMs = domSettleTimeoutMs;
     this.act = act;
+    this.allowRecordingWithoutStorage = allowRecordingWithoutStorage;
+    this.captureEntries = captureEntries;
   }
 
   get enabled(): boolean {
-    return this.storage.enabled;
+    return this.storage.enabled || this.allowRecordingWithoutStorage;
   }
 
   shouldAttemptCache(instruction: string): boolean {
@@ -343,20 +351,29 @@ export class AgentCache {
       timestamp: new Date().toISOString(),
     };
 
-    const { error, path } = await this.storage.writeJson(
-      `agent-${context.cacheKey}.json`,
-      entry,
-    );
-    if (error && path) {
-      this.logger({
-        category: "cache",
-        message: "failed to write agent cache entry",
-        level: 1,
-        auxiliary: {
-          error: { value: String(error), type: "string" },
-        },
-      });
-      return;
+    if (this.captureEntries) {
+      this.capturedEntry = {
+        cacheKey: context.cacheKey,
+        entry,
+      };
+    }
+
+    if (this.storage.enabled) {
+      const { error, path } = await this.storage.writeJson(
+        `agent-${context.cacheKey}.json`,
+        entry,
+      );
+      if (error && path) {
+        this.logger({
+          category: "cache",
+          message: "failed to write agent cache entry",
+          level: 1,
+          auxiliary: {
+            error: { value: String(error), type: "string" },
+          },
+        });
+        return;
+      }
     }
 
     this.logger({
@@ -427,6 +444,47 @@ export class AgentCache {
 
   isReplayActive(): boolean {
     return this.isRecording();
+  }
+
+  consumeCapturedEntry(
+    expectedCacheKey?: string,
+  ): SerializedAgentCacheEntry | null {
+    if (!this.capturedEntry) return null;
+    if (expectedCacheKey && this.capturedEntry.cacheKey !== expectedCacheKey) {
+      return null;
+    }
+    const entry = this.capturedEntry;
+    this.capturedEntry = null;
+    return entry;
+  }
+
+  setCaptureEntries(enabled: boolean): boolean {
+    const previous = this.captureEntries;
+    this.captureEntries = enabled;
+    if (enabled) {
+      this.capturedEntry = null;
+    }
+    return previous;
+  }
+
+  async persistSerializedEntry(
+    serialized: SerializedAgentCacheEntry,
+  ): Promise<void> {
+    if (!this.storage.enabled) return;
+    const { error, path } = await this.storage.writeJson(
+      `agent-${serialized.cacheKey}.json`,
+      serialized.entry,
+    );
+    if (error && path) {
+      this.logger({
+        category: "cache",
+        message: "failed to persist serialized agent cache entry",
+        level: 1,
+        auxiliary: {
+          error: { value: String(error), type: "string" },
+        },
+      });
+    }
   }
 
   private serializeAgentModelForCache(

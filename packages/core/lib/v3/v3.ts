@@ -39,6 +39,7 @@ import {
   AgentReplayStep,
   InitState,
   AgentCacheContext,
+  SerializedAgentCacheEntry,
 } from "./types/private";
 import {
   AgentConfig,
@@ -308,6 +309,7 @@ export class V3 {
     this.cacheStorage = CacheStorage.create(opts.cacheDir, this.logger, {
       label: "cache directory",
     });
+    const cacheStorageEnabled = this.cacheStorage.enabled;
     this.actCache = new ActCache({
       storage: this.cacheStorage,
       logger: this.logger,
@@ -325,6 +327,8 @@ export class V3 {
       getSystemPrompt: () => opts.systemPrompt,
       domSettleTimeoutMs: this.domSettleTimeoutMs,
       act: this.act.bind(this),
+      allowRecordingWithoutStorage: !cacheStorageEnabled,
+      captureEntries: false,
     });
 
     this.opts = opts;
@@ -438,6 +442,40 @@ export class V3 {
 
   public recordAgentReplayStep(step: AgentReplayStep): void {
     this.agentCache.recordStep(step);
+  }
+
+  public setAgentCacheCapture(enabled: boolean): boolean {
+    return this.agentCache.setCaptureEntries(enabled);
+  }
+
+  public consumeCapturedAgentCacheEntry(
+    cacheKey?: string,
+  ): SerializedAgentCacheEntry | null {
+    return this.agentCache.consumeCapturedEntry(cacheKey);
+  }
+
+  private async persistApiAgentCacheEntry(
+    cacheContext: AgentCacheContext | null,
+  ): Promise<void> {
+    if (!this.apiClient) return;
+    const serialized = this.apiClient.consumeAgentCacheEntry();
+    if (!serialized) return;
+    if (!cacheContext) {
+      return;
+    }
+    if (serialized.cacheKey !== cacheContext.cacheKey) {
+      this.logger({
+        category: "cache",
+        message: "agent cache entry cacheKey mismatch from API client",
+        level: 0,
+        auxiliary: {
+          expected: { value: cacheContext.cacheKey, type: "string" },
+          received: { value: serialized.cacheKey, type: "string" },
+        },
+      });
+      return;
+    }
+    await this.agentCache.persistSerializedEntry(serialized);
   }
 
   /**
@@ -843,6 +881,7 @@ export class V3 {
               apiKey,
               projectId,
               logger: this.logger,
+              enableAgentCacheHeader: !!this.opts.cacheDir,
             });
             const createSessionPayload = {
               projectId:
@@ -1825,6 +1864,7 @@ export class V3 {
                   options,
                   resolvedOptions,
                   page.mainFrameId(),
+                  { cache: !!cacheContext },
                 );
               } else {
                 result = await handler.execute(instructionOrOptions);
@@ -1835,6 +1875,11 @@ export class V3 {
 
               if (cacheContext && result.success && agentSteps.length > 0) {
                 await this.agentCache.store(cacheContext, agentSteps, result);
+              }
+              if (this.apiClient && !this.experimental) {
+                await this.persistApiAgentCacheEntry(
+                  cacheContext && result.success ? cacheContext : null,
+                );
               }
 
               return result;
@@ -1964,6 +2009,11 @@ export class V3 {
 
             if (cacheContext && result.success && agentSteps.length > 0) {
               await this.agentCache.store(cacheContext, agentSteps, result);
+            }
+            if (this.apiClient && !this.experimental) {
+              await this.persistApiAgentCacheEntry(
+                cacheContext && result.success ? cacheContext : null,
+              );
             }
 
             return result;
