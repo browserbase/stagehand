@@ -125,7 +125,7 @@ export class Frame implements FrameManager {
     pageFunctionOrExpression: string | ((arg: Arg) => R | Promise<R>),
     arg?: Arg,
   ): Promise<R> {
-    await this.session.send("Runtime.enable").catch(() => {});
+    await executionContexts.ensureDomainEnabled(this.session, "Runtime");
     const contextId = await this.getMainWorldExecutionContextId();
 
     const isString = typeof pageFunctionOrExpression === "string";

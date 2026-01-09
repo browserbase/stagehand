@@ -6,6 +6,7 @@ import * as path from "path";
 import { locatorScriptSources } from "../dom/build/locatorScripts.generated";
 import type { Frame } from "./frame";
 import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver";
+import { executionContexts } from "./executionContextRegistry";
 import {
   StagehandElementNotFoundError,
   StagehandInvalidArgumentError,
@@ -229,8 +230,9 @@ export class Locator {
   /** Return how many nodes the current selector resolves to. */
   public async count(): Promise<number> {
     const session = this.frame.session;
-    await session.send("Runtime.enable");
-    await session.send("DOM.enable");
+    // Use ensureDomainEnabled to avoid redundant CDP enables (stealth improvement)
+    await executionContexts.ensureDomainEnabled(session, "Runtime");
+    await executionContexts.ensureDomainEnabled(session, "DOM");
     return this.selectorResolver.count(this.selectorQuery);
   }
 
@@ -856,8 +858,9 @@ export class Locator {
   }> {
     const session = this.frame.session;
 
-    await session.send("Runtime.enable");
-    await session.send("DOM.enable");
+    // Use ensureDomainEnabled to avoid redundant CDP enables (stealth improvement)
+    await executionContexts.ensureDomainEnabled(session, "Runtime");
+    await executionContexts.ensureDomainEnabled(session, "DOM");
 
     const resolved = await this.selectorResolver.resolveAtIndex(
       this.selectorQuery,

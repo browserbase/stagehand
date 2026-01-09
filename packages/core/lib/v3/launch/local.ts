@@ -20,6 +20,15 @@ export async function launchLocalChrome(
     "--no-default-browser-check",
     "--disable-dev-shm-usage",
     "--site-per-process",
+    // Stealth flags - reduce automation detection fingerprint
+    "--disable-blink-features=AutomationControlled", // Removes navigator.webdriver flag
+    "--disable-infobars", // Remove "Chrome is being controlled" infobar
+    "--disable-background-networking", // Reduce detectable network patterns
+    "--disable-component-update", // Prevent update checks that reveal automation
+    "--disable-domain-reliability", // Disable reliability monitoring
+    "--disable-sync", // Disable Chrome sync
+    "--metrics-recording-only", // Disable metrics upload
+    "--no-pings", // Disable hyperlink auditing pings
     ...(opts.chromeFlags ?? []),
   ].filter((f): f is string => typeof f === "string");
 

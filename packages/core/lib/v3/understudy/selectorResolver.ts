@@ -123,17 +123,12 @@ export class FrameSelectorResolver {
     if (limit <= 0) return [];
 
     const session = this.frame.session;
-    const { executionContextId } = await session.send<{
-      executionContextId: Protocol.Runtime.ExecutionContextId;
-    }>("Page.createIsolatedWorld", {
-      frameId: this.frame.frameId,
-      worldName: "v3-world",
-    });
-
-    const ctxId = await executionContexts.waitForMainWorld(
+    // Use main world - piercer backdoor is there (from network injection or addScript)
+    // Note: We could use isolated worlds once we verify network injection works everywhere,
+    // but main world is safer for now as it guarantees backdoor access
+    const mainCtxId = await executionContexts.getMainWorldStealth(
       session,
       this.frame.frameId,
-      1000,
     );
 
     const results: ResolvedNode[] = [];
@@ -144,10 +139,7 @@ export class FrameSelectorResolver {
         JSON.stringify(selector),
         String(index),
       ]);
-      const primary = await this.evaluateElement(
-        primaryExpr,
-        executionContextId,
-      );
+      const primary = await this.evaluateElement(primaryExpr, mainCtxId);
       if (primary) {
         results.push(primary);
         continue;
@@ -166,11 +158,12 @@ export class FrameSelectorResolver {
         loggedFallback = true;
       }
 
+      // Pierce fallback also runs in main world for backdoor access
       const fallbackExpr = this.buildLocatorInvocation(
         "resolveCssSelectorPierce",
         [JSON.stringify(selector), String(index)],
       );
-      const fallback = await this.evaluateElement(fallbackExpr, ctxId);
+      const fallback = await this.evaluateElement(fallbackExpr, mainCtxId);
       if (fallback) {
         results.push(fallback);
         continue;
@@ -189,10 +182,10 @@ export class FrameSelectorResolver {
     if (limit <= 0) return [];
 
     const session = this.frame.session;
-    const ctxId = await executionContexts.waitForMainWorld(
+    // Use main world - text selectors may need closed shadow root access
+    const ctxId = await executionContexts.getMainWorldStealth(
       session,
       this.frame.frameId,
-      1000,
     );
 
     const results: ResolvedNode[] = [];
@@ -216,10 +209,10 @@ export class FrameSelectorResolver {
     if (limit <= 0) return [];
 
     const session = this.frame.session;
-    const ctxId = await executionContexts.waitForMainWorld(
+    // Use main world - XPath with // needs closed shadow root access via piercer
+    const ctxId = await executionContexts.getMainWorldStealth(
       session,
       this.frame.frameId,
-      1000,
     );
 
     v3Logger({
@@ -250,38 +243,31 @@ export class FrameSelectorResolver {
   private async countCss(selector: string): Promise<number> {
     const session = this.frame.session;
 
-    const { executionContextId } = await session.send<{
-      executionContextId: Protocol.Runtime.ExecutionContextId;
-    }>("Page.createIsolatedWorld", {
-      frameId: this.frame.frameId,
-      worldName: "v3-world",
-    });
+    // Use main world for piercer backdoor access
+    const mainCtxId = await executionContexts.getMainWorldStealth(
+      session,
+      this.frame.frameId,
+    );
 
     const primaryExpr = this.buildLocatorInvocation("countCssMatchesPrimary", [
       JSON.stringify(selector),
     ]);
-    const primary = await this.evaluateCount(primaryExpr, executionContextId);
-
-    const ctxId = await executionContexts.waitForMainWorld(
-      session,
-      this.frame.frameId,
-      1000,
-    );
+    const primary = await this.evaluateCount(primaryExpr, mainCtxId);
 
     const fallbackExpr = this.buildLocatorInvocation("countCssMatchesPierce", [
       JSON.stringify(selector),
     ]);
-    const fallback = await this.evaluateCount(fallbackExpr, ctxId);
+    const fallback = await this.evaluateCount(fallbackExpr, mainCtxId);
 
     return Math.max(primary, fallback);
   }
 
   private async countText(value: string): Promise<number> {
     const session = this.frame.session;
-    const ctxId = await executionContexts.waitForMainWorld(
+    // Use main world for piercer backdoor access
+    const ctxId = await executionContexts.getMainWorldStealth(
       session,
       this.frame.frameId,
-      1000,
     );
 
     const expr = this.buildLocatorInvocation("countTextMatches", [
@@ -339,10 +325,10 @@ export class FrameSelectorResolver {
   private async countXPath(value: string): Promise<number> {
     const session = this.frame.session;
 
-    const ctxId = await executionContexts.waitForMainWorld(
+    // Use main world for piercer backdoor access
+    const ctxId = await executionContexts.getMainWorldStealth(
       session,
       this.frame.frameId,
-      1000,
     );
 
     const expr = this.buildLocatorInvocation("countXPathMatchesMainWorld", [

@@ -690,7 +690,8 @@ export class Page {
     const key = this.sessionKey(session);
     if (this.consoleHandlers.has(key)) return;
 
-    void session.send("Runtime.enable").catch(() => {});
+    // Use ensureDomainEnabled to track state and avoid redundant enables
+    void executionContexts.ensureDomainEnabled(session, "Runtime");
 
     const handler = (evt: Protocol.Runtime.ConsoleAPICalledEvent) => {
       this.emitConsole(evt);
@@ -999,7 +1000,7 @@ export class Page {
    */
   async title(): Promise<string> {
     try {
-      await this.mainSession.send("Runtime.enable").catch(() => {});
+      await executionContexts.ensureDomainEnabled(this.mainSession, "Runtime");
       const ctxId = await this.mainWorldExecutionContextId();
       const { result } =
         await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
@@ -1245,7 +1246,7 @@ export class Page {
     pageFunctionOrExpression: string | ((arg: Arg) => R | Promise<R>),
     arg?: Arg,
   ): Promise<R> {
-    await this.mainSession.send("Runtime.enable").catch(() => {});
+    await executionContexts.ensureDomainEnabled(this.mainSession, "Runtime");
     const ctxId = await this.mainWorldExecutionContextId();
 
     const isString = typeof pageFunctionOrExpression === "string";
