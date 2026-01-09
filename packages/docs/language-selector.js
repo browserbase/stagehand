@@ -1,17 +1,35 @@
-// Dropdown selection manager and language selector for Stagehand docs
-// Handles: 1) Sidebar dropdown selection state 2) API Reference language selection
+// Language switcher for Stagehand docs
+// Handles: 1) Sidebar language dropdown selection 2) Code block language syncing
 
 (function() {
   // ============================================
-  // PART 1: Sidebar Dropdown Selection Manager
+  // CONFIGURATION
   // ============================================
   
-  const DROPDOWN_OPTIONS = ['Documentation', 'API Reference'];
-  let currentSelectedDropdown = 'Documentation';
+  // Sidebar dropdown language options
+  const DROPDOWN_LANGUAGES = ['TypeScript', 'Python', 'Java', 'Go', 'Ruby'];
   
-  // Inject CSS for styling
+  // Map sidebar dropdown names to code block language names
+  const LANGUAGE_MAP = {
+    'TypeScript': 'Javascript',  // Mintlify uses "Javascript" for TS/JS
+    'Python': 'Python',
+    'Java': 'Java',
+    'Go': 'Go',
+    'Ruby': 'Ruby'
+  };
+  
+  // Code block supported languages (what Mintlify shows in code blocks)
+  const CODE_BLOCK_LANGUAGES = ['Javascript', 'Python', 'Go', 'Java', 'Ruby', 'cURL', 'PHP'];
+  
+  let currentSelectedLanguage = 'TypeScript';
+  let isSelecting = false;
+  
+  // ============================================
+  // CSS INJECTION
+  // ============================================
+  
   const dropdownStyle = document.createElement('style');
-  dropdownStyle.id = 'stagehand-dropdown-style';
+  dropdownStyle.id = 'stagehand-language-style';
   dropdownStyle.textContent = `
     /* Hide dropdown during programmatic selection */
     .stagehand-selecting [role="menu"],
@@ -23,12 +41,15 @@
   `;
   document.head.appendChild(dropdownStyle);
   
+  // ============================================
+  // SIDEBAR DROPDOWN FUNCTIONS
+  // ============================================
+  
   function getDropdownButton() {
-    // Find the dropdown button in the sidebar
     const buttons = document.querySelectorAll('button');
     for (const btn of buttons) {
       const text = (btn.textContent || '').trim();
-      if (DROPDOWN_OPTIONS.includes(text)) {
+      if (DROPDOWN_LANGUAGES.includes(text)) {
         return btn;
       }
     }
@@ -36,7 +57,6 @@
   }
   
   function getDropdownMenu() {
-    // Find the open dropdown menu
     return document.querySelector('menu[role="menu"], [role="menu"]');
   }
   
@@ -44,94 +64,58 @@
     const button = getDropdownButton();
     if (!button) return;
     
-    // Find the paragraph or text element inside the button
     const paragraph = button.querySelector('p');
     if (paragraph) {
       paragraph.textContent = newText;
     }
   }
   
-  function setupMenuClickHandler() {
-    // Use event delegation on document to catch menu item clicks
-    document.addEventListener('click', (e) => {
-      const target = e.target;
+  function updateDropdownCheckIndicator() {
+    const menu = getDropdownMenu();
+    if (!menu) return;
+    
+    const menuItems = menu.querySelectorAll('a, [role="menuitem"]');
+    const checkIconsMap = new Map();
+    let anyCheckIcon = null;
+    
+    for (const item of menuItems) {
+      const text = (item.textContent || '').trim();
+      const checkIcon = item.querySelector('.lucide-check, [class*="lucide-check"], svg[class*="check"]');
       
-      // Check if we clicked on a dropdown menu item
-      const menuItem = target.closest('[role="menu"] a, menu a');
-      if (!menuItem) return;
-      
-      const text = (menuItem.textContent || '').trim();
-      
-      // Check if it's one of our dropdown options
-      for (const option of DROPDOWN_OPTIONS) {
-        if (text.includes(option)) {
-          currentSelectedDropdown = option;
-          
-          // Store in sessionStorage
-          try {
-            sessionStorage.setItem('stagehand-selected-dropdown', option);
-          } catch (err) {
-            // Ignore storage errors
+      for (const lang of DROPDOWN_LANGUAGES) {
+        if (text.includes(lang)) {
+          checkIconsMap.set(lang, { item, checkIcon });
+          if (checkIcon) {
+            anyCheckIcon = checkIcon;
           }
-          
-          // Update button text after a short delay (after menu closes)
-          setTimeout(() => {
-            updateButtonText(option);
-          }, 50);
-          
           break;
         }
       }
-    }, true); // Use capture phase
-  }
-  
-  function restoreDropdownSelection() {
-    // Restore from sessionStorage if available
-    try {
-      const stored = sessionStorage.getItem('stagehand-selected-dropdown');
-      if (stored && DROPDOWN_OPTIONS.includes(stored)) {
-        currentSelectedDropdown = stored;
-        updateButtonText(stored);
+    }
+    
+    for (const [lang, { item, checkIcon }] of checkIconsMap) {
+      const shouldBeSelected = lang === currentSelectedLanguage;
+      
+      if (checkIcon) {
+        checkIcon.style.opacity = shouldBeSelected ? '1' : '0';
+        checkIcon.style.visibility = shouldBeSelected ? 'visible' : 'hidden';
+      } else if (shouldBeSelected && anyCheckIcon) {
+        const clonedCheck = anyCheckIcon.cloneNode(true);
+        clonedCheck.style.opacity = '1';
+        clonedCheck.style.visibility = 'visible';
+        
+        const targetSpan = item.querySelector('span:last-child') || item;
+        if (targetSpan.querySelector('.lucide-check, [class*="lucide-check"]') === null) {
+          targetSpan.appendChild(clonedCheck);
+        }
       }
-    } catch (err) {
-      // Ignore storage errors
     }
   }
   
-  function initDropdownManager() {
-    // Set up click handler
-    setupMenuClickHandler();
-    
-    // Restore selection after page load
-    setTimeout(restoreDropdownSelection, 500);
-    
-    // Also restore on navigation (Mintlify re-renders)
-    const observer = new MutationObserver(() => {
-      // Check if button needs updating
-      const button = getDropdownButton();
-      if (button) {
-        const currentText = (button.textContent || '').trim();
-        if (currentText !== currentSelectedDropdown && DROPDOWN_OPTIONS.includes(currentSelectedDropdown)) {
-          updateButtonText(currentSelectedDropdown);
-        }
-      }
-    });
-    
-    observer.observe(document.body, {
-      subtree: true,
-      childList: true
-    });
-  }
-  
   // ============================================
-  // PART 2: API Reference Language Selector
+  // CODE BLOCK LANGUAGE SELECTOR FUNCTIONS
   // ============================================
   
-  const supportedLanguages = ['Javascript', 'Python', 'Go', 'Java', 'Ruby', 'cURL', 'PHP'];
-  let lastSelectedLanguage = null;
-  let isSelecting = false;
-  let languageChangeObserver = null;
-
   function simulateClick(element) {
     if (!element) return;
     const rect = element.getBoundingClientRect();
@@ -147,29 +131,13 @@
       }));
     });
   }
-
-  function isV3Selected() {
-    const buttons = document.querySelectorAll('button');
-    for (const btn of buttons) {
-      const text = (btn.textContent || '').trim().toLowerCase();
-      if (text === 'v3') {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  function isApiReferencePage() {
-    return window.location.pathname.includes('/api-reference') || 
-           window.location.pathname.includes('/v1/sessions');
-  }
-
-  function getCurrentLanguageDropdown() {
+  
+  function getCodeBlockLanguageDropdown() {
     const paragraphs = document.querySelectorAll('p');
     
     for (const p of paragraphs) {
       const text = (p.textContent || '').trim();
-      if (supportedLanguages.includes(text)) {
+      if (CODE_BLOCK_LANGUAGES.includes(text)) {
         const parentDiv = p.closest('div');
         if (parentDiv && parentDiv.querySelector('.lucide-chevrons-up-down')) {
           return { element: parentDiv, language: text };
@@ -178,13 +146,8 @@
     }
     return null;
   }
-
-  function getCurrentSelectedLanguage() {
-    const dropdown = getCurrentLanguageDropdown();
-    return dropdown ? dropdown.language : null;
-  }
-
-  function waitForMenuAndSelect(targetLanguage, attempts = 0) {
+  
+  function waitForCodeBlockMenuAndSelect(targetLanguage, attempts = 0) {
     if (attempts > 30) {
       document.body.classList.remove('stagehand-selecting');
       document.body.click();
@@ -195,7 +158,7 @@
     const menuItems = document.querySelectorAll('[role="menuitem"], [role="option"]');
     
     if (menuItems.length === 0) {
-      setTimeout(() => waitForMenuAndSelect(targetLanguage, attempts + 1), 50);
+      setTimeout(() => waitForCodeBlockMenuAndSelect(targetLanguage, attempts + 1), 50);
       return;
     }
 
@@ -211,96 +174,160 @@
       }
     }
     
-    setTimeout(() => waitForMenuAndSelect(targetLanguage, attempts + 1), 50);
+    setTimeout(() => waitForCodeBlockMenuAndSelect(targetLanguage, attempts + 1), 50);
   }
 
-  function selectLanguage(targetLanguage) {
+  function selectCodeBlockLanguage(targetLanguage) {
     if (isSelecting) return;
     
-    const current = getCurrentLanguageDropdown();
+    const current = getCodeBlockLanguageDropdown();
     if (!current) return;
     if (current.language === targetLanguage) return;
     
     isSelecting = true;
     document.body.classList.add('stagehand-selecting');
     simulateClick(current.element);
-    setTimeout(() => waitForMenuAndSelect(targetLanguage), 10);
+    setTimeout(() => waitForCodeBlockMenuAndSelect(targetLanguage), 10);
   }
-
-  function handleLanguageChange() {
-    if (!isV3Selected() || !isApiReferencePage()) {
-      lastSelectedLanguage = null;
-      return;
-    }
-
-    const currentLanguage = getCurrentSelectedLanguage();
-    if (currentLanguage && currentLanguage !== lastSelectedLanguage) {
-      lastSelectedLanguage = currentLanguage;
-      document.dispatchEvent(new CustomEvent('stagehand-language-changed', {
-        detail: { language: currentLanguage }
-      }));
+  
+  function syncCodeBlockLanguage() {
+    const codeBlockLang = LANGUAGE_MAP[currentSelectedLanguage];
+    if (codeBlockLang) {
+      // Try to find and update all code block language dropdowns
+      setTimeout(() => selectCodeBlockLanguage(codeBlockLang), 100);
     }
   }
-
-  function setupLanguageObserver() {
-    if (languageChangeObserver) {
-      languageChangeObserver.disconnect();
-    }
-
-    languageChangeObserver = new MutationObserver(() => {
-      handleLanguageChange();
+  
+  // ============================================
+  // EVENT HANDLERS & OBSERVERS
+  // ============================================
+  
+  function setupDropdownMenuObserver() {
+    const menuObserver = new MutationObserver(() => {
+      const menu = getDropdownMenu();
+      
+      if (menu) {
+        updateDropdownCheckIndicator();
+        setTimeout(updateDropdownCheckIndicator, 10);
+        setTimeout(updateDropdownCheckIndicator, 50);
+        setTimeout(updateDropdownCheckIndicator, 100);
+      }
     });
-
-    languageChangeObserver.observe(document.body, {
+    
+    menuObserver.observe(document.body, {
       subtree: true,
-      childList: true,
-      characterData: true,
-      attributes: true,
-      attributeFilter: ['class', 'aria-selected']
+      childList: true
     });
   }
-
-  function initLanguageSelector() {
-    if (!isV3Selected() || !isApiReferencePage()) {
-      return;
-    }
-
-    setTimeout(() => {
-      lastSelectedLanguage = getCurrentSelectedLanguage();
-      handleLanguageChange();
-    }, 1000);
-
-    setupLanguageObserver();
-
-    setInterval(() => {
-      if (isV3Selected() && isApiReferencePage()) {
-        handleLanguageChange();
+  
+  function setupMenuClickHandler() {
+    document.addEventListener('click', (e) => {
+      const target = e.target;
+      
+      // Check if we clicked on a sidebar dropdown menu item
+      const menuItem = target.closest('[role="menu"] a, menu a');
+      if (!menuItem) return;
+      
+      const text = (menuItem.textContent || '').trim();
+      
+      // Check if it's one of our language options
+      for (const lang of DROPDOWN_LANGUAGES) {
+        if (text.includes(lang)) {
+          currentSelectedLanguage = lang;
+          
+          // Update the check indicator immediately
+          updateDropdownCheckIndicator();
+          
+          // Store in sessionStorage
+          try {
+            sessionStorage.setItem('stagehand-selected-language', lang);
+          } catch (err) {
+            // Ignore storage errors
+          }
+          
+          // Update button text after a short delay (after menu closes)
+          setTimeout(() => {
+            updateButtonText(lang);
+          }, 50);
+          
+          // Sync the code block language selector
+          setTimeout(() => {
+            syncCodeBlockLanguage();
+          }, 200);
+          
+          break;
+        }
       }
-    }, 500);
+    }, true);
   }
-
-  function checkAndReinit() {
-    if (isV3Selected() && isApiReferencePage()) {
-      initLanguageSelector();
-    } else {
-      if (languageChangeObserver) {
-        languageChangeObserver.disconnect();
-        languageChangeObserver = null;
+  
+  function restoreLanguageSelection() {
+    try {
+      const stored = sessionStorage.getItem('stagehand-selected-language');
+      if (stored && DROPDOWN_LANGUAGES.includes(stored)) {
+        currentSelectedLanguage = stored;
+        updateButtonText(stored);
+        
+        // Also sync code block language on restore
+        setTimeout(syncCodeBlockLanguage, 1000);
       }
-      lastSelectedLanguage = null;
+    } catch (err) {
+      // Ignore storage errors
     }
   }
-
+  
+  function setupPageChangeObserver() {
+    const observer = new MutationObserver(() => {
+      // Check if button needs updating
+      const button = getDropdownButton();
+      if (button) {
+        const currentText = (button.textContent || '').trim();
+        if (currentText !== currentSelectedLanguage && DROPDOWN_LANGUAGES.includes(currentSelectedLanguage)) {
+          updateButtonText(currentSelectedLanguage);
+        }
+      }
+    });
+    
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true
+    });
+  }
+  
+  // Watch for code block dropdowns appearing and sync them
+  function setupCodeBlockObserver() {
+    let lastCodeBlockDropdown = null;
+    
+    const observer = new MutationObserver(() => {
+      const dropdown = getCodeBlockLanguageDropdown();
+      if (dropdown && dropdown.element !== lastCodeBlockDropdown) {
+        lastCodeBlockDropdown = dropdown.element;
+        
+        // New code block dropdown appeared, sync it
+        const targetLang = LANGUAGE_MAP[currentSelectedLanguage];
+        if (targetLang && dropdown.language !== targetLang) {
+          setTimeout(() => selectCodeBlockLanguage(targetLang), 500);
+        }
+      }
+    });
+    
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true
+    });
+  }
+  
   // ============================================
   // INITIALIZATION
   // ============================================
   
   function init() {
-    // Initialize dropdown manager (always)
-    initDropdownManager();
+    setupMenuClickHandler();
+    setupDropdownMenuObserver();
+    setupPageChangeObserver();
+    setupCodeBlockObserver();
     
-    // Initialize language selector (only on API reference pages)
-    checkAndReinit();
+    setTimeout(restoreLanguageSelection, 500);
   }
 
   // Initialize on page load
@@ -318,8 +345,9 @@
     if (location.href !== lastUrl) {
       lastUrl = location.href;
       setTimeout(() => {
-        restoreDropdownSelection();
-        checkAndReinit();
+        restoreLanguageSelection();
+        // Sync code block language on page change
+        setTimeout(syncCodeBlockLanguage, 500);
       }, 500);
     }
   });
