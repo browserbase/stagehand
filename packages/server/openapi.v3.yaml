@@ -1587,18 +1587,6 @@ components:
           enum:
             - "true"
             - "false"
-        x-language:
-          description: Client SDK language
-          example: typescript
-          type: string
-          enum:
-            - typescript
-            - python
-            - playground
-        x-sdk-version:
-          description: Version of the Stagehand SDK
-          example: 3.0.6
-          type: string
         x-sent-at:
           description: ISO timestamp when request was sent
           example: 2025-01-15T10:30:00Z
@@ -1738,24 +1726,6 @@ paths:
           name: x-stream-response
           description: Whether to stream the response via SSE
         - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
-          in: header
-          name: x-language
-          description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
-          in: header
-          name: x-sdk-version
-          description: Version of the Stagehand SDK
-        - schema:
             description: ISO timestamp when request was sent
             example: 2025-01-15T10:30:00Z
             type: string
@@ -1801,24 +1771,6 @@ paths:
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
-          in: header
-          name: x-language
-          description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
-          in: header
-          name: x-sdk-version
-          description: Version of the Stagehand SDK
         - schema:
             description: ISO timestamp when request was sent
             example: 2025-01-15T10:30:00Z
@@ -1866,24 +1818,6 @@ paths:
           name: x-stream-response
           description: Whether to stream the response via SSE
         - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
-          in: header
-          name: x-language
-          description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
-          in: header
-          name: x-sdk-version
-          description: Version of the Stagehand SDK
-        - schema:
             description: ISO timestamp when request was sent
             example: 2025-01-15T10:30:00Z
             type: string
@@ -1929,24 +1863,6 @@ paths:
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
-          in: header
-          name: x-language
-          description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
-          in: header
-          name: x-sdk-version
-          description: Version of the Stagehand SDK
         - schema:
             description: ISO timestamp when request was sent
             example: 2025-01-15T10:30:00Z
@@ -1995,24 +1911,6 @@ paths:
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
-          in: header
-          name: x-language
-          description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
-          in: header
-          name: x-sdk-version
-          description: Version of the Stagehand SDK
         - schema:
             description: ISO timestamp when request was sent
             example: 2025-01-15T10:30:00Z
@@ -2095,24 +1993,6 @@ paths:
           name: x-stream-response
           description: Whether to stream the response via SSE
         - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
-          in: header
-          name: x-language
-          description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
-          in: header
-          name: x-sdk-version
-          description: Version of the Stagehand SDK
-        - schema:
             description: ISO timestamp when request was sent
             example: 2025-01-15T10:30:00Z
             type: string
@@ -2160,24 +2040,6 @@ paths:
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
-          in: header
-          name: x-language
-          description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
-          in: header
-          name: x-sdk-version
-          description: Version of the Stagehand SDK
         - schema:
             description: ISO timestamp when request was sent
             example: 2025-01-15T10:30:00Z

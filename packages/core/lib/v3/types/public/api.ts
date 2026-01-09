@@ -157,17 +157,6 @@ export const SessionHeadersSchema = z
       description: "Whether to stream the response via SSE",
       example: "true",
     }),
-    "x-language": z
-      .enum(["typescript", "python", "playground"])
-      .optional()
-      .meta({
-        description: "Client SDK language",
-        example: "typescript",
-      }),
-    "x-sdk-version": z.string().optional().meta({
-      description: "Version of the Stagehand SDK",
-      example: "3.0.6",
-    }),
     "x-sent-at": z.string().datetime().optional().meta({
       description: "ISO timestamp when request was sent",
       example: "2025-01-15T10:30:00Z",
