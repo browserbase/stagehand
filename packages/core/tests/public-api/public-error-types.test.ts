@@ -48,6 +48,7 @@ export const publicErrorTypes = {
     Stagehand.StagehandShadowSegmentNotFoundError,
   StreamingCallbacksInNonStreamingModeError:
     Stagehand.StreamingCallbacksInNonStreamingModeError,
+  StagehandSnapshotError: Stagehand.StagehandSnapshotError,
   TimeoutError: Stagehand.TimeoutError,
   UnsupportedAISDKModelProviderError:
     Stagehand.UnsupportedAISDKModelProviderError,
