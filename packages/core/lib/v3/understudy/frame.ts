@@ -4,6 +4,7 @@ import type { CDPSessionLike } from "./cdp";
 import { Locator } from "./locator";
 import { StagehandEvalError } from "../types/public/sdkErrors";
 import { executionContexts } from "./executionContextRegistry";
+import type { Page } from "./page";
 
 interface FrameManager {
   session: CDPSessionLike;
@@ -28,8 +29,17 @@ export class Frame implements FrameManager {
     public frameId: string,
     public pageId: string,
     private readonly remoteBrowser: boolean,
+    private readonly page?: Page,
   ) {
     this.sessionId = this.session.id ?? null;
+  }
+
+  /**
+   * Get the parent Page for this frame, if available.
+   * May be null for frames created outside of Page context.
+   */
+  public getPage(): Page | null {
+    return this.page ?? null;
   }
 
   /** True when the controlled browser runs on a different machine. */
@@ -232,6 +242,7 @@ export class Frame implements FrameManager {
             tree.frame.id,
             this.pageId,
             this.remoteBrowser,
+            this.page,
           ),
         );
       }

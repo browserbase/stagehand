@@ -49,7 +49,7 @@ test.describe("Locator input methods (fill, type, hover, isVisible, isChecked)",
     );
 
     const input = page.mainFrame().locator("#search");
-    await input.type("test123", { delay: 10 });
+    await input.type("test123");
 
     const value = await input.inputValue();
     expect(value).toBe("test123");

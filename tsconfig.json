@@ -14,7 +14,8 @@
       "@/*": ["./*"]
     },
     "skipLibCheck": true,
-    "declaration": true
+    "declaration": true,
+    "resolveJsonModule": true
   },
   "exclude": ["node_modules", "dist", ".eslintrc.cjs"]
 }

@@ -724,7 +724,7 @@ export class AgentCache {
 
     if (method === "type" && text) {
       for (let i = 0; i < repeatCount; i++) {
-        await page.type(text, { delay: 100 });
+        await page.type(text);
       }
     } else if (method === "press" && keys) {
       for (let i = 0; i < repeatCount; i++) {
