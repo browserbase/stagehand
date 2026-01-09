@@ -14,6 +14,7 @@ export async function installV3PiercerIntoSession(
   if (!pageEnabled) return false;
 
   await session.send("Runtime.enable").catch(() => {});
+  await session.send("Runtime.disable").catch(() => {});
   try {
     await session.send<Protocol.Page.AddScriptToEvaluateOnNewDocumentResponse>(
       "Page.addScriptToEvaluateOnNewDocument",

@@ -229,6 +229,7 @@ async function ensureChildFrameReady(
     .send("Page.setLifecycleEventsEnabled", { enabled: true })
     .catch(() => {});
   await parentSession.send("Runtime.enable").catch(() => {});
+  await parentSession.send("Runtime.disable").catch(() => {});
 
   await new Promise<void>((resolve) => {
     let done = false;

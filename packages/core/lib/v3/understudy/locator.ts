@@ -230,6 +230,7 @@ export class Locator {
   public async count(): Promise<number> {
     const session = this.frame.session;
     await session.send("Runtime.enable");
+    await session.send("Runtime.disable");
     await session.send("DOM.enable");
     return this.selectorResolver.count(this.selectorQuery);
   }
@@ -857,6 +858,7 @@ export class Locator {
     const session = this.frame.session;
 
     await session.send("Runtime.enable");
+    await session.send("Runtime.disable");
     await session.send("DOM.enable");
 
     const resolved = await this.selectorResolver.resolveAtIndex(

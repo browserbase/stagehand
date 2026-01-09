@@ -58,6 +58,7 @@ export class ExecutionContextRegistry {
     if (cached) return cached;
 
     await session.send("Runtime.enable").catch(() => {});
+    await session.send("Runtime.disable").catch(() => {});
     const after = this.getMainWorld(session, frameId);
     if (after) return after;
 
