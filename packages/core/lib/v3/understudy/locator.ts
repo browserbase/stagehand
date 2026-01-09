@@ -14,6 +14,7 @@ import {
 import { normalizeInputFiles } from "./fileUploadUtils";
 import { SetInputFilesArgument } from "../types/public/locator";
 import { NormalizedFilePayload } from "../types/private/locator";
+import { rand, sleep } from "./stealth";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
 
@@ -354,14 +355,23 @@ export class Locator {
         { objectId },
       );
       if (!box.model) throw new ElementNotVisibleError(this.selector);
-      const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
-      await session.send<never>("Input.dispatchMouseEvent", {
-        type: "mouseMoved",
-        x: cx,
-        y: cy,
-        button: "none",
-      } as Protocol.Input.DispatchMouseEventRequest);
+      // Get random point within element
+      const point = this.randomPointInBoundingBox(box.model.content);
+
+      // Get page for stealth methods
+      const page = this.frame.getPage();
+      if (page) {
+        await page.stealthMoveTo(point.x, point.y, session);
+      } else {
+        // Fallback: direct move
+        await session.send<never>("Input.dispatchMouseEvent", {
+          type: "mouseMoved",
+          x: point.x,
+          y: point.y,
+          button: "none",
+        } as Protocol.Input.DispatchMouseEventRequest);
+      }
     } finally {
       await session
         .send<never>("Runtime.releaseObject", { objectId })
@@ -388,42 +398,53 @@ export class Locator {
     const clickCount = options?.clickCount ?? 1;
 
     try {
-      // Scroll into view using objectId (avoids frontend nodeId dependence)
+      // Scroll into view
       await session.send("DOM.scrollIntoViewIfNeeded", { objectId });
 
-      // Get geometry using objectId
+      // Get bounding box
       const box = await session.send<Protocol.DOM.GetBoxModelResponse>(
         "DOM.getBoxModel",
         { objectId },
       );
       if (!box.model) throw new ElementNotVisibleError(this.selector);
-      const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
-      // Dispatch input (from the same session)
-      await session.send<never>("Input.dispatchMouseEvent", {
-        type: "mouseMoved",
-        x: cx,
-        y: cy,
-        button: "none",
-      } as Protocol.Input.DispatchMouseEventRequest);
+      // Get random point within bounding box
+      const point = this.randomPointInBoundingBox(box.model.content);
 
-      // Dispatch mouse pressed and released events for the given click count
-      for (let i = 1; i <= clickCount; i++) {
+      // Get page for stealth methods
+      const page = this.frame.getPage();
+      if (page) {
+        // Stealth: Move to element with trajectory
+        await page.stealthMoveTo(point.x, point.y, session);
+
+        // Stealth: Click with realistic timing
+        for (let i = 1; i <= clickCount; i++) {
+          await page.stealthClick(point.x, point.y, session, button);
+        }
+      } else {
+        // Fallback: direct click (no page reference available)
         await session.send<never>("Input.dispatchMouseEvent", {
-          type: "mousePressed",
-          x: cx,
-          y: cy,
-          button,
-          clickCount: i,
+          type: "mouseMoved",
+          x: point.x,
+          y: point.y,
+          button: "none",
         } as Protocol.Input.DispatchMouseEventRequest);
-
-        await session.send<never>("Input.dispatchMouseEvent", {
-          type: "mouseReleased",
-          x: cx,
-          y: cy,
-          button,
-          clickCount: i,
-        } as Protocol.Input.DispatchMouseEventRequest);
+        for (let i = 1; i <= clickCount; i++) {
+          await session.send<never>("Input.dispatchMouseEvent", {
+            type: "mousePressed",
+            x: point.x,
+            y: point.y,
+            button,
+            clickCount: i,
+          } as Protocol.Input.DispatchMouseEventRequest);
+          await session.send<never>("Input.dispatchMouseEvent", {
+            type: "mouseReleased",
+            x: point.x,
+            y: point.y,
+            button,
+            clickCount: i,
+          } as Protocol.Input.DispatchMouseEventRequest);
+        }
       }
     } finally {
       // release the element handle
@@ -546,6 +567,33 @@ export class Locator {
         const valueToType =
           typeof result?.value === "string" ? result.value : value;
 
+        // Try to use stealth movement and click before typing
+        const page = this.frame.getPage();
+        if (page) {
+          try {
+            const { objectId: boxObjectId } = await this.resolveNode();
+            try {
+              const box = await session.send<Protocol.DOM.GetBoxModelResponse>(
+                "DOM.getBoxModel",
+                { objectId: boxObjectId },
+              );
+              if (box.model) {
+                const point = this.randomPointInBoundingBox(box.model.content);
+                await page.stealthMoveTo(point.x, point.y, session);
+                await sleep(rand(5, 30));
+                await page.stealthClick(point.x, point.y, session);
+                await sleep(rand(100, 500));
+              }
+            } finally {
+              await session
+                .send<never>("Runtime.releaseObject", { objectId: boxObjectId })
+                .catch(() => {});
+            }
+          } catch {
+            // If stealth movement fails, continue with fallback
+          }
+        }
+
         let prepared = false;
         try {
           const { objectId: prepObjectId } = await this.resolveNode();
@@ -592,7 +640,12 @@ export class Locator {
             nativeVirtualKeyCode: 8,
           } as Protocol.Input.DispatchKeyEventRequest);
         } else {
-          await session.send<never>("Input.insertText", { text: valueToType });
+          // Use stealth typing if page is available
+          if (page) {
+            await page.stealthTypeValue(valueToType, session);
+          } else {
+            await session.send<never>("Input.insertText", { text: valueToType });
+          }
         }
 
         return;
@@ -622,48 +675,62 @@ export class Locator {
   }
 
   /**
-   * Type text into the element (focuses first).
-   * - Focus via element.focus() in page JS (no DOM.focus(nodeId)).
-   * - If no delay, uses `Input.insertText` for efficiency.
-   * - With delay, synthesizes `keyDown`/`keyUp` per character.
+   * Type text into the element with human-like behavior.
+   * - Moves to a random point within the element
+   * - Clicks to focus
+   * - Pauses briefly
+   * - Types with realistic delays between characters
    */
-  async type(text: string, options?: { delay?: number }): Promise<void> {
+  async type(text: string): Promise<void> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode();
 
     try {
-      // Focus using JS (avoids DOM.focus(nodeId))
-      await session.send<Protocol.Runtime.CallFunctionOnResponse>(
-        "Runtime.callFunctionOn",
-        {
-          objectId,
-          functionDeclaration: locatorScriptSources.focusElement,
-          returnByValue: true,
-        },
+      await session
+        .send("DOM.scrollIntoViewIfNeeded", { objectId })
+        .catch(() => {});
+
+      const box = await session.send<Protocol.DOM.GetBoxModelResponse>(
+        "DOM.getBoxModel",
+        { objectId },
       );
 
-      if (!options?.delay) {
+      const page = this.frame.getPage();
+
+      if (page && box.model) {
+        // Get random point within element
+        const point = this.randomPointInBoundingBox(box.model.content);
+
+        // Stealth: Move to element
+        await page.stealthMoveTo(point.x, point.y, session);
+
+        // Small pause before clicking
+        await sleep(rand(5, 30));
+
+        // Stealth: Click to focus
+        await page.stealthClick(point.x, point.y, session);
+
+        // Pause before typing (like a human would)
+        await sleep(rand(100, 500));
+
+        // Stealth: Type with realistic delays
+        await page.stealthTypeValue(text, session);
+      } else {
+        // Fallback: Focus using JS and insert text directly
+        await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+          "Runtime.callFunctionOn",
+          {
+            objectId,
+            functionDeclaration: locatorScriptSources.focusElement,
+            returnByValue: true,
+          },
+        );
         await session.send<never>("Input.insertText", { text });
-        return;
-      }
-
-      for (const ch of text) {
-        await session.send<never>("Input.dispatchKeyEvent", {
-          type: "keyDown",
-          text: ch,
-          key: ch,
-        } as Protocol.Input.DispatchKeyEventRequest);
-
-        await session.send<never>("Input.dispatchKeyEvent", {
-          type: "keyUp",
-          text: ch,
-          key: ch,
-        } as Protocol.Input.DispatchKeyEventRequest);
-
-        await new Promise((r) => setTimeout(r, options.delay));
       }
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      await session
+        .send<never>("Runtime.releaseObject", { objectId })
+        .catch(() => {});
     }
   }
 
@@ -881,5 +948,34 @@ export class Locator {
     const cx = (xs[0] + xs[1] + xs[2] + xs[3]) / 4;
     const cy = (ys[0] + ys[1] + ys[2] + ys[3]) / 4;
     return { cx, cy };
+  }
+
+  /**
+   * Get a random point within a bounding box with padding.
+   */
+  private randomPointInBoundingBox(quad: number[]): { x: number; y: number } {
+    const [x1, y1, x2, y2, x3, y3, x4, y4] = quad as [
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+    ];
+
+    const minX = Math.min(x1, x2, x3, x4);
+    const maxX = Math.max(x1, x2, x3, x4);
+    const minY = Math.min(y1, y2, y3, y4);
+    const maxY = Math.max(y1, y2, y3, y4);
+
+    const paddingX = (maxX - minX) * 0.1;
+    const paddingY = (maxY - minY) * 0.1;
+
+    return {
+      x: rand(Math.ceil(minX + paddingX), Math.floor(maxX - paddingX)),
+      y: rand(Math.ceil(minY + paddingY), Math.floor(maxY - paddingY)),
+    };
   }
 }

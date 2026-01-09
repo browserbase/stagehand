@@ -16,7 +16,8 @@
     },
     "skipLibCheck": true,
     "declaration": true,
-    "emitDeclarationOnly": true
+    "emitDeclarationOnly": true,
+    "resolveJsonModule": true
   },
   "include": ["lib/**/*", "examples/**/*", "tests/**/*"],
   "exclude": ["node_modules", "dist"]

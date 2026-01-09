@@ -37,7 +37,7 @@ Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) a
 
         if (method === "type") {
           for (let i = 0; i < times; i++) {
-            await page.type(value, { delay: 100 });
+            await page.type(value);
           }
           v3.recordAgentReplayStep({
             type: "keys",

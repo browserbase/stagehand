@@ -170,8 +170,8 @@ export class DeepLocatorDelegate {
   async fill(value: string) {
     return (await this.real()).fill(value);
   }
-  async type(text: string, options?: { delay?: number }) {
-    return (await this.real()).type(text, options);
+  async type(text: string) {
+    return (await this.real()).type(text);
   }
   async selectOption(values: string | string[]) {
     return (await this.real()).selectOption(values);

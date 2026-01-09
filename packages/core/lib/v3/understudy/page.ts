@@ -44,6 +44,16 @@ import {
   type ScreenshotCleanup,
 } from "./screenshotUtils";
 import { InitScriptSource } from "../types/private";
+import {
+  rand,
+  sleep,
+  generateTrajectory,
+  getKeyCode,
+  getVirtualKeyCode,
+  getModifiersForChar,
+  computeDelayForChar,
+  type Point,
+} from "./stealth";
 /**
  * Page
  *
@@ -101,6 +111,14 @@ export class Page {
   /** Document-start scripts installed across every session this page owns. */
   private readonly initScripts: string[] = [];
 
+  // mouse placement tracking
+  private _mouseX: number = -1;
+  private _mouseY: number = -1;
+  // typing delays
+  private _baseTypingDelayMin: number;
+  private _baseTypingDelayMax: number;
+  private _stealthInitialized: boolean = false;
+
   private constructor(
     private readonly conn: CdpConnection,
     private readonly mainSession: CDPSessionLike,
@@ -125,10 +143,15 @@ export class Page {
       mainFrameId,
       this.pageId,
       this.browserIsRemote,
+      this,
     );
 
     this.networkManager = new NetworkManager();
     this.networkManager.trackSession(this.mainSession);
+
+    // randomly choose what typing delay profile we want
+    this._baseTypingDelayMin = rand(50, 100);
+    this._baseTypingDelayMax = rand(this._baseTypingDelayMin + 50, 250);
   }
 
   // Send a single init script to a specific CDP session.
@@ -164,100 +187,254 @@ export class Page {
     await Promise.all(installs);
   }
 
-  // --- Optional visual cursor overlay management ---
-  private cursorEnabled = false;
-  private async ensureCursorScript(): Promise<void> {
-    const script = `(() => {
-      const ID = '__v3_cursor_overlay__';
-      const state = { el: null, last: null };
-      // Expose API early so move() calls before install are buffered
-      try {
-        if (!window.__v3Cursor || !window.__v3Cursor.__installed) {
-          const api = {
-            __installed: false,
-            move(x, y) {
-              if (state.el) {
-                state.el.style.left = Math.max(0, x) + 'px';
-                state.el.style.top = Math.max(0, y) + 'px';
-              } else {
-                state.last = [x, y];
-              }
-            },
-            show() { if (state.el) state.el.style.display = 'block'; },
-            hide() { if (state.el) state.el.style.display = 'none'; },
-          };
-          window.__v3Cursor = api;
-        }
-      } catch {}
-
-      function install() {
-        try {
-          if (state.el) return; // already installed
-          let el = document.getElementById(ID);
-          if (!el) {
-            const root = document.documentElement || document.body || document.head;
-            if (!root) { setTimeout(install, 50); return; }
-            el = document.createElement('div');
-            el.id = ID;
-            el.style.position = 'fixed';
-            el.style.left = '0px';
-            el.style.top = '0px';
-            el.style.width = '16px';
-            el.style.height = '24px';
-            el.style.zIndex = '2147483647';
-            el.style.pointerEvents = 'none';
-            el.style.userSelect = 'none';
-            el.style.mixBlendMode = 'normal';
-            el.style.contain = 'layout style paint';
-            el.style.willChange = 'transform,left,top';
-            el.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="24" viewBox="0 0 16 24"><path d="M1 0 L1 22 L6 14 L15 14 Z" fill="black" stroke="white" stroke-width="0.7"/></svg>';
-            root.appendChild(el);
-          }
-          state.el = el;
-          try { window.__v3Cursor.__installed = true; } catch {}
-          if (state.last) {
-            window.__v3Cursor.move(state.last[0], state.last[1]);
-            state.last = null;
-          }
-        } catch {}
-      }
-
-      if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        install();
-      } else {
-        document.addEventListener('DOMContentLoaded', install, { once: true });
-        setTimeout(install, 100);
-      }
-    })();`;
-
-    // Ensure future documents get the cursor at doc-start
-    await this.mainSession
-      .send("Page.addScriptToEvaluateOnNewDocument", { source: script })
-      .catch(() => {});
-    // Inject into current document now
-    await this.mainSession
-      .send("Runtime.evaluate", {
-        expression: script,
-        includeCommandLineAPI: false,
-      })
-      .catch(() => {});
+  /**
+   * Init stealth features for the page
+   * - Moves cursor to random page point
+   * - Should be called automatically on page creation.
+   * - TODO: add mouse overlay
+   */
+  private async initStealth(): Promise<void> {
+    if (this._stealthInitialized) return;
+    await this.moveToRandomPagePoint();
+    this._stealthInitialized = true;
   }
 
-  public async enableCursorOverlay(): Promise<void> {
-    if (this.cursorEnabled) return;
-    await this.ensureCursorScript();
-    this.cursorEnabled = true;
+  /**
+   * Update tracked mouse coordinates.
+   * Call this if you move the mouse outside of stealth methods.
+   */
+  public updateMouseCoordinates(x: number, y: number): void {
+    this._mouseX = x;
+    this._mouseY = y;
   }
 
-  private async updateCursor(x: number, y: number): Promise<void> {
-    if (!this.cursorEnabled) return;
+  /**
+   * Get current tracked mouse position.
+   */
+  public getMousePosition(): { x: number; y: number } {
+    return { x: this._mouseX, y: this._mouseY };
+  }
+
+  /**
+   * Move mouse to target coordinates using human-like trajectory.
+   * Falls back to direct move if trajectory generation fails.
+   */
+  public async stealthMoveTo(
+    x: number,
+    y: number,
+    session?: CDPSessionLike,
+  ): Promise<void> {
+    const sess = session ?? this.mainSession;
+    const startX = this._mouseX >= 0 ? this._mouseX : x;
+    const startY = this._mouseY >= 0 ? this._mouseY : y;
+
     try {
-      await this.mainSession.send("Runtime.evaluate", {
-        expression: `typeof window.__v3Cursor!=="undefined"&&window.__v3Cursor.move(${Math.round(x)}, ${Math.round(y)})`,
+      const { points, timings } = await generateTrajectory(
+        [startX, startY] as Point,
+        [x, y] as Point,
+        { frequency: 60, frequencyRandomizer: 1 },
+      );
+
+      for (let i = 0; i < points.length; i++) {
+        const point = points[i];
+        if (!point) continue;
+
+        const delay = i > 0 ? (timings[i] ?? 0) - (timings[i - 1] ?? 0) : 0;
+        if (delay > 0) await sleep(delay);
+
+        await sess.send("Input.dispatchMouseEvent", {
+          type: "mouseMoved",
+          x: point[0],
+          y: point[1],
+          button: "none",
+          pointerType: "mouse",
+        });
+      }
+    } catch (error) {
+      v3Logger({
+        category: "stealth",
+        message: "Trajectory generation failed, falling back to direct move",
+        level: 1,
+        auxiliary: { error: { value: String(error), type: "string" } },
       });
-    } catch {
-      //
+
+      await sess.send("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x,
+        y,
+        button: "none",
+        pointerType: "mouse",
+      });
     }
+
+    this.updateMouseCoordinates(x, y);
+  }
+
+  /**
+   * Perform a stealth click at coordinates with realistic timing.
+   */
+  public async stealthClick(
+    x: number,
+    y: number,
+    session?: CDPSessionLike,
+    button: "left" | "right" | "middle" = "left",
+  ): Promise<void> {
+    const sess = session ?? this.mainSession;
+
+    await sess.send("Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      x,
+      y,
+      button,
+      clickCount: 1,
+      pointerType: "mouse",
+    });
+
+    // Random hold duration (humans don't release instantly)
+    await sleep(rand(50, 150));
+
+    await sess.send("Input.dispatchMouseEvent", {
+      type: "mouseReleased",
+      x,
+      y,
+      button,
+      clickCount: 1,
+      pointerType: "mouse",
+    });
+
+    this.updateMouseCoordinates(x, y);
+  }
+
+  /**
+   * Type a single character with proper key event sequence.
+   */
+  public async stealthTypeChar(
+    char: string,
+    session?: CDPSessionLike,
+  ): Promise<void> {
+    const sess = session ?? this.mainSession;
+    const code = getKeyCode(char);
+    const keyCode = getVirtualKeyCode(char);
+    const modifiers = getModifiersForChar(char);
+
+    await sess.send("Input.dispatchKeyEvent", {
+      type: "rawKeyDown",
+      modifiers,
+      code,
+      key: char,
+      windowsVirtualKeyCode: keyCode,
+      nativeVirtualKeyCode: keyCode,
+    });
+
+    await sess.send("Input.dispatchKeyEvent", {
+      type: "char",
+      modifiers,
+      text: char,
+      code,
+      key: char,
+      windowsVirtualKeyCode: keyCode,
+      nativeVirtualKeyCode: keyCode,
+    });
+
+    // Small delay of pressing a key
+    await sleep(rand(5, 30));
+
+    await sess.send("Input.dispatchKeyEvent", {
+      type: "keyUp",
+      modifiers,
+      code,
+      key: char,
+      windowsVirtualKeyCode: keyCode,
+      nativeVirtualKeyCode: keyCode,
+    });
+  }
+
+  /**
+   * Type a full string with human-like delays between characters.
+   */
+  public async stealthTypeValue(
+    value: string,
+    session?: CDPSessionLike,
+  ): Promise<void> {
+    const sess = session ?? this.mainSession;
+    for (let i = 0; i < value.length; i++) {
+      const char = value[i]!;
+      const nextChar = value[i + 1];
+
+      await this.stealthTypeChar(char, sess);
+
+      const delay = computeDelayForChar(
+        char,
+        this._baseTypingDelayMin,
+        this._baseTypingDelayMax,
+        nextChar,
+      );
+      await sleep(delay);
+    }
+  }
+
+  /**
+   * Get a random point within the viewport.
+   */
+  public async randomPagePoint(): Promise<{ x: number; y: number }> {
+    try {
+      const viewport = await this.evaluate(() => ({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      }));
+      return {
+        x: rand(50, viewport.width - 50),
+        y: rand(50, viewport.height - 50),
+      };
+    } catch {
+      // Fallback to default viewport size if evaluation fails
+      return {
+        x: rand(50, 1280 - 50),
+        y: rand(50, 720 - 50),
+      };
+    }
+  }
+
+  /**
+   * Move cursor to a random point on the page.
+   */
+  public async moveToRandomPagePoint(): Promise<void> {
+    try {
+      const point = await this.randomPagePoint();
+      await this.stealthMoveTo(point.x, point.y);
+    } catch (error) {
+      // Silently fail - not critical if we can't move to a random point during init
+    }
+  }
+
+  /**
+   * Get a random point within a bounding box with padding.
+   * @param quad - DOM.Quad array [x1,y1,x2,y2,x3,y3,x4,y4]
+   */
+  public randomPointInBoundingBox(quad: number[]): { x: number; y: number } {
+    const [x1, y1, x2, y2, x3, y3, x4, y4] = quad as [
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+    ];
+
+    const minX = Math.min(x1, x2, x3, x4);
+    const maxX = Math.max(x1, x2, x3, x4);
+    const minY = Math.min(y1, y2, y3, y4);
+    const maxY = Math.max(y1, y2, y3, y4);
+
+    const paddingX = (maxX - minX) * 0.1;
+    const paddingY = (maxY - minY) * 0.1;
+
+    return {
+      x: rand(Math.ceil(minX + paddingX), Math.floor(maxX - paddingX)),
+      y: rand(Math.ceil(minY + paddingY), Math.floor(maxY - paddingY)),
+    };
   }
 
   public async addInitScript<Arg>(
@@ -320,6 +497,8 @@ export class Page {
     // Seed topology + ownership for nodes known at creation time.
     page.registry.seedFromFrameTree(session.id ?? "root", frameTree);
 
+    await page.initStealth();
+
     return page;
   }
 
@@ -372,6 +551,7 @@ export class Page {
         newRoot,
         this.pageId,
         this.browserIsRemote,
+        this,
       );
     }
 
@@ -510,7 +690,7 @@ export class Page {
     if (hit) return hit;
 
     const sess = this.getSessionForFrame(frameId);
-    const f = new Frame(sess, frameId, this.pageId, this.browserIsRemote);
+    const f = new Frame(sess, frameId, this.pageId, this.browserIsRemote, this);
     this.frameCache.set(frameId, f);
     return f;
   }
@@ -1332,32 +1512,12 @@ export class Page {
       }
     }
 
-    // Synthesize a simple mouse move + press + release sequence
-    await this.updateCursor(x, y);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseMoved",
-      x,
-      y,
-      button: "none",
-    } as Protocol.Input.DispatchMouseEventRequest);
+    // Stealth: Move to position with human-like trajectory
+    await this.stealthMoveTo(x, y);
 
-    // Dispatch mouse pressed and released events for the given click count
+    // Stealth: Click with realistic timing
     for (let i = 1; i <= clickCount; i++) {
-      await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-        type: "mousePressed",
-        x,
-        y,
-        button,
-        clickCount: i,
-      } as Protocol.Input.DispatchMouseEventRequest);
-
-      await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-        type: "mouseReleased",
-        x,
-        y,
-        button,
-        clickCount: i,
-      } as Protocol.Input.DispatchMouseEventRequest);
+      await this.stealthClick(x, y, this.mainSession, button);
     }
 
     return xpathResult ?? "";
@@ -1408,13 +1568,8 @@ export class Page {
       }
     }
 
-    await this.updateCursor(x, y);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseMoved",
-      x,
-      y,
-      button: "none",
-    } as Protocol.Input.DispatchMouseEventRequest);
+    // Stealth: Move with human-like trajectory
+    await this.stealthMoveTo(x, y);
 
     return xpathResult ?? "";
   }
@@ -1437,15 +1592,10 @@ export class Page {
       }
     }
 
-    await this.updateCursor(x, y);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseMoved",
-      x,
-      y,
-      button: "none",
-    } as Protocol.Input.DispatchMouseEventRequest);
+    // Stealth: Move with human-like trajectory
+    await this.stealthMoveTo(x, y);
 
-    // Synthesize a simple mouse move + press + release sequence
+    // Dispatch mouse wheel event
     await this.mainSession.send<never>("Input.dispatchMouseEvent", {
       type: "mouseWheel",
       x,
@@ -1512,14 +1662,8 @@ export class Page {
       }
     }
 
-    // Move to start
-    await this.updateCursor(fromX, fromY);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseMoved",
-      x: fromX,
-      y: fromY,
-      button: "none",
-    } as Protocol.Input.DispatchMouseEventRequest);
+    // Move to start with stealth
+    await this.stealthMoveTo(fromX, fromY);
 
     // Press
     await this.mainSession.send<never>("Input.dispatchMouseEvent", {
@@ -1536,7 +1680,7 @@ export class Page {
       const t = i / steps;
       const x = fromX + (toX - fromX) * t;
       const y = fromY + (toY - fromY) * t;
-      await this.updateCursor(x, y);
+      this.updateMouseCoordinates(x, y);
       await this.mainSession.send<never>("Input.dispatchMouseEvent", {
         type: "mouseMoved",
         x,
@@ -1548,7 +1692,7 @@ export class Page {
     }
 
     // Release at end
-    await this.updateCursor(toX, toY);
+    this.updateMouseCoordinates(toX, toY);
     await this.mainSession.send<never>("Input.dispatchMouseEvent", {
       type: "mouseReleased",
       x: toX,
@@ -1570,122 +1714,48 @@ export class Page {
   @logAction("Page.type")
   async type(
     text: string,
-    options?: { delay?: number; withMistakes?: boolean },
+    options?: { withMistakes?: boolean },
   ): Promise<void> {
-    const delay = Math.max(0, options?.delay ?? 0);
     const withMistakes = !!options?.withMistakes;
 
-    const sleep = (ms: number) =>
-      new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
-
-    const keyStroke = async (
-      ch: string,
-      override?: {
-        key?: string;
-        code?: string;
-        windowsVirtualKeyCode?: number;
-      },
-    ) => {
-      if (override) {
-        const base: Protocol.Input.DispatchKeyEventRequest = {
-          type: "keyDown",
-          key: override.key,
-          code: override.code,
-          windowsVirtualKeyCode: override.windowsVirtualKeyCode,
-        } as Protocol.Input.DispatchKeyEventRequest;
-        await this.mainSession.send("Input.dispatchKeyEvent", base);
-        await this.mainSession.send("Input.dispatchKeyEvent", {
-          ...base,
-          type: "keyUp",
-        } as Protocol.Input.DispatchKeyEventRequest);
-        return;
-      }
-
-      // Printable character: include key, code, and text for maximum compatibility
-      // Some sites (like Wordle) check event.key rather than relying on text input
-      const isLetter = /^[a-zA-Z]$/.test(ch);
-      const isDigit = /^[0-9]$/.test(ch);
-
-      let key = ch;
-      let code = "";
-      let windowsVirtualKeyCode: number | undefined;
-
-      if (isLetter) {
-        // For letters, key is the character, code is KeyX where X is uppercase
-        key = ch;
-        code = `Key${ch.toUpperCase()}`;
-        windowsVirtualKeyCode = ch.toUpperCase().charCodeAt(0);
-      } else if (isDigit) {
-        key = ch;
-        code = `Digit${ch}`;
-        windowsVirtualKeyCode = ch.charCodeAt(0);
-      } else if (ch === " ") {
-        key = " ";
-        code = "Space";
-        windowsVirtualKeyCode = 32;
-      }
-
-      const down: Protocol.Input.DispatchKeyEventRequest = {
-        type: "keyDown",
-        key,
-        code: code || undefined,
-        text: ch,
-        unmodifiedText: ch,
-        windowsVirtualKeyCode,
-      };
-      await this.mainSession.send("Input.dispatchKeyEvent", down);
-      await this.mainSession.send("Input.dispatchKeyEvent", {
-        type: "keyUp",
-        key,
-        code: code || undefined,
-        windowsVirtualKeyCode,
-      } as Protocol.Input.DispatchKeyEventRequest);
-    };
-
-    const pressBackspace = async () =>
-      keyStroke("\b", {
-        key: "Backspace",
-        code: "Backspace",
-        windowsVirtualKeyCode: 8,
-      });
-
-    const randomPrintable = (avoid: string): string => {
-      const pool =
-        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,;:'\"!?@#$%^&*()-_=+[]{}<>/\\|`~";
-      let c = avoid;
-      while (c === avoid) {
-        c = pool[Math.floor(Math.random() * pool.length)];
-      }
-      return c;
-    };
-
-    for (const ch of text) {
-      // Control keys that we explicitly map
-      if (ch === "\n" || ch === "\r") {
-        await keyStroke(ch, {
-          key: "Enter",
-          code: "Enter",
-          windowsVirtualKeyCode: 13,
-        });
-      } else if (ch === "\t") {
-        await keyStroke(ch, {
-          key: "Tab",
-          code: "Tab",
-          windowsVirtualKeyCode: 9,
-        });
-      } else {
-        if (withMistakes && Math.random() < 0.12) {
-          // Type a wrong character, then backspace to correct
-          const wrong = randomPrintable(ch);
-          await keyStroke(wrong);
-          if (delay) await sleep(delay);
-          await pressBackspace();
-          if (delay) await sleep(delay);
+    if (withMistakes) {
+      // Handle typing with mistakes using stealth methods
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i]!;
+        if (ch === "\n" || ch === "\r") {
+          // Special handling for Enter key
+          await this.keyPress("Enter");
+        } else if (ch === "\t") {
+          await this.keyPress("Tab");
+        } else {
+          // Random chance to make a mistake
+          if (Math.random() < 0.12) {
+            const pool = "abcdefghijklmnopqrstuvwxyz";
+            const wrong = pool[Math.floor(Math.random() * pool.length)];
+            await this.stealthTypeChar(wrong!);
+            await sleep(
+              rand(this._baseTypingDelayMin, this._baseTypingDelayMax),
+            );
+            await this.keyPress("Backspace");
+            await sleep(
+              rand(this._baseTypingDelayMin, this._baseTypingDelayMax),
+            );
+          }
+          await this.stealthTypeChar(ch);
         }
-        await keyStroke(ch);
-      }
 
-      if (delay) await sleep(delay);
+        const nextChar = text[i + 1];
+        const delay = computeDelayForChar(
+          ch,
+          this._baseTypingDelayMin,
+          this._baseTypingDelayMax,
+          nextChar,
+        );
+        await sleep(delay);
+      }
+    } else {
+      // Normal stealth typing
+      await this.stealthTypeValue(text);
     }
   }
 
