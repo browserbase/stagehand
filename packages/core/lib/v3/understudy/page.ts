@@ -7,17 +7,23 @@ import { CdpConnection } from "./cdp";
 import { Frame } from "./frame";
 import { FrameLocator } from "./frameLocator";
 import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator";
-import { resolveXpathForLocation } from "./a11y/snapshot";
+import {
+  captureHybridSnapshot,
+  resolveXpathForLocation,
+} from "./a11y/snapshot";
 import { FrameRegistry } from "./frameRegistry";
 import { executionContexts } from "./executionContextRegistry";
-import { LoadState } from "../types/public/page";
+import { LoadState, SnapshotResult } from "../types/public/page";
 import { NetworkManager } from "./networkManager";
 import { LifecycleWatcher } from "./lifecycleWatcher";
 import { NavigationResponseTracker } from "./navigationResponseTracker";
 import { Response, isSerializableResponse } from "./response";
 import { ConsoleMessage, ConsoleListener } from "./consoleMessage";
 import type { StagehandAPIClient } from "../api";
-import type { LocalBrowserLaunchOptions } from "../types/public";
+import {
+  LocalBrowserLaunchOptions,
+  StagehandSnapshotError,
+} from "../types/public";
 import type { Locator } from "./locator";
 import {
   StagehandInvalidArgumentError,
@@ -1786,6 +1792,21 @@ export class Page {
       // Clear stuck modifiers on error to prevent affecting subsequent keyPress calls
       this._pressedModifiers.clear();
       throw error;
+    }
+  }
+
+  @logAction("Page.snapshot")
+  async snapshot(): Promise<SnapshotResult> {
+    try {
+      const { combinedTree, combinedXpathMap, combinedUrlMap } =
+        await captureHybridSnapshot(this, { pierceShadow: true });
+      return {
+        formattedTree: combinedTree,
+        xpathMap: combinedXpathMap,
+        urlMap: combinedUrlMap,
+      };
+    } catch (err) {
+      throw new StagehandSnapshotError(err);
     }
   }
 

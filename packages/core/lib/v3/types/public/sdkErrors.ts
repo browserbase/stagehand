@@ -3,9 +3,14 @@ import { ZodError } from "zod";
 import { STAGEHAND_VERSION } from "../../../version";
 
 export class StagehandError extends Error {
-  constructor(message: string) {
+  public readonly cause?: unknown;
+
+  constructor(message: string, cause?: unknown) {
     super(message);
     this.name = this.constructor.name;
+    if (cause !== undefined) {
+      this.cause = cause;
+    }
   }
 }
 
@@ -368,5 +373,17 @@ export class AgentAbortError extends StagehandError {
 export class StagehandClosedError extends StagehandError {
   constructor() {
     super("Stagehand session was closed");
+  }
+}
+
+export class StagehandSnapshotError extends StagehandError {
+  constructor(cause?: unknown) {
+    const suffix =
+      cause instanceof Error
+        ? `: ${cause.message}`
+        : cause
+          ? `: ${String(cause)}`
+          : "";
+    super(`error taking snapshot${suffix}`, cause);
   }
 }
