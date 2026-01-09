@@ -437,6 +437,8 @@ export class Page {
     };
   }
 
+  public async enableCursorOverlay(): Promise<void> {}
+
   public async addInitScript<Arg>(
     script: InitScriptSource<Arg>,
     arg?: Arg,

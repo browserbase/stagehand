@@ -48,7 +48,9 @@ async function runCase(v3: V3, c: Case, framework: Framework): Promise<void> {
   } else if (framework === "playwright") {
     const pwBrowser = await playwrightChromium.connectOverCDP(v3.connectURL());
     const pwContext = pwBrowser.contexts()[0];
+    // @ts-expect-error sdlkfj
     page = pwContext.pages()[0];
+    // @ts-expect-error sdlkfj
     await page.goto(c.url, { waitUntil: "networkidle" });
     cleanup = async () => {
       try {
@@ -183,29 +185,30 @@ const cases: Case[] = [
   },
 ];
 
-test.describe.parallel("Stagehand v3: shadow <-> iframe scenarios", () => {
-  let v3: V3;
+test.describe
+  .parallel("Stagehand v3: shadow <-> iframe scenarios", () => {
+    let v3: V3;
 
-  test.beforeEach(async () => {
-    v3 = new V3(v3DynamicTestConfig);
-    await v3.init();
-  });
+    test.beforeEach(async () => {
+      v3 = new V3(v3DynamicTestConfig);
+      await v3.init();
+    });
 
-  test.afterEach(async () => {
-    await v3?.close?.().catch(() => {});
-  });
+    test.afterEach(async () => {
+      await v3?.close?.().catch(() => {});
+    });
 
-  const frameworks: Framework[] = [
-    "v3",
-    "playwright",
-    "puppeteer",
-    "patchright",
-  ];
-  for (const fw of frameworks) {
-    for (const c of cases) {
-      test(`[${fw}] ${c.title}`, async () => {
-        await runCase(v3, c, fw);
-      });
+    const frameworks: Framework[] = [
+      "v3",
+      "playwright",
+      "puppeteer",
+      "patchright",
+    ];
+    for (const fw of frameworks) {
+      for (const c of cases) {
+        test(`[${fw}] ${c.title}`, async () => {
+          await runCase(v3, c, fw);
+        });
+      }
     }
-  }
-});
+  });
