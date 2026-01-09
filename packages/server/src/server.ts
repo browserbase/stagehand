@@ -144,9 +144,12 @@ const start = async () => {
       ...fastifyZodOpenApiTransformers,
     });
 
-    await app.register(fastifySwaggerUI, {
-      routePrefix: "/documentation",
-    });
+    // Only register Swagger UI in development - SEA binaries can't load static files
+    if (process.env.NODE_ENV === "development") {
+      await app.register(fastifySwaggerUI, {
+        routePrefix: "/documentation",
+      });
+    }
 
     app.setSchemaErrorFormatter(function (errors, dataVar) {
       const zodIssues = errors
