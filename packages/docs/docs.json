@@ -137,9 +137,15 @@
             "dropdown": "Python",
             "icon": "code",
             "pages": [
-              "v3/first-steps/introduction"
+              "v3/sdk/python"
             ],
             "groups": [
+              {
+                "group": "SDK Reference",
+                "pages": [
+                  "v3/sdk/python"
+                ]
+              },
               {
                 "group": "API Reference",
                 "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
@@ -262,9 +268,15 @@
             "dropdown": "Java",
             "icon": "code",
             "pages": [
-              "v3/first-steps/introduction"
+              "v3/sdk/java"
             ],
             "groups": [
+              {
+                "group": "SDK Reference",
+                "pages": [
+                  "v3/sdk/java"
+                ]
+              },
               {
                 "group": "API Reference",
                 "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
@@ -387,9 +399,15 @@
             "dropdown": "Go",
             "icon": "code",
             "pages": [
-              "v3/first-steps/introduction"
+              "v3/sdk/go"
             ],
             "groups": [
+              {
+                "group": "SDK Reference",
+                "pages": [
+                  "v3/sdk/go"
+                ]
+              },
               {
                 "group": "API Reference",
                 "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
@@ -512,9 +530,15 @@
             "dropdown": "Ruby",
             "icon": "code",
             "pages": [
-              "v3/first-steps/introduction"
+              "v3/sdk/ruby"
             ],
             "groups": [
+              {
+                "group": "SDK Reference",
+                "pages": [
+                  "v3/sdk/ruby"
+                ]
+              },
               {
                 "group": "API Reference",
                 "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",

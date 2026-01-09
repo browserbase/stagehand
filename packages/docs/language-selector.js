@@ -38,8 +38,46 @@
       pointer-events: none !important;
       transition: none !important;
     }
+    
+    /* Hide version switcher when non-TypeScript language is selected */
+    .stagehand-hide-version-switcher .stagehand-version-switcher {
+      display: none !important;
+    }
   `;
   document.head.appendChild(dropdownStyle);
+  
+  // ============================================
+  // VERSION SWITCHER VISIBILITY
+  // ============================================
+  
+  function getVersionSwitcher() {
+    // Find the version switcher button (contains "v3" or "v2" and has chevron-down)
+    const buttons = document.querySelectorAll('button');
+    for (const btn of buttons) {
+      const text = (btn.textContent || '').trim().toLowerCase();
+      // Check if it's a version button (v2, v3, etc.) with chevron icon
+      if (/^v\d+$/.test(text) && btn.querySelector('.lucide-chevron-down')) {
+        return btn;
+      }
+    }
+    return null;
+  }
+  
+  function updateVersionSwitcherVisibility() {
+    const versionSwitcher = getVersionSwitcher();
+    
+    if (versionSwitcher) {
+      // Mark the version switcher so we can target it with CSS
+      versionSwitcher.classList.add('stagehand-version-switcher');
+      
+      // Show version switcher only for TypeScript
+      if (currentSelectedLanguage === 'TypeScript') {
+        document.body.classList.remove('stagehand-hide-version-switcher');
+      } else {
+        document.body.classList.add('stagehand-hide-version-switcher');
+      }
+    }
+  }
   
   // ============================================
   // SIDEBAR DROPDOWN FUNCTIONS
@@ -238,6 +276,9 @@
           // Update the check indicator immediately
           updateDropdownCheckIndicator();
           
+          // Update version switcher visibility
+          updateVersionSwitcherVisibility();
+          
           // Store in sessionStorage
           try {
             sessionStorage.setItem('stagehand-selected-language', lang);
@@ -268,12 +309,18 @@
         currentSelectedLanguage = stored;
         updateButtonText(stored);
         
+        // Update version switcher visibility
+        updateVersionSwitcherVisibility();
+        
         // Also sync code block language on restore
         setTimeout(syncCodeBlockLanguage, 1000);
       }
     } catch (err) {
       // Ignore storage errors
     }
+    
+    // Always update version switcher visibility on restore
+    setTimeout(updateVersionSwitcherVisibility, 100);
   }
   
   function setupPageChangeObserver() {
@@ -285,6 +332,12 @@
         if (currentText !== currentSelectedLanguage && DROPDOWN_LANGUAGES.includes(currentSelectedLanguage)) {
           updateButtonText(currentSelectedLanguage);
         }
+      }
+      
+      // Re-check version switcher visibility (DOM might have re-rendered)
+      const versionSwitcher = getVersionSwitcher();
+      if (versionSwitcher && !versionSwitcher.classList.contains('stagehand-version-switcher')) {
+        updateVersionSwitcherVisibility();
       }
     });
     
@@ -328,6 +381,10 @@
     setupCodeBlockObserver();
     
     setTimeout(restoreLanguageSelection, 500);
+    
+    // Update version switcher visibility on init and periodically check
+    setTimeout(updateVersionSwitcherVisibility, 600);
+    setTimeout(updateVersionSwitcherVisibility, 1000);
   }
 
   // Initialize on page load
@@ -348,6 +405,9 @@
         restoreLanguageSelection();
         // Sync code block language on page change
         setTimeout(syncCodeBlockLanguage, 500);
+        // Update version switcher visibility on page change
+        setTimeout(updateVersionSwitcherVisibility, 100);
+        setTimeout(updateVersionSwitcherVisibility, 500);
       }, 500);
     }
   });
