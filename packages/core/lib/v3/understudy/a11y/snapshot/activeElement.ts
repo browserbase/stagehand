@@ -31,6 +31,7 @@ export async function computeActiveElementXpath(
     const sess = page.getSessionForFrame(fid);
     try {
       await sess.send("Runtime.enable").catch(() => {});
+      await sess.send("Runtime.disable").catch(() => {});
       const ctxId = await executionContexts
         .waitForMainWorld(sess, fid, 1000)
         .catch(() => {});
@@ -60,6 +61,7 @@ export async function computeActiveElementXpath(
   let objectId: string | undefined;
   try {
     await focusedSession.send("Runtime.enable").catch(() => {});
+    await focusedSession.send("Runtime.disable").catch(() => {});
     const ctxId = await executionContexts
       .waitForMainWorld(focusedSession, focusedFrameId, 1000)
       .catch(() => {});
