@@ -6,7 +6,7 @@ import type { CDPSessionLike } from "./cdp";
 import { CdpConnection } from "./cdp";
 import { Frame } from "./frame";
 import { FrameLocator } from "./frameLocator";
-import { deepLocatorFromPage } from "./deepLocator";
+import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator";
 import { resolveXpathForLocation } from "./a11y/snapshot";
 import { FrameRegistry } from "./frameRegistry";
 import { executionContexts } from "./executionContextRegistry";
@@ -24,6 +24,7 @@ import {
   StagehandEvalError,
 } from "../types/public/sdkErrors";
 import { normalizeInitScriptSource } from "./initScripts";
+import { buildLocatorInvocation } from "./locatorInvocation";
 import type {
   ScreenshotAnimationsOption,
   ScreenshotCaretOption,
@@ -44,6 +45,7 @@ import {
   type ScreenshotCleanup,
 } from "./screenshotUtils";
 import { InitScriptSource } from "../types/private";
+
 /**
  * Page
  *
@@ -1188,6 +1190,47 @@ export class Page {
    */
   async waitForTimeout(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Wait for an element matching the selector to appear in the DOM.
+   * Uses MutationObserver for efficiency
+   * Pierces shadow DOM by default.
+   * Supports iframe hop notation with '>>' (e.g., 'iframe#checkout >> .submit-btn').
+   *
+   * @param selector CSS selector to wait for (supports '>>' for iframe hops)
+   * @param options.state Element state to wait for: 'attached' | 'detached' | 'visible' | 'hidden' (default: 'visible')
+   * @param options.timeout Maximum time to wait in milliseconds (default: 30000)
+   * @param options.pierceShadow Whether to search inside shadow DOM (default: true)
+   * @returns True when the condition is met
+   * @throws Error if timeout is reached before the condition is met
+   */
+  @logAction("Page.waitForSelector")
+  async waitForSelector(
+    selector: string,
+    options?: {
+      state?: "attached" | "detached" | "visible" | "hidden";
+      timeout?: number;
+      pierceShadow?: boolean;
+    },
+  ): Promise<boolean> {
+    const timeout = options?.timeout ?? 30000;
+    const state = options?.state ?? "visible";
+    const pierceShadow = options?.pierceShadow ?? true;
+    const startTime = Date.now();
+    const root = this.mainFrameWrapper;
+    const { frame: targetFrame, selector: finalSelector } =
+      await resolveLocatorTarget(this, root, selector);
+    const elapsed = Date.now() - startTime;
+    const remainingTimeout = Math.max(0, timeout - elapsed);
+
+    const expression = buildLocatorInvocation("waitForSelector", [
+      JSON.stringify(finalSelector),
+      JSON.stringify(state),
+      String(remainingTimeout),
+      String(pierceShadow),
+    ]);
+    return targetFrame.evaluate(expression);
   }
 
   /**

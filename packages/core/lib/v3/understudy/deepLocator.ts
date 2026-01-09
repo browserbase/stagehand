@@ -13,6 +13,11 @@ const IFRAME_STEP_RE = /^iframe(?:\[\d+])?$/i;
 type Axis = "child" | "desc";
 type Step = { axis: Axis; raw: string; name: string };
 
+export type ResolvedLocatorTarget = {
+  frame: Frame;
+  selector: string;
+};
+
 /** Parse XPath into steps preserving '/' vs '//' and the raw token (with [n]) */
 function parseXPath(path: string): Step[] {
   const s = path.trim();
@@ -54,60 +59,19 @@ export async function deepLocatorThroughIframes(
   root: Frame,
   xpathOrSelector: string,
 ): Promise<Locator> {
-  let path = xpathOrSelector.trim();
-  if (path.startsWith("xpath=")) path = path.slice("xpath=".length).trim();
-  if (!path.startsWith("/")) path = "/" + path;
-
-  const steps = parseXPath(path);
-  let fl: FrameLocator | undefined;
-  let buf: Step[] = [];
-
-  const flushIntoFrameLocator = () => {
-    if (!buf.length) return;
-    const selectorForIframe = "xpath=" + buildXPathFromSteps(buf);
-    v3Logger({
-      category: "deep-hop",
-      message: "resolving iframe via FrameLocator",
-      level: 2,
-      auxiliary: {
-        selectorForIframe: { value: selectorForIframe, type: "string" },
-        rootFrameId: { value: String(root.frameId), type: "string" },
-      },
-    });
-    fl = fl
-      ? fl.frameLocator(selectorForIframe)
-      : frameLocatorFromFrame(page, root, selectorForIframe);
-    buf = [];
-  };
-
-  for (const st of steps) {
-    buf.push(st);
-    if (IFRAME_STEP_RE.test(st.name)) flushIntoFrameLocator();
-  }
-
-  const finalSelector = "xpath=" + buildXPathFromSteps(buf);
-  const targetFrame = fl ? await fl.resolveFrame() : root;
-  v3Logger({
-    category: "deep-hop",
-    message: "final tail",
-    level: 2,
-    auxiliary: {
-      frameId: { value: String(targetFrame.frameId), type: "string" },
-      finalSelector: { value: finalSelector, type: "string" },
-    },
-  });
-  return new Locator(targetFrame, finalSelector);
+  const target = await resolveDeepXPathTarget(page, root, xpathOrSelector);
+  return new Locator(target.frame, target.selector);
 }
 
 /**
  * Unified resolver that supports '>>' hop notation, deep XPath across iframes,
  * and plain single-frame selectors. Keeps hop logic in one shared place.
  */
-export async function resolveLocatorWithHops(
+export async function resolveLocatorTarget(
   page: Page,
   root: Frame,
   selectorRaw: string,
-): Promise<Locator> {
+): Promise<ResolvedLocatorTarget> {
   const sel = selectorRaw.trim();
   const parts = sel
     .split(">>")
@@ -121,13 +85,24 @@ export async function resolveLocatorWithHops(
       fl = fl.frameLocator(parts[i]!);
     }
     const targetFrame = await fl.resolveFrame();
-    return new Locator(targetFrame, parts[parts.length - 1]!);
+    return { frame: targetFrame, selector: parts[parts.length - 1]! };
   }
 
   // No hops — delegate to XPath-aware deep resolver when needed
   const isXPath = sel.startsWith("xpath=") || sel.startsWith("/");
-  if (isXPath) return deepLocatorThroughIframes(page, root, sel);
-  return new Locator(root, sel);
+  if (isXPath) {
+    return resolveDeepXPathTarget(page, root, sel);
+  }
+  return { frame: root, selector: sel };
+}
+
+export async function resolveLocatorWithHops(
+  page: Page,
+  root: Frame,
+  selectorRaw: string,
+): Promise<Locator> {
+  const target = await resolveLocatorTarget(page, root, selectorRaw);
+  return new Locator(target.frame, target.selector);
 }
 
 /**
@@ -265,4 +240,54 @@ export function deepLocatorFromPage(
   selector: string,
 ): DeepLocatorDelegate {
   return new DeepLocatorDelegate(page, root, selector);
+}
+
+async function resolveDeepXPathTarget(
+  page: Page,
+  root: Frame,
+  xpathOrSelector: string,
+): Promise<ResolvedLocatorTarget> {
+  let path = xpathOrSelector.trim();
+  if (path.startsWith("xpath=")) path = path.slice("xpath=".length).trim();
+  if (!path.startsWith("/")) path = "/" + path;
+
+  const steps = parseXPath(path);
+  let fl: FrameLocator | undefined;
+  let buf: Step[] = [];
+
+  const flushIntoFrameLocator = () => {
+    if (!buf.length) return;
+    const selectorForIframe = "xpath=" + buildXPathFromSteps(buf);
+    v3Logger({
+      category: "deep-hop",
+      message: "resolving iframe via FrameLocator",
+      level: 2,
+      auxiliary: {
+        selectorForIframe: { value: selectorForIframe, type: "string" },
+        rootFrameId: { value: String(root.frameId), type: "string" },
+      },
+    });
+    fl = fl
+      ? fl.frameLocator(selectorForIframe)
+      : frameLocatorFromFrame(page, root, selectorForIframe);
+    buf = [];
+  };
+
+  for (const st of steps) {
+    buf.push(st);
+    if (IFRAME_STEP_RE.test(st.name)) flushIntoFrameLocator();
+  }
+
+  const finalSelector = "xpath=" + buildXPathFromSteps(buf);
+  const targetFrame = fl ? await fl.resolveFrame() : root;
+  v3Logger({
+    category: "deep-hop",
+    message: "final tail",
+    level: 2,
+    auxiliary: {
+      frameId: { value: String(targetFrame.frameId), type: "string" },
+      finalSelector: { value: finalSelector, type: "string" },
+    },
+  });
+  return { frame: targetFrame, selector: finalSelector };
 }
