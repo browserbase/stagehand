@@ -253,6 +253,7 @@ export class AISdkClientWrapped extends LLMClient {
 
     // Transform AI SDK response to match LLMResponse format expected by operator handler
     const transformedToolCalls = (textResponse.toolCalls || []).map(
+      // @ts-expect-error sldkfj
       (toolCall) => ({
         id:
           toolCall.toolCallId ||

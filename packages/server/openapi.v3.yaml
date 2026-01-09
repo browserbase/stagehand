@@ -142,12 +142,12 @@ components:
           type: boolean
       additionalProperties: false
     ModelName:
+      type: string
       description:
         Model name string with provider prefix (e.g., 'openai/gpt-5-nano',
         'anthropic/claude-4.5-opus')
       match: {}
       example: openai/gpt-5-nano
-      type: string
     ModelConfigObject:
       type: object
       properties:
@@ -161,10 +161,10 @@ components:
             - google
             - microsoft
         modelName:
+          type: string
           description: Model name string without prefix (e.g., 'gpt-5-nano',
             'claude-4.5-opus')
           example: gpt-5-nano
-          type: string
         apiKey:
           description: API key for the model provider
           example: sk-some-openai-api-key
@@ -181,17 +181,16 @@ components:
         - $ref: "#/components/schemas/ModelName"
         - $ref: "#/components/schemas/ModelConfigObject"
     Action:
-      description: Action object returned by observe and used by act
       type: object
       properties:
         selector:
+          type: string
           description: CSS selector or XPath for the element
           example: "[data-testid='submit-button']"
-          type: string
         description:
+          type: string
           description: Human-readable description of the action
           example: Click the submit button
-          type: string
         backendNodeId:
           description: Backend node ID for the element
           type: number
@@ -209,6 +208,7 @@ components:
       required:
         - selector
         - description
+      description: Action object returned by observe and used by act
     BrowserConfig:
       type: object
       properties:
@@ -393,13 +393,56 @@ components:
         userMetadata:
           type: object
           additionalProperties: true
+    SessionStartRequest:
+      type: object
+      properties:
+        modelName:
+          type: string
+          description: Model name to use for AI operations
+          example: gpt-4o
+        domSettleTimeoutMs:
+          description: Timeout in ms to wait for DOM to settle
+          example: 5000
+          type: number
+        verbose:
+          description: Logging verbosity level (0=quiet, 1=normal, 2=debug)
+          example: 1
+          type: number
+          enum:
+            - 0
+            - 1
+            - 2
+        systemPrompt:
+          description: Custom system prompt for AI operations
+          type: string
+        browserbaseSessionCreateParams:
+          $ref: "#/components/schemas/BrowserbaseSessionCreateParams"
+        browser:
+          $ref: "#/components/schemas/BrowserConfig"
+        selfHeal:
+          description: Enable self-healing for failed actions
+          example: true
+          type: boolean
+        browserbaseSessionID:
+          description: Existing Browserbase session ID to resume
+          type: string
+        experimental:
+          type: boolean
+        waitForCaptchaSolves:
+          description: Wait for captcha solves (deprecated, v2 only)
+          type: boolean
+        actTimeoutMs:
+          description: Timeout in ms for act operations (deprecated, v2 only)
+          type: number
+      required:
+        - modelName
     SessionStartResult:
       type: object
       properties:
         sessionId:
+          type: string
           description: Unique Browserbase session identifier
           example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
-          type: string
         cdpUrl:
           description:
             CDP WebSocket URL for connecting to the Browserbase cloud browser
@@ -439,11 +482,11 @@ components:
       type: object
       properties:
         input:
-          description: Natural language instruction or Action object
-          example: Click the login button
           anyOf:
             - type: string
             - $ref: "#/components/schemas/Action"
+          description: Natural language instruction or Action object
+          example: Click the login button
         options:
           $ref: "#/components/schemas/ActOptions"
         frameId:
@@ -459,22 +502,22 @@ components:
       type: object
       properties:
         success:
+          type: boolean
           description: Whether the action completed successfully
           example: true
-          type: boolean
         message:
+          type: string
           description: Human-readable result message
           example: Successfully clicked the login button
-          type: string
         actionDescription:
+          type: string
           description: Description of the action that was performed
           example: Clicked button with text 'Login'
-          type: string
         actions:
-          description: List of actions that were executed
           type: array
           items:
             $ref: "#/components/schemas/Action"
+          description: List of actions that were executed
       required:
         - success
         - message
@@ -602,9 +645,9 @@ components:
       type: object
       properties:
         type:
+          type: string
           description: Type of action taken
           example: click
-          type: string
         reasoning:
           description: Agent's reasoning for taking this action
           type: string
@@ -628,18 +671,18 @@ components:
       type: object
       properties:
         input_tokens:
+          type: number
           example: 1500
-          type: number
         output_tokens:
-          example: 250
           type: number
+          example: 250
         reasoning_tokens:
           type: number
         cached_input_tokens:
           type: number
         inference_time_ms:
-          example: 2500
           type: number
+          example: 2500
       required:
         - input_tokens
         - output_tokens
@@ -648,21 +691,21 @@ components:
       type: object
       properties:
         success:
+          type: boolean
           description: Whether the agent completed successfully
           example: true
-          type: boolean
         message:
+          type: string
           description: Summary of what the agent accomplished
           example: Successfully logged in and navigated to dashboard
-          type: string
         actions:
           type: array
           items:
             $ref: "#/components/schemas/AgentAction"
         completed:
+          type: boolean
           description: Whether the agent finished its task
           example: true
-          type: boolean
         metadata:
           type: object
           additionalProperties: true
@@ -677,11 +720,11 @@ components:
       type: object
       properties:
         instruction:
+          type: string
           description: Natural language instruction for the agent
           example:
             Log in with username 'demo' and password 'test123', then navigate to
             settings
-          type: string
         maxSteps:
           description: Maximum number of steps the agent can take
           example: 20
@@ -738,9 +781,9 @@ components:
       type: object
       properties:
         url:
+          type: string
           description: URL to navigate to
           example: https://example.com
-          type: string
         options:
           $ref: "#/components/schemas/NavigateOptions"
         frameId:
@@ -756,8 +799,10 @@ components:
       type: object
       properties:
         result:
+          anyOf:
+            - {}
+            - type: "null"
           description: Navigation response (Playwright Response object or null)
-          type: unknown
         actionId:
           description: Action ID for tracking
           type: string
@@ -798,7 +843,6 @@ components:
           items:
             $ref: "#/components/schemas/ReplayPage"
     StreamEventStatus:
-      description: Current status of the streaming operation
       type: string
       enum:
         - starting
@@ -806,12 +850,13 @@ components:
         - running
         - finished
         - error
+      description: Current status of the streaming operation
     StreamEventType:
-      description: Type of stream event - system events or log messages
       type: string
       enum:
         - system
         - log
+      description: Type of stream event - system events or log messages
     StreamEventSystemData:
       type: object
       properties:
@@ -831,8 +876,8 @@ components:
           type: string
           const: running
         message:
-          description: Log message from the operation
           type: string
+          description: Log message from the operation
       required:
         - status
         - message
@@ -840,8 +885,8 @@ components:
       type: object
       properties:
         success:
-          description: Indicates whether the request was successful
           type: boolean
+          description: Indicates whether the request was successful
         data:
           $ref: "#/components/schemas/SessionStartResultOutput"
       required:
@@ -852,8 +897,8 @@ components:
       type: object
       properties:
         success:
-          description: Indicates whether the request was successful
           type: boolean
+          description: Indicates whether the request was successful
       required:
         - success
       additionalProperties: false
@@ -861,8 +906,8 @@ components:
       type: object
       properties:
         success:
-          description: Indicates whether the request was successful
           type: boolean
+          description: Indicates whether the request was successful
         data:
           $ref: "#/components/schemas/ActResultOutput"
       required:
@@ -873,8 +918,8 @@ components:
       type: object
       properties:
         success:
-          description: Indicates whether the request was successful
           type: boolean
+          description: Indicates whether the request was successful
         data:
           $ref: "#/components/schemas/ExtractResultOutput"
       required:
@@ -885,8 +930,8 @@ components:
       type: object
       properties:
         success:
-          description: Indicates whether the request was successful
           type: boolean
+          description: Indicates whether the request was successful
         data:
           $ref: "#/components/schemas/ObserveResultOutput"
       required:
@@ -897,8 +942,8 @@ components:
       type: object
       properties:
         success:
-          description: Indicates whether the request was successful
           type: boolean
+          description: Indicates whether the request was successful
         data:
           $ref: "#/components/schemas/AgentExecuteResultOutput"
       required:
@@ -909,8 +954,8 @@ components:
       type: object
       properties:
         success:
-          description: Indicates whether the request was successful
           type: boolean
+          description: Indicates whether the request was successful
         data:
           $ref: "#/components/schemas/NavigateResultOutput"
       required:
@@ -997,10 +1042,10 @@ components:
             - google
             - microsoft
         modelName:
+          type: string
           description: Model name string without prefix (e.g., 'gpt-5-nano',
             'claude-4.5-opus')
           example: gpt-5-nano
-          type: string
         apiKey:
           description: API key for the model provider
           example: sk-some-openai-api-key
@@ -1018,17 +1063,16 @@ components:
         - $ref: "#/components/schemas/ModelName"
         - $ref: "#/components/schemas/ModelConfigObjectOutput"
     ActionOutput:
-      description: Action object returned by observe and used by act
       type: object
       properties:
         selector:
+          type: string
           description: CSS selector or XPath for the element
           example: "[data-testid='submit-button']"
-          type: string
         description:
+          type: string
           description: Human-readable description of the action
           example: Click the submit button
-          type: string
         backendNodeId:
           description: Backend node ID for the element
           type: number
@@ -1047,6 +1091,7 @@ components:
         - selector
         - description
       additionalProperties: false
+      description: Action object returned by observe and used by act
     BrowserConfigOutput:
       type: object
       properties:
@@ -1245,9 +1290,9 @@ components:
       type: object
       properties:
         sessionId:
+          type: string
           description: Unique Browserbase session identifier
           example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
-          type: string
         cdpUrl:
           description:
             CDP WebSocket URL for connecting to the Browserbase cloud browser
@@ -1283,22 +1328,22 @@ components:
       type: object
       properties:
         success:
+          type: boolean
           description: Whether the action completed successfully
           example: true
-          type: boolean
         message:
+          type: string
           description: Human-readable result message
           example: Successfully clicked the login button
-          type: string
         actionDescription:
+          type: string
           description: Description of the action that was performed
           example: Clicked button with text 'Login'
-          type: string
         actions:
-          description: List of actions that were executed
           type: array
           items:
             $ref: "#/components/schemas/ActionOutput"
+          description: List of actions that were executed
       required:
         - success
         - message
@@ -1397,18 +1442,18 @@ components:
       type: object
       properties:
         input_tokens:
+          type: number
           example: 1500
-          type: number
         output_tokens:
-          example: 250
           type: number
+          example: 250
         reasoning_tokens:
           type: number
         cached_input_tokens:
           type: number
         inference_time_ms:
-          example: 2500
           type: number
+          example: 2500
       required:
         - input_tokens
         - output_tokens
@@ -1418,21 +1463,21 @@ components:
       type: object
       properties:
         success:
+          type: boolean
           description: Whether the agent completed successfully
           example: true
-          type: boolean
         message:
+          type: string
           description: Summary of what the agent accomplished
           example: Successfully logged in and navigated to dashboard
-          type: string
         actions:
           type: array
           items:
             $ref: "#/components/schemas/AgentAction"
         completed:
+          type: boolean
           description: Whether the agent finished its task
           example: true
-          type: boolean
         metadata:
           type: object
           additionalProperties: true
@@ -1448,11 +1493,11 @@ components:
       type: object
       properties:
         instruction:
+          type: string
           description: Natural language instruction for the agent
           example:
             Log in with username 'demo' and password 'test123', then navigate to
             settings
-          type: string
         maxSteps:
           description: Maximum number of steps the agent can take
           example: 20
@@ -1495,8 +1540,10 @@ components:
       type: object
       properties:
         result:
+          anyOf:
+            - {}
+            - type: "null"
           description: Navigation response (Playwright Response object or null)
-          type: unknown
         actionId:
           description: Action ID for tracking
           type: string
@@ -1561,8 +1608,8 @@ components:
           type: string
           const: running
         message:
-          description: Log message from the operation
           type: string
+          description: Log message from the operation
       required:
         - status
         - message
@@ -1571,9 +1618,9 @@ components:
       type: object
       properties:
         id:
+          type: string
           description: Unique session identifier
           example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
-          type: string
       required:
         - id
       additionalProperties: false
@@ -1620,50 +1667,6 @@ components:
         - success
         - error
       additionalProperties: false
-    SessionStartRequest:
-      type: object
-      properties:
-        modelName:
-          description: Model name to use for AI operations
-          example: gpt-4o
-          type: string
-        domSettleTimeoutMs:
-          description: Timeout in ms to wait for DOM to settle
-          example: 5000
-          type: number
-        verbose:
-          description: Logging verbosity level (0=quiet, 1=normal, 2=debug)
-          example: 1
-          type: number
-          enum:
-            - 0
-            - 1
-            - 2
-        systemPrompt:
-          description: Custom system prompt for AI operations
-          type: string
-        browserbaseSessionCreateParams:
-          $ref: "#/components/schemas/BrowserbaseSessionCreateParamsOutput"
-        browser:
-          $ref: "#/components/schemas/BrowserConfigOutput"
-        selfHeal:
-          description: Enable self-healing for failed actions
-          example: true
-          type: boolean
-        browserbaseSessionID:
-          description: Existing Browserbase session ID to resume
-          type: string
-        experimental:
-          type: boolean
-        waitForCaptchaSolves:
-          description: Wait for captcha solves (deprecated, v2 only)
-          type: boolean
-        actTimeoutMs:
-          description: Timeout in ms for act operations (deprecated, v2 only)
-          type: number
-      required:
-        - modelName
-      additionalProperties: false
     SessionEndResult:
       type: object
       properties: {}
@@ -1672,8 +1675,8 @@ components:
       type: object
       properties:
         success:
-          description: Indicates whether the request was successful
           type: boolean
+          description: Indicates whether the request was successful
         data:
           $ref: "#/components/schemas/ReplayResultOutput"
       required:
@@ -1681,10 +1684,6 @@ components:
         - data
       additionalProperties: false
     StreamEvent:
-      description:
-        "Server-Sent Event emitted during streaming responses. Events are
-        sent as `data: <JSON>\\n\\n`. Key order: data (with status first), type,
-        id."
       type: object
       properties:
         data:
@@ -1694,16 +1693,20 @@ components:
         type:
           $ref: "#/components/schemas/StreamEventType"
         id:
-          description: Unique identifier for this event
-          example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
           type: string
           format: uuid
           pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          description: Unique identifier for this event
+          example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
       required:
         - data
         - type
         - id
       additionalProperties: false
+      description:
+        "Server-Sent Event emitted during streaming responses. Events are
+        sent as `data: <JSON>\\n\\n`. Key order: data (with status first), type,
+        id."
 paths:
   /v1/sessions/{id}/act:
     post:
@@ -1720,9 +1723,9 @@ paths:
         required: true
       parameters:
         - schema:
+            type: string
             description: Unique session identifier
             example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
-            type: string
           in: path
           name: id
           required: true
@@ -1784,9 +1787,9 @@ paths:
         required: true
       parameters:
         - schema:
+            type: string
             description: Unique session identifier
             example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
-            type: string
           in: path
           name: id
           required: true
@@ -1848,9 +1851,9 @@ paths:
         required: true
       parameters:
         - schema:
+            type: string
             description: Unique session identifier
             example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
-            type: string
           in: path
           name: id
           required: true
@@ -1912,9 +1915,9 @@ paths:
         required: true
       parameters:
         - schema:
+            type: string
             description: Unique session identifier
             example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
-            type: string
           in: path
           name: id
           required: true
@@ -1978,9 +1981,9 @@ paths:
         required: true
       parameters:
         - schema:
+            type: string
             description: Unique session identifier
             example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
-            type: string
           in: path
           name: id
           required: true
@@ -2040,48 +2043,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                modelName:
-                  description: Model name to use for AI operations
-                  example: gpt-4o
-                  type: string
-                domSettleTimeoutMs:
-                  description: Timeout in ms to wait for DOM to settle
-                  example: 5000
-                  type: number
-                verbose:
-                  description: Logging verbosity level (0=quiet, 1=normal, 2=debug)
-                  example: 1
-                  type: number
-                  enum:
-                    - 0
-                    - 1
-                    - 2
-                systemPrompt:
-                  description: Custom system prompt for AI operations
-                  type: string
-                browserbaseSessionCreateParams:
-                  $ref: "#/components/schemas/BrowserbaseSessionCreateParams"
-                browser:
-                  $ref: "#/components/schemas/BrowserConfig"
-                selfHeal:
-                  description: Enable self-healing for failed actions
-                  example: true
-                  type: boolean
-                browserbaseSessionID:
-                  description: Existing Browserbase session ID to resume
-                  type: string
-                experimental:
-                  type: boolean
-                waitForCaptchaSolves:
-                  description: Wait for captcha solves (deprecated, v2 only)
-                  type: boolean
-                actTimeoutMs:
-                  description: Timeout in ms for act operations (deprecated, v2 only)
-                  type: number
-              required:
-                - modelName
+              $ref: "#/components/schemas/SessionStartRequest"
         required: true
       parameters:
         - schema:
@@ -2143,9 +2105,9 @@ paths:
         required: true
       parameters:
         - schema:
+            type: string
             description: Unique session identifier
             example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
-            type: string
           in: path
           name: id
           required: true
