@@ -39,6 +39,7 @@ import {
   AgentReplayStep,
   InitState,
   AgentCacheContext,
+  AgentCacheTransfer,
 } from "./types/private";
 import {
   AgentConfig,
@@ -414,6 +415,56 @@ export class V3 {
 
     this.overrideLlmClients.set(cacheKey, client);
     return client;
+  }
+
+  private async persistRemoteAgentCacheEntry(
+    cacheContext: AgentCacheContext,
+    transfer?: AgentCacheTransfer,
+  ): Promise<void> {
+    if (!transfer || !this.cacheStorage.enabled) {
+      return;
+    }
+
+    if (cacheContext.cacheKey !== transfer.cacheKey) {
+      this.logger({
+        category: "cache",
+        message: "remote cache entry discarded due to mismatched key",
+        level: 0,
+        auxiliary: {
+          expected: { value: cacheContext.cacheKey, type: "string" },
+          received: { value: transfer.cacheKey, type: "string" },
+        },
+      });
+      return;
+    }
+
+    const fileName = `agent-${transfer.cacheKey}.json`;
+    const { error, path } = await this.cacheStorage.writeJson(
+      fileName,
+      transfer.entry,
+    );
+    if (error && path) {
+      this.logger({
+        category: "cache",
+        message: "failed to persist remote agent cache entry",
+        level: 0,
+        auxiliary: {
+          error: { value: String(error), type: "string" },
+          path: { value: path, type: "string" },
+        },
+      });
+      return;
+    }
+
+    this.logger({
+      category: "cache",
+      message: "remote agent cache entry stored",
+      level: 1,
+      auxiliary: {
+        instruction: { value: cacheContext.instruction, type: "string" },
+        url: { value: cacheContext.startUrl, type: "string" },
+      },
+    });
   }
 
   private beginAgentReplayRecording(): void {
@@ -1818,19 +1869,41 @@ export class V3 {
             }
 
             let result: AgentResult;
+            let remoteCacheEntry: AgentCacheTransfer | undefined;
             try {
               if (this.apiClient && !this.experimental) {
                 const page = await this.ctx!.awaitActivePage();
+                const cachePayload = cacheContext
+                  ? {
+                      cacheContext: {
+                        cacheKey: cacheContext.cacheKey,
+                        instruction: cacheContext.instruction,
+                        startUrl: cacheContext.startUrl,
+                        options: cacheContext.options,
+                        configSignature: cacheContext.configSignature,
+                      },
+                      shouldCache: true,
+                    }
+                  : undefined;
                 result = await this.apiClient.agentExecute(
                   options,
                   resolvedOptions,
                   page.mainFrameId(),
+                  cachePayload,
                 );
+                remoteCacheEntry = this.apiClient.consumeAgentCacheEntry();
               } else {
                 result = await handler.execute(instructionOrOptions);
               }
               if (recording) {
                 agentSteps = this.endAgentReplayRecording();
+              }
+
+              if (cacheContext && remoteCacheEntry) {
+                await this.persistRemoteAgentCacheEntry(
+                  cacheContext,
+                  remoteCacheEntry,
+                );
               }
 
               if (cacheContext && result.success && agentSteps.length > 0) {
@@ -1944,15 +2017,30 @@ export class V3 {
             this.beginAgentReplayRecording();
           }
           let result: AgentResult;
+          let remoteCacheEntry: AgentCacheTransfer | undefined;
 
           try {
             if (this.apiClient && !this.experimental) {
               const page = await this.ctx!.awaitActivePage();
+              const cachePayload = cacheContext
+                ? {
+                    cacheContext: {
+                      cacheKey: cacheContext.cacheKey,
+                      instruction: cacheContext.instruction,
+                      startUrl: cacheContext.startUrl,
+                      options: cacheContext.options,
+                      configSignature: cacheContext.configSignature,
+                    },
+                    shouldCache: true,
+                  }
+                : undefined;
               result = await this.apiClient.agentExecute(
                 options ?? {},
                 resolvedOptions as AgentExecuteOptions,
                 page.mainFrameId(),
+                cachePayload,
               );
+              remoteCacheEntry = this.apiClient.consumeAgentCacheEntry();
             } else {
               result = await handler.execute(
                 resolvedOptions as AgentExecuteOptions,
@@ -1960,6 +2048,13 @@ export class V3 {
             }
             if (recording) {
               agentSteps = this.endAgentReplayRecording();
+            }
+
+            if (cacheContext && remoteCacheEntry) {
+              await this.persistRemoteAgentCacheEntry(
+                cacheContext,
+                remoteCacheEntry,
+              );
             }
 
             if (cacheContext && result.success && agentSteps.length > 0) {

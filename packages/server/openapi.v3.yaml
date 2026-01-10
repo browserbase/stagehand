@@ -76,6 +76,32 @@ components:
         id: $response.body#/data/sessionId
       description: End the session and release resources
   schemas:
+    AgentCacheContext:
+      type: object
+      properties:
+        cacheKey:
+          type: string
+        instruction:
+          type: string
+        startUrl:
+          type: string
+        options:
+          $ref: "#/components/schemas/AgentCacheOptions"
+        configSignature:
+          type: string
+      required:
+        - cacheKey
+        - instruction
+        - startUrl
+        - options
+        - configSignature
+    AgentCacheOptions:
+      type: object
+      properties:
+        maxSteps:
+          type: number
+        highlightCursor:
+          type: boolean
     LocalBrowserLaunchOptions:
       type: object
       properties:
@@ -706,6 +732,10 @@ components:
           description: Whether to stream the response via SSE
           example: true
           type: boolean
+        cacheContext:
+          $ref: "#/components/schemas/AgentCacheContext"
+        shouldCache:
+          type: boolean
       required:
         - agentConfig
         - executeOptions
@@ -916,6 +946,34 @@ components:
       required:
         - success
         - data
+      additionalProperties: false
+    AgentCacheContextOutput:
+      type: object
+      properties:
+        cacheKey:
+          type: string
+        instruction:
+          type: string
+        startUrl:
+          type: string
+        options:
+          $ref: "#/components/schemas/AgentCacheOptionsOutput"
+        configSignature:
+          type: string
+      required:
+        - cacheKey
+        - instruction
+        - startUrl
+        - options
+        - configSignature
+      additionalProperties: false
+    AgentCacheOptionsOutput:
+      type: object
+      properties:
+        maxSteps:
+          type: number
+        highlightCursor:
+          type: boolean
       additionalProperties: false
     LocalBrowserLaunchOptionsOutput:
       type: object

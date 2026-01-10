@@ -679,6 +679,23 @@ export const AgentExecuteOptionsSchema = z
   })
   .meta({ id: "AgentExecuteOptions" });
 
+export const AgentCacheOptionsSchema = z
+  .object({
+    maxSteps: z.number().optional(),
+    highlightCursor: z.boolean().optional(),
+  })
+  .meta({ id: "AgentCacheOptions" });
+
+export const AgentCacheContextSchema = z
+  .object({
+    cacheKey: z.string(),
+    instruction: z.string(),
+    startUrl: z.string(),
+    options: AgentCacheOptionsSchema,
+    configSignature: z.string(),
+  })
+  .meta({ id: "AgentCacheContext" });
+
 export const AgentExecuteRequestSchema = z
   .object({
     agentConfig: AgentConfigSchema,
@@ -690,6 +707,8 @@ export const AgentExecuteRequestSchema = z
       description: "Whether to stream the response via SSE",
       example: true,
     }),
+    cacheContext: AgentCacheContextSchema.optional(),
+    shouldCache: z.boolean().optional(),
   })
   .meta({ id: "AgentExecuteRequest" });
 
@@ -1064,6 +1083,7 @@ export type AgentResultData = z.infer<typeof AgentResultDataSchema>;
 export type AgentExecuteRequest = z.infer<typeof AgentExecuteRequestSchema>;
 export type AgentExecuteResult = z.infer<typeof AgentExecuteResultSchema>;
 export type AgentExecuteResponse = z.infer<typeof AgentExecuteResponseSchema>;
+export type AgentCacheContext = z.infer<typeof AgentCacheContextSchema>;
 
 // /sessions/{id}/navigate
 export type NavigateRequest = z.infer<typeof NavigateRequestSchema>;
