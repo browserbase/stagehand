@@ -796,6 +796,7 @@ export class V3 {
           const { ws, chrome } = await launchLocalChrome({
             chromePath: lbo.executablePath,
             chromeFlags,
+            port: lbo.port,
             headless: lbo.headless,
             userDataDir,
             connectTimeoutMs: lbo.connectTimeoutMs,
