@@ -25,6 +25,11 @@ export type AgentCacheContext = {
   cacheKey: string;
 };
 
+export interface AgentCacheTransfer {
+  cacheKey: string;
+  entry: CachedAgentEntry;
+}
+
 export type AgentCacheDeps = {
   storage: CacheStorage;
   logger: Logger;

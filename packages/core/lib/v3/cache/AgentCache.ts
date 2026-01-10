@@ -28,7 +28,7 @@ import type {
 import type { Page } from "../understudy/page";
 import type { V3Context } from "../understudy/context";
 import { CacheStorage } from "./CacheStorage";
-import { cloneForCache, safeGetPageUrl } from "./utils";
+import { cloneForCache, createCachedAgentEntry, safeGetPageUrl } from "./utils";
 
 const SENSITIVE_CONFIG_KEYS = new Set(["apikey", "api_key", "api-key"]);
 
@@ -332,16 +332,11 @@ export class AgentCache {
   ): Promise<void> {
     if (!this.enabled) return;
 
-    const entry: CachedAgentEntry = {
-      version: 1,
-      instruction: context.instruction,
-      startUrl: context.startUrl,
-      options: context.options,
-      configSignature: context.configSignature,
-      steps: cloneForCache(steps),
-      result: this.pruneAgentResult(result),
-      timestamp: new Date().toISOString(),
-    };
+    const entry: CachedAgentEntry = createCachedAgentEntry({
+      context,
+      steps,
+      result,
+    });
 
     const { error, path } = await this.storage.writeJson(
       `agent-${context.cacheKey}.json`,
@@ -368,26 +363,6 @@ export class AgentCache {
         steps: { value: String(steps.length), type: "string" },
       },
     });
-  }
-
-  /**
-   * Clone the agent result and prune bulky fields (e.g. screenshot base64 blobs)
-   * before persisting it to disk. This keeps cache entries compact without
-   * mutating the live AgentResult returned to callers.
-   */
-  private pruneAgentResult(result: AgentResult): AgentResult {
-    const cloned = cloneForCache(result);
-    if (!Array.isArray(cloned.actions)) {
-      return cloned;
-    }
-
-    for (const action of cloned.actions) {
-      if (action?.type === "screenshot") {
-        delete action.base64;
-      }
-    }
-
-    return cloned;
   }
 
   beginRecording(): void {

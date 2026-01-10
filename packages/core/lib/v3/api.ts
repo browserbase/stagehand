@@ -24,7 +24,7 @@ import type {
   ObserveOptions,
   Api,
 } from "./types/public";
-import type { SerializableResponse } from "./types/private";
+import type { AgentCacheTransfer, SerializableResponse } from "./types/private";
 import type { ModelConfiguration } from "./types/public/model";
 import { toJsonSchema } from "./zodCompat";
 import type { StagehandZodSchema } from "./zodCompat";
@@ -131,6 +131,7 @@ export class StagehandAPIClient {
   private modelProvider?: string;
   private logger: (message: LogLine) => void;
   private fetchWithCookies;
+  private pendingAgentCacheEntry?: AgentCacheTransfer;
 
   constructor({ apiKey, projectId, logger }: StagehandAPIConstructorParams) {
     this.apiKey = apiKey;
@@ -334,6 +335,10 @@ export class StagehandAPIClient {
     agentConfig: AgentConfig,
     executeOptions: AgentExecuteOptions | string,
     frameId?: string,
+    cacheOptions?: {
+      cacheContext?: Api.AgentCacheContext;
+      shouldCache?: boolean;
+    },
   ): Promise<AgentResult> {
     // Check if integrations are being used in API mode (not supported)
     if (agentConfig.integrations && agentConfig.integrations.length > 0) {
@@ -357,7 +362,11 @@ export class StagehandAPIClient {
       agentConfig,
       executeOptions: wireExecuteOptions,
       frameId,
+      cacheContext: cacheOptions?.cacheContext,
+      shouldCache: cacheOptions?.shouldCache,
     };
+
+    this.pendingAgentCacheEntry = undefined;
 
     return this.execute<AgentResult>({
       method: "agentExecute",
@@ -590,6 +599,10 @@ export class StagehandAPIClient {
               throw new Error(errorMsg);
             }
             if (eventData.data.status === "finished") {
+              if (eventData.data.cacheEntry) {
+                this.pendingAgentCacheEntry = eventData.data
+                  .cacheEntry as AgentCacheTransfer;
+              }
               return eventData.data.result as T;
             }
           } else if (eventData.type === "log") {
@@ -628,6 +641,10 @@ export class StagehandAPIClient {
               eventData.type === "system" &&
               eventData.data.status === "finished"
             ) {
+              if (eventData.data.cacheEntry) {
+                this.pendingAgentCacheEntry = eventData.data
+                  .cacheEntry as AgentCacheTransfer;
+              }
               return eventData.data.result as T;
             }
           } catch {
@@ -673,5 +690,11 @@ export class StagehandAPIClient {
     );
 
     return response;
+  }
+
+  consumeAgentCacheEntry(): AgentCacheTransfer | undefined {
+    const value = this.pendingAgentCacheEntry;
+    this.pendingAgentCacheEntry = undefined;
+    return value;
   }
 }
