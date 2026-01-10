@@ -59,6 +59,8 @@ export class GoogleCUAClient extends AgentClient {
   private tools?: ToolSet;
   private baseURL?: string;
   private safetyConfirmationHandler?: SafetyConfirmationHandler;
+  private maxImages: number = 3;
+
   constructor(
     type: AgentType,
     modelName: string,
@@ -91,6 +93,11 @@ export class GoogleCUAClient extends AgentClient {
       typeof clientOptions.environment === "string"
     ) {
       this.environment = clientOptions.environment as typeof this.environment;
+    }
+
+    // Max images to keep in history (to prevent memory growth)
+    if (clientOptions?.maxImages !== undefined) {
+      this.maxImages = clientOptions.maxImages as number;
     }
 
     this.generateContentConfig = {
@@ -641,6 +648,10 @@ export class GoogleCUAClient extends AgentClient {
             role: "user",
             parts: functionResponses,
           });
+
+          // Prune old screenshots to prevent memory growth
+          // Keep only the most recent maxImages screenshots in history
+          this.maybeRemoveOldScreenshots(logger);
         }
       }
 
@@ -664,6 +675,70 @@ export class GoogleCUAClient extends AgentClient {
       });
 
       throw error;
+    }
+  }
+
+  /**
+   * Remove old screenshots from history to prevent memory growth.
+   * Keeps only the most recent maxImages screenshots, removing inlineData
+   * from older entries while preserving the rest of the history structure.
+   */
+  private maybeRemoveOldScreenshots(
+    logger: (message: LogLine) => void,
+  ): void {
+    if (this.maxImages <= 0) {
+      return;
+    }
+
+    let screenshotCount = 0;
+    let prunedCount = 0;
+
+    // Traverse history from newest to oldest
+    for (let i = this.history.length - 1; i >= 0; i--) {
+      const entry = this.history[i];
+      if (!entry?.parts) continue;
+
+      // Check if this entry contains screenshots (inlineData)
+      // Using same pattern as imageCompression.ts for type handling
+      const hasScreenshot = entry.parts.some((p: Part) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const funcResp = p as any;
+        if (funcResp.functionResponse?.parts) {
+          return funcResp.functionResponse.parts.some(
+            (pp: { inlineData?: unknown }) => pp.inlineData,
+          );
+        }
+        return false;
+      });
+
+      if (hasScreenshot) {
+        screenshotCount++;
+        if (screenshotCount > this.maxImages) {
+          // Remove inlineData from old screenshots
+          for (const p of entry.parts) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const funcResp = p as any;
+            if (funcResp.functionResponse?.parts) {
+              const originalLength = funcResp.functionResponse.parts.length;
+              funcResp.functionResponse.parts =
+                funcResp.functionResponse.parts.filter(
+                  (pp: { inlineData?: unknown }) => !pp.inlineData,
+                );
+              if (funcResp.functionResponse.parts.length < originalLength) {
+                prunedCount++;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (prunedCount > 0) {
+      logger({
+        category: "agent",
+        message: `Pruned ${prunedCount} old screenshots from history (keeping ${this.maxImages} most recent)`,
+        level: 2,
+      });
     }
   }
 
