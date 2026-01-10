@@ -3,14 +3,14 @@ import { z } from "zod";
 import { tool } from "ai";
 import { LogLine } from "../../types/public/logs";
 import { StagehandZodObject } from "../../zodCompat";
-interface CloseResult {
+interface DoneResult {
   reasoning: string;
   taskComplete: boolean;
   messages: ModelMessage[];
   output?: Record<string, unknown>;
 }
 
-const baseCloseSchema = z.object({
+const baseDoneSchema = z.object({
   reasoning: z
     .string()
     .describe("Brief summary of what actions were taken and the outcome"),
@@ -20,32 +20,32 @@ const baseCloseSchema = z.object({
 });
 
 /**
- * Force a close tool call at the end of an agent run.
+ * Force a done tool call at the end of an agent run.
  * This ensures we always get a structured final response,
- * even if the main loop ended without calling close.
+ * even if the main loop ended without calling done.
  */
-export async function handleCloseToolCall(options: {
+export async function handleDoneToolCall(options: {
   model: LanguageModel;
   inputMessages: ModelMessage[];
   instruction: string;
   outputSchema?: StagehandZodObject;
   logger: (message: LogLine) => void;
-}): Promise<CloseResult> {
+}): Promise<DoneResult> {
   const { model, inputMessages, instruction, outputSchema, logger } = options;
 
   logger({
     category: "agent",
-    message: "Agent calling tool: close",
+    message: "Agent calling tool: done",
     level: 1,
   });
-  // Merge base close schema with user-provided output schema if present
-  const closeToolSchema = outputSchema
-    ? baseCloseSchema.extend({
+  // Merge base done schema with user-provided output schema if present
+  const doneToolSchema = outputSchema
+    ? baseDoneSchema.extend({
         output: outputSchema.describe(
           "The specific data the user requested from this task",
         ),
       })
-    : baseCloseSchema;
+    : baseDoneSchema;
 
   const outputInstructions = outputSchema
     ? `\n\nThe user also requested the following information from this task. Provide it in the "output" field:\n${JSON.stringify(
@@ -67,15 +67,15 @@ The task was:
 
 Review what was accomplished and provide your final assessment in whether the task was completed successfully. you have been provided with the history of the actions taken so far, use this to determine if the task was completed successfully.${outputInstructions}
 
-Call the "close" tool with:
+Call the "done" tool with:
 1. A brief summary of what was done
 2. Whether the task was completed successfully${outputSchema ? "\n3. The requested output data based on what you found" : ""}`;
 
-  const closeTool = tool({
+  const doneTool = tool({
     description: outputSchema
       ? "Complete the task with your assessment and the requested output data."
       : "Complete the task with your final assessment.",
-    inputSchema: closeToolSchema,
+    inputSchema: doneToolSchema,
     execute: async (params) => {
       return { success: true, ...params };
     },
@@ -92,17 +92,17 @@ Call the "close" tool with:
     model,
     system: systemPrompt,
     messages: [...inputMessages, userPrompt],
-    tools: { close: closeTool } as ToolSet,
-    toolChoice: { type: "tool", toolName: "close" },
+    tools: { done: doneTool } as ToolSet,
+    toolChoice: { type: "tool", toolName: "done" },
   });
 
-  const closeToolCall = result.toolCalls.find((tc) => tc.toolName === "close");
+  const doneToolCall = result.toolCalls.find((tc) => tc.toolName === "done");
   const outputMessages: ModelMessage[] = [
     userPrompt,
     ...(result.response?.messages || []),
   ];
 
-  if (!closeToolCall) {
+  if (!doneToolCall) {
     return {
       reasoning: result.text || "Task execution completed",
       taskComplete: false,
@@ -110,7 +110,7 @@ Call the "close" tool with:
     };
   }
 
-  const input = closeToolCall.input as z.infer<typeof baseCloseSchema> & {
+  const input = doneToolCall.input as z.infer<typeof baseDoneSchema> & {
     output?: Record<string, unknown>;
   };
   logger({
