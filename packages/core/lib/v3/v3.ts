@@ -1608,6 +1608,12 @@ export class V3 {
       ? this.resolveLlmClient(options.model)
       : this.llmClient;
 
+    // Extract user-provided providerOptions from model config
+    const userProviderOptions =
+      typeof options?.model === "object"
+        ? (options.model as Record<string, unknown>).providerOptions
+        : undefined;
+
     const handler = new V3AgentHandler(
       this,
       this.logger,
@@ -1618,6 +1624,7 @@ export class V3 {
       options?.systemPrompt,
       tools,
       options?.mode,
+      userProviderOptions as Record<string, unknown> | undefined,
     );
 
     const resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions =
