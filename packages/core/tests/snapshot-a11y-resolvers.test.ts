@@ -61,6 +61,7 @@ describe("a11yForFrame", () => {
       experimental: false,
       tagNameMap: { "enc-100": "#document", "enc-101": "a" },
       scrollableMap: {},
+      focusableMap: {},
       encode: (backend) => `enc-${backend}`,
     };
 
@@ -113,6 +114,7 @@ describe("a11yForFrame", () => {
       experimental: false,
       tagNameMap: { "enc-101": "a" },
       scrollableMap: {},
+      focusableMap: {},
       encode: (backend) => `enc-${backend}`,
     };
 
@@ -137,6 +139,7 @@ describe("a11yForFrame", () => {
       experimental: false,
       tagNameMap: {},
       scrollableMap: {},
+      focusableMap: {},
       encode: (backend) => `enc-${backend}`,
     };
 
@@ -288,6 +291,7 @@ describe("tryScopedSnapshot", () => {
         tagNameMap: { "1-10": "div" },
         xpathMap: { "1-10": "/div[1]" },
         scrollableMap: {},
+        focusableMap: {},
       });
     const a11ySpy = vi.spyOn(a11yTree, "a11yForFrame").mockResolvedValue({
       outline: "[1-10] div",
@@ -321,6 +325,7 @@ describe("tryScopedSnapshot", () => {
       tagNameMap: { "1-10": "div" },
       xpathMap: { "1-10": "/div[1]" },
       scrollableMap: {},
+      focusableMap: {},
     });
     vi.spyOn(a11yTree, "a11yForFrame").mockResolvedValue({
       outline: "ignored",
@@ -356,6 +361,7 @@ describe("tryScopedSnapshot", () => {
       tagNameMap: { "1-10": "div" },
       xpathMap: { "1-10": "/div[1]" },
       scrollableMap: {},
+      focusableMap: {},
     });
     vi.spyOn(a11yTree, "a11yForFrame").mockResolvedValue({
       outline: "[1-10] div",
