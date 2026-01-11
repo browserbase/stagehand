@@ -51,15 +51,23 @@ const app = fastify({
 
     level: process.env.NODE_ENV === "production" ? "info" : "trace",
 
-    ...(process.env.NODE_ENV === "development" && {
-      transport: {
-        options: {
-          colorize: true,
-          ignore: "pid,hostname",
-        },
-        target: "pino-pretty",
-      },
-    }),
+    ...(process.env.NODE_ENV === "development" && (() => {
+      try {
+        require.resolve("pino-pretty");
+        return {
+          transport: {
+            options: {
+              colorize: true,
+              ignore: "pid,hostname",
+            },
+            target: "pino-pretty",
+          },
+        };
+      } catch {
+        // pino-pretty not available, use standard logging
+        return {};
+      }
+    })()),
   },
 
   return503OnClosing: false,

@@ -28,10 +28,12 @@
     "fastify-zod-openapi": "^5.5.0",
     "http-status-codes": "^2.3.0",
     "pino": "^9.7.0",
-    "pino-pretty": "^11.3.0",
     "playwright": "1.52.0",
     "uuid": "^11.0.5",
     "zod": "^4.2.0"
+  },
+  "optionalDependencies": {
+    "pino-pretty": "^11.3.0"  
   },
   "devDependencies": {
     "@types/node": "22.13.1",
