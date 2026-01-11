@@ -14,6 +14,19 @@ Understand web pages, plan actions, and interact with complex interfaces with Go
 
 ## Configuration Setup
 
+<Callout icon="exclamation-triangle" color="#DC3545" iconType="solid">
+Automatic environment variable loading is currently not working. While we work on fixing this, please use model object format:
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: {
+    model: "google/gemini-2.5-flash",
+    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+  }
+});
+```
+</Callout>
+
 ### Quick Start
 
 <Tip>
@@ -472,6 +485,20 @@ Different models excel at different tasks. Consider speed, accuracy, and cost fo
 ## Advanced Options
 
 ### Agent Models (with CUA Support)
+
+<Callout icon="exclamation-triangle" color="#DC3545" iconType="solid">
+Automatic environment variable loading is currently not working. While we work on fixing this, please use model object format:
+```typescript
+const agent = stagehand.agent({
+  cua: true,
+  model: {
+    model: "google/gemini-2.5-computer-use-preview-10-2025",
+    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+  },
+  // ... other agent options
+});
+```
+</Callout>
 
 **Default**
 
