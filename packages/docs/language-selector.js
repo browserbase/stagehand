@@ -28,6 +28,14 @@
   // CSS INJECTION
   // ============================================
   
+  // Map dropdown language names to SDK path suffixes
+  const SDK_PATH_MAP = {
+    'Python': 'python',
+    'Java': 'java',
+    'Go': 'go',
+    'Ruby': 'ruby'
+  };
+
   const dropdownStyle = document.createElement('style');
   dropdownStyle.id = 'stagehand-language-style';
   dropdownStyle.textContent = `
@@ -43,9 +51,43 @@
     .stagehand-hide-version-switcher .stagehand-version-switcher {
       display: none !important;
     }
+    
+    /* Hide SDK reference items that don't match the selected language */
+    li[id^="/v3/sdk/"].stagehand-sdk-hidden {
+      display: none !important;
+    }
   `;
   document.head.appendChild(dropdownStyle);
   
+  // ============================================
+  // SDK REFERENCE FILTERING
+  // ============================================
+  
+  function updateSDKReferenceVisibility() {
+    // Get the SDK path for the current language
+    const currentSDKPath = SDK_PATH_MAP[currentSelectedLanguage];
+    
+    // Find all SDK reference items in the sidebar
+    const sdkItems = document.querySelectorAll('li[id^="/v3/sdk/"]');
+    
+    sdkItems.forEach(item => {
+      const itemId = item.getAttribute('id') || '';
+      // Extract the language from the id (e.g., "/v3/sdk/python" -> "python")
+      const itemLang = itemId.split('/').pop();
+      
+      if (currentSelectedLanguage === 'TypeScript') {
+        // For TypeScript, hide all SDK references (they don't apply)
+        item.classList.add('stagehand-sdk-hidden');
+      } else if (currentSDKPath && itemLang === currentSDKPath) {
+        // Show the SDK that matches the current language
+        item.classList.remove('stagehand-sdk-hidden');
+      } else {
+        // Hide SDKs that don't match
+        item.classList.add('stagehand-sdk-hidden');
+      }
+    });
+  }
+
   // ============================================
   // VERSION SWITCHER VISIBILITY
   // ============================================
@@ -279,6 +321,9 @@
           // Update version switcher visibility
           updateVersionSwitcherVisibility();
           
+          // Update SDK reference visibility
+          updateSDKReferenceVisibility();
+          
           // Store in sessionStorage
           try {
             sessionStorage.setItem('stagehand-selected-language', lang);
@@ -312,6 +357,9 @@
         // Update version switcher visibility
         updateVersionSwitcherVisibility();
         
+        // Update SDK reference visibility
+        updateSDKReferenceVisibility();
+        
         // Also sync code block language on restore
         setTimeout(syncCodeBlockLanguage, 1000);
       }
@@ -321,9 +369,14 @@
     
     // Always update version switcher visibility on restore
     setTimeout(updateVersionSwitcherVisibility, 100);
+    
+    // Always update SDK reference visibility on restore
+    setTimeout(updateSDKReferenceVisibility, 100);
   }
   
   function setupPageChangeObserver() {
+    let sdkUpdatePending = false;
+    
     const observer = new MutationObserver(() => {
       // Check if button needs updating
       const button = getDropdownButton();
@@ -338,6 +391,20 @@
       const versionSwitcher = getVersionSwitcher();
       if (versionSwitcher && !versionSwitcher.classList.contains('stagehand-version-switcher')) {
         updateVersionSwitcherVisibility();
+      }
+      
+      // Check for SDK reference items that need to be hidden (debounced)
+      const sdkItems = document.querySelectorAll('li[id^="/v3/sdk/"]:not(.stagehand-sdk-processed)');
+      if (sdkItems.length > 0 && !sdkUpdatePending) {
+        sdkUpdatePending = true;
+        setTimeout(() => {
+          updateSDKReferenceVisibility();
+          // Mark items as processed to avoid repeated updates
+          document.querySelectorAll('li[id^="/v3/sdk/"]').forEach(item => {
+            item.classList.add('stagehand-sdk-processed');
+          });
+          sdkUpdatePending = false;
+        }, 50);
       }
     });
     
@@ -385,6 +452,10 @@
     // Update version switcher visibility on init and periodically check
     setTimeout(updateVersionSwitcherVisibility, 600);
     setTimeout(updateVersionSwitcherVisibility, 1000);
+    
+    // Update SDK reference visibility on init
+    setTimeout(updateSDKReferenceVisibility, 600);
+    setTimeout(updateSDKReferenceVisibility, 1000);
   }
 
   // Initialize on page load
@@ -401,6 +472,10 @@
   const urlObserver = new MutationObserver(() => {
     if (location.href !== lastUrl) {
       lastUrl = location.href;
+      // Remove processed class so SDK items get re-evaluated
+      document.querySelectorAll('li[id^="/v3/sdk/"].stagehand-sdk-processed').forEach(item => {
+        item.classList.remove('stagehand-sdk-processed');
+      });
       setTimeout(() => {
         restoreLanguageSelection();
         // Sync code block language on page change
@@ -408,6 +483,9 @@
         // Update version switcher visibility on page change
         setTimeout(updateVersionSwitcherVisibility, 100);
         setTimeout(updateVersionSwitcherVisibility, 500);
+        // Update SDK reference visibility on page change
+        setTimeout(updateSDKReferenceVisibility, 100);
+        setTimeout(updateSDKReferenceVisibility, 500);
       }, 500);
     }
   });
