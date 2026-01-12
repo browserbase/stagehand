@@ -48,6 +48,7 @@ Some advanced features are only available with certain agent modes:
 | Callbacks                | ❌  | ✅  | ✅     |
 | Abort signal             | ❌  | ✅  | ✅     |
 | Message continuation     | ❌  | ✅  | ✅     |
+| Exclude tools            | ❌  | ✅  | ✅     |
 | DOM-based actions        | ❌  | ✅  | ✅     |
 | Coordinate-based actions | ✅  | ❌  | ✅     |
 | Visual cursor highlight  | ✅  | ❌  | ✅     |
@@ -705,6 +706,108 @@ const thirdResult = await agent.execute({
 });
 
 console.log("Final action:", thirdResult.message);
+```
+
+## Exclude Tools
+
+Prevent the agent from using specific tools during execution. This is useful when you want to restrict the agent's capabilities or avoid certain behaviors.
+
+<Note>**Non-CUA agents only.** Requires `experimental: true`. Not available when `cua: true`.</Note>
+
+### Basic Usage
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true, // Required for excludeTools
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+});
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
+
+// Exclude screenshot and extract tools
+const result = await agent.execute({
+  instruction: "Navigate through the website and click the submit button",
+  maxSteps: 15,
+  excludeTools: ["screenshot", "extract"],
+});
+```
+
+### Available Tools by Mode
+
+The tools you can exclude depend on the agent mode:
+
+<Tabs>
+<Tab title="DOM Mode (default)">
+
+| Tool | Description |
+|------|-------------|
+| `act` | Perform semantic actions (click, type, etc.) |
+| `fillForm` | Fill form fields using DOM selectors |
+| `ariaTree` | Get accessibility tree of the page |
+| `extract` | Extract structured data from page |
+| `goto` | Navigate to a URL |
+| `scroll` | Scroll using semantic directions (up/down/left/right) |
+| `keys` | Press keyboard keys |
+| `navback` | Navigate back in history |
+| `screenshot` | Take a screenshot |
+| `think` | Agent reasoning/planning step |
+| `wait` | Wait for time or condition |
+| `close` | Mark task as complete |
+| `search` | Web search (requires `BRAVE_API_KEY`) |
+
+</Tab>
+
+<Tab title="Hybrid Mode">
+
+| Tool | Description |
+|------|-------------|
+| `click` | Click at specific coordinates |
+| `type` | Type text at coordinates |
+| `dragAndDrop` | Drag from one point to another |
+| `clickAndHold` | Click and hold at coordinates |
+| `fillFormVision` | Fill forms using vision/coordinates |
+| `act` | Perform semantic actions |
+| `ariaTree` | Get accessibility tree |
+| `extract` | Extract data from page |
+| `goto` | Navigate to URL |
+| `scroll` | Scroll using coordinates |
+| `keys` | Press keyboard keys |
+| `navback` | Navigate back |
+| `screenshot` | Take screenshot |
+| `think` | Agent reasoning step |
+| `wait` | Wait for time/condition |
+| `close` | Mark task complete |
+| `search` | Web search (requires `BRAVE_API_KEY`) |
+
+</Tab>
+</Tabs>
+
+### Use Cases
+
+```typescript
+// Force DOM-only interactions by excluding vision tools
+const result = await agent.execute({
+  instruction: "Fill out the contact form",
+  excludeTools: ["screenshot"],
+});
+
+// Prevent the agent from extracting data
+const result = await agent.execute({
+  instruction: "Click through the signup flow",
+  excludeTools: ["extract"],
+});
+
+// Disable web search capability
+const result = await agent.execute({
+  instruction: "Find information on the current page",
+  excludeTools: ["search"],
+});
 ```
 
 ## Agent Execution Configuration

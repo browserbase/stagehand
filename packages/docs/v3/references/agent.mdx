@@ -152,6 +152,7 @@ interface AgentExecuteOptions {
   highlightCursor?: boolean;
   messages?: ModelMessage[]; // Continue from previous conversation (experimental)
   signal?: AbortSignal; // Cancel execution (experimental)
+  excludeTools?: string[]; // Tools to exclude from this execution (experimental)
   callbacks?: AgentExecuteCallbacks;
 }
 
@@ -179,6 +180,7 @@ interface AgentStreamExecuteOptions {
   highlightCursor?: boolean;
   messages?: ModelMessage[]; // Continue from previous conversation (experimental)
   signal?: AbortSignal; // Cancel execution (experimental)
+  excludeTools?: string[]; // Tools to exclude from this execution (experimental)
   callbacks?: AgentStreamCallbacks;
 }
 
@@ -232,6 +234,18 @@ interface AgentStreamCallbacks {
 
 <ParamField path="signal" type="AbortSignal" optional>
   An `AbortSignal` that can be used to cancel the agent execution. When aborted, the agent will stop and throw an `AgentAbortError`.
+
+  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `cua: true`.</Warning>
+</ParamField>
+
+<ParamField path="excludeTools" type="string[]" optional>
+  Tools to exclude from this execution. Pass an array of tool names to prevent the agent from using those tools.
+
+  **Available tools by mode:**
+
+  **DOM mode (default):** `act`, `fillForm`, `ariaTree`, `extract`, `goto`, `scroll`, `keys`, `navback`, `screenshot`, `think`, `wait`, `close`, `search`
+
+  **Hybrid mode:** `click`, `type`, `dragAndDrop`, `clickAndHold`, `fillFormVision`, `act`, `ariaTree`, `extract`, `goto`, `scroll`, `keys`, `navback`, `screenshot`, `think`, `wait`, `close`, `search`
 
   <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `cua: true`.</Warning>
 </ParamField>
@@ -663,6 +677,33 @@ const agent = stagehand.agent({
 });
 
 const result = await agent.execute("Use the external tool to process this data");
+```
+
+</Tab>
+<Tab title="Exclude Tools">
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true, // Required for excludeTools
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+});
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
+
+// Exclude specific tools from this execution
+const result = await agent.execute({
+  instruction: "Navigate the page and click buttons",
+  maxSteps: 15,
+  excludeTools: ["screenshot", "extract", "search"],
+});
+
+console.log("Completed:", result.completed);
 ```
 
 </Tab>
