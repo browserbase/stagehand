@@ -789,7 +789,7 @@ The tools you can exclude depend on the agent mode:
 ### Use Cases
 
 ```typescript
-// Force DOM-only interactions by excluding vision tools
+// Prevent the agent from taking screenshots during execution
 const result = await agent.execute({
   instruction: "Fill out the contact form",
   excludeTools: ["screenshot"],
