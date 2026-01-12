@@ -150,13 +150,13 @@
                 "group": "API Reference",
                 "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
                 "pages": [
-                  "POST /v1/sessions/start",
-                  "POST /v1/sessions/{id}/navigate",
-                  "POST /v1/sessions/{id}/act",
-                  "POST /v1/sessions/{id}/observe",
-                  "POST /v1/sessions/{id}/extract",
-                  "POST /v1/sessions/{id}/agentExecute",
-                  "POST /v1/sessions/{id}/end"
+                  "v3/api-reference/python/sessions-start",
+                  "v3/api-reference/python/sessions-navigate",
+                  "v3/api-reference/python/sessions-act",
+                  "v3/api-reference/python/sessions-observe",
+                  "v3/api-reference/python/sessions-extract",
+                  "v3/api-reference/python/sessions-agent-execute",
+                  "v3/api-reference/python/sessions-end"
                 ]
               }
             ]
@@ -176,15 +176,14 @@
               },
               {
                 "group": "API Reference",
-                "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
                 "pages": [
-                  "POST /v1/sessions/start",
-                  "POST /v1/sessions/{id}/navigate",
-                  "POST /v1/sessions/{id}/act",
-                  "POST /v1/sessions/{id}/observe",
-                  "POST /v1/sessions/{id}/extract",
-                  "POST /v1/sessions/{id}/agentExecute",
-                  "POST /v1/sessions/{id}/end"
+                  "v3/api-reference/java/sessions-start",
+                  "v3/api-reference/java/sessions-navigate",
+                  "v3/api-reference/java/sessions-act",
+                  "v3/api-reference/java/sessions-observe",
+                  "v3/api-reference/java/sessions-extract",
+                  "v3/api-reference/java/sessions-agent-execute",
+                  "v3/api-reference/java/sessions-end"
                 ]
               }
             ]
@@ -204,15 +203,14 @@
               },
               {
                 "group": "API Reference",
-                "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
                 "pages": [
-                  "POST /v1/sessions/start",
-                  "POST /v1/sessions/{id}/navigate",
-                  "POST /v1/sessions/{id}/act",
-                  "POST /v1/sessions/{id}/observe",
-                  "POST /v1/sessions/{id}/extract",
-                  "POST /v1/sessions/{id}/agentExecute",
-                  "POST /v1/sessions/{id}/end"
+                  "v3/api-reference/go/sessions-start",
+                  "v3/api-reference/go/sessions-navigate",
+                  "v3/api-reference/go/sessions-act",
+                  "v3/api-reference/go/sessions-observe",
+                  "v3/api-reference/go/sessions-extract",
+                  "v3/api-reference/go/sessions-agent-execute",
+                  "v3/api-reference/go/sessions-end"
                 ]
               }
             ]
@@ -232,15 +230,14 @@
               },
               {
                 "group": "API Reference",
-                "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
                 "pages": [
-                  "POST /v1/sessions/start",
-                  "POST /v1/sessions/{id}/navigate",
-                  "POST /v1/sessions/{id}/act",
-                  "POST /v1/sessions/{id}/observe",
-                  "POST /v1/sessions/{id}/extract",
-                  "POST /v1/sessions/{id}/agentExecute",
-                  "POST /v1/sessions/{id}/end"
+                  "v3/api-reference/ruby/sessions-start",
+                  "v3/api-reference/ruby/sessions-navigate",
+                  "v3/api-reference/ruby/sessions-act",
+                  "v3/api-reference/ruby/sessions-observe",
+                  "v3/api-reference/ruby/sessions-extract",
+                  "v3/api-reference/ruby/sessions-agent-execute",
+                  "v3/api-reference/ruby/sessions-end"
                 ]
               }
             ]
