@@ -23,7 +23,7 @@
         "dropdowns": [
           {
             "dropdown": "TypeScript",
-            "icon": "code",
+            "icon": "/images/typescript_yellow.svg",
             "pages": [
               "v3/first-steps/introduction"
             ],
@@ -128,14 +128,15 @@
               {
                 "group": "Migration Guides",
                 "pages": [
-                  "v3/migrations/v2"
+                  "v3/migrations/v2",
+                  "v3/migrations/python"
                 ]
               }
             ]
           },
           {
             "dropdown": "Python",
-            "icon": "code",
+            "icon": "python",
             "pages": [
               "v3/sdk/python"
             ],
@@ -169,7 +170,7 @@
           },
           {
             "dropdown": "Java",
-            "icon": "code",
+            "icon": "java",
             "pages": [
               "v3/sdk/java"
             ],
@@ -203,7 +204,7 @@
           },
           {
             "dropdown": "Go",
-            "icon": "code",
+            "icon": "golang",
             "pages": [
               "v3/sdk/go"
             ],
@@ -237,7 +238,7 @@
           },
           {
             "dropdown": "Ruby",
-            "icon": "code",
+            "icon": "gem",
             "pages": [
               "v3/sdk/ruby"
             ],
