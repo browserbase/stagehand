@@ -161,9 +161,9 @@ components:
             - google
             - microsoft
         modelName:
-          description: Model name string without prefix (e.g., 'gpt-5-nano',
-            'claude-4.5-opus')
-          example: gpt-5-nano
+          description: Model name string (e.g., 'openai/gpt-5-nano',
+            'anthropic/claude-4.5-opus')
+          example: openai/gpt-5-nano
           type: string
         apiKey:
           description: API key for the model provider
@@ -997,9 +997,9 @@ components:
             - google
             - microsoft
         modelName:
-          description: Model name string without prefix (e.g., 'gpt-5-nano',
-            'claude-4.5-opus')
-          example: gpt-5-nano
+          description: Model name string (e.g., 'openai/gpt-5-nano',
+            'anthropic/claude-4.5-opus')
+          example: openai/gpt-5-nano
           type: string
         apiKey:
           description: API key for the model provider
@@ -1613,7 +1613,7 @@ components:
       properties:
         modelName:
           description: Model name to use for AI operations
-          example: gpt-4o
+          example: openai/gpt-4o
           type: string
         domSettleTimeoutMs:
           description: Timeout in ms to wait for DOM to settle
@@ -1942,7 +1942,7 @@ paths:
               properties:
                 modelName:
                   description: Model name to use for AI operations
-                  example: gpt-4o
+                  example: openai/gpt-4o
                   type: string
                 domSettleTimeoutMs:
                   description: Timeout in ms to wait for DOM to settle

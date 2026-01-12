@@ -69,8 +69,8 @@ export const ModelConfigObjectSchema = z
       }),
     modelName: z.string().meta({
       description:
-        "Model name string without prefix (e.g., 'gpt-5-nano', 'claude-4.5-opus')",
-      example: "gpt-5-nano",
+        "Model name string (e.g., 'openai/gpt-5-nano', 'anthropic/claude-4.5-opus')",
+      example: "openai/gpt-5-nano",
     }),
     apiKey: z.string().optional().meta({
       description: "API key for the model provider",
@@ -311,7 +311,7 @@ export const SessionStartRequestSchema = z
   .object({
     modelName: z.string().meta({
       description: "Model name to use for AI operations",
-      example: "gpt-4o",
+      example: "openai/gpt-4o",
     }),
     domSettleTimeoutMs: z.number().optional().meta({
       description: "Timeout in ms to wait for DOM to settle",
