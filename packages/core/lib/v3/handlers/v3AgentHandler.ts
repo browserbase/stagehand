@@ -429,17 +429,21 @@ export class V3AgentHandler {
           options.instruction,
           options.output,
           this.logger,
-        ).then((closeResult) => {
-          const result = this.consolidateMetricsAndResult(
-            startTime,
-            state,
-            closeResult.messages,
-            event,
-            maxSteps,
-            closeResult.output,
-          );
-          resolveResult(result);
-        });
+        )
+          .then((closeResult) => {
+            const result = this.consolidateMetricsAndResult(
+              startTime,
+              state,
+              closeResult.messages,
+              event,
+              maxSteps,
+              closeResult.output,
+            );
+            resolveResult(result);
+          })
+          .catch((err) => {
+            rejectResult(err);
+          });
       },
       onAbort: (event) => {
         if (callbacks?.onAbort) {
