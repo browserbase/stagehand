@@ -7,22 +7,26 @@ description: "Official Stagehand SDK for Ruby"
   This documentation is automatically synced from the [Ruby SDK GitHub repository](https://github.com/browserbase/stagehand-ruby).
 </Note>
 
-The Stagehand Ruby library provides convenient access to the Stagehand REST API from any Ruby 3.2.0+ application. It ships with comprehensive types & docstrings in Yard, RBS, and RBI – [see below](https://github.com/browserbase/stagehand-ruby#Sorbet) for usage with Sorbet. The standard library's `net/http` is used as the HTTP transport, with connection pooling via the `connection_pool` gem.
+## What is Stagehand?
 
-It is generated with [Stainless](https://www.stainless.com/).
+Stagehand is a browser automation framework used to control web browsers with natural language and code. By combining the power of AI with the precision of code, Stagehand makes web automation flexible, maintainable, and actually reliable.
 
-## Documentation
+## Why Stagehand?
 
-Documentation for releases of this gem can be found [on RubyDoc](https://gemdocs.org/gems/stagehand).
+Most existing browser automation tools either require you to write low-level code in a framework like Selenium, Playwright, or Puppeteer, or use high-level agents that can be unpredictable in production. By letting developers choose what to write in code vs. natural language (and bridging the gap between the two) Stagehand is the natural choice for browser automations in production.
 
-The REST API documentation can be found on [docs.stagehand.dev](https://docs.stagehand.dev).
+1. **Choose when to write code vs. natural language**: use AI when you want to navigate unfamiliar pages, and use code when you know exactly what you want to do.
+
+2. **Go from AI-driven to repeatable workflows**: Stagehand lets you preview AI actions before running them, and also helps you easily cache repeatable actions to save time and tokens.
+
+3. **Write once, run forever**: Stagehand's auto-caching combined with self-healing remembers previous actions, runs without LLM inference, and knows when to involve AI whenever the website changes and your automation breaks.
 
 ## Installation
 
 To use this gem, install via Bundler by adding the following to your application's `Gemfile`:
 
 ```ruby
-gem "stagehand", "~> 0.6.0"
+gem "stagehand", "~> 0.6.2"
 ```
 
 ## Usage
@@ -39,33 +43,24 @@ client = Stagehand::Client.new(
 )
 
 # Start a new browser session
-# x_language and x_sdk_version headers are required for the v3 API
 start_response = client.sessions.start(
-  model_name: "openai/gpt-5-nano",
-  x_language: :typescript,
-  x_sdk_version: "3.0.6"
+  model_name: "openai/gpt-5-nano"
 )
 puts "Session started: #{start_response.data.session_id}"
 
 session_id = start_response.data.session_id
 
 # Navigate to a webpage
-# frame_id is required - use empty string for the main frame
 client.sessions.navigate(
   session_id,
-  url: "https://news.ycombinator.com",
-  frame_id: "",
-  x_language: :typescript,
-  x_sdk_version: "3.0.6"
+  url: "https://news.ycombinator.com"
 )
 puts "Navigated to Hacker News"
 
 # Use Observe to find possible actions on the page
 observe_response = client.sessions.observe(
   session_id,
-  instruction: "find the link to view comments for the top post",
-  x_language: :typescript,
-  x_sdk_version: "3.0.6"
+  instruction: "find the link to view comments for the top post"
 )
 
 actions = observe_response.data.result
@@ -79,9 +74,7 @@ puts "Acting on: #{action.description}"
 # Convert the observe result to a hash and ensure method is set to "click"
 act_response = client.sessions.act(
   session_id,
-  input: action.to_h.merge(method: "click"),
-  x_language: :typescript,
-  x_sdk_version: "3.0.6"
+  input: action.to_h.merge(method: "click")
 )
 puts "Act completed: #{act_response.data.result[:message]}"
 
@@ -103,9 +96,7 @@ extract_response = client.sessions.extract(
       }
     },
     required: ["comment_text"]
-  },
-  x_language: :typescript,
-  x_sdk_version: "3.0.6"
+  }
 )
 puts "Extracted data: #{extract_response.data.result}"
 
@@ -129,20 +120,14 @@ execute_response = client.sessions.execute(
       api_key: ENV["MODEL_API_KEY"]
     ),
     cua: false
-  },
-  x_language: :typescript,
-  x_sdk_version: "3.0.6"
+  }
 )
 puts "Agent completed: #{execute_response.data.result[:message]}"
 puts "Agent success: #{execute_response.data.result[:success]}"
 puts "Agent actions taken: #{execute_response.data.result[:actions]&.length || 0}"
 
 # End the session to cleanup browser resources
-client.sessions.end_(
-  session_id,
-  x_language: :typescript,
-  x_sdk_version: "3.0.6"
-)
+client.sessions.end_(session_id)
 puts "Session ended"
 ```
 

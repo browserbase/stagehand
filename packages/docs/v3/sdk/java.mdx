@@ -7,23 +7,26 @@ description: "Official Stagehand SDK for Java"
   This documentation is automatically synced from the [Java SDK GitHub repository](https://github.com/browserbase/stagehand-java).
 </Note>
 
-The Stagehand Java SDK provides convenient access to the [Stagehand REST API](https://docs.stagehand.dev) from applications written in Java.
+## What is Stagehand?
 
-It is generated with [Stainless](https://www.stainless.com/).
+Stagehand is a browser automation framework used to control web browsers with natural language and code. By combining the power of AI with the precision of code, Stagehand makes web automation flexible, maintainable, and actually reliable.
 
-## MCP Server
+## Why Stagehand?
 
-Use the Stagehand MCP Server to enable AI assistants to interact with this API, allowing them to explore endpoints, make test requests, and use documentation to help integrate this SDK into your application.
-> Note: You may need to set environment variables in your MCP client.
+Most existing browser automation tools either require you to write low-level code in a framework like Selenium, Playwright, or Puppeteer, or use high-level agents that can be unpredictable in production. By letting developers choose what to write in code vs. natural language (and bridging the gap between the two) Stagehand is the natural choice for browser automations in production.
 
-The REST API documentation can be found on [docs.stagehand.dev](https://docs.stagehand.dev). Javadocs are available on [javadoc.io](https://javadoc.io/doc/com.browserbase.api/stagehand-java/0.5.0).
+1. **Choose when to write code vs. natural language**: use AI when you want to navigate unfamiliar pages, and use code when you know exactly what you want to do.
+
+2. **Go from AI-driven to repeatable workflows**: Stagehand lets you preview AI actions before running them, and also helps you easily cache repeatable actions to save time and tokens.
+
+3. **Write once, run forever**: Stagehand's auto-caching combined with self-healing remembers previous actions, runs without LLM inference, and knows when to involve AI whenever the website changes and your automation breaks.
 
 ## Installation
 
 ### Gradle
 
 ```java
-implementation("com.browserbase.api:stagehand-java:0.5.0")
+implementation("com.browserbase.api:stagehand-java:0.6.1")
 ```
 
 ### Maven
@@ -32,7 +35,7 @@ implementation("com.browserbase.api:stagehand-java:0.5.0")
 <dependency>
   <groupId>com.browserbase.api</groupId>
   <artifactId>stagehand-java</artifactId>
-  <version>0.5.0</version>
+  <version>0.6.1</version>
 </dependency>
 ```
 
@@ -69,8 +72,6 @@ import java.util.Map;
 import java.util.Optional;
 
 public class Main {
-    private static final String SDK_VERSION = "3.0.6";
-
     public static void main(String[] args) {
         // Create client using environment variables:
         // BROWSERBASE_API_KEY, BROWSERBASE_PROJECT_ID, MODEL_API_KEY
@@ -80,8 +81,6 @@ public class Main {
         SessionStartResponse startResponse = client.sessions().start(
             SessionStartParams.builder()
                 .modelName("openai/gpt-5-nano")
-                .xLanguage(SessionStartParams.XLanguage.TYPESCRIPT)
-                .xSdkVersion(SDK_VERSION)
                 .build()
         );
 
@@ -90,14 +89,10 @@ public class Main {
 
         try {
             // Navigate to a webpage
-            // frameId is required - use empty string for the main frame
             client.sessions().navigate(
                 SessionNavigateParams.builder()
                     .id(sessionId)
                     .url("https://news.ycombinator.com")
-                    .frameId("")
-                    .xLanguage(SessionNavigateParams.XLanguage.TYPESCRIPT)
-                    .xSdkVersion(SDK_VERSION)
                     .build()
             );
             System.out.println("Navigated to Hacker News");
@@ -107,8 +102,6 @@ public class Main {
                 SessionObserveParams.builder()
                     .id(sessionId)
                     .instruction("find the link to view comments for the top post")
-                    .xLanguage(SessionObserveParams.XLanguage.TYPESCRIPT)
-                    .xSdkVersion(SDK_VERSION)
                     .build()
             );
 
@@ -131,8 +124,6 @@ public class Main {
                 SessionActParams.builder()
                     .id(sessionId)
                     .input(action)
-                    .xLanguage(SessionActParams.XLanguage.TYPESCRIPT)
-                    .xSdkVersion(SDK_VERSION)
                     .build()
             );
             System.out.println("Act completed: " + actResponse.data().result().message());
@@ -156,8 +147,6 @@ public class Main {
                         )))
                         .putAdditionalProperty("required", JsonValue.from(List.of("commentText")))
                         .build())
-                    .xLanguage(SessionExtractParams.XLanguage.TYPESCRIPT)
-                    .xSdkVersion(SDK_VERSION)
                     .build()
             );
 
@@ -192,8 +181,6 @@ public class Main {
                         ))
                         .cua(false)
                         .build())
-                    .xLanguage(SessionExecuteParams.XLanguage.TYPESCRIPT)
-                    .xSdkVersion(SDK_VERSION)
                     .build()
             );
 
@@ -205,8 +192,6 @@ public class Main {
             client.sessions().end(
                 SessionEndParams.builder()
                     .id(sessionId)
-                    .xLanguage(SessionEndParams.XLanguage.TYPESCRIPT)
-                    .xSdkVersion(SDK_VERSION)
                     .build()
             );
             System.out.println("Session ended");
