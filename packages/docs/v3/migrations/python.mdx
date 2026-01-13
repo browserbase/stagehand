@@ -1,0 +1,694 @@
+---
+title: Migrate Python v2 to v3
+sidebarTitle: Migrate Python v2 to v3
+description: Complete migration guide from Stagehand Python SDK v2 to the new Stainless-based v3 SDK
+icon: 'snake'
+---
+
+This guide helps you migrate from the legacy Stagehand Python SDK to the new Stainless-based SDK with a **Bring Your Own Browser (BYOB)** architecture.
+
+<Note>
+The new Python SDK is a pure API client. You manage the browser yourself using Playwright, Selenium, Puppeteer, or any other browser automation tool. The SDK handles only the AI-powered operations.
+</Note>
+
+## Overview of Changes
+
+<CardGroup cols={2}>
+  <Card title="BYOB Architecture" icon="browser">
+    You bring your own browser driver (Playwright, Selenium, etc.). The SDK is now a pure API client that handles AI-powered operations.
+  </Card>
+  <Card title="Session-Based API" icon="key">
+    All operations require an explicit `session_id`. Start a session, perform operations, and end it when done.
+  </Card>
+  <Card title="Multi-Browser Control" icon="browsers">
+    Scale browsers easily and control multiple browsers at once by passing the session ID for each browser you want to control.
+  </Card>
+  <Card title="Simplified Client" icon="code">
+    Cleaner initialization with dedicated parameters for API keys and configuration.
+  </Card>
+</CardGroup>
+
+### Current Limitations
+
+<Warning>
+The new SDK does **not yet support**:
+- Custom Python LLM client classes (e.g., `model_client_options`)
+- However, we do support custom endpoints like Bedrock or LLM proxies as long as they are OpenAI-API compatible
+</Warning>
+
+---
+
+## Step-by-Step Migration
+
+### 1. Update Imports
+
+<Tabs>
+<Tab title="Old SDK (v2)">
+
+```python
+import asyncio
+import logging
+from stagehand import Stagehand, StagehandConfig, configure_logging
+
+# Configure logging
+configure_logging(
+    level=logging.INFO,
+    remove_logger_name=True,
+    quiet_dependencies=True,
+)
+```
+
+</Tab>
+<Tab title="New SDK (v3)">
+
+```python
+import os
+from playwright.sync_api import sync_playwright
+from stagehand import Stagehand
+
+# Note: Custom logging configuration is not yet supported.
+# Use standard Python logging if needed:
+import logging
+logging.basicConfig(level=logging.INFO)
+```
+
+</Tab>
+</Tabs>
+
+---
+
+### 2. Client Initialization
+
+<Tabs>
+<Tab title="Old SDK (v2)">
+
+```python
+config = StagehandConfig(
+    env="BROWSERBASE",
+    api_key=os.getenv("BROWSERBASE_API_KEY"),
+    project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
+    headless=False,
+    dom_settle_timeout_ms=3000,
+    model_name="google/gemini-2.0-flash",
+    self_heal=True,
+    wait_for_captcha_solves=True,
+    system_prompt="You are a browser automation assistant...",
+    model_client_options={"apiKey": os.getenv("MODEL_API_KEY")},
+    verbose=2,
+)
+
+stagehand = Stagehand(config)
+await stagehand.init()
+page = stagehand.page
+```
+
+</Tab>
+<Tab title="New SDK (v3)">
+
+```python
+SDK_VERSION = "3.0.6"
+
+# Create the Stagehand API client
+client = Stagehand(
+    browserbase_api_key=os.environ.get("BROWSERBASE_API_KEY"),
+    browserbase_project_id=os.environ.get("BROWSERBASE_PROJECT_ID"),
+    model_api_key=os.environ.get("MODEL_API_KEY"),
+)
+
+# Start a session (returns session metadata)
+start_response = client.sessions.start(
+    model_name="google/gemini-2.0-flash",
+    x_language="python",
+    x_sdk_version=SDK_VERSION,
+)
+session_id = start_response.data.session_id
+print(f"Session started: {session_id}")
+
+# Connect Playwright to the Browserbase session
+playwright = sync_playwright().start()
+browser = playwright.chromium.connect_over_cdp(
+    f"wss://connect.browserbase.com?apiKey={os.environ['BROWSERBASE_API_KEY']}&sessionId={session_id}"
+)
+context = browser.contexts[0]
+page = context.pages[0] if context.pages else context.new_page()
+```
+
+</Tab>
+</Tabs>
+
+<Info>
+**Key differences:**
+- Configuration options like `dom_settle_timeout_ms`, `self_heal`, `system_prompt`, and `verbose` are not available in the new SDK
+- `model_name` is specified when starting a session, not in the config
+- You must connect Playwright separately to interact with the page
+</Info>
+
+---
+
+### 3. Navigation
+
+<Tabs>
+<Tab title="Old SDK (v2)">
+
+```python
+await page.goto("https://google.com/")
+```
+
+</Tab>
+<Tab title="New SDK (v3) - Option A: Playwright">
+
+```python
+# Recommended for simple navigation
+page.goto("https://google.com/")
+```
+
+</Tab>
+<Tab title="New SDK (v3) - Option B: Stagehand API">
+
+```python
+# Use this if you need Stagehand to track navigation state
+client.sessions.navigate(
+    id=session_id,
+    url="https://google.com/",
+    frame_id="",  # Empty string for main frame
+    x_language="python",
+    x_sdk_version=SDK_VERSION,
+)
+```
+
+</Tab>
+</Tabs>
+
+---
+
+### 4. Direct Page Interactions (Playwright)
+
+Any direct page manipulation should use Playwright's native API.
+
+<Tabs>
+<Tab title="Old SDK (v2)">
+
+```python
+# Click using Playwright locator (this was already Playwright)
+await page.get_by_role("link", name="About", exact=True).click()
+
+# Keyboard input
+await page.keyboard.press("Enter")
+```
+
+</Tab>
+<Tab title="New SDK (v3)">
+
+```python
+# Same Playwright API, but synchronous (or use async Playwright if preferred)
+page.get_by_role("link", name="About", exact=True).click()
+
+# Keyboard input
+page.keyboard.press("Enter")
+```
+
+</Tab>
+</Tabs>
+
+<Note>
+In the old SDK, `page` was a Stagehand-enhanced Playwright page. In the new SDK, `page` is a standard Playwright page. Direct Playwright methods work the same way.
+</Note>
+
+---
+
+### 5. AI-Powered Actions (`act`)
+
+<Tabs>
+<Tab title="Old SDK (v2)">
+
+```python
+await page.act("search for openai")
+```
+
+</Tab>
+<Tab title="New SDK (v3)">
+
+```python
+act_response = client.sessions.act(
+    id=session_id,
+    input="search for openai",
+    x_language="python",
+    x_sdk_version=SDK_VERSION,
+)
+print(f"Act completed: {act_response.data.result.message}")
+```
+
+</Tab>
+</Tabs>
+
+#### Acting on an Observed Element
+
+<Tabs>
+<Tab title="Old SDK (v2)">
+
+```python
+observed = await page.observe("find all articles")
+if observed:
+    await page.act(observed[0])
+```
+
+</Tab>
+<Tab title="New SDK (v3)">
+
+```python
+observe_response = client.sessions.observe(
+    id=session_id,
+    instruction="find all articles",
+    x_language="python",
+    x_sdk_version=SDK_VERSION,
+)
+results = observe_response.data.result
+
+if results:
+    element = results[0]
+    act_response = client.sessions.act(
+        id=session_id,
+        input=element,  # Pass the observed element directly
+        x_language="python",
+        x_sdk_version=SDK_VERSION,
+    )
+```
+
+</Tab>
+</Tabs>
+
+---
+
+### 6. Observing Elements (`observe`)
+
+<Tabs>
+<Tab title="Old SDK (v2)">
+
+```python
+observed = await page.observe("find all articles")
+if len(observed) > 0:
+    element = observed[0]
+    print(f"Found element: {element}")
+```
+
+</Tab>
+<Tab title="New SDK (v3)">
+
+```python
+observe_response = client.sessions.observe(
+    id=session_id,
+    instruction="find all articles",
+    x_language="python",
+    x_sdk_version=SDK_VERSION,
+)
+results = observe_response.data.result
+print(f"Found {len(results)} possible actions")
+
+if results:
+    element = results[0]
+    print(f"Found element: {element.description}")
+```
+
+</Tab>
+</Tabs>
+
+---
+
+### 7. Extracting Data (`extract`)
+
+<Tabs>
+<Tab title="Old SDK (v2)">
+
+```python
+data = await page.extract("extract the first result from the search")
+print(data.model_dump_json())
+```
+
+</Tab>
+<Tab title="New SDK (v3)">
+
+```python
+extract_response = client.sessions.extract(
+    id=session_id,
+    instruction="extract the first result from the search",
+    schema={
+        "type": "object",
+        "properties": {
+            "title": {
+                "type": "string",
+                "description": "The title of the first search result"
+            },
+            "url": {
+                "type": "string",
+                "description": "The URL of the first search result"
+            }
+        },
+        "required": ["title"]
+    },
+    x_language="python",
+    x_sdk_version=SDK_VERSION,
+)
+extracted_data = extract_response.data.result
+print(f"Extracted: {extracted_data}")
+```
+
+</Tab>
+</Tabs>
+
+<Warning>
+**Key difference:** The new SDK requires an explicit JSON schema for extraction. This provides better type safety and clearer expectations for the AI model.
+</Warning>
+
+---
+
+### 8. Closing the Session
+
+<Tabs>
+<Tab title="Old SDK (v2)">
+
+```python
+await stagehand.close()
+```
+
+</Tab>
+<Tab title="New SDK (v3)">
+
+```python
+# Clean up Playwright resources
+browser.close()
+playwright.stop()
+
+# End the Stagehand session
+client.sessions.end(
+    id=session_id,
+    x_language="python",
+    x_sdk_version=SDK_VERSION,
+)
+```
+
+</Tab>
+</Tabs>
+
+<Tip>
+**Important:** Always clean up both Playwright and the Stagehand session. Use a `try/finally` block to ensure cleanup happens even on errors.
+</Tip>
+
+---
+
+### 9. Async vs Sync
+
+<Tabs>
+<Tab title="Old SDK (v2) - Async-first">
+
+```python
+async def main():
+    stagehand = Stagehand(config)
+    await stagehand.init()
+    await page.goto("https://example.com")
+    await stagehand.close()
+
+asyncio.run(main())
+```
+
+</Tab>
+<Tab title="New SDK (v3) - Sync-first">
+
+```python
+def main():
+    client = Stagehand(...)
+
+    with sync_playwright() as playwright:
+        # ... setup browser connection
+        page.goto("https://example.com")
+        # ... cleanup
+
+main()
+```
+
+</Tab>
+<Tab title="New SDK (v3) - Async">
+
+```python
+import asyncio
+from playwright.async_api import async_playwright
+
+async def main():
+    client = Stagehand(...)  # Client is sync, but that's OK
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.connect_over_cdp(...)
+        # ... async Playwright operations
+
+asyncio.run(main())
+```
+
+</Tab>
+</Tabs>
+
+---
+
+## Complete Migration Example
+
+<Tabs>
+<Tab title="Before (Old SDK)">
+
+```python
+import asyncio
+import logging
+import os
+
+from dotenv import load_dotenv
+from stagehand import Stagehand, StagehandConfig, configure_logging
+
+configure_logging(level=logging.INFO, remove_logger_name=True, quiet_dependencies=True)
+load_dotenv()
+
+async def main():
+    config = StagehandConfig(
+        env="BROWSERBASE",
+        api_key=os.getenv("BROWSERBASE_API_KEY"),
+        project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
+        headless=False,
+        model_name="google/gemini-2.0-flash",
+        model_client_options={"apiKey": os.getenv("MODEL_API_KEY")},
+        verbose=2,
+    )
+
+    stagehand = Stagehand(config)
+    await stagehand.init()
+    page = stagehand.page
+
+    print(f"Session: {stagehand.session_id}")
+
+    # Navigate
+    await page.goto("https://google.com/")
+
+    # Direct Playwright interaction
+    await page.get_by_role("link", name="About", exact=True).click()
+
+    # AI-powered action
+    await page.goto("https://google.com/")
+    await page.act("search for openai")
+    await page.keyboard.press("Enter")
+
+    # Observe and act
+    observed = await page.observe("find all articles")
+    if observed:
+        await page.act(observed[0])
+
+    # Extract data
+    data = await page.extract("extract the first result")
+    print(data.model_dump_json())
+
+    await stagehand.close()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+</Tab>
+<Tab title="After (New SDK)">
+
+```python
+import os
+import logging
+
+from dotenv import load_dotenv
+from playwright.sync_api import sync_playwright
+from stagehand import Stagehand
+
+# Standard Python logging (custom Stagehand logging not yet supported)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+load_dotenv()
+
+SDK_VERSION = "3.0.6"
+
+def main():
+    # Create Stagehand API client
+    client = Stagehand(
+        browserbase_api_key=os.environ.get("BROWSERBASE_API_KEY"),
+        browserbase_project_id=os.environ.get("BROWSERBASE_PROJECT_ID"),
+        model_api_key=os.environ.get("MODEL_API_KEY"),
+    )
+
+    # Start a session
+    start_response = client.sessions.start(
+        model_name="google/gemini-2.0-flash",
+        x_language="python",
+        x_sdk_version=SDK_VERSION,
+    )
+    session_id = start_response.data.session_id
+    logger.info(f"Session started: {session_id}")
+    logger.info(f"View live: https://www.browserbase.com/sessions/{session_id}")
+
+    # Connect Playwright to the Browserbase session
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.connect_over_cdp(
+            f"wss://connect.browserbase.com?apiKey={os.environ['BROWSERBASE_API_KEY']}&sessionId={session_id}"
+        )
+        context = browser.contexts[0]
+        page = context.pages[0] if context.pages else context.new_page()
+
+        try:
+            # Navigate (using Playwright directly)
+            page.goto("https://google.com/")
+            logger.info("Navigated to Google")
+
+            # Direct Playwright interaction
+            page.get_by_role("link", name="About", exact=True).click()
+            logger.info("Clicked About link")
+
+            # Navigate back
+            page.goto("https://google.com/")
+
+            # AI-powered action (using Stagehand API)
+            act_response = client.sessions.act(
+                id=session_id,
+                input="search for openai",
+                x_language="python",
+                x_sdk_version=SDK_VERSION,
+            )
+            logger.info(f"Act completed: {act_response.data.result.message}")
+
+            # Keyboard input (using Playwright)
+            page.keyboard.press("Enter")
+
+            # Wait for results
+            page.wait_for_timeout(2000)
+
+            # Observe elements (using Stagehand API)
+            observe_response = client.sessions.observe(
+                id=session_id,
+                instruction="find all articles",
+                x_language="python",
+                x_sdk_version=SDK_VERSION,
+            )
+            results = observe_response.data.result
+
+            if results:
+                element = results[0]
+                logger.info(f"Found element: {element.description}")
+
+                # Act on observed element
+                client.sessions.act(
+                    id=session_id,
+                    input=element,
+                    x_language="python",
+                    x_sdk_version=SDK_VERSION,
+                )
+            else:
+                logger.warning("No elements found")
+
+            # Extract data (using Stagehand API with schema)
+            extract_response = client.sessions.extract(
+                id=session_id,
+                instruction="extract the first result from the search",
+                schema={
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string", "description": "Result title"},
+                        "url": {"type": "string", "description": "Result URL"},
+                        "snippet": {"type": "string", "description": "Result snippet"},
+                    },
+                    "required": ["title"],
+                },
+                x_language="python",
+                x_sdk_version=SDK_VERSION,
+            )
+            logger.info(f"Extracted data: {extract_response.data.result}")
+
+        finally:
+            # Clean up Playwright
+            browser.close()
+
+            # End the Stagehand session
+            client.sessions.end(
+                id=session_id,
+                x_language="python",
+                x_sdk_version=SDK_VERSION,
+            )
+            logger.info("Session ended")
+
+if __name__ == "__main__":
+    main()
+```
+
+</Tab>
+</Tabs>
+
+---
+
+## Quick Reference: Method Mapping
+
+| Old SDK | New SDK |
+|---------|---------|
+| `Stagehand(config)` | `Stagehand(browserbase_api_key=..., ...)` |
+| `await stagehand.init()` | `client.sessions.start(...)` |
+| `stagehand.page` | Connect Playwright separately |
+| `stagehand.session_id` | `start_response.data.session_id` |
+| `await page.goto(url)` | `page.goto(url)` (Playwright) |
+| `await page.act(instruction)` | `client.sessions.act(id=session_id, input=instruction, ...)` |
+| `await page.observe(instruction)` | `client.sessions.observe(id=session_id, instruction=..., ...)` |
+| `await page.extract(instruction)` | `client.sessions.extract(id=session_id, instruction=..., schema=..., ...)` |
+| `await stagehand.close()` | `browser.close()` + `client.sessions.end(id=session_id, ...)` |
+| `configure_logging(...)` | Use standard `logging` module |
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Session not found errors">
+    Ensure you're using the correct `session_id` returned from `client.sessions.start()`.
+  </Accordion>
+  
+  <Accordion title="Playwright connection issues">
+    Make sure your Browserbase API key has the correct permissions and the session is still active.
+  </Accordion>
+  
+  <Accordion title="Missing x_language and x_sdk_version parameters">
+    These are required for all session operations. Use `x_language="python"` and `x_sdk_version="3.0.6"` (or the latest version).
+  </Accordion>
+  
+  <Accordion title="Extraction returns unexpected format">
+    The new SDK requires an explicit JSON schema. Make sure your schema matches the expected output structure.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Need Help?
+
+<CardGroup cols={3}>
+  <Card title="Documentation" icon="book" href="https://docs.stagehand.dev/">
+    Full Stagehand documentation
+  </Card>
+  <Card title="Browserbase Docs" icon="server" href="https://docs.browserbase.com/">
+    Browserbase documentation
+  </Card>
+  <Card title="GitHub Issues" icon="github" href="https://github.com/browserbase/stagehand-python/issues">
+    Report issues or get help
+  </Card>
+</CardGroup>
