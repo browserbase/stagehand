@@ -7,10 +7,19 @@ description: "Official Stagehand SDK for Go"
   This documentation is automatically synced from the [Go SDK GitHub repository](https://github.com/browserbase/stagehand-go).
 </Note>
 
-The Stagehand Go library provides convenient access to the [Stagehand REST API](https://docs.stagehand.dev)
-from applications written in Go.
+## What is Stagehand?
 
-It is generated with [Stainless](https://www.stainless.com/).
+Stagehand is a browser automation framework used to control web browsers with natural language and code. By combining the power of AI with the precision of code, Stagehand makes web automation flexible, maintainable, and actually reliable.
+
+## Why Stagehand?
+
+Most existing browser automation tools either require you to write low-level code in a framework like Selenium, Playwright, or Puppeteer, or use high-level agents that can be unpredictable in production. By letting developers choose what to write in code vs. natural language (and bridging the gap between the two) Stagehand is the natural choice for browser automations in production.
+
+1. **Choose when to write code vs. natural language**: use AI when you want to navigate unfamiliar pages, and use code when you know exactly what you want to do.
+
+2. **Go from AI-driven to repeatable workflows**: Stagehand lets you preview AI actions before running them, and also helps you easily cache repeatable actions to save time and tokens.
+
+3. **Write once, run forever**: Stagehand's auto-caching combined with self-healing remembers previous actions, runs without LLM inference, and knows when to involve AI whenever the website changes and your automation breaks.
 
 ## Installation
 
@@ -23,7 +32,7 @@ import (
 Or to pin the version:
 
 ```sh
-go get -u 'github.com/browserbase/stagehand-go@v0.16.1'
+go get -u 'github.com/browserbase/stagehand-go@v0.17.1'
 ```
 
 ## Requirements
@@ -54,11 +63,8 @@ func main() {
 	)
 
 	// Start a new browser session
-	// XLanguage and XSDKVersion headers are required for the v3 API
 	startResponse, err := client.Sessions.Start(context.TODO(), stagehand.SessionStartParams{
-		ModelName:   "gpt-5-nano",
-		XLanguage:   stagehand.SessionStartParamsXLanguageTypescript,   // required for now until out of ALPHA
-		XSDKVersion: stagehand.String("3.0.6"),
+		ModelName: "gpt-5-nano",
 	})
 	if err != nil {
 		panic(err.Error())
@@ -68,15 +74,11 @@ func main() {
 	sessionID := startResponse.Data.SessionID
 
 	// Navigate to a webpage
-	// FrameID is required - use empty string for the main frame
 	_, err = client.Sessions.Navigate(
 		context.TODO(),
 		sessionID,
 		stagehand.SessionNavigateParams{
-			URL:         "https://news.ycombinator.com",
-			FrameID:     stagehand.String(""),                 // emptystring = use main default tab
-			XLanguage:   stagehand.SessionNavigateParamsXLanguageTypescript,
-			XSDKVersion: stagehand.String("3.0.6"),
+			URL: "https://news.ycombinator.com",
 		},
 	)
 	if err != nil {
@@ -90,8 +92,6 @@ func main() {
 		sessionID,
 		stagehand.SessionObserveParams{
 			Instruction: stagehand.String("find the link to view comments for the top post"),
-			XLanguage:   stagehand.SessionObserveParamsXLanguageTypescript,
-			XSDKVersion: stagehand.String("3.0.6"),
 		},
 	)
 	if err != nil {
@@ -124,8 +124,6 @@ func main() {
 					Arguments:   action.Arguments,
 				},
 			},
-			XLanguage:   stagehand.SessionActParamsXLanguageTypescript,
-			XSDKVersion: stagehand.String("3.0.6"),
 		},
 	)
 	if err != nil {
@@ -152,8 +150,6 @@ func main() {
 					},
 				},
 			},
-			XLanguage:   stagehand.SessionExtractParamsXLanguageTypescript,
-			XSDKVersion: stagehand.String("3.0.6"),
 		},
 	)
 	if err != nil {
@@ -181,8 +177,6 @@ func main() {
 				},
 				Cua: stagehand.Bool(false),
 			},
-			XLanguage:   stagehand.SessionExecuteParamsXLanguageTypescript,
-			XSDKVersion: stagehand.String("3.0.6"),
 		},
 	)
 	if err != nil {
@@ -194,10 +188,7 @@ func main() {
 	_, err = client.Sessions.End(
 		context.TODO(),
 		sessionID,
-		stagehand.SessionEndParams{
-			XLanguage:   stagehand.SessionEndParamsXLanguageTypescript,
-			XSDKVersion: stagehand.String("3.0.6"),
-		},
+		stagehand.SessionEndParams{},
 	)
 	if err != nil {
 		panic(err.Error())
