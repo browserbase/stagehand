@@ -214,17 +214,6 @@ export const SessionHeadersSchema = z
       description: "Whether to stream the response via SSE",
       example: "true",
     }),
-    "x-language": z
-      .enum(["typescript", "python", "playground"])
-      .optional()
-      .meta({
-        description: "Client SDK language",
-        example: "typescript",
-      }),
-    "x-sdk-version": z.string().optional().meta({
-      description: "Version of the Stagehand SDK",
-      example: "3.0.6",
-    }),
     "x-sent-at": z.string().datetime().optional().meta({
       description: "ISO timestamp when request was sent",
       example: "2025-01-15T10:30:00Z",
@@ -379,7 +368,7 @@ export const SessionStartRequestSchema = z
   .object({
     modelName: z.string().meta({
       description: "Model name to use for AI operations",
-      example: "gpt-4o",
+      example: "openai/gpt-4o",
     }),
     domSettleTimeoutMs: z.number().optional().meta({
       description: "Timeout in ms to wait for DOM to settle",
@@ -448,6 +437,16 @@ export const SessionStartResponseSchema = wrapResponse(
 // =============================================================================
 // Session End
 // =============================================================================
+
+/** Session end request - empty JSON object (required). */
+export const SessionEndRequestSchema = z
+  .object({
+    // Dummy property to ensure Stainless generates body parameter
+    // The server accepts {} (this field should be omitted)
+    _forceBody: z.undefined().optional(),
+  })
+  .strict()
+  .meta({ id: "SessionEndRequest" });
 
 export const SessionEndResultSchema = z
   .object({})

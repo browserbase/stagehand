@@ -14,9 +14,13 @@ import {
 } from "ai";
 import { LogLine } from "./logs";
 import { ClientOptions } from "./model";
+import { StagehandZodObject } from "../../zodCompat";
 
 // Re-export ModelMessage for consumers who want to use it for conversation continuation
 export type { ModelMessage } from "ai";
+
+// Re-export Tool type for consumers who want to define custom tools
+export type { Tool } from "ai";
 import { Page as PlaywrightPage } from "playwright-core";
 import { Page as PuppeteerPage } from "puppeteer-core";
 import { Page as PatchrightPage } from "patchright-core";
@@ -72,6 +76,12 @@ export interface AgentResult {
    * @experimental
    */
   messages?: ModelMessage[];
+  /**
+   * Custom output data extracted based on the `output` schema provided in execute options.
+   * Only populated if an `output` schema was provided.
+   * @experimental
+   */
+  output?: Record<string, unknown>;
 }
 
 export type AgentStreamResult = StreamTextResult<ToolSet, never> & {
@@ -309,6 +319,26 @@ export interface AgentExecuteOptionsBase {
    * ```
    */
   excludeTools?: string[];
+  /**
+   * A Zod schema defining custom output data to return when the task completes.
+   * The agent will populate this data in the final close tool call.
+   *
+   * @experimental
+   * @example
+   * ```typescript
+   * const result = await agent.execute({
+   *   instruction: "Find the cheapest flight from NYC to LA",
+   *   output: z.object({
+   *     price: z.string().describe("The price of the flight"),
+   *     airline: z.string().describe("The airline name"),
+   *     departureTime: z.string().describe("Departure time"),
+   *   }),
+   * });
+   *
+   * console.log(result.output); // { price: "$199", airline: "Delta", departureTime: "8:00 AM" }
+   * ```
+   */
+  output?: StagehandZodObject;
 }
 
 /**

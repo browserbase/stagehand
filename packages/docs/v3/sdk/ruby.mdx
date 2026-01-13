@@ -1,0 +1,374 @@
+---
+title: "Ruby SDK"
+description: "Official Stagehand SDK for Ruby"
+---
+
+<Note>
+  This documentation is automatically synced from the [Ruby SDK GitHub repository](https://github.com/browserbase/stagehand-ruby).
+</Note>
+
+The Stagehand Ruby library provides convenient access to the Stagehand REST API from any Ruby 3.2.0+ application. It ships with comprehensive types & docstrings in Yard, RBS, and RBI – [see below](https://github.com/browserbase/stagehand-ruby#Sorbet) for usage with Sorbet. The standard library's `net/http` is used as the HTTP transport, with connection pooling via the `connection_pool` gem.
+
+It is generated with [Stainless](https://www.stainless.com/).
+
+## Documentation
+
+Documentation for releases of this gem can be found [on RubyDoc](https://gemdocs.org/gems/stagehand).
+
+The REST API documentation can be found on [docs.stagehand.dev](https://docs.stagehand.dev).
+
+## Installation
+
+To use this gem, install via Bundler by adding the following to your application's `Gemfile`:
+
+```ruby
+gem "stagehand", "~> 0.6.0"
+```
+
+## Usage
+
+```ruby
+require "bundler/setup"
+require "stagehand"
+
+# Create a new Stagehand client with your credentials
+client = Stagehand::Client.new(
+  browserbase_api_key: ENV["BROWSERBASE_API_KEY"],      # defaults to ENV["BROWSERBASE_API_KEY"]
+  browserbase_project_id: ENV["BROWSERBASE_PROJECT_ID"], # defaults to ENV["BROWSERBASE_PROJECT_ID"]
+  model_api_key: ENV["MODEL_API_KEY"]                   # defaults to ENV["MODEL_API_KEY"]
+)
+
+# Start a new browser session
+# x_language and x_sdk_version headers are required for the v3 API
+start_response = client.sessions.start(
+  model_name: "openai/gpt-5-nano",
+  x_language: :typescript,
+  x_sdk_version: "3.0.6"
+)
+puts "Session started: #{start_response.data.session_id}"
+
+session_id = start_response.data.session_id
+
+# Navigate to a webpage
+# frame_id is required - use empty string for the main frame
+client.sessions.navigate(
+  session_id,
+  url: "https://news.ycombinator.com",
+  frame_id: "",
+  x_language: :typescript,
+  x_sdk_version: "3.0.6"
+)
+puts "Navigated to Hacker News"
+
+# Use Observe to find possible actions on the page
+observe_response = client.sessions.observe(
+  session_id,
+  instruction: "find the link to view comments for the top post",
+  x_language: :typescript,
+  x_sdk_version: "3.0.6"
+)
+
+actions = observe_response.data.result
+puts "Found #{actions.length} possible actions"
+
+# Take the first action returned by Observe
+action = actions.first
+puts "Acting on: #{action.description}"
+
+# Pass the structured action to Act
+# Convert the observe result to a hash and ensure method is set to "click"
+act_response = client.sessions.act(
+  session_id,
+  input: action.to_h.merge(method: "click"),
+  x_language: :typescript,
+  x_sdk_version: "3.0.6"
+)
+puts "Act completed: #{act_response.data.result[:message]}"
+
+# Extract data from the page
+# We're now on the comments page, so extract the top comment text
+extract_response = client.sessions.extract(
+  session_id,
+  instruction: "extract the text of the top comment on this page",
+  schema: {
+    type: "object",
+    properties: {
+      comment_text: {
+        type: "string",
+        description: "The text content of the top comment"
+      },
+      author: {
+        type: "string",
+        description: "The username of the comment author"
+      }
+    },
+    required: ["comment_text"]
+  },
+  x_language: :typescript,
+  x_sdk_version: "3.0.6"
+)
+puts "Extracted data: #{extract_response.data.result}"
+
+# Get the author from the extracted data
+extracted_data = extract_response.data.result
+author = extracted_data[:author]
+puts "Looking up profile for author: #{author}"
+
+# Use the Agent to find the author's profile
+# Execute runs an autonomous agent that can navigate and interact with pages
+execute_response = client.sessions.execute(
+  session_id,
+  execute_options: {
+    instruction: "Find any personal website, GitHub, LinkedIn, or other best profile URL for the Hacker News user '#{author}'. " \
+                 "Click on their username to go to their profile page and look for any links they have shared.",
+    max_steps: 15
+  },
+  agent_config: {
+    model: Stagehand::ModelConfig::ModelConfigObject.new(
+      model_name: "openai/gpt-5-nano",
+      api_key: ENV["MODEL_API_KEY"]
+    ),
+    cua: false
+  },
+  x_language: :typescript,
+  x_sdk_version: "3.0.6"
+)
+puts "Agent completed: #{execute_response.data.result[:message]}"
+puts "Agent success: #{execute_response.data.result[:success]}"
+puts "Agent actions taken: #{execute_response.data.result[:actions]&.length || 0}"
+
+# End the session to cleanup browser resources
+client.sessions.end_(
+  session_id,
+  x_language: :typescript,
+  x_sdk_version: "3.0.6"
+)
+puts "Session ended"
+```
+
+### Running the Example
+
+Set the required environment variables and run the example script:
+
+```bash
+# Set your credentials
+export BROWSERBASE_API_KEY="your-browserbase-api-key"
+export BROWSERBASE_PROJECT_ID="your-browserbase-project-id"
+export MODEL_API_KEY="your-openai-api-key"
+
+# Install dependencies and run
+bundle install
+bundle exec ruby examples/basic.rb
+```
+
+### Streaming
+
+We provide support for streaming responses using Server-Sent Events (SSE).
+
+```ruby
+stream = stagehand.sessions.act_streaming(
+  "00000000-your-session-id-000000000000",
+  input: "click the first link on the page"
+)
+
+stream.each do |session|
+  puts(session.data)
+end
+```
+
+### Handling errors
+
+When the library is unable to connect to the API, or if the API returns a non-success status code (i.e., 4xx or 5xx response), a subclass of `Stagehand::Errors::APIError` will be thrown:
+
+```ruby
+begin
+  session = stagehand.sessions.start(model_name: "openai/gpt-5-nano")
+rescue Stagehand::Errors::APIConnectionError => e
+  puts("The server could not be reached")
+  puts(e.cause)  # an underlying Exception, likely raised within `net/http`
+rescue Stagehand::Errors::RateLimitError => e
+  puts("A 429 status code was received; we should back off a bit.")
+rescue Stagehand::Errors::APIStatusError => e
+  puts("Another non-200-range status code was received")
+  puts(e.status)
+end
+```
+
+Error codes are as follows:
+
+| Cause            | Error Type                 |
+| ---------------- | -------------------------- |
+| HTTP 400         | `BadRequestError`          |
+| HTTP 401         | `AuthenticationError`      |
+| HTTP 403         | `PermissionDeniedError`    |
+| HTTP 404         | `NotFoundError`            |
+| HTTP 409         | `ConflictError`            |
+| HTTP 422         | `UnprocessableEntityError` |
+| HTTP 429         | `RateLimitError`           |
+| HTTP >= 500      | `InternalServerError`      |
+| Other HTTP error | `APIStatusError`           |
+| Timeout          | `APITimeoutError`          |
+| Network error    | `APIConnectionError`       |
+
+### Retries
+
+Certain errors will be automatically retried 2 times by default, with a short exponential backoff.
+
+Connection errors (for example, due to a network connectivity problem), 408 Request Timeout, 409 Conflict, 429 Rate Limit, >=500 Internal errors, and timeouts will all be retried by default.
+
+You can use the `max_retries` option to configure or disable this:
+
+```ruby
+# Configure the default for all requests:
+stagehand = Stagehand::Client.new(
+  max_retries: 0 # default is 2
+)
+
+# Or, configure per-request:
+stagehand.sessions.start(model_name: "openai/gpt-5-nano", request_options: {max_retries: 5})
+```
+
+### Timeouts
+
+By default, requests will time out after 60 seconds. You can use the timeout option to configure or disable this:
+
+```ruby
+# Configure the default for all requests:
+stagehand = Stagehand::Client.new(
+  timeout: nil # default is 60
+)
+
+# Or, configure per-request:
+stagehand.sessions.start(model_name: "openai/gpt-5-nano", request_options: {timeout: 5})
+```
+
+On timeout, `Stagehand::Errors::APITimeoutError` is raised.
+
+Note that requests that time out are retried by default.
+
+## Advanced concepts
+
+### BaseModel
+
+All parameter and response objects inherit from `Stagehand::Internal::Type::BaseModel`, which provides several conveniences, including:
+
+1. All fields, including unknown ones, are accessible with `obj[:prop]` syntax, and can be destructured with `obj => {prop: prop}` or pattern-matching syntax.
+
+2. Structural equivalence for equality; if two API calls return the same values, comparing the responses with == will return true.
+
+3. Both instances and the classes themselves can be pretty-printed.
+
+4. Helpers such as `#to_h`, `#deep_to_h`, `#to_json`, and `#to_yaml`.
+
+### Making custom or undocumented requests
+
+#### Undocumented properties
+
+You can send undocumented parameters to any endpoint, and read undocumented response properties, like so:
+
+Note: the `extra_` parameters of the same name overrides the documented parameters.
+
+```ruby
+response =
+  stagehand.sessions.start(
+    model_name: "openai/gpt-5-nano",
+    request_options: {
+      extra_query: {my_query_parameter: value},
+      extra_body: {my_body_parameter: value},
+      extra_headers: {"my-header": value}
+    }
+  )
+
+puts(response[:my_undocumented_property])
+```
+
+#### Undocumented request params
+
+If you want to explicitly send an extra param, you can do so with the `extra_query`, `extra_body`, and `extra_headers` under the `request_options:` parameter when making a request, as seen in the examples above.
+
+#### Undocumented endpoints
+
+To make requests to undocumented endpoints while retaining the benefit of auth, retries, and so on, you can make requests using `client.request`, like so:
+
+```ruby
+response = client.request(
+  method: :post,
+  path: '/undocumented/endpoint',
+  query: {"dog": "woof"},
+  headers: {"useful-header": "interesting-value"},
+  body: {"hello": "world"}
+)
+```
+
+### Concurrency & connection pooling
+
+The `Stagehand::Client` instances are threadsafe, but are only are fork-safe when there are no in-flight HTTP requests.
+
+Each instance of `Stagehand::Client` has its own HTTP connection pool with a default size of 99. As such, we recommend instantiating the client once per application in most settings.
+
+When all available connections from the pool are checked out, requests wait for a new connection to become available, with queue time counting towards the request timeout.
+
+Unless otherwise specified, other classes in the SDK do not have locks protecting their underlying data structure.
+
+## Sorbet
+
+This library provides comprehensive [RBI](https://sorbet.org/docs/rbi) definitions, and has no dependency on sorbet-runtime.
+
+You can provide typesafe request parameters like so:
+
+```ruby
+stagehand.sessions.act("00000000-your-session-id-000000000000", input: "click the first link on the page")
+```
+
+Or, equivalently:
+
+```ruby
+# Hashes work, but are not typesafe:
+stagehand.sessions.act("00000000-your-session-id-000000000000", input: "click the first link on the page")
+
+# You can also splat a full Params class:
+params = Stagehand::SessionActParams.new(input: "click the first link on the page")
+stagehand.sessions.act("00000000-your-session-id-000000000000", **params)
+```
+
+### Enums
+
+Since this library does not depend on `sorbet-runtime`, it cannot provide [`T::Enum`](https://sorbet.org/docs/tenum) instances. Instead, we provide "tagged symbols" instead, which is always a primitive at runtime:
+
+```ruby
+# :typescript
+puts(Stagehand::SessionActParams::XLanguage::TYPESCRIPT)
+
+# Revealed type: `T.all(Stagehand::SessionActParams::XLanguage, Symbol)`
+T.reveal_type(Stagehand::SessionActParams::XLanguage::TYPESCRIPT)
+```
+
+Enum parameters have a "relaxed" type, so you can either pass in enum constants or their literal value:
+
+```ruby
+# Using the enum constants preserves the tagged type information:
+stagehand.sessions.act(
+  x_language: Stagehand::SessionActParams::XLanguage::TYPESCRIPT,
+  # …
+)
+
+# Literal values are also permissible:
+stagehand.sessions.act(
+  x_language: :typescript,
+  # …
+)
+```
+
+## Versioning
+
+This package follows [SemVer](https://semver.org/spec/v2.0.0.html) conventions. As the library is in initial development and has a major version of `0`, APIs may change at any time.
+
+This package considers improvements to the (non-runtime) `*.rbi` and `*.rbs` type definitions to be non-breaking changes.
+
+## Requirements
+
+Ruby 3.2.0 or higher.
+
+## Contributing
+
+See [the contributing documentation](https://github.com/browserbase/stagehand-ruby/tree/main/CONTRIBUTING.md).

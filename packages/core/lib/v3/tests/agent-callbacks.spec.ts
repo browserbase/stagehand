@@ -93,7 +93,8 @@ test.describe("Stagehand agent callbacks behavior", () => {
       await page.goto("https://example.com");
 
       await agent.execute({
-        instruction: "Use the close tool with taskComplete: true immediately.",
+        instruction:
+          "Take a screenshot and describe what you see briefly. Then mark the task as complete.",
         maxSteps: 3,
         callbacks: {
           onStepFinish: async (event) => {
@@ -109,9 +110,13 @@ test.describe("Stagehand agent callbacks behavior", () => {
         },
       });
 
-      // Should have captured at least the close tool call
+      // Should have captured at least one tool call (e.g. screenshot)
       expect(toolCalls.length).toBeGreaterThan(0);
-      expect(toolCalls.some((tc) => tc.toolName === "close")).toBe(true);
+      expect(
+        toolCalls.some(
+          (tc) => tc.toolName === "screenshot" || tc.toolName === "ariaTree",
+        ),
+      ).toBe(true);
     });
   });
 

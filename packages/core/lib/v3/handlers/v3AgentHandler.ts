@@ -7,12 +7,14 @@ import {
   ToolSet,
   wrapLanguageModel,
   stepCountIs,
+  LanguageModel,
   type LanguageModelUsage,
   type StepResult,
   type GenerateTextOnStepFinishCallback,
   type StreamTextOnStepFinishCallback,
   type PrepareStepFunction,
 } from "ai";
+import { StagehandZodObject } from "../zodCompat";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { LLMClient } from "../llm/LLMClient";
 import { SessionFileLogger } from "../flowLogger";
@@ -34,6 +36,7 @@ import {
   StreamingCallbacksInNonStreamingModeError,
   AgentAbortError,
 } from "../types/public/sdkErrors";
+import { handleCloseToolCall } from "../agent/utils/handleCloseToolCall";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -292,12 +295,23 @@ export class V3AgentHandler {
           : undefined,
       });
 
+      const allMessages = [...messages, ...(result.response?.messages || [])];
+      const closeResult = await this.ensureClosed(
+        state,
+        wrappedModel,
+        allMessages,
+        preparedOptions.instruction,
+        preparedOptions.output,
+        this.logger,
+      );
+
       return this.consolidateMetricsAndResult(
         startTime,
         state,
-        messages,
+        closeResult.messages,
         result,
         maxSteps,
+        closeResult.output,
       );
     } catch (error) {
       // Re-throw validation errors that should propagate to the caller
@@ -406,14 +420,26 @@ export class V3AgentHandler {
         if (callbacks?.onFinish) {
           callbacks.onFinish(event);
         }
-        const result = this.consolidateMetricsAndResult(
-          startTime,
+
+        const allMessages = [...messages, ...(event.response?.messages || [])];
+        this.ensureClosed(
           state,
-          messages,
-          event,
-          maxSteps,
-        );
-        resolveResult(result);
+          wrappedModel,
+          allMessages,
+          options.instruction,
+          options.output,
+          this.logger,
+        ).then((closeResult) => {
+          const result = this.consolidateMetricsAndResult(
+            startTime,
+            state,
+            closeResult.messages,
+            event,
+            maxSteps,
+            closeResult.output,
+          );
+          resolveResult(result);
+        });
       },
       onAbort: (event) => {
         if (callbacks?.onAbort) {
@@ -451,6 +477,7 @@ export class V3AgentHandler {
       steps?: StepResult<ToolSet>[];
     },
     maxSteps?: number,
+    output?: Record<string, unknown>,
   ): AgentResult {
     if (!state.finalMessage) {
       const allReasoning = state.collectedReasoning.join(" ").trim();
@@ -480,18 +507,12 @@ export class V3AgentHandler {
       );
     }
 
-    // Combine input messages with response messages for full conversation history
-    const responseMessages = result.response?.messages || [];
-    const fullMessages: ModelMessage[] = [
-      ...inputMessages,
-      ...responseMessages,
-    ];
-
     return {
       success: state.completed,
       message: state.finalMessage || "Task execution completed",
       actions: state.actions,
       completed: state.completed,
+      output,
       usage: result.usage
         ? {
             input_tokens: result.usage.inputTokens || 0,
@@ -501,7 +522,7 @@ export class V3AgentHandler {
             inference_time_ms: inferenceTimeMs,
           }
         : undefined,
-      messages: fullMessages,
+      messages: inputMessages,
     };
   }
 
@@ -525,6 +546,57 @@ export class V3AgentHandler {
       return true;
     }
     return stepCountIs(maxSteps)(result);
+  }
+
+  /**
+   * Ensures the close tool is called at the end of agent execution.
+   * Returns the messages and any extracted output from the close call.
+   */
+  private async ensureClosed(
+    state: AgentState,
+    model: LanguageModel,
+    messages: ModelMessage[],
+    instruction: string,
+    outputSchema?: StagehandZodObject,
+    logger?: (message: LogLine) => void,
+  ): Promise<{ messages: ModelMessage[]; output?: Record<string, unknown> }> {
+    if (state.completed) return { messages };
+
+    const closeResult = await handleCloseToolCall({
+      model,
+      inputMessages: messages,
+      instruction,
+      outputSchema,
+      logger,
+    });
+
+    state.completed = closeResult.taskComplete;
+    state.finalMessage = closeResult.reasoning;
+
+    const closeAction = mapToolResultToActions({
+      toolCallName: "close",
+      toolResult: {
+        success: true,
+        reasoning: closeResult.reasoning,
+        taskComplete: closeResult.taskComplete,
+      },
+      args: {
+        reasoning: closeResult.reasoning,
+        taskComplete: closeResult.taskComplete,
+      },
+      reasoning: closeResult.reasoning,
+    });
+
+    for (const action of closeAction) {
+      action.pageUrl = state.currentPageUrl;
+      action.timestamp = Date.now();
+      state.actions.push(action);
+    }
+
+    return {
+      messages: [...messages, ...closeResult.messages],
+      output: closeResult.output,
+    };
   }
 
   /**

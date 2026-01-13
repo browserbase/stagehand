@@ -11,3 +11,9 @@ export type { ConsoleListener } from "../../understudy/consoleMessage";
 
 export type LoadState = "load" | "domcontentloaded" | "networkidle";
 export { Response } from "../../understudy/response";
+
+export type SnapshotResult = {
+  formattedTree: string;
+  xpathMap: Record<string, string>;
+  urlMap: Record<string, string>;
+};

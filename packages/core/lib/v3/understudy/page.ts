@@ -6,24 +6,31 @@ import type { CDPSessionLike } from "./cdp";
 import { CdpConnection } from "./cdp";
 import { Frame } from "./frame";
 import { FrameLocator } from "./frameLocator";
-import { deepLocatorFromPage } from "./deepLocator";
-import { resolveXpathForLocation } from "./a11y/snapshot";
+import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator";
+import {
+  captureHybridSnapshot,
+  resolveXpathForLocation,
+} from "./a11y/snapshot";
 import { FrameRegistry } from "./frameRegistry";
 import { executionContexts } from "./executionContextRegistry";
-import { LoadState } from "../types/public/page";
+import { LoadState, SnapshotResult } from "../types/public/page";
 import { NetworkManager } from "./networkManager";
 import { LifecycleWatcher } from "./lifecycleWatcher";
 import { NavigationResponseTracker } from "./navigationResponseTracker";
 import { Response, isSerializableResponse } from "./response";
 import { ConsoleMessage, ConsoleListener } from "./consoleMessage";
 import type { StagehandAPIClient } from "../api";
-import type { LocalBrowserLaunchOptions } from "../types/public";
+import {
+  LocalBrowserLaunchOptions,
+  StagehandSnapshotError,
+} from "../types/public";
 import type { Locator } from "./locator";
 import {
   StagehandInvalidArgumentError,
   StagehandEvalError,
 } from "../types/public/sdkErrors";
 import { normalizeInitScriptSource } from "./initScripts";
+import { buildLocatorInvocation } from "./locatorInvocation";
 import type {
   ScreenshotAnimationsOption,
   ScreenshotCaretOption,
@@ -44,6 +51,7 @@ import {
   type ScreenshotCleanup,
 } from "./screenshotUtils";
 import { InitScriptSource } from "../types/private";
+
 /**
  * Page
  *
@@ -1191,6 +1199,47 @@ export class Page {
   }
 
   /**
+   * Wait for an element matching the selector to appear in the DOM.
+   * Uses MutationObserver for efficiency
+   * Pierces shadow DOM by default.
+   * Supports iframe hop notation with '>>' (e.g., 'iframe#checkout >> .submit-btn').
+   *
+   * @param selector CSS selector to wait for (supports '>>' for iframe hops)
+   * @param options.state Element state to wait for: 'attached' | 'detached' | 'visible' | 'hidden' (default: 'visible')
+   * @param options.timeout Maximum time to wait in milliseconds (default: 30000)
+   * @param options.pierceShadow Whether to search inside shadow DOM (default: true)
+   * @returns True when the condition is met
+   * @throws Error if timeout is reached before the condition is met
+   */
+  @logAction("Page.waitForSelector")
+  async waitForSelector(
+    selector: string,
+    options?: {
+      state?: "attached" | "detached" | "visible" | "hidden";
+      timeout?: number;
+      pierceShadow?: boolean;
+    },
+  ): Promise<boolean> {
+    const timeout = options?.timeout ?? 30000;
+    const state = options?.state ?? "visible";
+    const pierceShadow = options?.pierceShadow ?? true;
+    const startTime = Date.now();
+    const root = this.mainFrameWrapper;
+    const { frame: targetFrame, selector: finalSelector } =
+      await resolveLocatorTarget(this, root, selector);
+    const elapsed = Date.now() - startTime;
+    const remainingTimeout = Math.max(0, timeout - elapsed);
+
+    const expression = buildLocatorInvocation("waitForSelector", [
+      JSON.stringify(finalSelector),
+      JSON.stringify(state),
+      String(remainingTimeout),
+      String(pierceShadow),
+    ]);
+    return targetFrame.evaluate(expression);
+  }
+
+  /**
    * Evaluate a function or expression in the current main frame's main world.
    * - If a string is provided, it is treated as a JS expression.
    * - If a function is provided, it is stringified and invoked with the optional argument.
@@ -1746,6 +1795,21 @@ export class Page {
     }
   }
 
+  @logAction("Page.snapshot")
+  async snapshot(): Promise<SnapshotResult> {
+    try {
+      const { combinedTree, combinedXpathMap, combinedUrlMap } =
+        await captureHybridSnapshot(this, { pierceShadow: true });
+      return {
+        formattedTree: combinedTree,
+        xpathMap: combinedXpathMap,
+        urlMap: combinedUrlMap,
+      };
+    } catch (err) {
+      throw new StagehandSnapshotError(err);
+    }
+  }
+
   // Track pressed modifier keys
   private _pressedModifiers = new Set<string>();
 
@@ -1887,6 +1951,7 @@ export class Page {
       // Modifier keys
       case "cmd":
       case "command":
+      case "controlormeta":
         // On Mac, Cmd is Meta; elsewhere map to Control for common shortcuts
         return this.isMacOS() ? "Meta" : "Control";
       case "win":

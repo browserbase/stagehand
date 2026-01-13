@@ -153,6 +153,8 @@ components:
       type: object
       properties:
         modelName:
+          description: Model name string (e.g., 'openai/gpt-5-nano', 'anthropic/claude-4.5-opus')
+          example: openai/gpt-5-nano
           type: string
           description:
             Model name with provider prefix (e.g., 'openai/gpt-5-nano',
@@ -403,6 +405,12 @@ components:
       required:
         - sessionId
         - available
+    SessionEndRequest:
+      type: object
+      properties:
+        _forceBody:
+          not: {}
+      additionalProperties: false
     ActOptions:
       type: object
       properties:
@@ -969,6 +977,39 @@ components:
         acceptDownloads:
           type: boolean
       additionalProperties: false
+    ModelConfigObjectOutput:
+      type: object
+      properties:
+        provider:
+          description: AI provider for the model (or provide a baseURL endpoint instead)
+          example: openai
+          type: string
+          enum:
+            - openai
+            - anthropic
+            - google
+            - microsoft
+        modelName:
+          description: Model name string (e.g., 'openai/gpt-5-nano',
+            'anthropic/claude-4.5-opus')
+          example: openai/gpt-5-nano
+          type: string
+        apiKey:
+          description: API key for the model provider
+          example: sk-some-openai-api-key
+          type: string
+        baseURL:
+          description: Base URL for the model provider
+          example: https://api.openai.com/v1
+          type: string
+          format: uri
+      required:
+        - modelName
+      additionalProperties: false
+    ModelConfigOutput:
+      anyOf:
+        - $ref: "#/components/schemas/ModelName"
+        - $ref: "#/components/schemas/ModelConfigObjectOutput"
     ActionOutput:
       description: Action object returned by observe and used by act
       type: object
@@ -1565,18 +1606,6 @@ components:
           enum:
             - "true"
             - "false"
-        x-language:
-          description: Client SDK language
-          example: typescript
-          type: string
-          enum:
-            - typescript
-            - python
-            - playground
-        x-sdk-version:
-          description: Version of the Stagehand SDK
-          example: 3.0.6
-          type: string
         x-sent-at:
           description: ISO timestamp when request was sent
           example: 2025-01-15T10:30:00Z
@@ -1603,7 +1632,7 @@ components:
       properties:
         modelName:
           description: Model name to use for AI operations
-          example: gpt-4o
+          example: openai/gpt-4o
           type: string
         domSettleTimeoutMs:
           description: Timeout in ms to wait for DOM to settle
@@ -1716,24 +1745,6 @@ paths:
           name: x-stream-response
           description: Whether to stream the response via SSE
         - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
-          in: header
-          name: x-language
-          description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
-          in: header
-          name: x-sdk-version
-          description: Version of the Stagehand SDK
-        - schema:
             description: ISO timestamp when request was sent
             example: 2025-01-15T10:30:00Z
             type: string
@@ -1754,6 +1765,12 @@ paths:
       operationId: SessionEnd
       summary: End a browser session
       description: Terminates the browser session and releases all associated resources.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionEndRequest"
+        required: true
       parameters:
         - schema:
             description: Unique session identifier
@@ -1773,24 +1790,6 @@ paths:
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
-          in: header
-          name: x-language
-          description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
-          in: header
-          name: x-sdk-version
-          description: Version of the Stagehand SDK
         - schema:
             description: ISO timestamp when request was sent
             example: 2025-01-15T10:30:00Z
@@ -1838,24 +1837,6 @@ paths:
           name: x-stream-response
           description: Whether to stream the response via SSE
         - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
-          in: header
-          name: x-language
-          description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
-          in: header
-          name: x-sdk-version
-          description: Version of the Stagehand SDK
-        - schema:
             description: ISO timestamp when request was sent
             example: 2025-01-15T10:30:00Z
             type: string
@@ -1901,24 +1882,6 @@ paths:
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
-          in: header
-          name: x-language
-          description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
-          in: header
-          name: x-sdk-version
-          description: Version of the Stagehand SDK
         - schema:
             description: ISO timestamp when request was sent
             example: 2025-01-15T10:30:00Z
@@ -1968,24 +1931,6 @@ paths:
           name: x-stream-response
           description: Whether to stream the response via SSE
         - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
-          in: header
-          name: x-language
-          description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
-          in: header
-          name: x-sdk-version
-          description: Version of the Stagehand SDK
-        - schema:
             description: ISO timestamp when request was sent
             example: 2025-01-15T10:30:00Z
             type: string
@@ -2016,7 +1961,7 @@ paths:
               properties:
                 modelName:
                   description: Model name to use for AI operations
-                  example: gpt-4o
+                  example: openai/gpt-4o
                   type: string
                 domSettleTimeoutMs:
                   description: Timeout in ms to wait for DOM to settle
@@ -2067,24 +2012,6 @@ paths:
           name: x-stream-response
           description: Whether to stream the response via SSE
         - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
-          in: header
-          name: x-language
-          description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
-          in: header
-          name: x-sdk-version
-          description: Version of the Stagehand SDK
-        - schema:
             description: ISO timestamp when request was sent
             example: 2025-01-15T10:30:00Z
             type: string
@@ -2132,24 +2059,6 @@ paths:
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
-        - schema:
-            description: Client SDK language
-            example: typescript
-            type: string
-            enum:
-              - typescript
-              - python
-              - playground
-          in: header
-          name: x-language
-          description: Client SDK language
-        - schema:
-            description: Version of the Stagehand SDK
-            example: 3.0.6
-            type: string
-          in: header
-          name: x-sdk-version
-          description: Version of the Stagehand SDK
         - schema:
             description: ISO timestamp when request was sent
             example: 2025-01-15T10:30:00Z

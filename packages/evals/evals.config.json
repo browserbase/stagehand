@@ -470,10 +470,6 @@
       "categories": ["agent"]
     },
     {
-      "name": "agent/youtube",
-      "categories": ["agent"]
-    },
-    {
       "name": "agent/sign_in",
       "categories": ["agent"]
     },

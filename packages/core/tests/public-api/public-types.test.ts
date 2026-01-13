@@ -27,6 +27,7 @@ type ExpectedExportedTypes = {
   ObserveOptions: Stagehand.ObserveOptions;
   V3FunctionName: Stagehand.V3FunctionName;
   // Types from agent.ts
+  Tool: Stagehand.Tool;
   AgentAction: Stagehand.AgentAction;
   AgentResult: Stagehand.AgentResult;
   AgentExecuteOptions: Stagehand.AgentExecuteOptions;
@@ -194,6 +195,7 @@ describe("Stagehand public API types", () => {
       messages?: Stagehand.ModelMessage[];
       signal?: AbortSignal;
       excludeTools?: string[];
+      output?: Stagehand.StagehandZodObject;
       callbacks?: Stagehand.AgentExecuteCallbacks;
     };
 
@@ -211,6 +213,7 @@ describe("Stagehand public API types", () => {
       messages?: Stagehand.ModelMessage[];
       signal?: AbortSignal;
       excludeTools?: string[];
+      output?: Stagehand.StagehandZodObject;
       callbacks?: Stagehand.AgentStreamCallbacks;
     };
 
@@ -250,6 +253,7 @@ describe("Stagehand public API types", () => {
         inference_time_ms: number;
       };
       messages?: Stagehand.ModelMessage[];
+      output?: Record<string, unknown>;
     };
 
     it("matches expected type shape", () => {
