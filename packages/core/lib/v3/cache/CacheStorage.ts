@@ -7,6 +7,7 @@ export class CacheStorage {
   private constructor(
     private readonly logger: Logger,
     private readonly dir?: string,
+    private readonly memoryStore?: Map<string, unknown>,
   ) {}
 
   static create(
@@ -36,12 +37,16 @@ export class CacheStorage {
     }
   }
 
+  static createMemory(logger: Logger): CacheStorage {
+    return new CacheStorage(logger, undefined, new Map());
+  }
+
   get directory(): string | undefined {
     return this.dir;
   }
 
   get enabled(): boolean {
-    return !!this.dir;
+    return !!this.dir || !!this.memoryStore;
   }
 
   private resolvePath(fileName: string): string | null {
@@ -50,6 +55,13 @@ export class CacheStorage {
   }
 
   async readJson<T>(fileName: string): Promise<ReadJsonResult<T>> {
+    if (this.memoryStore) {
+      if (!this.memoryStore.has(fileName)) {
+        return { value: null };
+      }
+      return { value: this.memoryStore.get(fileName) as T };
+    }
+
     const filePath = this.resolvePath(fileName);
     if (!filePath) {
       return { value: null };
@@ -68,6 +80,11 @@ export class CacheStorage {
   }
 
   async writeJson(fileName: string, data: unknown): Promise<WriteJsonResult> {
+    if (this.memoryStore) {
+      this.memoryStore.set(fileName, data);
+      return {};
+    }
+
     const filePath = this.resolvePath(fileName);
     if (!filePath) {
       return {};

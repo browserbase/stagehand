@@ -76,6 +76,19 @@ components:
         id: $response.body#/data/sessionId
       description: End the session and release resources
   schemas:
+    AgentCacheEntry:
+      type: object
+      properties:
+        cacheKey:
+          description:
+            Opaque cache identifier computed from instruction, URL, options,
+            and config
+          type: string
+        entry:
+          description: Serialized cache entry that can be written to disk
+      required:
+        - cacheKey
+        - entry
     LocalBrowserLaunchOptions:
       type: object
       properties:
@@ -706,6 +719,11 @@ components:
           description: Whether to stream the response via SSE
           example: true
           type: boolean
+        shouldCache:
+          description:
+            If true, the server captures a cache entry and returns it to the
+            client
+          type: boolean
       required:
         - agentConfig
         - executeOptions
@@ -714,6 +732,8 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/AgentResultData"
+        cacheEntry:
+          $ref: "#/components/schemas/AgentCacheEntry"
       required:
         - result
     NavigateOptions:
@@ -916,6 +936,20 @@ components:
       required:
         - success
         - data
+      additionalProperties: false
+    AgentCacheEntryOutput:
+      type: object
+      properties:
+        cacheKey:
+          description:
+            Opaque cache identifier computed from instruction, URL, options,
+            and config
+          type: string
+        entry:
+          description: Serialized cache entry that can be written to disk
+      required:
+        - cacheKey
+        - entry
       additionalProperties: false
     LocalBrowserLaunchOptionsOutput:
       type: object
@@ -1469,6 +1503,8 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/AgentResultDataOutput"
+        cacheEntry:
+          $ref: "#/components/schemas/AgentCacheEntryOutput"
       required:
         - result
       additionalProperties: false
