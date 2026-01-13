@@ -36,6 +36,15 @@
     'Ruby': 'ruby'
   };
 
+  // Map dropdown languages to their landing pages
+  const LANGUAGE_LANDING_PAGES = {
+    'TypeScript': '/v3/first-steps/introduction',
+    'Python': '/v3/sdk/python',
+    'Java': '/v3/sdk/java',
+    'Go': '/v3/sdk/go',
+    'Ruby': '/v3/sdk/ruby'
+  };
+
   const dropdownStyle = document.createElement('style');
   dropdownStyle.id = 'stagehand-language-style';
   dropdownStyle.textContent = `
@@ -303,44 +312,57 @@
   function setupMenuClickHandler() {
     document.addEventListener('click', (e) => {
       const target = e.target;
-      
+
       // Check if we clicked on a sidebar dropdown menu item
       const menuItem = target.closest('[role="menu"] a, menu a');
       if (!menuItem) return;
-      
+
       const text = (menuItem.textContent || '').trim();
-      
+
       // Check if it's one of our language options
       for (const lang of DROPDOWN_LANGUAGES) {
         if (text.includes(lang)) {
+          // Prevent default navigation - we'll handle it explicitly
+          e.preventDefault();
+          e.stopPropagation();
+
           currentSelectedLanguage = lang;
-          
+
           // Update the check indicator immediately
           updateDropdownCheckIndicator();
-          
+
           // Update version switcher visibility
           updateVersionSwitcherVisibility();
-          
+
           // Update SDK reference visibility
           updateSDKReferenceVisibility();
-          
+
           // Store in sessionStorage
           try {
             sessionStorage.setItem('stagehand-selected-language', lang);
           } catch (err) {
             // Ignore storage errors
           }
-          
+
           // Update button text after a short delay (after menu closes)
           setTimeout(() => {
             updateButtonText(lang);
           }, 50);
-          
+
           // Sync the code block language selector
           setTimeout(() => {
             syncCodeBlockLanguage();
           }, 200);
-          
+
+          // Navigate to the language's landing page
+          const landingPage = LANGUAGE_LANDING_PAGES[lang];
+          if (landingPage) {
+            // Use a small delay to allow state updates to complete
+            setTimeout(() => {
+              window.location.href = landingPage;
+            }, 10);
+          }
+
           break;
         }
       }
