@@ -196,6 +196,7 @@ describe("Stagehand public API types", () => {
       signal?: AbortSignal;
       excludeTools?: string[];
       output?: Stagehand.StagehandZodObject;
+      thinking?: Stagehand.ThinkingConfig;
       callbacks?: Stagehand.AgentExecuteCallbacks;
     };
 
@@ -214,6 +215,7 @@ describe("Stagehand public API types", () => {
       signal?: AbortSignal;
       excludeTools?: string[];
       output?: Stagehand.StagehandZodObject;
+      thinking?: Stagehand.ThinkingConfig;
       callbacks?: Stagehand.AgentStreamCallbacks;
     };
 

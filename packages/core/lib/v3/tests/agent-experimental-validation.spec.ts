@@ -315,6 +315,28 @@ test.describe("Stagehand agent experimental feature validation", () => {
       }
     });
 
+    test("throws StagehandInvalidArgumentError for CUA with thinking configuration (not supported)", async () => {
+      const agent = v3.agent({
+        cua: true,
+        model: "anthropic/claude-sonnet-4-20250514",
+      });
+
+      try {
+        await agent.execute({
+          instruction: "test",
+          thinking: {
+            enableThinking: true,
+            thinkingLevel: "high",
+          },
+        });
+        throw new Error("Expected error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(StagehandInvalidArgumentError);
+        expect((error as Error).message).toContain("thinking configuration");
+        expect((error as Error).message).toContain("not supported with CUA");
+      }
+    });
+
     test("throws StagehandInvalidArgumentError for CUA unsupported features even with experimental: true", async () => {
       // Close the non-experimental instance
       await v3.close();

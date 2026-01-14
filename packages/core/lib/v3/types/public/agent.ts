@@ -12,6 +12,9 @@ import {
   StreamTextOnChunkCallback,
   StreamTextOnFinishCallback,
 } from "ai";
+import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
+import type { GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
+import type { OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
 import { LogLine } from "./logs";
 import { ClientOptions } from "./model";
 import { StagehandZodObject } from "../../zodCompat";
@@ -339,6 +342,28 @@ export interface AgentExecuteOptionsBase {
    * ```
    */
   output?: StagehandZodObject;
+  /**
+   * Thinking/reasoning configuration for supported models.
+   * Enables extended thinking capabilities in supported models:
+   * - Google Gemini: Uses `thinkingConfig` with `includeThoughts` and `thinkingLevel`
+   * - Anthropic Claude: Uses `thinking` (type: enabled) and `effort`
+   * - OpenAI: Uses `reasoningSummary` and `reasoningEffort`
+   *
+   * **Note:** Not supported in CUA mode (`mode: "cua"`).
+   *
+   * @example
+   * ```typescript
+   * const result = await agent.execute({
+   *   instruction: "Solve this complex problem",
+   *   thinking: {
+   *     enableThinking: true,
+   *     thinkingLevel: "high"
+   *     budgetTokens: 10000
+   *   }
+   * });
+   * ```
+   */
+  thinking?: ThinkingConfig;
 }
 
 /**
@@ -555,6 +580,54 @@ export type AgentModelConfig<TModelName extends string = string> = {
  * - 'cua': Uses Computer Use Agent (CUA) providers like Anthropic Claude or Google Gemini for screenshot-based automation
  */
 export type AgentToolMode = "dom" | "hybrid" | "cua";
+
+/**
+ * Standardized thinking configuration for agent models.
+ * Maps to provider-specific options:
+ * - Google: `thinkingConfig: { includeThoughts, thinkingLevel, thinkingBudget }`
+ * - Anthropic: `thinking: { type: 'enabled', budgetTokens }`
+ * - OpenAI: `reasoningSummary` and `reasoningEffort`
+ */
+export interface ThinkingConfig {
+  /**
+   * Enable thinking/reasoning mode.
+   * - Google: Maps to `includeThoughts: true`
+   * - Anthropic: Maps to `thinking: { type: 'enabled' }`
+   * - OpenAI: Maps to `reasoningSummary: 'auto'`
+   */
+  enableThinking: boolean;
+  /**
+   * Level of thinking effort/depth.
+   * - Google: Maps to `thinkingLevel` ("low" | "medium" | "high")
+   * - Anthropic: Not directly supported (use `budgetTokens` to control depth)
+   * - OpenAI: Maps to `reasoningEffort` ("low" | "medium" | "high")
+   *           Also affects `reasoningSummary`: "high" → "detailed", others → "auto"
+   * @default "medium"
+   */
+  thinkingLevel?: "low" | "medium" | "high";
+  /**
+   * Token budget for thinking/reasoning.
+   * - Google: Maps to `thinkingBudget` (number of tokens for reasoning)
+   * - Anthropic: Maps to `budgetTokens` (required for thinking, min 1024, max 64000)
+   * - OpenAI: Not supported
+   */
+  budgetTokens?: number;
+}
+
+/**
+ * Provider-specific options for AI SDK calls.
+ * Used internally to pass thinking/reasoning configuration to different providers.
+ */
+export interface AgentProviderOptions {
+  google?: GoogleGenerativeAIProviderOptions;
+  anthropic?: AnthropicProviderOptions;
+  openai?: OpenAIResponsesProviderOptions;
+  [key: string]:
+    | GoogleGenerativeAIProviderOptions
+    | AnthropicProviderOptions
+    | OpenAIResponsesProviderOptions
+    | undefined;
+}
 
 export type AgentConfig = {
   /**
