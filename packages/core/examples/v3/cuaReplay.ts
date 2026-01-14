@@ -14,7 +14,8 @@ async function runDemo(runNumber: number) {
   });
 
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env: "BROWSERBASE",
+    disableAPI: false,
     verbose: 1,
     cacheDir: "cua-agent-cache",
   });
@@ -29,7 +30,10 @@ async function runDemo(runNumber: number) {
 
   const agent = stagehand.agent({
     cua: true,
-    model: "anthropic/claude-sonnet-4-20250514",
+    model: {
+      modelName: "anthropic/claude-sonnet-4-20250514",
+      apiKey: process.env.ANTHROPIC_API_KEY!
+    }
   });
 
   const result = await agent.execute({
