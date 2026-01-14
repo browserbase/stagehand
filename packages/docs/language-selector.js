@@ -199,30 +199,44 @@
             existingImg.src = iconConfig.src;
             updated = true;
           }
-        } else if (existingSvg) {
-          // Replace SVG with img
+          // Make sure img is visible
+          if (existingImg.style.display === 'none') {
+            existingImg.style.display = '';
+            updated = true;
+          }
+        }
+        // Hide any SVG icon when we need an img
+        if (existingSvg) {
+          existingSvg.style.display = 'none';
+          updated = true;
+        }
+        // Create img if needed and no img exists
+        if (!existingImg && existingSvg) {
           const img = document.createElement('img');
           img.src = iconConfig.src;
-          img.className = existingSvg.className;
           img.style.width = '16px';
           img.style.height = '16px';
-          existingSvg.replaceWith(img);
+          existingSvg.parentNode.insertBefore(img, existingSvg);
           updated = true;
         }
       } else if (iconConfig.type === 'lucide') {
-        // For lucide icons, we can't easily swap them, but we can hide wrong ones
-        // The icon name is in the class like "lucide-python"
+        // For lucide icons, check if current icon matches target
         if (existingSvg) {
           const currentIconClass = Array.from(existingSvg.classList).find(c => c.startsWith('lucide-') && c !== 'lucide-chevron-down');
           const targetClass = `lucide-${iconConfig.name}`;
           if (currentIconClass && currentIconClass !== targetClass) {
-            // Can't easily change lucide icon, but mark it for CSS hiding if needed
-            existingSvg.dataset.stagehandIcon = iconConfig.name;
+            // Wrong icon - hide it since we can't easily swap lucide icons
+            existingSvg.style.display = 'none';
+            updated = true;
+          } else if (existingSvg.style.display === 'none' && currentIconClass === targetClass) {
+            // Correct icon but hidden - show it
+            existingSvg.style.display = '';
+            updated = true;
           }
-        } else if (existingImg && iconConfig.type === 'lucide') {
-          // There's an img but we need a lucide icon - hide the img for now
-          // This is a limitation - we can't create lucide icons dynamically
+        } else if (existingImg) {
+          // There's an img but we need a lucide icon - hide the img
           existingImg.style.display = 'none';
+          updated = true;
         }
       }
     }
