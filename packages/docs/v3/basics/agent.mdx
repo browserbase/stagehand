@@ -48,6 +48,7 @@ Some advanced features are only available with certain agent modes:
 | Callbacks                | ❌  | ✅  | ✅     |
 | Abort signal             | ❌  | ✅  | ✅     |
 | Message continuation     | ❌  | ✅  | ✅     |
+| Exclude tools            | ❌  | ✅  | ✅     |
 | DOM-based actions        | ❌  | ✅  | ✅     |
 | Coordinate-based actions | ✅  | ❌  | ✅     |
 | Visual cursor highlight  | ✅  | ❌  | ✅     |
@@ -228,13 +229,17 @@ When you use `agent()`, Stagehand will return a `Promise<AgentResult>` with the 
 }
 ```
 
-## Custom Tools
+## Customizing Agent Tools
 
-Agents can be enhanced with custom tools for more granular control and better performance. Unlike MCP integrations, custom tools are defined inline and execute directly within your application.
+Stagehand agents come with built-in tools for browser automation, but you can customize the toolset by adding your own custom tools or excluding built-in ones.
+
+### Adding Custom Tools
+
+Custom tools enhance agents with additional capabilities for more granular control and better performance. Unlike MCP integrations, custom tools are defined inline and execute directly within your application.
 
 <Note>Custom tools provide a cleaner, more performant alternative to MCP integrations when you need specific functionality.</Note>
 
-### Defining Custom Tools
+#### Defining Custom Tools
 
 Use the `tool` helper from the [Vercel AI SDK](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling) to define custom tools:
 
@@ -347,7 +352,7 @@ await agent.execute("Fill out the contact form and send me a confirmation email 
 ```
 </CodeGroup>
 
-### Custom Tools vs MCP Integrations
+#### Custom Tools vs MCP Integrations
 
 | Custom Tools                           | MCP Integrations                        |
 |----------------------------------------|-----------------------------------------|
@@ -360,6 +365,106 @@ await agent.execute("Fill out the contact form and send me a confirmation email 
 <Tip>
 Use custom tools when you need specific functionality within your application. Use MCP integrations when connecting to external services or when you need standardized cross-application tools.
 </Tip>
+
+### Excluding Built-in Tools
+
+Prevent the agent from using specific built-in tools during execution. This is useful when you want to restrict the agent's capabilities or avoid certain behaviors.
+
+<Note>**Non-CUA agents only.** Requires `experimental: true`. Not available when `cua: true`.</Note>
+
+#### Basic Usage
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true, // Required for excludeTools
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+});
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
+
+// Exclude screenshot and extract tools
+const result = await agent.execute({
+  instruction: "Navigate through the website and click the submit button",
+  maxSteps: 15,
+  excludeTools: ["screenshot", "extract"],
+});
+```
+
+#### Available Tools by Mode
+
+The tools you can exclude depend on the agent mode:
+
+<Tabs>
+<Tab title="DOM Mode (default)">
+
+| Tool | Description |
+|------|-------------|
+| `act` | Perform semantic actions (click, type, etc.) |
+| `fillForm` | Fill form fields using DOM selectors |
+| `ariaTree` | Get accessibility tree of the page |
+| `extract` | Extract structured data from page |
+| `goto` | Navigate to a URL |
+| `scroll` | Scroll using semantic directions (up/down/left/right) |
+| `keys` | Press keyboard keys |
+| `navback` | Navigate back in history |
+| `screenshot` | Take a screenshot |
+| `think` | Agent reasoning/planning step |
+| `wait` | Wait for time or condition |
+| `search` | Web search (requires `BRAVE_API_KEY`) |
+
+</Tab>
+
+<Tab title="Hybrid Mode">
+
+| Tool | Description |
+|------|-------------|
+| `click` | Click at specific coordinates |
+| `type` | Type text at coordinates |
+| `dragAndDrop` | Drag from one point to another |
+| `clickAndHold` | Click and hold at coordinates |
+| `fillFormVision` | Fill forms using vision/coordinates |
+| `act` | Perform semantic actions |
+| `ariaTree` | Get accessibility tree |
+| `extract` | Extract data from page |
+| `goto` | Navigate to URL |
+| `scroll` | Scroll using coordinates |
+| `keys` | Press keyboard keys |
+| `navback` | Navigate back |
+| `screenshot` | Take screenshot |
+| `think` | Agent reasoning step |
+| `wait` | Wait for time/condition |
+| `search` | Web search (requires `BRAVE_API_KEY`) |
+
+</Tab>
+</Tabs>
+
+#### Use Cases
+
+```typescript
+// Prevent the agent from taking screenshots during execution
+const result = await agent.execute({
+  instruction: "Fill out the contact form",
+  excludeTools: ["screenshot"],
+});
+
+// Prevent the agent from extracting data
+const result = await agent.execute({
+  instruction: "Click through the signup flow",
+  excludeTools: ["extract"],
+});
+
+// Disable web search capability
+const result = await agent.execute({
+  instruction: "Find information on the current page",
+  excludeTools: ["search"],
+});
+```
 
 ## MCP Integrations
 
