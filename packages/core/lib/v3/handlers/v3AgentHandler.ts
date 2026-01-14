@@ -606,7 +606,7 @@ export class V3AgentHandler {
     try {
       const page = await this.v3.context.awaitActivePage();
       const screenshot = await page.screenshot({ fullPage: false });
-      this.v3.bus.emit("agent_screensot_taken_event", screenshot);
+      this.v3.bus.emit("agent_screenshot_taken_event", screenshot);
     } catch (error) {
       this.logger({
         category: "agent",
