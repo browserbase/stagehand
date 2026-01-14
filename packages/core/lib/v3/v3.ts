@@ -1605,7 +1605,7 @@ export class V3 {
       this.logger({
         category: "agent",
         message:
-          "Using DOM mode (legacy). Consider using mode: 'hybrid' for improved performance.\n  → https://docs.stagehand.dev/v3/basics/agent\n",
+          "Using agent in default DOM mode (legacy). Agent will default to 'hybrid' on an upcoming release for improved performance.\n  → https://docs.stagehand.dev/v3/basics/agent\n",
         level: 0,
       });
     }
