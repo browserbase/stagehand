@@ -5,36 +5,57 @@
   // ============================================
   // CONFIGURATION
   // ============================================
-  
-  // Sidebar dropdown language options
+
   const DROPDOWN_LANGUAGES = ['TypeScript', 'Python', 'Java', 'Go', 'Ruby'];
-  
-  // Map sidebar dropdown names to code block language names
+
   const LANGUAGE_MAP = {
-    'TypeScript': 'Javascript',  // Mintlify uses "Javascript" for TS/JS
+    'TypeScript': 'Javascript',
     'Python': 'Python',
     'Java': 'Java',
     'Go': 'Go',
     'Ruby': 'Ruby'
   };
-  
-  // Code block supported languages (what Mintlify shows in code blocks)
+
   const CODE_BLOCK_LANGUAGES = ['Javascript', 'Python', 'Go', 'Java', 'Ruby', 'cURL', 'PHP'];
-  
-  let currentSelectedLanguage = 'TypeScript';
-  let isSelecting = false;
-  
-  // ============================================
-  // CSS INJECTION
-  // ============================================
-  
-  // Map dropdown language names to SDK path suffixes
+
   const SDK_PATH_MAP = {
     'Python': 'python',
     'Java': 'java',
     'Go': 'go',
     'Ruby': 'ruby'
   };
+
+  const NAVIGATION_MAP = {
+    'TypeScript': '/v3/first-steps/introduction',
+    'Python': '/v3/sdk/python',
+    'Java': '/v3/sdk/java',
+    'Go': '/v3/sdk/go',
+    'Ruby': '/v3/sdk/ruby'
+  };
+
+  let currentSelectedLanguage = 'TypeScript';
+  let isSelecting = false;
+
+  // ============================================
+  // UTILITIES
+  // ============================================
+
+  // Run callback on next frame (immediate visual update)
+  const onNextFrame = (fn) => requestAnimationFrame(() => requestAnimationFrame(fn));
+
+  // Wait for an element matching selector to appear
+  function waitForElement(selector, callback, maxAttempts = 20) {
+    let attempts = 0;
+    const check = () => {
+      const el = document.querySelector(selector);
+      if (el) {
+        callback(el);
+      } else if (++attempts < maxAttempts) {
+        requestAnimationFrame(check);
+      }
+    };
+    check();
+  }
 
   const dropdownStyle = document.createElement('style');
   dropdownStyle.id = 'stagehand-language-style';
@@ -236,9 +257,9 @@
     }
 
     const menuItems = document.querySelectorAll('[role="menuitem"], [role="option"]');
-    
+
     if (menuItems.length === 0) {
-      setTimeout(() => waitForCodeBlockMenuAndSelect(targetLanguage, attempts + 1), 50);
+      requestAnimationFrame(() => waitForCodeBlockMenuAndSelect(targetLanguage, attempts + 1));
       return;
     }
 
@@ -246,35 +267,34 @@
       const text = (item.textContent || '').trim();
       if (text === targetLanguage) {
         simulateClick(item);
-        setTimeout(() => {
+        onNextFrame(() => {
           document.body.classList.remove('stagehand-selecting');
           isSelecting = false;
-        }, 50);
+        });
         return;
       }
     }
-    
-    setTimeout(() => waitForCodeBlockMenuAndSelect(targetLanguage, attempts + 1), 50);
+
+    requestAnimationFrame(() => waitForCodeBlockMenuAndSelect(targetLanguage, attempts + 1));
   }
 
   function selectCodeBlockLanguage(targetLanguage) {
     if (isSelecting) return;
-    
+
     const current = getCodeBlockLanguageDropdown();
     if (!current) return;
     if (current.language === targetLanguage) return;
-    
+
     isSelecting = true;
     document.body.classList.add('stagehand-selecting');
     simulateClick(current.element);
-    setTimeout(() => waitForCodeBlockMenuAndSelect(targetLanguage), 10);
+    requestAnimationFrame(() => waitForCodeBlockMenuAndSelect(targetLanguage));
   }
-  
+
   function syncCodeBlockLanguage() {
     const codeBlockLang = LANGUAGE_MAP[currentSelectedLanguage];
     if (codeBlockLang) {
-      // Try to find and update all code block language dropdowns
-      setTimeout(() => selectCodeBlockLanguage(codeBlockLang), 100);
+      selectCodeBlockLanguage(codeBlockLang);
     }
   }
   
@@ -285,15 +305,12 @@
   function setupDropdownMenuObserver() {
     const menuObserver = new MutationObserver(() => {
       const menu = getDropdownMenu();
-      
       if (menu) {
         updateDropdownCheckIndicator();
-        setTimeout(updateDropdownCheckIndicator, 10);
-        setTimeout(updateDropdownCheckIndicator, 50);
-        setTimeout(updateDropdownCheckIndicator, 100);
+        onNextFrame(updateDropdownCheckIndicator);
       }
     });
-    
+
     menuObserver.observe(document.body, {
       subtree: true,
       childList: true
@@ -330,17 +347,22 @@
           } catch (err) {
             // Ignore storage errors
           }
-          
-          // Update button text after a short delay (after menu closes)
-          setTimeout(() => {
-            updateButtonText(lang);
-          }, 50);
-          
+
+          // Navigate to the corresponding SDK page
+          const targetPath = NAVIGATION_MAP[lang];
+          if (targetPath && !window.location.pathname.endsWith(targetPath)) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.location.href = targetPath;
+            return;
+          }
+
+          // Update button text after menu closes
+          onNextFrame(() => updateButtonText(lang));
+
           // Sync the code block language selector
-          setTimeout(() => {
-            syncCodeBlockLanguage();
-          }, 200);
-          
+          onNextFrame(syncCodeBlockLanguage);
+
           break;
         }
       }
@@ -353,30 +375,24 @@
       if (stored && DROPDOWN_LANGUAGES.includes(stored)) {
         currentSelectedLanguage = stored;
         updateButtonText(stored);
-        
-        // Update version switcher visibility
         updateVersionSwitcherVisibility();
-        
-        // Update SDK reference visibility
         updateSDKReferenceVisibility();
-        
-        // Also sync code block language on restore
-        setTimeout(syncCodeBlockLanguage, 1000);
+        onNextFrame(syncCodeBlockLanguage);
       }
     } catch (err) {
       // Ignore storage errors
     }
-    
-    // Always update version switcher visibility on restore
-    setTimeout(updateVersionSwitcherVisibility, 100);
-    
-    // Always update SDK reference visibility on restore
-    setTimeout(updateSDKReferenceVisibility, 100);
+
+    // Always update visibility on restore
+    onNextFrame(() => {
+      updateVersionSwitcherVisibility();
+      updateSDKReferenceVisibility();
+    });
   }
   
   function setupPageChangeObserver() {
     let sdkUpdatePending = false;
-    
+
     const observer = new MutationObserver(() => {
       // Check if button needs updating
       const button = getDropdownButton();
@@ -386,28 +402,27 @@
           updateButtonText(currentSelectedLanguage);
         }
       }
-      
+
       // Re-check version switcher visibility (DOM might have re-rendered)
       const versionSwitcher = getVersionSwitcher();
       if (versionSwitcher && !versionSwitcher.classList.contains('stagehand-version-switcher')) {
         updateVersionSwitcherVisibility();
       }
-      
-      // Check for SDK reference items that need to be hidden (debounced)
+
+      // Check for SDK reference items that need to be hidden (debounced via rAF)
       const sdkItems = document.querySelectorAll('li[id^="/v3/sdk/"]:not(.stagehand-sdk-processed)');
       if (sdkItems.length > 0 && !sdkUpdatePending) {
         sdkUpdatePending = true;
-        setTimeout(() => {
+        onNextFrame(() => {
           updateSDKReferenceVisibility();
-          // Mark items as processed to avoid repeated updates
           document.querySelectorAll('li[id^="/v3/sdk/"]').forEach(item => {
             item.classList.add('stagehand-sdk-processed');
           });
           sdkUpdatePending = false;
-        }, 50);
+        });
       }
     });
-    
+
     observer.observe(document.body, {
       subtree: true,
       childList: true
@@ -417,20 +432,20 @@
   // Watch for code block dropdowns appearing and sync them
   function setupCodeBlockObserver() {
     let lastCodeBlockDropdown = null;
-    
+
     const observer = new MutationObserver(() => {
       const dropdown = getCodeBlockLanguageDropdown();
       if (dropdown && dropdown.element !== lastCodeBlockDropdown) {
         lastCodeBlockDropdown = dropdown.element;
-        
+
         // New code block dropdown appeared, sync it
         const targetLang = LANGUAGE_MAP[currentSelectedLanguage];
         if (targetLang && dropdown.language !== targetLang) {
-          setTimeout(() => selectCodeBlockLanguage(targetLang), 500);
+          onNextFrame(() => selectCodeBlockLanguage(targetLang));
         }
       }
     });
-    
+
     observer.observe(document.body, {
       subtree: true,
       childList: true
@@ -440,31 +455,23 @@
   // ============================================
   // INITIALIZATION
   // ============================================
-  
+
   function init() {
     setupMenuClickHandler();
     setupDropdownMenuObserver();
     setupPageChangeObserver();
     setupCodeBlockObserver();
-    
-    setTimeout(restoreLanguageSelection, 500);
-    
-    // Update version switcher visibility on init and periodically check
-    setTimeout(updateVersionSwitcherVisibility, 600);
-    setTimeout(updateVersionSwitcherVisibility, 1000);
-    
-    // Update SDK reference visibility on init
-    setTimeout(updateSDKReferenceVisibility, 600);
-    setTimeout(updateSDKReferenceVisibility, 1000);
+
+    restoreLanguageSelection();
+    updateVersionSwitcherVisibility();
+    updateSDKReferenceVisibility();
   }
 
   // Initialize on page load
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      setTimeout(init, 500);
-    });
+    document.addEventListener('DOMContentLoaded', init);
   } else {
-    setTimeout(init, 500);
+    init();
   }
 
   // Re-run when URL changes (SPA navigation)
@@ -476,17 +483,12 @@
       document.querySelectorAll('li[id^="/v3/sdk/"].stagehand-sdk-processed').forEach(item => {
         item.classList.remove('stagehand-sdk-processed');
       });
-      setTimeout(() => {
+      onNextFrame(() => {
         restoreLanguageSelection();
-        // Sync code block language on page change
-        setTimeout(syncCodeBlockLanguage, 500);
-        // Update version switcher visibility on page change
-        setTimeout(updateVersionSwitcherVisibility, 100);
-        setTimeout(updateVersionSwitcherVisibility, 500);
-        // Update SDK reference visibility on page change
-        setTimeout(updateSDKReferenceVisibility, 100);
-        setTimeout(updateSDKReferenceVisibility, 500);
-      }, 500);
+        syncCodeBlockLanguage();
+        updateVersionSwitcherVisibility();
+        updateSDKReferenceVisibility();
+      });
     }
   });
   urlObserver.observe(document.body, { subtree: true, childList: true });
