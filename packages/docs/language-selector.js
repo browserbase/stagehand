@@ -45,18 +45,8 @@
     'Ruby': '/v3/sdk/ruby'
   };
 
-  // Generic code icon SVG for non-TypeScript languages
-  const GENERIC_CODE_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>';
-
-  // Map dropdown languages to their icons
-  // TypeScript has its own image, others use a generic code icon
-  const LANGUAGE_ICONS = {
-    'TypeScript': { type: 'img', src: '/images/typescript_yellow.svg' },
-    'Python': { type: 'generic', svg: GENERIC_CODE_ICON },
-    'Java': { type: 'generic', svg: GENERIC_CODE_ICON },
-    'Go': { type: 'generic', svg: GENERIC_CODE_ICON },
-    'Ruby': { type: 'generic', svg: GENERIC_CODE_ICON }
-  };
+  // Generic code icon SVG used for all languages in the dropdown button
+  const GENERIC_CODE_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="stagehand-code-icon"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>';
 
   const dropdownStyle = document.createElement('style');
   dropdownStyle.id = 'stagehand-language-style';
@@ -190,80 +180,31 @@
       updated = true;
     }
 
-    // Also update the icon
-    const iconConfig = LANGUAGE_ICONS[newText];
-    if (iconConfig) {
-      const existingImg = button.querySelector('img');
-      const existingSvg = button.querySelector('svg:not(.lucide-chevron-down)');
+    // Always use generic code icon - hide any existing icons and inject ours
+    const existingImg = button.querySelector('img');
+    const existingSvg = button.querySelector('svg:not(.lucide-chevron-down):not(.stagehand-code-icon)');
+    const codeIcon = button.querySelector('.stagehand-code-icon');
 
-      if (iconConfig.type === 'img') {
-        // Remove any injected icon first
-        const injectedIcon = button.querySelector('.stagehand-injected-icon');
-        if (injectedIcon) {
-          injectedIcon.remove();
-          updated = true;
-        }
+    // Hide any existing icons
+    if (existingImg) {
+      existingImg.style.display = 'none';
+    }
+    if (existingSvg) {
+      existingSvg.style.display = 'none';
+    }
 
-        // Need an img element with the correct src
-        if (existingImg) {
-          if (!existingImg.src.endsWith(iconConfig.src)) {
-            existingImg.src = iconConfig.src;
-            updated = true;
-          }
-          // Make sure img is visible
-          if (existingImg.style.display === 'none') {
-            existingImg.style.display = '';
-            updated = true;
-          }
-        }
-        // Hide any SVG icon when we need an img
-        if (existingSvg) {
-          existingSvg.style.display = 'none';
-          updated = true;
-        }
-        // Create img if needed and no img exists
-        if (!existingImg) {
-          const img = document.createElement('img');
-          img.src = iconConfig.src;
-          img.style.width = '16px';
-          img.style.height = '16px';
-          const firstChild = button.firstElementChild;
-          if (firstChild) {
-            button.insertBefore(img, firstChild);
-          } else {
-            button.appendChild(img);
-          }
-          updated = true;
-        }
-      } else if (iconConfig.type === 'generic') {
-        // For non-TypeScript languages, use a generic code icon
-        const injectedIcon = button.querySelector('.stagehand-injected-icon');
-
-        // Hide any existing icons (img or svg)
-        if (existingImg) {
-          existingImg.style.display = 'none';
-          updated = true;
-        }
-        if (existingSvg) {
-          existingSvg.style.display = 'none';
-          updated = true;
-        }
-
-        // Inject generic code icon if not already present
-        if (!injectedIcon && iconConfig.svg) {
-          const template = document.createElement('template');
-          template.innerHTML = iconConfig.svg.trim();
-          const newIcon = template.content.firstChild;
-          newIcon.classList.add('stagehand-injected-icon');
-          const firstChild = button.firstElementChild;
-          if (firstChild) {
-            button.insertBefore(newIcon, firstChild);
-          } else {
-            button.appendChild(newIcon);
-          }
-          updated = true;
-        }
+    // Inject generic code icon if not already present
+    if (!codeIcon) {
+      const template = document.createElement('template');
+      template.innerHTML = GENERIC_CODE_ICON.trim();
+      const newIcon = template.content.firstChild;
+      const firstChild = button.firstElementChild;
+      if (firstChild) {
+        button.insertBefore(newIcon, firstChild);
+      } else {
+        button.appendChild(newIcon);
       }
+      updated = true;
     }
 
     return updated;
