@@ -357,7 +357,7 @@ export interface AgentExecuteOptionsBase {
    *   instruction: "Solve this complex problem",
    *   thinking: {
    *     enableThinking: true,
-   *     thinkingLevel: "high"
+   *     thinkingLevel: "high",
    *     budgetTokens: 10000
    *   }
    * });

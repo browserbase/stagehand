@@ -153,6 +153,15 @@ export class V3AgentHandler {
             "Example: thinking: { enableThinking: true, budgetTokens: 10000 }",
         );
       }
+      if (
+        thinkingConfig.budgetTokens < 1024 ||
+        thinkingConfig.budgetTokens > 64000
+      ) {
+        throw new StagehandInvalidArgumentError(
+          `Anthropic 'budgetTokens' must be between 1024 and 64000, got ${thinkingConfig.budgetTokens}. ` +
+            "Example: thinking: { enableThinking: true, budgetTokens: 10000 }",
+        );
+      }
       const anthropicOptions: AnthropicProviderOptions = {
         thinking: {
           type: "enabled",

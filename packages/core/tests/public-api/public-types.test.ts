@@ -54,6 +54,8 @@ type ExpectedExportedTypes = {
   AgentStreamCallbacks: Stagehand.AgentStreamCallbacks;
   AgentExecuteOptionsBase: Stagehand.AgentExecuteOptionsBase;
   AgentStreamExecuteOptions: Stagehand.AgentStreamExecuteOptions;
+  ThinkingConfig: Stagehand.ThinkingConfig;
+  AgentProviderOptions: Stagehand.AgentProviderOptions;
   ModelMessage: Stagehand.ModelMessage;
   // Types from agent/tools
   AgentTools: Stagehand.AgentTools;
