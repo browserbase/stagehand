@@ -45,9 +45,6 @@
     'Ruby': '/v3/sdk/ruby'
   };
 
-  // Generic code icon SVG used for all languages in the dropdown button
-  const GENERIC_CODE_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="stagehand-code-icon"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>';
-
   const dropdownStyle = document.createElement('style');
   dropdownStyle.id = 'stagehand-language-style';
   dropdownStyle.textContent = `
@@ -177,27 +174,6 @@
     const paragraph = button.querySelector('p');
     if (paragraph && paragraph.textContent !== newText) {
       paragraph.textContent = newText;
-      updated = true;
-    }
-
-    // Always use generic code icon - hide the entire icon container and inject ours
-    const codeIcon = button.querySelector('.stagehand-code-icon');
-
-    // Find and hide the icon container (first child that's not our icon or the chevron)
-    const firstChild = button.firstElementChild;
-    if (firstChild && !firstChild.classList.contains('stagehand-code-icon') && !firstChild.classList.contains('lucide-chevron-down')) {
-      // This is likely the icon container - hide it entirely
-      if (!firstChild.querySelector('p')) {  // Make sure it's not the text container
-        firstChild.style.display = 'none';
-      }
-    }
-
-    // Inject generic code icon if not already present
-    if (!codeIcon) {
-      const template = document.createElement('template');
-      template.innerHTML = GENERIC_CODE_ICON.trim();
-      const newIcon = template.content.firstChild;
-      button.insertBefore(newIcon, button.firstElementChild);
       updated = true;
     }
 
