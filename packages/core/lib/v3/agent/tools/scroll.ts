@@ -95,10 +95,12 @@ export const scrollVisionTool = (v3: V3, provider?: string) =>
       let cx: number;
       let cy: number;
       if (coordinates) {
+        const viewport = { width: w, height: h };
         const processed = processCoordinates(
           coordinates[0],
           coordinates[1],
           provider,
+          viewport,
         );
         cx = processed.x;
         cy = processed.y;
