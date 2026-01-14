@@ -23,6 +23,9 @@
   
   let currentSelectedLanguage = 'TypeScript';
   let isSelecting = false;
+
+  // Retry configuration for DOM operations
+  const MAX_RESTORE_ATTEMPTS = 5;
   
   // ============================================
   // CSS INJECTION
@@ -37,6 +40,7 @@
   };
 
   // Map dropdown languages to their landing pages
+  // NOTE: These must stay in sync with the page paths in docs.json
   const LANGUAGE_LANDING_PAGES = {
     'TypeScript': '/v3/first-steps/introduction',
     'Python': '/v3/sdk/python',
@@ -170,14 +174,16 @@
     const button = getDropdownButton();
     if (!button) return false;
 
-    let updated = false;
     const paragraph = button.querySelector('p');
-    if (paragraph && paragraph.textContent !== newText) {
-      paragraph.textContent = newText;
-      updated = true;
+    if (!paragraph) return false;
+
+    // Return true if text already matches (no update needed) or if we updated it
+    if (paragraph.textContent === newText) {
+      return true;
     }
 
-    return updated;
+    paragraph.textContent = newText;
+    return true;
   }
   
   function updateDropdownCheckIndicator() {
@@ -345,7 +351,6 @@
         if (text.includes(lang)) {
           // Prevent default navigation - we'll handle it explicitly
           e.preventDefault();
-          e.stopPropagation();
 
           currentSelectedLanguage = lang;
 
@@ -379,8 +384,6 @@
   }
   
   function restoreLanguageSelection(attempt = 0) {
-    const maxAttempts = 5;
-
     try {
       const stored = sessionStorage.getItem('stagehand-selected-language');
       if (stored && DROPDOWN_LANGUAGES.includes(stored)) {
@@ -389,7 +392,7 @@
         const updated = updateButtonText(stored);
 
         // If button not found or not updated, retry
-        if (!updated && attempt < maxAttempts) {
+        if (!updated && attempt < MAX_RESTORE_ATTEMPTS) {
           setTimeout(() => restoreLanguageSelection(attempt + 1), 50);
         }
 
@@ -399,7 +402,7 @@
         // Update SDK reference visibility
         updateSDKReferenceVisibility();
 
-        // Also sync code block language on restore
+        // Only sync code block language on first attempt to avoid duplicate syncs during retries
         if (attempt === 0) {
           syncCodeBlockLanguage();
         }
