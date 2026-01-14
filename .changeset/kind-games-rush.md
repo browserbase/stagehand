@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-Export imageResize utility
+Improve benchmark handling and add metadata
