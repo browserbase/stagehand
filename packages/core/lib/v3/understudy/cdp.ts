@@ -72,6 +72,12 @@ export class CdpConnection implements CDPSessionLike {
   }
 
   private emitTransportClosed(why: string) {
+    // Reject all pending CDP requests - they will never receive a response
+    for (const [id, rec] of this.inflight.entries()) {
+      rec.reject(new Error(`CDP connection closed: ${why}`));
+      this.inflight.delete(id);
+    }
+
     for (const h of this.transportCloseHandlers) {
       try {
         h(why);
