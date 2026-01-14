@@ -180,17 +180,16 @@
       updated = true;
     }
 
-    // Always use generic code icon - hide any existing icons and inject ours
-    const existingImg = button.querySelector('img');
-    const existingSvg = button.querySelector('svg:not(.lucide-chevron-down):not(.stagehand-code-icon)');
+    // Always use generic code icon - hide the entire icon container and inject ours
     const codeIcon = button.querySelector('.stagehand-code-icon');
 
-    // Hide any existing icons
-    if (existingImg) {
-      existingImg.style.display = 'none';
-    }
-    if (existingSvg) {
-      existingSvg.style.display = 'none';
+    // Find and hide the icon container (first child that's not our icon or the chevron)
+    const firstChild = button.firstElementChild;
+    if (firstChild && !firstChild.classList.contains('stagehand-code-icon') && !firstChild.classList.contains('lucide-chevron-down')) {
+      // This is likely the icon container - hide it entirely
+      if (!firstChild.querySelector('p')) {  // Make sure it's not the text container
+        firstChild.style.display = 'none';
+      }
     }
 
     // Inject generic code icon if not already present
@@ -198,12 +197,7 @@
       const template = document.createElement('template');
       template.innerHTML = GENERIC_CODE_ICON.trim();
       const newIcon = template.content.firstChild;
-      const firstChild = button.firstElementChild;
-      if (firstChild) {
-        button.insertBefore(newIcon, firstChild);
-      } else {
-        button.appendChild(newIcon);
-      }
+      button.insertBefore(newIcon, button.firstElementChild);
       updated = true;
     }
 
