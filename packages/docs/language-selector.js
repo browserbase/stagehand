@@ -46,12 +46,29 @@
   };
 
   // Map dropdown languages to their icon identifiers (used by Mintlify)
+  // Includes inline SVG paths for lucide icons so we can inject them
   const LANGUAGE_ICONS = {
     'TypeScript': { type: 'img', src: '/images/typescript_yellow.svg' },
-    'Python': { type: 'lucide', name: 'python' },
-    'Java': { type: 'lucide', name: 'java' },
-    'Go': { type: 'lucide', name: 'golang' },
-    'Ruby': { type: 'lucide', name: 'gem' }
+    'Python': {
+      type: 'lucide',
+      name: 'python',
+      svg: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9H5a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h3"/><path d="M12 15h7a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3"/><path d="M8 9V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2Z"/><path d="M16 15v4a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2Z"/><circle cx="9" cy="7" r=".5" fill="currentColor"/><circle cx="15" cy="17" r=".5" fill="currentColor"/></svg>'
+    },
+    'Java': {
+      type: 'lucide',
+      name: 'coffee',
+      svg: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v2"/><path d="M14 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/><path d="M6 2v2"/></svg>'
+    },
+    'Go': {
+      type: 'lucide',
+      name: 'hexagon',
+      svg: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>'
+    },
+    'Ruby': {
+      type: 'lucide',
+      name: 'gem',
+      svg: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/></svg>'
+    }
   };
 
   const dropdownStyle = document.createElement('style');
@@ -220,23 +237,49 @@
           updated = true;
         }
       } else if (iconConfig.type === 'lucide') {
-        // For lucide icons, check if current icon matches target
+        // For lucide icons, check if we need to inject the correct one
         const targetClass = `lucide-${iconConfig.name}`;
+        const injectedIcon = button.querySelector('.stagehand-injected-icon');
+
+        // Hide any existing img
+        if (existingImg) {
+          existingImg.style.display = 'none';
+          updated = true;
+        }
+
+        // Check if existing SVG is correct
         if (existingSvg) {
           const hasTargetClass = existingSvg.classList.contains(targetClass);
           if (!hasTargetClass) {
-            // Wrong icon (or no lucide class) - hide it
+            // Wrong icon - hide it
             existingSvg.style.display = 'none';
             updated = true;
-          } else if (existingSvg.style.display === 'none' && hasTargetClass) {
-            // Correct icon but hidden - show it
+          } else {
+            // Correct icon - show it and remove any injected icon
             existingSvg.style.display = '';
+            if (injectedIcon) injectedIcon.remove();
             updated = true;
           }
         }
-        if (existingImg) {
-          // There's an img but we need a lucide icon - hide the img
-          existingImg.style.display = 'none';
+
+        // If no correct icon visible, inject one
+        const needsInjection = (!existingSvg || existingSvg.style.display === 'none') && iconConfig.svg;
+        if (needsInjection && !injectedIcon) {
+          const template = document.createElement('template');
+          template.innerHTML = iconConfig.svg.trim();
+          const newIcon = template.content.firstChild;
+          newIcon.classList.add('stagehand-injected-icon');
+          // Insert at the beginning of the button
+          const firstChild = button.firstElementChild;
+          if (firstChild) {
+            button.insertBefore(newIcon, firstChild);
+          } else {
+            button.appendChild(newIcon);
+          }
+          updated = true;
+        } else if (!needsInjection && injectedIcon) {
+          // Remove injected icon if not needed
+          injectedIcon.remove();
           updated = true;
         }
       }
