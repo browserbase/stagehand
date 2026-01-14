@@ -104,15 +104,13 @@ export class V3AgentHandler {
     modelId: string,
     thinkingConfig?: ThinkingConfig,
   ): { options: AgentProviderOptions | undefined; suppressWarnings: boolean } {
-    const isGoogle = modelId.includes("gemini") || modelId.includes("google/");
-    const isAnthropic =
-      modelId.includes("claude") || modelId.includes("anthropic/");
+    const isGoogle = modelId.includes("gemini");
+    const isAnthropic = modelId.includes("claude");
     const isOpenAI =
       modelId.includes("gpt-") ||
       modelId.includes("o1") ||
       modelId.includes("o3") ||
-      modelId.includes("o4") ||
-      modelId.includes("openai/");
+      modelId.includes("o4");
     const isGemini3 = modelId.includes("gemini-3");
 
     // Build Google provider options
