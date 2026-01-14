@@ -21,13 +21,6 @@ import type { V3 } from "../../v3";
 import type { LogLine } from "../../types/public/logs";
 import type { AgentToolMode, AgentMaskConfig } from "../../types/public/agent";
 
-/**
- * Mask configuration for agent screenshots.
- * Used by vision tools that capture screenshots after actions.
- * This is an alias for AgentMaskConfig to maintain a single source of truth.
- */
-export type ToolMaskConfig = AgentMaskConfig;
-
 export interface V3AgentToolOptions {
   executionModel?: string;
   logger?: (message: LogLine) => void;
@@ -51,7 +44,7 @@ export interface V3AgentToolOptions {
    * Elements matching the selectors will be covered with colored overlays
    * before screenshots are captured.
    */
-  maskConfig?: ToolMaskConfig;
+  maskConfig?: AgentMaskConfig;
 }
 
 /**
@@ -99,7 +92,7 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     act: actTool(v3, executionModel),
     ariaTree: ariaTreeTool(v3),
     click: clickTool(v3, provider, maskConfig),
-    clickAndHold: clickAndHoldTool(v3, provider, maskConfig),
+    clickAndHold: clickAndHoldTool(v3, provider),
     //close: closeTool(),
     dragAndDrop: dragAndDropTool(v3, provider, maskConfig),
     extract: extractTool(v3, executionModel, options?.logger),

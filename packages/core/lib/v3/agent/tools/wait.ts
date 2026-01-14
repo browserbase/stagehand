@@ -5,14 +5,14 @@ import type {
   AgentToolMode,
   WaitToolResult,
   ModelOutputContentItem,
+  AgentMaskConfig,
 } from "../../types/public/agent";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
-import type { ToolMaskConfig } from "./index";
 
 export const waitTool = (
   v3: V3,
   mode?: AgentToolMode,
-  maskConfig?: ToolMaskConfig,
+  maskConfig?: AgentMaskConfig,
 ) =>
   tool({
     description: "Wait for a specified time",

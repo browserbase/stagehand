@@ -1,12 +1,6 @@
 import type { Page } from "../../understudy/page";
 import type { Locator } from "../../understudy/locator";
-import {
-  applyMaskOverlays,
-  runScreenshotCleanups,
-  selectorsToLocators,
-  DEFAULT_MASK_COLOR,
-  type ScreenshotCleanup,
-} from "../../understudy/screenshotUtils";
+import { captureWithMask } from "../../understudy/screenshotUtils";
 
 /**
  * Default delay in milliseconds to wait after vision actions before capturing screenshot.
@@ -55,26 +49,14 @@ export async function waitAndCaptureScreenshot(
     await page.waitForTimeout(delayMs);
   }
 
-  const cleanupTasks: ScreenshotCleanup[] = [];
-
   try {
-    // Apply mask overlays if configured
-    if (opts.maskSelectors && opts.maskSelectors.length > 0) {
-      const locators = selectorsToLocators(page, opts.maskSelectors);
-      if (locators.length > 0) {
-        const cleanup = await applyMaskOverlays(
-          locators,
-          opts.maskColor ?? DEFAULT_MASK_COLOR,
-        );
-        cleanupTasks.push(cleanup);
-      }
-    }
-
-    const buffer = await page.screenshot({ fullPage: false });
+    const maskConfig =
+      opts.maskSelectors && opts.maskSelectors.length > 0
+        ? { selectors: opts.maskSelectors, color: opts.maskColor }
+        : undefined;
+    const buffer = await captureWithMask(page, maskConfig);
     return buffer.toString("base64");
   } catch {
     return undefined;
-  } finally {
-    await runScreenshotCleanups(cleanupTasks);
   }
 }

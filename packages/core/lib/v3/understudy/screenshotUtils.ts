@@ -392,6 +392,46 @@ export async function runScreenshotCleanups(
   }
 }
 
+/**
+ * Configuration for mask overlays during screenshot capture.
+ */
+export interface MaskConfig {
+  selectors: (string | Locator)[];
+  color?: string;
+}
+
+/**
+ * Captures a screenshot with optional mask overlays applied.
+ * Handles the full lifecycle: apply masks → capture → cleanup.
+ *
+ * @param page - The page to capture
+ * @param maskConfig - Optional mask configuration
+ * @returns Screenshot buffer
+ */
+export async function captureWithMask(
+  page: Page,
+  maskConfig?: MaskConfig,
+): Promise<Buffer> {
+  const cleanupTasks: ScreenshotCleanup[] = [];
+
+  try {
+    if (maskConfig?.selectors && maskConfig.selectors.length > 0) {
+      const locators = selectorsToLocators(page, maskConfig.selectors);
+      if (locators.length > 0) {
+        const cleanup = await applyMaskOverlays(
+          locators,
+          maskConfig.color ?? DEFAULT_MASK_COLOR,
+        );
+        cleanupTasks.push(cleanup);
+      }
+    }
+
+    return await page.screenshot({ fullPage: false });
+  } finally {
+    await runScreenshotCleanups(cleanupTasks);
+  }
+}
+
 export async function withScreenshotTimeout<T>(
   timeoutMs: number | undefined,
   task: () => Promise<T>,

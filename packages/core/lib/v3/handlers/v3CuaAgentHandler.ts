@@ -21,13 +21,7 @@ import { LogLine } from "../types/public/logs";
 import { type Action, V3FunctionName } from "../types/public/methods";
 import { SessionFileLogger } from "../flowLogger";
 import { StagehandClosedError } from "../types/public/sdkErrors";
-import {
-  applyMaskOverlays,
-  runScreenshotCleanups,
-  selectorsToLocators,
-  DEFAULT_MASK_COLOR,
-  type ScreenshotCleanup,
-} from "../understudy/screenshotUtils";
+import { captureWithMask } from "../understudy/screenshotUtils";
 
 function getPNGDimensions(buffer: Buffer): { width: number; height: number } {
   if (
@@ -96,25 +90,7 @@ export class V3CuaAgentHandler {
   private async captureScreenshotWithMask(
     page: Awaited<ReturnType<typeof this.v3.context.awaitActivePage>>,
   ): Promise<Buffer> {
-    const cleanupTasks: ScreenshotCleanup[] = [];
-
-    try {
-      // Apply mask overlays if configured
-      if (this.maskConfig?.selectors && this.maskConfig.selectors.length > 0) {
-        const locators = selectorsToLocators(page, this.maskConfig.selectors);
-        if (locators.length > 0) {
-          const cleanup = await applyMaskOverlays(
-            locators,
-            this.maskConfig.color ?? DEFAULT_MASK_COLOR,
-          );
-          cleanupTasks.push(cleanup);
-        }
-      }
-
-      return await page.screenshot({ fullPage: false });
-    } finally {
-      await runScreenshotCleanups(cleanupTasks);
-    }
+    return captureWithMask(page, this.maskConfig);
   }
 
   /**

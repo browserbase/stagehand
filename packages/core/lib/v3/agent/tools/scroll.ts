@@ -4,10 +4,10 @@ import type { V3 } from "../../v3";
 import type {
   ScrollVisionToolResult,
   ModelOutputContentItem,
+  AgentMaskConfig,
 } from "../../types/public/agent";
 import { processCoordinates } from "../utils/coordinateNormalization";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
-import type { ToolMaskConfig } from "./index";
 
 /**
  * Simple scroll tool for DOM mode (non-grounding models).
@@ -70,7 +70,7 @@ export const scrollTool = (v3: V3) =>
 export const scrollVisionTool = (
   v3: V3,
   provider?: string,
-  maskConfig?: ToolMaskConfig,
+  maskConfig?: AgentMaskConfig,
 ) =>
   tool({
     description: `Scroll the page up or down. For general page scrolling, no coordinates needed. Only provide coordinates when scrolling inside a nested scrollable element (e.g., a dropdown menu, modal with overflow, or scrollable sidebar). Default is 80%, and what should be typically used for general page scrolling`,

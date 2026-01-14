@@ -5,16 +5,16 @@ import type { Action } from "../../types/public/methods";
 import type {
   FillFormVisionToolResult,
   ModelOutputContentItem,
+  AgentMaskConfig,
 } from "../../types/public/agent";
 import { processCoordinates } from "../utils/coordinateNormalization";
 import { ensureXPath } from "../utils/xpath";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
-import type { ToolMaskConfig } from "./index";
 
 export const fillFormVisionTool = (
   v3: V3,
   provider?: string,
-  maskConfig?: ToolMaskConfig,
+  maskConfig?: AgentMaskConfig,
 ) =>
   tool({
     description: `FORM FILL - SPECIALIZED MULTI-FIELD INPUT TOOL

@@ -1,16 +1,10 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
-import {
-  applyMaskOverlays,
-  runScreenshotCleanups,
-  selectorsToLocators,
-  DEFAULT_MASK_COLOR,
-  type ScreenshotCleanup,
-} from "../../understudy/screenshotUtils";
-import type { ToolMaskConfig } from "./index";
+import type { AgentMaskConfig } from "../../types/public/agent";
+import { captureWithMask } from "../../understudy/screenshotUtils";
 
-export const screenshotTool = (v3: V3, maskConfig?: ToolMaskConfig) =>
+export const screenshotTool = (v3: V3, maskConfig?: AgentMaskConfig) =>
   tool({
     description:
       "Takes a screenshot (PNG) of the current page. Use this to quickly verify page state.",
@@ -22,31 +16,12 @@ export const screenshotTool = (v3: V3, maskConfig?: ToolMaskConfig) =>
         level: 1,
       });
       const page = await v3.context.awaitActivePage();
-      const cleanupTasks: ScreenshotCleanup[] = [];
-
-      try {
-        // Apply mask overlays if configured
-        if (maskConfig?.selectors && maskConfig.selectors.length > 0) {
-          const locators = selectorsToLocators(page, maskConfig.selectors);
-          if (locators.length > 0) {
-            const cleanup = await applyMaskOverlays(
-              locators,
-              maskConfig.color ?? DEFAULT_MASK_COLOR,
-            );
-            cleanupTasks.push(cleanup);
-          }
-        }
-
-        const buffer = await page.screenshot({ fullPage: false });
-        const pageUrl = page.url();
-        return {
-          base64: buffer.toString("base64"),
-          timestamp: Date.now(),
-          pageUrl,
-        };
-      } finally {
-        await runScreenshotCleanups(cleanupTasks);
-      }
+      const buffer = await captureWithMask(page, maskConfig);
+      return {
+        base64: buffer.toString("base64"),
+        timestamp: Date.now(),
+        pageUrl: page.url(),
+      };
     },
     toModelOutput: (result) => ({
       type: "content",
