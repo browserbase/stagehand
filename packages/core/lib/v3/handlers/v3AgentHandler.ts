@@ -67,15 +67,6 @@ export class V3AgentHandler {
     this.systemInstructions = systemInstructions;
     this.mcpTools = mcpTools;
     this.mode = mode ?? "dom";
-
-    if (this.mode === "dom") {
-      this.logger({
-        category: "agent",
-        message:
-          "Using DOM mode (legacy). Consider using mode: 'hybrid' for improved performance.\n  → https://docs.stagehand.dev/v3/basics/agent\n",
-        level: 0,
-      });
-    }
   }
 
   private async prepareAgent(
