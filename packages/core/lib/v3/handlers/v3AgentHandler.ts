@@ -38,6 +38,7 @@ import {
   AgentAbortError,
 } from "../types/public/sdkErrors";
 import { handleCloseToolCall } from "../agent/utils/handleCloseToolCall";
+import { captureWithMask } from "../understudy/screenshotUtils";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -614,7 +615,7 @@ export class V3AgentHandler {
   private async captureAndEmitScreenshot(): Promise<void> {
     try {
       const page = await this.v3.context.awaitActivePage();
-      const screenshot = await page.screenshot({ fullPage: false });
+      const screenshot = await captureWithMask(page, this.maskConfig);
       this.v3.bus.emit("agent_screensot_taken_event", screenshot);
     } catch (error) {
       this.logger({
