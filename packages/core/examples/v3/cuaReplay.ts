@@ -32,8 +32,8 @@ async function runDemo(runNumber: number) {
     cua: true,
     model: {
       modelName: "anthropic/claude-sonnet-4-20250514",
-      apiKey: process.env.ANTHROPIC_API_KEY!
-    }
+      apiKey: process.env.ANTHROPIC_API_KEY!,
+    },
   });
 
   const result = await agent.execute({
