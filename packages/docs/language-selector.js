@@ -45,6 +45,15 @@
     'Ruby': '/v3/sdk/ruby'
   };
 
+  // Map dropdown languages to their icon identifiers (used by Mintlify)
+  const LANGUAGE_ICONS = {
+    'TypeScript': { type: 'img', src: '/images/typescript_yellow.svg' },
+    'Python': { type: 'lucide', name: 'python' },
+    'Java': { type: 'lucide', name: 'java' },
+    'Go': { type: 'lucide', name: 'golang' },
+    'Ruby': { type: 'lucide', name: 'gem' }
+  };
+
   const dropdownStyle = document.createElement('style');
   dropdownStyle.id = 'stagehand-language-style';
   dropdownStyle.textContent = `
@@ -135,11 +144,28 @@
   // ============================================
   
   function getDropdownButton() {
+    // Look for the language dropdown button in the sidebar
+    // It's a button containing a language name OR has the dropdown chevron structure
     const buttons = document.querySelectorAll('button');
     for (const btn of buttons) {
       const text = (btn.textContent || '').trim();
+      // Match by language name
       if (DROPDOWN_LANGUAGES.includes(text)) {
         return btn;
+      }
+      // Also check if it has the dropdown structure (icon + text + chevron)
+      const hasChevron = btn.querySelector('.lucide-chevron-down');
+      const hasParagraph = btn.querySelector('p');
+      if (hasChevron && hasParagraph) {
+        // Check if it's in the sidebar navigation area (not version switcher)
+        const parent = btn.closest('nav, aside, [class*="sidebar"]');
+        if (parent && !btn.classList.contains('stagehand-version-switcher')) {
+          const pText = (hasParagraph.textContent || '').trim();
+          // Verify it's a language dropdown (text should be a language name)
+          if (DROPDOWN_LANGUAGES.some(lang => pText === lang || pText.includes(lang))) {
+            return btn;
+          }
+        }
       }
     }
     return null;
@@ -151,12 +177,57 @@
   
   function updateButtonText(newText) {
     const button = getDropdownButton();
-    if (!button) return;
-    
+    if (!button) return false;
+
+    let updated = false;
     const paragraph = button.querySelector('p');
-    if (paragraph) {
+    if (paragraph && paragraph.textContent !== newText) {
       paragraph.textContent = newText;
+      updated = true;
     }
+
+    // Also update the icon
+    const iconConfig = LANGUAGE_ICONS[newText];
+    if (iconConfig) {
+      const existingImg = button.querySelector('img');
+      const existingSvg = button.querySelector('svg:not(.lucide-chevron-down)');
+
+      if (iconConfig.type === 'img') {
+        // Need an img element with the correct src
+        if (existingImg) {
+          if (!existingImg.src.endsWith(iconConfig.src)) {
+            existingImg.src = iconConfig.src;
+            updated = true;
+          }
+        } else if (existingSvg) {
+          // Replace SVG with img
+          const img = document.createElement('img');
+          img.src = iconConfig.src;
+          img.className = existingSvg.className;
+          img.style.width = '16px';
+          img.style.height = '16px';
+          existingSvg.replaceWith(img);
+          updated = true;
+        }
+      } else if (iconConfig.type === 'lucide') {
+        // For lucide icons, we can't easily swap them, but we can hide wrong ones
+        // The icon name is in the class like "lucide-python"
+        if (existingSvg) {
+          const currentIconClass = Array.from(existingSvg.classList).find(c => c.startsWith('lucide-') && c !== 'lucide-chevron-down');
+          const targetClass = `lucide-${iconConfig.name}`;
+          if (currentIconClass && currentIconClass !== targetClass) {
+            // Can't easily change lucide icon, but mark it for CSS hiding if needed
+            existingSvg.dataset.stagehandIcon = iconConfig.name;
+          }
+        } else if (existingImg && iconConfig.type === 'lucide') {
+          // There's an img but we need a lucide icon - hide the img for now
+          // This is a limitation - we can't create lucide icons dynamically
+          existingImg.style.display = 'none';
+        }
+      }
+    }
+
+    return updated;
   }
   
   function updateDropdownCheckIndicator() {
@@ -344,23 +415,11 @@
             // Ignore storage errors
           }
 
-          // Update button text after a short delay (after menu closes)
-          setTimeout(() => {
-            updateButtonText(lang);
-          }, 50);
-
-          // Sync the code block language selector
-          setTimeout(() => {
-            syncCodeBlockLanguage();
-          }, 200);
-
           // Navigate to the language's landing page
+          // sessionStorage is already saved, so restoreLanguageSelection() on the new page will apply the state
           const landingPage = LANGUAGE_LANDING_PAGES[lang];
           if (landingPage) {
-            // Use a small delay to allow state updates to complete
-            setTimeout(() => {
-              window.location.href = landingPage;
-            }, 10);
+            window.location.href = landingPage;
           }
 
           break;
@@ -369,52 +428,64 @@
     }, true);
   }
   
-  function restoreLanguageSelection() {
+  function restoreLanguageSelection(attempt = 0) {
+    const maxAttempts = 5;
+
     try {
       const stored = sessionStorage.getItem('stagehand-selected-language');
       if (stored && DROPDOWN_LANGUAGES.includes(stored)) {
         currentSelectedLanguage = stored;
-        updateButtonText(stored);
-        
+
+        const updated = updateButtonText(stored);
+
+        // If button not found or not updated, retry
+        if (!updated && attempt < maxAttempts) {
+          setTimeout(() => restoreLanguageSelection(attempt + 1), 50);
+        }
+
         // Update version switcher visibility
         updateVersionSwitcherVisibility();
-        
+
         // Update SDK reference visibility
         updateSDKReferenceVisibility();
-        
+
         // Also sync code block language on restore
-        setTimeout(syncCodeBlockLanguage, 1000);
+        if (attempt === 0) {
+          syncCodeBlockLanguage();
+        }
       }
     } catch (err) {
       // Ignore storage errors
     }
-    
-    // Always update version switcher visibility on restore
-    setTimeout(updateVersionSwitcherVisibility, 100);
-    
-    // Always update SDK reference visibility on restore
-    setTimeout(updateSDKReferenceVisibility, 100);
   }
   
   function setupPageChangeObserver() {
     let sdkUpdatePending = false;
-    
+    let buttonUpdatePending = false;
+
     const observer = new MutationObserver(() => {
-      // Check if button needs updating
-      const button = getDropdownButton();
-      if (button) {
-        const currentText = (button.textContent || '').trim();
-        if (currentText !== currentSelectedLanguage && DROPDOWN_LANGUAGES.includes(currentSelectedLanguage)) {
-          updateButtonText(currentSelectedLanguage);
-        }
+      // Check if button needs updating (debounced to avoid excessive updates)
+      if (!buttonUpdatePending) {
+        buttonUpdatePending = true;
+        setTimeout(() => {
+          const button = getDropdownButton();
+          if (button) {
+            const paragraph = button.querySelector('p');
+            const currentText = paragraph ? (paragraph.textContent || '').trim() : '';
+            if (currentText !== currentSelectedLanguage && DROPDOWN_LANGUAGES.includes(currentSelectedLanguage)) {
+              updateButtonText(currentSelectedLanguage);
+            }
+          }
+          buttonUpdatePending = false;
+        }, 10);
       }
-      
+
       // Re-check version switcher visibility (DOM might have re-rendered)
       const versionSwitcher = getVersionSwitcher();
       if (versionSwitcher && !versionSwitcher.classList.contains('stagehand-version-switcher')) {
         updateVersionSwitcherVisibility();
       }
-      
+
       // Check for SDK reference items that need to be hidden (debounced)
       const sdkItems = document.querySelectorAll('li[id^="/v3/sdk/"]:not(.stagehand-sdk-processed)');
       if (sdkItems.length > 0 && !sdkUpdatePending) {
@@ -429,7 +500,7 @@
         }, 50);
       }
     });
-    
+
     observer.observe(document.body, {
       subtree: true,
       childList: true
@@ -439,20 +510,20 @@
   // Watch for code block dropdowns appearing and sync them
   function setupCodeBlockObserver() {
     let lastCodeBlockDropdown = null;
-    
+
     const observer = new MutationObserver(() => {
       const dropdown = getCodeBlockLanguageDropdown();
       if (dropdown && dropdown.element !== lastCodeBlockDropdown) {
         lastCodeBlockDropdown = dropdown.element;
-        
+
         // New code block dropdown appeared, sync it
         const targetLang = LANGUAGE_MAP[currentSelectedLanguage];
         if (targetLang && dropdown.language !== targetLang) {
-          setTimeout(() => selectCodeBlockLanguage(targetLang), 500);
+          setTimeout(() => selectCodeBlockLanguage(targetLang), 50);
         }
       }
     });
-    
+
     observer.observe(document.body, {
       subtree: true,
       childList: true
@@ -468,25 +539,24 @@
     setupDropdownMenuObserver();
     setupPageChangeObserver();
     setupCodeBlockObserver();
-    
-    setTimeout(restoreLanguageSelection, 500);
-    
-    // Update version switcher visibility on init and periodically check
-    setTimeout(updateVersionSwitcherVisibility, 600);
-    setTimeout(updateVersionSwitcherVisibility, 1000);
-    
-    // Update SDK reference visibility on init
-    setTimeout(updateSDKReferenceVisibility, 600);
-    setTimeout(updateSDKReferenceVisibility, 1000);
+
+    // Restore language selection immediately and retry quickly
+    restoreLanguageSelection();
+    setTimeout(restoreLanguageSelection, 50);
+    setTimeout(restoreLanguageSelection, 150);
+
+    // Update version switcher and SDK visibility
+    updateVersionSwitcherVisibility();
+    updateSDKReferenceVisibility();
+    setTimeout(updateVersionSwitcherVisibility, 200);
+    setTimeout(updateSDKReferenceVisibility, 200);
   }
 
-  // Initialize on page load
+  // Initialize on page load - start immediately, no artificial delay
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      setTimeout(init, 500);
-    });
+    document.addEventListener('DOMContentLoaded', init);
   } else {
-    setTimeout(init, 500);
+    init();
   }
 
   // Re-run when URL changes (SPA navigation)
@@ -498,17 +568,12 @@
       document.querySelectorAll('li[id^="/v3/sdk/"].stagehand-sdk-processed').forEach(item => {
         item.classList.remove('stagehand-sdk-processed');
       });
-      setTimeout(() => {
-        restoreLanguageSelection();
-        // Sync code block language on page change
-        setTimeout(syncCodeBlockLanguage, 500);
-        // Update version switcher visibility on page change
-        setTimeout(updateVersionSwitcherVisibility, 100);
-        setTimeout(updateVersionSwitcherVisibility, 500);
-        // Update SDK reference visibility on page change
-        setTimeout(updateSDKReferenceVisibility, 100);
-        setTimeout(updateSDKReferenceVisibility, 500);
-      }, 500);
+      // Restore immediately and retry once
+      restoreLanguageSelection();
+      setTimeout(restoreLanguageSelection, 100);
+      syncCodeBlockLanguage();
+      updateVersionSwitcherVisibility();
+      updateSDKReferenceVisibility();
     }
   });
   urlObserver.observe(document.body, { subtree: true, childList: true });
