@@ -149,7 +149,7 @@ export class V3AgentHandler {
       if (!thinkingConfig.budgetTokens) {
         throw new StagehandInvalidArgumentError(
           "Anthropic models require 'budgetTokens' when thinking is enabled. " +
-            "Add 'budgetTokens' to your thinking config" +
+            "Add 'budgetTokens' to your thinking config. " +
             "Example: thinking: { enableThinking: true, budgetTokens: 10000 }",
         );
       }
@@ -564,6 +564,9 @@ export class V3AgentHandler {
       prepareStep: this.createPrepareStep(callbacks?.prepareStep),
       onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
       onError: (event) => {
+        // Restore warnings on error
+        restoreWarnings?.();
+
         if (callbacks?.onError) {
           callbacks.onError(event);
         }
