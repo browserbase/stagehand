@@ -4,8 +4,14 @@ import type { V3 } from "../../v3";
 import type { Action } from "../../types/public/methods";
 import { processCoordinates } from "../utils/coordinateNormalization";
 import { ensureXPath } from "../utils/xpath";
+import type { ToolMaskConfig } from "./index";
 
-export const clickAndHoldTool = (v3: V3, provider?: string) =>
+export const clickAndHoldTool = (
+  v3: V3,
+  provider?: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _maskConfig?: ToolMaskConfig,
+) =>
   tool({
     description: "Click and hold on an element using its coordinates",
     inputSchema: z.object({

@@ -15,11 +15,19 @@ import {
   AgentHandlerOptions,
   AgentResult,
   SafetyConfirmationHandler,
+  AgentMaskConfig,
 } from "../types/public/agent";
 import { LogLine } from "../types/public/logs";
 import { type Action, V3FunctionName } from "../types/public/methods";
 import { SessionFileLogger } from "../flowLogger";
 import { StagehandClosedError } from "../types/public/sdkErrors";
+import {
+  applyMaskOverlays,
+  runScreenshotCleanups,
+  selectorsToLocators,
+  DEFAULT_MASK_COLOR,
+  type ScreenshotCleanup,
+} from "../understudy/screenshotUtils";
 
 function getPNGDimensions(buffer: Buffer): { width: number; height: number } {
   if (
@@ -47,6 +55,7 @@ export class V3CuaAgentHandler {
   private agentClient: AgentClient;
   private options: AgentHandlerOptions;
   private highlightCursor: boolean;
+  private maskConfig?: AgentMaskConfig;
 
   constructor(
     v3: V3,
@@ -80,35 +89,64 @@ export class V3CuaAgentHandler {
     }
   }
 
+  /**
+   * Takes a screenshot with optional mask overlays applied.
+   * Returns the screenshot buffer.
+   */
+  private async captureScreenshotWithMask(
+    page: Awaited<ReturnType<typeof this.v3.context.awaitActivePage>>,
+  ): Promise<Buffer> {
+    const cleanupTasks: ScreenshotCleanup[] = [];
+
+    try {
+      // Apply mask overlays if configured
+      if (this.maskConfig?.selectors && this.maskConfig.selectors.length > 0) {
+        const locators = selectorsToLocators(page, this.maskConfig.selectors);
+        if (locators.length > 0) {
+          const cleanup = await applyMaskOverlays(
+            locators,
+            this.maskConfig.color ?? DEFAULT_MASK_COLOR,
+          );
+          cleanupTasks.push(cleanup);
+        }
+      }
+
+      return await page.screenshot({ fullPage: false });
+    } finally {
+      await runScreenshotCleanups(cleanupTasks);
+    }
+  }
+
+  /**
+   * Updates the agent client's screenshot dimensions if applicable.
+   */
+  private updateScreenshotDimensions(screenshotBuffer: Buffer): void {
+    if (
+      this.agentClient instanceof GoogleCUAClient ||
+      this.agentClient instanceof OpenAICUAClient ||
+      this.agentClient instanceof MicrosoftCUAClient
+    ) {
+      try {
+        const dimensions = getPNGDimensions(screenshotBuffer);
+        this.agentClient.setScreenshotSize(dimensions.width, dimensions.height);
+      } catch (e) {
+        this.logger({
+          category: "agent",
+          message: `Could not read screenshot dimensions: ${e}`,
+          level: 1,
+        });
+      }
+    }
+  }
+
   private setupAgentClient(): void {
     // Provide screenshots to the agent client
     this.agentClient.setScreenshotProvider(async () => {
       this.ensureNotClosed();
       const page = await this.v3.context.awaitActivePage();
-      const screenshotBuffer = await page.screenshot({ fullPage: false });
-
-      // For Google, OpenAI, and Microsoft CUA, extract screenshot dimensions and set them
-      if (
-        this.agentClient instanceof GoogleCUAClient ||
-        this.agentClient instanceof OpenAICUAClient ||
-        this.agentClient instanceof MicrosoftCUAClient
-      ) {
-        try {
-          const dimensions = getPNGDimensions(screenshotBuffer);
-          this.agentClient.setScreenshotSize(
-            dimensions.width,
-            dimensions.height,
-          );
-        } catch (e) {
-          this.logger({
-            category: "agent",
-            message: `Could not read screenshot dimensions: ${e}`,
-            level: 1,
-          });
-        }
-      }
-
-      return screenshotBuffer.toString("base64"); // base64 png
+      const screenshotBuffer = await this.captureScreenshotWithMask(page);
+      this.updateScreenshotDimensions(screenshotBuffer);
+      return screenshotBuffer.toString("base64");
     });
 
     // Provide action executor
@@ -195,6 +233,7 @@ export class V3CuaAgentHandler {
     this.setSafetyConfirmationHandler(options.callbacks?.onSafetyConfirmation);
 
     this.highlightCursor = options.highlightCursor !== false;
+    this.maskConfig = options.mask;
 
     // Redirect if blank
     const page = await this.v3.context.awaitActivePage();
@@ -625,28 +664,8 @@ export class V3CuaAgentHandler {
     });
     try {
       const page = await this.v3.context.awaitActivePage();
-      const screenshotBuffer = await page.screenshot({ fullPage: false });
-
-      // For Google, OpenAI, and Microsoft CUA, extract screenshot dimensions and set them
-      if (
-        this.agentClient instanceof GoogleCUAClient ||
-        this.agentClient instanceof OpenAICUAClient ||
-        this.agentClient instanceof MicrosoftCUAClient
-      ) {
-        try {
-          const dimensions = getPNGDimensions(screenshotBuffer);
-          this.agentClient.setScreenshotSize(
-            dimensions.width,
-            dimensions.height,
-          );
-        } catch (e) {
-          this.logger({
-            category: "agent",
-            message: `Could not read screenshot dimensions: ${e}`,
-            level: 1,
-          });
-        }
-      }
+      const screenshotBuffer = await this.captureScreenshotWithMask(page);
+      this.updateScreenshotDimensions(screenshotBuffer);
 
       // Emit screenshot event via the bus
       this.v3.bus.emit("agent_screenshot_taken_event", screenshotBuffer);

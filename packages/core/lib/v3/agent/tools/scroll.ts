@@ -7,6 +7,7 @@ import type {
 } from "../../types/public/agent";
 import { processCoordinates } from "../utils/coordinateNormalization";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
+import type { ToolMaskConfig } from "./index";
 
 /**
  * Simple scroll tool for DOM mode (non-grounding models).
@@ -66,7 +67,11 @@ export const scrollTool = (v3: V3) =>
  * Scroll tool for hybrid mode (grounding models).
  * Supports optional coordinates for scrolling within nested scrollable elements.
  */
-export const scrollVisionTool = (v3: V3, provider?: string) =>
+export const scrollVisionTool = (
+  v3: V3,
+  provider?: string,
+  maskConfig?: ToolMaskConfig,
+) =>
   tool({
     description: `Scroll the page up or down. For general page scrolling, no coordinates needed. Only provide coordinates when scrolling inside a nested scrollable element (e.g., a dropdown menu, modal with overflow, or scrollable sidebar). Default is 80%, and what should be typically used for general page scrolling`,
     inputSchema: z.object({
@@ -129,7 +134,11 @@ export const scrollVisionTool = (v3: V3, provider?: string) =>
 
       await page.scroll(cx, cy, 0, deltaY);
 
-      const screenshotBase64 = await waitAndCaptureScreenshot(page, 100);
+      const screenshotBase64 = await waitAndCaptureScreenshot(page, {
+        delayMs: 100,
+        maskSelectors: maskConfig?.selectors,
+        maskColor: maskConfig?.color,
+      });
 
       v3.recordAgentReplayStep({
         type: "scroll",

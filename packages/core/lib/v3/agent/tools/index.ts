@@ -19,7 +19,14 @@ import { searchTool } from "./search";
 import type { ToolSet, InferUITools } from "ai";
 import type { V3 } from "../../v3";
 import type { LogLine } from "../../types/public/logs";
-import type { AgentToolMode } from "../../types/public/agent";
+import type { AgentToolMode, AgentMaskConfig } from "../../types/public/agent";
+
+/**
+ * Mask configuration for agent screenshots.
+ * Used by vision tools that capture screenshots after actions.
+ * This is an alias for AgentMaskConfig to maintain a single source of truth.
+ */
+export type ToolMaskConfig = AgentMaskConfig;
 
 export interface V3AgentToolOptions {
   executionModel?: string;
@@ -39,6 +46,12 @@ export interface V3AgentToolOptions {
    * These tools will be filtered out after mode-based filtering.
    */
   excludeTools?: string[];
+  /**
+   * Mask configuration for agent screenshots.
+   * Elements matching the selectors will be covered with colored overlays
+   * before screenshots are captured.
+   */
+  maskConfig?: ToolMaskConfig;
 }
 
 /**
@@ -80,25 +93,29 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const mode = options?.mode ?? "dom";
   const provider = options?.provider;
   const excludeTools = options?.excludeTools;
+  const maskConfig = options?.maskConfig;
 
   const allTools: ToolSet = {
     act: actTool(v3, executionModel),
     ariaTree: ariaTreeTool(v3),
-    click: clickTool(v3, provider),
-    clickAndHold: clickAndHoldTool(v3, provider),
+    click: clickTool(v3, provider, maskConfig),
+    clickAndHold: clickAndHoldTool(v3, provider, maskConfig),
     //close: closeTool(),
-    dragAndDrop: dragAndDropTool(v3, provider),
+    dragAndDrop: dragAndDropTool(v3, provider, maskConfig),
     extract: extractTool(v3, executionModel, options?.logger),
     fillForm: fillFormTool(v3, executionModel),
-    fillFormVision: fillFormVisionTool(v3, provider),
+    fillFormVision: fillFormVisionTool(v3, provider, maskConfig),
     goto: gotoTool(v3),
     keys: keysTool(v3),
     navback: navBackTool(v3),
-    screenshot: screenshotTool(v3),
-    scroll: mode === "hybrid" ? scrollVisionTool(v3, provider) : scrollTool(v3),
+    screenshot: screenshotTool(v3, maskConfig),
+    scroll:
+      mode === "hybrid"
+        ? scrollVisionTool(v3, provider, maskConfig)
+        : scrollTool(v3),
     think: thinkTool(),
-    type: typeTool(v3, provider),
-    wait: waitTool(v3, mode),
+    type: typeTool(v3, provider, maskConfig),
+    wait: waitTool(v3, mode, maskConfig),
   };
 
   // Only include search tool if BRAVE_API_KEY is configured

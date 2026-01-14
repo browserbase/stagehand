@@ -9,8 +9,13 @@ import type {
 import { processCoordinates } from "../utils/coordinateNormalization";
 import { ensureXPath } from "../utils/xpath";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
+import type { ToolMaskConfig } from "./index";
 
-export const clickTool = (v3: V3, provider?: string) =>
+export const clickTool = (
+  v3: V3,
+  provider?: string,
+  maskConfig?: ToolMaskConfig,
+) =>
   tool({
     description:
       "Click on an element using its coordinates (this is the most reliable way to click on an element, always use this over act, unless the element is not visible in the screenshot, but shown in ariaTree)",
@@ -51,7 +56,10 @@ export const clickTool = (v3: V3, provider?: string) =>
           returnXpath: shouldCollectXpath,
         });
 
-        const screenshotBase64 = await waitAndCaptureScreenshot(page);
+        const screenshotBase64 = await waitAndCaptureScreenshot(page, {
+          maskSelectors: maskConfig?.selectors,
+          maskColor: maskConfig?.color,
+        });
 
         // Record as an "act" step with proper Action for deterministic replay (only when caching)
         if (shouldCollectXpath) {

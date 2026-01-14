@@ -11,6 +11,34 @@ import { StagehandInvalidArgumentError } from "../types/public/sdkErrors";
 
 export type ScreenshotCleanup = () => Promise<void> | void;
 
+/**
+ * Default mask color (magenta) for screenshot masking.
+ */
+export const DEFAULT_MASK_COLOR = "#FF00FF";
+
+/**
+ * Converts CSS selectors to Locator objects.
+ * Invalid selectors that fail to create locators are silently skipped.
+ */
+export function selectorsToLocators(
+  page: { locator: (selector: string) => Locator },
+  selectors: (string | Locator)[],
+): Locator[] {
+  const locators: Locator[] = [];
+  for (const selector of selectors) {
+    if (typeof selector === "string") {
+      try {
+        locators.push(page.locator(selector));
+      } catch {
+        // Skip invalid selectors
+      }
+    } else {
+      locators.push(selector);
+    }
+  }
+  return locators;
+}
+
 export function collectFramesForScreenshot(page: Page): Frame[] {
   const seen = new Map<string, Frame>();
   const main = page.mainFrame();

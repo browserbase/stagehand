@@ -192,6 +192,7 @@ describe("Stagehand public API types", () => {
       maxSteps?: number;
       page?: Stagehand.AnyPage;
       highlightCursor?: boolean;
+      mask?: Stagehand.AgentMaskConfig;
       messages?: Stagehand.ModelMessage[];
       signal?: AbortSignal;
       excludeTools?: string[];
@@ -210,6 +211,7 @@ describe("Stagehand public API types", () => {
       maxSteps?: number;
       page?: Stagehand.AnyPage;
       highlightCursor?: boolean;
+      mask?: Stagehand.AgentMaskConfig;
       messages?: Stagehand.ModelMessage[];
       signal?: AbortSignal;
       excludeTools?: string[];
