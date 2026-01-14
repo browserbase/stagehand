@@ -221,19 +221,20 @@
         }
       } else if (iconConfig.type === 'lucide') {
         // For lucide icons, check if current icon matches target
+        const targetClass = `lucide-${iconConfig.name}`;
         if (existingSvg) {
-          const currentIconClass = Array.from(existingSvg.classList).find(c => c.startsWith('lucide-') && c !== 'lucide-chevron-down');
-          const targetClass = `lucide-${iconConfig.name}`;
-          if (currentIconClass && currentIconClass !== targetClass) {
-            // Wrong icon - hide it since we can't easily swap lucide icons
+          const hasTargetClass = existingSvg.classList.contains(targetClass);
+          if (!hasTargetClass) {
+            // Wrong icon (or no lucide class) - hide it
             existingSvg.style.display = 'none';
             updated = true;
-          } else if (existingSvg.style.display === 'none' && currentIconClass === targetClass) {
+          } else if (existingSvg.style.display === 'none' && hasTargetClass) {
             // Correct icon but hidden - show it
             existingSvg.style.display = '';
             updated = true;
           }
-        } else if (existingImg) {
+        }
+        if (existingImg) {
           // There's an img but we need a lucide icon - hide the img
           existingImg.style.display = 'none';
           updated = true;
