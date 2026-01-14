@@ -1,6 +1,8 @@
 import type { Page } from "../../understudy/page";
-import type { Locator } from "../../understudy/locator";
-import { captureWithMask } from "../../understudy/screenshotUtils";
+import {
+  captureWithMask,
+  type MaskConfig,
+} from "../../understudy/screenshotUtils";
 
 /**
  * Default delay in milliseconds to wait after vision actions before capturing screenshot.
@@ -17,13 +19,9 @@ export interface ScreenshotCaptureOptions {
    */
   delayMs?: number;
   /**
-   * CSS selectors or Locator objects for elements to mask
+   * Mask configuration for elements to hide in screenshots
    */
-  maskSelectors?: (string | Locator)[];
-  /**
-   * Color for mask overlays (default: #FF00FF)
-   */
-  maskColor?: string;
+  mask?: MaskConfig;
 }
 
 /**
@@ -50,11 +48,7 @@ export async function waitAndCaptureScreenshot(
   }
 
   try {
-    const maskConfig =
-      opts.maskSelectors && opts.maskSelectors.length > 0
-        ? { selectors: opts.maskSelectors, color: opts.maskColor }
-        : undefined;
-    const buffer = await captureWithMask(page, maskConfig);
+    const buffer = await captureWithMask(page, opts.mask);
     return buffer.toString("base64");
   } catch {
     return undefined;

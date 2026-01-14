@@ -64,8 +64,7 @@ export const typeTool = (
         await page.type(text);
 
         const screenshotBase64 = await waitAndCaptureScreenshot(page, {
-          maskSelectors: maskConfig?.selectors,
-          maskColor: maskConfig?.color,
+          mask: maskConfig,
         });
 
         // Record as an "act" step with proper Action for deterministic replay (only when caching)

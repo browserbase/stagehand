@@ -41,8 +41,7 @@ export const waitTool = (
         const page = await v3.context.awaitActivePage();
         const screenshotBase64 = await waitAndCaptureScreenshot(page, {
           delayMs: 0,
-          maskSelectors: maskConfig?.selectors,
-          maskColor: maskConfig?.color,
+          mask: maskConfig,
         });
         return { success: true, waited: timeMs, screenshotBase64 };
       }

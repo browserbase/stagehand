@@ -117,8 +117,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
 
         const screenshotBase64 = await waitAndCaptureScreenshot(page, {
           delayMs: 100,
-          maskSelectors: maskConfig?.selectors,
-          maskColor: maskConfig?.color,
+          mask: maskConfig,
         });
 
         // Record as "act" step with proper Actions for deterministic replay (only when caching)
