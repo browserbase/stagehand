@@ -409,7 +409,7 @@ export class AgentCache {
       this.logger({
         category: "cache",
         message: "failed to import remote agent cache entry",
-        level: 1,
+        level: 0,
         auxiliary: {
           error: { value: String(error), type: "string" },
         },
