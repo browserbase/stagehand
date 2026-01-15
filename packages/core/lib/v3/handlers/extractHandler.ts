@@ -195,22 +195,6 @@ export class ExtractHandler {
     } = extractionResponse;
     let output = rest as InferStagehandSchema<StagehandZodObject>;
 
-    v3Logger({
-      category: "extraction",
-      message: completed
-        ? "Extraction completed successfully"
-        : "Extraction incomplete after processing all data",
-      level: 1,
-      auxiliary: {
-        prompt_tokens: { value: String(prompt_tokens), type: "string" },
-        completion_tokens: { value: String(completion_tokens), type: "string" },
-        inference_time_ms: {
-          value: String(inference_time_ms),
-          type: "string",
-        },
-      },
-    });
-
     // Update EXTRACT metrics from the LLM calls
     this.onMetrics?.(
       V3FunctionName.EXTRACT,
@@ -233,6 +217,22 @@ export class ExtractHandler {
         idToUrl as unknown as Record<string, string>,
       );
     }
+
+    v3Logger({
+      category: "extraction",
+      message: completed
+        ? "Extraction completed successfully"
+        : "Extraction incomplete after processing all data",
+      level: 1,
+      auxiliary: {
+        prompt_tokens: { value: String(prompt_tokens), type: "string" },
+        completion_tokens: { value: String(completion_tokens), type: "string" },
+        inference_time_ms: {
+          value: String(inference_time_ms),
+          type: "string",
+        },
+      },
+    });
 
     // If we wrapped a non-object schema, unwrap the value
     if (!isObjectSchema && output && typeof output === "object") {
