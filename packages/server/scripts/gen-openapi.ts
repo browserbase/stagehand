@@ -43,7 +43,7 @@ async function main() {
     schemas: {
       // Shared components
       LocalBrowserLaunchOptions: Api.LocalBrowserLaunchOptionsSchema,
-      ModelName: Api.ModelNameSchema,
+      ModelNameString: Api.ModelNameStringSchema,
       ModelConfigObject: Api.ModelConfigObjectSchema,
       ModelConfig: Api.ModelConfigSchema,
       Action: Api.ActionSchema,
