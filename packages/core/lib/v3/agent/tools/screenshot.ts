@@ -14,7 +14,37 @@ export const screenshotTool = (v3: V3) =>
         level: 1,
       });
       const page = await v3.context.awaitActivePage();
-      const buffer = await page.screenshot({ fullPage: false });
+
+      // Get viewport metrics to detect stealth mode
+      const metrics = await page.mainFrame().evaluate<{
+        innerW: number;
+        innerH: number;
+        clientW: number;
+        clientH: number;
+      }>(`({
+        innerW: window.innerWidth,
+        innerH: window.innerHeight,
+        clientW: document.documentElement.clientWidth,
+        clientH: document.documentElement.clientHeight,
+      })`);
+
+      // Detect stealth mode: inner != client when stealth spoofs values
+      const isStealthMode =
+        metrics.innerW !== metrics.clientW ||
+        metrics.innerH !== metrics.clientH;
+
+      let buffer: Buffer;
+      if (isStealthMode) {
+        // Stealth: use unclipped - natural capture matches spoofed content area
+        buffer = await page.screenshot({ fullPage: false });
+      } else {
+        // Normal: clip to innerW/H - unclipped may include browser chrome
+        buffer = await page.screenshot({
+          fullPage: false,
+          clip: { x: 0, y: 0, width: metrics.innerW, height: metrics.innerH },
+        });
+      }
+
       const pageUrl = page.url();
       return {
         base64: buffer.toString("base64"),

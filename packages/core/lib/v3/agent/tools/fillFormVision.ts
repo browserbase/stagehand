@@ -54,17 +54,20 @@ MANDATORY USE CASES (always use fillFormVision for these):
         const page = await v3.context.awaitActivePage();
 
         // Process coordinates for each field
-        const processedFields = fields.map((field) => {
-          const processed = processCoordinates(
-            field.coordinates.x,
-            field.coordinates.y,
-            provider,
-          );
-          return {
-            ...field,
-            coordinates: { x: processed.x, y: processed.y },
-          };
-        });
+        const processedFields = await Promise.all(
+          fields.map(async (field) => {
+            const processed = await processCoordinates(
+              field.coordinates.x,
+              field.coordinates.y,
+              provider,
+              page,
+            );
+            return {
+              ...field,
+              coordinates: { x: processed.x, y: processed.y },
+            };
+          }),
+        );
 
         v3.logger({
           category: "agent",

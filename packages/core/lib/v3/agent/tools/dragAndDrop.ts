@@ -30,15 +30,17 @@ export const dragAndDropTool = (v3: V3, provider?: string) =>
     }): Promise<DragAndDropToolResult> => {
       try {
         const page = await v3.context.awaitActivePage();
-        const processedStart = processCoordinates(
+        const processedStart = await processCoordinates(
           startCoordinates[0],
           startCoordinates[1],
           provider,
+          page,
         );
-        const processedEnd = processCoordinates(
+        const processedEnd = await processCoordinates(
           endCoordinates[0],
           endCoordinates[1],
           provider,
+          page,
         );
 
         v3.logger({

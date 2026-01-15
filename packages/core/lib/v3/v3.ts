@@ -172,6 +172,7 @@ export class V3 {
   public get isBrowserbase(): boolean {
     return this.state.kind === "BROWSERBASE";
   }
+
   private _onCdpClosed = (why: string) => {
     if (this.state.kind === "BROWSERBASE") {
       void this._logBrowserbaseSessionStatus();
