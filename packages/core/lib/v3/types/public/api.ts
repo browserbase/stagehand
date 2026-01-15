@@ -69,8 +69,8 @@ export const ModelConfigObjectSchema = z
       }),
     modelName: z.string().meta({
       description:
-        "Model name string without prefix (e.g., 'gpt-5-nano', 'claude-4.5-opus')",
-      example: "gpt-5-nano",
+        "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+      example: "openai/gpt-5-nano",
     }),
     apiKey: z.string().optional().meta({
       description: "API key for the model provider",

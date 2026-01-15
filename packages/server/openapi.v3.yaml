@@ -142,11 +142,11 @@ components:
           type: boolean
       additionalProperties: false
     ModelConfigString:
-      description:
-        Model name string with provider prefix (e.g., 'openai/gpt-5-nano',
-        'anthropic/claude-4.5-opus')
+      description: Model name string with provider prefix. Always use the format
+        'provider/model-name' (e.g., 'openai/gpt-4o',
+        'anthropic/claude-sonnet-4-5-20250929', 'google/gemini-2.0-flash')
       match: {}
-      example: openai/gpt-5-nano
+      example: openai/gpt-4o
       type: string
     ModelConfigObject:
       type: object
@@ -161,9 +161,11 @@ components:
             - google
             - microsoft
         modelName:
-          description: Model name string without prefix (e.g., 'gpt-5-nano',
-            'claude-4.5-opus')
-          example: gpt-5-nano
+          description:
+            Model name string with provider prefix. Always use the format
+            'provider/model-name' (e.g., 'openai/gpt-4o',
+            'anthropic/claude-sonnet-4-5-20250929', 'google/gemini-2.0-flash')
+          example: openai/gpt-4o
           type: string
         apiKey:
           description: API key for the model provider
@@ -767,6 +769,9 @@ components:
       properties:
         result:
           description: Navigation response (Playwright Response object or null)
+          anyOf:
+            - {}
+            - type: "null"
           x-stainless-any: true
         actionId:
           description: Action ID for tracking
@@ -1008,9 +1013,11 @@ components:
             - google
             - microsoft
         modelName:
-          description: Model name string without prefix (e.g., 'gpt-5-nano',
-            'claude-4.5-opus')
-          example: gpt-5-nano
+          description:
+            Model name string with provider prefix. Always use the format
+            'provider/model-name' (e.g., 'openai/gpt-4o',
+            'anthropic/claude-sonnet-4-5-20250929', 'google/gemini-2.0-flash')
+          example: openai/gpt-4o
           type: string
         apiKey:
           description: API key for the model provider
@@ -1507,6 +1514,9 @@ components:
       properties:
         result:
           description: Navigation response (Playwright Response object or null)
+          anyOf:
+            - {}
+            - type: "null"
           x-stainless-any: true
         actionId:
           description: Action ID for tracking
@@ -1618,7 +1628,10 @@ components:
       type: object
       properties:
         modelName:
-          description: Model name to use for AI operations
+          description:
+            Model name to use for AI operations. Always use the format
+            'provider/model-name' (e.g., 'openai/gpt-4o',
+            'anthropic/claude-sonnet-4-5-20250929', 'google/gemini-2.0-flash')
           example: openai/gpt-4o
           type: string
         domSettleTimeoutMs:
@@ -1902,7 +1915,11 @@ paths:
               type: object
               properties:
                 modelName:
-                  description: Model name to use for AI operations
+                  description:
+                    Model name to use for AI operations. Always use the format
+                    'provider/model-name' (e.g., 'openai/gpt-4o',
+                    'anthropic/claude-sonnet-4-5-20250929',
+                    'google/gemini-2.0-flash')
                   example: openai/gpt-4o
                   type: string
                 domSettleTimeoutMs:
