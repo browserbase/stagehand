@@ -40,10 +40,10 @@
               {
                 "group": "The Basics",
                 "pages": [
+                  "v3/basics/agent",
                   "v3/basics/act",
                   "v3/basics/extract",
                   "v3/basics/observe",
-                  "v3/basics/agent",
                   "v3/basics/evals"
                 ]
               },
@@ -114,10 +114,10 @@
                 "group": "Reference",
                 "pages": [
                   "v3/references/stagehand",
+                  "v3/references/agent",
                   "v3/references/act",
                   "v3/references/extract",
                   "v3/references/observe",
-                  "v3/references/agent",
                   "v3/references/context",
                   "v3/references/page",
                   "v3/references/locator",
@@ -287,10 +287,10 @@
           {
             "group": "The Basics",
             "pages": [
+              "v2/basics/agent",
               "v2/basics/act",
               "v2/basics/extract",
-              "v2/basics/observe",
-              "v2/basics/agent"
+              "v2/basics/observe"
             ]
           },
           {
