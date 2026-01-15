@@ -223,7 +223,7 @@ export class ExtractHandler {
     }
 
     const resultPreviewLength = 200;
-    const resultString = JSON.stringify(output);
+    const resultString = JSON.stringify(output) ?? "undefined";
     const resultPreview =
       resultString.length > resultPreviewLength
         ? resultString.slice(0, resultPreviewLength) + "..."
