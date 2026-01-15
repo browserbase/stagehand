@@ -1038,6 +1038,7 @@ export type SessionStartResult = z.infer<typeof SessionStartResultSchema>;
 export type SessionStartResponse = z.infer<typeof SessionStartResponseSchema>;
 
 // /sessions/{id}/end
+export type SessionEndRequest = z.infer<typeof SessionEndRequestSchema>;
 export type SessionEndResult = z.infer<typeof SessionEndResultSchema>;
 export type SessionEndResponse = z.infer<typeof SessionEndResponseSchema>;
 
