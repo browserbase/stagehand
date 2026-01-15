@@ -11,7 +11,7 @@ organization:
   # Link to your API documentation.
   docs: https://docs.stagehand.dev
   # Contact email for bug reports, questions, and support requests.
-  contact: ''
+  contact: ""
 
 # `targets` define the output targets and their customization options, such as
 # whether to emit the Node SDK and what its package name should be.
@@ -93,9 +93,9 @@ environments:
 resources:
   sessions:
     models:
-      action: '#/components/schemas/Action'
-      model_config: '#/components/schemas/ModelConfig'
-      stream_event: '#/components/schemas/StreamEvent'
+      action: "#/components/schemas/Action"
+      model_config: "#/components/schemas/ModelConfig"
+      stream_event: "#/components/schemas/StreamEvent"
     methods:
       start: post /v1/sessions/start
       act:
@@ -200,16 +200,15 @@ readme:
       type: request
       endpoint: post /v1/sessions/start
       params:
-        modelName: 'openai/gpt-5-nano'
+        modelName: "openai/gpt-5-nano"
     headline:
       type: request
       endpoint: post /v1/sessions/{id}/act
       params:
-        input: 'click the first link on the page'
-        id: '00000000-your-session-id-000000000000'
+        input: "click the first link on the page"
+        id: "00000000-your-session-id-000000000000"
 
 diagnostics:
   ignored:
     Ruby/NameNotAllowed: true
     Ruby/NameShadowedBuiltin: true
-
