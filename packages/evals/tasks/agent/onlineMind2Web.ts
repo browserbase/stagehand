@@ -119,7 +119,7 @@ export const onlineMind2Web: EvalFunction = async ({
     }
     if (screenshotCollector) {
       try {
-        screenshotCollector.stop();
+        await screenshotCollector.stop();
       } catch {
         // Ignore errors during cleanup
       }
