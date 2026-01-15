@@ -217,6 +217,17 @@ export class ExtractHandler {
         idToUrl as unknown as Record<string, string>,
       );
     }
+    // If we wrapped a non-object schema, unwrap the value
+    if (!isObjectSchema && output && typeof output === "object") {
+      output = (output as Record<string, unknown>)[WRAP_KEY];
+    }
+
+    const resultPreviewLength = 200;
+    const resultString = JSON.stringify(output);
+    const resultPreview =
+      resultString.length > resultPreviewLength
+        ? resultString.slice(0, resultPreviewLength) + "..."
+        : resultString;
 
     v3Logger({
       category: "extraction",
@@ -231,13 +242,9 @@ export class ExtractHandler {
           value: String(inference_time_ms),
           type: "string",
         },
+        result: { value: resultPreview, type: "string" },
       },
     });
-
-    // If we wrapped a non-object schema, unwrap the value
-    if (!isObjectSchema && output && typeof output === "object") {
-      output = (output as Record<string, unknown>)[WRAP_KEY];
-    }
 
     return output as InferStagehandSchema<T>;
   }
