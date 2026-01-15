@@ -28,6 +28,10 @@ Stagehand not only handles the execution of Computer Use outputs, but also lets 
 
 Stagehand lets you use Computer Use Agents with one line of code:
 
+<Warning>
+**Deprecation Notice:** The `cua: true` option is deprecated and will be removed in a future version. Use `mode: "cua"` instead.
+</Warning>
+
 <Note>
 **IMPORTANT! Configure your browser dimensions**
 
@@ -93,7 +97,7 @@ Call `execute` on the agent to assign a task to the agent.
 ```typescript Google
 await page.goto("https://www.google.com/");
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "google/gemini-2.5-computer-use-preview-10-2025",
         apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
@@ -111,7 +115,7 @@ await agent.execute({
 ```typescript OpenAI
 await page.goto("https://www.google.com/");
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "openai/computer-use-preview",
         apiKey: process.env.OPENAI_API_KEY
@@ -128,7 +132,7 @@ await agent.execute({
 ```typescript Anthropic
 await page.goto("https://www.google.com/");
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "anthropic/claude-sonnet-4-20250514",
         apiKey: process.env.ANTHROPIC_API_KEY
@@ -161,7 +165,7 @@ Stagehand supports computer use models from Google, Anthropic, and OpenAI. You c
 <Tab title="Google">
 ```typescript
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: "google/gemini-2.5-computer-use-preview-10-2025",
     // GOOGLE_GENERATIVE_AI_API_KEY is auto-loaded - set in your .env
 });
@@ -170,7 +174,7 @@ const agent = stagehand.agent({
 <Tab title="Anthropic">
 ```typescript
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: "anthropic/claude-sonnet-4-20250514",
     // ANTHROPIC_API_KEY is auto-loaded - set in your .env
 });
@@ -179,7 +183,7 @@ const agent = stagehand.agent({
 <Tab title="OpenAI">
 ```typescript
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: "openai/computer-use-preview",
     // OPENAI_API_KEY is auto-loaded - set in your .env
 });

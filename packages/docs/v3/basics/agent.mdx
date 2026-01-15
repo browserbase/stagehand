@@ -55,12 +55,16 @@ Some advanced features are only available with certain agent modes:
 
 ### Computer Use Agents
 
-You can use specialized computer use models from either Google, OpenAI, or Anthropic as shown below, with `cua` set to `true`. To compare the performance of different computer use models, you can visit our [evals page](https://www.stagehand.dev/agent-evals).
+You can use specialized computer use models from either Google, OpenAI, or Anthropic as shown below, with `mode` set to `"cua"`. To compare the performance of different computer use models, you can visit our [evals page](https://www.stagehand.dev/agent-evals).
+
+<Warning>
+**Deprecation Notice:** The `cua: true` option is deprecated and will be removed in a future version. Use `mode: "cua"` instead.
+</Warning>
 
 <CodeGroup>
 ```typescript Google
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "google/gemini-2.5-computer-use-preview-10-2025",
         apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
@@ -77,7 +81,7 @@ await agent.execute({
 
 ```typescript OpenAI
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "openai/computer-use-preview",
         apiKey: process.env.OPENAI_API_KEY
@@ -93,7 +97,7 @@ await agent.execute({
 ```
 ```typescript Anthropic
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "anthropic/claude-sonnet-4-20250514",
         apiKey: process.env.ANTHROPIC_API_KEY
@@ -278,7 +282,7 @@ import { tool } from "ai";
 import { z } from "zod/v3";
 
 const agent = stagehand.agent({
-  cua: true,
+  mode: "cua",
   model: "anthropic/claude-sonnet-4-20250514",
   tools: {
     searchDatabase: tool({
@@ -473,7 +477,7 @@ Agents can be enhanced with external tools and services through MCP (Model Conte
 <CodeGroup>
 ```typescript Pass URL
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "openai/computer-use-preview",
         apiKey: process.env.OPENAI_API_KEY
@@ -495,7 +499,7 @@ const supabaseClient = await connectToMCPServer(
 );
 
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "openai/computer-use-preview",
         apiKey: process.env.OPENAI_API_KEY
@@ -517,7 +521,7 @@ MCP integrations enable agents to be more powerful by combining browser automati
 Enable streaming mode to receive incremental responses from the agent. This is useful for building real-time UIs that show the agent's reasoning as it progresses.
 
 <Warning>
-**Non-CUA agents only.** Streaming, callbacks, abort signals, and message continuation are only available when using the standard agent (without `cua: true`). These features are not supported with Computer Use Agents.
+**Non-CUA agents only.** Streaming, callbacks, abort signals, and message continuation are only available when using the standard agent (without `mode: "cua"`). These features are not supported with Computer Use Agents.
 </Warning>
 
 <Note>These are experimental features. Set `experimental: true` in your Stagehand constructor to enable them.</Note>

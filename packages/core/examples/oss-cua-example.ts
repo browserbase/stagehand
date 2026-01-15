@@ -33,7 +33,7 @@ async function main() {
 
     // Create a computer use agent
     const agent = stagehand.agent({
-      cua: true,
+      mode: "cua",
       model: {
         modelName: "microsoft/fara-7b",
         apiKey: process.env.AZURE_API_KEY,
