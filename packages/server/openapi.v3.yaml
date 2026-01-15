@@ -86,6 +86,7 @@ components:
           type: string
         entry:
           description: Serialized cache entry that can be written to disk
+          type: unknown
       required:
         - cacheKey
         - entry

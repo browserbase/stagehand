@@ -13,6 +13,9 @@ export interface ServerAgentCacheHandle {
   discard(): void;
 }
 
+// TODO (refactor-caching): this reflective access is a known temporary escape hatch.
+// Once the caching internals are reworked, replace it with proper V3 helpers so
+// we stop poking private fields from the outside.
 function getInternalField<T>(instance: V3, key: string): T {
   return (instance as unknown as Record<string, unknown>)[key] as T;
 }

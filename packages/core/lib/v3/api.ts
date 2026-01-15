@@ -383,7 +383,7 @@ export class StagehandAPIClient {
   consumeLatestAgentCacheEntry(): AgentCacheTransferPayload | null {
     const entry = this.latestAgentCacheEntry;
     this.latestAgentCacheEntry = null;
-    return entry ?? null;
+    return entry;
   }
 
   async end(): Promise<Response> {

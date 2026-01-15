@@ -3,6 +3,14 @@ import path from "path";
 import type { Logger } from "../types/public";
 import { ReadJsonResult, WriteJsonResult } from "../types/private";
 
+const jsonClone = <T>(value: T): T => {
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) {
+    return value;
+  }
+  return JSON.parse(serialized) as T;
+};
+
 export class CacheStorage {
   private constructor(
     private readonly logger: Logger,
@@ -59,7 +67,8 @@ export class CacheStorage {
       if (!this.memoryStore.has(fileName)) {
         return { value: null };
       }
-      return { value: this.memoryStore.get(fileName) as T };
+      const existing = this.memoryStore.get(fileName) as T;
+      return { value: jsonClone(existing) };
     }
 
     const filePath = this.resolvePath(fileName);
@@ -81,7 +90,7 @@ export class CacheStorage {
 
   async writeJson(fileName: string, data: unknown): Promise<WriteJsonResult> {
     if (this.memoryStore) {
-      this.memoryStore.set(fileName, data);
+      this.memoryStore.set(fileName, jsonClone(data));
       return {};
     }
 
