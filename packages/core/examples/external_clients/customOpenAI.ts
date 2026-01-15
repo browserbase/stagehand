@@ -22,7 +22,7 @@ import type {
   ChatCompletionUserMessageParam,
 } from "openai/resources/chat/completions";
 import { CreateChatCompletionResponseError } from "../../lib/v3";
-import { StagehandZodSchema, toJsonSchema } from "../../lib/v3/zodCompat";
+import { toJsonSchema } from "../../lib/v3/zodCompat";
 import { validateZodSchema } from "../../lib/utils";
 import { ZodSchemaValidationError } from "../../lib/v3/types/public/sdkErrors";
 
@@ -213,14 +213,18 @@ export class CustomOpenAIClient extends LLMClient {
       if (!extractedData) {
         throw new CreateChatCompletionResponseError("No content in response");
       }
-      const parsedData = JSON.parse(extractedData);
 
+      let parsedData: unknown;
       try {
+        parsedData = JSON.parse(extractedData);
         validateZodSchema(options.response_model.schema, parsedData);
       } catch (e) {
+        const isParseError = e instanceof SyntaxError;
         logger({
           category: "openai",
-          message: "Response failed Zod schema validation",
+          message: isParseError
+            ? "Response is not valid JSON"
+            : "Response failed Zod schema validation",
           level: 0,
         });
         if (retries > 0) {
@@ -246,7 +250,13 @@ export class CustomOpenAIClient extends LLMClient {
           });
           throw new CreateChatCompletionResponseError(e.message);
         }
-        throw e;
+        throw new CreateChatCompletionResponseError(
+          isParseError
+            ? "Failed to parse model response as JSON"
+            : e instanceof Error
+              ? e.message
+              : "Unknown error during response processing",
+        );
       }
 
       return {
