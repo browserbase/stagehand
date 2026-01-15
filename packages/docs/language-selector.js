@@ -43,20 +43,6 @@
   // Run callback on next frame (immediate visual update)
   const onNextFrame = (fn) => requestAnimationFrame(() => requestAnimationFrame(fn));
 
-  // Wait for an element matching selector to appear
-  function waitForElement(selector, callback, maxAttempts = 20) {
-    let attempts = 0;
-    const check = () => {
-      const el = document.querySelector(selector);
-      if (el) {
-        callback(el);
-      } else if (++attempts < maxAttempts) {
-        requestAnimationFrame(check);
-      }
-    };
-    check();
-  }
-
   const dropdownStyle = document.createElement('style');
   dropdownStyle.id = 'stagehand-language-style';
   dropdownStyle.textContent = `
@@ -350,7 +336,8 @@
 
           // Navigate to the corresponding SDK page
           const targetPath = NAVIGATION_MAP[lang];
-          if (targetPath && !window.location.pathname.endsWith(targetPath)) {
+          const normalizedPathname = window.location.pathname.replace(/\/$/, '');
+          if (targetPath && !normalizedPathname.endsWith(targetPath)) {
             e.preventDefault();
             e.stopPropagation();
             window.location.href = targetPath;
