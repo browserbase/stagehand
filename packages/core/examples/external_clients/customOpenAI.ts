@@ -86,13 +86,8 @@ export class CustomOpenAIClient extends LLMClient {
       | ChatCompletionCreateParamsNonStreaming["response_format"]
       | undefined;
     if (options.response_model) {
-      const responseModelSchema = options.response_model.schema;
       responseFormat = {
-        type: "json_schema",
-        json_schema: {
-          name: options.response_model.name,
-          schema: toJsonSchema(responseModelSchema),
-        },
+        type: "json_object",
       };
     }
 
@@ -173,6 +168,18 @@ export class CustomOpenAIClient extends LLMClient {
 
         return formattedMessage;
       });
+
+    if (options.response_model) {
+      const schemaJson = JSON.stringify(
+        toJsonSchema(options.response_model.schema),
+        null,
+        2,
+      );
+      formattedMessages.push({
+        role: "user",
+        content: `Respond with valid JSON matching this schema:\n${schemaJson}\n\nDo not include any other text, formatting or markdown in your output. Do not include \`\`\` or \`\`\`json in your response. Only the JSON object itself.`,
+      });
+    }
 
     const body: ChatCompletionCreateParamsNonStreaming = {
       ...openaiOptions,
