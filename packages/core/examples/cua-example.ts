@@ -26,7 +26,7 @@ async function main() {
 
     // Create a computer use agent
     const agent = stagehand.agent({
-      cua: true,
+      mode: "cua",
       model: {
         modelName: "google/gemini-2.5-computer-use-preview-10-2025",
         apiKey: process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY,

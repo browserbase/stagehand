@@ -30,11 +30,12 @@ interface AgentConfig {
   systemPrompt?: string;
   integrations?: (Client | string)[];
   tools?: ToolSet;
+  /** @deprecated Use `mode: "cua"` instead */
   cua?: boolean;
   model?: string | AgentModelConfig<string>;
   executionModel?: string | AgentModelConfig<string>;
   stream?: boolean; // Enable streaming mode (experimental)
-  mode?: "dom" | "hybrid"; // Tool mode (experimental)
+  mode?: "dom" | "hybrid" | "cua"; // Tool mode
 }
 
 // AgentModelConfig for advanced configuration
@@ -91,6 +92,8 @@ interface AgentInstance {
 </ParamField>
 
 <ParamField path="cua" type="boolean" optional>
+  <Warning>**Deprecated:** Use `mode: "cua"` instead. This option will be removed in a future version.</Warning>
+  
   Indicates whether Computer Use Agent (CUA) mode is enabled. When false, the agent uses standard tool-based operation instead of computer control.
 </ParamField>
 
@@ -109,15 +112,16 @@ interface AgentInstance {
   
   **Default:** `false`
   
-  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `cua: true`.</Warning>
+  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `mode: "cua"`.</Warning>
 </ParamField>
 
-<ParamField path="mode" type='"dom" | "hybrid"' optional>
+<ParamField path="mode" type='"dom" | "hybrid" | "cua"' optional>
   Tool mode for the agent. Determines which set of tools are available to the agent.
   
   **Modes:**
   - `"dom"` (default): Uses DOM-based tools (`act`, `fillForm`) for structured page interactions. Works with any model.
   - `"hybrid"`: Uses both DOM-based and coordinate-based tools (`act`, `click`, `type`, `dragAndDrop`, `clickAndHold`, `fillForm`) for visual/screenshot-based interactions. Requires models with reliable coordinate-based action capabilities.
+  - `"cua"`: Uses Computer Use Agent (CUA) providers like Anthropic Claude, Google Gemini, or OpenAI for screenshot-based automation. This is the preferred way to enable CUA mode (replaces the deprecated `cua: true` option).
   
   **Default:** `"dom"`
   
@@ -229,13 +233,13 @@ interface AgentStreamCallbacks {
 <ParamField path="messages" type="ModelMessage[]" optional>
   Previous conversation messages to continue from. Pass the `messages` from a previous `AgentResult` to continue that conversation.
 
-  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `cua: true`.</Warning>
+  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `mode: "cua"`.</Warning>
 </ParamField>
 
 <ParamField path="signal" type="AbortSignal" optional>
   An `AbortSignal` that can be used to cancel the agent execution. When aborted, the agent will stop and throw an `AgentAbortError`.
 
-  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `cua: true`.</Warning>
+  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `mode: "cua"`.</Warning>
 </ParamField>
 
 <ParamField path="excludeTools" type="string[]" optional>
@@ -253,7 +257,7 @@ interface AgentStreamCallbacks {
 <ParamField path="callbacks" type="AgentExecuteCallbacks | AgentStreamCallbacks" optional>
   Callbacks to hook into the agent's execution lifecycle. The available callbacks depend on whether streaming is enabled.
 
-  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `cua: true`.</Warning>
+  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `mode: "cua"`.</Warning>
 
   <Expandable title="Non-Streaming Callbacks (AgentExecuteCallbacks)">
     <ParamField path="prepareStep" type="PrepareStepFunction<ToolSet>" optional>

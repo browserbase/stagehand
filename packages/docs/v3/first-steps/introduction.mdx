@@ -52,7 +52,7 @@ const actions = await stagehand.observe("find submit buttons");
 
 // Agent - Automate entire workflows
 const agent = stagehand.agent({
-  cua: true,
+  mode: "cua",
   model: "google/gemini-2.5-computer-use-preview-10-2025",
 });
 await agent.execute("apply for this job");
