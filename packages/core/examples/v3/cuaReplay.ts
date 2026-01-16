@@ -28,7 +28,7 @@ async function runDemo(runNumber: number) {
   });
 
   const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: "anthropic/claude-sonnet-4-20250514",
   });
 

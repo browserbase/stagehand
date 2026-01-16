@@ -51,7 +51,7 @@ async function main() {
 
     // Create a computer use agent
     const agent = stagehand.agent({
-      cua: true,
+      mode: "cua",
       model: {
         modelName: "anthropic/claude-sonnet-4-5-20250929",
         apiKey: process.env.ANTHROPIC_API_KEY,

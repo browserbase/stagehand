@@ -1600,6 +1600,16 @@ export class V3 {
     llmClient: LLMClient;
   }> {
     // Note: experimental validation is done at the call site before this method
+    // Warn if mode is not explicitly set (defaults to "dom")
+    if (options?.mode === undefined) {
+      this.logger({
+        category: "agent",
+        message:
+          "Using agent in default DOM mode (legacy). Agent will default to 'hybrid' on an upcoming release for improved performance.\n  → https://docs.stagehand.dev/v3/basics/agent\n",
+        level: 0,
+      });
+    }
+
     const tools = options?.integrations
       ? await resolveTools(options.integrations, options.tools)
       : (options?.tools ?? {});
