@@ -28,6 +28,7 @@ export const clickAndHoldTool = (v3: V3, provider?: string) =>
           coordinates[0],
           coordinates[1],
           provider,
+          v3,
         );
 
         v3.logger({

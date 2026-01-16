@@ -155,6 +155,11 @@ export class V3AgentHandler {
         message: `Step finished: ${event.finishReason}`,
         level: 2,
       });
+      this.logger({
+        category: "agent",
+        message: `reasoning: ${event.reasoningText}`,
+        level: 1,
+      });
 
       if (event.toolCalls && event.toolCalls.length > 0) {
         for (let i = 0; i < event.toolCalls.length; i++) {
@@ -166,7 +171,7 @@ export class V3AgentHandler {
             state.collectedReasoning.push(event.text);
             this.logger({
               category: "agent",
-              message: `reasoning: ${event.text}`,
+              message: `reasoning: ${event.reasoningText}`,
               level: 1,
             });
           }
@@ -283,13 +288,19 @@ export class V3AgentHandler {
         stopWhen: (result) => this.handleStop(result, maxSteps),
         temperature: 1,
         toolChoice: "auto",
+    
         prepareStep: this.createPrepareStep(callbacks?.prepareStep),
         onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
         abortSignal: preparedOptions.signal,
         providerOptions: wrappedModel.modelId.includes("gemini-3")
           ? {
               google: {
+
                 mediaResolution: "MEDIA_RESOLUTION_HIGH",
+                 thinkingConfig: {
+        thinkingLevel: 'high',
+        includeThoughts: true,
+      },
               },
             }
           : undefined,
