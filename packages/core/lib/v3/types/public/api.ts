@@ -47,9 +47,9 @@ export const LocalBrowserLaunchOptionsSchema = z
   .strict()
   .meta({ id: "LocalBrowserLaunchOptions" });
 
-/** Simple model name string */
-export const ModelNameSchema = z.string().meta({
-  id: "ModelName",
+/** Model config as a string (provider-prefixed, e.g. "openai/gpt-5-nano") */
+export const ModelConfigStringSchema = z.string().meta({
+  id: "ModelConfigString",
   description:
     "Model name string with provider prefix (e.g., 'openai/gpt-5-nano', 'anthropic/claude-4.5-opus')",
   match: /^(openai|anthropic|google|microsoft)\/.+$/,
@@ -69,7 +69,7 @@ export const ModelConfigObjectSchema = z
       }),
     modelName: z.string().meta({
       description:
-        "Model name string (e.g., 'openai/gpt-5-nano', 'anthropic/claude-4.5-opus')",
+        "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
       example: "openai/gpt-5-nano",
     }),
     apiKey: z.string().optional().meta({
@@ -85,7 +85,7 @@ export const ModelConfigObjectSchema = z
 
 /** Model configuration - string model name or detailed config */
 export const ModelConfigSchema = z
-  .union([ModelNameSchema, ModelConfigObjectSchema])
+  .union([ModelConfigStringSchema, ModelConfigObjectSchema])
   .meta({ id: "ModelConfig" });
 
 /** Action object returned by observe and used by act */
@@ -156,10 +156,6 @@ export const SessionHeadersSchema = z
     "x-stream-response": z.enum(["true", "false"]).optional().meta({
       description: "Whether to stream the response via SSE",
       example: "true",
-    }),
-    "x-sent-at": z.string().datetime().optional().meta({
-      description: "ISO timestamp when request was sent",
-      example: "2025-01-15T10:30:00Z",
     }),
   })
   .meta({ id: "SessionHeaders" });
@@ -435,7 +431,7 @@ export const ActRequestSchema = z
       example: "Click the login button",
     }),
     options: ActOptionsSchema,
-    frameId: z.string().optional().meta({
+    frameId: z.string().nullish().meta({
       description: "Target frame ID for the action",
     }),
     streamResponse: z.boolean().optional().meta({
@@ -506,7 +502,7 @@ export const ExtractRequestSchema = z
       description: "JSON Schema defining the structure of data to extract",
     }),
     options: ExtractOptionsSchema,
-    frameId: z.string().optional().meta({
+    frameId: z.string().nullish().meta({
       description: "Target frame ID for the extraction",
     }),
     streamResponse: z.boolean().optional().meta({
@@ -520,6 +516,9 @@ export const ExtractResultSchema = z
   .object({
     result: z.unknown().meta({
       description: "Extracted data matching the requested schema",
+      override: ({ jsonSchema }: { jsonSchema: Record<string, unknown> }) => {
+        jsonSchema["x-stainless-any"] = true;
+      },
     }),
     actionId: z.string().optional().meta({
       description: "Action ID for tracking",
@@ -558,7 +557,7 @@ export const ObserveRequestSchema = z
       example: "Find all clickable navigation links",
     }),
     options: ObserveOptionsSchema,
-    frameId: z.string().optional().meta({
+    frameId: z.string().nullish().meta({
       description: "Target frame ID for the observation",
     }),
     streamResponse: z.boolean().optional().meta({
@@ -683,7 +682,7 @@ export const AgentExecuteRequestSchema = z
   .object({
     agentConfig: AgentConfigSchema,
     executeOptions: AgentExecuteOptionsSchema,
-    frameId: z.string().optional().meta({
+    frameId: z.string().nullish().meta({
       description: "Target frame ID for the agent",
     }),
     streamResponse: z.boolean().optional().meta({
@@ -735,7 +734,7 @@ export const NavigateRequestSchema = z
       example: "https://example.com",
     }),
     options: NavigateOptionsSchema,
-    frameId: z.string().optional().meta({
+    frameId: z.string().nullish().meta({
       description: "Target frame ID for the navigation",
     }),
     streamResponse: z.boolean().optional().meta({
@@ -751,6 +750,9 @@ export const NavigateResultSchema = z
     // as it wraps complex devtools-protocol types (Protocol.Network.Response)
     result: z.unknown().nullable().meta({
       description: "Navigation response (Playwright Response object or null)",
+      override: ({ jsonSchema }: { jsonSchema: Record<string, unknown> }) => {
+        jsonSchema["x-stainless-any"] = true;
+      },
     }),
     actionId: z.string().optional().meta({
       description: "Action ID for tracking",
@@ -831,6 +833,9 @@ export const StreamEventSystemDataSchema = z
     status: StreamEventStatusSchema,
     result: z.unknown().optional().meta({
       description: "Operation result (present when status is 'finished')",
+      override: ({ jsonSchema }: { jsonSchema: Record<string, unknown> }) => {
+        jsonSchema["x-stainless-any"] = true;
+      },
     }),
     error: z.string().optional().meta({
       description: "Error message (present when status is 'error')",
