@@ -82,6 +82,7 @@ export type AgentReplayStep =
   | AgentReplayWaitStep
   | AgentReplayNavBackStep
   | AgentReplayKeysStep
+  | AgentReplayCustomToolStep
   | { type: string; [key: string]: unknown };
 
 export interface AgentReplayActStep {
@@ -132,6 +133,18 @@ export interface AgentReplayKeysStep {
     keys?: string;
     times?: number;
   };
+}
+
+/**
+ * Represents a custom tool invocation that should be replayed.
+ * During replay, the tool will be re-executed with the same arguments.
+ */
+export interface AgentReplayCustomToolStep {
+  type: "custom_tool";
+  /** The name of the custom tool to execute */
+  name: string;
+  /** The arguments to pass to the tool */
+  arguments: Record<string, unknown>;
 }
 
 export interface SanitizedAgentExecuteOptions {
