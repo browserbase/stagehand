@@ -288,19 +288,18 @@ export class V3AgentHandler {
         stopWhen: (result) => this.handleStop(result, maxSteps),
         temperature: 1,
         toolChoice: "auto",
-    
+
         prepareStep: this.createPrepareStep(callbacks?.prepareStep),
         onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
         abortSignal: preparedOptions.signal,
         providerOptions: wrappedModel.modelId.includes("gemini-3")
           ? {
               google: {
-
                 mediaResolution: "MEDIA_RESOLUTION_HIGH",
-                 thinkingConfig: {
-        thinkingLevel: 'high',
-        includeThoughts: true,
-      },
+                thinkingConfig: {
+                  thinkingLevel: "high",
+                  includeThoughts: true,
+                },
               },
             }
           : undefined,

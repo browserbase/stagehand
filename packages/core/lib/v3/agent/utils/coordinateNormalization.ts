@@ -1,11 +1,14 @@
 import type { V3 } from "../../v3";
 
+// Default viewport for advancedStealth mode
 const STEALTH_VIEWPORT = { width: 1288, height: 711 };
 
 export function isGoogleProvider(provider?: string): boolean {
   if (!provider) return false;
   return provider.toLowerCase().includes("google");
 }
+
+// Google returns coordinates in a 0-1000 range, we need to normalize
 // them to the viewport dimensions
 export function normalizeGoogleCoordinates(
   x: number,
@@ -27,6 +30,7 @@ export function processCoordinates(
   v3?: V3,
 ): { x: number; y: number } {
   if (isGoogleProvider(provider) && v3) {
+    // advancedStealth uses fixed viewport, otherwise use configured viewport
     const viewport = v3.isAdvancedStealth
       ? STEALTH_VIEWPORT
       : v3.configuredViewport;
