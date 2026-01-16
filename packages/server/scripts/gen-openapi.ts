@@ -176,41 +176,6 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
 
   let yaml = app.swagger({ yaml: true });
 
-  // Post-process for Stainless compatibility:
-  // 1. Replace `additionalProperties: {}` with `additionalProperties: true`
-  yaml = yaml.replace(
-    /additionalProperties: \{\}/g,
-    "additionalProperties: true",
-  );
-
-  // 2. Remove `propertyNames` blocks (not supported by Stainless)
-  // Matches propertyNames with its nested content (type: string)
-  yaml = yaml.replace(/\n\s+propertyNames:\n\s+type: string/g, "");
-
-  // 3. Fix z.unknown() fields to have explicit x-stainless-any: true
-  // ExtractResult*.result and NavigateResult*.result
-  yaml = yaml.replace(
-    /(ExtractResult(?:Output)?:\s+type: object\s+properties:\s+result:\s+description: [^\n]+)\n(\s+actionId:)/g,
-    "$1\n          x-stainless-any: true\n$2",
-  );
-  yaml = yaml.replace(
-    /(NavigateResult(?:Output|Data|DataOutput)?:\s+type: object\s+properties:\s+result:\s+description: [^\n]+)\n\s+anyOf:\s+- \{\}\s+- type: "null"\n(\s+actionId:)/g,
-    "$1\n          x-stainless-any: true\n$2",
-  );
-
-  // 4. Fix StreamEventSystemData*.result to have x-stainless-any: true
-  yaml = yaml.replace(
-    /(StreamEventSystemData(?:Output)?:\s+type: object\s+properties:\s+status:[\s\S]+?)(result:\s+description: [^\n]+)\n(\s+error:)/g,
-    "$1$2\n          x-stainless-any: true\n$3",
-  );
-
-  // 5. Add title to proxies array schema for Stainless name inference
-  // Matches the array inside proxies anyOf and adds a title
-  yaml = yaml.replace(
-    /(proxies:\s+anyOf:\s+- type: boolean\s+- )(type: array)/g,
-    "$1title: ProxyConfigList\n              $2",
-  );
-
   await writeFile(OUTPUT_PATH, yaml, "utf8");
 
   await app.close();

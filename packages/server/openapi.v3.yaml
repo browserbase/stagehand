@@ -379,8 +379,7 @@ components:
         proxies:
           anyOf:
             - type: boolean
-            - title: ProxyConfigList
-              type: array
+            - type: array
               items:
                 $ref: "#/components/schemas/ProxyConfig"
         region:
@@ -394,7 +393,9 @@ components:
           type: number
         userMetadata:
           type: object
-          additionalProperties: true
+          propertyNames:
+            type: string
+          additionalProperties: {}
     SessionStartResult:
       type: object
       properties:
@@ -431,6 +432,8 @@ components:
           example:
             username: john_doe
           type: object
+          propertyNames:
+            type: string
           additionalProperties:
             type: string
         timeout:
@@ -517,7 +520,9 @@ components:
         schema:
           description: JSON Schema defining the structure of data to extract
           type: object
-          additionalProperties: true
+          propertyNames:
+            type: string
+          additionalProperties: {}
         options:
           $ref: "#/components/schemas/ExtractOptions"
         frameId:
@@ -631,7 +636,7 @@ components:
           type: string
       required:
         - type
-      additionalProperties: true
+      additionalProperties: {}
     AgentUsage:
       type: object
       properties:
@@ -673,7 +678,9 @@ components:
           type: boolean
         metadata:
           type: object
-          additionalProperties: true
+          propertyNames:
+            type: string
+          additionalProperties: {}
         usage:
           $ref: "#/components/schemas/AgentUsage"
       required:
@@ -1242,8 +1249,7 @@ components:
         proxies:
           anyOf:
             - type: boolean
-            - title: ProxyConfigList
-              type: array
+            - type: array
               items:
                 $ref: "#/components/schemas/ProxyConfigOutput"
         region:
@@ -1257,7 +1263,9 @@ components:
           type: number
         userMetadata:
           type: object
-          additionalProperties: true
+          propertyNames:
+            type: string
+          additionalProperties: {}
       additionalProperties: false
     SessionStartResultOutput:
       type: object
@@ -1290,6 +1298,8 @@ components:
           example:
             username: john_doe
           type: object
+          propertyNames:
+            type: string
           additionalProperties:
             type: string
         timeout:
@@ -1453,7 +1463,9 @@ components:
           type: boolean
         metadata:
           type: object
-          additionalProperties: true
+          propertyNames:
+            type: string
+          additionalProperties: {}
         usage:
           $ref: "#/components/schemas/AgentUsageOutput"
       required:

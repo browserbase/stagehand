@@ -85,6 +85,63 @@ environments:
   # dev: https://api.stagehand.dev.browserbase.com
   # local: http://localhost:5000/v1
 
+# OpenAPI transforms applied by Stainless during SDK generation.
+# This keeps the generated `packages/server/openapi.v3.yaml` faithful to the Fastify+Zod source,
+# while still producing a Stainless-compatible spec for codegen.
+openapi:
+  transforms:
+    # Stainless doesn't support `propertyNames` (emitted by some JSON Schema generators).
+    - command: remove
+      reason: Remove unsupported JSON Schema keyword
+      args:
+        target: "$..propertyNames"
+
+    # Empty-schema `additionalProperties: {}` is equivalent to `true`, and avoids Stainless issues.
+    - command: update
+      reason: Treat record value schema as any
+      args:
+        target: "$.components.schemas.BrowserbaseSessionCreateParams.properties.userMetadata.additionalProperties"
+        value: true
+    - command: update
+      reason: Treat record value schema as any
+      args:
+        target: "$.components.schemas.BrowserbaseSessionCreateParamsOutput.properties.userMetadata.additionalProperties"
+        value: true
+    - command: update
+      reason: Treat record value schema as any
+      args:
+        target: "$.components.schemas.ExtractRequest.properties.schema.additionalProperties"
+        value: true
+    - command: update
+      reason: Treat record value schema as any
+      args:
+        target: "$.components.schemas.AgentResultData.properties.metadata.additionalProperties"
+        value: true
+    - command: update
+      reason: Treat record value schema as any
+      args:
+        target: "$.components.schemas.AgentResultDataOutput.properties.metadata.additionalProperties"
+        value: true
+    - command: update
+      reason: Treat passthrough schema as any
+      args:
+        target: "$.components.schemas.AgentAction.additionalProperties"
+        value: true
+
+    # Add a stable title to help Stainless infer a consistent name for this anonymous array schema.
+    - command: merge
+      reason: Improve name inference for anonymous arrays
+      args:
+        target: '$.components.schemas.BrowserbaseSessionCreateParams.properties.proxies.anyOf[?(@.type == "array")]'
+        value:
+          title: ProxyConfigList
+    - command: merge
+      reason: Improve name inference for anonymous arrays
+      args:
+        target: '$.components.schemas.BrowserbaseSessionCreateParamsOutput.properties.proxies.anyOf[?(@.type == "array")]'
+        value:
+          title: ProxyConfigList
+
 # `resources` define the structure and organization for your API, such as how
 # methods and models are grouped together and accessed. See the [configuration
 # guide] for more information.
@@ -212,4 +269,3 @@ diagnostics:
   ignored:
     Ruby/NameNotAllowed: true
     Ruby/NameShadowedBuiltin: true
-
