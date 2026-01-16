@@ -157,7 +157,7 @@ export class V3AgentHandler {
       });
       this.logger({
         category: "agent",
-        message: `reasoning: ${event.reasoningText}`,
+        message: `reasoning: ${event.text}`,
         level: 1,
       });
 
@@ -169,11 +169,6 @@ export class V3AgentHandler {
 
           if (event.text && event.text.length > 0) {
             state.collectedReasoning.push(event.text);
-            this.logger({
-              category: "agent",
-              message: `reasoning: ${event.reasoningText}`,
-              level: 1,
-            });
           }
 
           if (toolCall.toolName === "close") {
@@ -296,10 +291,6 @@ export class V3AgentHandler {
           ? {
               google: {
                 mediaResolution: "MEDIA_RESOLUTION_HIGH",
-                thinkingConfig: {
-                  thinkingLevel: "high",
-                  includeThoughts: true,
-                },
               },
             }
           : undefined,
