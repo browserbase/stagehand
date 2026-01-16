@@ -5,6 +5,8 @@ import { AgentClient } from "../agent/AgentClient";
 import { AgentProvider } from "../agent/AgentProvider";
 import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping";
 import { ensureXPath } from "../agent/utils/xpath";
+import { GoogleCUAClient } from "../agent/GoogleCUAClient";
+import { OpenAICUAClient } from "../agent/OpenAICUAClient";
 import {
   ActionExecutionResult,
   AgentAction,
@@ -584,7 +586,7 @@ export class V3CuaAgentHandler {
       const page = await this.v3.context.awaitActivePage();
       const base64Image = await page.screenshot({ fullPage: false });
       // Emit screenshot event via the bus
-      this.v3.bus.emit("agent_screensot_taken_event", base64Image);
+      this.v3.bus.emit("agent_screenshot_taken_event", base64Image);
       const currentUrl = page.url();
       return await this.agentClient.captureScreenshot({
         base64Image,

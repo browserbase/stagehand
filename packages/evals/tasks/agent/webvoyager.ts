@@ -45,7 +45,7 @@ export const webvoyager: EvalFunction = async ({
     const screenshotHandler = (buffer: Buffer) => {
       screenshotCollector.addScreenshot(buffer);
     };
-    v3.bus.on("agent_screensot_taken_event", screenshotHandler);
+    v3.bus.on("agent_screenshot_taken_event", screenshotHandler);
 
     const agentResult = await agent.execute({
       instruction: params.ques,
@@ -53,7 +53,7 @@ export const webvoyager: EvalFunction = async ({
     });
 
     // Clean up event listener and stop collecting
-    v3.bus.off("agent_screensot_taken_event", screenshotHandler);
+    v3.bus.off("agent_screenshot_taken_event", screenshotHandler);
     // Stop collecting and get all screenshots
     const screenshots = await screenshotCollector.stop();
 
