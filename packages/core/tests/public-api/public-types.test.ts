@@ -170,6 +170,9 @@ describe("Stagehand public API types", () => {
       description: string;
       method?: string;
       arguments?: string[];
+      cssSelector?: string;
+      id?: string;
+      attributes?: Record<string, string>;
     };
 
     it("matches expected type shape", () => {

@@ -28,6 +28,9 @@ export interface Action {
   description: string;
   method?: string;
   arguments?: string[];
+  cssSelector?: string;
+  id?: string;
+  attributes?: Record<string, string>;
 }
 
 export interface HistoryEntry {
