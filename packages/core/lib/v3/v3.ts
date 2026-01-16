@@ -1714,7 +1714,7 @@ export class V3 {
 
     this.logger({
       category: "agent",
-      message: "Creating v3 agent instance",
+      message: `Creating v3 agent instance with options: ${JSON.stringify(options)}`,
       level: 1,
       auxiliary: {
         cua: { value: isCuaMode ? "true" : "false", type: "boolean" },

@@ -48,7 +48,6 @@ export class GoogleCUAClient extends AgentClient {
   private apiKey: string;
   private client: GoogleGenAI;
   private currentViewport = { width: 1288, height: 711 };
-  private actualScreenshotSize = { width: 1288, height: 711 };
   private currentUrl?: string;
   private screenshotProvider?: () => Promise<string>;
   private actionHandler?: (action: AgentAction) => Promise<void>;
@@ -124,10 +123,6 @@ export class GoogleCUAClient extends AgentClient {
 
   public setViewport(width: number, height: number): void {
     this.currentViewport = { width, height };
-  }
-
-  public setScreenshotSize(width: number, height: number): void {
-    this.actualScreenshotSize = { width, height };
   }
 
   setCurrentUrl(url: string): void {
@@ -978,16 +973,9 @@ export class GoogleCUAClient extends AgentClient {
   private normalizeCoordinates(x: number, y: number): { x: number; y: number } {
     x = Math.min(999, Math.max(0, x));
     y = Math.min(999, Math.max(0, y));
-
-    const screenshotX = (x / 1000) * this.actualScreenshotSize.width;
-    const screenshotY = (y / 1000) * this.actualScreenshotSize.height;
-    const scaleX = this.currentViewport.width / this.actualScreenshotSize.width;
-    const scaleY =
-      this.currentViewport.height / this.actualScreenshotSize.height;
-
     return {
-      x: Math.floor(screenshotX * scaleX),
-      y: Math.floor(screenshotY * scaleY),
+      x: Math.floor((x / 1000) * this.currentViewport.width),
+      y: Math.floor((y / 1000) * this.currentViewport.height),
     };
   }
 
