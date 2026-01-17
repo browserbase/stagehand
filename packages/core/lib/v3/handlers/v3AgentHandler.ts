@@ -155,11 +155,6 @@ export class V3AgentHandler {
         message: `Step finished: ${event.finishReason}`,
         level: 2,
       });
-      this.logger({
-        category: "agent",
-        message: `reasoning: ${event.text}`,
-        level: 1,
-      });
 
       if (event.toolCalls && event.toolCalls.length > 0) {
         for (let i = 0; i < event.toolCalls.length; i++) {
@@ -169,6 +164,11 @@ export class V3AgentHandler {
 
           if (event.text && event.text.length > 0) {
             state.collectedReasoning.push(event.text);
+            this.logger({
+              category: "agent",
+              message: `reasoning: ${event.text}`,
+              level: 1,
+            });
           }
 
           if (toolCall.toolName === "close") {
