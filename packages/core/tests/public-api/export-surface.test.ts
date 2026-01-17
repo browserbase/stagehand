@@ -20,6 +20,7 @@ const publicApiShape = {
   AgentProvider: Stagehand.AgentProvider,
   AnnotatedScreenshotText: Stagehand.AnnotatedScreenshotText,
   ConsoleMessage: Stagehand.ConsoleMessage,
+  CustomOpenAIClient: Stagehand.CustomOpenAIClient,
   LLMClient: Stagehand.LLMClient,
   LOG_LEVEL_NAMES: Stagehand.LOG_LEVEL_NAMES,
   Response: Stagehand.Response,
