@@ -5,9 +5,6 @@
 # [docs]: https://www.stainless.com/docs/reference/editions
 edition: 2025-10-10
 
-openapi:
-  code_samples: mintlify
-
 organization:
   # Name of your organization or company, used to determine the name of the client
   name: stagehand
@@ -92,6 +89,7 @@ environments:
 # This keeps the generated `packages/server/openapi.v3.yaml` faithful to the Fastify+Zod source,
 # while still producing a Stainless-compatible spec for codegen.
 openapi:
+  code_samples: mintlify
   transforms:
     # Stainless doesn't support `propertyNames` (emitted by some JSON Schema generators).
     - command: remove
