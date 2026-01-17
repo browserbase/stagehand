@@ -144,10 +144,7 @@
               {
                 "group": "SDK Reference",
                 "pages": [
-                  "v3/sdk/python",
-                  "v3/sdk/java",
-                  "v3/sdk/go",
-                  "v3/sdk/ruby"
+                  "v3/sdk/python"
                 ]
               },
               {
