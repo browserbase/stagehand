@@ -141,13 +141,6 @@ components:
         acceptDownloads:
           type: boolean
       additionalProperties: false
-    ModelConfigString:
-      description: Model name string with provider prefix. Always use the format
-        'provider/model-name' (e.g., 'openai/gpt-4o',
-        'anthropic/claude-sonnet-4-5-20250929', 'google/gemini-2.0-flash')
-      match: {}
-      example: openai/gpt-4o
-      type: string
     ModelConfigObject:
       type: object
       properties:
@@ -161,11 +154,8 @@ components:
             - google
             - microsoft
         modelName:
-          description:
-            Model name string with provider prefix. Always use the format
-            'provider/model-name' (e.g., 'openai/gpt-4o',
-            'anthropic/claude-sonnet-4-5-20250929', 'google/gemini-2.0-flash')
-          example: openai/gpt-4o
+          description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
+          example: openai/gpt-5-nano
           type: string
         apiKey:
           description: API key for the model provider
@@ -179,9 +169,7 @@ components:
       required:
         - modelName
     ModelConfig:
-      anyOf:
-        - $ref: "#/components/schemas/ModelConfigString"
-        - $ref: "#/components/schemas/ModelConfigObject"
+      $ref: "#/components/schemas/ModelConfigObject"
     Action:
       description: Action object returned by observe and used by act
       type: object
@@ -1020,11 +1008,8 @@ components:
             - google
             - microsoft
         modelName:
-          description:
-            Model name string with provider prefix. Always use the format
-            'provider/model-name' (e.g., 'openai/gpt-4o',
-            'anthropic/claude-sonnet-4-5-20250929', 'google/gemini-2.0-flash')
-          example: openai/gpt-4o
+          description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
+          example: openai/gpt-5-nano
           type: string
         apiKey:
           description: API key for the model provider
@@ -1039,9 +1024,7 @@ components:
         - modelName
       additionalProperties: false
     ModelConfigOutput:
-      anyOf:
-        - $ref: "#/components/schemas/ModelConfigString"
-        - $ref: "#/components/schemas/ModelConfigObjectOutput"
+      $ref: "#/components/schemas/ModelConfigObjectOutput"
     ActionOutput:
       description: Action object returned by observe and used by act
       type: object
@@ -1640,10 +1623,7 @@ components:
       type: object
       properties:
         modelName:
-          description:
-            Model name to use for AI operations. Always use the format
-            'provider/model-name' (e.g., 'openai/gpt-4o',
-            'anthropic/claude-sonnet-4-5-20250929', 'google/gemini-2.0-flash')
+          description: Model name to use for AI operations
           example: openai/gpt-4o
           type: string
         domSettleTimeoutMs:
@@ -1927,11 +1907,7 @@ paths:
               type: object
               properties:
                 modelName:
-                  description:
-                    Model name to use for AI operations. Always use the format
-                    'provider/model-name' (e.g., 'openai/gpt-4o',
-                    'anthropic/claude-sonnet-4-5-20250929',
-                    'google/gemini-2.0-flash')
+                  description: Model name to use for AI operations
                   example: openai/gpt-4o
                   type: string
                 domSettleTimeoutMs:
