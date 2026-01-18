@@ -5,12 +5,17 @@ import type { Action } from "../../types/public/methods";
 import type {
   TypeToolResult,
   ModelOutputContentItem,
+  AgentMaskConfig,
 } from "../../types/public/agent";
 import { processCoordinates } from "../utils/coordinateNormalization";
 import { ensureXPath } from "../utils/xpath";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
 
-export const typeTool = (v3: V3, provider?: string) =>
+export const typeTool = (
+  v3: V3,
+  provider?: string,
+  maskConfig?: AgentMaskConfig,
+) =>
   tool({
     description:
       "Type text into an element using its coordinates. This will click the element and then type the text into it (this is the most reliable way to type into an element, always use this over act, unless the element is not visible in the screenshot, but shown in ariaTree)",
@@ -58,7 +63,9 @@ export const typeTool = (v3: V3, provider?: string) =>
 
         await page.type(text);
 
-        const screenshotBase64 = await waitAndCaptureScreenshot(page);
+        const screenshotBase64 = await waitAndCaptureScreenshot(page, {
+          mask: maskConfig,
+        });
 
         // Record as an "act" step with proper Action for deterministic replay (only when caching)
         if (shouldCollectXpath) {

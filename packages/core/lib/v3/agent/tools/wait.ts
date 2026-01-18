@@ -5,10 +5,15 @@ import type {
   AgentToolMode,
   WaitToolResult,
   ModelOutputContentItem,
+  AgentMaskConfig,
 } from "../../types/public/agent";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
 
-export const waitTool = (v3: V3, mode?: AgentToolMode) =>
+export const waitTool = (
+  v3: V3,
+  mode?: AgentToolMode,
+  maskConfig?: AgentMaskConfig,
+) =>
   tool({
     description: "Wait for a specified time",
     inputSchema: z.object({
@@ -34,7 +39,10 @@ export const waitTool = (v3: V3, mode?: AgentToolMode) =>
       // Take screenshot after wait in hybrid mode for visual feedback
       if (mode === "hybrid") {
         const page = await v3.context.awaitActivePage();
-        const screenshotBase64 = await waitAndCaptureScreenshot(page, 0);
+        const screenshotBase64 = await waitAndCaptureScreenshot(page, {
+          delayMs: 0,
+          mask: maskConfig,
+        });
         return { success: true, waited: timeMs, screenshotBase64 };
       }
 

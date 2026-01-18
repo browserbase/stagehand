@@ -11,6 +11,34 @@ import { StagehandInvalidArgumentError } from "../types/public/sdkErrors";
 
 export type ScreenshotCleanup = () => Promise<void> | void;
 
+/**
+ * Default mask color (magenta) for screenshot masking.
+ */
+export const DEFAULT_MASK_COLOR = "#FF00FF";
+
+/**
+ * Converts CSS selectors to Locator objects.
+ * Invalid selectors that fail to create locators are silently skipped.
+ */
+export function selectorsToLocators(
+  page: { locator: (selector: string) => Locator },
+  selectors: (string | Locator)[],
+): Locator[] {
+  const locators: Locator[] = [];
+  for (const selector of selectors) {
+    if (typeof selector === "string") {
+      try {
+        locators.push(page.locator(selector));
+      } catch {
+        // Skip invalid selectors
+      }
+    } else {
+      locators.push(selector);
+    }
+  }
+  return locators;
+}
+
 export function collectFramesForScreenshot(page: Page): Frame[] {
   const seen = new Map<string, Frame>();
   const main = page.mainFrame();
@@ -361,6 +389,46 @@ export async function runScreenshotCleanups(
     } catch {
       // ignore cleanup errors
     }
+  }
+}
+
+/**
+ * Configuration for mask overlays during screenshot capture.
+ */
+export interface MaskConfig {
+  selectors: (string | Locator)[];
+  color?: string;
+}
+
+/**
+ * Captures a screenshot with optional mask overlays applied.
+ * Handles the full lifecycle: apply masks → capture → cleanup.
+ *
+ * @param page - The page to capture
+ * @param maskConfig - Optional mask configuration
+ * @returns Screenshot buffer
+ */
+export async function captureWithMask(
+  page: Page,
+  maskConfig?: MaskConfig,
+): Promise<Buffer> {
+  const cleanupTasks: ScreenshotCleanup[] = [];
+
+  try {
+    if (maskConfig?.selectors && maskConfig.selectors.length > 0) {
+      const locators = selectorsToLocators(page, maskConfig.selectors);
+      if (locators.length > 0) {
+        const cleanup = await applyMaskOverlays(
+          locators,
+          maskConfig.color ?? DEFAULT_MASK_COLOR,
+        );
+        cleanupTasks.push(cleanup);
+      }
+    }
+
+    return await page.screenshot({ fullPage: false });
+  } finally {
+    await runScreenshotCleanups(cleanupTasks);
   }
 }
 

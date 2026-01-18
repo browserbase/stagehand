@@ -5,12 +5,17 @@ import type { Action } from "../../types/public/methods";
 import type {
   FillFormVisionToolResult,
   ModelOutputContentItem,
+  AgentMaskConfig,
 } from "../../types/public/agent";
 import { processCoordinates } from "../utils/coordinateNormalization";
 import { ensureXPath } from "../utils/xpath";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
 
-export const fillFormVisionTool = (v3: V3, provider?: string) =>
+export const fillFormVisionTool = (
+  v3: V3,
+  provider?: string,
+  maskConfig?: AgentMaskConfig,
+) =>
   tool({
     description: `FORM FILL - SPECIALIZED MULTI-FIELD INPUT TOOL
 
@@ -110,7 +115,10 @@ MANDATORY USE CASES (always use fillFormVision for these):
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
 
-        const screenshotBase64 = await waitAndCaptureScreenshot(page, 100);
+        const screenshotBase64 = await waitAndCaptureScreenshot(page, {
+          delayMs: 100,
+          mask: maskConfig,
+        });
 
         // Record as "act" step with proper Actions for deterministic replay (only when caching)
         if (shouldCollectXpath && actions.length > 0) {

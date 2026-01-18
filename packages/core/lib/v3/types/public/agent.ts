@@ -25,6 +25,7 @@ import { Page as PlaywrightPage } from "playwright-core";
 import { Page as PuppeteerPage } from "puppeteer-core";
 import { Page as PatchrightPage } from "patchright-core";
 import { Page } from "../../understudy/page";
+import type { Locator } from "../../understudy/locator";
 
 export interface AgentContext {
   options: AgentExecuteOptionsBase;
@@ -236,6 +237,24 @@ export interface AgentStreamCallbacks extends AgentCallbacks {
 }
 
 /**
+ * Configuration for masking elements in agent screenshots.
+ * Masked elements will be covered with colored overlays before screenshots
+ * are captured and sent to the AI model.
+ */
+export interface AgentMaskConfig {
+  /**
+   * CSS selectors or Locator objects for elements to mask in screenshots.
+   * - Strings are treated as CSS selectors and converted to Locators at screenshot time
+   * - Locator objects are used directly (for advanced users with page reference)
+   */
+  selectors: (string | Locator)[];
+  /**
+   * CSS color for the mask overlay. Defaults to '#FF00FF' (magenta).
+   */
+  color?: string;
+}
+
+/**
  * Base options for agent execution (without callbacks).
  */
 export interface AgentExecuteOptionsBase {
@@ -243,6 +262,23 @@ export interface AgentExecuteOptionsBase {
   maxSteps?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   highlightCursor?: boolean;
+  /**
+   * Mask configuration for hiding sensitive elements in agent screenshots.
+   * Elements matching the selectors will be covered with colored overlays
+   * before screenshots are captured and sent to the AI model.
+   *
+   * @example
+   * ```typescript
+   * await agent.execute({
+   *   instruction: "Fill out the payment form",
+   *   mask: {
+   *     selectors: [".credit-card-number", "#ssn-field", "[data-sensitive]"],
+   *     color: "#000000"  // Optional, defaults to magenta
+   *   }
+   * });
+   * ```
+   */
+  mask?: AgentMaskConfig;
   /**
    * Previous conversation messages to continue from.
    * Pass the `messages` from a previous AgentResult to continue that conversation.

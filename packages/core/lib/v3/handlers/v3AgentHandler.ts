@@ -28,6 +28,7 @@ import {
   AgentStreamResult,
   AgentStreamCallbacks,
   AgentToolMode,
+  AgentMaskConfig,
 } from "../types/public/agent";
 import { V3FunctionName } from "../types/public/methods";
 import { mapToolResultToActions } from "../agent/utils/actionMapping";
@@ -37,6 +38,7 @@ import {
   AgentAbortError,
 } from "../types/public/sdkErrors";
 import { handleCloseToolCall } from "../agent/utils/handleCloseToolCall";
+import { captureWithMask } from "../understudy/screenshotUtils";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -50,6 +52,7 @@ export class V3AgentHandler {
   private systemInstructions?: string;
   private mcpTools?: ToolSet;
   private mode: AgentToolMode;
+  private maskConfig?: AgentMaskConfig;
 
   constructor(
     v3: V3,
@@ -224,6 +227,9 @@ export class V3AgentHandler {
       typeof instructionOrOptions === "object" ? instructionOrOptions : null;
     const signal = options?.signal;
 
+    // Set mask config from execute options
+    this.maskConfig = options?.mask;
+
     // Highlight cursor defaults to true for hybrid mode, can be overridden
     const shouldHighlightCursor =
       options?.highlightCursor ?? this.mode === "hybrid";
@@ -348,6 +354,9 @@ export class V3AgentHandler {
   ): Promise<AgentStreamResult> {
     const streamOptions =
       typeof instructionOrOptions === "object" ? instructionOrOptions : null;
+
+    // Set mask config from execute options
+    this.maskConfig = streamOptions?.mask;
 
     // Highlight cursor defaults to true for hybrid mode, can be overridden
     const shouldHighlightCursor =
@@ -534,6 +543,7 @@ export class V3AgentHandler {
       mode: this.mode,
       provider,
       excludeTools,
+      maskConfig: this.maskConfig,
     });
   }
 
@@ -605,7 +615,7 @@ export class V3AgentHandler {
   private async captureAndEmitScreenshot(): Promise<void> {
     try {
       const page = await this.v3.context.awaitActivePage();
-      const screenshot = await page.screenshot({ fullPage: false });
+      const screenshot = await captureWithMask(page, this.maskConfig);
       this.v3.bus.emit("agent_screensot_taken_event", screenshot);
     } catch (error) {
       this.logger({

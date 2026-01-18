@@ -1,8 +1,10 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
+import type { AgentMaskConfig } from "../../types/public/agent";
+import { captureWithMask } from "../../understudy/screenshotUtils";
 
-export const screenshotTool = (v3: V3) =>
+export const screenshotTool = (v3: V3, maskConfig?: AgentMaskConfig) =>
   tool({
     description:
       "Takes a screenshot (PNG) of the current page. Use this to quickly verify page state.",
@@ -14,12 +16,11 @@ export const screenshotTool = (v3: V3) =>
         level: 1,
       });
       const page = await v3.context.awaitActivePage();
-      const buffer = await page.screenshot({ fullPage: false });
-      const pageUrl = page.url();
+      const buffer = await captureWithMask(page, maskConfig);
       return {
         base64: buffer.toString("base64"),
         timestamp: Date.now(),
-        pageUrl,
+        pageUrl: page.url(),
       };
     },
     toModelOutput: (result) => ({
