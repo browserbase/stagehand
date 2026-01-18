@@ -52,6 +52,10 @@ MANDATORY USE CASES (always use fillFormVision for these):
     execute: async ({ fields }): Promise<FillFormVisionToolResult> => {
       try {
         const page = await v3.context.awaitActivePage();
+        const viewport = await page.evaluate(() => ({
+          width: window.innerWidth,
+          height: window.innerHeight,
+        }));
 
         // Process coordinates for each field
         const processedFields = fields.map((field) => {
@@ -59,6 +63,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
             field.coordinates.x,
             field.coordinates.y,
             provider,
+            viewport,
           );
           return {
             ...field,

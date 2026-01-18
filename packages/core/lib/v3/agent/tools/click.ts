@@ -27,10 +27,15 @@ export const clickTool = (v3: V3, provider?: string) =>
     execute: async ({ describe, coordinates }): Promise<ClickToolResult> => {
       try {
         const page = await v3.context.awaitActivePage();
+        const viewport = await page.evaluate(() => ({
+          width: window.innerWidth,
+          height: window.innerHeight,
+        }));
         const processed = processCoordinates(
           coordinates[0],
           coordinates[1],
           provider,
+          viewport,
         );
 
         v3.logger({
