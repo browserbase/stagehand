@@ -20,6 +20,7 @@ export const LocalBrowserLaunchOptionsSchema = z
   .object({
     args: z.array(z.string()).optional(),
     executablePath: z.string().optional(),
+    port: z.number().optional(),
     userDataDir: z.string().optional(),
     preserveUserDataDir: z.boolean().optional(),
     headless: z.boolean().optional(),
