@@ -511,7 +511,15 @@ export class V3CuaAgentHandler {
         return { success: true };
       }
       case "custom_tool": {
-        // Custom tools are handled by the agent client directly
+        // Custom tools are handled by the agent client directly.
+        // Record the tool invocation for cache replay.
+        if (recording) {
+          this.v3.recordAgentReplayStep({
+            type: "custom_tool",
+            name: action.name as string,
+            arguments: (action.arguments as Record<string, unknown>) ?? {},
+          });
+        }
         return { success: true };
       }
       default:

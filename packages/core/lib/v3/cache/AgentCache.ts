@@ -1,8 +1,10 @@
 import { createHash } from "crypto";
+import type { ToolSet } from "ai";
 import type { ActHandler } from "../handlers/actHandler";
 import type { LLMClient } from "../llm/LLMClient";
 import type {
   AgentReplayActStep,
+  AgentReplayCustomToolStep,
   AgentReplayFillFormStep,
   AgentReplayGotoStep,
   AgentReplayKeysStep,
@@ -157,6 +159,7 @@ export class AgentCache {
   async tryReplay(
     context: AgentCacheContext,
     llmClientOverride?: LLMClient,
+    tools?: ToolSet,
   ): Promise<AgentResult | null> {
     if (!this.enabled) return null;
 
@@ -192,7 +195,12 @@ export class AgentCache {
       },
     });
 
-    return await this.replayAgentCacheEntry(context, entry, llmClientOverride);
+    return await this.replayAgentCacheEntry(
+      context,
+      entry,
+      llmClientOverride,
+      tools,
+    );
   }
 
   /**
@@ -214,8 +222,9 @@ export class AgentCache {
   async tryReplayAsStream(
     context: AgentCacheContext,
     llmClientOverride?: LLMClient,
+    tools?: ToolSet,
   ): Promise<AgentStreamResult | null> {
-    const result = await this.tryReplay(context, llmClientOverride);
+    const result = await this.tryReplay(context, llmClientOverride, tools);
     if (!result) return null;
     return this.createCachedStreamResult(result);
   }
@@ -503,6 +512,7 @@ export class AgentCache {
     context: AgentCacheContext,
     entry: CachedAgentEntry,
     llmClientOverride?: LLMClient,
+    tools?: ToolSet,
   ): Promise<AgentResult | null> {
     const ctx = this.getContext();
     const handler = this.getActHandler();
@@ -518,6 +528,7 @@ export class AgentCache {
             ctx,
             handler,
             effectiveClient,
+            tools,
           )) ?? step;
         stepsChanged ||= replayedStep !== step;
         updatedSteps.push(replayedStep);
@@ -557,6 +568,7 @@ export class AgentCache {
     ctx: V3Context,
     handler: ActHandler,
     llmClient: LLMClient,
+    tools?: ToolSet,
   ): Promise<AgentReplayStep> {
     switch (step.type) {
       case "act":
@@ -588,6 +600,12 @@ export class AgentCache {
       case "keys":
         await this.replayAgentKeysStep(step as AgentReplayKeysStep, ctx);
         return step;
+      case "custom_tool":
+        await this.replayAgentCustomToolStep(
+          step as AgentReplayCustomToolStep,
+          tools,
+        );
+        return step;
       case "close":
       case "extract":
       case "screenshot":
@@ -614,6 +632,9 @@ export class AgentCache {
       const page = await ctx.awaitActivePage();
       const updatedActions: Action[] = [];
       for (const action of actions) {
+        // Capture URL before action to detect navigation
+        const urlBefore = page.url();
+
         const result = await handler.takeDeterministicAction(
           action,
           page,
@@ -624,6 +645,26 @@ export class AgentCache {
           updatedActions.push(...cloneForCache(result.actions));
         } else {
           updatedActions.push(cloneForCache(action));
+        }
+
+        // If URL changed, wait for page to fully load before continuing
+        const urlAfter = page.url();
+        if (urlAfter !== urlBefore) {
+          this.logger({
+            category: "cache",
+            message: `navigation detected during replay: ${urlBefore} -> ${urlAfter}`,
+            level: 1,
+          });
+          try {
+            await page.waitForLoadState("load", 10000);
+          } catch {
+            // If load times out, continue anyway - page may be usable
+            this.logger({
+              category: "cache",
+              message: "waitForLoadState timed out, continuing replay",
+              level: 1,
+            });
+          }
         }
       }
       if (this.haveActionsChanged(actions, updatedActions)) {
@@ -651,6 +692,9 @@ export class AgentCache {
     const page = await ctx.awaitActivePage();
     const updatedActions: Action[] = [];
     for (const action of actions) {
+      // Capture URL before action to detect navigation
+      const urlBefore = page.url();
+
       const result = await handler.takeDeterministicAction(
         action,
         page,
@@ -661,6 +705,25 @@ export class AgentCache {
         updatedActions.push(...cloneForCache(result.actions));
       } else {
         updatedActions.push(cloneForCache(action));
+      }
+
+      // If URL changed, wait for page to fully load before continuing
+      const urlAfter = page.url();
+      if (urlAfter !== urlBefore) {
+        this.logger({
+          category: "cache",
+          message: `navigation detected during fillForm replay: ${urlBefore} -> ${urlAfter}`,
+          level: 1,
+        });
+        try {
+          await page.waitForLoadState("load", 10000);
+        } catch {
+          this.logger({
+            category: "cache",
+            message: "waitForLoadState timed out after fillForm, continuing replay",
+            level: 1,
+          });
+        }
       }
     }
     if (this.haveActionsChanged(actions, updatedActions)) {
@@ -722,6 +785,9 @@ export class AgentCache {
     const { method, text, keys, times } = step.playwrightArguments;
     const repeatCount = Math.max(1, times ?? 1);
 
+    // Capture URL before keys to detect navigation (e.g., Enter submitting a form)
+    const urlBefore = page.url();
+
     if (method === "type" && text) {
       for (let i = 0; i < repeatCount; i++) {
         await page.type(text, { delay: 100 });
@@ -731,6 +797,65 @@ export class AgentCache {
         await page.keyPress(keys, { delay: 100 });
       }
     }
+
+    // If URL changed (e.g., Enter triggered form submission), wait for page load
+    const urlAfter = page.url();
+    if (urlAfter !== urlBefore) {
+      this.logger({
+        category: "cache",
+        message: `navigation detected during keys replay: ${urlBefore} -> ${urlAfter}`,
+        level: 1,
+      });
+      try {
+        await page.waitForLoadState("load", 10000);
+      } catch {
+        this.logger({
+          category: "cache",
+          message: "waitForLoadState timed out after keys, continuing replay",
+          level: 1,
+        });
+      }
+    }
+  }
+
+  /**
+   * Replay a custom tool step by re-executing the tool with cached arguments.
+   * If the tool is not found or tools were not provided, logs a warning and skips.
+   */
+  private async replayAgentCustomToolStep(
+    step: AgentReplayCustomToolStep,
+    tools?: ToolSet,
+  ): Promise<void> {
+    if (!tools) {
+      this.logger({
+        category: "cache",
+        message: "cannot replay custom_tool step: no tools provided",
+        level: 1,
+      });
+      return;
+    }
+
+    const tool = tools[step.name];
+    if (!tool) {
+      this.logger({
+        category: "cache",
+        message: `cannot replay custom_tool step: tool "${step.name}" not found`,
+        level: 1,
+      });
+      return;
+    }
+
+    this.logger({
+      category: "cache",
+      message: `replaying custom tool: ${step.name}`,
+      level: 1,
+    });
+
+    // Execute the tool with the cached arguments
+    await tool.execute(step.arguments, {
+      toolCallId: `replay_${Date.now()}`,
+      messages: [],
+    });
   }
 
   private haveActionsChanged(original: Action[], updated: Action[]): boolean {
