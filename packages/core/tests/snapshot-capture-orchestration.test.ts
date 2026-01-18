@@ -75,6 +75,7 @@ const makeSessionIndex = (): SessionDomIndex => ({
     [201, 200],
   ]),
   contentDocRootByIframe: new Map([[150, 200]]),
+  attributesByBe: new Map(),
 });
 
 beforeEach(() => {
@@ -287,6 +288,9 @@ describe("captureHybridSnapshot", () => {
         tagNameMap: { "0-100": "#document" },
         xpathMap: { "0-100": "/" },
         scrollableMap: {},
+        idMap: {},
+        cssSelectorMap: {},
+        attributesMap: {},
       });
     const a11ySpy = vi.spyOn(a11yTree, "a11yForFrame").mockResolvedValue({
       outline: "scoped outline",

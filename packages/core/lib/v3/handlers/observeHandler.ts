@@ -98,6 +98,9 @@ export class ObserveHandler {
 
     const combinedTree = snapshot.combinedTree;
     const combinedXpathMap = snapshot.combinedXpathMap ?? {};
+    const combinedIdMap = snapshot.combinedIdMap ?? {};
+    const combinedCssSelectorMap = snapshot.combinedCssSelectorMap ?? {};
+    const combinedAttributesMap = snapshot.combinedAttributesMap ?? {};
 
     v3Logger({
       category: "observation",
@@ -148,12 +151,10 @@ export class ObserveHandler {
             return {
               ...rest,
               selector: `xpath=${trimmedXpath}`,
-            } as {
-              description: string;
-              method?: string;
-              arguments?: string[];
-              selector: string;
-            };
+              id: combinedIdMap[lookUpIndex],
+              cssSelector: combinedCssSelectorMap[lookUpIndex],
+              attributes: combinedAttributesMap[lookUpIndex],
+            } as Action;
           }
           // shadow-root fallback:
           return {
@@ -161,7 +162,7 @@ export class ObserveHandler {
             method: "not-supported",
             arguments: [],
             selector: "not-supported",
-          };
+          } as Action;
         }),
       )
     ).filter(<T>(e: T | undefined): e is T => e !== undefined);

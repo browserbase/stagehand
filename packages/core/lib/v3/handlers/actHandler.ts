@@ -51,6 +51,7 @@ export class ActHandler {
     inferenceTimeMs: number,
   ) => void;
   private readonly defaultDomSettleTimeoutMs?: number;
+  private readonly preferredSelectorType?: "id" | "css" | "xpath";
 
   constructor(
     llmClient: LLMClient,
@@ -69,6 +70,7 @@ export class ActHandler {
       inferenceTimeMs: number,
     ) => void,
     defaultDomSettleTimeoutMs?: number,
+    preferredSelectorType?: "id" | "css" | "xpath",
   ) {
     this.llmClient = llmClient;
     this.defaultModelName = defaultModelName;
@@ -79,6 +81,7 @@ export class ActHandler {
     this.selfHeal = !!selfHeal;
     this.onMetrics = onMetrics;
     this.defaultDomSettleTimeoutMs = defaultDomSettleTimeoutMs;
+    this.preferredSelectorType = preferredSelectorType;
   }
 
   private recordActMetrics(response: ActInferenceResponse): void {
@@ -96,12 +99,18 @@ export class ActHandler {
     instruction,
     domElements,
     xpathMap,
+    idMap,
+    cssSelectorMap,
+    attributesMap,
     llmClient,
     requireMethodAndArguments = true,
   }: {
     instruction: string;
     domElements: string;
     xpathMap: Record<string, string>;
+    idMap: Record<string, string>;
+    cssSelectorMap: Record<string, string>;
+    attributesMap: Record<string, Record<string, string>>;
     llmClient: LLMClient;
     requireMethodAndArguments?: boolean;
   }): Promise<{ action?: Action; response: ActInferenceResponse }> {
@@ -119,6 +128,9 @@ export class ActHandler {
     const normalized = normalizeActInferenceElement(
       response.element as ActInferenceElement | undefined,
       xpathMap,
+      idMap,
+      cssSelectorMap,
+      attributesMap,
       requireMethodAndArguments,
     );
 
@@ -150,10 +162,13 @@ export class ActHandler {
       this.defaultDomSettleTimeoutMs,
     );
     ensureTimeRemaining();
-    const { combinedTree, combinedXpathMap } = await captureHybridSnapshot(
-      page,
-      { experimental: true },
-    );
+    const {
+      combinedTree,
+      combinedXpathMap,
+      combinedIdMap,
+      combinedCssSelectorMap,
+      combinedAttributesMap,
+    } = await captureHybridSnapshot(page, { experimental: true });
 
     const actInstruction = buildActPrompt(
       instruction,
@@ -167,6 +182,9 @@ export class ActHandler {
         instruction: actInstruction,
         domElements: combinedTree,
         xpathMap: combinedXpathMap,
+        idMap: combinedIdMap,
+        cssSelectorMap: combinedCssSelectorMap,
+        attributesMap: combinedAttributesMap,
         llmClient,
       });
 
@@ -202,10 +220,15 @@ export class ActHandler {
 
     // Take a new focused snapshot and observe again
     ensureTimeRemaining();
-    const { combinedTree: combinedTree2, combinedXpathMap: combinedXpathMap2 } =
-      await captureHybridSnapshot(page, {
-        experimental: true,
-      });
+    const {
+      combinedTree: combinedTree2,
+      combinedXpathMap: combinedXpathMap2,
+      combinedIdMap: combinedIdMap2,
+      combinedCssSelectorMap: combinedCssSelectorMap2,
+      combinedAttributesMap: combinedAttributesMap2,
+    } = await captureHybridSnapshot(page, {
+      experimental: true,
+    });
 
     let diffedTree = diffCombinedTrees(combinedTree, combinedTree2);
     if (!diffedTree.trim()) {
@@ -234,6 +257,9 @@ export class ActHandler {
       instruction: stepTwoInstructions,
       domElements: diffedTree,
       xpathMap: combinedXpathMap2,
+      idMap: combinedIdMap2,
+      cssSelectorMap: combinedCssSelectorMap2,
+      attributesMap: combinedAttributesMap2,
       llmClient,
     });
 
@@ -302,23 +328,26 @@ export class ActHandler {
     const resolvedArgs =
       substituteVariablesInArguments(action.arguments, variables) ?? [];
 
+    const bestSelector = getBestSelector(action, this.preferredSelectorType);
+
     try {
       ensureTimeRemaining?.();
       await performUnderstudyMethod(
         page,
         page.mainFrame(),
         method,
-        action.selector,
+        bestSelector,
         resolvedArgs,
         settleTimeout,
       );
       return {
         success: true,
-        message: `Action [${method}] performed successfully on selector: ${action.selector}`,
+        message: `Action [${method}] performed successfully on selector: ${bestSelector}`,
         actionDescription: action.description || `action (${method})`,
         actions: [
           {
-            selector: action.selector,
+            ...action,
+            selector: bestSelector,
             description: action.description || `action (${method})`,
             method,
             arguments: placeholderArgs,
@@ -357,10 +386,15 @@ export class ActHandler {
 
           // Take a fresh snapshot and ask for a new actionable element
           ensureTimeRemaining?.();
-          const { combinedTree, combinedXpathMap } =
-            await captureHybridSnapshot(page, {
-              experimental: true,
-            });
+          const {
+            combinedTree,
+            combinedXpathMap,
+            combinedIdMap,
+            combinedCssSelectorMap,
+            combinedAttributesMap,
+          } = await captureHybridSnapshot(page, {
+            experimental: true,
+          });
 
           const instruction = buildActPrompt(
             actCommand,
@@ -374,6 +408,9 @@ export class ActHandler {
               instruction,
               domElements: combinedTree,
               xpathMap: combinedXpathMap,
+              idMap: combinedIdMap,
+              cssSelectorMap: combinedCssSelectorMap,
+              attributesMap: combinedAttributesMap,
               llmClient: effectiveClient,
               requireMethodAndArguments: false,
             });
@@ -390,9 +427,12 @@ export class ActHandler {
           }
 
           // Retry with original method/args but new selector from fallback
-          let newSelector = action.selector;
-          if (fallbackAction?.selector) {
-            newSelector = fallbackAction.selector;
+          let newSelector = bestSelector;
+          if (fallbackAction) {
+            newSelector = getBestSelector(
+              fallbackAction,
+              this.preferredSelectorType,
+            );
           }
 
           ensureTimeRemaining?.();
@@ -411,6 +451,7 @@ export class ActHandler {
             actionDescription: action.description || `action (${method})`,
             actions: [
               {
+                ...(fallbackAction ?? action),
                 selector: newSelector,
                 description: action.description || `action (${method})`,
                 method,
@@ -443,9 +484,37 @@ export class ActHandler {
   }
 }
 
+function getBestSelector(
+  action: Action,
+  preferredSelectorType?: "id" | "css" | "xpath",
+): string {
+  // 1. Strict Backward Compatibility: If no preference is set, use the original selector (XPath)
+  if (!preferredSelectorType) {
+    return action.selector;
+  }
+
+  // 2. Try explicit preference
+  if (preferredSelectorType === "id" && action.id) return `#${action.id}`;
+  if (preferredSelectorType === "css" && action.cssSelector)
+    return action.cssSelector;
+  if (preferredSelectorType === "xpath") return action.selector;
+
+  // 3. Fallback for Opt-in users:
+  // If the user opted into stable selectors (by setting any preference),
+  // but the specific preferred one wasn't found, try other stable options.
+  if (action.id) return `#${action.id}`;
+  if (action.cssSelector) return action.cssSelector;
+
+  // 4. Final fallback
+  return action.selector;
+}
+
 function normalizeActInferenceElement(
   element: ActInferenceElement | undefined,
   xpathMap: Record<string, string>,
+  idMap: Record<string, string>,
+  cssSelectorMap: Record<string, string>,
+  attributesMap: Record<string, Record<string, string>>,
   requireMethodAndArguments = true,
 ): Action | undefined {
   if (!element) {
@@ -476,6 +545,9 @@ function normalizeActInferenceElement(
     method,
     arguments: hasArgs ? args : undefined,
     selector: `xpath=${trimmed}`,
+    id: idMap[elementId as EncodedId],
+    cssSelector: cssSelectorMap[elementId as EncodedId],
+    attributes: attributesMap[elementId as EncodedId],
   } as Action;
 }
 
