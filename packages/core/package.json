@@ -54,7 +54,6 @@
     "fetch-cookie": "^3.1.0",
     "openai": "^4.87.1",
     "pino": "^9.6.0",
-    "pino-pretty": "^13.0.0",
     "ws": "^8.18.0",
     "zod-to-json-schema": "^3.25.0"
   },
@@ -78,6 +77,7 @@
     "patchright-core": "^1.55.2",
     "playwright": "^1.52.0",
     "playwright-core": "^1.54.1",
+    "pino-pretty": "^13.0.0",
     "puppeteer-core": "^22.8.0"
   },
   "devDependencies": {
