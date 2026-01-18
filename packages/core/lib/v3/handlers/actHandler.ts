@@ -365,7 +365,7 @@ export class ActHandler {
           const instruction = buildActPrompt(
             actCommand,
             Object.values(SupportedPlaywrightAction),
-            {},
+            variables,
           );
 
           ensureTimeRemaining?.();
