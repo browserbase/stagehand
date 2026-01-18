@@ -121,7 +121,7 @@ function createStandardAction(
     type: toolCallName,
     reasoning,
     taskCompleted:
-      toolCallName === "close" ? (args?.taskComplete as boolean) : false,
+      toolCallName === "done" ? (args?.taskComplete as boolean) : false,
     ...args,
   };
 
