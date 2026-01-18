@@ -283,6 +283,7 @@ export class V3AgentHandler {
         stopWhen: (result) => this.handleStop(result, maxSteps),
         temperature: 1,
         toolChoice: "auto",
+
         prepareStep: this.createPrepareStep(callbacks?.prepareStep),
         onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
         abortSignal: preparedOptions.signal,

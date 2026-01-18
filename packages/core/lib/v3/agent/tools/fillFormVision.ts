@@ -59,6 +59,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
             field.coordinates.x,
             field.coordinates.y,
             provider,
+            v3,
           );
           return {
             ...field,
