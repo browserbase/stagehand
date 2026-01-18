@@ -564,6 +564,45 @@ await page.waitForLoadState(state: LoadState, timeoutMs?: number): Promise<void>
   **Default:** `15000`
 </ParamField>
 
+### waitForSelector()
+
+Wait for an element matching the selector to reach a specific state in the DOM. Uses MutationObserver for efficiency and pierces shadow DOM by default.
+
+```typescript
+await page.waitForSelector(selector: string, options?: WaitForSelectorOptions): Promise<boolean>
+```
+
+<ParamField path="selector" type="string" required>
+  CSS selector or XPath to wait for. Supports iframe hop notation with `>>` (e.g., `"iframe#checkout >> .submit-btn"`).
+</ParamField>
+
+<ParamField path="state" type="'attached' | 'detached' | 'visible' | 'hidden'" optional>
+  The element state to wait for.
+
+  **Options:**
+  - `"attached"` - Wait for element to be present in DOM (even if hidden)
+  - `"detached"` - Wait for element to be removed from DOM
+  - `"visible"` - Wait for element to be visible (default)
+  - `"hidden"` - Wait for element to become hidden
+
+  **Default:** `"visible"`
+</ParamField>
+
+<ParamField path="timeout" type="number" optional>
+  Maximum time to wait in milliseconds.
+
+  **Default:** `30000`
+</ParamField>
+
+<ParamField path="pierceShadow" type="boolean" optional>
+  Whether to search inside shadow DOM boundaries (both open and closed).
+
+  **Default:** `true`
+</ParamField>
+
+**Returns:** `true` when the condition is met.
+
+**Throws:** Error if timeout is reached before the condition is met.
 
 ## Events
 
@@ -741,6 +780,41 @@ await page.goto("https://spa-app.com", {
 
 // Wait for specific load state
 await page.waitForLoadState("domcontentloaded");
+```
+
+</Tab>
+<Tab title="Wait for Selector">
+
+```typescript
+// Wait for element to be visible (default)
+await page.waitForSelector("#submit-btn");
+
+// Wait for element to appear with custom timeout
+await page.waitForSelector(".loading-spinner", {
+  state: "visible",
+  timeout: 10000
+});
+
+// Wait for element to be removed from DOM
+await page.waitForSelector(".loading-spinner", {
+  state: "detached"
+});
+
+// Wait for element to become hidden
+await page.waitForSelector(".modal", {
+  state: "hidden"
+});
+
+// Wait for element inside an iframe
+await page.waitForSelector("iframe#checkout >> .pay-button");
+
+// Wait for element in shadow DOM (enabled by default)
+await page.waitForSelector("#shadow-button", {
+  pierceShadow: true
+});
+
+// Wait for element with XPath
+await page.waitForSelector("//button[@type='submit']");
 ```
 
 </Tab>
