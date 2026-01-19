@@ -1955,9 +1955,18 @@ export class V3 {
               this.beginAgentReplayRecording();
             }
 
-            const streamResult = await handler.stream(
-              resolvedOptions as AgentStreamExecuteOptions,
-            );
+            let streamResult: AgentStreamResult;
+            try {
+              streamResult = await handler.stream(
+                resolvedOptions as AgentStreamExecuteOptions,
+              );
+            } catch (err) {
+              // Clean up recording state if stream creation fails
+              if (recording) {
+                this.discardAgentReplayRecording();
+              }
+              throw err;
+            }
 
             if (cacheContext) {
               const wrappedStream = this.agentCache.wrapStreamForCaching(
