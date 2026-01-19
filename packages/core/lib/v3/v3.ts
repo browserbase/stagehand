@@ -1850,6 +1850,9 @@ export class V3 {
                 page: startPage,
               });
               if (cacheContext) {
+                // Pass unwrapped tools (not wrappedTools) for replay. During replay,
+                // tools execute with cached args - using wrappedTools would record
+                // these replayed calls, causing duplicate cache entries.
                 const replayed = await this.agentCache.tryReplay(
                   cacheContext,
                   undefined,
@@ -1938,6 +1941,9 @@ export class V3 {
               );
 
             if (cacheContext) {
+              // Pass unwrapped tools (not wrappedTools) for replay. During replay,
+              // tools execute with cached args - using wrappedTools would record
+              // these replayed calls, causing duplicate cache entries.
               const replayed = await this.agentCache.tryReplayAsStream(
                 cacheContext,
                 llmClient,
@@ -1995,6 +2001,9 @@ export class V3 {
             );
 
           if (cacheContext) {
+            // Pass unwrapped tools (not wrappedTools) for replay. During replay,
+            // tools execute with cached args - using wrappedTools would record
+            // these replayed calls, causing duplicate cache entries.
             const replayed = await this.agentCache.tryReplay(
               cacheContext,
               llmClient,
