@@ -1,88 +1,109 @@
-import fs from "fs";
-import path from "path";
 import type { Logger } from "../types/public";
 import { ReadJsonResult, WriteJsonResult } from "../types/private";
+import type { StorageAdapter } from "./adapters/types";
+import { FilesystemAdapter } from "./adapters/FilesystemAdapter";
+import { NullAdapter } from "./adapters/NullAdapter";
+
+export interface CacheStorageOptions {
+  /**
+   * Optional label for logging (e.g., "cache directory").
+   */
+  label?: string;
+
+  /**
+   * Optional custom storage adapter. If provided, cacheDir is ignored.
+   */
+  adapter?: StorageAdapter;
+}
 
 export class CacheStorage {
   private constructor(
     private readonly logger: Logger,
+    private readonly adapter: StorageAdapter,
     private readonly dir?: string,
   ) {}
 
+  /**
+   * Create a CacheStorage instance.
+   *
+   * @param cacheDir - The directory path for cache storage (backward compatible).
+   *                   Ignored if options.adapter is provided.
+   * @param logger - Logger function for error reporting
+   * @param options - Additional options including custom adapter
+   *
+   * @example Using default filesystem adapter (backward compatible)
+   * ```typescript
+   * const cache = CacheStorage.create("/tmp/cache", logger);
+   * ```
+   *
+   * @example Using a custom adapter
+   * ```typescript
+   * const adapter = new GCSAdapter({ bucket: "my-bucket" });
+   * const cache = CacheStorage.create(undefined, logger, { adapter });
+   * ```
+   */
   static create(
     cacheDir: string | undefined,
     logger: Logger,
-    options?: { label?: string },
+    options?: CacheStorageOptions,
   ): CacheStorage {
-    if (!cacheDir) {
-      return new CacheStorage(logger);
+    // If a custom adapter is provided, use it directly
+    if (options?.adapter) {
+      // For custom adapters, we don't have a directory
+      // The adapter's description will be used for logging
+      return new CacheStorage(logger, options.adapter);
     }
 
-    const resolved = path.resolve(cacheDir);
-    try {
-      fs.mkdirSync(resolved, { recursive: true });
-      return new CacheStorage(logger, resolved);
-    } catch (err) {
+    // Backward compatible: create FilesystemAdapter from cacheDir
+    if (!cacheDir) {
+      return new CacheStorage(logger, new NullAdapter());
+    }
+
+    const filesystemAdapter = FilesystemAdapter.create(cacheDir);
+    if (!filesystemAdapter) {
       const label = options?.label ?? "cache directory";
       logger({
         category: "cache",
-        message: `unable to initialize ${label}: ${resolved}`,
+        message: `unable to initialize ${label}: ${cacheDir}`,
         level: 1,
-        auxiliary: {
-          error: { value: String(err), type: "string" },
-        },
       });
-      return new CacheStorage(logger);
+      return new CacheStorage(logger, new NullAdapter());
     }
+
+    return new CacheStorage(
+      logger,
+      filesystemAdapter,
+      filesystemAdapter.directory,
+    );
   }
 
+  /**
+   * Get the cache directory path, if using filesystem adapter.
+   * @deprecated For backward compatibility only. Use adapter.description instead.
+   */
   get directory(): string | undefined {
     return this.dir;
   }
 
+  /**
+   * Whether caching is enabled.
+   */
   get enabled(): boolean {
-    return !!this.dir;
+    return this.adapter.enabled;
   }
 
-  private resolvePath(fileName: string): string | null {
-    if (!this.dir) return null;
-    return path.join(this.dir, fileName);
+  /**
+   * Get the storage adapter (for advanced use cases).
+   */
+  get storageAdapter(): StorageAdapter {
+    return this.adapter;
   }
 
   async readJson<T>(fileName: string): Promise<ReadJsonResult<T>> {
-    const filePath = this.resolvePath(fileName);
-    if (!filePath) {
-      return { value: null };
-    }
-
-    try {
-      const raw = await fs.promises.readFile(filePath, "utf8");
-      return { value: JSON.parse(raw) as T };
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException)?.code;
-      if (code === "ENOENT") {
-        return { value: null };
-      }
-      return { value: null, error: err, path: filePath };
-    }
+    return this.adapter.readJson(fileName);
   }
 
   async writeJson(fileName: string, data: unknown): Promise<WriteJsonResult> {
-    const filePath = this.resolvePath(fileName);
-    if (!filePath) {
-      return {};
-    }
-
-    try {
-      await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
-      await fs.promises.writeFile(
-        filePath,
-        JSON.stringify(data, null, 2),
-        "utf8",
-      );
-      return {};
-    } catch (err) {
-      return { error: err, path: filePath };
-    }
+    return this.adapter.writeJson(fileName, data);
   }
 }
