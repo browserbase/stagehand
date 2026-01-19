@@ -6,6 +6,7 @@ import path from "path";
 import process from "process";
 import { v7 as uuidv7 } from "uuid";
 import { z } from "zod";
+import type { ToolSet } from "ai";
 import {
   InferStagehandSchema,
   StagehandZodSchema,
@@ -1582,6 +1583,37 @@ export class V3 {
   }
 
   /**
+   * Wraps custom tools to record their invocations for cache replay.
+   * When recording is active, each tool execution will be recorded as a custom_tool step.
+   */
+  private wrapToolsForRecording(tools: ToolSet): ToolSet {
+    const wrappedTools: ToolSet = {};
+    const v3Instance = this;
+    for (const [name, tool] of Object.entries(tools)) {
+      const originalTool = tool;
+      wrappedTools[name] = {
+        ...tool,
+        execute: async (
+          args: Parameters<typeof originalTool.execute>[0],
+          options: Parameters<typeof originalTool.execute>[1],
+        ) => {
+          // Record the tool invocation if agent replay recording is active
+          if (v3Instance.isAgentReplayActive()) {
+            v3Instance.recordAgentReplayStep({
+              type: "custom_tool",
+              name,
+              arguments: (args as Record<string, unknown>) ?? {},
+            });
+          }
+          // Execute the original tool, preserving its context
+          return originalTool.execute(args, options);
+        },
+      };
+    }
+    return wrappedTools;
+  }
+
+  /**
    * Prepares shared context for agent execution (both execute and stream).
    * Extracts duplicated setup logic into a single helper.
    */
@@ -1598,6 +1630,7 @@ export class V3 {
     instruction: string;
     cacheContext: AgentCacheContext | null;
     llmClient: LLMClient;
+    tools: ToolSet;
   }> {
     // Note: experimental validation is done at the call site before this method
     // Warn if mode is not explicitly set (defaults to "dom")
@@ -1614,6 +1647,9 @@ export class V3 {
       ? await resolveTools(options.integrations, options.tools)
       : (options?.tools ?? {});
 
+    // Wrap custom tools to record invocations for cache replay
+    const wrappedTools = this.wrapToolsForRecording(tools);
+
     const agentLlmClient = options?.model
       ? this.resolveLlmClient(options.model)
       : this.llmClient;
@@ -1626,7 +1662,7 @@ export class V3 {
         ? options.executionModel
         : options?.executionModel?.modelName,
       options?.systemPrompt,
-      tools,
+      wrappedTools,
       options?.mode,
     );
 
@@ -1668,6 +1704,7 @@ export class V3 {
       instruction,
       cacheContext,
       llmClient: agentLlmClient,
+      tools,
     };
   }
 
@@ -1813,7 +1850,14 @@ export class V3 {
                 page: startPage,
               });
               if (cacheContext) {
-                const replayed = await this.agentCache.tryReplay(cacheContext);
+                // Pass unwrapped tools (not wrappedTools) for replay. During replay,
+                // tools execute with cached args - using wrappedTools would record
+                // these replayed calls, causing duplicate cache entries.
+                const replayed = await this.agentCache.tryReplay(
+                  cacheContext,
+                  undefined,
+                  tools,
+                );
                 if (replayed) {
                   SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
                   return replayed;
@@ -1889,7 +1933,7 @@ export class V3 {
 
           // Streaming mode
           if (isStreaming) {
-            const { handler, resolvedOptions, cacheContext, llmClient } =
+            const { handler, resolvedOptions, cacheContext, llmClient, tools } =
               await this.prepareAgentExecution(
                 options,
                 instructionOrOptions,
@@ -1897,9 +1941,13 @@ export class V3 {
               );
 
             if (cacheContext) {
+              // Pass unwrapped tools (not wrappedTools) for replay. During replay,
+              // tools execute with cached args - using wrappedTools would record
+              // these replayed calls, causing duplicate cache entries.
               const replayed = await this.agentCache.tryReplayAsStream(
                 cacheContext,
                 llmClient,
+                tools,
               );
               if (replayed) {
                 SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
@@ -1907,15 +1955,30 @@ export class V3 {
               }
             }
 
-            const streamResult = await handler.stream(
-              resolvedOptions as AgentStreamExecuteOptions,
-            );
+            // Start recording BEFORE stream execution so custom tools are recorded
+            const recording = !!cacheContext;
+            if (recording) {
+              this.beginAgentReplayRecording();
+            }
+
+            let streamResult: AgentStreamResult;
+            try {
+              streamResult = await handler.stream(
+                resolvedOptions as AgentStreamExecuteOptions,
+              );
+            } catch (err) {
+              // Clean up recording state if stream creation fails
+              if (recording) {
+                this.discardAgentReplayRecording();
+              }
+              throw err;
+            }
 
             if (cacheContext) {
               const wrappedStream = this.agentCache.wrapStreamForCaching(
                 cacheContext,
                 streamResult,
-                () => this.beginAgentReplayRecording(),
+                () => {}, // Recording already started above
                 () => this.endAgentReplayRecording(),
                 () => this.discardAgentReplayRecording(),
               );
@@ -1930,7 +1993,7 @@ export class V3 {
           }
 
           // Non-streaming mode (default)
-          const { handler, resolvedOptions, cacheContext, llmClient } =
+          const { handler, resolvedOptions, cacheContext, llmClient, tools } =
             await this.prepareAgentExecution(
               options,
               instructionOrOptions,
@@ -1938,9 +2001,13 @@ export class V3 {
             );
 
           if (cacheContext) {
+            // Pass unwrapped tools (not wrappedTools) for replay. During replay,
+            // tools execute with cached args - using wrappedTools would record
+            // these replayed calls, causing duplicate cache entries.
             const replayed = await this.agentCache.tryReplay(
               cacheContext,
               llmClient,
+              tools,
             );
             if (replayed) {
               SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
