@@ -125,6 +125,31 @@ cp .env.example .env
 nano .env # Edit the .env file to add API keys
 ```
 
+### Running Tests
+
+```bash
+# Run all unit tests
+pnpm run test
+
+# Run tests for a specific package
+cd packages/core && pnpm run test:vitest
+```
+
+#### GCS Adapter Integration Tests
+
+The GCS adapter integration tests require real Google Cloud credentials and are disabled by default.
+
+| Environment Variable | Required | Description |
+|---------------------|----------|-------------|
+| `RUN_GCS_INTEGRATION_TESTS` | Yes | Set to `true` to enable GCS integration tests |
+| `GCS_TEST_BUCKET` | Yes | GCS bucket name for test data |
+| `GOOGLE_APPLICATION_CREDENTIALS` | No | Path to service account JSON (uses ADC if not set) |
+
+```bash
+# Run GCS adapter integration tests
+RUN_GCS_INTEGRATION_TESTS=true GCS_TEST_BUCKET=your-bucket pnpm run test:vitest
+```
+
 ### Installing from a branch
 
 You can install and build Stagehand directly from a github branch using [gitpkg](https://github.com/EqualMa/gitpkg)

@@ -6,6 +6,7 @@ import {
   type BrowserbaseSessionCreateParams,
   LocalBrowserLaunchOptionsSchema,
 } from "./api";
+import type { StorageAdapter } from "../../cache/adapters/types";
 
 export type V3Env = "LOCAL" | "BROWSERBASE";
 
@@ -47,6 +48,23 @@ export interface V3Options {
   logger?: (line: LogLine) => void;
   /** Directory used to persist cached actions for act(). */
   cacheDir?: string;
+  /**
+   * Custom storage adapter for cache persistence.
+   * If provided, cacheDir is ignored.
+   *
+   * Use this for cloud/serverless environments without local filesystems.
+   *
+   * @example
+   * ```typescript
+   * import { GCSAdapter } from "@browserbasehq/stagehand/cache/adapters";
+   *
+   * const stagehand = new Stagehand({
+   *   env: "BROWSERBASE",
+   *   cacheAdapter: new GCSAdapter({ bucket: "my-bucket" }),
+   * });
+   * ```
+   */
+  cacheAdapter?: StorageAdapter;
   domSettleTimeout?: number;
   disableAPI?: boolean;
 }

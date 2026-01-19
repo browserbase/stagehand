@@ -2,6 +2,16 @@ export { V3 } from "./v3";
 export { V3 as Stagehand } from "./v3";
 
 export * from "./types/public";
+
+// Storage adapters for custom cache backends
+export type { StorageAdapter } from "./cache/adapters/types";
+export {
+  FilesystemAdapter,
+  NullAdapter,
+  InMemoryAdapter,
+  GCSAdapter,
+  type GCSAdapterOptions,
+} from "./cache/adapters";
 export { AnnotatedScreenshotText, LLMClient } from "./llm/LLMClient";
 
 export { AgentProvider, modelToAgentProviderMap } from "./agent/AgentProvider";
