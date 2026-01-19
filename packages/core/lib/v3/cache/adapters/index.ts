@@ -5,4 +5,4 @@ export type { StorageAdapter } from "./types";
 export { FilesystemAdapter } from "./FilesystemAdapter";
 export { NullAdapter } from "./NullAdapter";
 export { InMemoryAdapter } from "./InMemoryAdapter";
-export { GCSAdapter, type GCSAdapterOptions } from "./GCSAdapter";
+export { GCSAdapter, type GCSAdapterOptions, type GCSCredentials } from "./GCSAdapter";

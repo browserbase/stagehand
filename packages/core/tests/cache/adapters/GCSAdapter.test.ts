@@ -7,7 +7,8 @@
  * Environment variables for integration tests:
  * - RUN_GCS_INTEGRATION_TESTS: Set to "true" to enable integration tests
  * - GCS_TEST_BUCKET: GCS bucket name for test data
- * - GOOGLE_APPLICATION_CREDENTIALS: (optional) Path to service account JSON
+ * - GCS_CREDENTIALS: (optional) JSON string of service account credentials
+ * - GOOGLE_APPLICATION_CREDENTIALS: (optional) Path to service account JSON for ADC
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
@@ -40,10 +41,35 @@ describe("GCSAdapter", () => {
       expect(adapter.description).toBe("gcs: my-bucket/");
     });
 
-    it("should accept optional credentials", () => {
+    it("should accept credentials as object", () => {
       const adapter = new GCSAdapter({
         bucket: "my-bucket",
-        keyFilename: "/path/to/credentials.json",
+        credentials: {
+          client_email: "test@project.iam.gserviceaccount.com",
+          private_key: "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n",
+          project_id: "my-project",
+        },
+      });
+
+      expect(adapter.enabled).toBe(true);
+    });
+
+    it("should accept credentials as JSON string", () => {
+      const adapter = new GCSAdapter({
+        bucket: "my-bucket",
+        credentials: JSON.stringify({
+          client_email: "test@project.iam.gserviceaccount.com",
+          private_key: "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n",
+        }),
+      });
+
+      expect(adapter.enabled).toBe(true);
+    });
+
+    it("should accept credentials as file path", () => {
+      const adapter = new GCSAdapter({
+        bucket: "my-bucket",
+        credentials: "/path/to/credentials.json",
         projectId: "my-project",
       });
 

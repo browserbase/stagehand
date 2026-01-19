@@ -2,6 +2,15 @@ import type { ReadJsonResult, WriteJsonResult } from "../../types/private";
 import type { StorageAdapter } from "./types";
 
 /**
+ * Service account credentials object.
+ */
+export interface GCSCredentials {
+  client_email: string;
+  private_key: string;
+  project_id?: string;
+}
+
+/**
  * Options for creating a GCS adapter.
  */
 export interface GCSAdapterOptions {
@@ -17,10 +26,14 @@ export interface GCSAdapterOptions {
   prefix?: string;
 
   /**
-   * Optional path to a service account key file.
+   * Optional credentials for authentication. Can be:
+   * - A GCSCredentials object with client_email and private_key
+   * - A JSON string containing service account credentials
+   * - A file path to a service account JSON file (for local development)
+   *
    * If not provided, uses Application Default Credentials (ADC).
    */
-  keyFilename?: string;
+  credentials?: GCSCredentials | string;
 
   /**
    * Optional project ID. If not provided, will be inferred from credentials.
@@ -53,12 +66,22 @@ export interface GCSAdapterOptions {
  * });
  * ```
  *
- * @example Using with explicit credentials
+ * @example Using with credentials from environment variable (serverless)
  * ```typescript
  * const adapter = new GCSAdapter({
  *   bucket: "my-stagehand-cache",
- *   keyFilename: "/path/to/service-account.json",
- *   projectId: "my-gcp-project",
+ *   credentials: process.env.GCS_CREDENTIALS, // JSON string
+ * });
+ * ```
+ *
+ * @example Using with credentials object
+ * ```typescript
+ * const adapter = new GCSAdapter({
+ *   bucket: "my-stagehand-cache",
+ *   credentials: {
+ *     client_email: "...",
+ *     private_key: "...",
+ *   },
  * });
  * ```
  */
@@ -68,7 +91,7 @@ export class GCSAdapter implements StorageAdapter {
 
   private readonly bucketName: string;
   private readonly prefix: string;
-  private readonly keyFilename?: string;
+  private readonly credentials?: GCSCredentials | string;
   private readonly projectId?: string;
 
   // Lazy-loaded GCS client
@@ -84,9 +107,51 @@ export class GCSAdapter implements StorageAdapter {
         ? options.prefix
         : `${options.prefix}/`
       : "";
-    this.keyFilename = options.keyFilename;
+    this.credentials = options.credentials;
     this.projectId = options.projectId;
     this.description = `gcs: ${this.bucketName}/${this.prefix}`;
+  }
+
+  /**
+   * Parse credentials from various formats.
+   * - If object with client_email/private_key, use directly
+   * - If string starting with '{', parse as JSON
+   * - If other string, treat as file path
+   */
+  private parseCredentials(): {
+    credentials?: GCSCredentials;
+    keyFilename?: string;
+  } {
+    if (!this.credentials) {
+      return {};
+    }
+
+    // Already an object
+    if (typeof this.credentials === "object") {
+      return { credentials: this.credentials };
+    }
+
+    // String - check if JSON or file path
+    const trimmed = this.credentials.trim();
+    if (trimmed.startsWith("{")) {
+      // JSON string - parse it
+      try {
+        const parsed = JSON.parse(trimmed);
+        return {
+          credentials: {
+            client_email: parsed.client_email,
+            private_key: parsed.private_key,
+            project_id: parsed.project_id,
+          },
+        };
+      } catch {
+        // If JSON parsing fails, treat as file path
+        return { keyFilename: this.credentials };
+      }
+    }
+
+    // File path
+    return { keyFilename: this.credentials };
   }
 
   /**
@@ -108,10 +173,21 @@ export class GCSAdapter implements StorageAdapter {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { Storage } = await import("@google-cloud/storage");
 
-    this.storageClient = new Storage({
-      keyFilename: this.keyFilename,
-      projectId: this.projectId,
-    });
+    const { credentials, keyFilename } = this.parseCredentials();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const storageOptions: any = {
+      projectId: this.projectId || credentials?.project_id,
+    };
+
+    if (credentials) {
+      storageOptions.credentials = credentials;
+    } else if (keyFilename) {
+      storageOptions.keyFilename = keyFilename;
+    }
+    // Otherwise uses ADC
+
+    this.storageClient = new Storage(storageOptions);
     this.bucket = this.storageClient.bucket(this.bucketName);
 
     return { storage: this.storageClient, bucket: this.bucket };
