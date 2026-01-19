@@ -2,6 +2,7 @@
  * GCSAdapter Tests
  *
  * Constructor and configuration tests run without mocking.
+ * Error handling tests use mocked GCS client to verify behavior without network calls.
  * Integration tests require actual GCS credentials and are gated by environment variables.
  *
  * Environment variables for integration tests:
@@ -11,7 +12,7 @@
  * - GOOGLE_APPLICATION_CREDENTIALS: (optional) Path to service account JSON for ADC
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { GCSAdapter } from "../../../lib/v3/cache/adapters/GCSAdapter";
 
 describe("GCSAdapter", () => {
@@ -83,30 +84,101 @@ describe("GCSAdapter", () => {
   });
 
   describe("error handling contract", () => {
-    it("should not throw from readJson even when GCS client fails to initialize", {
-      timeout: 15000,
-    }, async () => {
-      // GCSAdapter uses lazy initialization, so it won't fail until first operation
-      // When it does fail (e.g., missing credentials), it should return an error result
-      const adapter = new GCSAdapter({ bucket: "nonexistent-bucket-12345" });
+    it("should return error result when GCS client fails to initialize", async () => {
+      // Mock the dynamic import to throw an error
+      vi.doMock("@google-cloud/storage", () => {
+        return {
+          Storage: class MockStorage {
+            constructor() {
+              throw new Error("Failed to initialize GCS client");
+            }
+          },
+        };
+      });
+
+      // Create a fresh adapter that will use the mocked module
+      const { GCSAdapter: FreshGCSAdapter } = await import(
+        "../../../lib/v3/cache/adapters/GCSAdapter"
+      );
+      const adapter = new FreshGCSAdapter({ bucket: "test-bucket" });
 
       // This should not throw - errors should be returned in the result
       const result = await adapter.readJson("test.json");
 
-      // Without valid credentials, we expect an error in the result
       expect(result.value).toBeNull();
-      // Error could be credential-related or network-related
       expect(result.error).toBeDefined();
+
+      vi.doUnmock("@google-cloud/storage");
     });
 
-    it("should not throw from writeJson even when GCS client fails to initialize", async () => {
-      const adapter = new GCSAdapter({ bucket: "nonexistent-bucket-12345" });
+    it("should return error result when GCS download fails", async () => {
+      // Mock the GCS client to simulate a download error
+      vi.doMock("@google-cloud/storage", () => {
+        return {
+          Storage: class MockStorage {
+            bucket() {
+              return {
+                file: () => ({
+                  download: async () => {
+                    throw new Error("Download failed: network error");
+                  },
+                  save: async () => {
+                    throw new Error("Upload failed: network error");
+                  },
+                }),
+              };
+            }
+          },
+        };
+      });
 
-      // This should not throw - errors should be returned in the result
-      const result = await adapter.writeJson("test.json", { data: true });
+      const { GCSAdapter: FreshGCSAdapter } = await import(
+        "../../../lib/v3/cache/adapters/GCSAdapter"
+      );
+      const adapter = new FreshGCSAdapter({ bucket: "test-bucket" });
 
-      // Without valid credentials, we expect an error in the result
-      expect(result.error).toBeDefined();
+      const readResult = await adapter.readJson("test.json");
+      expect(readResult.value).toBeNull();
+      expect(readResult.error).toBeDefined();
+
+      const writeResult = await adapter.writeJson("test.json", { data: true });
+      expect(writeResult.error).toBeDefined();
+
+      vi.doUnmock("@google-cloud/storage");
+    });
+
+    it("should return null value for 404 errors (file not found)", async () => {
+      // Mock the GCS client to simulate a 404 error
+      vi.doMock("@google-cloud/storage", () => {
+        return {
+          Storage: class MockStorage {
+            bucket() {
+              return {
+                file: () => ({
+                  download: async () => {
+                    const error = new Error("Not Found") as Error & { code: number };
+                    error.code = 404;
+                    throw error;
+                  },
+                }),
+              };
+            }
+          },
+        };
+      });
+
+      const { GCSAdapter: FreshGCSAdapter } = await import(
+        "../../../lib/v3/cache/adapters/GCSAdapter"
+      );
+      const adapter = new FreshGCSAdapter({ bucket: "test-bucket" });
+
+      const result = await adapter.readJson("nonexistent.json");
+
+      // 404 should return null value without error (file simply doesn't exist)
+      expect(result.value).toBeNull();
+      expect(result.error).toBeUndefined();
+
+      vi.doUnmock("@google-cloud/storage");
     });
   });
 });
