@@ -9,8 +9,6 @@ export interface AgentSystemPromptOptions {
   isBrowserbase?: boolean;
   /** Tools to exclude from the system prompt */
   excludeTools?: string[];
-  /** Viewport dimensions for coordinate-based tools in hybrid mode */
-  viewport?: { width: number; height: number };
 }
 
 /**
@@ -124,7 +122,6 @@ export function buildAgentSystemPrompt(
     systemInstructions,
     isBrowserbase = false,
     excludeTools,
-    viewport,
   } = options;
   const localeDate = new Date().toLocaleDateString();
   const isoDate = new Date().toISOString();
@@ -214,8 +211,7 @@ export function buildAgentSystemPrompt(
     <note>You may think the date is different due to knowledge cutoff, but this is the actual date.</note>
   </task>
   <page>
-    <startingUrl>you are starting your task on this url: ${url}</startingUrl>${isHybridMode && viewport ? `
-    <viewport width="${viewport.width}" height="${viewport.height}">The screenshot dimensions are ${viewport.width}x${viewport.height} pixels. When using click or type tools, return coordinates within this range (x: 0-${viewport.width}, y: 0-${viewport.height}).</viewport>` : ""}
+    <startingUrl>you are starting your task on this url: ${url}</startingUrl>
   </page>
   <mindset>
     <note>Be very intentional about your action. The initial instruction is very important, and slight variations of the actual goal can lead to failures.</note>
