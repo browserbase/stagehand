@@ -46,8 +46,11 @@ export class FilesystemAdapter implements StorageAdapter {
   private resolvePath(key: string): string {
     const resolved = path.resolve(this.dir, key);
     // Prevent path traversal attacks
-    // Handle edge case where cacheDir is root (/) - in that case, any absolute path is valid
-    const prefix = this.dir === path.sep ? path.sep : this.dir + path.sep;
+    // Handle edge case where cacheDir is a filesystem root (/ on Unix, C:\ on Windows)
+    // Use path.parse() to correctly identify roots across platforms
+    const parsed = path.parse(this.dir);
+    const isRoot = parsed.root === this.dir;
+    const prefix = isRoot ? this.dir : this.dir + path.sep;
     if (!resolved.startsWith(prefix) && resolved !== this.dir) {
       throw new Error(
         `Invalid cache key: path traversal detected. Key "${key}" resolves outside cache directory.`,
