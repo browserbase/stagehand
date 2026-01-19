@@ -12,7 +12,7 @@
  * - GOOGLE_APPLICATION_CREDENTIALS: (optional) Path to service account JSON for ADC
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { GCSAdapter } from "../../../lib/v3/cache/adapters/GCSAdapter";
 
 describe("GCSAdapter", () => {
@@ -84,6 +84,13 @@ describe("GCSAdapter", () => {
   });
 
   describe("error handling contract", () => {
+    // Clean up mocks after each test to prevent module cache pollution
+    // This ensures integration tests use the real GCS client
+    afterEach(() => {
+      vi.doUnmock("@google-cloud/storage");
+      vi.resetModules();
+    });
+
     it("should return error result when GCS client fails to initialize", async () => {
       // Mock the dynamic import to throw an error
       vi.doMock("@google-cloud/storage", () => {
@@ -107,8 +114,6 @@ describe("GCSAdapter", () => {
 
       expect(result.value).toBeNull();
       expect(result.error).toBeDefined();
-
-      vi.doUnmock("@google-cloud/storage");
     });
 
     it("should return error result when GCS download fails", async () => {
@@ -143,8 +148,6 @@ describe("GCSAdapter", () => {
 
       const writeResult = await adapter.writeJson("test.json", { data: true });
       expect(writeResult.error).toBeDefined();
-
-      vi.doUnmock("@google-cloud/storage");
     });
 
     it("should return null value for 404 errors (file not found)", async () => {
@@ -177,8 +180,6 @@ describe("GCSAdapter", () => {
       // 404 should return null value without error (file simply doesn't exist)
       expect(result.value).toBeNull();
       expect(result.error).toBeUndefined();
-
-      vi.doUnmock("@google-cloud/storage");
     });
   });
 });
