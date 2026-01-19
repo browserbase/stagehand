@@ -178,7 +178,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       sdkVersion,
       experimental,
       localBrowserLaunchOptions:
-        browserType === "local" && browser?.launchOptions
+        browserType === "local" && (browser?.launchOptions || browser?.cdpUrl)
           ? {
               cdpUrl: browser?.cdpUrl,
               ...(browser?.launchOptions ?? {}),
