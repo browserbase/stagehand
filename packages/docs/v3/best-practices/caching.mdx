@@ -197,13 +197,28 @@ await stagehand.init();
 
 ### Authentication
 
-The GCS adapter uses Google Cloud Application Default Credentials (ADC) by default. You can also provide explicit credentials:
+The GCS adapter uses Google Cloud Application Default Credentials (ADC) by default. You can also provide explicit credentials in several formats:
 
 ```typescript
+// Using a credentials object
 const adapter = new GCSAdapter({
   bucket: "my-stagehand-cache",
-  keyFilename: "/path/to/service-account.json",
-  projectId: "my-gcp-project",
+  credentials: {
+    client_email: "sa@project.iam.gserviceaccount.com",
+    private_key: "-----BEGIN PRIVATE KEY-----\n...",
+  },
+});
+
+// Using a JSON string (common in serverless environments)
+const adapter = new GCSAdapter({
+  bucket: "my-stagehand-cache",
+  credentials: process.env.GCS_CREDENTIALS, // JSON string
+});
+
+// Using a file path (for local development)
+const adapter = new GCSAdapter({
+  bucket: "my-stagehand-cache",
+  credentials: "/path/to/service-account.json",
 });
 ```
 

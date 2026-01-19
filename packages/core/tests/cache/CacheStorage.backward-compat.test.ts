@@ -48,7 +48,8 @@ describe("CacheStorage backward compatibility", () => {
     });
 
     it("should log error and create disabled cache when directory creation fails", () => {
-      const invalidDir = "/nonexistent-root-12345/cache";
+      // Use a path with null byte which is universally invalid across OS
+      const invalidDir = path.join(os.tmpdir(), "test\x00invalid");
       const cache = CacheStorage.create(invalidDir, mockLogger, {
         label: "test cache",
       });

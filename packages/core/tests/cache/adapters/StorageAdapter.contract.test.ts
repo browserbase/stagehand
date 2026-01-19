@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -306,8 +306,9 @@ describe("FilesystemAdapter-specific features", () => {
   });
 
   it("should return null when directory creation fails", () => {
-    // Try to create in a non-existent root with no permissions
-    const invalidDir = "/nonexistent-root-12345/cache";
+    // Use a path that requires elevated permissions on most systems
+    // The null byte in path is universally invalid across OS
+    const invalidDir = path.join(os.tmpdir(), "test\x00invalid");
     const result = FilesystemAdapter.create(invalidDir);
     expect(result).toBeNull();
   });
@@ -329,5 +330,31 @@ describe("FilesystemAdapter-specific features", () => {
 
     const fullPath = path.join(tmpDir, key);
     expect(fs.existsSync(fullPath)).toBe(true);
+  });
+
+  it("should reject path traversal attempts in readJson", async () => {
+    const maliciousKey = "../../../etc/passwd";
+    const result = await adapter.readJson(maliciousKey);
+
+    expect(result.value).toBeNull();
+    expect(result.error).toBeDefined();
+    expect((result.error as Error).message).toContain("path traversal");
+  });
+
+  it("should reject path traversal attempts in writeJson", async () => {
+    const maliciousKey = "../../../tmp/malicious.json";
+    const result = await adapter.writeJson(maliciousKey, { evil: true });
+
+    expect(result.error).toBeDefined();
+    expect((result.error as Error).message).toContain("path traversal");
+  });
+
+  it("should reject absolute path attempts", async () => {
+    const absoluteKey = "/etc/passwd";
+    const result = await adapter.readJson(absoluteKey);
+
+    expect(result.value).toBeNull();
+    expect(result.error).toBeDefined();
+    expect((result.error as Error).message).toContain("path traversal");
   });
 });

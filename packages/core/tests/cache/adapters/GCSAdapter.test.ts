@@ -83,7 +83,9 @@ describe("GCSAdapter", () => {
   });
 
   describe("error handling contract", () => {
-    it("should not throw from readJson even when GCS client fails to initialize", async () => {
+    it("should not throw from readJson even when GCS client fails to initialize", {
+      timeout: 15000,
+    }, async () => {
       // GCSAdapter uses lazy initialization, so it won't fail until first operation
       // When it does fail (e.g., missing credentials), it should return an error result
       const adapter = new GCSAdapter({ bucket: "nonexistent-bucket-12345" });

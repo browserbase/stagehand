@@ -39,12 +39,28 @@ export class FilesystemAdapter implements StorageAdapter {
     return this.dir;
   }
 
+  /**
+   * Resolve a key to a file path, ensuring it stays within the cache directory.
+   * @throws Error if the key attempts path traversal outside the cache directory
+   */
   private resolvePath(key: string): string {
-    return path.join(this.dir, key);
+    const resolved = path.resolve(this.dir, key);
+    // Prevent path traversal attacks
+    if (!resolved.startsWith(this.dir + path.sep) && resolved !== this.dir) {
+      throw new Error(
+        `Invalid cache key: path traversal detected. Key "${key}" resolves outside cache directory.`,
+      );
+    }
+    return resolved;
   }
 
   async readJson<T>(key: string): Promise<ReadJsonResult<T>> {
-    const filePath = this.resolvePath(key);
+    let filePath: string;
+    try {
+      filePath = this.resolvePath(key);
+    } catch (err) {
+      return { value: null, error: err };
+    }
     try {
       const raw = await fs.promises.readFile(filePath, "utf8");
       return { value: JSON.parse(raw) as T };
@@ -58,7 +74,12 @@ export class FilesystemAdapter implements StorageAdapter {
   }
 
   async writeJson(key: string, data: unknown): Promise<WriteJsonResult> {
-    const filePath = this.resolvePath(key);
+    let filePath: string;
+    try {
+      filePath = this.resolvePath(key);
+    } catch (err) {
+      return { error: err };
+    }
     try {
       await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
       await fs.promises.writeFile(
