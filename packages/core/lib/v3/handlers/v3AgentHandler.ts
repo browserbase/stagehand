@@ -80,8 +80,18 @@ export class V3AgentHandler {
 
       const maxSteps = options.maxSteps || 20;
 
-      // Get the initial page URL first (needed for the system prompt)
-      const initialPageUrl = (await this.v3.context.awaitActivePage()).url();
+      // Get the initial page URL and viewport (needed for the system prompt)
+      const page = await this.v3.context.awaitActivePage();
+      const initialPageUrl = page.url();
+
+      // Get viewport dimensions for hybrid mode
+      let viewport: { width: number; height: number } | undefined;
+      if (this.mode === "hybrid") {
+        viewport = await page.mainFrame().evaluate<{
+          width: number;
+          height: number;
+        }>("({ width: window.innerWidth, height: window.innerHeight })");
+      }
 
       // Build the system prompt with mode-aware tool guidance
       const systemPrompt = buildAgentSystemPrompt({
@@ -91,6 +101,7 @@ export class V3AgentHandler {
         systemInstructions: this.systemInstructions,
         isBrowserbase: this.v3.isBrowserbase,
         excludeTools: options.excludeTools,
+        viewport,
       });
 
       const tools = this.createTools(options.excludeTools);

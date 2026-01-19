@@ -32,10 +32,15 @@ export const typeTool = (v3: V3, provider?: string) =>
     }): Promise<TypeToolResult> => {
       try {
         const page = await v3.context.awaitActivePage();
+        const { width, height } = await page.mainFrame().evaluate<{
+          width: number;
+          height: number;
+        }>("({ width: window.innerWidth, height: window.innerHeight })");
         const processed = processCoordinates(
           coordinates[0],
           coordinates[1],
           provider,
+          { width, height },
         );
 
         v3.logger({
