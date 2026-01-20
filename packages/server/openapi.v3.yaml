@@ -141,8 +141,9 @@ components:
         acceptDownloads:
           type: boolean
       additionalProperties: false
-    ModelConfigString:
-      description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano',
+    ModelName:
+      description:
+        Model name string with provider prefix (e.g., 'openai/gpt-5-nano',
         'anthropic/claude-4.5-opus')
       match: {}
       example: openai/gpt-5-nano
@@ -160,7 +161,8 @@ components:
             - google
             - microsoft
         modelName:
-          description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
+          description: Model name string (e.g., 'openai/gpt-5-nano',
+            'anthropic/claude-4.5-opus')
           example: openai/gpt-5-nano
           type: string
         apiKey:
@@ -176,7 +178,7 @@ components:
         - modelName
     ModelConfig:
       anyOf:
-        - $ref: "#/components/schemas/ModelConfigString"
+        - $ref: "#/components/schemas/ModelName"
         - $ref: "#/components/schemas/ModelConfigObject"
     Action:
       description: Action object returned by observe and used by act
@@ -399,7 +401,8 @@ components:
           example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
           type: string
         cdpUrl:
-          description: CDP WebSocket URL for connecting to the Browserbase cloud browser
+          description:
+            CDP WebSocket URL for connecting to the Browserbase cloud browser
             (present when available)
           example: wss://connect.browserbase.com/?signingKey=abc123
           anyOf:
@@ -445,9 +448,7 @@ components:
           $ref: "#/components/schemas/ActOptions"
         frameId:
           description: Target frame ID for the action
-          anyOf:
-            - type: string
-            - type: "null"
+          type: string
         streamResponse:
           description: Whether to stream the response via SSE
           example: true
@@ -517,9 +518,7 @@ components:
           $ref: "#/components/schemas/ExtractOptions"
         frameId:
           description: Target frame ID for the extraction
-          anyOf:
-            - type: string
-            - type: "null"
+          type: string
         streamResponse:
           description: Whether to stream the response via SSE
           example: true
@@ -529,7 +528,7 @@ components:
       properties:
         result:
           description: Extracted data matching the requested schema
-          x-stainless-any: true
+          type: unknown
         actionId:
           description: Action ID for tracking
           type: string
@@ -559,9 +558,7 @@ components:
           $ref: "#/components/schemas/ObserveOptions"
         frameId:
           description: Target frame ID for the observation
-          anyOf:
-            - type: string
-            - type: "null"
+          type: string
         streamResponse:
           description: Whether to stream the response via SSE
           example: true
@@ -582,7 +579,8 @@ components:
       type: object
       properties:
         provider:
-          description: "AI provider for the agent (legacy, use model: openai/gpt-5-nano
+          description:
+            "AI provider for the agent (legacy, use model: openai/gpt-5-nano
             instead)"
           example: openai
           type: string
@@ -680,7 +678,8 @@ components:
       properties:
         instruction:
           description: Natural language instruction for the agent
-          example: Log in with username 'demo' and password 'test123', then navigate to
+          example:
+            Log in with username 'demo' and password 'test123', then navigate to
             settings
           type: string
         maxSteps:
@@ -702,9 +701,7 @@ components:
           $ref: "#/components/schemas/AgentExecuteOptions"
         frameId:
           description: Target frame ID for the agent
-          anyOf:
-            - type: string
-            - type: "null"
+          type: string
         streamResponse:
           description: Whether to stream the response via SSE
           example: true
@@ -748,9 +745,7 @@ components:
           $ref: "#/components/schemas/NavigateOptions"
         frameId:
           description: Target frame ID for the navigation
-          anyOf:
-            - type: string
-            - type: "null"
+          type: string
         streamResponse:
           description: Whether to stream the response via SSE
           example: true
@@ -762,10 +757,7 @@ components:
       properties:
         result:
           description: Navigation response (Playwright Response object or null)
-          anyOf:
-            - {}
-            - type: "null"
-          x-stainless-any: true
+          type: unknown
         actionId:
           description: Action ID for tracking
           type: string
@@ -827,7 +819,6 @@ components:
           $ref: "#/components/schemas/StreamEventStatus"
         result:
           description: Operation result (present when status is 'finished')
-          x-stainless-any: true
         error:
           description: Error message (present when status is 'error')
           type: string
@@ -1006,7 +997,8 @@ components:
             - google
             - microsoft
         modelName:
-          description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
+          description: Model name string (e.g., 'openai/gpt-5-nano',
+            'anthropic/claude-4.5-opus')
           example: openai/gpt-5-nano
           type: string
         apiKey:
@@ -1023,7 +1015,7 @@ components:
       additionalProperties: false
     ModelConfigOutput:
       anyOf:
-        - $ref: "#/components/schemas/ModelConfigString"
+        - $ref: "#/components/schemas/ModelName"
         - $ref: "#/components/schemas/ModelConfigObjectOutput"
     ActionOutput:
       description: Action object returned by observe and used by act
@@ -1257,7 +1249,8 @@ components:
           example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
           type: string
         cdpUrl:
-          description: CDP WebSocket URL for connecting to the Browserbase cloud browser
+          description:
+            CDP WebSocket URL for connecting to the Browserbase cloud browser
             (present when available)
           example: wss://connect.browserbase.com/?signingKey=abc123
           anyOf:
@@ -1342,7 +1335,7 @@ components:
       properties:
         result:
           description: Extracted data matching the requested schema
-          x-stainless-any: true
+          type: unknown
         actionId:
           description: Action ID for tracking
           type: string
@@ -1380,7 +1373,8 @@ components:
       type: object
       properties:
         provider:
-          description: "AI provider for the agent (legacy, use model: openai/gpt-5-nano
+          description:
+            "AI provider for the agent (legacy, use model: openai/gpt-5-nano
             instead)"
           example: openai
           type: string
@@ -1455,7 +1449,8 @@ components:
       properties:
         instruction:
           description: Natural language instruction for the agent
-          example: Log in with username 'demo' and password 'test123', then navigate to
+          example:
+            Log in with username 'demo' and password 'test123', then navigate to
             settings
           type: string
         maxSteps:
@@ -1501,10 +1496,7 @@ components:
       properties:
         result:
           description: Navigation response (Playwright Response object or null)
-          anyOf:
-            - {}
-            - type: "null"
-          x-stainless-any: true
+          type: unknown
         actionId:
           description: Action ID for tracking
           type: string
@@ -1556,7 +1548,6 @@ components:
           $ref: "#/components/schemas/StreamEventStatus"
         result:
           description: Operation result (present when status is 'finished')
-          x-stainless-any: true
         error:
           description: Error message (present when status is 'error')
           type: string
@@ -1596,6 +1587,12 @@ components:
           enum:
             - "true"
             - "false"
+        x-sent-at:
+          description: ISO timestamp when request was sent
+          example: 2025-01-15T10:30:00Z
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
       additionalProperties: false
     ErrorResponse:
       type: object
@@ -1672,7 +1669,8 @@ components:
         - data
       additionalProperties: false
     StreamEvent:
-      description: "Server-Sent Event emitted during streaming responses. Events are
+      description:
+        "Server-Sent Event emitted during streaming responses. Events are
         sent as `data: <JSON>\\n\\n`. Key order: data (with status first), type,
         id."
       type: object
@@ -1699,7 +1697,8 @@ paths:
     post:
       operationId: SessionAct
       summary: Perform an action
-      description: Executes a browser action using natural language instructions or a
+      description:
+        Executes a browser action using natural language instructions or a
         predefined Action object.
       requestBody:
         content:
@@ -1726,6 +1725,15 @@ paths:
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
+        - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00Z
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+          in: header
+          name: x-sent-at
+          description: ISO timestamp when request was sent
       responses:
         "200":
           description: Default Response
@@ -1763,6 +1771,15 @@ paths:
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
+        - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00Z
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+          in: header
+          name: x-sent-at
+          description: ISO timestamp when request was sent
       responses:
         "200":
           description: Default Response
@@ -1800,6 +1817,15 @@ paths:
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
+        - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00Z
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+          in: header
+          name: x-sent-at
+          description: ISO timestamp when request was sent
       responses:
         "200":
           description: Default Response
@@ -1837,6 +1863,15 @@ paths:
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
+        - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00Z
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+          in: header
+          name: x-sent-at
+          description: ISO timestamp when request was sent
       responses:
         "200":
           description: Default Response
@@ -1848,7 +1883,8 @@ paths:
     post:
       operationId: SessionObserve
       summary: Observe available actions
-      description: Identifies and returns available actions on the current page that
+      description:
+        Identifies and returns available actions on the current page that
         match the given instruction.
       requestBody:
         content:
@@ -1875,6 +1911,15 @@ paths:
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
+        - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00Z
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+          in: header
+          name: x-sent-at
+          description: ISO timestamp when request was sent
       responses:
         "200":
           description: Default Response
@@ -1886,7 +1931,8 @@ paths:
     post:
       operationId: SessionStart
       summary: Start a new browser session
-      description: Creates a new browser session with the specified configuration.
+      description:
+        Creates a new browser session with the specified configuration.
         Returns a session ID used for all subsequent operations.
       requestBody:
         content:
@@ -1946,6 +1992,15 @@ paths:
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
+        - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00Z
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+          in: header
+          name: x-sent-at
+          description: ISO timestamp when request was sent
       responses:
         "200":
           description: Default Response
@@ -1957,7 +2012,8 @@ paths:
     post:
       operationId: SessionAgentExecute
       summary: Execute an AI agent
-      description: Runs an autonomous AI agent that can perform complex multi-step
+      description:
+        Runs an autonomous AI agent that can perform complex multi-step
         browser tasks.
       requestBody:
         content:
@@ -1984,6 +2040,15 @@ paths:
           in: header
           name: x-stream-response
           description: Whether to stream the response via SSE
+        - schema:
+            description: ISO timestamp when request was sent
+            example: 2025-01-15T10:30:00Z
+            type: string
+            format: date-time
+            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+          in: header
+          name: x-sent-at
+          description: ISO timestamp when request was sent
       responses:
         "200":
           description: Default Response
