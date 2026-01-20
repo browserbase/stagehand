@@ -17,6 +17,8 @@ export default [
       ".browserbase/**",
       "**/.browserbase/**",
       "**/*.json",
+      "stainless.yml",
+      "packages/server/openapi.v3.yaml",
     ],
   },
   pluginJs.configs.recommended,
