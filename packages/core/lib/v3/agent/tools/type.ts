@@ -55,7 +55,7 @@ export const typeTool = (v3: V3, provider?: string, variables?: Variables) => {
           level: 1,
           auxiliary: {
             arguments: {
-              value: JSON.stringify({ describe, text: actualText }),
+              value: JSON.stringify({ describe, text }),
               type: "object",
             },
           },
@@ -79,7 +79,7 @@ export const typeTool = (v3: V3, provider?: string, variables?: Variables) => {
               selector: normalizedXpath,
               description: describe,
               method: "type",
-              arguments: [actualText],
+              arguments: [text],
             };
             v3.recordAgentReplayStep({
               type: "act",
