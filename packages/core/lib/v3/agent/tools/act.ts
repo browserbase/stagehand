@@ -2,17 +2,25 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
 import type { Action } from "../../types/public/methods";
+import type { Variables } from "../../types/public/agent";
+import { toActVariables } from "../utils/variables";
 
-export const actTool = (v3: V3, executionModel?: string) =>
-  tool({
+export const actTool = (
+  v3: V3,
+  executionModel?: string,
+  variables?: Variables,
+) => {
+  const actVariables = toActVariables(variables);
+  const hasVariables = variables && Object.keys(variables).length > 0;
+  const actionDescription = hasVariables
+    ? `Describe what to click or type, e.g. "click the Login button" or "type %variableName% into the input". Available variables: ${Object.keys(variables).join(", ")}`
+    : 'Describe what to click or type, e.g. "click the Login button" or "type "John" into the first name input"';
+
+  return tool({
     description:
       "Perform an action on the page (click, type). Provide a short, specific phrase that mentions the element type.",
     inputSchema: z.object({
-      action: z
-        .string()
-        .describe(
-          'Describe what to click or type, e.g. "click the Login button" or "type "John" into the first name input"',
-        ),
+      action: z.string().describe(actionDescription),
     }),
     execute: async ({ action }) => {
       try {
@@ -27,7 +35,9 @@ export const actTool = (v3: V3, executionModel?: string) =>
             },
           },
         });
-        const options = executionModel ? { model: executionModel } : undefined;
+        const options = executionModel
+          ? { model: executionModel, variables: actVariables }
+          : { variables: actVariables };
         const result = await v3.act(action, options);
         const actions = (result.actions as Action[] | undefined) ?? [];
         v3.recordAgentReplayStep({
@@ -47,3 +57,4 @@ export const actTool = (v3: V3, executionModel?: string) =>
       }
     },
   });
+};

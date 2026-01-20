@@ -79,6 +79,7 @@ import { Page } from "./understudy/page";
 import { resolveModel } from "../modelUtils";
 import { StagehandAPIClient } from "./api";
 import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures";
+import { toActVariables } from "./agent/utils/variables";
 import { SessionFileLogger, logStagehandStep } from "./flowLogger";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard";
 import { ActTimeoutError } from "./types/public/sdkErrors";
@@ -1690,12 +1691,15 @@ export class V3 {
     const sanitizedOptions =
       this.agentCache.sanitizeExecuteOptions(resolvedOptions);
 
+    const cacheVariables = toActVariables(resolvedOptions.variables);
+
     const cacheContext = this.agentCache.shouldAttemptCache(instruction)
       ? await this.agentCache.prepareContext({
           instruction,
           options: sanitizedOptions,
           configSignature: agentConfigSignature,
           page: await this.ctx!.awaitActivePage(),
+          variables: cacheVariables,
         })
       : null;
 
@@ -1840,6 +1844,8 @@ export class V3 {
             const sanitizedOptions =
               this.agentCache.sanitizeExecuteOptions(resolvedOptions);
 
+            const cacheVariables = toActVariables(resolvedOptions.variables);
+
             let cacheContext: AgentCacheContext | null = null;
             if (this.agentCache.shouldAttemptCache(instruction)) {
               const startPage = await this.ctx!.awaitActivePage();
@@ -1848,6 +1854,7 @@ export class V3 {
                 options: sanitizedOptions,
                 configSignature: agentConfigSignature,
                 page: startPage,
+                variables: cacheVariables,
               });
               if (cacheContext) {
                 const replayed = await this.agentCache.tryReplay(cacheContext);

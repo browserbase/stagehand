@@ -155,6 +155,7 @@ describe("Cache LLM client selection", () => {
       options: {},
       configSignature: "sig",
       cacheKey: "agent-key",
+      variableKeys: [],
     };
 
     const result = await cache.tryReplay(context, overrideClient);
@@ -217,6 +218,7 @@ describe("Cache LLM client selection", () => {
       options: {},
       configSignature: "sig",
       cacheKey: "agent-goto",
+      variableKeys: [],
     };
 
     const result = await cache.tryReplay(context);
