@@ -29,7 +29,6 @@ const endRoute: RouteOptions = {
     ...Api.Operations.SessionEnd,
     headers: Api.SessionHeadersSchema,
     params: Api.SessionIdParamsSchema,
-    body: Api.SessionEndRequestSchema,
     response: {
       200: Api.SessionEndResponseSchema,
     },

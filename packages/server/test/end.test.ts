@@ -34,6 +34,19 @@ describe("/v1/sessions/:id/end body requirements", () => {
     await app?.close();
   });
 
+  test("returns 200 when no body is sent", async () => {
+    storeMocks.endSession.mockResolvedValue(undefined);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/sessions/sess-1/end",
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ success: true });
+    expect(storeMocks.endSession).toHaveBeenCalledWith("sess-1");
+  });
+
   test("returns 400 if JSON content-type has an empty body", async () => {
     const res = await app.inject({
       method: "POST",
