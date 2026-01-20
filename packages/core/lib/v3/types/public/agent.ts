@@ -26,6 +26,30 @@ import { Page as PuppeteerPage } from "puppeteer-core";
 import { Page as PatchrightPage } from "patchright-core";
 import { Page } from "../../understudy/page.js";
 
+// =============================================================================
+// Variable Types
+// =============================================================================
+
+/**
+ * Supported value types for agent variables.
+ */
+export type VariableValue = string | number | boolean;
+
+/**
+ * A variable that can be used by the agent when filling forms or typing text.
+ */
+export interface Variable {
+  /** The value of the variable */
+  value: VariableValue;
+  /** Description of when/how to use this variable */
+  description: string;
+}
+
+/**
+ * A collection of named variables available to the agent.
+ */
+export type Variables = Record<string, Variable>;
+
 export interface AgentContext {
   options: AgentExecuteOptionsBase;
   maxSteps: number;
@@ -339,6 +363,36 @@ export interface AgentExecuteOptionsBase {
    * ```
    */
   output?: StagehandZodObject;
+  /**
+   * Variables that the agent can use when filling forms or typing text.
+   * The agent will see variable names and descriptions in the system prompt,
+   * and can use them via `%variableName%` syntax in act/type/fillForm tool calls.
+   *
+   * **Note:** Not supported in CUA mode (`mode: "cua"`). Requires `experimental: true`.
+   *
+   * @experimental
+   * @example
+   * ```typescript
+   * const stagehand = new Stagehand({ experimental: true });
+   * await stagehand.init();
+   *
+   * const agent = stagehand.agent({ model: "openai/gpt-4o" });
+   * const result = await agent.execute({
+   *   instruction: "Log into the website",
+   *   variables: {
+   *     loginEmail: {
+   *       value: "john@example.com",
+   *       description: "The email to use for logging in"
+   *     },
+   *     loginPassword: {
+   *       value: "secret123",
+   *       description: "The password to use for logging in"
+   *     }
+   *   }
+   * });
+   * ```
+   */
+  variables?: Variables;
 }
 
 /**

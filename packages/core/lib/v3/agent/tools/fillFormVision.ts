@@ -5,13 +5,24 @@ import type { Action } from "../../types/public/methods.js";
 import type {
   FillFormVisionToolResult,
   ModelOutputContentItem,
+  Variables,
 } from "../../types/public/agent.js";
 import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { ensureXPath } from "../utils/xpath.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
+import { substituteVariables } from "../utils/variables.js";
 
-export const fillFormVisionTool = (v3: V3, provider?: string) =>
-  tool({
+export const fillFormVisionTool = (
+  v3: V3,
+  provider?: string,
+  variables?: Variables,
+) => {
+  const hasVariables = variables && Object.keys(variables).length > 0;
+  const valueDescription = hasVariables
+    ? `Text to type into the target field. Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}`
+    : "Text to type into the target field";
+
+  return tool({
     description: `FORM FILL - SPECIALIZED MULTI-FIELD INPUT TOOL
 
 CRITICAL: Use this for ANY form with 2+ input fields (text inputs, textareas, etc.)
@@ -38,7 +49,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
               .describe(
                 "Description of the typing action, e.g. 'type foo into the bar field'",
               ),
-            value: z.string().describe("Text to type into the target field"),
+            value: z.string().describe(valueDescription),
             coordinates: z
               .object({
                 x: z.number(),
@@ -53,7 +64,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
       try {
         const page = await v3.context.awaitActivePage();
 
-        // Process coordinates for each field
+        // Process coordinates and substitute variables for each field
         const processedFields = fields.map((field) => {
           const processed = processCoordinates(
             field.coordinates.x,
@@ -63,6 +74,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
           );
           return {
             ...field,
+            value: substituteVariables(field.value, variables),
             coordinates: { x: processed.x, y: processed.y },
           };
         });
@@ -169,3 +181,4 @@ MANDATORY USE CASES (always use fillFormVision for these):
       };
     },
   });
+};

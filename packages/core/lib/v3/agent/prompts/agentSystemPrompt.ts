@@ -1,4 +1,4 @@
-import type { AgentToolMode } from "../../types/public/agent.js";
+import type { AgentToolMode, Variables } from "../../types/public/agent.js";
 
 export interface AgentSystemPromptOptions {
   url: string;
@@ -9,6 +9,8 @@ export interface AgentSystemPromptOptions {
   isBrowserbase?: boolean;
   /** Tools to exclude from the system prompt */
   excludeTools?: string[];
+  /** Variables available to the agent for use in act/type tools */
+  variables?: Variables;
 }
 
 /**
@@ -122,6 +124,7 @@ export function buildAgentSystemPrompt(
     systemInstructions,
     isBrowserbase = false,
     excludeTools,
+    variables,
   } = options;
   const localeDate = new Date().toLocaleDateString();
   const isoDate = new Date().toISOString();
@@ -203,6 +206,24 @@ export function buildAgentSystemPrompt(
     ? `<customInstructions>${cdata(systemInstructions)}</customInstructions>\n  `
     : "";
 
+  // Build variables section only if variables are provided
+  const hasVariables = variables && Object.keys(variables).length > 0;
+  const variableToolsNote = isHybridMode
+    ? "Use %variableName% syntax in the type, fillFormVision, or act tool's value/text/action fields."
+    : "Use %variableName% syntax in the act or fillForm tool's value/action fields.";
+  const variablesSection = hasVariables
+    ? `<variables>
+    <note>You have access to the following variables. Use %variableName% syntax to substitute variable values. This is especially important for sensitive data like passwords.</note>
+    <usage>${variableToolsNote}</usage>
+    <example>To type a password, use: type %password% into the password field</example>
+    ${Object.entries(variables)
+      .map(
+        ([name, v]) => `<variable name="${name}">${v.description}</variable>`,
+      )
+      .join("\n    ")}
+  </variables>`
+    : "";
+
   return `<system>
   <identity>You are a web automation assistant using browser automation tools to accomplish the user's goal.</identity>
   ${customInstructionsBlock}<task>
@@ -234,6 +255,7 @@ export function buildAgentSystemPrompt(
     ${commonStrategyItems}
   </strategy>
   ${roadblocksSection}
+  ${variablesSection}
   <completion>
     <note>When you complete the task, explain any information that was found that was relevant to the original task.</note>
     <examples>
