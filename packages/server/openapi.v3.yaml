@@ -85,6 +85,8 @@ components:
             type: string
         executablePath:
           type: string
+        port:
+          type: number
         userDataDir:
           type: string
         preserveUserDataDir:
@@ -404,12 +406,6 @@ components:
       required:
         - sessionId
         - available
-    SessionEndRequest:
-      type: object
-      properties:
-        _forceBody:
-          not: {}
-      additionalProperties: false
     ActOptions:
       type: object
       properties:
@@ -937,6 +933,8 @@ components:
             type: string
         executablePath:
           type: string
+        port:
+          type: number
         userDataDir:
           type: string
         preserveUserDataDir:
@@ -1748,12 +1746,6 @@ paths:
       operationId: SessionEnd
       summary: End a browser session
       description: Terminates the browser session and releases all associated resources.
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SessionEndRequest"
-        required: true
       parameters:
         - schema:
             description: Unique session identifier

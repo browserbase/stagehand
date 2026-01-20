@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - packages/server/package.json
+      - .changeset/**
   workflow_dispatch:
 
 permissions:
@@ -18,7 +18,7 @@ env:
 
 jobs:
   detect:
-    name: Detect server version bump
+    name: Detect server release (changesets)
     runs-on: ubuntu-latest
     outputs:
       release: ${{ steps.meta.outputs.release }}
@@ -30,26 +30,61 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: pnpm
+
+      - name: Install dependencies
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: pnpm install --frozen-lockfile
+
       - name: Determine release metadata
         id: meta
         shell: bash
         run: |
           set -euo pipefail
 
-          after_version="$(node -p "require('./packages/server/package.json').version")"
-          tag="stagehand-server/v${after_version}"
-
           latest_tag="$(git tag -l 'stagehand-server/v*' --sort=-v:refname | head -n 1 || true)"
-          latest_version="${latest_tag#stagehand-server/v}"
-
-          release="false"
-          if [ -z "${latest_tag}" ] || [ "${latest_version}" != "${after_version}" ]; then
-            release="true"
+          rm -f changeset-status.json
+          if [ -n "${latest_tag}" ]; then
+            pnpm changeset status --since "${latest_tag}" --output changeset-status.json
+          else
+            pnpm changeset status --output changeset-status.json
           fi
 
-          echo "release=${release}" >> "$GITHUB_OUTPUT"
-          echo "version=${after_version}" >> "$GITHUB_OUTPUT"
-          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          node <<'NODE'
+          const fs = require('fs');
+
+          const status = JSON.parse(fs.readFileSync('changeset-status.json', 'utf8'));
+          const changesets = Array.isArray(status.changesets) ? status.changesets : [];
+          const releases = Array.isArray(status.releases) ? status.releases : [];
+
+          const shouldRelease = changesets.some((cs) =>
+            (cs.releases || []).some((r) => r?.name === '@browserbasehq/stagehand-server')
+          );
+
+          const serverRelease = releases.find((r) => r?.name === '@browserbasehq/stagehand-server');
+          if (shouldRelease && !serverRelease?.newVersion) {
+            throw new Error(
+              'Expected @browserbasehq/stagehand-server to have a computed newVersion in changeset-status.json.'
+            );
+          }
+
+          const release = shouldRelease ? 'true' : 'false';
+          const version = shouldRelease ? serverRelease.newVersion : '';
+          const tag = `stagehand-server/v${version}`;
+
+          const out = process.env.GITHUB_OUTPUT;
+          fs.appendFileSync(out, `release=${release}\n`);
+          fs.appendFileSync(out, `version=${version}\n`);
+          fs.appendFileSync(out, `tag=${tag}\n`);
+          NODE
 
       - name: Create stagehand/server tag
         if: steps.meta.outputs.release == 'true'

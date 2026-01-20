@@ -25,6 +25,22 @@ describe("/v1/sessions/:id/end body requirements", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     app = fastify({ logger: false });
+
+    // Match the real server behavior: allow empty JSON bodies (0 bytes) when
+    // clients send `Content-Type: application/json` with no payload.
+    const defaultJsonParser = app.getDefaultJsonParser("error", "error");
+    app.addContentTypeParser<string>(
+      "application/json",
+      { parseAs: "string" },
+      (request, body, done) => {
+        if (body === "" || (Buffer.isBuffer(body) && body.length === 0)) {
+          done(null, {});
+          return;
+        }
+        void defaultJsonParser(request, body, done);
+      },
+    );
+
     app.setValidatorCompiler(validatorCompiler);
     app.setSerializerCompiler(serializerCompiler);
     app.route(endRoute);
@@ -34,7 +50,22 @@ describe("/v1/sessions/:id/end body requirements", () => {
     await app?.close();
   });
 
-  test("returns 400 if JSON content-type has an empty body", async () => {
+  test("returns 200 when no body is sent", async () => {
+    storeMocks.endSession.mockResolvedValue(undefined);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/sessions/sess-1/end",
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ success: true });
+    expect(storeMocks.endSession).toHaveBeenCalledWith("sess-1");
+  });
+
+  test("returns 200 if JSON content-type has an empty body", async () => {
+    storeMocks.endSession.mockResolvedValue(undefined);
+
     const res = await app.inject({
       method: "POST",
       url: "/sessions/sess-1/end",
@@ -42,7 +73,9 @@ describe("/v1/sessions/:id/end body requirements", () => {
       payload: "",
     });
 
-    expect(res.statusCode).toBe(400);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ success: true });
+    expect(storeMocks.endSession).toHaveBeenCalledWith("sess-1");
   });
 
   test("returns 400 if body contains extra keys", async () => {

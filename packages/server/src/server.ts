@@ -67,6 +67,22 @@ const app = fastify({
 
 export const logger = app.log;
 
+// Allow requests with `Content-Type: application/json` and an empty body (0 bytes).
+// Some clients always send the header even when there is no request body (e.g. /end).
+const defaultJsonParser = app.getDefaultJsonParser("error", "error");
+app.addContentTypeParser<string>(
+  "application/json",
+  { parseAs: "string" },
+  (request, body, done) => {
+    if (body === "" || (Buffer.isBuffer(body) && body.length === 0)) {
+      done(null, {});
+      return;
+    }
+
+    void defaultJsonParser(request, body, done);
+  },
+);
+
 process.on("uncaughtException", (error) => {
   app.log.error(error, "Uncaught Exception:");
 });

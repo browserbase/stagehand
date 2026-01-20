@@ -369,14 +369,11 @@ export const SessionStartResponseSchema = wrapResponse(
 // Session End
 // =============================================================================
 
-/** Session end request - empty JSON object (required). */
+/** Session end request - no request body. */
 export const SessionEndRequestSchema = z
-  .object({
-    // Dummy property to ensure Stainless generates body parameter
-    // The server accepts {} (this field should be omitted)
-    _forceBody: z.undefined().optional(),
-  })
+  .object({})
   .strict()
+  .optional()
   .meta({ id: "SessionEndRequest" });
 
 export const SessionEndResultSchema = z
