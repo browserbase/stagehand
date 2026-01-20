@@ -23,6 +23,8 @@ interface LruNode {
   expiry: number;
   prev: LruNode | null;
   next: LruNode | null;
+  /** Number of in-flight requests using this session */
+  inFlightRequests: number;
 }
 
 /**
@@ -65,14 +67,18 @@ export class InMemorySessionStore implements SessionStore {
   }
 
   /**
-   * Cleanup expired sessions
+   * Cleanup expired sessions that have no in-flight requests
    */
   private async cleanupExpired(): Promise<void> {
     const now = Date.now();
     const expiredIds: string[] = [];
 
     for (const [sessionId, node] of this.items.entries()) {
-      if (this.ttlMs > 0 && node.expiry <= now) {
+      if (
+        this.ttlMs > 0 &&
+        node.expiry <= now &&
+        node.inFlightRequests === 0
+      ) {
         expiredIds.push(sessionId);
       }
     }
@@ -160,11 +166,18 @@ export class InMemorySessionStore implements SessionStore {
       throw new Error(`Session not found: ${sessionId}`);
     }
 
-    // Check if expired
-    if (this.ttlMs > 0 && node.expiry <= Date.now()) {
+    // Check if expired (only if no in-flight requests)
+    if (
+      this.ttlMs > 0 &&
+      node.expiry <= Date.now() &&
+      node.inFlightRequests === 0
+    ) {
       await this.deleteSession(sessionId);
       throw new Error(`Session expired: ${sessionId}`);
     }
+
+    // Track this request as in-flight
+    node.inFlightRequests++;
 
     // Bump to most recently used
     this.bumpNode(node);
@@ -187,6 +200,13 @@ export class InMemorySessionStore implements SessionStore {
 
     node.stagehand = stagehand;
     return stagehand;
+  }
+
+  releaseSession(sessionId: string): void {
+    const node = this.items.get(sessionId);
+    if (node && node.inFlightRequests > 0) {
+      node.inFlightRequests--;
+    }
   }
 
   /**
@@ -260,6 +280,7 @@ export class InMemorySessionStore implements SessionStore {
       expiry: this.ttlMs > 0 ? Date.now() + this.ttlMs : Infinity,
       prev: this.last,
       next: null,
+      inFlightRequests: 0,
     };
 
     this.items.set(sessionId, node);

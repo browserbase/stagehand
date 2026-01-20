@@ -193,6 +193,8 @@ export async function createStreamingResponse<TV3>({
     result = await handler({ stagehand, data: parsedData });
   } catch (err) {
     handlerError = err instanceof Error ? err : new Error("Unknown error");
+  } finally {
+    sessionStore.releaseSession(sessionId);
   }
 
   if (handlerError) {

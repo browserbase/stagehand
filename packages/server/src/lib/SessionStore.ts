@@ -135,6 +135,7 @@ export interface SessionStore {
    * - Checking the cache for an existing V3 instance
    * - On cache miss: loading config, creating V3, caching it
    * - Updating the logger reference for streaming
+   * - Incrementing the in-flight request counter (call releaseSession when done)
    *
    * @param sessionId - The session identifier
    * @param ctx - Request-time context containing values from headers
@@ -142,6 +143,17 @@ export interface SessionStore {
    * @throws Error if session not found
    */
   getOrCreateStagehand(sessionId: string, ctx: RequestContext): Promise<V3>;
+
+  /**
+   * Release a session after a request completes.
+   *
+   * This decrements the in-flight request counter, allowing the session
+   * to be expired by TTL cleanup when no requests are active.
+   * Must be called after getOrCreateStagehand, typically in a finally block.
+   *
+   * @param sessionId - The session identifier
+   */
+  releaseSession(sessionId: string): void;
 
   /**
    * Create a new session with the given parameters.
