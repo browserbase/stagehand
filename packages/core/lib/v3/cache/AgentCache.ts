@@ -387,10 +387,7 @@ export class AgentCache {
       return null;
     }
 
-    const payload = {
-      cacheKey: this.latestEntry.cacheKey,
-      entry: cloneForCache(this.latestEntry.entry),
-    };
+    const payload = this.latestEntry;
     this.latestEntry = null;
     return payload;
   }
