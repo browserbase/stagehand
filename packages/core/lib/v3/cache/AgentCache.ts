@@ -614,6 +614,24 @@ export class AgentCache {
       const page = await ctx.awaitActivePage();
       const updatedActions: Action[] = [];
       for (const action of actions) {
+        if (action.selector) {
+          try {
+            await page.waitForSelector(action.selector, {
+              state: "attached",
+              timeout: this.domSettleTimeoutMs ?? 15000,
+            });
+          } catch (err) {
+            this.logger({
+              category: "cache",
+              message: `waitForSelector failed for actions selector, proceeding anyway`,
+              level: 2,
+              auxiliary: {
+                selector: { value: action.selector, type: "string" },
+                error: { value: String(err), type: "string" },
+              },
+            });
+          }
+        }
         const result = await handler.takeDeterministicAction(
           action,
           page,
@@ -651,6 +669,24 @@ export class AgentCache {
     const page = await ctx.awaitActivePage();
     const updatedActions: Action[] = [];
     for (const action of actions) {
+      if (action.selector) {
+        try {
+          await page.waitForSelector(action.selector, {
+            state: "attached",
+            timeout: this.domSettleTimeoutMs ?? 15000,
+          });
+        } catch (err) {
+          this.logger({
+            category: "cache",
+            message: `waitForSelector failed for fillForm action selector, proceeding anyway`,
+            level: 2,
+            auxiliary: {
+              selector: { value: action.selector, type: "string" },
+              error: { value: String(err), type: "string" },
+            },
+          });
+        }
+      }
       const result = await handler.takeDeterministicAction(
         action,
         page,
