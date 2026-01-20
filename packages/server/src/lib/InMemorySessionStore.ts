@@ -195,11 +195,15 @@ export class InMemorySessionStore implements SessionStore {
     // Create V3 instance (lazy initialization)
     const options = this.buildV3Options(node.params, ctx, node.loggerRef);
 
-    const stagehand = new V3(options);
-    await stagehand.init();
-
-    node.stagehand = stagehand;
-    return stagehand;
+    try {
+      const stagehand = new V3(options);
+      await stagehand.init();
+      node.stagehand = stagehand;
+      return stagehand;
+    } catch (error) {
+      node.inFlightRequests--;
+      throw error;
+    }
   }
 
   releaseSession(sessionId: string): void {
