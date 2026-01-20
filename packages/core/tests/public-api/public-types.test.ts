@@ -118,6 +118,7 @@ describe("Stagehand public API types", () => {
       variables?: Record<string, string>;
       timeout?: number;
       page?: Stagehand.AnyPage;
+      disableCaching?: boolean;
     };
 
     it("matches expected type shape", () => {
@@ -144,6 +145,7 @@ describe("Stagehand public API types", () => {
       timeout?: number;
       selector?: string;
       page?: Stagehand.AnyPage;
+      disableCaching?: boolean;
     };
 
     it("matches expected type shape", () => {
@@ -157,6 +159,7 @@ describe("Stagehand public API types", () => {
       timeout?: number;
       selector?: string;
       page?: Stagehand.AnyPage;
+      disableCaching?: boolean;
     };
 
     it("matches expected type shape", () => {
