@@ -65,6 +65,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
         const page = await v3.context.awaitActivePage();
 
         // Process coordinates and substitute variables for each field
+        // Keep original values (with %tokens%) for logging/caching, substituted values for typing
         const processedFields = fields.map((field) => {
           const processed = processCoordinates(
             field.coordinates.x,
@@ -74,6 +75,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
           );
           return {
             ...field,
+            originalValue: field.value, // Keep original with %tokens% for cache
             value: substituteVariables(field.value, variables),
             coordinates: { x: processed.x, y: processed.y },
           };
@@ -85,7 +87,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
           level: 1,
           auxiliary: {
             arguments: {
-              value: JSON.stringify({ fields, processedFields }),
+              value: JSON.stringify({ fields }), // Don't log substituted values
               type: "object",
             },
           },
@@ -107,6 +109,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
           await page.type(field.value);
 
           // Build Action with XPath for deterministic replay (only when caching)
+          // Use originalValue (with %tokens%) so cache stores references, not sensitive values
           if (shouldCollectXpath) {
             const normalizedXpath = ensureXPath(xpath);
             if (normalizedXpath) {
@@ -114,7 +117,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
                 selector: normalizedXpath,
                 description: field.action,
                 method: "type",
-                arguments: [field.value],
+                arguments: [field.originalValue],
               });
             }
           }
