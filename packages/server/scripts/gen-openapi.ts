@@ -173,7 +173,7 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
 
   await app.ready();
 
-  let yaml = app.swagger({ yaml: true });
+  const yaml = app.swagger({ yaml: true });
 
   await writeFile(OUTPUT_PATH, yaml, "utf8");
 

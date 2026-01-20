@@ -143,6 +143,20 @@ openapi:
         value:
           title: ProxyConfigList
 
+    # `result` is intentionally untyped and should be treated as `any` in Stainless.
+    - command: merge
+      reason: Treat StreamEventSystemData.result as any
+      args:
+        target: "$.components.schemas.StreamEventSystemData.properties.result"
+        value:
+          x-stainless-any: true
+    - command: merge
+      reason: Treat StreamEventSystemDataOutput.result as any
+      args:
+        target: "$.components.schemas.StreamEventSystemDataOutput.properties.result"
+        value:
+          x-stainless-any: true
+
 # `resources` define the structure and organization for your API, such as how
 # methods and models are grouped together and accessed. See the [configuration
 # guide] for more information.
