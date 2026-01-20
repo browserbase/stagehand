@@ -10,7 +10,7 @@ import type {
 } from "./SessionStore";
 
 const DEFAULT_MAX_CAPACITY = 100;
-const DEFAULT_TTL_MS = 300_000; // 5 minutes
+const DEFAULT_TTL_MS = 0; // 0 = infinite (no TTL-based eviction)
 
 /**
  * Internal node for LRU linked list
