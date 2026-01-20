@@ -147,8 +147,12 @@ export class InMemorySessionStore implements SessionStore {
     const node = this.items.get(sessionId);
     if (!node) return false;
 
-    // Check if expired
-    if (this.ttlMs > 0 && node.expiry <= Date.now()) {
+    // Check if expired (only if no in-flight requests)
+    if (
+      this.ttlMs > 0 &&
+      node.expiry <= Date.now() &&
+      node.inFlightRequests === 0
+    ) {
       await this.deleteSession(sessionId);
       return false;
     }
