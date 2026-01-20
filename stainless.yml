@@ -11,7 +11,7 @@ organization:
   # Link to your API documentation.
   docs: https://docs.stagehand.dev
   # Contact email for bug reports, questions, and support requests.
-  contact: ''
+  contact: ""
 
 # `targets` define the output targets and their customization options, such as
 # whether to emit the Node SDK and what its package name should be.
@@ -85,6 +85,78 @@ environments:
   # dev: https://api.stagehand.dev.browserbase.com
   # local: http://localhost:5000/v1
 
+# OpenAPI transforms applied by Stainless during SDK generation.
+# This keeps the generated `packages/server/openapi.v3.yaml` faithful to the Fastify+Zod source,
+# while still producing a Stainless-compatible spec for codegen.
+openapi:
+  code_samples: mintlify
+  transforms:
+    # Stainless doesn't support `propertyNames` (emitted by some JSON Schema generators).
+    - command: remove
+      reason: Remove unsupported JSON Schema keyword
+      args:
+        target: "$..propertyNames"
+
+    # Empty-schema `additionalProperties: {}` is equivalent to `true`, and avoids Stainless issues.
+    - command: update
+      reason: Treat record value schema as any
+      args:
+        target: "$.components.schemas.BrowserbaseSessionCreateParams.properties.userMetadata.additionalProperties"
+        value: true
+    - command: update
+      reason: Treat record value schema as any
+      args:
+        target: "$.components.schemas.BrowserbaseSessionCreateParamsOutput.properties.userMetadata.additionalProperties"
+        value: true
+    - command: update
+      reason: Treat record value schema as any
+      args:
+        target: "$.components.schemas.ExtractRequest.properties.schema.additionalProperties"
+        value: true
+    - command: update
+      reason: Treat record value schema as any
+      args:
+        target: "$.components.schemas.AgentResultData.properties.metadata.additionalProperties"
+        value: true
+    - command: update
+      reason: Treat record value schema as any
+      args:
+        target: "$.components.schemas.AgentResultDataOutput.properties.metadata.additionalProperties"
+        value: true
+    - command: update
+      reason: Treat passthrough schema as any
+      args:
+        target: "$.components.schemas.AgentAction.additionalProperties"
+        value: true
+
+    # Add a stable title to help Stainless infer a consistent name for this anonymous array schema.
+    - command: merge
+      reason: Improve name inference for anonymous arrays
+      args:
+        target: '$.components.schemas.BrowserbaseSessionCreateParams.properties.proxies.anyOf[?(@.type == "array")]'
+        value:
+          title: ProxyConfigList
+    - command: merge
+      reason: Improve name inference for anonymous arrays
+      args:
+        target: '$.components.schemas.BrowserbaseSessionCreateParamsOutput.properties.proxies.anyOf[?(@.type == "array")]'
+        value:
+          title: ProxyConfigList
+
+    # `result` is intentionally untyped and should be treated as `any` in Stainless.
+    - command: merge
+      reason: Treat StreamEventSystemData.result as any
+      args:
+        target: "$.components.schemas.StreamEventSystemData.properties.result"
+        value:
+          x-stainless-any: true
+    - command: merge
+      reason: Treat StreamEventSystemDataOutput.result as any
+      args:
+        target: "$.components.schemas.StreamEventSystemDataOutput.properties.result"
+        value:
+          x-stainless-any: true
+
 # `resources` define the structure and organization for your API, such as how
 # methods and models are grouped together and accessed. See the [configuration
 # guide] for more information.
@@ -93,9 +165,9 @@ environments:
 resources:
   sessions:
     models:
-      action: '#/components/schemas/Action'
-      model_config: '#/components/schemas/ModelConfig'
-      stream_event: '#/components/schemas/StreamEvent'
+      action: "#/components/schemas/Action"
+      model_config: "#/components/schemas/ModelConfig"
+      stream_event: "#/components/schemas/StreamEvent"
     methods:
       start: post /v1/sessions/start
       act:
@@ -200,16 +272,15 @@ readme:
       type: request
       endpoint: post /v1/sessions/start
       params:
-        modelName: 'openai/gpt-5-nano'
+        modelName: "openai/gpt-5-nano"
     headline:
       type: request
       endpoint: post /v1/sessions/{id}/act
       params:
-        input: 'click the first link on the page'
-        id: '00000000-your-session-id-000000000000'
+        input: "click the first link on the page"
+        id: "00000000-your-session-id-000000000000"
 
 diagnostics:
   ignored:
     Ruby/NameNotAllowed: true
     Ruby/NameShadowedBuiltin: true
-
