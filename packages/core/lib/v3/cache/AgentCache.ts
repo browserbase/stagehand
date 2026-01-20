@@ -588,7 +588,7 @@ export class AgentCache {
       case "keys":
         await this.replayAgentKeysStep(step as AgentReplayKeysStep, ctx);
         return step;
-      case "close":
+      case "done":
       case "extract":
       case "screenshot":
       case "ariaTree":

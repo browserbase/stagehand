@@ -86,7 +86,6 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     ariaTree: ariaTreeTool(v3),
     click: clickTool(v3, provider),
     clickAndHold: clickAndHoldTool(v3, provider),
-    //close: closeTool(),
     dragAndDrop: dragAndDropTool(v3, provider),
     extract: extractTool(v3, executionModel, options?.logger),
     fillForm: fillFormTool(v3, executionModel),

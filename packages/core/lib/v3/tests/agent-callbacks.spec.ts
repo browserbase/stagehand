@@ -34,7 +34,7 @@ test.describe("Stagehand agent callbacks behavior", () => {
 
       await agent.execute({
         instruction:
-          "What is the title of this page? Use close tool with taskComplete: true immediately after answering.",
+          "What is the title of this page? Mark the task as complete after answering.",
         maxSteps: 5,
         callbacks: {
           onStepFinish: async (event) => {
@@ -66,7 +66,7 @@ test.describe("Stagehand agent callbacks behavior", () => {
       await page.goto("https://example.com");
 
       await agent.execute({
-        instruction: "Use close tool with taskComplete: true immediately.",
+        instruction: "Simply describe the page briefly.",
         maxSteps: 3,
         callbacks: {
           prepareStep: async (stepContext) => {
@@ -135,8 +135,7 @@ test.describe("Stagehand agent callbacks behavior", () => {
       await page.goto("https://example.com");
 
       const streamResult = await agent.execute({
-        instruction:
-          "What is this page? Use close tool with taskComplete: true after answering.",
+        instruction: "What is this page? Describe it briefly.",
         maxSteps: 5,
         callbacks: {
           onStepFinish: async (event) => {
@@ -172,8 +171,7 @@ test.describe("Stagehand agent callbacks behavior", () => {
       await page.goto("https://example.com");
 
       const streamResult = await agent.execute({
-        instruction:
-          "Say hello and then use close tool with taskComplete: true",
+        instruction: "Say hello briefly and describe the page.",
         maxSteps: 3,
         callbacks: {
           onChunk: async () => {
@@ -209,7 +207,7 @@ test.describe("Stagehand agent callbacks behavior", () => {
       await page.goto("https://example.com");
 
       const streamResult = await agent.execute({
-        instruction: "Use close tool with taskComplete: true immediately.",
+        instruction: "Simply describe the page briefly.",
         maxSteps: 3,
         callbacks: {
           onFinish: (event) => {
@@ -246,7 +244,7 @@ test.describe("Stagehand agent callbacks behavior", () => {
       await page.goto("https://example.com");
 
       const streamResult = await agent.execute({
-        instruction: "Use close tool with taskComplete: true immediately.",
+        instruction: "Simply describe the page briefly.",
         maxSteps: 3,
         callbacks: {
           prepareStep: async (stepContext) => {
@@ -407,7 +405,7 @@ test.describe("Stagehand agent callbacks behavior", () => {
       await page.goto("https://example.com");
 
       await agent.execute({
-        instruction: "Use close tool with taskComplete: true immediately.",
+        instruction: "Simply describe the page briefly.",
         maxSteps: 3,
         callbacks: {
           prepareStep: async (stepContext) => {
@@ -442,8 +440,7 @@ test.describe("Stagehand agent callbacks behavior", () => {
       await page.goto("https://example.com");
 
       const streamResult = await agent.execute({
-        instruction:
-          "Say hello briefly and then use close tool with taskComplete: true",
+        instruction: "Say hello briefly and describe the page.",
         maxSteps: 3,
         callbacks: {
           prepareStep: async (stepContext) => {
