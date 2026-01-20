@@ -61,21 +61,24 @@ export const buildOnlineMind2WebTestcases = (models: string[]): Testcase[] => {
           level: row.level,
         },
       };
+      const taskCategories =
+        tasksConfig.find((t) => t.name === input.name)?.categories || [];
       allTestcases.push({
         input,
         name: input.name,
         tags: [
           model,
-          input.name,
-          ...(
-            tasksConfig.find((t) => t.name === input.name)?.categories || []
-          ).map((x) => `category/${x}`),
-          `onlineMind2Web/id/${row.task_id}`,
-          ...(row.level ? [`onlineMind2Web/level/${row.level}`] : []),
+          "mind2web", // Simple dataset tag
         ],
         metadata: {
           model: model as AvailableModel,
           test: `${input.name}:${row.task_id}`,
+          category: taskCategories[0] || "agent",
+          categories: taskCategories,
+          dataset: "onlineMind2Web",
+          task_id: row.task_id,
+          difficulty: row.level,
+          website: row.website,
         },
         expected: true,
       });
