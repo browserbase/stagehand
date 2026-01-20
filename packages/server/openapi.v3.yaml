@@ -141,13 +141,6 @@ components:
         acceptDownloads:
           type: boolean
       additionalProperties: false
-    ModelConfigString:
-      description: Model name string with provider prefix. Always use the format
-        'provider/model-name' (e.g., 'openai/gpt-4o',
-        'anthropic/claude-sonnet-4-5-20250929', 'google/gemini-2.0-flash')
-      match: {}
-      example: openai/gpt-4o
-      type: string
     ModelConfigObject:
       type: object
       properties:
@@ -161,11 +154,8 @@ components:
             - google
             - microsoft
         modelName:
-          description:
-            Model name string with provider prefix. Always use the format
-            'provider/model-name' (e.g., 'openai/gpt-4o',
-            'anthropic/claude-sonnet-4-5-20250929', 'google/gemini-2.0-flash')
-          example: openai/gpt-4o
+          description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
+          example: openai/gpt-5-nano
           type: string
         apiKey:
           description: API key for the model provider
@@ -179,9 +169,7 @@ components:
       required:
         - modelName
     ModelConfig:
-      anyOf:
-        - $ref: "#/components/schemas/ModelConfigString"
-        - $ref: "#/components/schemas/ModelConfigObject"
+      $ref: "#/components/schemas/ModelConfigObject"
     Action:
       description: Action object returned by observe and used by act
       type: object
@@ -379,8 +367,7 @@ components:
         proxies:
           anyOf:
             - type: boolean
-            - title: ProxyConfigList
-              type: array
+            - type: array
               items:
                 $ref: "#/components/schemas/ProxyConfig"
         region:
@@ -394,7 +381,9 @@ components:
           type: number
         userMetadata:
           type: object
-          additionalProperties: true
+          propertyNames:
+            type: string
+          additionalProperties: {}
     SessionStartResult:
       type: object
       properties:
@@ -431,6 +420,8 @@ components:
           example:
             username: john_doe
           type: object
+          propertyNames:
+            type: string
           additionalProperties:
             type: string
         timeout:
@@ -517,7 +508,9 @@ components:
         schema:
           description: JSON Schema defining the structure of data to extract
           type: object
-          additionalProperties: true
+          propertyNames:
+            type: string
+          additionalProperties: {}
         options:
           $ref: "#/components/schemas/ExtractOptions"
         frameId:
@@ -631,7 +624,7 @@ components:
           type: string
       required:
         - type
-      additionalProperties: true
+      additionalProperties: {}
     AgentUsage:
       type: object
       properties:
@@ -673,7 +666,9 @@ components:
           type: boolean
         metadata:
           type: object
-          additionalProperties: true
+          propertyNames:
+            type: string
+          additionalProperties: {}
         usage:
           $ref: "#/components/schemas/AgentUsage"
       required:
@@ -1013,11 +1008,8 @@ components:
             - google
             - microsoft
         modelName:
-          description:
-            Model name string with provider prefix. Always use the format
-            'provider/model-name' (e.g., 'openai/gpt-4o',
-            'anthropic/claude-sonnet-4-5-20250929', 'google/gemini-2.0-flash')
-          example: openai/gpt-4o
+          description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
+          example: openai/gpt-5-nano
           type: string
         apiKey:
           description: API key for the model provider
@@ -1032,9 +1024,7 @@ components:
         - modelName
       additionalProperties: false
     ModelConfigOutput:
-      anyOf:
-        - $ref: "#/components/schemas/ModelConfigString"
-        - $ref: "#/components/schemas/ModelConfigObjectOutput"
+      $ref: "#/components/schemas/ModelConfigObjectOutput"
     ActionOutput:
       description: Action object returned by observe and used by act
       type: object
@@ -1242,8 +1232,7 @@ components:
         proxies:
           anyOf:
             - type: boolean
-            - title: ProxyConfigList
-              type: array
+            - type: array
               items:
                 $ref: "#/components/schemas/ProxyConfigOutput"
         region:
@@ -1257,7 +1246,9 @@ components:
           type: number
         userMetadata:
           type: object
-          additionalProperties: true
+          propertyNames:
+            type: string
+          additionalProperties: {}
       additionalProperties: false
     SessionStartResultOutput:
       type: object
@@ -1290,6 +1281,8 @@ components:
           example:
             username: john_doe
           type: object
+          propertyNames:
+            type: string
           additionalProperties:
             type: string
         timeout:
@@ -1453,7 +1446,9 @@ components:
           type: boolean
         metadata:
           type: object
-          additionalProperties: true
+          propertyNames:
+            type: string
+          additionalProperties: {}
         usage:
           $ref: "#/components/schemas/AgentUsageOutput"
       required:
@@ -1628,10 +1623,7 @@ components:
       type: object
       properties:
         modelName:
-          description:
-            Model name to use for AI operations. Always use the format
-            'provider/model-name' (e.g., 'openai/gpt-4o',
-            'anthropic/claude-sonnet-4-5-20250929', 'google/gemini-2.0-flash')
+          description: Model name to use for AI operations
           example: openai/gpt-4o
           type: string
         domSettleTimeoutMs:
@@ -1915,11 +1907,7 @@ paths:
               type: object
               properties:
                 modelName:
-                  description:
-                    Model name to use for AI operations. Always use the format
-                    'provider/model-name' (e.g., 'openai/gpt-4o',
-                    'anthropic/claude-sonnet-4-5-20250929',
-                    'google/gemini-2.0-flash')
+                  description: Model name to use for AI operations
                   example: openai/gpt-4o
                   type: string
                 domSettleTimeoutMs:

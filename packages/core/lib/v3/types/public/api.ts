@@ -47,15 +47,6 @@ export const LocalBrowserLaunchOptionsSchema = z
   .strict()
   .meta({ id: "LocalBrowserLaunchOptions" });
 
-/** Model config as a string (provider-prefixed, e.g. "openai/gpt-5-nano") */
-export const ModelConfigStringSchema = z.string().meta({
-  id: "ModelConfigString",
-  description:
-    "Model name string with provider prefix (e.g., 'openai/gpt-5-nano', 'anthropic/claude-4.5-opus')",
-  match: /^(openai|anthropic|google|microsoft)\/.+$/,
-  example: "openai/gpt-5-nano",
-});
-
 /** Detailed model configuration object */
 export const ModelConfigObjectSchema = z
   .object({
@@ -83,10 +74,10 @@ export const ModelConfigObjectSchema = z
   })
   .meta({ id: "ModelConfigObject" });
 
-/** Model configuration - string model name or detailed config */
-export const ModelConfigSchema = z
-  .union([ModelConfigStringSchema, ModelConfigObjectSchema])
-  .meta({ id: "ModelConfig" });
+/** Model configuration */
+export const ModelConfigSchema = ModelConfigObjectSchema.meta({
+  id: "ModelConfig",
+});
 
 /** Action object returned by observe and used by act */
 export const ActionSchema = z
