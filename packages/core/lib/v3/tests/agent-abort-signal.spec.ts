@@ -36,7 +36,7 @@ test.describe("Stagehand agent abort signal", () => {
     await expect(
       agent.execute({
         instruction:
-          "Describe every visual element on this page in extreme detail. Do not use the close tool until you have described at least 100 different elements.",
+          "Describe every visual element on this page in extreme detail. Describe at least 100 different elements.",
         maxSteps: 50,
         signal: controller.signal,
       }),
@@ -61,7 +61,7 @@ test.describe("Stagehand agent abort signal", () => {
 
     const streamResult = await agent.execute({
       instruction:
-        "Describe every visual element on this page in extreme detail. Do not use the close tool until you have described at least 100 different elements.",
+        "Describe every visual element on this page in extreme detail. Describe at least 100 different elements.",
       maxSteps: 50,
       signal: controller.signal,
     });
@@ -123,7 +123,7 @@ test.describe("Stagehand agent abort signal", () => {
 
     // No signal provided - should complete normally
     const result = await agent.execute({
-      instruction: "Use the close tool with taskComplete: true immediately.",
+      instruction: "Describe this page briefly.",
       maxSteps: 3,
     });
 
@@ -144,7 +144,7 @@ test.describe("Stagehand agent abort signal", () => {
 
     // No signal provided - should complete normally
     const streamResult = await agent.execute({
-      instruction: "Use the close tool with taskComplete: true immediately.",
+      instruction: "Describe this page briefly.",
       maxSteps: 3,
     });
 
