@@ -7,32 +7,28 @@ description: "Official Stagehand SDK for Go"
   This documentation is automatically synced from the [Go SDK GitHub repository](https://github.com/browserbase/stagehand-go).
 </Note>
 
-## What is Stagehand?
+The Stagehand Go library provides convenient access to the [Stagehand REST API](https://docs.stagehand.dev)
+from applications written in Go.
 
-Stagehand is a browser automation framework used to control web browsers with natural language and code. By combining the power of AI with the precision of code, Stagehand makes web automation flexible, maintainable, and actually reliable.
+It is generated with [Stainless](https://www.stainless.com/).
 
-## Why Stagehand?
+## MCP Server
 
-Most existing browser automation tools either require you to write low-level code in a framework like Selenium, Playwright, or Puppeteer, or use high-level agents that can be unpredictable in production. By letting developers choose what to write in code vs. natural language (and bridging the gap between the two) Stagehand is the natural choice for browser automations in production.
-
-1. **Choose when to write code vs. natural language**: use AI when you want to navigate unfamiliar pages, and use code when you know exactly what you want to do.
-
-2. **Go from AI-driven to repeatable workflows**: Stagehand lets you preview AI actions before running them, and also helps you easily cache repeatable actions to save time and tokens.
-
-3. **Write once, run forever**: Stagehand's auto-caching combined with self-healing remembers previous actions, runs without LLM inference, and knows when to involve AI whenever the website changes and your automation breaks.
+Use the Stagehand MCP Server to enable AI assistants to interact with this API, allowing them to explore endpoints, make test requests, and use documentation to help integrate this SDK into your application.
+> Note: You may need to set environment variables in your MCP client.
 
 ## Installation
 
 ```go
 import (
-	"github.com/browserbase/stagehand-go" // imported as stagehand
+	"github.com/browserbase/stagehand-go/v3" // imported as stagehand
 )
 ```
 
 Or to pin the version:
 
 ```sh
-go get -u 'github.com/browserbase/stagehand-go@v0.17.1'
+go get -u 'github.com/browserbase/stagehand-go@v3.0.1'
 ```
 
 ## Requirements
@@ -50,180 +46,32 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/browserbase/stagehand-go"
-	"github.com/browserbase/stagehand-go/option"
+	"github.com/browserbase/stagehand-go/v3"
+	"github.com/browserbase/stagehand-go/v3/option"
 )
 
 func main() {
-	// Create a new Stagehand client with your credentials
 	client := stagehand.NewClient(
 		option.WithBrowserbaseAPIKey("My Browserbase API Key"),       // defaults to os.LookupEnv("BROWSERBASE_API_KEY")
 		option.WithBrowserbaseProjectID("My Browserbase Project ID"), // defaults to os.LookupEnv("BROWSERBASE_PROJECT_ID")
 		option.WithModelAPIKey("My Model API Key"),                   // defaults to os.LookupEnv("MODEL_API_KEY")
 	)
-
-	// Start a new browser session
-	startResponse, err := client.Sessions.Start(context.TODO(), stagehand.SessionStartParams{
-		ModelName: "gpt-5-nano",
-	})
-	if err != nil {
-		panic(err.Error())
-	}
-	fmt.Printf("Session started: %s\n", startResponse.Data.SessionID)
-
-	sessionID := startResponse.Data.SessionID
-
-	// Navigate to a webpage
-	_, err = client.Sessions.Navigate(
+	response, err := client.Sessions.Act(
 		context.TODO(),
-		sessionID,
-		stagehand.SessionNavigateParams{
-			URL: "https://news.ycombinator.com",
-		},
-	)
-	if err != nil {
-		panic(err.Error())
-	}
-	fmt.Println("Navigated to Hacker News")
-
-	// Use Observe to find possible actions on the page
-	observeResponse, err := client.Sessions.Observe(
-		context.TODO(),
-		sessionID,
-		stagehand.SessionObserveParams{
-			Instruction: stagehand.String("find the link to view comments for the top post"),
-		},
-	)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	actions := observeResponse.Data.Result
-	fmt.Printf("Found %d possible actions\n", len(actions))
-
-	if len(actions) == 0 {
-		fmt.Println("No actions found")
-		return
-	}
-
-	// Take the first action returned by Observe
-	action := actions[0]
-	fmt.Printf("Acting on: %s\n", action.Description)
-
-	// Pass the structured action to Act
-	// The action contains selector, description, method, and arguments
-	actResponse, err := client.Sessions.Act(
-		context.TODO(),
-		sessionID,
+		"00000000-your-session-id-000000000000",
 		stagehand.SessionActParams{
 			Input: stagehand.SessionActParamsInputUnion{
-				OfAction: &stagehand.ActionParam{
-					Description: action.Description,
-					Selector:    action.Selector,
-					Method:      stagehand.String(action.Method),
-					Arguments:   action.Arguments,
-				},
+				OfString: stagehand.String("click the first link on the page"),
 			},
 		},
 	)
 	if err != nil {
 		panic(err.Error())
 	}
-	fmt.Printf("Act completed: %s\n", actResponse.Data.Result.Message)
-
-	// Extract structured data from the page using a JSON schema
-	extractResponse, err := client.Sessions.Extract(
-		context.TODO(),
-		sessionID,
-		stagehand.SessionExtractParams{
-			Instruction: stagehand.String("extract the text of the top comment"),
-			Schema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"commentText": map[string]any{
-						"type":        "string",
-						"description": "The text content of the top comment",
-					},
-					"author": map[string]any{
-						"type":        "string",
-						"description": "The username of the comment author",
-					},
-				},
-			},
-		},
-	)
-	if err != nil {
-		panic(err.Error())
-	}
-	fmt.Printf("Extracted: %+v\n", extractResponse.Data.Result)
-
-	// Run an autonomous agent to accomplish a goal
-	// The agent can navigate, click, type, and interact with pages
-	executeResponse, err := client.Sessions.Execute(
-		context.TODO(),
-		sessionID,
-		stagehand.SessionExecuteParams{
-			ExecuteOptions: stagehand.SessionExecuteParamsExecuteOptions{
-				Instruction: "Find the profile page for the top commenter",
-				MaxSteps:    stagehand.Float(10),
-			},
-			AgentConfig: stagehand.SessionExecuteParamsAgentConfig{
-				// Model config with provider/model format and API key
-				Model: stagehand.ModelConfigUnionParam{
-					OfModelConfigModelConfigObject: &stagehand.ModelConfigModelConfigObjectParam{
-						ModelName: "openai/gpt-4.1-mini",
-						APIKey:    stagehand.String("sk-your-api-key"),
-					},
-				},
-				Cua: stagehand.Bool(false),
-			},
-		},
-	)
-	if err != nil {
-		panic(err.Error())
-	}
-	fmt.Printf("Agent result: %s\n", executeResponse.Data.Result.Message)
-
-	// End the session to clean up resources
-	_, err = client.Sessions.End(
-		context.TODO(),
-		sessionID,
-		stagehand.SessionEndParams{},
-	)
-	if err != nil {
-		panic(err.Error())
-	}
-	fmt.Println("Session ended")
+	fmt.Printf("%+v\n", response.Data)
 }
+
 ```
-
-### Running the example
-
-A complete working example is available in `examples/basic.go`. To run it:
-
-1. **Set up environment variables** by creating a `.env` file in the repository root:
-
-```bash
-BROWSERBASE_API_KEY=your_browserbase_api_key
-BROWSERBASE_PROJECT_ID=your_browserbase_project_id
-MODEL_API_KEY=your_openai_api_key
-```
-
-You can get your Browserbase API key and project ID from the [Browserbase dashboard](https://www.browserbase.com/).
-
-2. **Install dependencies**:
-
-```bash
-go mod tidy
-```
-
-3. **Run the example**:
-
-```bash
-go run examples/basic.go
-```
-
-The example demonstrates the full Stagehand workflow: starting a session, navigating to a page, observing actions, clicking elements, extracting data, and running an autonomous agent.
 
 ### Request fields
 
@@ -438,6 +286,15 @@ The request option `option.WithDebugLog(nil)` may be helpful while debugging.
 
 See the [full list of request options](https://pkg.go.dev/github.com/browserbase/stagehand-go/option).
 
+### Pagination
+
+This library provides some conveniences for working with paginated list endpoints.
+
+You can use `.ListAutoPaging()` methods to iterate through items across all pages:
+
+Or you can use simple `.List()` methods to fetch a single page and receive a standard response object
+with additional helper methods like `.GetNextPage()`, e.g.:
+
 ### Errors
 
 When the API returns a non-success status code, we return an error with type
@@ -484,6 +341,19 @@ client.Sessions.Start(
 	option.WithRequestTimeout(20*time.Second),
 )
 ```
+
+### File uploads
+
+Request parameters that correspond to file uploads in multipart requests are typed as
+`io.Reader`. The contents of the `io.Reader` will by default be sent as a multipart form
+part with the file name of "anonymous_file" and content-type of "application/octet-stream".
+
+The file name and content-type can be customized by implementing `Name() string` or `ContentType()
+string` on the run-time type of `io.Reader`. Note that `os.File` implements `Name() string`, so a
+file returned by `os.Open` will be sent with the file name on disk.
+
+We also provide a helper `stagehand.File(reader io.Reader, filename string, contentType string)`
+which can be used to wrap any `io.Reader` with the appropriate file name and content type.
 
 ### Retries
 
