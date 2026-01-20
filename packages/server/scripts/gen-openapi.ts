@@ -66,7 +66,6 @@ async function main() {
       SessionStartResult: Api.SessionStartResultSchema,
       SessionStartResponse: Api.SessionStartResponseSchema,
       // Session End
-      SessionEndRequest: Api.SessionEndRequestSchema,
       SessionEndResult: Api.SessionEndResultSchema,
       SessionEndResponse: Api.SessionEndResponseSchema,
       // Act
