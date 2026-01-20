@@ -28,6 +28,8 @@ export type HybridSnapshot = {
   combinedXpathMap: Record<string, string>;
   /** EncodedId -> URL extracted from AX properties. */
   combinedUrlMap: Record<string, string>;
+  /** EncodedId -> CSS selector (when available). */
+  combinedCssMap: Record<string, string>;
   /** Per-frame payloads expose the original relative data for debugging. */
   perFrame?: PerFrameSnapshot[];
 };
@@ -37,6 +39,7 @@ export type PerFrameSnapshot = {
   outline: string;
   xpathMap: Record<string, string>;
   urlMap: Record<string, string>;
+  cssMap: Record<string, string>;
 };
 
 /**
@@ -48,6 +51,7 @@ export type SessionDomIndex = {
   absByBe: Map<number, string>;
   tagByBe: Map<number, string>;
   scrollByBe: Map<number, boolean>;
+  cssByBe: Map<number, string>;
   docRootOf: Map<number, number>;
   contentDocRootByIframe: Map<number, number>;
 };
@@ -57,6 +61,7 @@ export type FrameDomMaps = {
   xpathMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
   urlMap: Record<string, string>;
+  cssMap: Record<string, string>;
 };
 
 export type ResolvedLocation = {

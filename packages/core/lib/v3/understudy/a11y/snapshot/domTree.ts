@@ -7,6 +7,7 @@ import {
   joinXPath,
   normalizeXPath,
 } from "./xpathUtils";
+import { buildCssSelector, parseAttributes } from "./cssSelector";
 
 // starting from infinite depth (-1), exponentially shrink down to 1
 const DOM_DEPTH_ATTEMPTS = [-1, 256, 128, 64, 32, 16, 8, 4, 2, 1];
@@ -184,6 +185,7 @@ export async function domMapsForSession(
   tagNameMap: Record<string, string>;
   xpathMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
+  cssMap: Record<string, string>;
 }> {
   await session.send("DOM.enable").catch(() => {});
   const root = await getDomTreeWithFallback(session, pierce);
@@ -210,6 +212,7 @@ export async function domMapsForSession(
   const tagNameMap: Record<string, string> = {};
   const xpathMap: Record<string, string> = {};
   const scrollableMap: Record<string, boolean> = {};
+  const cssMap: Record<string, string> = {};
 
   type StackEntry = { node: Protocol.DOM.Node; xpath: string };
   const stack: StackEntry[] = [{ node: startNode, xpath: "" }];
@@ -219,10 +222,17 @@ export async function domMapsForSession(
 
     if (node.backendNodeId) {
       const encId = encode(frameId, node.backendNodeId);
-      tagNameMap[encId] = String(node.nodeName).toLowerCase();
+      const tagName = String(node.nodeName).toLowerCase();
+      tagNameMap[encId] = tagName;
       xpathMap[encId] = xpath || "/";
       const isScrollable = node?.isScrollable === true;
       if (isScrollable) scrollableMap[encId] = true;
+
+      // Build CSS selector from node attributes
+      const cssSelector = buildCssSelector(node.attributes, tagName);
+      if (cssSelector) {
+        cssMap[encId] = cssSelector;
+      }
     }
 
     const kids = node.children ?? [];
@@ -246,7 +256,7 @@ export async function domMapsForSession(
     }
   }
 
-  return { tagNameMap, xpathMap, scrollableMap };
+  return { tagNameMap, xpathMap, scrollableMap, cssMap };
 }
 
 /**
@@ -264,6 +274,7 @@ export async function buildSessionDomIndex(
   const absByBe = new Map<number, string>();
   const tagByBe = new Map<number, string>();
   const scrollByBe = new Map<number, boolean>();
+  const cssByBe = new Map<number, string>();
   const docRootOf = new Map<number, number>();
   const contentDocRootByIframe = new Map<number, number>();
 
@@ -274,10 +285,17 @@ export async function buildSessionDomIndex(
   while (stack.length) {
     const { node, xp, docRootBe } = stack.pop()!;
     if (node.backendNodeId) {
+      const tagName = String(node.nodeName).toLowerCase();
       absByBe.set(node.backendNodeId, xp || "/");
-      tagByBe.set(node.backendNodeId, String(node.nodeName).toLowerCase());
+      tagByBe.set(node.backendNodeId, tagName);
       if (node?.isScrollable === true) scrollByBe.set(node.backendNodeId, true);
       docRootOf.set(node.backendNodeId, docRootBe);
+
+      // Build CSS selector from node attributes
+      const cssSelector = buildCssSelector(node.attributes, tagName);
+      if (cssSelector) {
+        cssByBe.set(node.backendNodeId, cssSelector);
+      }
     }
 
     const kids = node.children ?? [];
@@ -306,6 +324,7 @@ export async function buildSessionDomIndex(
     absByBe,
     tagByBe,
     scrollByBe,
+    cssByBe,
     docRootOf,
     contentDocRootByIframe,
   };

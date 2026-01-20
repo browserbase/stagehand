@@ -1,0 +1,26 @@
+{
+  "name": "@browserbasehq/stagehand-cli",
+  "version": "0.1.0",
+  "description": "CLI for browser automation using Stagehand understudy methods",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "stagehand": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "bun build src/index.ts --outfile dist/index.js --target node --format esm --banner '#!/usr/bin/env node'",
+    "start": "cd ../.. && npx tsx packages/cli/src/index.ts",
+    "stagehand": "cd ../.. && npx tsx packages/cli/src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "chrome-launcher": "^1.2.0",
+    "commander": "^12.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.10.5",
+    "typescript": "^5.2.2"
+  }
+}

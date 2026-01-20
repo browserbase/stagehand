@@ -66,6 +66,7 @@ const makeSessionIndex = (): SessionDomIndex => ({
     [201, "div"],
   ]),
   scrollByBe: new Map([[201, true]]),
+  cssByBe: new Map(),
   docRootOf: new Map([
     [100, 100],
     [101, 100],
@@ -287,6 +288,7 @@ describe("captureHybridSnapshot", () => {
         tagNameMap: { "0-100": "#document" },
         xpathMap: { "0-100": "/" },
         scrollableMap: {},
+        cssMap: {},
       });
     const a11ySpy = vi.spyOn(a11yTree, "a11yForFrame").mockResolvedValue({
       outline: "scoped outline",

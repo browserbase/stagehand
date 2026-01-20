@@ -288,6 +288,7 @@ describe("tryScopedSnapshot", () => {
         tagNameMap: { "1-10": "div" },
         xpathMap: { "1-10": "/div[1]" },
         scrollableMap: {},
+        cssMap: {},
       });
     const a11ySpy = vi.spyOn(a11yTree, "a11yForFrame").mockResolvedValue({
       outline: "[1-10] div",
@@ -321,6 +322,7 @@ describe("tryScopedSnapshot", () => {
       tagNameMap: { "1-10": "div" },
       xpathMap: { "1-10": "/div[1]" },
       scrollableMap: {},
+      cssMap: {},
     });
     vi.spyOn(a11yTree, "a11yForFrame").mockResolvedValue({
       outline: "ignored",
@@ -356,6 +358,7 @@ describe("tryScopedSnapshot", () => {
       tagNameMap: { "1-10": "div" },
       xpathMap: { "1-10": "/div[1]" },
       scrollableMap: {},
+      cssMap: {},
     });
     vi.spyOn(a11yTree, "a11yForFrame").mockResolvedValue({
       outline: "[1-10] div",

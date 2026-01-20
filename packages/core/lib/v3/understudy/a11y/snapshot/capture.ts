@@ -168,13 +168,14 @@ export async function tryScopedSnapshot(
     const sameSessionAsParent =
       !!parentId &&
       ownerSession(page, parentId) === ownerSession(page, targetFrameId);
-    const { tagNameMap, xpathMap, scrollableMap } = await domMapsForSession(
-      owningSess,
-      targetFrameId,
-      pierce,
-      (fid, be) => `${page.getOrdinal(fid)}-${be}`,
-      sameSessionAsParent,
-    );
+    const { tagNameMap, xpathMap, scrollableMap, cssMap } =
+      await domMapsForSession(
+        owningSess,
+        targetFrameId,
+        pierce,
+        (fid, be) => `${page.getOrdinal(fid)}-${be}`,
+        sameSessionAsParent,
+      );
 
     const { outline, urlMap, scopeApplied } = await a11yForFrame(
       owningSess,
@@ -202,17 +203,20 @@ export async function tryScopedSnapshot(
     }
 
     const scopedUrlMap: Record<string, string> = { ...urlMap };
+    const scopedCssMap: Record<string, string> = { ...cssMap };
 
     const snapshot: HybridSnapshot = {
       combinedTree: outline,
       combinedXpathMap: scopedXpathMap,
       combinedUrlMap: scopedUrlMap,
+      combinedCssMap: scopedCssMap,
       perFrame: [
         {
           frameId: targetFrameId,
           outline,
           xpathMap,
           urlMap,
+          cssMap,
         },
       ],
     };
@@ -304,6 +308,7 @@ export async function collectPerFrameMaps(
     const tagNameMap: Record<string, string> = {};
     const xpathMap: Record<string, string> = {};
     const scrollableMap: Record<string, boolean> = {};
+    const cssMap: Record<string, string> = {};
     const enc = (be: number) => `${page.getOrdinal(frameId)}-${be}`;
     const baseAbs = idx.absByBe.get(docRootBe) ?? "/";
 
@@ -318,6 +323,8 @@ export async function collectPerFrameMaps(
       const tag = idx.tagByBe.get(be);
       if (tag) tagNameMap[key] = tag;
       if (idx.scrollByBe.get(be)) scrollableMap[key] = true;
+      const css = idx.cssByBe.get(be);
+      if (css) cssMap[key] = css;
     }
 
     const { outline, urlMap } = await a11yForFrame(sess, frameId, {
@@ -328,7 +335,7 @@ export async function collectPerFrameMaps(
     });
 
     perFrameOutlines.push({ frameId, outline });
-    perFrameMaps.set(frameId, { tagNameMap, xpathMap, scrollableMap, urlMap });
+    perFrameMaps.set(frameId, { tagNameMap, xpathMap, scrollableMap, urlMap, cssMap });
   }
 
   return { perFrameMaps, perFrameOutlines };
@@ -410,6 +417,7 @@ export function mergeFramesIntoSnapshot(
 ): HybridSnapshot {
   const combinedXpathMap: Record<string, string> = {};
   const combinedUrlMap: Record<string, string> = {};
+  const combinedCssMap: Record<string, string> = {};
 
   for (const frameId of context.frames) {
     const maps = perFrameMaps.get(frameId);
@@ -421,6 +429,7 @@ export function mergeFramesIntoSnapshot(
     if (isRoot) {
       Object.assign(combinedXpathMap, maps.xpathMap);
       Object.assign(combinedUrlMap, maps.urlMap);
+      Object.assign(combinedCssMap, maps.cssMap);
       continue;
     }
 
@@ -428,6 +437,8 @@ export function mergeFramesIntoSnapshot(
       combinedXpathMap[encId] = prefixXPath(abs, xp);
     }
     Object.assign(combinedUrlMap, maps.urlMap);
+    // CSS selectors are per-frame and don't need XPath-style prefixing
+    Object.assign(combinedCssMap, maps.cssMap);
   }
 
   const idToTree = new Map<string, string>();
@@ -447,6 +458,7 @@ export function mergeFramesIntoSnapshot(
     combinedTree,
     combinedXpathMap,
     combinedUrlMap,
+    combinedCssMap,
     perFrame: perFrameOutlines.map(({ frameId, outline }) => {
       const maps = perFrameMaps.get(frameId);
       return {
@@ -454,6 +466,7 @@ export function mergeFramesIntoSnapshot(
         outline,
         xpathMap: maps?.xpathMap ?? {},
         urlMap: maps?.urlMap ?? {},
+        cssMap: maps?.cssMap ?? {},
       };
     }),
   };

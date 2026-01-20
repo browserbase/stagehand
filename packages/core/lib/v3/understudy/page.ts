@@ -1798,12 +1798,13 @@ export class Page {
   @logAction("Page.snapshot")
   async snapshot(): Promise<SnapshotResult> {
     try {
-      const { combinedTree, combinedXpathMap, combinedUrlMap } =
+      const { combinedTree, combinedXpathMap, combinedUrlMap, combinedCssMap } =
         await captureHybridSnapshot(this, { pierceShadow: true });
       return {
         formattedTree: combinedTree,
         xpathMap: combinedXpathMap,
         urlMap: combinedUrlMap,
+        cssMap: combinedCssMap,
       };
     } catch (err) {
       throw new StagehandSnapshotError(err);
