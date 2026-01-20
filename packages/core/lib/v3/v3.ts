@@ -343,6 +343,7 @@ export class V3 {
 
     this.cacheStorage = CacheStorage.create(opts.cacheDir, this.logger, {
       label: "cache directory",
+      adapter: opts.cacheAdapter,
     });
     this.actCache = new ActCache({
       storage: this.cacheStorage,

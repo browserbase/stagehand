@@ -59,6 +59,7 @@
     "zod-to-json-schema": "^3.25.0"
   },
   "optionalDependencies": {
+    "@google-cloud/storage": "^7.0.0",
     "@ai-sdk/anthropic": "^2.0.34",
     "@ai-sdk/azure": "^2.0.54",
     "@ai-sdk/cerebras": "^1.0.25",

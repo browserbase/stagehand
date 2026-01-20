@@ -162,3 +162,101 @@ This ensures your CI/CD pipelines use the same cached actions without needing to
 </Accordion>
 
 </AccordionGroup>
+
+## Storage Adapters
+
+By default, Stagehand caches to the local filesystem using `cacheDir`. For cloud and serverless environments (Trigger.dev, AWS Lambda, Cloud Functions) that don't have persistent filesystems, you can use a custom storage adapter.
+
+### Using the GCS Adapter
+
+The `GCSAdapter` stores cache data in Google Cloud Storage, making it ideal for serverless deployments:
+
+```typescript
+import { Stagehand, GCSAdapter } from "@browserbasehq/stagehand";
+
+const adapter = new GCSAdapter({
+  bucket: "my-stagehand-cache",
+  prefix: "agent-cache/", // Optional prefix for all cache keys
+});
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheAdapter: adapter, // Use custom adapter instead of cacheDir
+});
+
+await stagehand.init();
+// Cache data will be stored in gs://my-stagehand-cache/agent-cache/
+```
+
+<Note>
+  The `GCSAdapter` requires `@google-cloud/storage` to be installed:
+  ```bash
+  npm install @google-cloud/storage
+  ```
+</Note>
+
+### Authentication
+
+The GCS adapter uses Google Cloud Application Default Credentials (ADC) by default. You can also provide explicit credentials in several formats:
+
+```typescript
+// Using a credentials object
+const adapter = new GCSAdapter({
+  bucket: "my-stagehand-cache",
+  credentials: {
+    client_email: "sa@project.iam.gserviceaccount.com",
+    private_key: "-----BEGIN PRIVATE KEY-----\n...",
+  },
+});
+
+// Using a JSON string (common in serverless environments)
+const adapter = new GCSAdapter({
+  bucket: "my-stagehand-cache",
+  credentials: process.env.GCS_CREDENTIALS, // JSON string
+});
+
+// Using a file path (for local development)
+const adapter = new GCSAdapter({
+  bucket: "my-stagehand-cache",
+  credentials: "/path/to/service-account.json",
+});
+```
+
+### Creating Custom Adapters
+
+You can create custom adapters for other storage backends (Redis, S3, etc.) by implementing the `StorageAdapter` interface:
+
+```typescript
+import type { StorageAdapter } from "@browserbasehq/stagehand";
+
+class MyCustomAdapter implements StorageAdapter {
+  readonly enabled = true;
+  readonly description = "my-custom-storage";
+
+  async readJson<T>(key: string): Promise<{ value: T | null; error?: unknown }> {
+    // Read and parse JSON from your storage
+    // Return { value: null } for missing keys (not an error)
+    // Return { value: null, error } for actual errors
+  }
+
+  async writeJson(key: string, data: unknown): Promise<{ error?: unknown }> {
+    // Serialize and write data to your storage
+    // Return {} on success, { error } on failure
+  }
+}
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheAdapter: new MyCustomAdapter(),
+});
+```
+
+### When to Use Custom Adapters
+
+| Environment | Recommended Approach |
+|-------------|---------------------|
+| Local development | `cacheDir` (default filesystem) |
+| Docker/containers with volumes | `cacheDir` |
+| Serverless (Lambda, Cloud Functions) | `GCSAdapter` or custom cloud adapter |
+| Trigger.dev | `GCSAdapter` |
+| Kubernetes without persistent volumes | `GCSAdapter` or custom adapter |
