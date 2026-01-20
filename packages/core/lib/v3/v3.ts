@@ -172,6 +172,42 @@ export class V3 {
   public get isBrowserbase(): boolean {
     return this.state.kind === "BROWSERBASE";
   }
+
+  /**
+   * Returns true if advancedStealth is enabled in Browserbase settings.
+   */
+  public get isAdvancedStealth(): boolean {
+    return (
+      this.opts.browserbaseSessionCreateParams?.browserSettings
+        ?.advancedStealth === true
+    );
+  }
+
+  /**
+   * Returns the configured viewport dimensions from launch options.
+   * Falls back to default 1288x711 if not configured.
+   */
+  public get configuredViewport(): { width: number; height: number } {
+    const defaultWidth = 1288;
+    const defaultHeight = 711;
+
+    if (this.opts.env === "BROWSERBASE") {
+      const vp =
+        this.opts.browserbaseSessionCreateParams?.browserSettings?.viewport;
+      return {
+        width: vp?.width ?? defaultWidth,
+        height: vp?.height ?? defaultHeight,
+      };
+    }
+
+    // LOCAL env
+    const vp = this.opts.localBrowserLaunchOptions?.viewport;
+    return {
+      width: vp?.width ?? defaultWidth,
+      height: vp?.height ?? defaultHeight,
+    };
+  }
+
   private _onCdpClosed = (why: string) => {
     if (this.state.kind === "BROWSERBASE") {
       void this._logBrowserbaseSessionStatus();
