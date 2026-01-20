@@ -78,18 +78,14 @@ describe("/v1/sessions/:id/end body requirements", () => {
     expect(storeMocks.endSession).toHaveBeenCalledWith("sess-1");
   });
 
-  test("returns 200 if body contains extra keys", async () => {
-    storeMocks.endSession.mockResolvedValue(undefined);
-
+  test("returns 400 if body contains extra keys", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/sessions/sess-1/end",
       payload: { unexpected: true },
     });
 
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ success: true });
-    expect(storeMocks.endSession).toHaveBeenCalledWith("sess-1");
+    expect(res.statusCode).toBe(400);
   });
 
   test("returns 200 when body is {}", async () => {
