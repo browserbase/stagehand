@@ -880,6 +880,7 @@ export class V3 {
               apiKey,
               projectId,
               logger: this.logger,
+              disableCaching: this.opts.disableCaching,
             });
             const createSessionPayload = {
               projectId:

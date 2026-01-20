@@ -11,6 +11,11 @@ export interface ActOptions {
   variables?: Record<string, string>;
   timeout?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  /**
+   * Override the instance-level disableCaching setting for this request.
+   * When true, bypasses server-side caching.
+   */
+  disableCaching?: boolean;
 }
 
 export interface ActResult {
@@ -42,6 +47,11 @@ export interface ExtractOptions {
   timeout?: number;
   selector?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  /**
+   * Override the instance-level disableCaching setting for this request.
+   * When true, bypasses server-side caching.
+   */
+  disableCaching?: boolean;
 }
 
 export const defaultExtractSchema = z.object({
@@ -57,6 +67,11 @@ export interface ObserveOptions {
   timeout?: number;
   selector?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  /**
+   * Override the instance-level disableCaching setting for this request.
+   * When true, bypasses server-side caching.
+   */
+  disableCaching?: boolean;
 }
 
 export enum V3FunctionName {
