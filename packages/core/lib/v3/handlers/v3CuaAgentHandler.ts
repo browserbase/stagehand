@@ -5,7 +5,6 @@ import { AgentClient } from "../agent/AgentClient";
 import { AgentProvider } from "../agent/AgentProvider";
 import { GoogleCUAClient } from "../agent/GoogleCUAClient";
 import { OpenAICUAClient } from "../agent/OpenAICUAClient";
-import { MicrosoftCUAClient } from "../agent/MicrosoftCUAClient";
 import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping";
 import { ensureXPath } from "../agent/utils/xpath";
 import {
@@ -20,24 +19,6 @@ import { LogLine } from "../types/public/logs";
 import { type Action, V3FunctionName } from "../types/public/methods";
 import { SessionFileLogger } from "../flowLogger";
 import { StagehandClosedError } from "../types/public/sdkErrors";
-
-function getPNGDimensions(buffer: Buffer): { width: number; height: number } {
-  if (
-    buffer.length < 24 ||
-    buffer[0] !== 0x89 ||
-    buffer[1] !== 0x50 ||
-    buffer[2] !== 0x4e ||
-    buffer[3] !== 0x47
-  ) {
-    throw new Error("Invalid PNG file");
-  }
-
-  // Read width and height from IHDR chunk (big-endian)
-  const width = buffer.readUInt32BE(16);
-  const height = buffer.readUInt32BE(20);
-
-  return { width, height };
-}
 
 export class V3CuaAgentHandler {
   private v3: V3;
@@ -86,28 +67,6 @@ export class V3CuaAgentHandler {
       this.ensureNotClosed();
       const page = await this.v3.context.awaitActivePage();
       const screenshotBuffer = await page.screenshot({ fullPage: false });
-
-      // For Google, OpenAI, and Microsoft CUA, extract screenshot dimensions and set them
-      if (
-        this.agentClient instanceof GoogleCUAClient ||
-        this.agentClient instanceof OpenAICUAClient ||
-        this.agentClient instanceof MicrosoftCUAClient
-      ) {
-        try {
-          const dimensions = getPNGDimensions(screenshotBuffer);
-          this.agentClient.setScreenshotSize(
-            dimensions.width,
-            dimensions.height,
-          );
-        } catch (e) {
-          this.logger({
-            category: "agent",
-            message: `Could not read screenshot dimensions: ${e}`,
-            level: 1,
-          });
-        }
-      }
-
       return screenshotBuffer.toString("base64"); // base64 png
     });
 
@@ -596,12 +555,22 @@ export class V3CuaAgentHandler {
 
   private async updateClientViewport(): Promise<void> {
     try {
-      const page = await this.v3.context.awaitActivePage();
-      const { w, h } = await page.mainFrame().evaluate<{
-        w: number;
-        h: number;
-      }>("({ w: window.innerWidth, h: window.innerHeight })");
-      if (w && h) this.agentClient.setViewport(w, h);
+      // For Google CUA, use configured viewport for coordinate normalization
+      // advancedStealth uses fixed 1288x711, otherwise use configured viewport
+      if (this.agentClient instanceof GoogleCUAClient) {
+        const dims = this.v3.isAdvancedStealth
+          ? { width: 1288, height: 711 }
+          : this.v3.configuredViewport;
+        this.agentClient.setViewport(dims.width, dims.height);
+      } else {
+        // For other clients, use actual window dimensions
+        const page = await this.v3.context.awaitActivePage();
+        const { w, h } = await page.mainFrame().evaluate<{
+          w: number;
+          h: number;
+        }>("({ w: window.innerWidth, h: window.innerHeight })");
+        if (w && h) this.agentClient.setViewport(w, h);
+      }
     } catch {
       //
     }
@@ -626,27 +595,6 @@ export class V3CuaAgentHandler {
     try {
       const page = await this.v3.context.awaitActivePage();
       const screenshotBuffer = await page.screenshot({ fullPage: false });
-
-      // For Google, OpenAI, and Microsoft CUA, extract screenshot dimensions and set them
-      if (
-        this.agentClient instanceof GoogleCUAClient ||
-        this.agentClient instanceof OpenAICUAClient ||
-        this.agentClient instanceof MicrosoftCUAClient
-      ) {
-        try {
-          const dimensions = getPNGDimensions(screenshotBuffer);
-          this.agentClient.setScreenshotSize(
-            dimensions.width,
-            dimensions.height,
-          );
-        } catch (e) {
-          this.logger({
-            category: "agent",
-            message: `Could not read screenshot dimensions: ${e}`,
-            level: 1,
-          });
-        }
-      }
 
       // Emit screenshot event via the bus
       this.v3.bus.emit("agent_screenshot_taken_event", screenshotBuffer);

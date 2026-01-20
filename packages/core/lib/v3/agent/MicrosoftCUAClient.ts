@@ -72,9 +72,6 @@ export class MicrosoftCUAClient extends AgentClient {
   // Resized dimensions for model input
   private resizedViewport = { width: 1288, height: 711 };
 
-  // Actual screenshot dimensions (tracked separately from viewport)
-  private actualScreenshotSize = { width: 1288, height: 711 };
-
   constructor(
     type: AgentType,
     modelName: string,
@@ -131,10 +128,6 @@ export class MicrosoftCUAClient extends AgentClient {
     this.resizedViewport = this.smartResize(width, height);
   }
 
-  public setScreenshotSize(width: number, height: number): void {
-    this.actualScreenshotSize = { width, height };
-  }
-
   setCurrentUrl(url: string): void {
     this.currentUrl = url;
   }
@@ -184,7 +177,7 @@ export class MicrosoftCUAClient extends AgentClient {
    * Simplified to match Python's minimal approach
    */
   private generateSystemPrompt(): string {
-    const { width, height } = this.actualScreenshotSize;
+    const { width, height } = this.resizedViewport;
 
     // Base prompt - Minimalist like Python
     let basePrompt = "You are a helpful assistant.";
@@ -371,14 +364,12 @@ For each function call, return a json object with function name and arguments wi
     const args = functionCall.arguments;
     const action = args.action as string;
 
-    // Transform coordinates from screenshot space to viewport space
+    // Transform coordinates from resized to original viewport
     const transformCoordinate = (coord: number[]): number[] => {
       if (!coord || coord.length !== 2) return coord;
       const [x, y] = coord;
-      const scaleX =
-        this.currentViewport.width / this.actualScreenshotSize.width;
-      const scaleY =
-        this.currentViewport.height / this.actualScreenshotSize.height;
+      const scaleX = this.currentViewport.width / this.resizedViewport.width;
+      const scaleY = this.currentViewport.height / this.resizedViewport.height;
       return [Math.round(x * scaleX), Math.round(y * scaleY)];
     };
 

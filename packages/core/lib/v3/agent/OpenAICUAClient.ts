@@ -37,7 +37,6 @@ export class OpenAICUAClient extends AgentClient {
   private client: OpenAI;
   public lastResponseId?: string;
   private currentViewport = { width: 1288, height: 711 };
-  private actualScreenshotSize = { width: 1288, height: 711 };
   private currentUrl?: string;
   private screenshotProvider?: () => Promise<string>;
   private actionHandler?: (action: AgentAction) => Promise<void>;
@@ -87,10 +86,6 @@ export class OpenAICUAClient extends AgentClient {
 
   setViewport(width: number, height: number): void {
     this.currentViewport = { width, height };
-  }
-
-  public setScreenshotSize(width: number, height: number): void {
-    this.actualScreenshotSize = { width, height };
   }
 
   setCurrentUrl(url: string): void {
@@ -776,20 +771,11 @@ export class OpenAICUAClient extends AgentClient {
   ): AgentAction | null {
     const { action } = call;
 
-    // Scale coordinates from screenshot space to viewport space
-    const scaledAction = { ...action };
-    if (action.x !== undefined && action.y !== undefined) {
-      const scaleX =
-        this.currentViewport.width / this.actualScreenshotSize.width;
-      const scaleY =
-        this.currentViewport.height / this.actualScreenshotSize.height;
-      scaledAction.x = Math.floor((action.x as number) * scaleX);
-      scaledAction.y = Math.floor((action.y as number) * scaleY);
-    }
-
+    // Instead of wrapping the action in a params object, spread the action properties directly
+    // This ensures properties like x, y, button, etc. are directly accessible on the AgentAction
     return {
       type: action.type as string,
-      ...scaledAction,
+      ...action, // Spread all properties from the action
     };
   }
 
