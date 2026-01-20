@@ -23,7 +23,7 @@
         "dropdowns": [
           {
             "dropdown": "TypeScript",
-            "icon": "/images/typescript_yellow.svg",
+            "icon": "code",
             "pages": [
               "v3/first-steps/introduction"
             ],
@@ -40,10 +40,10 @@
               {
                 "group": "The Basics",
                 "pages": [
+                  "v3/basics/agent",
                   "v3/basics/act",
                   "v3/basics/extract",
                   "v3/basics/observe",
-                  "v3/basics/agent",
                   "v3/basics/evals"
                 ]
               },
@@ -114,10 +114,10 @@
                 "group": "Reference",
                 "pages": [
                   "v3/references/stagehand",
+                  "v3/references/agent",
                   "v3/references/act",
                   "v3/references/extract",
                   "v3/references/observe",
-                  "v3/references/agent",
                   "v3/references/context",
                   "v3/references/page",
                   "v3/references/locator",
@@ -136,7 +136,7 @@
           },
           {
             "dropdown": "Python",
-            "icon": "python",
+            "icon": "code",
             "pages": [
               "v3/sdk/python"
             ],
@@ -144,10 +144,7 @@
               {
                 "group": "SDK Reference",
                 "pages": [
-                  "v3/sdk/python",
-                  "v3/sdk/java",
-                  "v3/sdk/go",
-                  "v3/sdk/ruby"
+                  "v3/sdk/python"
                 ]
               },
               {
@@ -170,7 +167,7 @@
           },
           {
             "dropdown": "Java",
-            "icon": "java",
+            "icon": "code",
             "pages": [
               "v3/sdk/java"
             ],
@@ -178,10 +175,7 @@
               {
                 "group": "SDK Reference",
                 "pages": [
-                  "v3/sdk/python",
-                  "v3/sdk/java",
-                  "v3/sdk/go",
-                  "v3/sdk/ruby"
+                  "v3/sdk/java"
                 ]
               },
               {
@@ -204,7 +198,7 @@
           },
           {
             "dropdown": "Go",
-            "icon": "golang",
+            "icon": "code",
             "pages": [
               "v3/sdk/go"
             ],
@@ -212,10 +206,7 @@
               {
                 "group": "SDK Reference",
                 "pages": [
-                  "v3/sdk/python",
-                  "v3/sdk/java",
-                  "v3/sdk/go",
-                  "v3/sdk/ruby"
+                  "v3/sdk/go"
                 ]
               },
               {
@@ -238,7 +229,7 @@
           },
           {
             "dropdown": "Ruby",
-            "icon": "gem",
+            "icon": "code",
             "pages": [
               "v3/sdk/ruby"
             ],
@@ -246,9 +237,6 @@
               {
                 "group": "SDK Reference",
                 "pages": [
-                  "v3/sdk/python",
-                  "v3/sdk/java",
-                  "v3/sdk/go",
                   "v3/sdk/ruby"
                 ]
               },
@@ -287,10 +275,10 @@
           {
             "group": "The Basics",
             "pages": [
+              "v2/basics/agent",
               "v2/basics/act",
               "v2/basics/extract",
-              "v2/basics/observe",
-              "v2/basics/agent"
+              "v2/basics/observe"
             ]
           },
           {

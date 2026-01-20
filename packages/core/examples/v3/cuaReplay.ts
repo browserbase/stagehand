@@ -29,7 +29,7 @@ async function runDemo(runNumber: number) {
   });
 
   const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
       modelName: "anthropic/claude-sonnet-4-20250514",
       apiKey: process.env.ANTHROPIC_API_KEY!,

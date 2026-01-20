@@ -34,11 +34,13 @@ export const dragAndDropTool = (v3: V3, provider?: string) =>
           startCoordinates[0],
           startCoordinates[1],
           provider,
+          v3,
         );
         const processedEnd = processCoordinates(
           endCoordinates[0],
           endCoordinates[1],
           provider,
+          v3,
         );
 
         v3.logger({

@@ -6,6 +6,7 @@ interface LaunchLocalOptions {
   chromeFlags?: string[];
   headless?: boolean;
   userDataDir?: string;
+  port?: number;
   connectTimeoutMs?: number;
 }
 
@@ -26,6 +27,7 @@ export async function launchLocalChrome(
   const chrome = await launch({
     chromePath: opts.chromePath,
     chromeFlags,
+    port: opts.port,
     userDataDir: opts.userDataDir,
   });
 

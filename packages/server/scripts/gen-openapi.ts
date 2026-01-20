@@ -43,7 +43,6 @@ async function main() {
     schemas: {
       // Shared components
       LocalBrowserLaunchOptions: Api.LocalBrowserLaunchOptionsSchema,
-      ModelName: Api.ModelNameSchema,
       ModelConfigObject: Api.ModelConfigObjectSchema,
       ModelConfig: Api.ModelConfigSchema,
       Action: Api.ActionSchema,
@@ -174,36 +173,7 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
 
   await app.ready();
 
-  let yaml = app.swagger({ yaml: true });
-
-  // Post-process for Stainless compatibility:
-  // 1. Replace `additionalProperties: {}` with `additionalProperties: true`
-  yaml = yaml.replace(
-    /additionalProperties: \{\}/g,
-    "additionalProperties: true",
-  );
-
-  // 2. Remove `propertyNames` blocks (not supported by Stainless)
-  // Matches propertyNames with its nested content (type: string)
-  yaml = yaml.replace(/\n\s+propertyNames:\n\s+type: string/g, "");
-
-  // 3. Fix z.unknown() fields to have explicit type: unknown
-  // ExtractResult*.result and NavigateResult*.result
-  yaml = yaml.replace(
-    /(ExtractResult(?:Output)?:\s+type: object\s+properties:\s+result:\s+description: [^\n]+)\n(\s+actionId:)/g,
-    "$1\n          type: unknown\n$2",
-  );
-  yaml = yaml.replace(
-    /(NavigateResult(?:Output|Data|DataOutput)?:\s+type: object\s+properties:\s+result:\s+description: [^\n]+)\n\s+anyOf:\s+- \{\}\s+- type: "null"\n(\s+actionId:)/g,
-    "$1\n          type: unknown\n$2",
-  );
-
-  // 4. Add title to proxies array schema for Stainless name inference
-  // Matches the array inside proxies anyOf and adds a title
-  yaml = yaml.replace(
-    /(proxies:\s+anyOf:\s+- type: boolean\s+- )(type: array)/g,
-    "$1title: ProxyConfigList\n              $2",
-  );
+  const yaml = app.swagger({ yaml: true });
 
   await writeFile(OUTPUT_PATH, yaml, "utf8");
 
