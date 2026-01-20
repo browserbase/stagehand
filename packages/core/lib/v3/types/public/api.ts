@@ -75,7 +75,9 @@ export const ModelConfigObjectSchema = z
   .meta({ id: "ModelConfigObject" });
 
 /** Model configuration */
-export const ModelConfigSchema = ModelConfigObjectSchema.meta({ id: "ModelConfig" });
+export const ModelConfigSchema = ModelConfigObjectSchema.meta({
+  id: "ModelConfig",
+});
 
 /** Action object returned by observe and used by act */
 export const ActionSchema = z
@@ -737,12 +739,15 @@ export const NavigateResultSchema = z
   .object({
     // SerializableResponse from types/private/api.ts - no Zod schema available
     // as it wraps complex devtools-protocol types (Protocol.Network.Response)
-    result: z.unknown().nullable().meta({
-      description: "Navigation response (Playwright Response object or null)",
-      override: ({ jsonSchema }: { jsonSchema: Record<string, unknown> }) => {
-        jsonSchema["x-stainless-any"] = true;
-      },
-    }),
+    result: z
+      .unknown()
+      .nullable()
+      .meta({
+        description: "Navigation response (Playwright Response object or null)",
+        override: ({ jsonSchema }: { jsonSchema: Record<string, unknown> }) => {
+          jsonSchema["x-stainless-any"] = true;
+        },
+      }),
     actionId: z.string().optional().meta({
       description: "Action ID for tracking",
     }),
@@ -820,12 +825,15 @@ export const StreamEventTypeSchema = z.enum(["system", "log"]).meta({
 export const StreamEventSystemDataSchema = z
   .object({
     status: StreamEventStatusSchema,
-    result: z.unknown().optional().meta({
-      description: "Operation result (present when status is 'finished')",
-      override: ({ jsonSchema }: { jsonSchema: Record<string, unknown> }) => {
-        jsonSchema["x-stainless-any"] = true;
-      },
-    }),
+    result: z
+      .unknown()
+      .optional()
+      .meta({
+        description: "Operation result (present when status is 'finished')",
+        override: ({ jsonSchema }: { jsonSchema: Record<string, unknown> }) => {
+          jsonSchema["x-stainless-any"] = true;
+        },
+      }),
     error: z.string().optional().meta({
       description: "Error message (present when status is 'error')",
     }),
