@@ -494,14 +494,18 @@ const agent = stagehand.agent();
 However, the stagehand agent also accepts a `model` parameter, which accepts any [first class](/v3/configuration/models#first-class-models) model, including [computer use agents (CUA)](/v3/configuration/models#agent-models-with-cua-support). This is useful when you'd like the agent to use a different model than the one passed to Stagehand.
 
 <Tip>
-  To use a cua model, you must pass the `cua` parameter to the `agent()` method. If a non-cua model is used, whether specified in Stagehand or overridden in the `agent()` method, an error will be thrown.
+  To use a CUA model, you must pass the `mode: "cua"` parameter to the `agent()` method. If a non-CUA model is used, whether specified in Stagehand or overridden in the `agent()` method, an error will be thrown.
 </Tip>
+
+<Warning>
+**Deprecation Notice:** The `cua: true` option is deprecated and will be removed in a future version. Use `mode: "cua"` instead.
+</Warning>
 
 <Tabs>
 <Tab title="Google CUA">
 ```typescript
 const agent = stagehand.agent({
-  cua: true,
+  mode: "cua",
   model: "google/gemini-2.5-computer-use-preview-10-2025",
   // GOOGLE_GENERATIVE_AI_API_KEY is auto-loaded from .env
   // ... other agent options
@@ -511,7 +515,7 @@ const agent = stagehand.agent({
 <Tab title="Anthropic CUA">
 ```typescript
 const agent = stagehand.agent({
-  cua: true,
+  mode: "cua",
   model: "anthropic/claude-3-7-sonnet-latest",
   // ANTHROPIC_API_KEY is auto-loaded from .env
   // ... other agent options
@@ -521,7 +525,7 @@ const agent = stagehand.agent({
 <Tab title="OpenAI CUA">
 ```typescript
 const agent = stagehand.agent({
-  cua: true,
+  mode: "cua",
   model: "openai/computer-use-preview",
   // OPENAI_API_KEY is auto-loaded from .env
   // ... other agent options

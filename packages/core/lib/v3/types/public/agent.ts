@@ -289,7 +289,7 @@ export interface AgentExecuteOptionsBase {
    * - `screenshot` - Take a screenshot
    * - `think` - Agent reasoning/planning step
    * - `wait` - Wait for time or condition
-   * - `close` - Mark task as complete
+   * - `done` - Mark task as complete
    * - `search` - Web search (requires BRAVE_API_KEY)
    *
    * **Hybrid mode:**
@@ -308,7 +308,7 @@ export interface AgentExecuteOptionsBase {
    * - `screenshot` - Take screenshot
    * - `think` - Agent reasoning step
    * - `wait` - Wait for time/condition
-   * - `close` - Mark task complete
+   * - `done` - Mark task complete
    * - `search` - Web search (requires BRAVE_API_KEY)
    *
    * @experimental
@@ -324,7 +324,7 @@ export interface AgentExecuteOptionsBase {
   excludeTools?: string[];
   /**
    * A Zod schema defining custom output data to return when the task completes.
-   * The agent will populate this data in the final close tool call.
+   * The agent will populate this data in the final done tool call.
    *
    * @experimental
    * @example

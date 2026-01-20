@@ -32,8 +32,7 @@ test.describe("Stagehand agent streaming behavior", () => {
       await page.goto("https://example.com");
 
       const streamResult = await agent.execute({
-        instruction:
-          "What is the title of this page? Use the close tool immediately after answering.",
+        instruction: "What is the title of this page? Describe it briefly.",
         maxSteps: 3,
       });
 
@@ -62,8 +61,7 @@ test.describe("Stagehand agent streaming behavior", () => {
       await page.goto("https://example.com");
 
       const streamResult = await agent.execute({
-        instruction:
-          "Say hello and then use close tool with taskComplete: true",
+        instruction: "Say hello briefly.",
         maxSteps: 3,
       });
 
@@ -91,8 +89,7 @@ test.describe("Stagehand agent streaming behavior", () => {
       await page.goto("https://example.com");
 
       const streamResult = await agent.execute({
-        instruction:
-          "What is this page about? Use close tool with taskComplete: true after answering.",
+        instruction: "What is this page about? Describe it briefly.",
         maxSteps: 5,
       });
 
@@ -128,7 +125,7 @@ test.describe("Stagehand agent streaming behavior", () => {
       await page.goto("https://example.com");
 
       const result = await agent.execute({
-        instruction: "What is this page? Use close tool immediately.",
+        instruction: "What is this page? Describe it briefly.",
         maxSteps: 3,
       });
       // Should be AgentResult, not AgentStreamResult

@@ -172,6 +172,42 @@ export class V3 {
   public get isBrowserbase(): boolean {
     return this.state.kind === "BROWSERBASE";
   }
+
+  /**
+   * Returns true if advancedStealth is enabled in Browserbase settings.
+   */
+  public get isAdvancedStealth(): boolean {
+    return (
+      this.opts.browserbaseSessionCreateParams?.browserSettings
+        ?.advancedStealth === true
+    );
+  }
+
+  /**
+   * Returns the configured viewport dimensions from launch options.
+   * Falls back to default 1288x711 if not configured.
+   */
+  public get configuredViewport(): { width: number; height: number } {
+    const defaultWidth = 1288;
+    const defaultHeight = 711;
+
+    if (this.opts.env === "BROWSERBASE") {
+      const vp =
+        this.opts.browserbaseSessionCreateParams?.browserSettings?.viewport;
+      return {
+        width: vp?.width ?? defaultWidth,
+        height: vp?.height ?? defaultHeight,
+      };
+    }
+
+    // LOCAL env
+    const vp = this.opts.localBrowserLaunchOptions?.viewport;
+    return {
+      width: vp?.width ?? defaultWidth,
+      height: vp?.height ?? defaultHeight,
+    };
+  }
+
   private _onCdpClosed = (why: string) => {
     if (this.state.kind === "BROWSERBASE") {
       void this._logBrowserbaseSessionStatus();
@@ -796,6 +832,7 @@ export class V3 {
           const { ws, chrome } = await launchLocalChrome({
             chromePath: lbo.executablePath,
             chromeFlags,
+            port: lbo.port,
             headless: lbo.headless,
             userDataDir,
             connectTimeoutMs: lbo.connectTimeoutMs,
@@ -1600,6 +1637,16 @@ export class V3 {
     llmClient: LLMClient;
   }> {
     // Note: experimental validation is done at the call site before this method
+    // Warn if mode is not explicitly set (defaults to "dom")
+    if (options?.mode === undefined) {
+      this.logger({
+        category: "agent",
+        message:
+          "Using agent in default DOM mode (legacy). Agent will default to 'hybrid' on an upcoming release for improved performance.\n  → https://docs.stagehand.dev/v3/basics/agent\n",
+        level: 0,
+      });
+    }
+
     const tools = options?.integrations
       ? await resolveTools(options.integrations, options.tools)
       : (options?.tools ?? {});

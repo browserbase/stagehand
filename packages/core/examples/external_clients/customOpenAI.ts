@@ -5,11 +5,11 @@
  * You can just pass in an OpenAI instance to the client and it will work.
  */
 
+import type { AvailableModel } from "../../lib/v3/types/public/model";
 import {
-  AvailableModel,
   CreateChatCompletionOptions,
   LLMClient,
-} from "../../lib/v3";
+} from "../../lib/v3/llm/LLMClient";
 import OpenAI from "openai";
 import type {
   ChatCompletion,
@@ -21,17 +21,12 @@ import type {
   ChatCompletionSystemMessageParam,
   ChatCompletionUserMessageParam,
 } from "openai/resources/chat/completions";
-import { CreateChatCompletionResponseError } from "../../lib/v3";
-import { StagehandZodSchema, toJsonSchema } from "../../lib/v3/zodCompat";
-
-function validateZodSchema(schema: StagehandZodSchema, data: unknown) {
-  try {
-    schema.parse(data);
-    return true;
-  } catch {
-    return false;
-  }
-}
+import { toJsonSchema } from "../../lib/v3/zodCompat";
+import { validateZodSchema } from "../../lib/utils";
+import {
+  CreateChatCompletionResponseError,
+  ZodSchemaValidationError,
+} from "../../lib/v3/types/public/sdkErrors";
 
 export class CustomOpenAIClient extends LLMClient {
   public type = "openai" as const;
@@ -86,13 +81,8 @@ export class CustomOpenAIClient extends LLMClient {
       | ChatCompletionCreateParamsNonStreaming["response_format"]
       | undefined;
     if (options.response_model) {
-      const responseModelSchema = options.response_model.schema;
       responseFormat = {
-        type: "json_schema",
-        json_schema: {
-          name: options.response_model.name,
-          schema: toJsonSchema(responseModelSchema),
-        },
+        type: "json_object",
       };
     }
 
@@ -174,6 +164,18 @@ export class CustomOpenAIClient extends LLMClient {
         return formattedMessage;
       });
 
+    if (options.response_model) {
+      const schemaJson = JSON.stringify(
+        toJsonSchema(options.response_model.schema),
+        null,
+        2,
+      );
+      formattedMessages.push({
+        role: "user",
+        content: `Respond with valid JSON matching this schema:\n${schemaJson}\n\nDo not include any other text, formatting or markdown in your output. Do not include \`\`\` or \`\`\`json in your response. Only the JSON object itself.`,
+      });
+    }
+
     const body: ChatCompletionCreateParamsNonStreaming = {
       ...openaiOptions,
       model: this.modelName,
@@ -213,9 +215,20 @@ export class CustomOpenAIClient extends LLMClient {
       if (!extractedData) {
         throw new CreateChatCompletionResponseError("No content in response");
       }
-      const parsedData = JSON.parse(extractedData);
 
-      if (!validateZodSchema(options.response_model.schema, parsedData)) {
+      let parsedData: unknown;
+      try {
+        parsedData = JSON.parse(extractedData);
+        validateZodSchema(options.response_model.schema, parsedData);
+      } catch (e) {
+        const isParseError = e instanceof SyntaxError;
+        logger({
+          category: "openai",
+          message: isParseError
+            ? "Response is not valid JSON"
+            : "Response failed Zod schema validation",
+          level: 0,
+        });
         if (retries > 0) {
           return this.createChatCompletion({
             options,
@@ -224,7 +237,28 @@ export class CustomOpenAIClient extends LLMClient {
           });
         }
 
-        throw new CreateChatCompletionResponseError("Invalid response schema");
+        if (e instanceof ZodSchemaValidationError) {
+          logger({
+            category: "openai",
+            message: `Error during chat completion: ${e.message}`,
+            level: 0,
+            auxiliary: {
+              errorDetails: {
+                value: `Message: ${e.message}${e.stack ? "\nStack: " + e.stack : ""}`,
+                type: "string",
+              },
+              requestId: { value: requestId, type: "string" },
+            },
+          });
+          throw new CreateChatCompletionResponseError(e.message);
+        }
+        throw new CreateChatCompletionResponseError(
+          isParseError
+            ? "Failed to parse model response as JSON"
+            : e instanceof Error
+              ? e.message
+              : "Unknown error during response processing",
+        );
       }
 
       return {

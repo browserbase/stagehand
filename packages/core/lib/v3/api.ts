@@ -352,9 +352,19 @@ export class StagehandAPIClient {
       wireExecuteOptions = executeOptions;
     }
 
+    const wireAgentConfig: Api.AgentExecuteRequest["agentConfig"] = {
+      systemPrompt: agentConfig.systemPrompt,
+      cua: agentConfig.cua,
+      model: agentConfig.model
+        ? (this.prepareModelConfig(
+            agentConfig.model as unknown as ModelConfiguration,
+          ) as unknown as Api.ModelConfig)
+        : undefined,
+    };
+
     // Build wire-format request body
     const requestBody: Api.AgentExecuteRequest = {
-      agentConfig,
+      agentConfig: wireAgentConfig,
       executeOptions: wireExecuteOptions,
       frameId,
     };
@@ -653,7 +663,6 @@ export class StagehandAPIClient {
       // we want real-time logs, so we stream the response
       "x-stream-response": "true",
       "x-model-api-key": this.modelApiKey,
-      "x-sent-at": new Date().toISOString(),
       "x-language": "typescript",
       "x-sdk-version": STAGEHAND_VERSION,
     };
