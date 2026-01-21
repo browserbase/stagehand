@@ -13,7 +13,11 @@ import {
 } from "./a11y/snapshot";
 import { FrameRegistry } from "./frameRegistry";
 import { executionContexts } from "./executionContextRegistry";
-import { LoadState, SnapshotResult } from "../types/public/page";
+import {
+  LoadState,
+  SnapshotResult,
+  PageSnapshotOptions,
+} from "../types/public/page";
 import { NetworkManager } from "./networkManager";
 import { LifecycleWatcher } from "./lifecycleWatcher";
 import { NavigationResponseTracker } from "./navigationResponseTracker";
@@ -1796,10 +1800,14 @@ export class Page {
   }
 
   @logAction("Page.snapshot")
-  async snapshot(): Promise<SnapshotResult> {
+  async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
     try {
       const { combinedTree, combinedXpathMap, combinedUrlMap } =
-        await captureHybridSnapshot(this, { pierceShadow: true });
+        await captureHybridSnapshot(this, {
+          pierceShadow: true,
+          includeIframes: options?.includeIframes,
+        });
+
       return {
         formattedTree: combinedTree,
         xpathMap: combinedXpathMap,
