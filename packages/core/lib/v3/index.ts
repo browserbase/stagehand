@@ -24,7 +24,6 @@ export {
   loadApiKeyFromEnv,
   trimTrailingTextNode,
   jsonSchemaToZod,
-  imageResize,
 } from "../utils";
 export { isZod4Schema, isZod3Schema, toJsonSchema } from "./zodCompat";
 
