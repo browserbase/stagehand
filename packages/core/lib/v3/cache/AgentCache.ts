@@ -15,6 +15,7 @@ import type {
   ActFn,
   AgentCacheContext,
   AgentCacheDeps,
+  AgentCacheTransferPayload,
 } from "../types/private";
 import type {
   Action,
@@ -42,8 +43,10 @@ export class AgentCache {
   private readonly getSystemPrompt: () => string | undefined;
   private readonly domSettleTimeoutMs?: number;
   private readonly act: ActFn;
+  private readonly bufferLatestEntry: boolean;
 
   private recording: AgentReplayStep[] | null = null;
+  private latestEntry: AgentCacheTransferPayload | null = null;
 
   constructor({
     storage,
@@ -55,6 +58,7 @@ export class AgentCache {
     getSystemPrompt,
     domSettleTimeoutMs,
     act,
+    bufferLatestEntry,
   }: AgentCacheDeps) {
     this.storage = storage;
     this.logger = logger;
@@ -65,6 +69,7 @@ export class AgentCache {
     this.getSystemPrompt = getSystemPrompt;
     this.domSettleTimeoutMs = domSettleTimeoutMs;
     this.act = act;
+    this.bufferLatestEntry = bufferLatestEntry ?? false;
   }
 
   get enabled(): boolean {
@@ -366,6 +371,56 @@ export class AgentCache {
       auxiliary: {
         instruction: { value: context.instruction, type: "string" },
         steps: { value: String(steps.length), type: "string" },
+      },
+    });
+
+    if (this.bufferLatestEntry) {
+      this.latestEntry = {
+        cacheKey: context.cacheKey,
+        entry: cloneForCache(entry),
+      };
+    }
+  }
+
+  consumeBufferedEntry(): AgentCacheTransferPayload | null {
+    if (!this.bufferLatestEntry || !this.latestEntry) {
+      return null;
+    }
+
+    const payload = this.latestEntry;
+    this.latestEntry = null;
+    return payload;
+  }
+
+  async storeTransferredEntry(
+    payload: AgentCacheTransferPayload | null,
+  ): Promise<void> {
+    if (!this.enabled || !payload) return;
+
+    const entry = cloneForCache(payload.entry);
+    const { error, path } = await this.storage.writeJson(
+      `agent-${payload.cacheKey}.json`,
+      entry,
+    );
+    if (error && path) {
+      this.logger({
+        category: "cache",
+        message: "failed to import remote agent cache entry",
+        level: 0,
+        auxiliary: {
+          error: { value: String(error), type: "string" },
+        },
+      });
+      return;
+    }
+
+    this.logger({
+      category: "cache",
+      message: "agent cache imported from server",
+      level: 2,
+      auxiliary: {
+        instruction: { value: entry.instruction, type: "string" },
+        steps: { value: String(entry.steps?.length ?? 0), type: "string" },
       },
     });
   }
