@@ -14,6 +14,8 @@ import { publicErrorTypes } from "./public-error-types.test";
 //   e.g. expectTypeOf<User>().toExtend<BaseUser>()
 
 const publicApiShape = {
+  __internalCreateInMemoryAgentCacheHandle:
+    Stagehand.__internalCreateInMemoryAgentCacheHandle,
   AISdkClient: Stagehand.AISdkClient,
   Api: Stagehand.Api,
   AVAILABLE_CUA_MODELS: Stagehand.AVAILABLE_CUA_MODELS,

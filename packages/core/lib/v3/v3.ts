@@ -1859,8 +1859,9 @@ export class V3 {
             }
 
             let agentSteps: AgentReplayStep[] = [];
-            const recording = !!cacheContext;
-            if (recording) {
+            const shouldRecordLocally =
+              !!cacheContext && (!this.apiClient || this.experimental);
+            if (shouldRecordLocally) {
               this.beginAgentReplayRecording();
             }
 
@@ -1872,24 +1873,35 @@ export class V3 {
                   options,
                   resolvedOptions,
                   page.mainFrameId(),
+                  !!cacheContext,
                 );
+                if (cacheContext) {
+                  const transferredEntry =
+                    this.apiClient.consumeLatestAgentCacheEntry();
+                  await this.agentCache.storeTransferredEntry(transferredEntry);
+                }
               } else {
                 result = await handler.execute(instructionOrOptions);
               }
-              if (recording) {
+              if (shouldRecordLocally) {
                 agentSteps = this.endAgentReplayRecording();
               }
 
-              if (cacheContext && result.success && agentSteps.length > 0) {
+              if (
+                shouldRecordLocally &&
+                cacheContext &&
+                result.success &&
+                agentSteps.length > 0
+              ) {
                 await this.agentCache.store(cacheContext, agentSteps, result);
               }
 
               return result;
             } catch (err) {
-              if (recording) this.discardAgentReplayRecording();
+              if (shouldRecordLocally) this.discardAgentReplayRecording();
               throw err;
             } finally {
-              if (recording) {
+              if (shouldRecordLocally) {
                 this.discardAgentReplayRecording();
               }
               SessionFileLogger.logAgentTaskCompleted();
@@ -1986,8 +1998,9 @@ export class V3 {
           }
 
           let agentSteps: AgentReplayStep[] = [];
-          const recording = !!cacheContext;
-          if (recording) {
+          const shouldRecordLocally =
+            !!cacheContext && (!this.apiClient || this.experimental);
+          if (shouldRecordLocally) {
             this.beginAgentReplayRecording();
           }
           let result: AgentResult;
@@ -1999,26 +2012,37 @@ export class V3 {
                 options ?? {},
                 resolvedOptions as AgentExecuteOptions,
                 page.mainFrameId(),
+                !!cacheContext,
               );
+              if (cacheContext) {
+                const transferredEntry =
+                  this.apiClient.consumeLatestAgentCacheEntry();
+                await this.agentCache.storeTransferredEntry(transferredEntry);
+              }
             } else {
               result = await handler.execute(
                 resolvedOptions as AgentExecuteOptions,
               );
             }
-            if (recording) {
+            if (shouldRecordLocally) {
               agentSteps = this.endAgentReplayRecording();
             }
 
-            if (cacheContext && result.success && agentSteps.length > 0) {
+            if (
+              shouldRecordLocally &&
+              cacheContext &&
+              result.success &&
+              agentSteps.length > 0
+            ) {
               await this.agentCache.store(cacheContext, agentSteps, result);
             }
 
             return result;
           } catch (err) {
-            if (recording) this.discardAgentReplayRecording();
+            if (shouldRecordLocally) this.discardAgentReplayRecording();
             throw err;
           } finally {
-            if (recording) {
+            if (shouldRecordLocally) {
               this.discardAgentReplayRecording();
             }
             SessionFileLogger.logAgentTaskCompleted();

@@ -649,6 +649,18 @@ export const AgentResultDataSchema = z
   })
   .meta({ id: "AgentResultData" });
 
+export const AgentCacheEntrySchema = z
+  .object({
+    cacheKey: z.string().meta({
+      description:
+        "Opaque cache identifier computed from instruction, URL, options, and config",
+    }),
+    entry: z.unknown().meta({
+      description: "Serialized cache entry that can be written to disk",
+    }),
+  })
+  .meta({ id: "AgentCacheEntry" });
+
 export const AgentExecuteOptionsSchema = z
   .object({
     instruction: z.string().meta({
@@ -678,12 +690,17 @@ export const AgentExecuteRequestSchema = z
       description: "Whether to stream the response via SSE",
       example: true,
     }),
+    shouldCache: z.boolean().optional().meta({
+      description:
+        "If true, the server captures a cache entry and returns it to the client",
+    }),
   })
   .meta({ id: "AgentExecuteRequest" });
 
 export const AgentExecuteResultSchema = z
   .object({
     result: AgentResultDataSchema,
+    cacheEntry: AgentCacheEntrySchema.optional(),
   })
   .meta({ id: "AgentExecuteResult" });
 
