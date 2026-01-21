@@ -29,7 +29,7 @@ import type {
 import type { Page } from "../understudy/page";
 import type { V3Context } from "../understudy/context";
 import { CacheStorage } from "./CacheStorage";
-import { cloneForCache, safeGetPageUrl } from "./utils";
+import { cloneForCache, safeGetPageUrl, waitForCachedSelector } from "./utils";
 
 const SENSITIVE_CONFIG_KEYS = new Set(["apikey", "api_key", "api-key"]);
 
@@ -669,6 +669,13 @@ export class AgentCache {
       const page = await ctx.awaitActivePage();
       const updatedActions: Action[] = [];
       for (const action of actions) {
+        await waitForCachedSelector({
+          page,
+          selector: action.selector,
+          timeout: this.domSettleTimeoutMs,
+          logger: this.logger,
+          context: "agent act",
+        });
         const result = await handler.takeDeterministicAction(
           action,
           page,
@@ -706,6 +713,13 @@ export class AgentCache {
     const page = await ctx.awaitActivePage();
     const updatedActions: Action[] = [];
     for (const action of actions) {
+      await waitForCachedSelector({
+        page,
+        selector: action.selector,
+        timeout: this.domSettleTimeoutMs,
+        logger: this.logger,
+        context: "fillForm",
+      });
       const result = await handler.takeDeterministicAction(
         action,
         page,
