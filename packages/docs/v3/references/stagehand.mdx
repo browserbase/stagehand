@@ -116,11 +116,9 @@ interface V3Options {
     </ParamField>
 
     <ParamField path="port" type="number" optional>
-      Fixed Chrome DevTools Protocol (CDP) debugging port. When specified, Chrome will launch with this port for CDP connections instead of a randomly assigned port.
+      Fixed Chrome DevTools Protocol (CDP) debugging port for external tool connections.
 
-      This is useful for attaching external debugging tools or configuring `chrome://inspect` with a fixed port.
-
-      **Example:** `9222`
+      **Default:** Randomly assigned
     </ParamField>
 
     <ParamField path="args" type="string[]" optional>

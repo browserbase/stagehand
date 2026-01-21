@@ -186,7 +186,7 @@ const stagehand = new Stagehand({
     devtools: true, // Open developer tools
     viewport: { width: 1280, height: 720 },
     executablePath: '/opt/google/chrome/chrome', // Custom Chrome path
-    port: 9222, // Fixed CDP debugging port (useful for external tools)
+    port: 9222, // Fixed CDP debugging port
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -217,11 +217,7 @@ await stagehand.init();
 
 ### Fixed CDP Debugging Port
 
-By default, Chrome launches with a randomly assigned debugging port. You can specify a fixed port using the `port` option, which is useful for:
-
-- Attaching external debugging tools (like `chrome://inspect`)
-- Connecting third-party CDP clients
-- Consistent development workflows
+Specify a fixed Chrome DevTools Protocol (CDP) debugging port instead of using a randomly assigned one.
 
 ```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
@@ -229,18 +225,15 @@ import { Stagehand } from "@browserbasehq/stagehand";
 const stagehand = new Stagehand({
   env: "LOCAL",
   localBrowserLaunchOptions: {
-    port: 9222, // Use a fixed CDP debugging port
+    port: 9222,
   },
 });
 
 await stagehand.init();
-
-// You can now connect external tools to chrome://inspect
-// or ws://localhost:9222/devtools/browser/...
 ```
 
 <Tip>
-Port `9222` is the conventional default for Chrome DevTools Protocol. If the port is already in use, Chrome will fail to launch.
+Port `9222` is the standard CDP default. Ensure the port is available before launching.
 </Tip>
 
 ### DOM Settle Timeout
