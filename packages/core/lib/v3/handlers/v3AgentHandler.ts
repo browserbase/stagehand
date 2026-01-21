@@ -293,7 +293,13 @@ export class V3AgentHandler {
                 mediaResolution: "MEDIA_RESOLUTION_HIGH",
               },
             }
-          : undefined,
+          : wrappedModel.provider.startsWith("anthropic")
+            ? {
+                anthropic: {
+                  cacheControl: { type: "ephemeral" },
+                },
+              }
+            : undefined,
       });
 
       const allMessages = [...messages, ...(result.response?.messages || [])];
@@ -459,7 +465,13 @@ export class V3AgentHandler {
               mediaResolution: "MEDIA_RESOLUTION_HIGH",
             },
           }
-        : undefined,
+        : wrappedModel.provider.startsWith("anthropic")
+          ? {
+              anthropic: {
+                cacheControl: { type: "ephemeral" },
+              },
+            }
+          : undefined,
     });
 
     const agentStreamResult = streamResult as AgentStreamResult;
