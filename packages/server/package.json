@@ -32,7 +32,6 @@
     "pino": "^9.7.0",
     "pino-pretty": "^11.3.0",
     "playwright": "1.52.0",
-    "prettier": "^3.2.5",
     "uuid": "^11.0.5",
     "zod": "^4.2.0"
   },
@@ -42,6 +41,7 @@
     "eslint": "^9.7.0",
     "openai": "4.87.1",
     "postject": "1.0.0-alpha.6",
+    "prettier": "^3.2.5",
     "tsc-alias": "^1.8.10",
     "tsx": "^4.18.0",
     "typescript": "~5.9.2",

@@ -290,9 +290,6 @@ importers:
       playwright:
         specifier: 1.52.0
         version: 1.52.0
-      prettier:
-        specifier: ^3.2.5
-        version: 3.5.3
       uuid:
         specifier: ^11.0.5
         version: 11.1.0
@@ -315,6 +312,9 @@ importers:
       postject:
         specifier: 1.0.0-alpha.6
         version: 1.0.0-alpha.6
+      prettier:
+        specifier: ^3.2.5
+        version: 3.5.3
       tsc-alias:
         specifier: ^1.8.10
         version: 1.8.16
