@@ -532,7 +532,10 @@ export const ExtractResponseSchema = wrapResponse(
 
 export const ObserveOptionsSchema = z
   .object({
-    model: ModelConfigSchema.optional(),
+    model: z.union([ModelConfigSchema, z.string()]).optional().meta({
+      description:
+        "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
+    }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the observation",
       example: 30000,
@@ -590,7 +593,10 @@ export const AgentConfigSchema = z
           "AI provider for the agent (legacy, use model: openai/gpt-5-nano instead)",
         example: "openai",
       }),
-    model: ModelConfigSchema.optional(),
+    model: z.union([ModelConfigSchema, z.string()]).optional().meta({
+      description:
+        "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
+    }),
     systemPrompt: z.string().optional().meta({
       description: "Custom system prompt for the agent",
     }),
