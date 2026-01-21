@@ -471,7 +471,10 @@ export const ActResponseSchema = wrapResponse(ActResultSchema, "ActResponse");
 
 export const ExtractOptionsSchema = z
   .object({
-    model: ModelConfigSchema.optional(),
+    model: z.union([ModelConfigSchema, z.string()]).optional().meta({
+      description:
+        "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
+    }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the extraction",
       example: 30000,
