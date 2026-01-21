@@ -4,7 +4,7 @@ import type { LLMClient } from "../llm/LLMClient";
 import type { Action, ActResult, Logger } from "../types/public";
 import type { Page } from "../understudy/page";
 import { CacheStorage } from "./CacheStorage";
-import { safeGetPageUrl } from "./utils";
+import { safeGetPageUrl, waitForCachedSelector } from "./utils";
 import {
   ActCacheContext,
   ActCacheDeps,
@@ -209,6 +209,13 @@ export class ActCache {
     const execute = async (): Promise<ActResult> => {
       const actionResults: ActResult[] = [];
       for (const action of entry.actions) {
+        await waitForCachedSelector({
+          page,
+          selector: action.selector,
+          timeout: this.domSettleTimeoutMs,
+          logger: this.logger,
+          context: "act",
+        });
         const result = await handler.takeDeterministicAction(
           action,
           page,
