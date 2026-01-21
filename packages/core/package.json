@@ -54,7 +54,6 @@
     "fetch-cookie": "^3.1.0",
     "openai": "^4.87.1",
     "pino": "^9.6.0",
-    "sharp": "^0.33.5",
     "pino-pretty": "^13.0.0",
     "ws": "^8.18.0",
     "zod-to-json-schema": "^3.25.0"

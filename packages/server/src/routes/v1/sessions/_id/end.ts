@@ -37,6 +37,10 @@ const endRouteHandler: RouteHandlerMethod = withErrorHandling(
 
     const { id: sessionId } = request.params as Api.SessionIdParams;
     const sessionStore = getSessionStore();
+    const hasSession = await sessionStore.hasSession(sessionId);
+    if (!hasSession) {
+      return error(reply, "Session not found", StatusCodes.NOT_FOUND);
+    }
     await sessionStore.endSession(sessionId);
 
     return reply.status(StatusCodes.OK).send({ success: true });

@@ -133,14 +133,27 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "pnpm"
+
+      - name: Enable Corepack
+        run: |
+          npm install -g corepack@latest
+          corepack enable
+
+      - name: Get pnpm store directory
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -156,14 +169,27 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "pnpm"
+
+      - name: Enable Corepack
+        run: |
+          npm install -g corepack@latest
+          corepack enable
+
+      - name: Get pnpm store directory
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -201,14 +227,27 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "pnpm"
+
+      - name: Enable Corepack
+        run: |
+          npm install -g corepack@latest
+          corepack enable
+
+      - name: Get pnpm store directory
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
 
       - name: Install stable Chromium
         run: |
@@ -252,14 +291,27 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "pnpm"
+
+      - name: Enable Corepack
+        run: |
+          npm install -g corepack@latest
+          corepack enable
+
+      - name: Get pnpm store directory
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -291,14 +343,27 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "pnpm"
+
+      - name: Enable Corepack
+        run: |
+          npm install -g corepack@latest
+          corepack enable
+
+      - name: Get pnpm store directory
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -354,16 +419,31 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Setup pnpm
-        if: needs.determine-evals.outputs.run-combination == 'true'
-        uses: pnpm/action-setup@v4
-
       - name: Set up Node.js
         if: needs.determine-evals.outputs.run-combination == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "pnpm"
+
+      - name: Enable Corepack
+        if: needs.determine-evals.outputs.run-combination == 'true'
+        run: |
+          npm install -g corepack@latest
+          corepack enable
+
+      - name: Get pnpm store directory
+        if: needs.determine-evals.outputs.run-combination == 'true'
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        if: needs.determine-evals.outputs.run-combination == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-combination == 'true'
@@ -420,16 +500,31 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Setup pnpm
-        if: needs.determine-evals.outputs.run-act == 'true'
-        uses: pnpm/action-setup@v4
-
       - name: Set up Node.js
         if: needs.determine-evals.outputs.run-act == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "pnpm"
+
+      - name: Enable Corepack
+        if: needs.determine-evals.outputs.run-act == 'true'
+        run: |
+          npm install -g corepack@latest
+          corepack enable
+
+      - name: Get pnpm store directory
+        if: needs.determine-evals.outputs.run-act == 'true'
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        if: needs.determine-evals.outputs.run-act == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-act == 'true'
@@ -489,16 +584,31 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Setup pnpm
-        if: needs.determine-evals.outputs.run-extract == 'true'
-        uses: pnpm/action-setup@v4
-
       - name: Set up Node.js
         if: needs.determine-evals.outputs.run-extract == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "pnpm"
+
+      - name: Enable Corepack
+        if: needs.determine-evals.outputs.run-extract == 'true'
+        run: |
+          npm install -g corepack@latest
+          corepack enable
+
+      - name: Get pnpm store directory
+        if: needs.determine-evals.outputs.run-extract == 'true'
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        if: needs.determine-evals.outputs.run-extract == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-extract == 'true'
@@ -561,16 +671,31 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Setup pnpm
-        if: needs.determine-evals.outputs.run-observe == 'true'
-        uses: pnpm/action-setup@v4
-
       - name: Set up Node.js
         if: needs.determine-evals.outputs.run-observe == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "pnpm"
+
+      - name: Enable Corepack
+        if: needs.determine-evals.outputs.run-observe == 'true'
+        run: |
+          npm install -g corepack@latest
+          corepack enable
+
+      - name: Get pnpm store directory
+        if: needs.determine-evals.outputs.run-observe == 'true'
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        if: needs.determine-evals.outputs.run-observe == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-observe == 'true'
@@ -630,16 +755,31 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Setup pnpm
-        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        uses: pnpm/action-setup@v4
-
       - name: Set up Node.js
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "pnpm"
+
+      - name: Enable Corepack
+        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
+        run: |
+          npm install -g corepack@latest
+          corepack enable
+
+      - name: Get pnpm store directory
+        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
@@ -703,16 +843,31 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Setup pnpm
-        if: needs.determine-evals.outputs.run-agent == 'true'
-        uses: pnpm/action-setup@v4
-
       - name: Set up Node.js
         if: needs.determine-evals.outputs.run-agent == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "pnpm"
+
+      - name: Enable Corepack
+        if: needs.determine-evals.outputs.run-agent == 'true'
+        run: |
+          npm install -g corepack@latest
+          corepack enable
+
+      - name: Get pnpm store directory
+        if: needs.determine-evals.outputs.run-agent == 'true'
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        if: needs.determine-evals.outputs.run-agent == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-agent == 'true'

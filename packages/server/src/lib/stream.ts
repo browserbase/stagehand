@@ -5,7 +5,11 @@ import { v4 } from "uuid";
 import { z } from "zod/v4";
 
 import { AppError } from "./errorHandler.js";
-import { dangerouslyGetHeader, getOptionalHeader } from "./header.js";
+import {
+  getModelApiKey,
+  getOptionalHeader,
+  shouldRespondWithSSE,
+} from "./header.js";
 import { error, success } from "./response.js";
 import { getSessionStore } from "./sessionStoreManager.js";
 import type { RequestContext } from "./SessionStore.js";
@@ -18,7 +22,7 @@ interface StreamingResponseOptions<TV3> {
   handler: (ctx: {
     stagehand: V3Stagehand;
     data: TV3;
-  }) => Promise<{ result: unknown }>;
+  }) => Promise<{ result: unknown; actionId?: string }>;
   operation?: string;
 }
 
@@ -30,22 +34,8 @@ export async function createStreamingResponse<TV3>({
   handler,
   operation,
 }: StreamingResponseOptions<TV3>) {
-  const streamHeaderRaw = getOptionalHeader(request, "x-stream-response");
-  const normalizedStreamHeader = streamHeaderRaw
-    ? streamHeaderRaw.toLowerCase()
-    : "false";
-
-  if (normalizedStreamHeader !== "true" && normalizedStreamHeader !== "false") {
-    return error(
-      reply,
-      "Invalid value for x-stream-response header",
-      StatusCodes.BAD_REQUEST,
-    );
-  }
-
-  const shouldStreamResponse = normalizedStreamHeader === "true";
-
-  const modelApiKey = dangerouslyGetHeader(request, "x-model-api-key");
+  const shouldStreamResponse = shouldRespondWithSSE(request);
+  const modelApiKey = getModelApiKey(request);
 
   const sessionStore = getSessionStore();
   const sessionConfig = await sessionStore.getSessionConfig(sessionId);
@@ -113,37 +103,23 @@ export async function createStreamingResponse<TV3>({
     }
   }
 
-  function sendData(data: object) {
+  const sendData = (type: string, data: object) => {
     if (!shouldStreamResponse) {
       return;
     }
 
-    const message = {
-      id: v4(),
-      ...data,
-    };
+    reply.raw.write(`data: ${JSON.stringify({ data, type, id: v4() })}\n\n`);
+  };
 
-    reply.raw.write(`data: ${JSON.stringify(message)}\n\n`);
-  }
+  const actionId = v4();
 
-  sendData({
-    type: "system",
-    data: {
-      status: "starting",
-    },
-  });
+  sendData("system", { status: "starting" });
 
   const requestContext: RequestContext = {
     modelApiKey,
     logger: shouldStreamResponse
       ? (message) => {
-          sendData({
-            type: "log",
-            data: {
-              status: "running",
-              message,
-            },
-          });
+          sendData("log", { status: "running", message });
         }
       : undefined,
   };
@@ -157,13 +133,7 @@ export async function createStreamingResponse<TV3>({
   } catch (err) {
     const loadError = err instanceof Error ? err : new Error(String(err));
 
-    sendData({
-      type: "system",
-      data: {
-        status: "error",
-        error: loadError.message,
-      },
-    });
+    sendData("system", { status: "error", error: loadError.message });
 
     if (shouldStreamResponse) {
       reply.raw.end();
@@ -179,12 +149,7 @@ export async function createStreamingResponse<TV3>({
     );
   }
 
-  sendData({
-    type: "system",
-    data: {
-      status: "connected",
-    },
-  });
+  sendData("system", { status: "connected" });
 
   let result: Awaited<ReturnType<typeof handler>> | null = null;
   let handlerError: Error | null = null;
@@ -201,13 +166,7 @@ export async function createStreamingResponse<TV3>({
         ? handlerError.getClientMessage()
         : `${operation ?? "operation"} failed`;
 
-    sendData({
-      type: "system",
-      data: {
-        status: "error",
-        error: clientMessage,
-      },
-    });
+    sendData("system", { status: "error", error: clientMessage });
 
     if (shouldStreamResponse) {
       reply.raw.end();
@@ -221,12 +180,10 @@ export async function createStreamingResponse<TV3>({
     return error(reply, clientMessage, statusCode);
   }
 
-  sendData({
-    type: "system",
-    data: {
-      status: "finished",
-      result: result?.result,
-    },
+  sendData("system", {
+    status: "finished",
+    result: result?.result,
+    actionId,
   });
 
   if (shouldStreamResponse) {
@@ -234,5 +191,5 @@ export async function createStreamingResponse<TV3>({
     return reply;
   }
 
-  return success(reply, { result: result?.result });
+  return success(reply, { result: result?.result, actionId });
 }

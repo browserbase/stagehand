@@ -67,16 +67,16 @@ targets:
     package_name: stagehand
     production_repo: browserbase/stagehand-php
     composer_package_name: browserbase/stagehand
-  cli:
-    edition: cli.2025-10-08
-    binary_name: stagehand
-    production_repo: browserbase/stagehand-cli
   csharp:
     edition: csharp.2025-10-08
     package_name: stagehand
     production_repo: browserbase/stagehand-net
     publish:
       nuget: false
+  # cli:
+  #   edition: cli.2025-10-08
+  #   binary_name: stagehand
+  #   production_repo: browserbase/stagehand-cli
 
 # `environments` are a map of the name of the environment (e.g. "sandbox",
 # "production") to the corresponding url to use.

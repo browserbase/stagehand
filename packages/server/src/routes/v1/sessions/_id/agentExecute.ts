@@ -68,9 +68,15 @@ const agentExecuteRouteHandler: RouteHandlerMethod = withErrorHandling(
           ...restExecuteOptions,
           page,
         };
-        const result = await stagehand
-          .agent(normalizedAgentConfig)
-          .execute(fullExecuteOptions);
+        let result;
+        try {
+          result = await stagehand
+            .agent(normalizedAgentConfig)
+            .execute(fullExecuteOptions);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          throw new AppError(message, StatusCodes.UNPROCESSABLE_ENTITY);
+        }
 
         return { result };
       },
