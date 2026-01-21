@@ -145,12 +145,8 @@ export class V3AgentHandler {
           providerOptions?: Record<string, unknown>;
         };
         if (lastMessage && typeof lastMessage === "object") {
-          const existingOptions = lastMessage.providerOptions || {};
-          const existingAnthropic = (existingOptions.anthropic as Record<string, unknown>) || {};
           lastMessage.providerOptions = {
-            ...existingOptions,
             anthropic: {
-              ...existingAnthropic,
               cacheControl: { type: "ephemeral" },
             },
           };
