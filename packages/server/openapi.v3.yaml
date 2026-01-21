@@ -86,7 +86,6 @@ components:
           type: string
         entry:
           description: Serialized cache entry that can be written to disk
-          type: unknown
       required:
         - cacheKey
         - entry
@@ -400,6 +399,49 @@ components:
           propertyNames:
             type: string
           additionalProperties: {}
+    SessionStartRequest:
+      type: object
+      properties:
+        modelName:
+          description: Model name to use for AI operations
+          example: openai/gpt-4o
+          type: string
+        domSettleTimeoutMs:
+          description: Timeout in ms to wait for DOM to settle
+          example: 5000
+          type: number
+        verbose:
+          description: Logging verbosity level (0=quiet, 1=normal, 2=debug)
+          example: 1
+          type: number
+          enum:
+            - 0
+            - 1
+            - 2
+        systemPrompt:
+          description: Custom system prompt for AI operations
+          type: string
+        browserbaseSessionCreateParams:
+          $ref: "#/components/schemas/BrowserbaseSessionCreateParams"
+        browser:
+          $ref: "#/components/schemas/BrowserConfig"
+        selfHeal:
+          description: Enable self-healing for failed actions
+          example: true
+          type: boolean
+        browserbaseSessionID:
+          description: Existing Browserbase session ID to resume
+          type: string
+        experimental:
+          type: boolean
+        waitForCaptchaSolves:
+          description: Wait for captcha solves (deprecated, v2 only)
+          type: boolean
+        actTimeoutMs:
+          description: Timeout in ms for act operations (deprecated, v2 only)
+          type: number
+      required:
+        - modelName
     SessionStartResult:
       type: object
       properties:
@@ -424,7 +466,11 @@ components:
       type: object
       properties:
         model:
-          $ref: "#/components/schemas/ModelConfig"
+          description: Model configuration object or model name string (e.g.,
+            'openai/gpt-5-nano')
+          anyOf:
+            - $ref: "#/components/schemas/ModelConfig"
+            - type: string
         variables:
           description: Variables to substitute in the action instruction
           example:
@@ -499,7 +545,11 @@ components:
       type: object
       properties:
         model:
-          $ref: "#/components/schemas/ModelConfig"
+          description: Model configuration object or model name string (e.g.,
+            'openai/gpt-5-nano')
+          anyOf:
+            - $ref: "#/components/schemas/ModelConfig"
+            - type: string
         timeout:
           description: Timeout in ms for the extraction
           example: 30000
@@ -547,7 +597,11 @@ components:
       type: object
       properties:
         model:
-          $ref: "#/components/schemas/ModelConfig"
+          description: Model configuration object or model name string (e.g.,
+            'openai/gpt-5-nano')
+          anyOf:
+            - $ref: "#/components/schemas/ModelConfig"
+            - type: string
         timeout:
           description: Timeout in ms for the observation
           example: 30000
@@ -601,7 +655,11 @@ components:
             - google
             - microsoft
         model:
-          $ref: "#/components/schemas/ModelConfig"
+          description: Model configuration object or model name string (e.g.,
+            'openai/gpt-5-nano')
+          anyOf:
+            - $ref: "#/components/schemas/ModelConfig"
+            - type: string
         systemPrompt:
           description: Custom system prompt for the agent
           type: string
@@ -1308,7 +1366,11 @@ components:
       type: object
       properties:
         model:
-          $ref: "#/components/schemas/ModelConfigOutput"
+          description: Model configuration object or model name string (e.g.,
+            'openai/gpt-5-nano')
+          anyOf:
+            - $ref: "#/components/schemas/ModelConfigOutput"
+            - type: string
         variables:
           description: Variables to substitute in the action instruction
           example:
@@ -1364,7 +1426,11 @@ components:
       type: object
       properties:
         model:
-          $ref: "#/components/schemas/ModelConfigOutput"
+          description: Model configuration object or model name string (e.g.,
+            'openai/gpt-5-nano')
+          anyOf:
+            - $ref: "#/components/schemas/ModelConfigOutput"
+            - type: string
         timeout:
           description: Timeout in ms for the extraction
           example: 30000
@@ -1390,7 +1456,11 @@ components:
       type: object
       properties:
         model:
-          $ref: "#/components/schemas/ModelConfigOutput"
+          description: Model configuration object or model name string (e.g.,
+            'openai/gpt-5-nano')
+          anyOf:
+            - $ref: "#/components/schemas/ModelConfigOutput"
+            - type: string
         timeout:
           description: Timeout in ms for the observation
           example: 30000
@@ -1428,7 +1498,11 @@ components:
             - google
             - microsoft
         model:
-          $ref: "#/components/schemas/ModelConfigOutput"
+          description: Model configuration object or model name string (e.g.,
+            'openai/gpt-5-nano')
+          anyOf:
+            - $ref: "#/components/schemas/ModelConfigOutput"
+            - type: string
         systemPrompt:
           description: Custom system prompt for the agent
           type: string
@@ -1653,50 +1727,6 @@ components:
       required:
         - success
         - error
-      additionalProperties: false
-    SessionStartRequest:
-      type: object
-      properties:
-        modelName:
-          description: Model name to use for AI operations
-          example: openai/gpt-4o
-          type: string
-        domSettleTimeoutMs:
-          description: Timeout in ms to wait for DOM to settle
-          example: 5000
-          type: number
-        verbose:
-          description: Logging verbosity level (0=quiet, 1=normal, 2=debug)
-          example: 1
-          type: number
-          enum:
-            - 0
-            - 1
-            - 2
-        systemPrompt:
-          description: Custom system prompt for AI operations
-          type: string
-        browserbaseSessionCreateParams:
-          $ref: "#/components/schemas/BrowserbaseSessionCreateParamsOutput"
-        browser:
-          $ref: "#/components/schemas/BrowserConfigOutput"
-        selfHeal:
-          description: Enable self-healing for failed actions
-          example: true
-          type: boolean
-        browserbaseSessionID:
-          description: Existing Browserbase session ID to resume
-          type: string
-        experimental:
-          type: boolean
-        waitForCaptchaSolves:
-          description: Wait for captcha solves (deprecated, v2 only)
-          type: boolean
-        actTimeoutMs:
-          description: Timeout in ms for act operations (deprecated, v2 only)
-          type: number
-      required:
-        - modelName
       additionalProperties: false
     SessionEndResult:
       type: object
@@ -1933,48 +1963,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                modelName:
-                  description: Model name to use for AI operations
-                  example: openai/gpt-4o
-                  type: string
-                domSettleTimeoutMs:
-                  description: Timeout in ms to wait for DOM to settle
-                  example: 5000
-                  type: number
-                verbose:
-                  description: Logging verbosity level (0=quiet, 1=normal, 2=debug)
-                  example: 1
-                  type: number
-                  enum:
-                    - 0
-                    - 1
-                    - 2
-                systemPrompt:
-                  description: Custom system prompt for AI operations
-                  type: string
-                browserbaseSessionCreateParams:
-                  $ref: "#/components/schemas/BrowserbaseSessionCreateParams"
-                browser:
-                  $ref: "#/components/schemas/BrowserConfig"
-                selfHeal:
-                  description: Enable self-healing for failed actions
-                  example: true
-                  type: boolean
-                browserbaseSessionID:
-                  description: Existing Browserbase session ID to resume
-                  type: string
-                experimental:
-                  type: boolean
-                waitForCaptchaSolves:
-                  description: Wait for captcha solves (deprecated, v2 only)
-                  type: boolean
-                actTimeoutMs:
-                  description: Timeout in ms for act operations (deprecated, v2 only)
-                  type: number
-              required:
-                - modelName
+              $ref: "#/components/schemas/SessionStartRequest"
         required: true
       parameters:
         - schema:

@@ -1,6 +1,7 @@
 import { EvalFunction } from "../../types/evals";
-import { V3Evaluator, imageResize } from "@browserbasehq/stagehand";
+import { V3Evaluator } from "@browserbasehq/stagehand";
 import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
+import { imageResize } from "../../utils/imageResize";
 import dotenv from "dotenv";
 dotenv.config();
 

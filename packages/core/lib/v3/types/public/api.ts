@@ -397,7 +397,10 @@ export const SessionEndResponseSchema = z
 
 export const ActOptionsSchema = z
   .object({
-    model: ModelConfigSchema.optional(),
+    model: z.union([ModelConfigSchema, z.string()]).optional().meta({
+      description:
+        "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
+    }),
     variables: z
       .record(z.string(), z.string())
       .optional()
@@ -468,7 +471,10 @@ export const ActResponseSchema = wrapResponse(ActResultSchema, "ActResponse");
 
 export const ExtractOptionsSchema = z
   .object({
-    model: ModelConfigSchema.optional(),
+    model: z.union([ModelConfigSchema, z.string()]).optional().meta({
+      description:
+        "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
+    }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the extraction",
       example: 30000,
@@ -526,7 +532,10 @@ export const ExtractResponseSchema = wrapResponse(
 
 export const ObserveOptionsSchema = z
   .object({
-    model: ModelConfigSchema.optional(),
+    model: z.union([ModelConfigSchema, z.string()]).optional().meta({
+      description:
+        "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
+    }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the observation",
       example: 30000,
@@ -584,7 +593,10 @@ export const AgentConfigSchema = z
           "AI provider for the agent (legacy, use model: openai/gpt-5-nano instead)",
         example: "openai",
       }),
-    model: ModelConfigSchema.optional(),
+    model: z.union([ModelConfigSchema, z.string()]).optional().meta({
+      description:
+        "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
+    }),
     systemPrompt: z.string().optional().meta({
       description: "Custom system prompt for the agent",
     }),

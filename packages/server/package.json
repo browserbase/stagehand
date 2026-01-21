@@ -10,8 +10,10 @@
     "build:binary": "bash scripts/build-binary.sh",
     "lint": "cd ../.. && prettier --check packages/server && cd packages/server && eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --exclude test/api-client.integration.test.ts",
-    "test:integration": "vitest run test/api-client.integration.test.ts",
+    "node:test": "if [ -f ../../.env ]; then set -a && . ../../.env && set +a; fi; NODE_OPTIONS='--stack-trace-limit=50' node --import tsx --test --test-reporter=spec --test-force-exit --test-concurrency=2",
+    "test": "pnpm run node:test $(find ./test -type f -name '*.test.ts')",
+    "test:integration": "pnpm run node:test $(find ./test/integration -type f -name '*.test.ts')",
+    "test:integration:local": "bash scripts/run-integration-tests.sh",
     "gen:openapi": "tsx scripts/gen-openapi.ts && prettier --write openapi.v3.yaml"
   },
   "dependencies": {
@@ -39,6 +41,7 @@
     "eslint": "^9.7.0",
     "openai": "4.87.1",
     "postject": "1.0.0-alpha.6",
+    "prettier": "^3.2.5",
     "tsc-alias": "^1.8.10",
     "tsx": "^4.18.0",
     "typescript": "~5.9.2",

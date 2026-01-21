@@ -32,10 +32,26 @@ jobs:
       - name: Update npm
         run: npm install -g npm@latest
 
+      - name: Enable Corepack
+        run: |
+          npm install -g corepack@latest
+          corepack enable
+
+      - name: Get pnpm store directory
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
+
       - name: Install dependencies
         run: |
           rm -rf node_modules
-          npm install -g pnpm
           pnpm install --no-frozen-lockfile
 
       - name: Build
