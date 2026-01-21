@@ -141,10 +141,16 @@ export class V3AgentHandler {
       const model = options.model as { provider?: string };
       const isAnthropic = model.provider?.startsWith("anthropic");
       if (isAnthropic && options.messages.length > 0) {
-        const lastMessage = options.messages[options.messages.length - 1];
+        const lastMessage = options.messages[options.messages.length - 1] as {
+          providerOptions?: Record<string, unknown>;
+        };
         if (lastMessage && typeof lastMessage === "object") {
-          (lastMessage as { providerOptions?: Record<string, unknown> }).providerOptions = {
+          const existingOptions = lastMessage.providerOptions || {};
+          const existingAnthropic = (existingOptions.anthropic as Record<string, unknown>) || {};
+          lastMessage.providerOptions = {
+            ...existingOptions,
             anthropic: {
+              ...existingAnthropic,
               cacheControl: { type: "ephemeral" },
             },
           };
@@ -302,11 +308,13 @@ export class V3AgentHandler {
         prepareStep: this.createPrepareStep(callbacks?.prepareStep),
         onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
         abortSignal: preparedOptions.signal,
-        providerOptions: {
-          google: {
-            mediaResolution: "MEDIA_RESOLUTION_HIGH",
-          },
-        },
+        providerOptions: wrappedModel.modelId.includes("gemini-3")
+          ? {
+              google: {
+                mediaResolution: "MEDIA_RESOLUTION_HIGH",
+              },
+            }
+          : undefined,
       });
 
       const allMessages = [...messages, ...(result.response?.messages || [])];
@@ -466,11 +474,13 @@ export class V3AgentHandler {
         rejectResult(new AgentAbortError(reason));
       },
       abortSignal: options.signal,
-      providerOptions: {
-        google: {
-          mediaResolution: "MEDIA_RESOLUTION_HIGH",
-        },
-      },
+      providerOptions: wrappedModel.modelId.includes("gemini-3")
+        ? {
+            google: {
+              mediaResolution: "MEDIA_RESOLUTION_HIGH",
+            },
+          }
+        : undefined,
     });
 
     const agentStreamResult = streamResult as AgentStreamResult;
