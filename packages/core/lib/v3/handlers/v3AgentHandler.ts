@@ -138,12 +138,10 @@ export class V3AgentHandler {
       processMessages(options.messages);
 
       // Add Anthropic cache control to the last message for prompt caching
-      const model = options.model;
-      const isAnthropic =
-        typeof model !== "string" && model.provider.startsWith("anthropic");
-      const lastMessage = options.messages.at(-1);
-      if (isAnthropic && lastMessage) {
-        lastMessage.providerOptions = {
+      const model = options.model as { provider?: string };
+      const isAnthropic = model.provider?.startsWith("anthropic");
+      if (isAnthropic && options.messages.length > 0) {
+        options.messages.at(-1)!.providerOptions = {
           anthropic: { cacheControl: { type: "ephemeral" } },
         };
       }
