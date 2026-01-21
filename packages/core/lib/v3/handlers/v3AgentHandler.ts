@@ -136,6 +136,21 @@ export class V3AgentHandler {
   ): PrepareStepFunction<ToolSet> {
     return async (options) => {
       processMessages(options.messages);
+
+      // Add Anthropic cache control to the last message for prompt caching
+      const model = options.model as { provider?: string };
+      const isAnthropic = model.provider?.startsWith("anthropic");
+      if (isAnthropic && options.messages.length > 0) {
+        const lastMessage = options.messages[options.messages.length - 1];
+        if (lastMessage && typeof lastMessage === "object") {
+          (lastMessage as { providerOptions?: Record<string, unknown> }).providerOptions = {
+            anthropic: {
+              cacheControl: { type: "ephemeral" },
+            },
+          };
+        }
+      }
+
       if (userCallback) {
         return userCallback(options);
       }
@@ -287,19 +302,11 @@ export class V3AgentHandler {
         prepareStep: this.createPrepareStep(callbacks?.prepareStep),
         onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
         abortSignal: preparedOptions.signal,
-        providerOptions: wrappedModel.modelId.includes("gemini-3")
-          ? {
-              google: {
-                mediaResolution: "MEDIA_RESOLUTION_HIGH",
-              },
-            }
-          : wrappedModel.provider.startsWith("anthropic")
-            ? {
-                anthropic: {
-                  cacheControl: { type: "ephemeral" },
-                },
-              }
-            : undefined,
+        providerOptions: {
+          google: {
+            mediaResolution: "MEDIA_RESOLUTION_HIGH",
+          },
+        },
       });
 
       const allMessages = [...messages, ...(result.response?.messages || [])];
@@ -459,19 +466,11 @@ export class V3AgentHandler {
         rejectResult(new AgentAbortError(reason));
       },
       abortSignal: options.signal,
-      providerOptions: wrappedModel.modelId.includes("gemini-3")
-        ? {
-            google: {
-              mediaResolution: "MEDIA_RESOLUTION_HIGH",
-            },
-          }
-        : wrappedModel.provider.startsWith("anthropic")
-          ? {
-              anthropic: {
-                cacheControl: { type: "ephemeral" },
-              },
-            }
-          : undefined,
+      providerOptions: {
+        google: {
+          mediaResolution: "MEDIA_RESOLUTION_HIGH",
+        },
+      },
     });
 
     const agentStreamResult = streamResult as AgentStreamResult;
