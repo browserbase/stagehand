@@ -182,7 +182,7 @@ const start = async () => {
           .map((err) => (err as RequestValidationError).params.issue);
 
         request.log.warn({ zodIssues }, "request validation failed");
-        return reply.status(StatusCodes.UNPROCESSABLE_ENTITY).send({
+        return reply.status(StatusCodes.BAD_REQUEST).send({
           error: "Request validation failed",
           issues: zodIssues,
         });
