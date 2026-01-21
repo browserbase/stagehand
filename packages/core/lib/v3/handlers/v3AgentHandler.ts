@@ -137,10 +137,12 @@ export class V3AgentHandler {
     return async (options) => {
       processMessages(options.messages);
 
-      // Add Anthropic cache control to the last message for prompt caching
+      // Add Anthropic cache control at specific message lengths for prompt caching
+      // We can only have 4 cache breakpoints: when length hits 5, 10, 15, 20
       const model = options.model as { provider?: string };
       const isAnthropic = model.provider?.startsWith("anthropic");
-      if (isAnthropic) {
+      const len = options.messages.length;
+      if (isAnthropic && [5, 10, 15, 20].includes(len)) {
         options.messages.at(-1)!.providerOptions = {
           anthropic: { cacheControl: { type: "ephemeral" } },
         };
