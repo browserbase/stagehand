@@ -514,6 +514,50 @@ await page.screenshot(options?: ScreenshotOptions): Promise<Buffer>
 
 **Returns:** A `Promise<Buffer>` containing the screenshot image data.
 
+## Page Snapshot
+
+### snapshot()
+
+Capture a structured accessibility tree snapshot of the page. Returns a formatted text representation of the page's accessibility tree along with XPath and URL mappings for each element.
+
+```typescript
+await page.snapshot(): Promise<SnapshotResult>
+```
+
+**Returns:** A `Promise<SnapshotResult>` containing the page snapshot data.
+
+The snapshot provides a hierarchical view of the page's accessibility tree, where each element is represented with:
+- A unique encoded ID in brackets (e.g., `[0-1]`)
+- The element's accessibility role (e.g., `RootWebArea`, `heading`, `link`, `button`)
+- The element's accessible name, if available
+
+**Example output:**
+
+```txt
+[0-1] RootWebArea: Example Domain
+  [0-3] heading: Example Domain
+  [0-5] paragraph: This domain is for use in illustrative examples in documents.
+  [0-8] link: More information...
+```
+
+**Example usage:**
+
+```typescript
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
+
+const { formattedTree, xpathMap, urlMap } = await page.snapshot();
+
+// Print the accessibility tree
+console.log(formattedTree);
+
+// Look up an element's XPath by its encoded ID
+console.log(xpathMap["0-8"]); // e.g., "/html/body/div/p[2]/a"
+
+// Look up a link's URL by its encoded ID
+console.log(urlMap["0-8"]); // e.g., "https://www.iana.org/domains/example"
+```
+
 ## Viewport
 
 ### setViewportSize()
@@ -760,6 +804,31 @@ const screenshot = await page.screenshot();
 ```
 
 </Tab>
+<Tab title="Snapshot">
+
+```typescript
+// Capture the page's accessibility tree snapshot
+const { formattedTree, xpathMap, urlMap } = await page.snapshot();
+
+// The formattedTree shows the page structure:
+// [0-1] RootWebArea: Example Domain
+//   [0-3] heading: Example Domain
+//   [0-8] link: More information...
+
+console.log(formattedTree);
+
+// Use xpathMap to get the XPath selector for any element by ID
+const linkXpath = xpathMap["0-8"];
+console.log("Link XPath:", linkXpath); // "/html/body/div/p[2]/a"
+
+// Use urlMap to get URLs associated with link elements
+const linkUrl = urlMap["0-8"];
+console.log("Link URL:", linkUrl); // "https://www.iana.org/domains/example"
+
+// Useful for debugging, logging page state, or building custom automation
+```
+
+</Tab>
 </Tabs>
 
 ## Types
@@ -817,6 +886,20 @@ interface ScreenshotOptions {
 
 Matches Playwright's screenshot signature with sensible defaults to control how a
 capture is produced.
+
+### SnapshotResult
+
+```typescript
+type SnapshotResult = {
+  formattedTree: string;
+  xpathMap: Record<string, string>;
+  urlMap: Record<string, string>;
+};
+```
+
+- **`formattedTree`** - A formatted string representation of the page's accessibility tree with encoded IDs, roles, and names
+- **`xpathMap`** - A mapping from encoded element IDs to their absolute XPath selectors
+- **`urlMap`** - A mapping from encoded element IDs to their associated URLs (for links and other navigable elements)
 
 ## Error Handling
 
