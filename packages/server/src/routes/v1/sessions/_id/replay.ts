@@ -22,7 +22,6 @@ const replayRoute: RouteOptions = {
   url: "/sessions/:id/replay",
   schema: {
     ...Api.Operations.SessionReplay,
-    hide: true, // Hide from OpenAPI documentation
     headers: Api.SessionHeadersSchema,
     params: Api.SessionIdParamsSchema,
     response: {

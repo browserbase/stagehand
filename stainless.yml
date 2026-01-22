@@ -199,6 +199,7 @@ resources:
           stream_event_model: sessions.stream_event
           params_type_name: streamResponse
       navigate: post /v1/sessions/{id}/navigate
+      replay: get /v1/sessions/{id}/replay
       end: post /v1/sessions/{id}/end
 
 streaming:
