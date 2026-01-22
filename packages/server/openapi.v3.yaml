@@ -1003,6 +1003,18 @@ components:
         - success
         - data
       additionalProperties: false
+    ReplayResponse:
+      type: object
+      properties:
+        success:
+          description: Indicates whether the request was successful
+          type: boolean
+        data:
+          $ref: "#/components/schemas/ReplayResultOutput"
+      required:
+        - success
+        - data
+      additionalProperties: false
     AgentCacheEntryOutput:
       type: object
       properties:
@@ -1732,18 +1744,6 @@ components:
       type: object
       properties: {}
       additionalProperties: false
-    ReplayResponse:
-      type: object
-      properties:
-        success:
-          description: Indicates whether the request was successful
-          type: boolean
-        data:
-          $ref: "#/components/schemas/ReplayResultOutput"
-      required:
-        - success
-        - data
-      additionalProperties: false
     StreamEvent:
       description:
         "Server-Sent Event emitted during streaming responses. Events are
@@ -1952,6 +1952,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ObserveResponse"
+  /v1/sessions/{id}/replay:
+    get:
+      operationId: SessionReplay
+      summary: Replay session metrics
+      description: Retrieves replay metrics for a session.
+      parameters:
+        - schema:
+            description: Unique session identifier
+            example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
+            type: string
+          in: path
+          name: id
+          required: true
+          description: Unique session identifier
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReplayResponse"
   /v1/sessions/start:
     post:
       operationId: SessionStart
