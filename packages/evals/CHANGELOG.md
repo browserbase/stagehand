@@ -1,5 +1,12 @@
 # @browserbasehq/stagehand-evals
 
+## 1.1.7
+
+### Patch Changes
+
+- Updated dependencies [[`40ce5cc`](https://github.com/browserbase/stagehand/commit/40ce5cc83ec758f4e8c37132a7f4ac8eeea7ca34), [`5506f41`](https://github.com/browserbase/stagehand/commit/5506f416d2609d112b553263984e21d7a30e32b1), [`84c05ca`](https://github.com/browserbase/stagehand/commit/84c05ca8de4587181faf128e5c7464fd960caacc), [`692ffa0`](https://github.com/browserbase/stagehand/commit/692ffa0346ad3d121686aba503c0a22844293efa), [`1ef8901`](https://github.com/browserbase/stagehand/commit/1ef8901e1314e90f43b36be20192e652d3b5598f), [`72ac775`](https://github.com/browserbase/stagehand/commit/72ac775a831d6f0f376ceda4426525f93cc21452), [`3d5af07`](https://github.com/browserbase/stagehand/commit/3d5af07f66d6d26d1f5ac4bd9be7183c3381dd92), [`40e1d80`](https://github.com/browserbase/stagehand/commit/40e1d80776b9216422a25a81070ccb3105e56ec2), [`56c0d24`](https://github.com/browserbase/stagehand/commit/56c0d244f9b2431218bfa832ddfc0587930ae038), [`16d72fb`](https://github.com/browserbase/stagehand/commit/16d72fb4c4081dd33bf45605d75c27644ea4c00e), [`088c4cc`](https://github.com/browserbase/stagehand/commit/088c4cc31dc924bb232a9d5a09ab42cd961c2d36), [`4276f4a`](https://github.com/browserbase/stagehand/commit/4276f4abc8bbde215faac6c0321bf243484c376b), [`6005786`](https://github.com/browserbase/stagehand/commit/600578637e65f6fd18b0cdb322b9e0b857708b2f), [`6fbf5fc`](https://github.com/browserbase/stagehand/commit/6fbf5fc811e5e5d9d22f10c5309fbd336892263a), [`704cf18`](https://github.com/browserbase/stagehand/commit/704cf18cb2bdd187ba06c35f05ccb47317a7668c), [`091296e`](https://github.com/browserbase/stagehand/commit/091296e438bb2374c8bb10ef6c08283978145ebf), [`e56c6eb`](https://github.com/browserbase/stagehand/commit/e56c6eb139bf3aad37e98b16626fff13a6c671d0), [`2cb78d0`](https://github.com/browserbase/stagehand/commit/2cb78d0f5ddef9f7337a9a2fe3137f1421df700a), [`5dad639`](https://github.com/browserbase/stagehand/commit/5dad63938f08d968d434bb1ee2804f1e54fb836a), [`b7c2571`](https://github.com/browserbase/stagehand/commit/b7c2571ad4ac563f3ca0518e1f29a40da93e33bc), [`4c69117`](https://github.com/browserbase/stagehand/commit/4c6911748953199dc9aad3eabe98bcf325f871e4)]:
+  - @browserbasehq/stagehand@3.0.8
+
 ## 1.1.6
 
 ### Patch Changes

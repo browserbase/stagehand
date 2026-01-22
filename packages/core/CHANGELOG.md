@@ -1,5 +1,51 @@
 # @browserbasehq/stagehand
 
+## 3.0.8
+
+### Patch Changes
+
+- [#1514](https://github.com/browserbase/stagehand/pull/1514) [`40ce5cc`](https://github.com/browserbase/stagehand/commit/40ce5cc83ec758f4e8c37132a7f4ac8eeea7ca34) Thanks [@tkattkat](https://github.com/tkattkat)! - Rename the close tool in agent to "done"
+
+- [#1574](https://github.com/browserbase/stagehand/pull/1574) [`5506f41`](https://github.com/browserbase/stagehand/commit/5506f416d2609d112b553263984e21d7a30e32b1) Thanks [@tkattkat](https://github.com/tkattkat)! - fix(server): pass cdpUrl to localBrowserLaunchOptions when launchOptions absent
+
+- [#1521](https://github.com/browserbase/stagehand/pull/1521) [`84c05ca`](https://github.com/browserbase/stagehand/commit/84c05ca8de4587181faf128e5c7464fd960caacc) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: get agent cache working in API mode
+
+- [#1486](https://github.com/browserbase/stagehand/pull/1486) [`692ffa0`](https://github.com/browserbase/stagehand/commit/692ffa0346ad3d121686aba503c0a22844293efa) Thanks [@tkattkat](https://github.com/tkattkat)! - improve logging in agent
+
+- [#1551](https://github.com/browserbase/stagehand/pull/1551) [`1ef8901`](https://github.com/browserbase/stagehand/commit/1ef8901e1314e90f43b36be20192e652d3b5598f) Thanks [@miguelg719](https://github.com/miguelg719)! - move extract handler response log to after URL injection
+
+- [#1495](https://github.com/browserbase/stagehand/pull/1495) [`72ac775`](https://github.com/browserbase/stagehand/commit/72ac775a831d6f0f376ceda4426525f93cc21452) Thanks [@tkattkat](https://github.com/tkattkat)! - export tool function & type to simplify defining custom tools
+
+- [#1481](https://github.com/browserbase/stagehand/pull/1481) [`3d5af07`](https://github.com/browserbase/stagehand/commit/3d5af07f66d6d26d1f5ac4bd9be7183c3381dd92) Thanks [@tkattkat](https://github.com/tkattkat)! - add waitForTimeout to page
+
+- [#1423](https://github.com/browserbase/stagehand/pull/1423) [`40e1d80`](https://github.com/browserbase/stagehand/commit/40e1d80776b9216422a25a81070ccb3105e56ec2) Thanks [@miguelg719](https://github.com/miguelg719)! - Improve benchmark handling and add metadata
+
+- [#1588](https://github.com/browserbase/stagehand/pull/1588) [`56c0d24`](https://github.com/browserbase/stagehand/commit/56c0d244f9b2431218bfa832ddfc0587930ae038) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add SnapshotOptions to page.snapshot()
+
+- [#1483](https://github.com/browserbase/stagehand/pull/1483) [`16d72fb`](https://github.com/browserbase/stagehand/commit/16d72fb4c4081dd33bf45605d75c27644ea4c00e) Thanks [@tkattkat](https://github.com/tkattkat)! - Optimize screenshot handling in agent hybrid mode
+
+- [#1498](https://github.com/browserbase/stagehand/pull/1498) [`088c4cc`](https://github.com/browserbase/stagehand/commit/088c4cc31dc924bb232a9d5a09ab42cd961c2d36) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: replaying cached actions (for agent & act) now uses the originally defined model, (instead of default model) when action fails and rerunning inference is needed
+
+- [#1575](https://github.com/browserbase/stagehand/pull/1575) [`4276f4a`](https://github.com/browserbase/stagehand/commit/4276f4abc8bbde215faac6c0321bf243484c376b) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - expose port param in localBrowserLaunchOptions
+
+- [#1544](https://github.com/browserbase/stagehand/pull/1544) [`6005786`](https://github.com/browserbase/stagehand/commit/600578637e65f6fd18b0cdb322b9e0b857708b2f) Thanks [@tkattkat](https://github.com/tkattkat)! - Recommend hybrid mode over DOM mode in agent, which is now considered legacy
+
+- [#1505](https://github.com/browserbase/stagehand/pull/1505) [`6fbf5fc`](https://github.com/browserbase/stagehand/commit/6fbf5fc811e5e5d9d22f10c5309fbd336892263a) Thanks [@tkattkat](https://github.com/tkattkat)! - Add structured output to agent result + ensure close tool is always called
+
+- [#1511](https://github.com/browserbase/stagehand/pull/1511) [`704cf18`](https://github.com/browserbase/stagehand/commit/704cf18cb2bdd187ba06c35f05ccb47317a7668c) Thanks [@shrey150](https://github.com/shrey150)! - Fix ControlOrMeta keypress event
+
+- [#1480](https://github.com/browserbase/stagehand/pull/1480) [`091296e`](https://github.com/browserbase/stagehand/commit/091296e438bb2374c8bb10ef6c08283978145ebf) Thanks [@tkattkat](https://github.com/tkattkat)! - Update agent to only calculate xpath when caching is enabled
+
+- [#1509](https://github.com/browserbase/stagehand/pull/1509) [`e56c6eb`](https://github.com/browserbase/stagehand/commit/e56c6eb139bf3aad37e98b16626fff13a6c671d0) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add support for page.waitForSelector()
+
+- [#1478](https://github.com/browserbase/stagehand/pull/1478) [`2cb78d0`](https://github.com/browserbase/stagehand/commit/2cb78d0f5ddef9f7337a9a2fe3137f1421df700a) Thanks [@tkattkat](https://github.com/tkattkat)! - update agent message handling
+
+- [#1518](https://github.com/browserbase/stagehand/pull/1518) [`5dad639`](https://github.com/browserbase/stagehand/commit/5dad63938f08d968d434bb1ee2804f1e54fb836a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add page.snapshot() for capturing a stringified DOM snapshot of the page, including an xpath map & url map
+
+- [#1576](https://github.com/browserbase/stagehand/pull/1576) [`b7c2571`](https://github.com/browserbase/stagehand/commit/b7c2571ad4ac563f3ca0518e1f29a40da93e33bc) Thanks [@tkattkat](https://github.com/tkattkat)! - utilize waitForSelector when running agent cache
+
+- [#1560](https://github.com/browserbase/stagehand/pull/1560) [`4c69117`](https://github.com/browserbase/stagehand/commit/4c6911748953199dc9aad3eabe98bcf325f871e4) Thanks [@tkattkat](https://github.com/tkattkat)! - Update coordinate handling in cua and hybrid
+
 ## 3.0.7
 
 ### Patch Changes
