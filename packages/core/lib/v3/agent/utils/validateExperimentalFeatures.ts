@@ -59,6 +59,12 @@ export function validateExperimentalFeatures(
     if (executeOptions?.output) {
       unsupportedFeatures.push("output schema");
     }
+    if (
+      executeOptions?.variables &&
+      Object.keys(executeOptions.variables).length > 0
+    ) {
+      unsupportedFeatures.push("variables");
+    }
 
     if (unsupportedFeatures.length > 0) {
       throw new StagehandInvalidArgumentError(
@@ -102,6 +108,12 @@ export function validateExperimentalFeatures(
     }
     if (executeOptions.output) {
       features.push("output schema");
+    }
+    if (
+      executeOptions.variables &&
+      Object.keys(executeOptions.variables).length > 0
+    ) {
+      features.push("variables");
     }
   }
 

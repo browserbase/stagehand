@@ -19,7 +19,7 @@ import { searchTool } from "./search";
 import type { ToolSet, InferUITools } from "ai";
 import type { V3 } from "../../v3";
 import type { LogLine } from "../../types/public/logs";
-import type { AgentToolMode } from "../../types/public/agent";
+import type { AgentToolMode, Variables } from "../../types/public/agent";
 
 export interface V3AgentToolOptions {
   executionModel?: string;
@@ -39,6 +39,11 @@ export interface V3AgentToolOptions {
    * These tools will be filtered out after mode-based filtering.
    */
   excludeTools?: string[];
+  /**
+   * Variables available to the agent for use in act/type tools.
+   * When provided, these tools will have an optional useVariable field.
+   */
+  variables?: Variables;
 }
 
 /**
@@ -80,23 +85,24 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const mode = options?.mode ?? "dom";
   const provider = options?.provider;
   const excludeTools = options?.excludeTools;
+  const variables = options?.variables;
 
   const allTools: ToolSet = {
-    act: actTool(v3, executionModel),
+    act: actTool(v3, executionModel, variables),
     ariaTree: ariaTreeTool(v3),
     click: clickTool(v3, provider),
     clickAndHold: clickAndHoldTool(v3, provider),
     dragAndDrop: dragAndDropTool(v3, provider),
     extract: extractTool(v3, executionModel, options?.logger),
-    fillForm: fillFormTool(v3, executionModel),
-    fillFormVision: fillFormVisionTool(v3, provider),
+    fillForm: fillFormTool(v3, executionModel, variables),
+    fillFormVision: fillFormVisionTool(v3, provider, variables),
     goto: gotoTool(v3),
     keys: keysTool(v3),
     navback: navBackTool(v3),
     screenshot: screenshotTool(v3),
     scroll: mode === "hybrid" ? scrollVisionTool(v3, provider) : scrollTool(v3),
     think: thinkTool(),
-    type: typeTool(v3, provider),
+    type: typeTool(v3, provider, variables),
     wait: waitTool(v3, mode),
   };
 

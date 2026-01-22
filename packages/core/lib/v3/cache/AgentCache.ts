@@ -138,17 +138,22 @@ export class AgentCache {
     options: SanitizedAgentExecuteOptions;
     configSignature: string;
     page: Page;
+    variables?: Record<string, string>;
   }): Promise<AgentCacheContext | null> {
     if (!this.shouldAttemptCache(params.instruction)) {
       return null;
     }
     const instruction = params.instruction.trim();
     const startUrl = await safeGetPageUrl(params.page);
+    const variableKeys = params.variables
+      ? Object.keys(params.variables).sort()
+      : [];
     const cacheKey = this.buildAgentCacheKey(
       instruction,
       startUrl,
       params.options,
       params.configSignature,
+      variableKeys,
     );
     return {
       instruction,
@@ -156,6 +161,8 @@ export class AgentCache {
       options: params.options,
       configSignature: params.configSignature,
       cacheKey,
+      variableKeys,
+      variables: params.variables,
     };
   }
 
@@ -507,12 +514,14 @@ export class AgentCache {
     startUrl: string,
     options: SanitizedAgentExecuteOptions,
     configSignature: string,
+    variableKeys?: string[],
   ): string {
     const payload = {
       instruction,
       startUrl,
       options,
       configSignature,
+      variableKeys: variableKeys ?? [],
     };
     return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
   }
@@ -573,6 +582,7 @@ export class AgentCache {
             ctx,
             handler,
             effectiveClient,
+            context.variables,
           )) ?? step;
         stepsChanged ||= replayedStep !== step;
         updatedSteps.push(replayedStep);
@@ -612,6 +622,7 @@ export class AgentCache {
     ctx: V3Context,
     handler: ActHandler,
     llmClient: LLMClient,
+    variables?: Record<string, string>,
   ): Promise<AgentReplayStep> {
     switch (step.type) {
       case "act":
@@ -620,6 +631,7 @@ export class AgentCache {
           ctx,
           handler,
           llmClient,
+          variables,
         );
       case "fillForm":
         return await this.replayAgentFillFormStep(
@@ -627,6 +639,7 @@ export class AgentCache {
           ctx,
           handler,
           llmClient,
+          variables,
         );
       case "goto":
         await this.replayAgentGotoStep(step as AgentReplayGotoStep, ctx);
@@ -663,6 +676,7 @@ export class AgentCache {
     ctx: V3Context,
     handler: ActHandler,
     llmClient: LLMClient,
+    variables?: Record<string, string>,
   ): Promise<AgentReplayActStep> {
     const actions = Array.isArray(step.actions) ? step.actions : [];
     if (actions.length > 0) {
@@ -681,6 +695,8 @@ export class AgentCache {
           page,
           this.domSettleTimeoutMs,
           llmClient,
+          undefined,
+          variables,
         );
         if (result.success && Array.isArray(result.actions)) {
           updatedActions.push(...cloneForCache(result.actions));
@@ -693,7 +709,7 @@ export class AgentCache {
       }
       return step;
     }
-    await this.act(step.instruction, { timeout: step.timeout });
+    await this.act(step.instruction, { timeout: step.timeout, variables });
     return step;
   }
 
@@ -702,6 +718,7 @@ export class AgentCache {
     ctx: V3Context,
     handler: ActHandler,
     llmClient: LLMClient,
+    variables?: Record<string, string>,
   ): Promise<AgentReplayFillFormStep> {
     const actions =
       Array.isArray(step.actions) && step.actions.length > 0
@@ -725,6 +742,8 @@ export class AgentCache {
         page,
         this.domSettleTimeoutMs,
         llmClient,
+        undefined, // ensureTimeRemaining is not used in this context
+        variables,
       );
       if (result.success && Array.isArray(result.actions)) {
         updatedActions.push(...cloneForCache(result.actions));
