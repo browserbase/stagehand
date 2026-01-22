@@ -87,7 +87,7 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     click: clickTool(v3, provider),
     clickAndHold: clickAndHoldTool(v3, provider),
     dragAndDrop: dragAndDropTool(v3, provider),
-    extract: extractTool(v3, executionModel, options?.logger),
+    extract: extractTool(v3, executionModel),
     fillForm: fillFormTool(v3, executionModel),
     fillFormVision: fillFormVisionTool(v3, provider),
     goto: gotoTool(v3),
