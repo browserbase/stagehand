@@ -473,7 +473,7 @@ export class V3AgentHandler {
     inputMessages: ModelMessage[],
     result: {
       text?: string;
-      usage?: LanguageModelUsage;
+      totalUsage?: LanguageModelUsage;
       response?: { messages?: ModelMessage[] };
       steps?: StepResult<ToolSet>[];
     },
@@ -497,13 +497,13 @@ export class V3AgentHandler {
 
     const endTime = Date.now();
     const inferenceTimeMs = endTime - startTime;
-    if (result.usage) {
+    if (result.totalUsage) {
       this.v3.updateMetrics(
         V3FunctionName.AGENT,
-        result.usage.inputTokens || 0,
-        result.usage.outputTokens || 0,
-        result.usage.reasoningTokens || 0,
-        result.usage.cachedInputTokens || 0,
+        result.totalUsage.inputTokens || 0,
+        result.totalUsage.outputTokens || 0,
+        result.totalUsage.reasoningTokens || 0,
+        result.totalUsage.cachedInputTokens || 0,
         inferenceTimeMs,
       );
     }
@@ -514,12 +514,12 @@ export class V3AgentHandler {
       actions: state.actions,
       completed: state.completed,
       output,
-      usage: result.usage
+      usage: result.totalUsage
         ? {
-            input_tokens: result.usage.inputTokens || 0,
-            output_tokens: result.usage.outputTokens || 0,
-            reasoning_tokens: result.usage.reasoningTokens || 0,
-            cached_input_tokens: result.usage.cachedInputTokens || 0,
+            input_tokens: result.totalUsage.inputTokens || 0,
+            output_tokens: result.totalUsage.outputTokens || 0,
+            reasoning_tokens: result.totalUsage.reasoningTokens || 0,
+            cached_input_tokens: result.totalUsage.cachedInputTokens || 0,
             inference_time_ms: inferenceTimeMs,
           }
         : undefined,
