@@ -179,11 +179,44 @@ export class StagehandContext {
   }
 
   private async handleNewPlaywrightPage(pwPage: PlaywrightPage): Promise<void> {
-    let stagehandPage = this.pageMap.get(pwPage);
-    if (!stagehandPage) {
-      stagehandPage = await this.createStagehandPage(pwPage);
+    if (pwPage.isClosed()) return;
+
+    // Only register close handler once per page
+    if (!this.pageMap.has(pwPage)) {
+      pwPage.once("close", () => {
+        const shPage = this.pageMap.get(pwPage);
+        if (shPage) {
+          if (shPage.frameId) this.unregisterFrameId(shPage.frameId);
+          if (this.activeStagehandPage === shPage) {
+            for (const p of this.intContext.pages()) {
+              const sp = this.pageMap.get(p);
+              if (sp && sp !== shPage) {
+                this.setActivePage(sp);
+                break;
+              }
+            }
+          }
+        }
+      });
     }
-    this.setActivePage(stagehandPage);
+
+    try {
+      let stagehandPage = this.pageMap.get(pwPage);
+      if (!stagehandPage) {
+        stagehandPage = await this.createStagehandPage(pwPage);
+      }
+      this.setActivePage(stagehandPage);
+    } catch (err) {
+      const msg = (err as Error).message ?? "";
+      if (
+        msg.includes("No target with given id") ||
+        msg.includes("Target closed") ||
+        msg.includes("Target page, context or browser has been closed")
+      ) {
+        return;
+      }
+      throw err;
+    }
   }
 
   private async attachFrameNavigatedListener(
@@ -191,12 +224,24 @@ export class StagehandContext {
   ): Promise<void> {
     const shPage = this.pageMap.get(pwPage);
     if (!shPage) return;
-    const session: CDPSession = await this.intContext.newCDPSession(pwPage);
-    await session.send("Page.enable");
 
-    pwPage.once("close", () => {
-      if (shPage.frameId) this.unregisterFrameId(shPage.frameId);
-    });
+    if (pwPage.isClosed()) return;
+
+    let session: CDPSession;
+    try {
+      session = await this.intContext.newCDPSession(pwPage);
+      await session.send("Page.enable");
+    } catch (err) {
+      const msg = (err as Error).message ?? "";
+      if (
+        msg.includes("No target with given id") ||
+        msg.includes("Target closed") ||
+        msg.includes("Target page, context or browser has been closed")
+      ) {
+        return;
+      }
+      throw err;
+    }
 
     session.on(
       "Page.frameNavigated",
