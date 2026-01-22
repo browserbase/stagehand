@@ -1,5 +1,11 @@
 # @browserbasehq/stagehand
 
+## 2.5.7
+
+### Patch Changes
+
+- [#1593](https://github.com/browserbase/stagehand/pull/1593) [`159f6d3`](https://github.com/browserbase/stagehand/commit/159f6d360cda6af46d45be4be33178dfb2969122) Thanks [@tkattkat](https://github.com/tkattkat)! - Update extract tool
+
 ## 2.5.6
 
 ### Patch Changes

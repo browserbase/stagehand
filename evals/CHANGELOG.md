@@ -1,5 +1,12 @@
 # @browserbasehq/stagehand-evals
 
+## 1.1.7
+
+### Patch Changes
+
+- Updated dependencies [[`159f6d3`](https://github.com/browserbase/stagehand/commit/159f6d360cda6af46d45be4be33178dfb2969122)]:
+  - @browserbasehq/stagehand@2.5.7
+
 ## 1.1.6
 
 ### Patch Changes
