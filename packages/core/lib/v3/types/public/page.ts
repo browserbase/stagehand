@@ -17,3 +17,7 @@ export type SnapshotResult = {
   xpathMap: Record<string, string>;
   urlMap: Record<string, string>;
 };
+
+export type PageSnapshotOptions = {
+  includeIframes?: boolean;
+};

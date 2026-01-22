@@ -50,6 +50,7 @@ describe("computeFramePrefixes", () => {
       page,
       context,
       perFrameMaps,
+      context.frames,
     );
 
     expect(absPrefix.get("frame-1")).toBe("");
@@ -103,7 +104,12 @@ describe("computeFramePrefixes", () => {
       ]),
     };
 
-    const maps = await computeFramePrefixes(page, context, perFrameMaps);
+    const maps = await computeFramePrefixes(
+      page,
+      context,
+      perFrameMaps,
+      context.frames,
+    );
 
     expect(maps.absPrefix.get("frame-2")).toBe("/iframe[1]");
     expect(maps.absPrefix.get("frame-3")).toBe("/iframe[1]");
@@ -144,8 +150,51 @@ describe("computeFramePrefixes", () => {
       page,
       context,
       perFrameMaps as Map<string, FrameDomMaps>,
+      context.frames,
     );
     expect(result.absPrefix.get("frame-2")).toBe("");
+  });
+
+  it("does not compute prefixes for frames excluded from the scope", async () => {
+    const session = new MockCDPSession({
+      "DOM.getFrameOwner": async () => ({ backendNodeId: 200 }),
+    });
+    const page = makePage({
+      "frame-1": session,
+      "frame-2": session,
+      root: session,
+    });
+
+    const perFrameMaps = new Map<string, FrameDomMaps>([
+      [
+        "frame-1",
+        {
+          tagNameMap: {},
+          scrollableMap: {},
+          urlMap: {},
+          xpathMap: { "0-200": "/iframe[1]" },
+        },
+      ],
+    ]);
+
+    const context: FrameContext = {
+      rootId: "frame-1",
+      frames: ["frame-1", "frame-2"],
+      parentByFrame: new Map([
+        ["frame-1", null],
+        ["frame-2", "frame-1"],
+      ]),
+    };
+
+    const { absPrefix, iframeHostEncByChild } = await computeFramePrefixes(
+      page,
+      context,
+      perFrameMaps,
+      ["frame-1"],
+    );
+
+    expect(absPrefix.has("frame-2")).toBe(false);
+    expect(iframeHostEncByChild.has("frame-2")).toBe(false);
   });
 });
 
@@ -200,6 +249,7 @@ describe("mergeFramesIntoSnapshot", () => {
       perFrameOutlines,
       absPrefix,
       iframeHostEncByChild,
+      context.frames,
     );
 
     expect(snapshot.combinedXpathMap["0-10"]).toBe("/html[1]/body[1]");
@@ -248,6 +298,7 @@ describe("mergeFramesIntoSnapshot", () => {
       perFrameOutlines,
       absPrefix,
       new Map(),
+      context.frames,
     );
 
     expect(snapshot.combinedXpathMap["1-20"]).toBeUndefined();
@@ -286,6 +337,7 @@ describe("mergeFramesIntoSnapshot", () => {
       perFrameOutlines,
       new Map([["frame-2", "/iframe[1]"]]),
       new Map(),
+      context.frames,
     );
 
     expect(snapshot.combinedTree).toBe("[child] frame2");
@@ -333,9 +385,57 @@ describe("mergeFramesIntoSnapshot", () => {
         ["frame-2", "0-200"],
         ["frame-3", "0-200"],
       ]),
+      context.frames,
     );
 
     expect(snapshot.combinedTree).toContain("[child] frame3");
     expect(snapshot.combinedTree).not.toContain("[child] frame2");
+  });
+
+  it("only merges xpath and url maps for frames included in frameIds", () => {
+    const context: FrameContext = {
+      rootId: "frame-1",
+      frames: ["frame-1", "frame-2"],
+      parentByFrame: new Map([
+        ["frame-1", null],
+        ["frame-2", "frame-1"],
+      ]),
+    };
+
+    const perFrameMaps = new Map<string, FrameDomMaps>([
+      [
+        "frame-1",
+        {
+          tagNameMap: {},
+          scrollableMap: {},
+          urlMap: { "0-10": "https://root.test" },
+          xpathMap: { "0-10": "/html[1]" },
+        },
+      ],
+      [
+        "frame-2",
+        {
+          tagNameMap: {},
+          scrollableMap: {},
+          urlMap: { "1-20": "https://child.test" },
+          xpathMap: { "1-20": "/div[1]" },
+        },
+      ],
+    ]);
+
+    const perFrameOutlines = [{ frameId: "frame-1", outline: "[root] doc" }];
+
+    const snapshot = mergeFramesIntoSnapshot(
+      context,
+      perFrameMaps,
+      perFrameOutlines,
+      new Map([["frame-1", ""]]),
+      new Map(),
+      ["frame-1"],
+    );
+
+    expect(snapshot.combinedXpathMap["0-10"]).toBe("/html[1]");
+    expect(snapshot.combinedXpathMap["1-20"]).toBeUndefined();
+    expect(snapshot.perFrame?.map((pf) => pf.frameId)).toEqual(["frame-1"]);
   });
 });
