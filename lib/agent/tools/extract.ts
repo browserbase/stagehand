@@ -28,7 +28,7 @@ function jsonSchemaToZod(schema: JsonSchema): ZodTypeAny {
       if (schema.format === "url") s = s.url();
       if (schema.format === "email") s = s.email();
       if (schema.format === "uuid") s = s.uuid();
-      if (schema.enum) return z.enum(schema.enum as [string, ...string[]]);
+      if (schema.enum && schema.enum.length > 0) return z.enum(schema.enum as [string, ...string[]]);
       return s;
     }
     case "number":
