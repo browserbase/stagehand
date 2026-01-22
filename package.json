@@ -28,6 +28,7 @@
     "@changesets/cli": "^2.27.9",
     "@eslint/js": "^9.16.0",
     "eslint": "^9.16.0",
+    "eslint-plugin-security": "^3.0.1",
     "globals": "^15.13.0",
     "prettier": "^3.2.5",
     "turbo": "^2.5.8",
