@@ -1,61 +1,76 @@
 import { tool } from "ai";
-import { z } from "zod/v3";
+import { z, ZodTypeAny } from "zod/v3";
 import { Stagehand } from "../../index";
-import { LogLine } from "@/types/log";
 
-/**
- * Evaluates a Zod schema string and returns the actual Zod schema
- * Uses Function constructor to evaluate the schema string in a controlled way
- */
-function evaluateZodSchema(
-  schemaStr: string,
-  logger?: (message: LogLine) => void,
-): z.ZodTypeAny {
-  try {
-    // Create a function that returns the evaluated schema
-    // We pass z as a parameter to make it available in the evaluated context
-    const schemaFunction = new Function("z", `return ${schemaStr}`);
-    return schemaFunction(z);
-  } catch (error) {
-    logger?.({
-      category: "extract",
-      message: `Failed to evaluate schema string, using z.any(): ${error}`,
-      level: 1,
-      auxiliary: {
-        error: {
-          value: error,
-          type: "string",
-        },
-      },
-    });
-    return z.any();
+interface JsonSchema {
+  type?: string;
+  properties?: Record<string, JsonSchema>;
+  items?: JsonSchema;
+  enum?: string[];
+  format?: "url" | "email" | "uuid";
+}
+
+function jsonSchemaToZod(schema: JsonSchema): ZodTypeAny {
+  switch (schema.type) {
+    case "object": {
+      const shape: Record<string, ZodTypeAny> = {};
+      if (schema.properties) {
+        for (const [key, value] of Object.entries(schema.properties)) {
+          shape[key] = jsonSchemaToZod(value);
+        }
+      }
+      return z.object(shape);
+    }
+    case "array":
+      return z.array(schema.items ? jsonSchemaToZod(schema.items) : z.any());
+    case "string": {
+      let s = z.string();
+      if (schema.format === "url") s = s.url();
+      if (schema.format === "email") s = s.email();
+      if (schema.format === "uuid") s = s.uuid();
+      if (schema.enum) return z.enum(schema.enum as [string, ...string[]]);
+      return s;
+    }
+    case "number":
+    case "integer":
+      return z.number();
+    case "boolean":
+      return z.boolean();
+    case "null":
+      return z.null();
+    default:
+      return z.any();
   }
 }
 
 export const createExtractTool = (
   stagehand: Stagehand,
   executionModel?: string,
-  logger?: (message: LogLine) => void,
 ) =>
   tool({
     description: `Extract structured data from the current page based on a provided schema.
     
     USAGE GUIDELINES:
     - Keep schemas MINIMAL - only include fields essential for the task
-    - IMPORANT: only use this if explicitly asked for structured output. In most scenarios, you should use the aria tree tool over this. 
-    - If you need to extract a link, make sure the type defintion follows the format of z.string().url()
+    - IMPORTANT: only use this if explicitly asked for structured output. In most scenarios, you should use the aria tree tool over this.
+    - For URL fields, use format: "url"
+    
     EXAMPLES:
     1. Extract a single value:
        instruction: "extract the product price"
-       schema: "z.object({ price: z.number()})"
+       schema: { type: "object", properties: { price: { type: "number" } } }
     
     2. Extract multiple fields:
        instruction: "extract product name and price"
-       schema: "z.object({ name: z.string(), price: z.number() })"
+       schema: { type: "object", properties: { name: { type: "string" }, price: { type: "number" } } }
     
     3. Extract arrays:
        instruction: "extract all product names and prices"
-       schema: "z.object({ products: z.array(z.object({ name: z.string(), price: z.number() })) })"`,
+       schema: { type: "object", properties: { products: { type: "array", items: { type: "object", properties: { name: { type: "string" }, price: { type: "number" } } } } } }
+    
+    4. Extract a URL:
+       instruction: "extract the link"
+       schema: { type: "object", properties: { url: { type: "string", format: "url" } } }`,
     parameters: z.object({
       instruction: z
         .string()
@@ -63,10 +78,15 @@ export const createExtractTool = (
           "Clear instruction describing what data to extract from the page",
         ),
       schema: z
-        .string()
-        .describe(
-          'Zod schema as a string (e.g., "z.object({ price: z.number() })")',
-        ),
+        .object({
+          type: z.string().optional(),
+          properties: z.record(z.string(), z.unknown()).optional(),
+          items: z.unknown().optional(),
+          enum: z.array(z.string()).optional(),
+          format: z.enum(["url", "email", "uuid"]).optional(),
+        })
+        .passthrough()
+        .describe("JSON Schema object describing the structure to extract"),
     }),
     execute: async ({ instruction, schema }) => {
       try {
@@ -79,23 +99,20 @@ export const createExtractTool = (
               value: instruction,
               type: "string",
             },
-            // TODO: check if we want to log this
             schema: {
-              value: schema,
+              value: JSON.stringify(schema),
               type: "object",
             },
           },
         });
-        // Evaluate the schema string to get the actual Zod schema
-        const zodSchema = evaluateZodSchema(schema, logger);
 
-        // Ensure we have a ZodObject
+        const zodSchema = jsonSchemaToZod(schema as JsonSchema);
+
         const schemaObject =
           zodSchema instanceof z.ZodObject
             ? zodSchema
             : z.object({ result: zodSchema });
 
-        // Extract with the schema - only pass modelName if executionModel is explicitly provided
         const result = await stagehand.page.extract({
           instruction,
           schema: schemaObject,

@@ -26,7 +26,7 @@ export function createAgentTools(
     act: createActTool(stagehand, executionModel),
     ariaTree: createAriaTreeTool(stagehand),
     close: createCloseTool(),
-    extract: createExtractTool(stagehand, executionModel, options?.logger),
+    extract: createExtractTool(stagehand, executionModel),
     fillForm: createFillFormTool(stagehand, executionModel),
     goto: createGotoTool(stagehand),
     navback: createNavBackTool(stagehand),
