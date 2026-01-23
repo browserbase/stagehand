@@ -11,6 +11,7 @@ export const AISDK_PROVIDERS = [
   "deepseek",
   "perplexity",
   "ollama",
+  "vertex",
 ] as const;
 export type AISDKProvider = (typeof AISDK_PROVIDERS)[number];
 
