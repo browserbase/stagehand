@@ -587,7 +587,7 @@ const agent = stagehand.agent({
 const agent = stagehand.agent({
   model: "google/gemini-2.5-computer-use-preview-10-2025",  // Provider now in model string
   systemPrompt: "You are a helpful assistant that can navigate websites.",  // Renamed from 'instructions'
-  cua: true,  // NEW: Computer Use Agent mode
+  mode: "cua",  // Computer Use Agent mode
   integrations: ["https://mcp-server.example.com"],
   tools: customTools
 });
