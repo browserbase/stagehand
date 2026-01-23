@@ -521,8 +521,20 @@ await page.screenshot(options?: ScreenshotOptions): Promise<Buffer>
 Capture a structured accessibility tree snapshot of the page. Returns a formatted text representation of the page's accessibility tree along with XPath and URL mappings for each element.
 
 ```typescript
-await page.snapshot(): Promise<SnapshotResult>
+await page.snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult>
 ```
+
+<ParamField path="options" type="PageSnapshotOptions" optional>
+  Optional configuration for the snapshot.
+
+  <Expandable title="properties">
+    <ParamField path="includeIframes" type="boolean">
+      Whether to include iframe content in the snapshot.
+
+      **Default:** `true`
+    </ParamField>
+  </Expandable>
+</ParamField>
 
 **Returns:** A `Promise<SnapshotResult>` containing the page snapshot data.
 
@@ -825,7 +837,8 @@ console.log("Link XPath:", linkXpath); // "/html/body/div/p[2]/a"
 const linkUrl = urlMap["0-8"];
 console.log("Link URL:", linkUrl); // "https://www.iana.org/domains/example"
 
-// Useful for debugging, logging page state, or building custom automation
+// Exclude iframe content from the snapshot
+const mainPageOnly = await page.snapshot({ includeIframes: false });
 ```
 
 </Tab>
@@ -886,6 +899,16 @@ interface ScreenshotOptions {
 
 Matches Playwright's screenshot signature with sensible defaults to control how a
 capture is produced.
+
+### PageSnapshotOptions
+
+```typescript
+type PageSnapshotOptions = {
+  includeIframes?: boolean;
+};
+```
+
+- **`includeIframes`** - Whether to include iframe content in the snapshot. Defaults to `true`
 
 ### SnapshotResult
 
