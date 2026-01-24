@@ -518,7 +518,7 @@ await page.screenshot(options?: ScreenshotOptions): Promise<Buffer>
 
 ### snapshot()
 
-Capture a structured accessibility tree snapshot of the page. Returns a formatted text representation of the page's accessibility tree along with XPath and URL mappings for each element.
+Capture a structured accessibility snapshot of the current page. The returned data combines a human-readable accessibility tree with lookup maps so you can relate each node to DOM selectors or URLs.
 
 ```typescript
 await page.snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult>
@@ -536,14 +536,28 @@ await page.snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult>
   </Expandable>
 </ParamField>
 
-**Returns:** A `Promise<SnapshotResult>` containing the page snapshot data.
+**Returns:** A `Promise<SnapshotResult>` describing the captured accessibility tree.
 
-The snapshot provides a hierarchical view of the page's accessibility tree, where each element is represented with:
-- A unique encoded ID in brackets (e.g., `[0-1]`)
-- The element's accessibility role (e.g., `RootWebArea`, `heading`, `link`, `button`)
-- The element's accessible name, if available
+<Expandable title="SnapshotResult properties">
+  <ParamField path="formattedTree" type="string">
+    Multiline text representing the accessibility tree hierarchy with encoded IDs.
+  </ParamField>
+  <ParamField path="xpathMap" type="Record<string, string>">
+    Maps each encoded ID to the element's absolute XPath for quick DOM lookups.
+  </ParamField>
+  <ParamField path="urlMap" type="Record<string, string>">
+    Maps encoded IDs for link-like nodes to their resolved URLs.
+  </ParamField>
+</Expandable>
 
-**Example output:**
+See [SnapshotResult](#snapshotresult) for the static type definition.
+
+The formatted tree represents every accessibility node with:
+- A unique encoded ID in brackets (e.g., `[0-1]`) for cross-referencing with the maps
+- The node's accessibility role (`RootWebArea`, `heading`, `link`, `button`, etc.)
+- The node's accessible name, when available
+
+**Example formatted output:**
 
 ```txt
 [0-1] RootWebArea: Example Domain
@@ -563,11 +577,15 @@ const { formattedTree, xpathMap, urlMap } = await page.snapshot();
 // Print the accessibility tree
 console.log(formattedTree);
 
-// Look up an element's XPath by its encoded ID
-console.log(xpathMap["0-8"]); // e.g., "/html/body/div/p[2]/a"
+// Look up a specific element's XPath by encoded ID
+const linkId = "0-8";
+console.log(xpathMap[linkId]); // e.g., "/html/body/div/p[2]/a"
 
-// Look up a link's URL by its encoded ID
-console.log(urlMap["0-8"]); // e.g., "https://www.iana.org/domains/example"
+// Resolve a link's URL via the urlMap
+console.log(urlMap[linkId]); // e.g., "https://www.example.com"
+
+// Exclude iframe content when you only need the main document
+const mainDocumentSnapshot = await page.snapshot({ includeIframes: false });
 ```
 
 ## Viewport
