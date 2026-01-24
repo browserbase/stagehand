@@ -186,6 +186,7 @@ const stagehand = new Stagehand({
     devtools: true, // Open developer tools
     viewport: { width: 1280, height: 720 },
     executablePath: '/opt/google/chrome/chrome', // Custom Chrome path
+    port: 9222, // Fixed CDP debugging port
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -213,6 +214,27 @@ await stagehand.init();
 ```
 
 ## Advanced Configuration
+
+### Fixed CDP Debugging Port
+
+Specify a fixed Chrome DevTools Protocol (CDP) debugging port instead of using a randomly assigned one.
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  localBrowserLaunchOptions: {
+    port: 9222,
+  },
+});
+
+await stagehand.init();
+```
+
+<Tip>
+Port `9222` is the standard CDP default. Ensure the port is available before launching.
+</Tip>
 
 ### DOM Settle Timeout
 
