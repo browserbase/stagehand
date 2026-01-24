@@ -566,38 +566,51 @@ await page.waitForLoadState(state: LoadState, timeoutMs?: number): Promise<void>
 
 ### waitForSelector()
 
-Wait for an element matching the selector to reach a specific state in the DOM. Uses MutationObserver for efficiency and pierces shadow DOM by default.
+Wait for an element matching the selector to reach a specific state in the DOM. Uses a MutationObserver for efficiency, pierces shadow DOM by default, and supports iframe hops when needed.
 
 ```typescript
-await page.waitForSelector(selector: string, options?: WaitForSelectorOptions): Promise<boolean>
+await page.waitForSelector(
+  selector: string,
+  options?: {
+    state?: "attached" | "detached" | "visible" | "hidden";
+    timeout?: number;
+    pierceShadow?: boolean;
+  }
+): Promise<boolean>
 ```
 
 <ParamField path="selector" type="string" required>
-  CSS selector or XPath to wait for. Supports iframe hop notation with `>>` (e.g., `"iframe#checkout >> .submit-btn"`).
+  CSS selector or XPath expression to wait for. Supports iframe hops (e.g., `/html/div/iframe/html/div/button`).
 </ParamField>
 
-<ParamField path="state" type="'attached' | 'detached' | 'visible' | 'hidden'" optional>
-  The element state to wait for.
+<ParamField path="options" type="object" optional>
+  Optional wait configuration.
 
-  **Options:**
-  - `"attached"` - Wait for element to be present in DOM (even if hidden)
-  - `"detached"` - Wait for element to be removed from DOM
-  - `"visible"` - Wait for element to be visible (default)
-  - `"hidden"` - Wait for element to become hidden
+  <Expandable title="properties">
+    <ParamField path="state" type="'attached' | 'detached' | 'visible' | 'hidden'">
+      Element state to wait for.
 
-  **Default:** `"visible"`
-</ParamField>
+      **Options:**
+      - `"attached"` - Element is present in DOM (even if hidden)
+      - `"detached"` - Element is removed from DOM
+      - `"visible"` - Element is visible
+      - `"hidden"` - Element is hidden
 
-<ParamField path="timeout" type="number" optional>
-  Maximum time to wait in milliseconds.
+      **Default:** `"visible"`
+    </ParamField>
 
-  **Default:** `30000`
-</ParamField>
+    <ParamField path="timeout" type="number">
+      Maximum time to wait in milliseconds before timing out.
 
-<ParamField path="pierceShadow" type="boolean" optional>
-  Whether to search inside shadow DOM boundaries (both open and closed).
+      **Default:** `30000`
+    </ParamField>
 
-  **Default:** `true`
+    <ParamField path="pierceShadow" type="boolean">
+      Whether to search inside open and closed shadow DOM boundaries.
+
+      **Default:** `true`
+    </ParamField>
+  </Expandable>
 </ParamField>
 
 **Returns:** `true` when the condition is met.
