@@ -50,6 +50,9 @@ Based on comparison with [agent-browser](https://github.com/vercel-labs/agent-br
 
 ## Network
 
+- [x] **network on/off** - Enable/disable network capture to filesystem
+- [x] **network path** - Get capture directory path for agent filesystem access
+- [x] **network clear** - Clear captured requests
 - [ ] **headers** - Set extra HTTP headers for all requests
 
 ## Not Planned (for now)

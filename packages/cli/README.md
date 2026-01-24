@@ -279,6 +279,43 @@ stagehand tab_switch <index>           # Switch to tab by index
 stagehand tab_close [index]            # Close tab by index (defaults to last tab)
 ```
 
+### Network Capture
+
+Capture HTTP requests to the filesystem for inspection with standard file tools:
+
+```bash
+stagehand network on                   # Enable capture, returns directory path
+stagehand network off                  # Disable capture
+stagehand network path                 # Get capture directory path
+stagehand network clear                # Clear all captured requests
+```
+
+Captured requests are saved as directories with separate files:
+
+```
+/tmp/stagehand-default-network/
+  001-GET-api.github.com-repos/
+    request.json      # method, url, headers, body
+    response.json     # status, headers, body, duration
+  002-POST-api.example.com-login/
+    request.json
+    response.json
+```
+
+**Agent workflow:**
+```bash
+stagehand network on
+# {"enabled": true, "path": "/tmp/stagehand-default-network"}
+
+stagehand open https://api.github.com
+# ... interact with page ...
+
+# Agent uses filesystem tools to inspect traffic:
+# - list_dir /tmp/stagehand-default-network/
+# - read_file .../001-GET-api.github.com-repos/response.json
+# - grep "auth" /tmp/stagehand-default-network/
+```
+
 ### Viewport & Misc
 
 ```bash
