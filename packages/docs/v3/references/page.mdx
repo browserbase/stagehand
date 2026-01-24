@@ -514,6 +514,80 @@ await page.screenshot(options?: ScreenshotOptions): Promise<Buffer>
 
 **Returns:** A `Promise<Buffer>` containing the screenshot image data.
 
+## Page Snapshot
+
+### snapshot()
+
+Capture a structured accessibility snapshot of the current page. The returned data combines a human-readable accessibility tree with lookup maps so you can relate each node to DOM selectors or URLs.
+
+```typescript
+await page.snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult>
+```
+
+<ParamField path="options" type="PageSnapshotOptions" optional>
+  Optional configuration for the snapshot.
+
+  <Expandable title="properties">
+    <ParamField path="includeIframes" type="boolean">
+      Whether to include iframe content in the snapshot.
+
+      **Default:** `true`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+**Returns:** A `Promise<SnapshotResult>` describing the captured accessibility tree.
+
+<Expandable title="SnapshotResult properties">
+  <ParamField path="formattedTree" type="string">
+    Multiline text representing the accessibility tree hierarchy with encoded IDs.
+  </ParamField>
+  <ParamField path="xpathMap" type="Record<string, string>">
+    Maps each encoded ID to the element's absolute XPath for quick DOM lookups.
+  </ParamField>
+  <ParamField path="urlMap" type="Record<string, string>">
+    Maps encoded IDs for link-like nodes to their resolved URLs.
+  </ParamField>
+</Expandable>
+
+See [SnapshotResult](#snapshotresult) for the static type definition.
+
+The formatted tree represents every accessibility node with:
+- A unique encoded ID in brackets (e.g., `[0-1]`) for cross-referencing with the maps
+- The node's accessibility role (`RootWebArea`, `heading`, `link`, `button`, etc.)
+- The node's accessible name, when available
+
+**Example formatted output:**
+
+```txt
+[0-1] RootWebArea: Example Domain
+  [0-3] heading: Example Domain
+  [0-5] paragraph: This domain is for use in illustrative examples in documents.
+  [0-8] link: More information...
+```
+
+**Example usage:**
+
+```typescript
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
+
+const { formattedTree, xpathMap, urlMap } = await page.snapshot();
+
+// Print the accessibility tree
+console.log(formattedTree);
+
+// Look up a specific element's XPath by encoded ID
+const linkId = "0-8";
+console.log(xpathMap[linkId]); // e.g., "/html/body/div/p[2]/a"
+
+// Resolve a link's URL via the urlMap
+console.log(urlMap[linkId]); // e.g., "https://www.example.com"
+
+// Exclude iframe content when you only need the main document
+const mainDocumentSnapshot = await page.snapshot({ includeIframes: false });
+```
+
 ## Viewport
 
 ### setViewportSize()
@@ -760,6 +834,32 @@ const screenshot = await page.screenshot();
 ```
 
 </Tab>
+<Tab title="Snapshot">
+
+```typescript
+// Capture the page's accessibility tree snapshot
+const { formattedTree, xpathMap, urlMap } = await page.snapshot();
+
+// The formattedTree shows the page structure:
+// [0-1] RootWebArea: Example Domain
+//   [0-3] heading: Example Domain
+//   [0-8] link: More information...
+
+console.log(formattedTree);
+
+// Use xpathMap to get the XPath selector for any element by ID
+const linkXpath = xpathMap["0-8"];
+console.log("Link XPath:", linkXpath); // "/html/body/div/p[2]/a"
+
+// Use urlMap to get URLs associated with link elements
+const linkUrl = urlMap["0-8"];
+console.log("Link URL:", linkUrl); // "https://www.iana.org/domains/example"
+
+// Exclude iframe content from the snapshot
+const mainPageOnly = await page.snapshot({ includeIframes: false });
+```
+
+</Tab>
 </Tabs>
 
 ## Types
@@ -817,6 +917,30 @@ interface ScreenshotOptions {
 
 Matches Playwright's screenshot signature with sensible defaults to control how a
 capture is produced.
+
+### PageSnapshotOptions
+
+```typescript
+type PageSnapshotOptions = {
+  includeIframes?: boolean;
+};
+```
+
+- **`includeIframes`** - Whether to include iframe content in the snapshot. Defaults to `true`
+
+### SnapshotResult
+
+```typescript
+type SnapshotResult = {
+  formattedTree: string;
+  xpathMap: Record<string, string>;
+  urlMap: Record<string, string>;
+};
+```
+
+- **`formattedTree`** - A formatted string representation of the page's accessibility tree with encoded IDs, roles, and names
+- **`xpathMap`** - A mapping from encoded element IDs to their absolute XPath selectors
+- **`urlMap`** - A mapping from encoded element IDs to their associated URLs (for links and other navigable elements)
 
 ## Error Handling
 
