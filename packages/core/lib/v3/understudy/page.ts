@@ -1209,6 +1209,7 @@ export class Page {
    * Supports iframe hop notation with '>>' (e.g., 'iframe#checkout >> .submit-btn').
    *
    * @param selector CSS selector to wait for (supports '>>' for iframe hops)
+   * @param options
    * @param options.state Element state to wait for: 'attached' | 'detached' | 'visible' | 'hidden' (default: 'visible')
    * @param options.timeout Maximum time to wait in milliseconds (default: 30000)
    * @param options.pierceShadow Whether to search inside shadow DOM (default: true)
