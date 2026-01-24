@@ -12,6 +12,7 @@ export const AISDK_PROVIDERS = [
   "perplexity",
   "ollama",
   "vertex",
+  "bedrock"
 ] as const;
 export type AISDKProvider = (typeof AISDK_PROVIDERS)[number];
 
