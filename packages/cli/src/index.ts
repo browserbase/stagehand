@@ -44,6 +44,10 @@ function getChromePidPath(session: string): string {
   return path.join(SOCKET_DIR, `stagehand-${session}.chrome.pid`);
 }
 
+function getNetworkDir(session: string): string {
+  return path.join(SOCKET_DIR, `stagehand-${session}-network`);
+}
+
 async function isDaemonRunning(session: string): Promise<boolean> {
   try {
     const pidFile = getPidPath(session);
@@ -177,6 +181,139 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
     await page.setViewportSize(DEFAULT_VIEWPORT.width, DEFAULT_VIEWPORT.height);
   }
 
+  // Store session name for network capture
+  networkSession = session;
+
+  // Setup network capture helpers (called when network is enabled)
+  const setupNetworkCapture = async (targetPage: Page) => {
+    const cdpSession = targetPage.mainFrame().session;
+
+    // Track request start times for duration calculation
+    const requestStartTimes = new Map<string, number>();
+    const requestDirs = new Map<string, string>();
+
+    cdpSession.on("Network.requestWillBeSent", async (params: any) => {
+      if (!networkEnabled || !networkDir) return;
+
+      const request: PendingRequest = {
+        id: params.requestId,
+        timestamp: new Date().toISOString(),
+        method: params.request.method,
+        url: params.request.url,
+        headers: params.request.headers || {},
+        body: params.request.postData || null,
+        resourceType: params.type || "Other",
+      };
+
+      pendingRequests.set(params.requestId, request);
+      requestStartTimes.set(params.requestId, Date.now());
+
+      // Write request immediately
+      const requestDir = await writeRequestToFs(request);
+      if (requestDir) {
+        requestDirs.set(params.requestId, requestDir);
+      }
+    });
+
+    cdpSession.on("Network.responseReceived", async (params: any) => {
+      if (!networkEnabled) return;
+
+      const requestDir = requestDirs.get(params.requestId);
+      if (!requestDir) return;
+
+      // Store response info for when we get the body
+      const startTime = requestStartTimes.get(params.requestId) || Date.now();
+      const duration = Date.now() - startTime;
+
+      // Response info without body (body comes later)
+      const responseInfo = {
+        id: params.requestId,
+        status: params.response.status,
+        statusText: params.response.statusText || "",
+        headers: params.response.headers || {},
+        mimeType: params.response.mimeType || "",
+        body: null as string | null,
+        duration,
+      };
+
+      // Store for body retrieval
+      (params as any)._responseInfo = responseInfo;
+      (params as any)._requestDir = requestDir;
+    });
+
+    cdpSession.on("Network.loadingFinished", async (params: any) => {
+      if (!networkEnabled) return;
+
+      const requestDir = requestDirs.get(params.requestId);
+      const pending = pendingRequests.get(params.requestId);
+      if (!requestDir || !pending) return;
+
+      const startTime = requestStartTimes.get(params.requestId) || Date.now();
+      const duration = Date.now() - startTime;
+
+      let body: string | null = null;
+      try {
+        const result = await cdpSession.send("Network.getResponseBody", {
+          requestId: params.requestId,
+        });
+        body = (result as any).body || null;
+        if ((result as any).base64Encoded && body) {
+          body = `[base64] ${body.slice(0, 100)}...`;
+        }
+      } catch {
+        // Body not available (e.g., for redirects)
+      }
+
+      const responseData = {
+        id: params.requestId,
+        status: 0, // Will be filled from cached data if available
+        statusText: "",
+        headers: {} as Record<string, string>,
+        mimeType: "",
+        body,
+        duration,
+      };
+
+      await writeResponseToFs(requestDir, responseData);
+
+      // Cleanup
+      pendingRequests.delete(params.requestId);
+      requestStartTimes.delete(params.requestId);
+      requestDirs.delete(params.requestId);
+    });
+
+    cdpSession.on("Network.loadingFailed", async (params: any) => {
+      if (!networkEnabled) return;
+
+      const requestDir = requestDirs.get(params.requestId);
+      if (!requestDir) return;
+
+      const startTime = requestStartTimes.get(params.requestId) || Date.now();
+      const duration = Date.now() - startTime;
+
+      const responseData = {
+        id: params.requestId,
+        status: 0,
+        statusText: "Failed",
+        headers: {},
+        mimeType: "",
+        body: null,
+        duration,
+        error: params.errorText || "Unknown error",
+      };
+
+      await writeResponseToFs(requestDir, responseData);
+
+      // Cleanup
+      pendingRequests.delete(params.requestId);
+      requestStartTimes.delete(params.requestId);
+      requestDirs.delete(params.requestId);
+    });
+  };
+
+  // Store the setup function for use when network is enabled
+  (context as any)._setupNetworkCapture = setupNetworkCapture;
+
   // Create Unix socket server
   const socketPath = getSocketPath(session);
   const server = net.createServer((conn) => {
@@ -263,6 +400,102 @@ let refMap: {
   cssMap: {},
   urlMap: {},
 };
+
+// ==================== NETWORK CAPTURE STATE ====================
+
+interface PendingRequest {
+  id: string;
+  timestamp: string;
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body: string | null;
+  resourceType: string;
+}
+
+let networkEnabled = false;
+let networkDir: string | null = null;
+let networkCounter = 0;
+let networkSession: string | null = null;
+const pendingRequests = new Map<string, PendingRequest>();
+
+/** Sanitize a string for use in a filename */
+function sanitizeForFilename(str: string, maxLen: number = 30): string {
+  return str
+    .replace(/[^a-zA-Z0-9.-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, maxLen);
+}
+
+/** Generate a directory name for a request */
+function getRequestDirName(counter: number, method: string, url: string): string {
+  try {
+    const parsed = new URL(url);
+    const domain = sanitizeForFilename(parsed.hostname, 30);
+    const pathPart = parsed.pathname.split("/").filter(Boolean)[0] || "root";
+    const pathSlug = sanitizeForFilename(pathPart, 20);
+    return `${String(counter).padStart(3, "0")}-${method}-${domain}-${pathSlug}`;
+  } catch {
+    return `${String(counter).padStart(3, "0")}-${method}-unknown`;
+  }
+}
+
+/** Write request data to filesystem */
+async function writeRequestToFs(request: PendingRequest): Promise<string | null> {
+  if (!networkDir) return null;
+
+  const dirName = getRequestDirName(networkCounter++, request.method, request.url);
+  const requestDir = path.join(networkDir, dirName);
+
+  try {
+    await fs.mkdir(requestDir, { recursive: true });
+
+    // Write request.json
+    const requestData = {
+      id: request.id,
+      timestamp: request.timestamp,
+      method: request.method,
+      url: request.url,
+      headers: request.headers,
+      body: request.body,
+      resourceType: request.resourceType,
+    };
+    await fs.writeFile(
+      path.join(requestDir, "request.json"),
+      JSON.stringify(requestData, null, 2)
+    );
+
+    return requestDir;
+  } catch (err) {
+    console.error("Failed to write request:", err);
+    return null;
+  }
+}
+
+/** Write response data to filesystem */
+async function writeResponseToFs(
+  requestDir: string,
+  response: {
+    id: string;
+    status: number;
+    statusText: string;
+    headers: Record<string, string>;
+    mimeType: string;
+    body: string | null;
+    duration: number;
+    error?: string;
+  }
+): Promise<void> {
+  try {
+    await fs.writeFile(
+      path.join(requestDir, "response.json"),
+      JSON.stringify(response, null, 2)
+    );
+  } catch (err) {
+    console.error("Failed to write response:", err);
+  }
+}
 
 /**
  * Parse a ref from a selector argument.
@@ -598,6 +831,83 @@ async function executeCommand(context: V3Context, command: string, args: unknown
         cssMap: refMap.cssMap,
         urlMap: refMap.urlMap,
       };
+    }
+
+    // Network capture commands
+    case "network_enable": {
+      if (networkEnabled && networkDir) {
+        return { enabled: true, path: networkDir, alreadyEnabled: true };
+      }
+
+      // Create network capture directory
+      const session = networkSession || "default";
+      networkDir = getNetworkDir(session);
+      await fs.mkdir(networkDir, { recursive: true });
+      networkCounter = 0;
+      pendingRequests.clear();
+
+      // Enable CDP Network domain
+      const cdpSession = page!.mainFrame().session;
+      await cdpSession.send("Network.enable", {
+        maxTotalBufferSize: 10000000,
+        maxResourceBufferSize: 5000000,
+      });
+
+      // Setup event handlers
+      const setupFn = (context as any)._setupNetworkCapture;
+      if (setupFn) {
+        await setupFn(page!);
+      }
+
+      networkEnabled = true;
+      return { enabled: true, path: networkDir };
+    }
+
+    case "network_disable": {
+      if (!networkEnabled) {
+        return { enabled: false, alreadyDisabled: true };
+      }
+
+      // Disable CDP Network domain
+      try {
+        const cdpSession = page!.mainFrame().session;
+        await cdpSession.send("Network.disable");
+      } catch {
+        // Ignore errors
+      }
+
+      networkEnabled = false;
+      return { enabled: false, path: networkDir };
+    }
+
+    case "network_path": {
+      if (!networkDir) {
+        // Return expected path even if not enabled
+        const session = networkSession || "default";
+        return { path: getNetworkDir(session), enabled: false };
+      }
+      return { path: networkDir, enabled: networkEnabled };
+    }
+
+    case "network_clear": {
+      if (!networkDir) {
+        return { cleared: false, error: "Network capture not enabled" };
+      }
+
+      try {
+        // Remove all subdirectories in network dir
+        const entries = await fs.readdir(networkDir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isDirectory()) {
+            await fs.rm(path.join(networkDir, entry.name), { recursive: true });
+          }
+        }
+        networkCounter = 0;
+        pendingRequests.clear();
+        return { cleared: true, path: networkDir };
+      } catch (err) {
+        return { cleared: false, error: err instanceof Error ? err.message : String(err) };
+      }
     }
 
     // Daemon control
@@ -1320,6 +1630,68 @@ program
     const opts = program.opts<GlobalOpts>();
     try {
       const result = await runCommand("tab_close", [index ? parseInt(index) : undefined]);
+      output(result, opts.json ?? false);
+    } catch (e) {
+      console.error("Error:", e instanceof Error ? e.message : e);
+      process.exit(1);
+    }
+  });
+
+// ==================== NETWORK CAPTURE ====================
+
+const networkCmd = program
+  .command("network")
+  .description("Network capture commands (writes to filesystem for agent inspection)");
+
+networkCmd
+  .command("on")
+  .description("Enable network capture (creates temp directory for requests)")
+  .action(async () => {
+    const opts = program.opts<GlobalOpts>();
+    try {
+      const result = await runCommand("network_enable", []);
+      output(result, opts.json ?? false);
+    } catch (e) {
+      console.error("Error:", e instanceof Error ? e.message : e);
+      process.exit(1);
+    }
+  });
+
+networkCmd
+  .command("off")
+  .description("Disable network capture")
+  .action(async () => {
+    const opts = program.opts<GlobalOpts>();
+    try {
+      const result = await runCommand("network_disable", []);
+      output(result, opts.json ?? false);
+    } catch (e) {
+      console.error("Error:", e instanceof Error ? e.message : e);
+      process.exit(1);
+    }
+  });
+
+networkCmd
+  .command("path")
+  .description("Get network capture directory path")
+  .action(async () => {
+    const opts = program.opts<GlobalOpts>();
+    try {
+      const result = await runCommand("network_path", []);
+      output(result, opts.json ?? false);
+    } catch (e) {
+      console.error("Error:", e instanceof Error ? e.message : e);
+      process.exit(1);
+    }
+  });
+
+networkCmd
+  .command("clear")
+  .description("Clear all captured requests")
+  .action(async () => {
+    const opts = program.opts<GlobalOpts>();
+    try {
+      const result = await runCommand("network_clear", []);
       output(result, opts.json ?? false);
     } catch (e) {
       console.error("Error:", e instanceof Error ? e.message : e);
