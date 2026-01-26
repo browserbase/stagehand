@@ -1735,7 +1735,9 @@ export class V3 {
   } {
     // Determine if CUA mode is enabled (via mode: "cua" or deprecated cua: true)
     const isCuaMode =
-      options?.mode !== undefined ? options.mode === "cua" : options?.cua === true;
+      options?.mode !== undefined
+        ? options.mode === "cua"
+        : options?.cua === true;
 
     // Emit deprecation warning for cua: true
     if (options?.cua === true) {
