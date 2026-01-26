@@ -141,7 +141,6 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      CHROME_PATH: /usr/bin/chromium
 
     steps:
       - uses: actions/checkout@v6
@@ -161,6 +160,19 @@ jobs:
       - name: Ensure SEA binary is executable
         run: |
           chmod +x packages/server/dist/sea/stagehand-server-linux-x64
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-playwright-
+
+      - name: Install Playwright browsers
+        run: |
+          pnpm dlx playwright install --with-deps chromium
 
       - name: Start stagehand server (SEA binary)
         env:

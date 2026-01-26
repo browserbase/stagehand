@@ -88,7 +88,7 @@ const LOCAL_BROWSER_BODY = {
     type: "local",
     launchOptions: {
       headless: true,
-      executablePath: process.env.CHROME_PATH || undefined,
+      // executablePath: process.env.CHROME_PATH || undefined,
     },
   },
 };
