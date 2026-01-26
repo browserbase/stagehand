@@ -47,6 +47,16 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
 
+      - name: Log GitHub API rate limit
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -sSL -i \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            https://api.github.com/rate_limit
+
       - uses: dorny/paths-filter@v3
         id: filter
         with:
