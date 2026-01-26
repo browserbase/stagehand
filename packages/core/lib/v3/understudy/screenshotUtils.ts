@@ -300,6 +300,8 @@ async function resolveMaskRects(
       try {
         const rect = await resolveMaskRectForObject(session, objectId);
         if (rect) rects.push(rect);
+      } catch {
+        // ignore individual element failures
       } finally {
         await session
           .send<never>("Runtime.releaseObject", { objectId })
