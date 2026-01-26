@@ -227,6 +227,7 @@ export async function observe({
   userProvidedInstructions,
   logger,
   logInferenceToFile = false,
+  supportedActions,
 }: {
   instruction: string;
   domElements: string;
@@ -234,6 +235,7 @@ export async function observe({
   userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
   logInferenceToFile?: boolean;
+  supportedActions?: string[];
 }) {
   const isGPT5 = llmClient.modelName.includes("gpt-5"); // TODO: remove this as we update support for gpt-5 configuration options
 
@@ -271,7 +273,7 @@ export async function observe({
   type ObserveResponse = z.infer<typeof observeSchema>;
 
   const messages: ChatMessage[] = [
-    buildObserveSystemPrompt(userProvidedInstructions),
+    buildObserveSystemPrompt(userProvidedInstructions, supportedActions),
     buildObserveUserMessage(instruction, domElements),
   ];
 

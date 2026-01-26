@@ -5,7 +5,10 @@ import { v3Logger } from "../logger";
 import { V3FunctionName } from "../types/public/methods";
 import { captureHybridSnapshot } from "../understudy/a11y/snapshot";
 import { LLMClient } from "../llm/LLMClient";
-import { ObserveHandlerParams } from "../types/private/handlers";
+import {
+  ObserveHandlerParams,
+  SupportedUnderstudyAction,
+} from "../types/private/handlers";
 import { EncodedId } from "../types/private/internal";
 import { Action } from "../types/public/methods";
 import {
@@ -114,6 +117,7 @@ export class ObserveHandler {
       userProvidedInstructions: this.systemPrompt,
       logger: v3Logger,
       logInferenceToFile: this.logInferenceToFile,
+      supportedActions: Object.values(SupportedUnderstudyAction),
     });
 
     const {

@@ -11,7 +11,7 @@ import {
   diffCombinedTrees,
 } from "../understudy/a11y/snapshot";
 import { LLMClient } from "../llm/LLMClient";
-import { SupportedPlaywrightAction } from "../types/private";
+import { SupportedUnderstudyAction } from "../types/private";
 import { EncodedId } from "../types/private/internal";
 import {
   AvailableModel,
@@ -157,7 +157,7 @@ export class ActHandler {
 
     const actInstruction = buildActPrompt(
       instruction,
-      Object.values(SupportedPlaywrightAction),
+      Object.values(SupportedUnderstudyAction),
       variables,
     );
 
@@ -218,13 +218,13 @@ export class ActHandler {
     const stepTwoInstructions = buildStepTwoPrompt(
       instruction,
       previousAction,
-      Object.values(SupportedPlaywrightAction).filter(
+      Object.values(SupportedUnderstudyAction).filter(
         (
           action,
         ): action is Exclude<
-          SupportedPlaywrightAction,
-          SupportedPlaywrightAction.SELECT_OPTION_FROM_DROPDOWN
-        > => action !== SupportedPlaywrightAction.SELECT_OPTION_FROM_DROPDOWN,
+          SupportedUnderstudyAction,
+          SupportedUnderstudyAction.SELECT_OPTION_FROM_DROPDOWN
+        > => action !== SupportedUnderstudyAction.SELECT_OPTION_FROM_DROPDOWN,
       ),
       variables,
     );
@@ -364,7 +364,7 @@ export class ActHandler {
 
           const instruction = buildActPrompt(
             actCommand,
-            Object.values(SupportedPlaywrightAction),
+            Object.values(SupportedUnderstudyAction),
             {},
           );
 
