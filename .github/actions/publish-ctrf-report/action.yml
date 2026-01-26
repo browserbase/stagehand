@@ -58,14 +58,17 @@ runs:
       uses: ctrf-io/github-test-reporter@v1
       with:
         report-path: './ctrf/*.json'
+        summary: false
         summary-report: true
-        summary-delta-report: true
+        summary-delta-report: false
         test-report: true
         failed-report: true
         insights-report: true
         flaky-rate-report: true
         fail-rate-report: true
         slowest-report: true
+        previous-results-report: false
+        fetch-previous-results: false
         upload-artifact: true
         artifact-name: ${{ steps.ctrf-meta.outputs.ARTIFACT_NAME }}
       env:

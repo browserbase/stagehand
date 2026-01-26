@@ -1254,6 +1254,14 @@ jobs:
           path: coverage/v8
           merge-multiple: true
 
+      - name: Download CTRF artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: ctrf-*
+          path: ctrf
+          merge-multiple: true
+
       - name: Generate merged coverage report
         run: |
           if [ ! -d coverage/v8 ] || [ -z "$(find coverage/v8 -type f -name '*.json' -print -quit)" ]; then
@@ -1262,6 +1270,7 @@ jobs:
           fi
           pnpm dlx c8 report \
             --temp-directory coverage/v8 \
+            --merge-async \
             --reporter=lcov \
             --reporter=text-summary \
             --reports-dir coverage/merged \
@@ -1271,6 +1280,27 @@ jobs:
             --exclude "packages/**/tests/**" \
             --exclude "packages/**/lib/**/tests/**" \
             --exclude "**/*.d.ts"
+
+      - name: Publish merged CTRF report
+        if: always()
+        uses: ctrf-io/github-test-reporter@v1
+        with:
+          report-path: './ctrf/**/*.json'
+          summary: true
+          summary-report: true
+          summary-delta-report: true
+          test-report: true
+          failed-report: true
+          insights-report: true
+          flaky-rate-report: true
+          fail-rate-report: true
+          slowest-report: true
+          previous-results-report: true
+          fetch-previous-results: true
+          upload-artifact: true
+          artifact-name: ctrf-report-merged
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload merged coverage report
         if: always()
