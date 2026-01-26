@@ -585,6 +585,50 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - CUA flag compatibility", () 
     assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
     assertFetchOk(!ctx.body.success, "Response should indicate failure", ctx);
   });
+
+  it("should prefer mode over cua when both are provided", async () => {
+    const url = getBaseUrl();
+    const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
+
+    const ctx = await fetchWithContext<{
+      success: boolean;
+      data?: { result: unknown; actionId?: string };
+    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        agentConfig: {
+          cua: true,
+          mode: "dom",
+          model: {
+            modelName: "openai/gpt-4.1-nano",
+            apiKey: openaiApiKey,
+          },
+        },
+        executeOptions: {
+          instruction: "What is the title of this page?",
+        },
+      }),
+    });
+
+    assertFetchStatus(
+      ctx,
+      HTTP_OK,
+      "V3 agent execute with mode: dom and cua: true should succeed",
+    );
+    assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
+    assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+    assertFetchOk(
+      ctx.body.data !== undefined,
+      "Response should have data",
+      ctx,
+    );
+    assertFetchOk(
+      ctx.body.data.result !== undefined,
+      "Response should have result",
+      ctx,
+    );
+  });
 });
 
 // =============================================================================

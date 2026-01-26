@@ -663,8 +663,14 @@ components:
         systemPrompt:
           description: Custom system prompt for the agent
           type: string
+        cua:
+          description:
+            "Deprecated. Use mode: 'cua' instead. If both are provided, mode
+            takes precedence."
+          example: true
+          type: boolean
         mode:
-          description: Tool mode for the agent (dom, hybrid, cua)
+          description: Tool mode for the agent (dom, hybrid, cua). If set, overrides cua.
           example: cua
           type: string
           enum:
@@ -1522,8 +1528,14 @@ components:
         systemPrompt:
           description: Custom system prompt for the agent
           type: string
+        cua:
+          description:
+            "Deprecated. Use mode: 'cua' instead. If both are provided, mode
+            takes precedence."
+          example: true
+          type: boolean
         mode:
-          description: Tool mode for the agent (dom, hybrid, cua)
+          description: Tool mode for the agent (dom, hybrid, cua). If set, overrides cua.
           example: cua
           type: string
           enum:

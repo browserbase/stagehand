@@ -361,6 +361,7 @@ export class StagehandAPIClient {
     const wireAgentConfig: Api.AgentExecuteRequest["agentConfig"] = {
       systemPrompt: agentConfig.systemPrompt,
       mode: agentConfig.mode,
+      cua: agentConfig.mode === undefined ? agentConfig.cua : undefined,
       model: agentConfig.model
         ? (this.prepareModelConfig(
             agentConfig.model as unknown as ModelConfiguration,

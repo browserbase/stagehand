@@ -1734,7 +1734,8 @@ export class V3 {
     ) => Promise<AgentResult | AgentStreamResult>;
   } {
     // Determine if CUA mode is enabled (via mode: "cua" or deprecated cua: true)
-    const isCuaMode = options?.mode === "cua" || options?.cua === true;
+    const isCuaMode =
+      options?.mode !== undefined ? options.mode === "cua" : options?.cua === true;
 
     // Emit deprecation warning for cua: true
     if (options?.cua === true) {
