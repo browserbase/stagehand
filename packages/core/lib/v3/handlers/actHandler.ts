@@ -481,7 +481,30 @@ function normalizeActInferenceElement(
       const trimmedArgXpath = trimTrailingTextNode(argXpath);
       if (trimmedArgXpath) {
         resolvedArgs = [`xpath=${trimmedArgXpath}`, ...args.slice(1)];
+      } else {
+        // Target element lookup failed, filter out this action
+        v3Logger({
+          category: "action",
+          message: "dragAndDrop target element lookup failed",
+          level: 1,
+          auxiliary: {
+            targetElementId: { value: targetArg, type: "string" },
+            sourceElementId: { value: elementId, type: "string" },
+          },
+        });
+        return undefined;
       }
+    } else {
+      v3Logger({
+        category: "action",
+        message: "dragAndDrop target element invalid ID format",
+        level: 0,
+        auxiliary: {
+          targetElementId: { value: String(targetArg), type: "string" },
+          sourceElementId: { value: elementId, type: "string" },
+        },
+      });
+      return undefined;
     }
   }
 

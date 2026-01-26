@@ -169,7 +169,30 @@ export class ObserveHandler {
                     `xpath=${trimmedArgXpath}`,
                     ...rest.arguments.slice(1),
                   ];
+                } else {
+                  // Target element lookup failed, filter out this action
+                  v3Logger({
+                    category: "observation",
+                    message: "dragAndDrop target element lookup failed",
+                    level: 0,
+                    auxiliary: {
+                      targetElementId: { value: targetArg, type: "string" },
+                      sourceElementId: { value: elementId, type: "string" },
+                    },
+                  });
+                  return undefined;
                 }
+              } else {
+                v3Logger({
+                  category: "observation",
+                  message: "dragAndDrop target element invalid ID format",
+                  level: 0,
+                  auxiliary: {
+                    targetElementId: { value: targetArg, type: "string" },
+                    sourceElementId: { value: elementId, type: "string" },
+                  },
+                });
+                return undefined;
               }
             }
 
