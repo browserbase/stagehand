@@ -209,10 +209,10 @@ export async function applyMaskOverlays(
 
   for (const locator of locators) {
     try {
-      const info = await resolveMaskRect(locator);
+      const info = await resolveMaskRects(locator);
       if (!info) continue;
       const list = rectsByFrame.get(info.frame) ?? [];
-      list.push(info.rect);
+      list.push(...info.rects);
       rectsByFrame.set(info.frame, list);
     } catch {
       // ignore individual locator failures
@@ -282,69 +282,86 @@ export async function applyMaskOverlays(
   };
 }
 
-async function resolveMaskRect(
+async function resolveMaskRects(
   locator: Locator,
-): Promise<{ frame: Frame; rect: ScreenshotClip } | null> {
+): Promise<{ frame: Frame; rects: ScreenshotClip[] } | null> {
   const frame = locator.getFrame();
   const session = frame.session;
-  let objectId: Protocol.Runtime.RemoteObjectId | null = null;
+  let resolved: Array<{
+    objectId: Protocol.Runtime.RemoteObjectId;
+    nodeId: Protocol.DOM.NodeId | null;
+  }> = [];
 
   try {
-    const resolved = await locator.resolveNode();
-    objectId = resolved.objectId;
+    resolved = await locator.resolveNodesForMask();
+    const rects: ScreenshotClip[] = [];
 
-    const result = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
-      "Runtime.callFunctionOn",
-      {
-        objectId,
-        functionDeclaration: `function() {
-          if (!this || typeof this.getBoundingClientRect !== 'function') return null;
-          const rect = this.getBoundingClientRect();
-          if (!rect) return null;
-          const style = window.getComputedStyle(this);
-          if (!style) return null;
-          if (style.visibility === 'hidden' || style.display === 'none') return null;
-          if (rect.width <= 0 || rect.height <= 0) return null;
-          return {
-            x: rect.left + window.scrollX,
-            y: rect.top + window.scrollY,
-            width: rect.width,
-            height: rect.height,
-          };
-        }`,
-        returnByValue: true,
-      },
-    );
-
-    if (result.exceptionDetails) {
-      return null;
+    for (const { objectId } of resolved) {
+      try {
+        const rect = await resolveMaskRectForObject(session, objectId);
+        if (rect) rects.push(rect);
+      } finally {
+        await session
+          .send<never>("Runtime.releaseObject", { objectId })
+          .catch(() => {});
+      }
     }
 
-    const rect = result.result.value as ScreenshotClip | null;
-    if (!rect) return null;
+    if (!rects.length) return null;
 
-    const { x, y, width, height } = rect;
-    if (
-      !Number.isFinite(x) ||
-      !Number.isFinite(y) ||
-      !Number.isFinite(width) ||
-      !Number.isFinite(height) ||
-      width <= 0 ||
-      height <= 0
-    ) {
-      return null;
-    }
-
-    return { frame, rect: { x, y, width, height } };
+    return { frame, rects };
   } catch {
     return null;
-  } finally {
-    if (objectId) {
-      await session
-        .send<never>("Runtime.releaseObject", { objectId })
-        .catch(() => {});
-    }
   }
+}
+
+async function resolveMaskRectForObject(
+  session: CDPSessionLike,
+  objectId: Protocol.Runtime.RemoteObjectId,
+): Promise<ScreenshotClip | null> {
+  const result = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+    "Runtime.callFunctionOn",
+    {
+      objectId,
+      functionDeclaration: `function() {
+        if (!this || typeof this.getBoundingClientRect !== 'function') return null;
+        const rect = this.getBoundingClientRect();
+        if (!rect) return null;
+        const style = window.getComputedStyle(this);
+        if (!style) return null;
+        if (style.visibility === 'hidden' || style.display === 'none') return null;
+        if (rect.width <= 0 || rect.height <= 0) return null;
+        return {
+          x: rect.left + window.scrollX,
+          y: rect.top + window.scrollY,
+          width: rect.width,
+          height: rect.height,
+        };
+      }`,
+      returnByValue: true,
+    },
+  );
+
+  if (result.exceptionDetails) {
+    return null;
+  }
+
+  const rect = result.result.value as ScreenshotClip | null;
+  if (!rect) return null;
+
+  const { x, y, width, height } = rect;
+  if (
+    !Number.isFinite(x) ||
+    !Number.isFinite(y) ||
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    width <= 0 ||
+    height <= 0
+  ) {
+    return null;
+  }
+
+  return { x, y, width, height };
 }
 
 export async function runScreenshotCleanups(

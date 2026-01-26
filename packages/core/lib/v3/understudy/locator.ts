@@ -870,6 +870,39 @@ export class Locator {
     return resolved;
   }
 
+  /**
+   * Resolve all matching nodes for this locator.
+   * If the locator is narrowed via nth(), only that index is returned.
+   */
+  public async resolveNodesForMask(): Promise<
+    Array<{
+      nodeId: Protocol.DOM.NodeId | null;
+      objectId: Protocol.Runtime.RemoteObjectId;
+    }>
+  > {
+    const session = this.frame.session;
+
+    await session.send("Runtime.enable");
+    await session.send("DOM.enable");
+
+    if (this.nthIndex > 0) {
+      const resolved = await this.selectorResolver.resolveAtIndex(
+        this.selectorQuery,
+        this.nthIndex,
+      );
+      if (!resolved) {
+        throw new StagehandElementNotFoundError([this.selector]);
+      }
+      return [resolved];
+    }
+
+    const resolved = await this.selectorResolver.resolveAll(this.selectorQuery);
+    if (!resolved.length) {
+      throw new StagehandElementNotFoundError([this.selector]);
+    }
+    return resolved;
+  }
+
   /** Compute a center point from a BoxModel content quad */
   private centerFromBoxContent(content: number[]): { cx: number; cy: number } {
     // content is [x1,y1, x2,y2, x3,y3, x4,y4]
