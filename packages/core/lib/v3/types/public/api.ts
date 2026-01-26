@@ -600,9 +600,9 @@ export const AgentConfigSchema = z
     systemPrompt: z.string().optional().meta({
       description: "Custom system prompt for the agent",
     }),
-    cua: z.boolean().optional().meta({
-      description: "Enable Computer Use Agent mode",
-      example: true,
+    mode: z.enum(["dom", "hybrid", "cua"]).optional().meta({
+      description: "Tool mode for the agent (dom, hybrid, cua)",
+      example: "cua",
     }),
   })
   .meta({ id: "AgentConfig" });

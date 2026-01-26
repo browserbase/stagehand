@@ -663,10 +663,14 @@ components:
         systemPrompt:
           description: Custom system prompt for the agent
           type: string
-        cua:
-          description: Enable Computer Use Agent mode
-          example: true
-          type: boolean
+        mode:
+          description: Tool mode for the agent (dom, hybrid, cua)
+          example: cua
+          type: string
+          enum:
+            - dom
+            - hybrid
+            - cua
     AgentAction:
       type: object
       properties:
@@ -1518,10 +1522,14 @@ components:
         systemPrompt:
           description: Custom system prompt for the agent
           type: string
-        cua:
-          description: Enable Computer Use Agent mode
-          example: true
-          type: boolean
+        mode:
+          description: Tool mode for the agent (dom, hybrid, cua)
+          example: cua
+          type: string
+          enum:
+            - dom
+            - hybrid
+            - cua
       additionalProperties: false
     AgentUsageOutput:
       type: object

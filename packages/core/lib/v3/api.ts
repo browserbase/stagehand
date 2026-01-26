@@ -360,7 +360,7 @@ export class StagehandAPIClient {
 
     const wireAgentConfig: Api.AgentExecuteRequest["agentConfig"] = {
       systemPrompt: agentConfig.systemPrompt,
-      cua: agentConfig.cua,
+      mode: agentConfig.mode,
       model: agentConfig.model
         ? (this.prepareModelConfig(
             agentConfig.model as unknown as ModelConfiguration,
