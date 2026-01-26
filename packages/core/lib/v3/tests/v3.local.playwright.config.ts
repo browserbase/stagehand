@@ -1,4 +1,4 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig, type ReporterDescription } from "@playwright/test";
 import dotenv from "dotenv";
 import path from "path";
 
@@ -23,9 +23,9 @@ const baseWorkerCount =
       : 5;
 
 const ctrfJunitPath = process.env.CTRF_JUNIT_PATH;
-const reporter = ctrfJunitPath
+const reporter: ReporterDescription[] = ctrfJunitPath
   ? [["list"], ["junit", { outputFile: ctrfJunitPath }]]
-  : "list";
+  : [["list"]];
 
 export default defineConfig({
   testDir: ".",
