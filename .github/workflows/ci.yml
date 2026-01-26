@@ -1323,6 +1323,10 @@ jobs:
           slowest-report: true
           previous-results-report: true
           fetch-previous-results: true
+          baseline: 1
+          previous-results-max: 1
+          max-workflow-runs-to-check: 5
+          max-previous-runs-to-fetch: 1
           upload-artifact: true
           artifact-name: ctrf-report-merged
         env:
