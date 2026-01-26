@@ -144,11 +144,7 @@ describe("computeFramePrefixes", () => {
       ]),
     };
 
-    const result = await computeFramePrefixes(
-      page,
-      context,
-      perFrameMaps,
-    );
+    const result = await computeFramePrefixes(page, context, perFrameMaps);
     expect(result.absPrefix.get("frame-2")).toBe("");
   });
 });
