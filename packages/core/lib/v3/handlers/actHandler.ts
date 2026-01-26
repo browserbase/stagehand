@@ -471,10 +471,24 @@ function normalizeActInferenceElement(
     return undefined;
   }
 
+  // For dragAndDrop, convert element ID in arguments to xpath (target element)
+  let resolvedArgs = hasArgs ? args : undefined;
+  if (method === "dragAndDrop" && hasArgs && args.length > 0) {
+    const targetArg = args[0];
+    // Check if argument looks like an element ID (e.g., "1-67")
+    if (typeof targetArg === "string" && /^\d+-\d+$/.test(targetArg)) {
+      const argXpath = xpathMap[targetArg as EncodedId];
+      const trimmedArgXpath = trimTrailingTextNode(argXpath);
+      if (trimmedArgXpath) {
+        resolvedArgs = [`xpath=${trimmedArgXpath}`, ...args.slice(1)];
+      }
+    }
+  }
+
   return {
     description,
     method,
-    arguments: hasArgs ? args : undefined,
+    arguments: resolvedArgs,
     selector: `xpath=${trimmed}`,
   } as Action;
 }

@@ -149,8 +149,33 @@ export class ObserveHandler {
             const trimmedXpath = trimTrailingTextNode(xpath);
             if (!trimmedXpath) return undefined;
 
+            // For dragAndDrop, convert element ID in arguments to xpath (target element)
+            let resolvedArgs = rest.arguments;
+            if (
+              rest.method === "dragAndDrop" &&
+              Array.isArray(rest.arguments) &&
+              rest.arguments.length > 0
+            ) {
+              const targetArg = rest.arguments[0];
+              // Check if argument looks like an element ID (e.g., "1-67")
+              if (
+                typeof targetArg === "string" &&
+                /^\d+-\d+$/.test(targetArg)
+              ) {
+                const argXpath = combinedXpathMap[targetArg as EncodedId];
+                const trimmedArgXpath = trimTrailingTextNode(argXpath);
+                if (trimmedArgXpath) {
+                  resolvedArgs = [
+                    `xpath=${trimmedArgXpath}`,
+                    ...rest.arguments.slice(1),
+                  ];
+                }
+              }
+            }
+
             return {
               ...rest,
+              arguments: resolvedArgs,
               selector: `xpath=${trimmedXpath}`,
             } as {
               description: string;
