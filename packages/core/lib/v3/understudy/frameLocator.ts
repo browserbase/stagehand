@@ -155,7 +155,7 @@ class LocatorDelegate {
     const value = Number(index);
     if (!Number.isFinite(value) || value < 0) {
       throw new StagehandInvalidArgumentError(
-        "frameLocator().nth() expects a non-negative index",
+        "locator().nth() expects a non-negative index",
       );
     }
 
