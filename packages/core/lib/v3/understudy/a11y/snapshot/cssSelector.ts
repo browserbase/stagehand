@@ -8,7 +8,7 @@
  * CDP returns attributes as [name1, value1, name2, value2, ...]
  */
 export function parseAttributes(
-  attributes: string[] | undefined
+  attributes: string[] | undefined,
 ): Record<string, string> {
   if (!attributes?.length) return {};
   const result: Record<string, string> = {};
@@ -63,7 +63,7 @@ function isGenericClass(className: string): boolean {
  */
 export function buildCssSelector(
   attributes: string[] | undefined,
-  tagName: string
+  tagName: string,
 ): string | undefined {
   const attrs = parseAttributes(attributes);
   const tag = tagName.toLowerCase();

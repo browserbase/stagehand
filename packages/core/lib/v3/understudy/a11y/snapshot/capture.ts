@@ -335,7 +335,13 @@ export async function collectPerFrameMaps(
     });
 
     perFrameOutlines.push({ frameId, outline });
-    perFrameMaps.set(frameId, { tagNameMap, xpathMap, scrollableMap, urlMap, cssMap });
+    perFrameMaps.set(frameId, {
+      tagNameMap,
+      xpathMap,
+      scrollableMap,
+      urlMap,
+      cssMap,
+    });
   }
 
   return { perFrameMaps, perFrameOutlines };

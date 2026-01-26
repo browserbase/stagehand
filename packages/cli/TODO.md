@@ -71,17 +71,17 @@ These features from agent-browser are not planned for immediate parity:
 
 These commands are already at parity or have stagehand-specific equivalents:
 
-| Category | Commands |
-|----------|----------|
-| Navigation | `open`, `back`, `forward`, `reload` |
-| Page Info | `get url`, `get title`, `get text`, `get html`, `get value`, `get box` |
-| Coordinate Actions | `click`, `hover`, `scroll`, `drag` |
-| Keyboard | `type`, `fill`, `press` |
-| Element State | `is visible`, `is checked`, `get visible`, `get checked` |
-| Screenshots | `screenshot` (PNG/JPEG, fullpage, clip) |
-| Accessibility | `snapshot` (with XPath, CSS, URL maps) |
-| Tabs | `newpage`, `pages` |
-| Viewport | `viewport` |
-| Evaluate | `eval` |
-| Wait | `wait load`, `wait selector`, `wait timeout` |
-| Daemon | `start`, `stop`, `status` |
+| Category           | Commands                                                               |
+| ------------------ | ---------------------------------------------------------------------- |
+| Navigation         | `open`, `back`, `forward`, `reload`                                    |
+| Page Info          | `get url`, `get title`, `get text`, `get html`, `get value`, `get box` |
+| Coordinate Actions | `click`, `hover`, `scroll`, `drag`                                     |
+| Keyboard           | `type`, `fill`, `press`                                                |
+| Element State      | `is visible`, `is checked`, `get visible`, `get checked`               |
+| Screenshots        | `screenshot` (PNG/JPEG, fullpage, clip)                                |
+| Accessibility      | `snapshot` (with XPath, CSS, URL maps)                                 |
+| Tabs               | `newpage`, `pages`                                                     |
+| Viewport           | `viewport`                                                             |
+| Evaluate           | `eval`                                                                 |
+| Wait               | `wait load`, `wait selector`, `wait timeout`                           |
+| Daemon             | `start`, `stop`, `status`                                              |

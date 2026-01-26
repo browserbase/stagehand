@@ -1,15 +1,16 @@
+#!/usr/bin/env node
 /**
- * Stagehand CLI - Browser automation using understudy methods
+ * Browse CLI - Browser automation for AI agents
  *
  * Usage:
- *   stagehand [options] <command> [args...]
+ *   browse [options] <command> [args...]
  *
  * The CLI runs a daemon process that maintains browser state between commands.
- * Multiple sessions can run simultaneously using --session <name>.
+ * Multiple sessions can run simultaneously using --session <name> or BROWSE_SESSION env var.
  */
 
 import { Command } from "commander";
-import { type LaunchedChrome } from "chrome-launcher";
+import { Stagehand } from "@browserbasehq/stagehand";
 import { promises as fs } from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -17,35 +18,37 @@ import * as net from "net";
 import { spawn } from "child_process";
 import * as readline from "readline";
 
-// Dynamic imports to handle monorepo TypeScript resolution
-const { V3Context } = await import("../../core/lib/v3/understudy/context");
-const { launchLocalChrome } = await import("../../core/lib/v3/launch/local");
-type Page = import("../../core/lib/v3/understudy/page").Page;
+// Version from package.json
+const VERSION = "0.1.0";
 
 const program = new Command();
+
+// Type aliases - using any for flexibility with Stagehand internals
+type BrowseContext = Stagehand["context"];
+type BrowsePage = ReturnType<BrowseContext["pages"]>[number];
 
 // ==================== DAEMON INFRASTRUCTURE ====================
 
 const SOCKET_DIR = os.tmpdir();
 
 function getSocketPath(session: string): string {
-  return path.join(SOCKET_DIR, `stagehand-${session}.sock`);
+  return path.join(SOCKET_DIR, `browse-${session}.sock`);
 }
 
 function getPidPath(session: string): string {
-  return path.join(SOCKET_DIR, `stagehand-${session}.pid`);
+  return path.join(SOCKET_DIR, `browse-${session}.pid`);
 }
 
 function getWsPath(session: string): string {
-  return path.join(SOCKET_DIR, `stagehand-${session}.ws`);
+  return path.join(SOCKET_DIR, `browse-${session}.ws`);
 }
 
 function getChromePidPath(session: string): string {
-  return path.join(SOCKET_DIR, `stagehand-${session}.chrome.pid`);
+  return path.join(SOCKET_DIR, `browse-${session}.chrome.pid`);
 }
 
 function getNetworkDir(session: string): string {
-  return path.join(SOCKET_DIR, `stagehand-${session}-network`);
+  return path.join(SOCKET_DIR, `browse-${session}-network`);
 }
 
 async function isDaemonRunning(session: string): Promise<boolean> {
@@ -64,70 +67,43 @@ async function isDaemonRunning(session: string): Promise<boolean> {
 }
 
 async function cleanupStaleFiles(session: string): Promise<void> {
-  try { await fs.unlink(getSocketPath(session)); } catch {}
-  try { await fs.unlink(getPidPath(session)); } catch {}
-  try { await fs.unlink(getWsPath(session)); } catch {}
-  try { await fs.unlink(getChromePidPath(session)); } catch {}
+  try {
+    await fs.unlink(getSocketPath(session));
+  } catch {}
+  try {
+    await fs.unlink(getPidPath(session));
+  } catch {}
+  try {
+    await fs.unlink(getWsPath(session));
+  } catch {}
+  try {
+    await fs.unlink(getChromePidPath(session));
+  } catch {}
 }
 
-/** Verify a PID is actually a Chrome process before killing it */
-async function verifyIsChromeProcess(pid: number): Promise<boolean> {
+/** Find and kill Chrome processes for this session */
+async function killChromeProcesses(session: string): Promise<boolean> {
   try {
     const { exec } = await import("child_process");
     const { promisify } = await import("util");
     const execAsync = promisify(exec);
 
     if (process.platform === "darwin" || process.platform === "linux") {
-      const { stdout } = await execAsync(`ps -p ${pid} -o comm=`);
-      const processName = stdout.trim().toLowerCase();
-      return processName.includes("chrome") || processName.includes("chromium");
-    }
-    return false;
-  } catch {
-    return false;
-  }
-}
-
-/** Check if Chrome is already running on a given port */
-async function isChromeRunningOnPort(port: number): Promise<boolean> {
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/json/version`, {
-      signal: AbortSignal.timeout(2000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
-/** Safely kill Chrome process using PID file */
-async function killChromeProcess(session: string): Promise<void> {
-  const chromePidPath = getChromePidPath(session);
-  try {
-    const pidData = JSON.parse(await fs.readFile(chromePidPath, "utf-8"));
-    const { pid } = pidData;
-
-    // Verify it's actually Chrome before killing
-    const isChrome = await verifyIsChromeProcess(pid);
-    if (isChrome) {
-      try {
-        process.kill(pid, "SIGTERM");
-        // Wait briefly for graceful shutdown
-        await new Promise(r => setTimeout(r, 1000));
-        // Check if still running
+      // Find Chrome processes with our user data dir pattern
+      const { stdout } = await execAsync(
+        `pgrep -f "browse-${session}" || true`,
+      );
+      const pids = stdout.trim().split("\n").filter(Boolean);
+      for (const pid of pids) {
         try {
-          process.kill(pid, 0);
-          // Still running, force kill
-          process.kill(pid, "SIGKILL");
-        } catch {
-          // Process already exited
-        }
-      } catch {
-        // Process already gone
+          process.kill(parseInt(pid), "SIGTERM");
+        } catch {}
       }
+      return pids.length > 0;
     }
+    return false;
   } catch {
-    // PID file doesn't exist or invalid
+    return false;
   }
 }
 
@@ -146,7 +122,6 @@ interface DaemonResponse {
 
 // Default viewport matching Stagehand core
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
-const CHROME_UI_HEIGHT = 87; // Address bar height
 
 async function runDaemon(session: string, headless: boolean): Promise<void> {
   await cleanupStaleFiles(session);
@@ -154,38 +129,34 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
   // Write daemon PID file
   await fs.writeFile(getPidPath(session), String(process.pid));
 
-  // Launch Chrome using Stagehand's optimized launcher
-  const { ws: wsUrl, chrome } = await launchLocalChrome({
-    headless,
-    chromeFlags: [
-      `--window-size=${DEFAULT_VIEWPORT.width},${DEFAULT_VIEWPORT.height + CHROME_UI_HEIGHT}`,
-    ],
-    connectTimeoutMs: 10000,
+  // Create Stagehand instance with dummy model (never used for CLI operations)
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: 0,
+    disablePino: true,
+    localBrowserLaunchOptions: {
+      headless,
+      viewport: DEFAULT_VIEWPORT,
+    },
   });
 
-  // Save Chrome PID for safe cleanup (like agent-browse does)
-  await fs.writeFile(
-    getChromePidPath(session),
-    JSON.stringify({ pid: chrome.pid, startTime: Date.now() })
-  );
+  // Initialize browser
+  await stagehand.init();
 
-  // Save WebSocket URL for reference
-  await fs.writeFile(getWsPath(session), wsUrl);
+  const context = stagehand.context;
 
-  // Connect to browser
-  const context = await V3Context.create(wsUrl);
-
-  // Set default viewport to match window size
-  const page = context.activePage();
-  if (page) {
-    await page.setViewportSize(DEFAULT_VIEWPORT.width, DEFAULT_VIEWPORT.height);
-  }
+  // Try to save Chrome info for reference (best effort)
+  try {
+    // Get WebSocket URL from context connection
+    const wsUrl = (context as any).conn?.wsUrl || "unknown";
+    await fs.writeFile(getWsPath(session), wsUrl);
+  } catch {}
 
   // Store session name for network capture
   networkSession = session;
 
   // Setup network capture helpers (called when network is enabled)
-  const setupNetworkCapture = async (targetPage: Page) => {
+  const setupNetworkCapture = async (targetPage: BrowsePage) => {
     const cdpSession = targetPage.mainFrame().session;
 
     // Track request start times for duration calculation
@@ -266,7 +237,7 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
 
       const responseData = {
         id: params.requestId,
-        status: 0, // Will be filled from cached data if available
+        status: 0,
         statusText: "",
         headers: {} as Record<string, string>,
         mimeType: "",
@@ -323,10 +294,17 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
       let response: DaemonResponse;
       try {
         const request: DaemonRequest = JSON.parse(line);
-        const result = await executeCommand(context, request.command, request.args);
+        const result = await executeCommand(
+          context,
+          request.command,
+          request.args,
+        );
         response = { success: true, result };
       } catch (e) {
-        response = { success: false, error: e instanceof Error ? e.message : String(e) };
+        response = {
+          success: false,
+          error: e instanceof Error ? e.message : String(e),
+        };
       }
       conn.write(JSON.stringify(response) + "\n");
     });
@@ -345,21 +323,16 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
     shuttingDown = true;
 
     server.close();
-    try { await context.close(); } catch {}
 
-    // Try graceful Chrome shutdown first, then force kill
     try {
-      await chrome.kill();
-    } catch {
-      // If chrome.kill() fails, use our safe kill method
-      await killChromeProcess(session);
-    }
+      await stagehand.close();
+    } catch {}
 
     await cleanupStaleFiles(session);
     process.exit(0);
   };
 
-  // Handle all termination signals (like agent-browse)
+  // Handle all termination signals
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
   process.on("SIGHUP", () => shutdown("SIGHUP"));
@@ -372,20 +345,8 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
     shutdown("unhandledRejection");
   });
 
-  // Monitor Chrome process - shutdown daemon if Chrome dies
-  const chromeMonitor = setInterval(async () => {
-    try {
-      process.kill(chrome.pid!, 0);
-    } catch {
-      // Chrome process is gone
-      clearInterval(chromeMonitor);
-      console.error(JSON.stringify({ error: "Chrome process died unexpectedly" }));
-      await shutdown("chromeDied");
-    }
-  }, 5000);
-
   // Keep daemon running
-  console.log(JSON.stringify({ daemon: "started", session, pid: process.pid, chromePid: chrome.pid, wsUrl }));
+  console.log(JSON.stringify({ daemon: "started", session, pid: process.pid }));
 }
 
 // ==================== REF MAP (cached from last snapshot) ====================
@@ -429,7 +390,11 @@ function sanitizeForFilename(str: string, maxLen: number = 30): string {
 }
 
 /** Generate a directory name for a request */
-function getRequestDirName(counter: number, method: string, url: string): string {
+function getRequestDirName(
+  counter: number,
+  method: string,
+  url: string,
+): string {
   try {
     const parsed = new URL(url);
     const domain = sanitizeForFilename(parsed.hostname, 30);
@@ -442,16 +407,21 @@ function getRequestDirName(counter: number, method: string, url: string): string
 }
 
 /** Write request data to filesystem */
-async function writeRequestToFs(request: PendingRequest): Promise<string | null> {
+async function writeRequestToFs(
+  request: PendingRequest,
+): Promise<string | null> {
   if (!networkDir) return null;
 
-  const dirName = getRequestDirName(networkCounter++, request.method, request.url);
+  const dirName = getRequestDirName(
+    networkCounter++,
+    request.method,
+    request.url,
+  );
   const requestDir = path.join(networkDir, dirName);
 
   try {
     await fs.mkdir(requestDir, { recursive: true });
 
-    // Write request.json
     const requestData = {
       id: request.id,
       timestamp: request.timestamp,
@@ -463,7 +433,7 @@ async function writeRequestToFs(request: PendingRequest): Promise<string | null>
     };
     await fs.writeFile(
       path.join(requestDir, "request.json"),
-      JSON.stringify(requestData, null, 2)
+      JSON.stringify(requestData, null, 2),
     );
 
     return requestDir;
@@ -485,12 +455,12 @@ async function writeResponseToFs(
     body: string | null;
     duration: number;
     error?: string;
-  }
+  },
 ): Promise<void> {
   try {
     await fs.writeFile(
       path.join(requestDir, "response.json"),
-      JSON.stringify(response, null, 2)
+      JSON.stringify(response, null, 2),
     );
   } catch (err) {
     console.error("Failed to write response:", err);
@@ -500,10 +470,8 @@ async function writeResponseToFs(
 /**
  * Parse a ref from a selector argument.
  * Supports: @0-3, @[0-3], [0-3], 0-3, ref=0-3
- * Returns the ref ID (e.g., "0-3") or null if not a ref
  */
 function parseRef(selector: string): string | null {
-  // @0-3 or @[0-3]
   if (selector.startsWith("@")) {
     const rest = selector.slice(1);
     if (rest.startsWith("[") && rest.endsWith("]")) {
@@ -511,15 +479,16 @@ function parseRef(selector: string): string | null {
     }
     return rest;
   }
-  // [0-3] format (our native format from snapshot)
-  if (selector.startsWith("[") && selector.endsWith("]") && /^\[\d+-\d+\]$/.test(selector)) {
+  if (
+    selector.startsWith("[") &&
+    selector.endsWith("]") &&
+    /^\[\d+-\d+\]$/.test(selector)
+  ) {
     return selector.slice(1, -1);
   }
-  // ref=0-3 format
   if (selector.startsWith("ref=")) {
     return selector.slice(4);
   }
-  // Plain 0-3 format (digit-dash-digit pattern)
   if (/^\d+-\d+$/.test(selector)) {
     return selector;
   }
@@ -528,36 +497,32 @@ function parseRef(selector: string): string | null {
 
 /**
  * Resolve a selector - if it's a ref, look up from refMap.
- * Prefers CSS selectors (faster) over XPath when available.
  */
 function resolveSelector(selector: string): string {
   const ref = parseRef(selector);
   if (ref) {
-    // Prefer CSS selector if available (faster and more reliable)
     const css = refMap.cssMap[ref];
     if (css) {
       return css;
     }
-    // Fall back to XPath
     const xpath = refMap.xpathMap[ref];
     if (!xpath) {
-      throw new Error(`Unknown ref "${ref}" - run snapshot first to populate refs (have ${Object.keys(refMap.xpathMap).length} refs)`);
+      throw new Error(
+        `Unknown ref "${ref}" - run snapshot first to populate refs (have ${Object.keys(refMap.xpathMap).length} refs)`,
+      );
     }
     return xpath;
   }
   return selector;
 }
 
-/**
- * Check if a selector looks like a ref
- */
-function isRef(selector: string): boolean {
-  return parseRef(selector) !== null;
-}
-
 // ==================== COMMAND EXECUTION ====================
 
-async function executeCommand(context: V3Context, command: string, args: unknown[]): Promise<unknown> {
+async function executeCommand(
+  context: BrowseContext,
+  command: string,
+  args: unknown[],
+): Promise<unknown> {
   const page = context.activePage();
   if (!page && command !== "pages" && command !== "newpage") {
     throw new Error("No active page");
@@ -566,8 +531,11 @@ async function executeCommand(context: V3Context, command: string, args: unknown
   switch (command) {
     // Navigation
     case "open": {
-      const [url, waitUntil] = args as [string, string?];
-      await page!.goto(url, { waitUntil: waitUntil as "load" | "domcontentloaded" | "networkidle" });
+      const [url, waitUntil, timeout] = args as [string, string?, number?];
+      await page!.goto(url, {
+        waitUntil: waitUntil as "load" | "domcontentloaded" | "networkidle",
+        timeout: timeout ?? 30000,
+      });
       return { url: page!.url() };
     }
     case "reload": {
@@ -583,25 +551,34 @@ async function executeCommand(context: V3Context, command: string, args: unknown
       return { url: page!.url() };
     }
 
-    // Click by ref (default) - resolves ref to coordinates and clicks
+    // Click by ref
     case "click": {
-      const [selector, opts] = args as [string, { button?: string; clickCount?: number }?];
+      const [selector, opts] = args as [
+        string,
+        { button?: string; clickCount?: number }?,
+      ];
       const resolved = resolveSelector(selector);
       const locator = page!.deepLocator(resolved);
-
-      // Get center coordinates using centroid()
       const { x, y } = await locator.centroid();
-
       await page!.click(x, y, {
         button: (opts?.button as "left" | "right" | "middle") ?? "left",
         clickCount: opts?.clickCount ?? 1,
       });
-      return { clicked: true, ref: selector, x: Math.round(x), y: Math.round(y) };
+      return {
+        clicked: true,
+        ref: selector,
+        x: Math.round(x),
+        y: Math.round(y),
+      };
     }
 
     // Click by coordinates
     case "click_xy": {
-      const [x, y, opts] = args as [number, number, { button?: string; clickCount?: number; returnXPath?: boolean }];
+      const [x, y, opts] = args as [
+        number,
+        number,
+        { button?: string; clickCount?: number; returnXPath?: boolean },
+      ];
       const result = await page!.click(x, y, {
         button: (opts?.button as "left" | "right" | "middle") ?? "left",
         clickCount: opts?.clickCount ?? 1,
@@ -620,7 +597,13 @@ async function executeCommand(context: V3Context, command: string, args: unknown
       return { hovered: true };
     }
     case "scroll": {
-      const [x, y, deltaX, deltaY, opts] = args as [number, number, number, number, { returnXPath?: boolean }];
+      const [x, y, deltaX, deltaY, opts] = args as [
+        number,
+        number,
+        number,
+        number,
+        { returnXPath?: boolean },
+      ];
       const result = await page!.scroll(x, y, deltaX, deltaY);
       if (opts?.returnXPath) {
         return { scrolled: true, xpath: result?.xpath };
@@ -628,8 +611,16 @@ async function executeCommand(context: V3Context, command: string, args: unknown
       return { scrolled: true };
     }
     case "drag": {
-      const [fromX, fromY, toX, toY, opts] = args as [number, number, number, number, { steps?: number; returnXPath?: boolean }];
-      const result = await page!.drag(fromX, fromY, toX, toY, { steps: opts?.steps ?? 10 });
+      const [fromX, fromY, toX, toY, opts] = args as [
+        number,
+        number,
+        number,
+        number,
+        { steps?: number; returnXPath?: boolean },
+      ];
+      const result = await page!.drag(fromX, fromY, toX, toY, {
+        steps: opts?.steps ?? 10,
+      });
       if (opts?.returnXPath) {
         return { dragged: true, xpath: result?.xpath };
       }
@@ -638,7 +629,10 @@ async function executeCommand(context: V3Context, command: string, args: unknown
 
     // Keyboard
     case "type": {
-      const [text, opts] = args as [string, { delay?: number; mistakes?: boolean }];
+      const [text, opts] = args as [
+        string,
+        { delay?: number; mistakes?: boolean },
+      ];
       await page!.type(text, { delay: opts?.delay, humanize: opts?.mistakes });
       return { typed: true };
     }
@@ -650,7 +644,11 @@ async function executeCommand(context: V3Context, command: string, args: unknown
 
     // Element actions
     case "fill": {
-      const [selector, value, opts] = args as [string, string, { pressEnter?: boolean }?];
+      const [selector, value, opts] = args as [
+        string,
+        string,
+        { pressEnter?: boolean }?,
+      ];
       await page!.deepLocator(resolveSelector(selector)).fill(value);
       if (opts?.pressEnter) {
         await page!.keyPress("Enter");
@@ -664,7 +662,9 @@ async function executeCommand(context: V3Context, command: string, args: unknown
     }
     case "highlight": {
       const [selector, duration] = args as [string, number?];
-      await page!.deepLocator(resolveSelector(selector)).highlight({ durationMs: duration ?? 2000 });
+      await page!
+        .deepLocator(resolveSelector(selector))
+        .highlight({ durationMs: duration ?? 2000 });
       return { highlighted: true };
     }
 
@@ -672,29 +672,71 @@ async function executeCommand(context: V3Context, command: string, args: unknown
     case "get": {
       const [what, selector] = args as [string, string?];
       switch (what) {
-        case "url": return { url: page!.url() };
-        case "title": return { title: await page!.title() };
-        case "text": return { text: await page!.deepLocator(resolveSelector(selector!)).textContent() };
-        case "html": return { html: await page!.deepLocator(resolveSelector(selector!)).innerHTML() };
-        case "value": return { value: await page!.deepLocator(resolveSelector(selector!)).inputValue() };
+        case "url":
+          return { url: page!.url() };
+        case "title":
+          return { title: await page!.title() };
+        case "text":
+          return {
+            text: await page!
+              .deepLocator(resolveSelector(selector!))
+              .textContent(),
+          };
+        case "html":
+          return {
+            html: await page!
+              .deepLocator(resolveSelector(selector!))
+              .innerHTML(),
+          };
+        case "value":
+          return {
+            value: await page!
+              .deepLocator(resolveSelector(selector!))
+              .inputValue(),
+          };
         case "box": {
-          const { x, y } = await page!.deepLocator(resolveSelector(selector!)).centroid();
+          const { x, y } = await page!
+            .deepLocator(resolveSelector(selector!))
+            .centroid();
           return { x: Math.round(x), y: Math.round(y) };
         }
-        case "visible": return { visible: await page!.deepLocator(resolveSelector(selector!)).isVisible() };
-        case "checked": return { checked: await page!.deepLocator(resolveSelector(selector!)).isChecked() };
-        default: throw new Error(`Unknown get type: ${what}`);
+        case "visible":
+          return {
+            visible: await page!
+              .deepLocator(resolveSelector(selector!))
+              .isVisible(),
+          };
+        case "checked":
+          return {
+            checked: await page!
+              .deepLocator(resolveSelector(selector!))
+              .isChecked(),
+          };
+        default:
+          throw new Error(`Unknown get type: ${what}`);
       }
     }
 
     // Screenshot
     case "screenshot": {
-      const [opts] = args as [{ path?: string; fullPage?: boolean; type?: string; quality?: number; clip?: object; animations?: string; caret?: string }];
+      const [opts] = args as [
+        {
+          path?: string;
+          fullPage?: boolean;
+          type?: string;
+          quality?: number;
+          clip?: object;
+          animations?: string;
+          caret?: string;
+        },
+      ];
       const buffer = await page!.screenshot({
         fullPage: opts?.fullPage,
         type: opts?.type as "png" | "jpeg" | undefined,
         quality: opts?.quality,
-        clip: opts?.clip as { x: number; y: number; width: number; height: number } | undefined,
+        clip: opts?.clip as
+          | { x: number; y: number; width: number; height: number }
+          | undefined,
         animations: opts?.animations as "disabled" | "allow" | undefined,
         caret: opts?.caret as "hide" | "initial" | undefined,
       });
@@ -710,7 +752,6 @@ async function executeCommand(context: V3Context, command: string, args: unknown
       const [compact] = args as [boolean?];
       const snapshot = await page!.snapshot();
 
-      // Cache ref maps for subsequent commands using @ref syntax
       refMap = {
         xpathMap: snapshot.xpathMap ?? {},
         cssMap: snapshot.cssMap ?? {},
@@ -731,7 +772,9 @@ async function executeCommand(context: V3Context, command: string, args: unknown
     // Viewport
     case "viewport": {
       const [width, height, scale] = args as [number, number, number?];
-      await page!.setViewportSize(width, height, { deviceScaleFactor: scale ?? 1 });
+      await page!.setViewportSize(width, height, {
+        deviceScaleFactor: scale ?? 1,
+      });
       return { viewport: { width, height } };
     }
 
@@ -744,17 +787,23 @@ async function executeCommand(context: V3Context, command: string, args: unknown
 
     // Wait
     case "wait": {
-      const [type, arg, opts] = args as [string, string?, { timeout?: number; state?: string }?];
+      const [type, arg, opts] = args as [
+        string,
+        string?,
+        { timeout?: number; state?: string }?,
+      ];
       switch (type) {
         case "load":
           await page!.waitForLoadState(
             (arg as "load" | "domcontentloaded" | "networkidle") ?? "load",
-            opts?.timeout ?? 30000
+            opts?.timeout ?? 30000,
           );
           break;
         case "selector":
           await page!.waitForSelector(resolveSelector(arg!), {
-            state: (opts?.state as "attached" | "detached" | "visible" | "hidden") ?? "visible",
+            state:
+              (opts?.state as "attached" | "detached" | "visible" | "hidden") ??
+              "visible",
             timeout: opts?.timeout ?? 30000,
           });
           break;
@@ -772,9 +821,12 @@ async function executeCommand(context: V3Context, command: string, args: unknown
       const [check, selector] = args as [string, string];
       const locator = page!.deepLocator(resolveSelector(selector));
       switch (check) {
-        case "visible": return { visible: await locator.isVisible() };
-        case "checked": return { checked: await locator.isChecked() };
-        default: throw new Error(`Unknown check: ${check}`);
+        case "visible":
+          return { visible: await locator.isVisible() };
+        case "checked":
+          return { checked: await locator.isChecked() };
+        default:
+          throw new Error(`Unknown check: ${check}`);
       }
     }
 
@@ -788,7 +840,7 @@ async function executeCommand(context: V3Context, command: string, args: unknown
     case "pages": {
       const pages = context.pages();
       return {
-        pages: pages.map((p, i) => ({
+        pages: pages.map((p: BrowsePage, i: number) => ({
           index: i,
           url: p.url(),
           targetId: p.targetId(),
@@ -798,13 +850,19 @@ async function executeCommand(context: V3Context, command: string, args: unknown
     case "newpage": {
       const [url] = args as [string?];
       const newPage = await context.newPage(url);
-      return { created: true, url: newPage.url(), targetId: newPage.targetId() };
+      return {
+        created: true,
+        url: newPage.url(),
+        targetId: newPage.targetId(),
+      };
     }
     case "tab_switch": {
       const [index] = args as [number];
       const pages = context.pages();
       if (index < 0 || index >= pages.length) {
-        throw new Error(`Tab index ${index} out of range (0-${pages.length - 1})`);
+        throw new Error(
+          `Tab index ${index} out of range (0-${pages.length - 1})`,
+        );
       }
       context.setActivePage(pages[index]);
       return { switched: true, index, url: pages[index].url() };
@@ -812,9 +870,11 @@ async function executeCommand(context: V3Context, command: string, args: unknown
     case "tab_close": {
       const [index] = args as [number?];
       const pages = context.pages();
-      const targetIndex = index ?? pages.length - 1; // Default to last tab
+      const targetIndex = index ?? pages.length - 1;
       if (targetIndex < 0 || targetIndex >= pages.length) {
-        throw new Error(`Tab index ${targetIndex} out of range (0-${pages.length - 1})`);
+        throw new Error(
+          `Tab index ${targetIndex} out of range (0-${pages.length - 1})`,
+        );
       }
       if (pages.length === 1) {
         throw new Error("Cannot close the last tab");
@@ -839,21 +899,18 @@ async function executeCommand(context: V3Context, command: string, args: unknown
         return { enabled: true, path: networkDir, alreadyEnabled: true };
       }
 
-      // Create network capture directory
       const session = networkSession || "default";
       networkDir = getNetworkDir(session);
       await fs.mkdir(networkDir, { recursive: true });
       networkCounter = 0;
       pendingRequests.clear();
 
-      // Enable CDP Network domain
       const cdpSession = page!.mainFrame().session;
       await cdpSession.send("Network.enable", {
         maxTotalBufferSize: 10000000,
         maxResourceBufferSize: 5000000,
       });
 
-      // Setup event handlers
       const setupFn = (context as any)._setupNetworkCapture;
       if (setupFn) {
         await setupFn(page!);
@@ -868,13 +925,10 @@ async function executeCommand(context: V3Context, command: string, args: unknown
         return { enabled: false, alreadyDisabled: true };
       }
 
-      // Disable CDP Network domain
       try {
         const cdpSession = page!.mainFrame().session;
         await cdpSession.send("Network.disable");
-      } catch {
-        // Ignore errors
-      }
+      } catch {}
 
       networkEnabled = false;
       return { enabled: false, path: networkDir };
@@ -882,7 +936,6 @@ async function executeCommand(context: V3Context, command: string, args: unknown
 
     case "network_path": {
       if (!networkDir) {
-        // Return expected path even if not enabled
         const session = networkSession || "default";
         return { path: getNetworkDir(session), enabled: false };
       }
@@ -895,7 +948,6 @@ async function executeCommand(context: V3Context, command: string, args: unknown
       }
 
       try {
-        // Remove all subdirectories in network dir
         const entries = await fs.readdir(networkDir, { withFileTypes: true });
         for (const entry of entries) {
           if (entry.isDirectory()) {
@@ -906,13 +958,15 @@ async function executeCommand(context: V3Context, command: string, args: unknown
         pendingRequests.clear();
         return { cleared: true, path: networkDir };
       } catch (err) {
-        return { cleared: false, error: err instanceof Error ? err.message : String(err) };
+        return {
+          cleared: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
       }
     }
 
     // Daemon control
     case "stop": {
-      // Signal shutdown - response will be sent, then daemon exits gracefully
       process.nextTick(() => {
         process.emit("SIGTERM");
       });
@@ -926,7 +980,11 @@ async function executeCommand(context: V3Context, command: string, args: unknown
 
 // ==================== CLIENT ====================
 
-async function sendCommandOnce(session: string, command: string, args: unknown[]): Promise<unknown> {
+async function sendCommandOnce(
+  session: string,
+  command: string,
+  args: unknown[],
+): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const socketPath = getSocketPath(session);
     const client = net.createConnection(socketPath);
@@ -958,7 +1016,7 @@ async function sendCommandOnce(session: string, command: string, args: unknown[]
       }
     });
 
-    rl.on("error", () => {}); // Suppress readline errors
+    rl.on("error", () => {});
 
     client.on("connect", () => {
       const request: DaemonRequest = { command, args };
@@ -973,35 +1031,34 @@ async function sendCommandOnce(session: string, command: string, args: unknown[]
 }
 
 /** Send command with automatic retry and daemon restart on connection failure */
-async function sendCommand(session: string, command: string, args: unknown[], headless: boolean = false): Promise<unknown> {
+async function sendCommand(
+  session: string,
+  command: string,
+  args: unknown[],
+  headless: boolean = false,
+): Promise<unknown> {
   try {
     return await sendCommandOnce(session, command, args);
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
 
-    // Don't retry for stop command
     if (command === "stop") {
       throw err;
     }
 
-    // Only restart daemon on CONNECTION errors, not command execution errors
-    // Connection errors: socket not found, connection refused
-    // Note: Command timeout is NOT a connection error - the daemon is still running
-    const isConnectionError = errMsg.includes("ENOENT") ||
-                               errMsg.includes("ECONNREFUSED") ||
-                               errMsg.includes("Connection failed");
+    const isConnectionError =
+      errMsg.includes("ENOENT") ||
+      errMsg.includes("ECONNREFUSED") ||
+      errMsg.includes("Connection failed");
 
     if (!isConnectionError) {
-      // Command executed but failed - don't restart daemon, just throw
       throw err;
     }
 
-    // Clean up stale session and restart daemon
-    await killChromeProcess(session);
+    await killChromeProcesses(session);
     await cleanupStaleFiles(session);
     await ensureDaemon(session, headless);
 
-    // Retry command once
     return await sendCommandOnce(session, command, args);
   }
 }
@@ -1011,7 +1068,6 @@ async function ensureDaemon(session: string, headless: boolean): Promise<void> {
     return;
   }
 
-  // Start daemon in background
   const args = ["--session", session, "daemon"];
   if (headless) args.push("--headless");
 
@@ -1020,7 +1076,6 @@ async function ensureDaemon(session: string, headless: boolean): Promise<void> {
     stdio: ["ignore", "pipe", "ignore"],
   });
 
-  // Wait for daemon to be ready
   return new Promise((resolve, reject) => {
     let done = false;
 
@@ -1036,7 +1091,7 @@ async function ensureDaemon(session: string, headless: boolean): Promise<void> {
     const timeout = setTimeout(() => {
       cleanup();
       reject(new Error("Timeout waiting for daemon to start"));
-    }, 20000);
+    }, 30000);
 
     const rl = readline.createInterface({ input: child.stdout! });
     rl.on("line", (line) => {
@@ -1045,7 +1100,6 @@ async function ensureDaemon(session: string, headless: boolean): Promise<void> {
         if (data.daemon === "started") {
           clearTimeout(timeout);
           cleanup();
-          // Give socket time to be ready
           setTimeout(() => resolve(), 50);
         }
       } catch {}
@@ -1069,8 +1123,11 @@ interface GlobalOpts {
   session?: string;
 }
 
+function getSession(opts: GlobalOpts): string {
+  return opts.session ?? process.env.BROWSE_SESSION ?? "default";
+}
+
 function isHeadless(opts: GlobalOpts): boolean {
-  // --headless takes precedence, otherwise default to headed (visible window)
   return opts.headless === true && opts.headed !== true;
 }
 
@@ -1086,33 +1143,47 @@ function output(data: unknown, json: boolean): void {
 
 async function runCommand(command: string, args: unknown[]): Promise<unknown> {
   const opts = program.opts<GlobalOpts>();
-  const session = opts.session ?? "default";
+  const session = getSession(opts);
   const headless = isHeadless(opts);
 
-  // If --ws provided, run directly without daemon
+  // If --ws provided, create direct Stagehand connection
   if (opts.ws) {
-    const context = await V3Context.create(opts.ws);
+    const stagehand = new Stagehand({
+      env: "LOCAL",
+      verbose: 0,
+      disablePino: true,
+      localBrowserLaunchOptions: {
+        cdpUrl: opts.ws,
+      },
+    });
+    await stagehand.init();
     try {
-      return await executeCommand(context, command, args);
+      return await executeCommand(stagehand.context, command, args);
     } finally {
-      await context.close();
+      await stagehand.close();
     }
   }
 
-  // Ensure daemon is running and send command (auto-restarts on failure)
   await ensureDaemon(session, headless);
   return sendCommand(session, command, args, headless);
 }
 
 program
-  .name("stagehand")
-  .description("Browser automation CLI using Stagehand understudy")
-  .version("0.1.0")
-  .option("--ws <url>", "CDP WebSocket URL (bypasses daemon, direct connection)")
+  .name("browse")
+  .description("Browser automation CLI for AI agents")
+  .version(VERSION)
+  .option(
+    "--ws <url>",
+    "CDP WebSocket URL (bypasses daemon, direct connection)",
+  )
   .option("--headless", "Run Chrome in headless mode")
   .option("--headed", "Run Chrome with visible window (default)")
   .option("--json", "Output as JSON", false)
-  .option("--session <name>", "Session name for multiple browsers", "default");
+  .option(
+    "--session <name>",
+    "Session name for multiple browsers (or use BROWSE_SESSION env var)",
+    "default",
+  );
 
 // ==================== DAEMON COMMANDS ====================
 
@@ -1121,7 +1192,7 @@ program
   .description("Start browser daemon (auto-started by other commands)")
   .action(async () => {
     const opts = program.opts<GlobalOpts>();
-    const session = opts.session ?? "default";
+    const session = getSession(opts);
     if (await isDaemonRunning(session)) {
       console.log(JSON.stringify({ status: "already running", session }));
       return;
@@ -1133,17 +1204,16 @@ program
 program
   .command("stop")
   .description("Stop browser daemon")
-  .option("--force", "Force kill Chrome process if daemon is unresponsive")
+  .option("--force", "Force kill Chrome processes if daemon is unresponsive")
   .action(async (cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
-    const session = opts.session ?? "default";
+    const session = getSession(opts);
     try {
       await sendCommand(session, "stop", []);
       console.log(JSON.stringify({ status: "stopped", session }));
     } catch {
-      // Daemon not responding - try force cleanup if requested
       if (cmdOpts.force) {
-        await killChromeProcess(session);
+        await killChromeProcesses(session);
         await cleanupStaleFiles(session);
         console.log(JSON.stringify({ status: "force stopped", session }));
       } else {
@@ -1157,7 +1227,7 @@ program
   .description("Check daemon status")
   .action(async () => {
     const opts = program.opts<GlobalOpts>();
-    const session = opts.session ?? "default";
+    const session = getSession(opts);
     const running = await isDaemonRunning(session);
     let wsUrl = null;
     if (running) {
@@ -1187,7 +1257,7 @@ program
   .description("Run as daemon (internal use)")
   .action(async () => {
     const opts = program.opts<GlobalOpts>();
-    await runDaemon(opts.session ?? "default", isHeadless(opts));
+    await runDaemon(getSession(opts), isHeadless(opts));
   });
 
 // ==================== NAVIGATION ====================
@@ -1196,11 +1266,20 @@ program
   .command("open <url>")
   .alias("goto")
   .description("Navigate to URL")
-  .option("--wait <state>", "Wait state: load, domcontentloaded, networkidle", "load")
+  .option(
+    "--wait <state>",
+    "Wait state: load, domcontentloaded, networkidle",
+    "load",
+  )
+  .option("-t, --timeout <ms>", "Navigation timeout in milliseconds", "30000")
   .action(async (url: string, cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     try {
-      const result = await runCommand("open", [url, cmdOpts.wait]);
+      const result = await runCommand("open", [
+        url,
+        cmdOpts.wait,
+        parseInt(cmdOpts.timeout),
+      ]);
       output(result, opts.json ?? false);
     } catch (e) {
       console.error("Error:", e instanceof Error ? e.message : e);
@@ -1283,7 +1362,11 @@ program
       const result = await runCommand("click_xy", [
         parseFloat(x),
         parseFloat(y),
-        { button: cmdOpts.button, clickCount: parseInt(cmdOpts.count), returnXPath: cmdOpts.xpath },
+        {
+          button: cmdOpts.button,
+          clickCount: parseInt(cmdOpts.count),
+          returnXPath: cmdOpts.xpath,
+        },
       ]);
       output(result, opts.json ?? false);
     } catch (e) {
@@ -1301,7 +1384,11 @@ program
   .action(async (x: string, y: string, cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     try {
-      const result = await runCommand("hover", [parseFloat(x), parseFloat(y), { returnXPath: cmdOpts.xpath }]);
+      const result = await runCommand("hover", [
+        parseFloat(x),
+        parseFloat(y),
+        { returnXPath: cmdOpts.xpath },
+      ]);
       output(result, opts.json ?? false);
     } catch (e) {
       console.error("Error:", e instanceof Error ? e.message : e);
@@ -1317,7 +1404,10 @@ program
     const opts = program.opts<GlobalOpts>();
     try {
       const result = await runCommand("scroll", [
-        parseFloat(x), parseFloat(y), parseFloat(dx), parseFloat(dy),
+        parseFloat(x),
+        parseFloat(y),
+        parseFloat(dx),
+        parseFloat(dy),
         { returnXPath: cmdOpts.xpath },
       ]);
       output(result, opts.json ?? false);
@@ -1336,7 +1426,10 @@ program
     const opts = program.opts<GlobalOpts>();
     try {
       const result = await runCommand("drag", [
-        parseFloat(fx), parseFloat(fy), parseFloat(tx), parseFloat(ty),
+        parseFloat(fx),
+        parseFloat(fy),
+        parseFloat(tx),
+        parseFloat(ty),
         { steps: parseInt(cmdOpts.steps), returnXPath: cmdOpts.xpath },
       ]);
       output(result, opts.json ?? false);
@@ -1356,7 +1449,13 @@ program
   .action(async (text: string, cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     try {
-      const result = await runCommand("type", [text, { delay: cmdOpts.delay ? parseInt(cmdOpts.delay) : undefined, mistakes: cmdOpts.mistakes }]);
+      const result = await runCommand("type", [
+        text,
+        {
+          delay: cmdOpts.delay ? parseInt(cmdOpts.delay) : undefined,
+          mistakes: cmdOpts.mistakes,
+        },
+      ]);
       output(result, opts.json ?? false);
     } catch (e) {
       console.error("Error:", e instanceof Error ? e.message : e);
@@ -1388,9 +1487,12 @@ program
   .action(async (selector: string, value: string, cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     try {
-      // Default is true, --no-press-enter sets it to false
       const pressEnter = cmdOpts.pressEnter !== false;
-      const result = await runCommand("fill", [selector, value, { pressEnter }]);
+      const result = await runCommand("fill", [
+        selector,
+        value,
+        { pressEnter },
+      ]);
       output(result, opts.json ?? false);
     } catch (e) {
       console.error("Error:", e instanceof Error ? e.message : e);
@@ -1419,7 +1521,10 @@ program
   .action(async (selector: string, cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     try {
-      const result = await runCommand("highlight", [selector, parseInt(cmdOpts.duration)]);
+      const result = await runCommand("highlight", [
+        selector,
+        parseInt(cmdOpts.duration),
+      ]);
       output(result, opts.json ?? false);
     } catch (e) {
       console.error("Error:", e instanceof Error ? e.message : e);
@@ -1457,15 +1562,17 @@ program
   .action(async (filePath: string | undefined, cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     try {
-      const result = await runCommand("screenshot", [{
-        path: filePath,
-        fullPage: cmdOpts.fullPage,
-        type: cmdOpts.type,
-        quality: cmdOpts.quality ? parseInt(cmdOpts.quality) : undefined,
-        clip: cmdOpts.clip ? JSON.parse(cmdOpts.clip) : undefined,
-        animations: cmdOpts.animations === false ? "disabled" : "allow",
-        caret: cmdOpts.hideCaret ? "hide" : "initial",
-      }]);
+      const result = await runCommand("screenshot", [
+        {
+          path: filePath,
+          fullPage: cmdOpts.fullPage,
+          type: cmdOpts.type,
+          quality: cmdOpts.quality ? parseInt(cmdOpts.quality) : undefined,
+          clip: cmdOpts.clip ? JSON.parse(cmdOpts.clip) : undefined,
+          animations: cmdOpts.animations === false ? "disabled" : "allow",
+          caret: cmdOpts.hideCaret ? "hide" : "initial",
+        },
+      ]);
       output(result, opts.json ?? false);
     } catch (e) {
       console.error("Error:", e instanceof Error ? e.message : e);
@@ -1477,12 +1584,17 @@ program
 
 program
   .command("snapshot")
-  .description("Get accessibility tree snapshot (uses understudy a11y)")
+  .description("Get accessibility tree snapshot")
   .option("-c, --compact", "Output tree only (no xpath map)")
   .action(async (cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     try {
-      const result = await runCommand("snapshot", [cmdOpts.compact]) as { tree: string; xpathMap?: Record<string, string>; urlMap?: Record<string, string>; cssMap?: Record<string, string> };
+      const result = (await runCommand("snapshot", [cmdOpts.compact])) as {
+        tree: string;
+        xpathMap?: Record<string, string>;
+        urlMap?: Record<string, string>;
+        cssMap?: Record<string, string>;
+      };
       if (cmdOpts.compact && !opts.json) {
         console.log(result.tree);
       } else {
@@ -1503,7 +1615,11 @@ program
   .action(async (w: string, h: string, cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     try {
-      const result = await runCommand("viewport", [parseInt(w), parseInt(h), parseFloat(cmdOpts.scale)]);
+      const result = await runCommand("viewport", [
+        parseInt(w),
+        parseInt(h),
+        parseFloat(cmdOpts.scale),
+      ]);
       output(result, opts.json ?? false);
     } catch (e) {
       console.error("Error:", e instanceof Error ? e.message : e);
@@ -1533,11 +1649,19 @@ program
   .command("wait <type> [arg]")
   .description("Wait for: load, selector, timeout")
   .option("-t, --timeout <ms>", "Timeout", "30000")
-  .option("-s, --state <state>", "Element state: visible, hidden, attached, detached", "visible")
+  .option(
+    "-s, --state <state>",
+    "Element state: visible, hidden, attached, detached",
+    "visible",
+  )
   .action(async (type: string, arg: string | undefined, cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     try {
-      const result = await runCommand("wait", [type, arg, { timeout: parseInt(cmdOpts.timeout), state: cmdOpts.state }]);
+      const result = await runCommand("wait", [
+        type,
+        arg,
+        { timeout: parseInt(cmdOpts.timeout), state: cmdOpts.state },
+      ]);
       output(result, opts.json ?? false);
     } catch (e) {
       console.error("Error:", e instanceof Error ? e.message : e);
@@ -1629,7 +1753,9 @@ program
   .action(async (index?: string) => {
     const opts = program.opts<GlobalOpts>();
     try {
-      const result = await runCommand("tab_close", [index ? parseInt(index) : undefined]);
+      const result = await runCommand("tab_close", [
+        index ? parseInt(index) : undefined,
+      ]);
       output(result, opts.json ?? false);
     } catch (e) {
       console.error("Error:", e instanceof Error ? e.message : e);
@@ -1641,7 +1767,9 @@ program
 
 const networkCmd = program
   .command("network")
-  .description("Network capture commands (writes to filesystem for agent inspection)");
+  .description(
+    "Network capture commands (writes to filesystem for agent inspection)",
+  );
 
 networkCmd
   .command("on")
