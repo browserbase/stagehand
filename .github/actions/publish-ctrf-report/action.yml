@@ -30,10 +30,11 @@ runs:
       run: |
         junit_path="${{ inputs.junit-path }}"
         if [ -n "$junit_path" ]; then
-          base_name=$(basename "$junit_path")
-          base_name="${base_name%.xml}"
-          echo "ARTIFACT_NAME=ctrf-${base_name}" >> "$GITHUB_OUTPUT"
-          echo "REPORT_PATH=ctrf/${base_name}.json" >> "$GITHUB_OUTPUT"
+          rel_path="${junit_path##*/ctrf/}"
+          rel_path="${rel_path%.xml}"
+          safe_name="${rel_path//\//-}"
+          echo "ARTIFACT_NAME=ctrf-${safe_name}" >> "$GITHUB_OUTPUT"
+          echo "REPORT_PATH=ctrf/${safe_name}.json" >> "$GITHUB_OUTPUT"
         else
           job_name="${GITHUB_JOB:-ctrf-report}"
           echo "ARTIFACT_NAME=ctrf-${job_name}" >> "$GITHUB_OUTPUT"
