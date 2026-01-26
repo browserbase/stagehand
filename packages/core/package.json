@@ -81,6 +81,7 @@
     "puppeteer-core": "^22.8.0"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.0.8",
     "@playwright/test": "^1.42.1",
     "@types/adm-zip": "^0.5.7",
     "@types/node": "^20.11.30",

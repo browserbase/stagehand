@@ -13,21 +13,31 @@ inputs:
     description: GitHub token for publishing CTRF reports.
     required: true
 
+outputs:
+  artifact-name:
+    description: Name of the CTRF artifact uploaded by the reporter.
+    value: ${{ steps.ctrf-meta.outputs.ARTIFACT_NAME }}
+  report-path:
+    description: CTRF report path or glob.
+    value: ${{ steps.ctrf-meta.outputs.REPORT_PATH }}
+
 runs:
   using: composite
   steps:
-    - name: Resolve CTRF artifact name
-      id: ctrf-artifact
+    - name: Set CTRF metadata
+      id: ctrf-meta
       shell: bash
       run: |
-        if [ -n "${{ inputs.junit-path }}" ]; then
-          junit_path="${{ inputs.junit-path }}"
+        junit_path="${{ inputs.junit-path }}"
+        if [ -n "$junit_path" ]; then
           base_name=$(basename "$junit_path")
           base_name="${base_name%.xml}"
-          echo "name=ctrf-${base_name}" >> "$GITHUB_OUTPUT"
+          echo "ARTIFACT_NAME=ctrf-${base_name}" >> "$GITHUB_OUTPUT"
+          echo "REPORT_PATH=ctrf/${base_name}.json" >> "$GITHUB_OUTPUT"
         else
           job_name="${GITHUB_JOB:-ctrf-report}"
-          echo "name=ctrf-${job_name}" >> "$GITHUB_OUTPUT"
+          echo "ARTIFACT_NAME=ctrf-${job_name}" >> "$GITHUB_OUTPUT"
+          echo "REPORT_PATH=./ctrf/*.json" >> "$GITHUB_OUTPUT"
         fi
 
     - name: Convert JUnit to CTRF
@@ -36,11 +46,8 @@ runs:
       run: |
         junit_path="${{ inputs.junit-path }}"
         if [ -f "$junit_path" ]; then
-          base_name=$(basename "$junit_path")
-          base_name="${base_name%.xml}"
-          output_path="ctrf/${base_name}.json"
           pnpm dlx junit-to-ctrf "$junit_path" \
-            -o "$output_path" \
+            -o "${{ steps.ctrf-meta.outputs.REPORT_PATH }}" \
             -t "${{ inputs.tool }}"
         else
           echo "JUnit report not found at $junit_path"
@@ -50,12 +57,15 @@ runs:
       uses: ctrf-io/github-test-reporter@v1
       with:
         report-path: './ctrf/*.json'
+        summary-report: true
         summary-delta-report: true
+        test-report: true
+        failed-report: true
         insights-report: true
         flaky-rate-report: true
         fail-rate-report: true
         slowest-report: true
         upload-artifact: true
-        artifact-name: ${{ steps.ctrf-artifact.outputs.name }}
+        artifact-name: ${{ steps.ctrf-meta.outputs.ARTIFACT_NAME }}
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}

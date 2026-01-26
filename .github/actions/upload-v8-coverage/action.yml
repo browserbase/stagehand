@@ -8,8 +8,15 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Normalize artifact name
+      id: normalize
+      shell: bash
+      run: |
+        name="${{ inputs.name }}"
+        echo "name=${name//\//-}" >> "$GITHUB_OUTPUT"
+
     - name: Upload coverage artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ inputs.name }}
+        name: ${{ steps.normalize.outputs.name }}
         path: ${{ env.NODE_V8_COVERAGE }}
