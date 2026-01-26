@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Browse CLI - Browser automation for AI agents
  *
