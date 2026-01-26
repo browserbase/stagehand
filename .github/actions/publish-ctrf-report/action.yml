@@ -16,6 +16,20 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Resolve CTRF artifact name
+      id: ctrf-artifact
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.junit-path }}" ]; then
+          junit_path="${{ inputs.junit-path }}"
+          base_name=$(basename "$junit_path")
+          base_name="${base_name%.xml}"
+          echo "name=ctrf-${base_name}" >> "$GITHUB_OUTPUT"
+        else
+          job_name="${GITHUB_JOB:-ctrf-report}"
+          echo "name=ctrf-${job_name}" >> "$GITHUB_OUTPUT"
+        fi
+
     - name: Convert JUnit to CTRF
       if: ${{ inputs.junit-path != '' }}
       shell: bash
@@ -42,5 +56,6 @@ runs:
         fail-rate-report: true
         slowest-report: true
         upload-artifact: true
+        artifact-name: ${{ steps.ctrf-artifact.outputs.name }}
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}

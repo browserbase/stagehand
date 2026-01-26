@@ -1224,7 +1224,7 @@ jobs:
           name: coverage-v8-evals-agent
 
   merge-coverage:
-    name: Merge coverage
+    name: Code Coverage Report
     runs-on: ubuntu-latest
     needs:
       - core-unit-tests
