@@ -1,0 +1,46 @@
+name: Publish CTRF report
+description: Convert JUnit to CTRF (optional) and publish CTRF report with Insights.
+inputs:
+  junit-path:
+    description: Path to the JUnit XML report.
+    required: false
+    default: ""
+  tool:
+    description: Tool name for the CTRF report (e.g. playwright, vitest, node-test).
+    required: false
+    default: "junit"
+  github-token:
+    description: GitHub token for publishing CTRF reports.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Convert JUnit to CTRF
+      if: ${{ inputs.junit-path != '' }}
+      shell: bash
+      run: |
+        junit_path="${{ inputs.junit-path }}"
+        if [ -f "$junit_path" ]; then
+          base_name=$(basename "$junit_path")
+          base_name="${base_name%.xml}"
+          output_path="ctrf/${base_name}.json"
+          pnpm dlx junit-to-ctrf "$junit_path" \
+            -o "$output_path" \
+            -t "${{ inputs.tool }}"
+        else
+          echo "JUnit report not found at $junit_path"
+        fi
+
+    - name: Publish Test Report with Insights
+      uses: ctrf-io/github-test-reporter@v1
+      with:
+        report-path: './ctrf/*.json'
+        summary-delta-report: true
+        insights-report: true
+        flaky-rate-report: true
+        fail-rate-report: true
+        slowest-report: true
+        upload-artifact: true
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}

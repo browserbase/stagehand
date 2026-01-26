@@ -20,6 +20,11 @@ const workerCount =
     ? ciWorkerOverride
     : 3;
 
+const ctrfJunitPath = process.env.CTRF_JUNIT_PATH;
+const reporter = ctrfJunitPath
+  ? [["list"], ["junit", { outputFile: ctrfJunitPath }]]
+  : "list";
+
 export default defineConfig({
   testDir: ".",
   timeout: 90_000,
@@ -29,7 +34,7 @@ export default defineConfig({
   // Browserbase tests are heavier due to remote browser connections.
   workers: workerCount,
   fullyParallel: true,
-  reporter: "list",
+  reporter,
   use: {
     headless: false,
   },

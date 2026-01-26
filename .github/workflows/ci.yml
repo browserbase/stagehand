@@ -41,6 +41,7 @@ jobs:
     outputs:
       core: ${{ steps.filter.outputs.core }}
       evals: ${{ steps.filter.outputs.evals }}
+      server: ${{ steps.filter.outputs.server }}
       docs-only: ${{ steps.filter.outputs.docs-only }}
     steps:
       - name: Check out repository code
@@ -60,6 +61,13 @@ jobs:
               - 'packages/evals/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
+            server:
+              - 'packages/server/**'
+              - 'packages/core/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.github/workflows/ci.yml'
             docs-only:
               - '**/*.md'
               - 'examples/**'
@@ -224,6 +232,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [run-build, discover-core-tests]
     if: needs.discover-core-tests.outputs.has-core-tests == 'true'
+    env:
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/core-unit/${{ matrix.test.name }}
 
     strategy:
       fail-fast: true
@@ -242,7 +252,253 @@ jobs:
         run: |
           test_path="${{ matrix.test.path }}"
           rel_path="${test_path#packages/core/}"
-          pnpm --filter @browserbasehq/stagehand exec vitest run --config vitest.config.ts "$rel_path"
+          pnpm --filter @browserbasehq/stagehand exec vitest run \
+            --config vitest.config.ts \
+            --reporter=default \
+            --reporter=junit \
+            --outputFile.junit="${{ github.workspace }}/ctrf/vitest-${{ matrix.test.name }}.xml" \
+            --coverage \
+            --coverage.reportsDirectory="${{ github.workspace }}/coverage/vitest/${{ matrix.test.name }}" \
+            --coverage.reporter=lcov \
+            --coverage.reporter=text-summary \
+            "$rel_path"
+
+      - name: Upload Vitest coverage - ${{ matrix.test.name }}
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-coverage-${{ matrix.test.name }}
+          path: coverage/vitest/${{ matrix.test.name }}
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always()
+        with:
+          junit-path: ${{ github.workspace }}/ctrf/vitest-${{ matrix.test.name }}.xml
+          tool: vitest
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always()
+        with:
+          name: coverage-v8-core-unit-${{ matrix.test.name }}
+
+  discover-server-tests:
+    runs-on: ubuntu-latest
+    needs: [determine-changes]
+    if: needs.determine-changes.outputs.server == 'true'
+    outputs:
+      unit-tests: ${{ steps.set-matrix.outputs.unit-tests }}
+      integration-tests: ${{ steps.set-matrix.outputs.integration-tests }}
+      has-unit-tests: ${{ steps.set-matrix.outputs.has-unit-tests }}
+      has-integration-tests: ${{ steps.set-matrix.outputs.has-integration-tests }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Discover server test files
+        id: set-matrix
+        run: |
+          cd packages/server
+
+          unit_tests=$(find ./test/unit -type f -name "*.test.ts" 2>/dev/null | sort || true)
+          integration_tests=$(find ./test/integration -type f -name "*.test.ts" 2>/dev/null | sort || true)
+
+          unit_json="["
+          first=true
+          for test_file in $unit_tests; do
+            if [ "$first" = true ]; then
+              first=false
+            else
+              unit_json+=","
+            fi
+            name=$(basename "$test_file" .test.ts)
+            unit_json+="{\"path\":\"$test_file\",\"name\":\"$name\"}"
+          done
+          unit_json+="]"
+
+          int_json="["
+          first=true
+          for test_file in $integration_tests; do
+            if [ "$first" = true ]; then
+              first=false
+            else
+              int_json+=","
+            fi
+            name=$(echo "$test_file" | sed 's|^\./test/integration/||' | sed 's|\.test\.ts$||')
+            int_json+="{\"path\":\"$test_file\",\"name\":\"$name\"}"
+          done
+          int_json+="]"
+
+          echo "unit-tests=$unit_json" >> $GITHUB_OUTPUT
+          echo "integration-tests=$int_json" >> $GITHUB_OUTPUT
+
+          if [ "$unit_json" = "[]" ]; then
+            echo "has-unit-tests=false" >> $GITHUB_OUTPUT
+          else
+            echo "has-unit-tests=true" >> $GITHUB_OUTPUT
+          fi
+
+          if [ "$int_json" = "[]" ]; then
+            echo "has-integration-tests=false" >> $GITHUB_OUTPUT
+          else
+            echo "has-integration-tests=true" >> $GITHUB_OUTPUT
+          fi
+
+          echo "Found server unit tests: $unit_json"
+          echo "Found server integration tests: $int_json"
+
+  build-server-sea:
+    name: Build SEA binary
+    needs: [discover-server-tests]
+    if: needs.discover-server-tests.outputs.has-integration-tests == 'true'
+    uses: ./.github/workflows/stagehand-server-sea-build.yml
+    with:
+      matrix: |
+        [
+          {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64"}
+        ]
+
+  server-unit-tests:
+    name: server/unit/${{ matrix.test.name }}
+    runs-on: ubuntu-latest
+    needs: [discover-server-tests]
+    if: needs.discover-server-tests.outputs.has-unit-tests == 'true'
+    env:
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-unit/${{ matrix.test.name }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        test: ${{ fromJson(needs.discover-server-tests.outputs.unit-tests) }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+
+      - name: Run server unit test - ${{ matrix.test.name }}
+        env:
+          NODE_TEST_REPORTER: junit
+          NODE_TEST_REPORTER_DESTINATION: ${{ github.workspace }}/ctrf/node-test-unit-${{ matrix.test.name }}.xml
+        run: |
+          cd packages/server
+          pnpm run node:test "${{ matrix.test.path }}"
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always()
+        with:
+          junit-path: ${{ github.workspace }}/ctrf/node-test-unit-${{ matrix.test.name }}.xml
+          tool: node-test
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always()
+        with:
+          name: coverage-v8-server-unit-${{ matrix.test.name }}
+
+  server-integration-tests:
+    name: server/integration/${{ matrix.test.name }}
+    runs-on: ubuntu-latest
+    needs: [build-server-sea, discover-server-tests]
+    if: needs.discover-server-tests.outputs.has-integration-tests == 'true'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        test: ${{ fromJson(needs.discover-server-tests.outputs.integration-tests) }}
+
+    env:
+      BB_ENV: local
+      PORT: "3107"
+      STAGEHAND_API_URL: http://127.0.0.1:3107
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-integration/${{ matrix.test.name }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+        with:
+          use-prebuilt-artifacts: "false"
+
+      - name: Download SEA binary
+        uses: actions/download-artifact@v4
+        with:
+          name: stagehand-server-linux-x64
+          path: packages/server/dist/sea
+
+      - name: Ensure SEA binary is executable
+        run: |
+          chmod +x packages/server/dist/sea/stagehand-server-linux-x64
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-playwright-
+
+      - name: Install Playwright browsers
+        run: |
+          pnpm dlx playwright install --with-deps chromium
+
+      - name: Start stagehand server (SEA binary)
+        env:
+          NODE_ENV: production
+        run: |
+          packages/server/dist/sea/stagehand-server-linux-x64 &
+          echo $! > /tmp/server.pid
+
+          echo "Waiting for server to start..."
+          for i in {1..30}; do
+            if curl -s http://127.0.0.1:3107/healthz > /dev/null 2>&1; then
+              echo "Server is ready!"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Server failed to start within 30 seconds"
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Run server integration test - ${{ matrix.test.name }}
+        env:
+          NODE_TEST_REPORTER: junit
+          NODE_TEST_REPORTER_DESTINATION: ${{ github.workspace }}/ctrf/node-test-integration-${{ matrix.test.name }}.xml
+          NODE_TEST_EXTRA_ARGS: --experimental-test-coverage
+        run: |
+          cd packages/server
+          pnpm run node:test "${{ matrix.test.path }}"
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always()
+        with:
+          junit-path: ${{ github.workspace }}/ctrf/node-test-integration-${{ matrix.test.name }}.xml
+          tool: node-test
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always()
+        with:
+          name: coverage-v8-server-integration-${{ matrix.test.name }}
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f /tmp/server.pid ]; then
+            kill $(cat /tmp/server.pid) 2>/dev/null || true
+          fi
 
   discover-e2e-tests:
     runs-on: ubuntu-latest
@@ -301,6 +557,8 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
+      CTRF_JUNIT_PATH: ${{ github.workspace }}/ctrf/playwright-local-${{ matrix.test.name }}.xml
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/e2e-local/${{ matrix.test.name }}
     strategy:
       fail-fast: true
       max-parallel: 50
@@ -321,6 +579,18 @@ jobs:
           pnpm exec turbo run e2e:local --only --log-order=stream \
             --filter @browserbasehq/stagehand -- "$rel_path"
 
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always()
+        with:
+          junit-path: ${{ github.workspace }}/ctrf/playwright-local-${{ matrix.test.name }}.xml
+          tool: playwright
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always()
+        with:
+          name: coverage-v8-e2e-local-${{ matrix.test.name }}
+
   run-e2e-bb-tests:
     name: e2e/bb/${{ matrix.test.name }}
     needs: [run-build, discover-e2e-tests]
@@ -337,6 +607,8 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
+      CTRF_JUNIT_PATH: ${{ github.workspace }}/ctrf/playwright-bb-${{ matrix.test.name }}.xml
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/e2e-bb/${{ matrix.test.name }}
     strategy:
       fail-fast: true
       max-parallel: 100
@@ -359,6 +631,18 @@ jobs:
           rel_path="${test_path#packages/core/}"
           pnpm exec turbo run e2e:bb --only --log-order=stream \
             --filter @browserbasehq/stagehand -- "$rel_path"
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always()
+        with:
+          junit-path: ${{ github.workspace }}/ctrf/playwright-bb-${{ matrix.test.name }}.xml
+          tool: playwright
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always()
+        with:
+          name: coverage-v8-e2e-bb-${{ matrix.test.name }}
 
   run-regression-evals:
     name: evals/regression
@@ -385,6 +669,7 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/regression
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -417,6 +702,21 @@ jobs:
             exit 1
           fi
 
+      - uses: ./.github/actions/write-evals-ctrf
+        if: always()
+        with:
+          category: regression
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always()
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always()
+        with:
+          name: coverage-v8-evals-regression
+
   run-combination-evals:
     name: evals/combination
     needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
@@ -441,6 +741,7 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/combination
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -482,6 +783,21 @@ jobs:
             exit 1
           fi
 
+      - uses: ./.github/actions/write-evals-ctrf
+        if: always() && needs.determine-evals.outputs.run-combination == 'true'
+        with:
+          category: combination
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always() && needs.determine-evals.outputs.run-combination == 'true'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always() && needs.determine-evals.outputs.run-combination == 'true'
+        with:
+          name: coverage-v8-evals-combination
+
   run-act-evals:
     name: evals/act
     needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
@@ -506,6 +822,7 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/act
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -550,6 +867,21 @@ jobs:
             exit 1
           fi
 
+      - uses: ./.github/actions/write-evals-ctrf
+        if: always() && needs.determine-evals.outputs.run-act == 'true'
+        with:
+          category: act
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always() && needs.determine-evals.outputs.run-act == 'true'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always() && needs.determine-evals.outputs.run-act == 'true'
+        with:
+          name: coverage-v8-evals-act
+
   run-extract-evals:
     name: evals/extract
     needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
@@ -574,6 +906,7 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/extract
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -621,6 +954,22 @@ jobs:
             exit 1
           fi
 
+      - uses: ./.github/actions/write-evals-ctrf
+        if: always() && needs.determine-evals.outputs.run-extract == 'true'
+        with:
+          category: extract
+          summary-path: eval-summary-extract-dom.json
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always() && needs.determine-evals.outputs.run-extract == 'true'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always() && needs.determine-evals.outputs.run-extract == 'true'
+        with:
+          name: coverage-v8-evals-extract
+
   run-observe-evals:
     name: evals/observe
     needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
@@ -645,6 +994,7 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/observe
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -689,6 +1039,21 @@ jobs:
             exit 1
           fi
 
+      - uses: ./.github/actions/write-evals-ctrf
+        if: always() && needs.determine-evals.outputs.run-observe == 'true'
+        with:
+          category: observe
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always() && needs.determine-evals.outputs.run-observe == 'true'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always() && needs.determine-evals.outputs.run-observe == 'true'
+        with:
+          name: coverage-v8-evals-observe
+
   run-targeted-extract-evals:
     name: evals/targeted-extract
     needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
@@ -713,6 +1078,7 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/targeted-extract
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -757,6 +1123,21 @@ jobs:
             exit 1
           fi
 
+      - uses: ./.github/actions/write-evals-ctrf
+        if: always() && needs.determine-evals.outputs.run-targeted-extract == 'true'
+        with:
+          category: targeted_extract
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always() && needs.determine-evals.outputs.run-targeted-extract == 'true'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always() && needs.determine-evals.outputs.run-targeted-extract == 'true'
+        with:
+          name: coverage-v8-evals-targeted-extract
+
   run-agent-evals:
     name: evals/agent
     needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
@@ -781,6 +1162,7 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/agent
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -825,3 +1207,75 @@ jobs:
             echo "Eval summary not found for agent category. Failing CI."
             exit 1
           fi
+
+      - uses: ./.github/actions/write-evals-ctrf
+        if: always() && needs.determine-evals.outputs.run-agent == 'true'
+        with:
+          category: agent
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always() && needs.determine-evals.outputs.run-agent == 'true'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always() && needs.determine-evals.outputs.run-agent == 'true'
+        with:
+          name: coverage-v8-evals-agent
+
+  merge-coverage:
+    name: Merge coverage
+    runs-on: ubuntu-latest
+    needs:
+      - core-unit-tests
+      - run-e2e-local-tests
+      - run-e2e-bb-tests
+      - run-regression-evals
+      - run-combination-evals
+      - run-act-evals
+      - run-extract-evals
+      - run-observe-evals
+      - run-targeted-extract-evals
+      - run-agent-evals
+      - server-unit-tests
+      - server-integration-tests
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+
+      - name: Download V8 coverage artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: coverage-v8-*
+          path: coverage/v8
+          merge-multiple: true
+
+      - name: Generate merged coverage report
+        run: |
+          if [ ! -d coverage/v8 ] || [ -z "$(find coverage/v8 -type f -name '*.json' -print -quit)" ]; then
+            echo "No V8 coverage files found."
+            exit 0
+          fi
+          pnpm dlx c8 report \
+            --temp-directory coverage/v8 \
+            --reporter=lcov \
+            --reporter=text-summary \
+            --reports-dir coverage/merged \
+            --include "packages/**" \
+            --exclude "**/node_modules/**" \
+            --exclude "packages/**/test/**" \
+            --exclude "packages/**/tests/**" \
+            --exclude "packages/**/lib/**/tests/**" \
+            --exclude "**/*.d.ts"
+
+      - name: Upload merged coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-merged
+          path: coverage/merged

@@ -1,5 +1,10 @@
 import { defineConfig } from "@playwright/test";
 
+const ctrfJunitPath = process.env.CTRF_JUNIT_PATH;
+const reporter = ctrfJunitPath
+  ? [["list"], ["junit", { outputFile: ctrfJunitPath }]]
+  : "list";
+
 export default defineConfig({
   testDir: ".",
   timeout: 90_000,
@@ -8,7 +13,7 @@ export default defineConfig({
   // CI uses 4 workers, local development can use up to 8 for faster test runs.
   workers: process.env.CI ? 4 : 6,
   fullyParallel: true,
-  reporter: "list",
+  reporter,
   use: {
     // we're not launching Playwright browsers in these tests; we connect via Puppeteer/CDP to V3.
     headless: false,

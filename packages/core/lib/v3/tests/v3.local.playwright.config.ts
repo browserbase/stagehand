@@ -22,6 +22,11 @@ const baseWorkerCount =
       ? 3
       : 5;
 
+const ctrfJunitPath = process.env.CTRF_JUNIT_PATH;
+const reporter = ctrfJunitPath
+  ? [["list"], ["junit", { outputFile: ctrfJunitPath }]]
+  : "list";
+
 export default defineConfig({
   testDir: ".",
   timeout: 90_000,
@@ -35,7 +40,7 @@ export default defineConfig({
       name: "default",
     },
   ],
-  reporter: "list",
+  reporter,
   use: {
     // we're not launching Playwright browsers in these tests; we connect via Puppeteer/CDP to V3.
     headless: false,

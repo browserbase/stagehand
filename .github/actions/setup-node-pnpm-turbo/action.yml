@@ -41,3 +41,11 @@ runs:
         name: build-artifacts
         path: .
         merge-multiple: true
+
+    - name: Prepare test output directories
+      shell: bash
+      run: |
+        mkdir -p ctrf
+        if [ -n "${NODE_V8_COVERAGE:-}" ]; then
+          mkdir -p "$NODE_V8_COVERAGE"
+        fi

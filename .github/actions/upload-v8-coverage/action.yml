@@ -1,0 +1,15 @@
+name: Upload V8 coverage
+description: Upload V8 coverage artifacts.
+inputs:
+  name:
+    description: Artifact name.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Upload coverage artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ env.NODE_V8_COVERAGE }}
