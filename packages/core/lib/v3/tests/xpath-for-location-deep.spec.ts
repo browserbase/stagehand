@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { V3 } from "../v3";
 import { v3DynamicTestConfig } from "./v3.dynamic.config";
 import { resolveXpathForLocation } from "../understudy/a11y/snapshot";
+import { closeV3 } from "./testUtils";
 
 test.describe("resolveNodeForLocationDeep", () => {
   let v3: V3;
@@ -12,7 +13,7 @@ test.describe("resolveNodeForLocationDeep", () => {
   });
 
   test.afterEach(async () => {
-    await v3?.close?.().catch(() => {});
+    await closeV3(v3);
   });
 
   test("click resolves inside same-process iframe and returns absolute XPath", async () => {

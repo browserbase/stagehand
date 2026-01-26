@@ -1,6 +1,9 @@
-name: Evals
+name: Tests
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     types:
       - opened
@@ -11,10 +14,22 @@ on:
       - "packages/docs/**"
 
 env:
+  LLM_MAX_MS: "15000"
+  EVAL_ENV: "browserbase"
   EVAL_MODELS: "openai/gpt-4.1,google/gemini-2.0-flash,anthropic/claude-haiku-4-5"
+  EVAL_AGENT_MODELS: "computer-use-preview-2025-03-11,claude-3-7-sonnet-latest"
   EVAL_CATEGORIES: "observe,act,combination,extract,targeted_extract,agent"
   EVAL_MAX_CONCURRENCY: 25
   EVAL_TRIAL_COUNT: 3
+  EVAL_AGENT_MAX_CONCURRENCY: 30
+  EVAL_AGENT_TRIAL_COUNT: 2
+  LOCAL_SESSION_LIMIT_PER_E2E_TEST: 2
+  BROWSERBASE_SESSION_LIMIT_PER_E2E_TEST: 3
+  BROWSERBASE_REGION_DISTRIBUTION: "us-west-2=30,us-east-1=30,eu-central-1=20,ap-southeast-1=20"  # percentage of load for each region when running e2e tests against prod
+  CHROME_PATH: /usr/bin/chromium # GitHub Actions runners ship with Chromium by default
+  BROWSERBASE_CDP_CONNECT_MAX_MS: "10000"
+  BROWSERBASE_SESSION_CREATE_MAX_MS: "10000"
+  TURBO_TELEMETRY_DISABLED: 1
 
 concurrency:
   group: ${{ github.ref }}
@@ -124,98 +139,161 @@ jobs:
           echo "run-observe=${{ contains(github.event.pull_request.labels.*.name, 'observe') }}" >> $GITHUB_OUTPUT
           echo "run-targeted-extract=${{ contains(github.event.pull_request.labels.*.name, 'targeted-extract') }}" >> $GITHUB_OUTPUT
           echo "run-agent=${{ contains(github.event.pull_request.labels.*.name, 'agent') }}" >> $GITHUB_OUTPUT
-
-  run-lint:
-    needs: [determine-changes]
-    if: needs.determine-changes.outputs.core == 'true' || needs.determine-changes.outputs.evals == 'true'
+      
+  run-build:
+    name: Lint & Build
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
-          node-version: "20"
-
-      - name: Enable Corepack
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+          use-prebuilt-artifacts: "false"
 
       - name: Run Lint
         run: pnpm run lint
 
-  run-build:
-    needs: [determine-changes]
-    if: needs.determine-changes.outputs.core == 'true' || needs.determine-changes.outputs.evals == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Enable Corepack
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
       - name: Run Build
         run: pnpm run build
+
+      - name: Save Turbo cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
           path: |
+            package.json # Placeholder to anchor artifact root at repo root. do not remove or artifacts paths will all change to common ancestor packages/
             packages/core/dist/**
-            packages/core/lib/**
+            packages/core/lib/version.ts
+            packages/core/lib/dom/build/**
+            packages/core/lib/v3/dom/build/**
+            packages/server/dist/**
+            packages/server/openapi.v3.yaml
           retention-days: 1
 
-      - name: Run Vitest
-        run: pnpm --filter @browserbasehq/stagehand run test:vitest
+  discover-core-tests:
+    runs-on: ubuntu-latest
+    needs: [determine-changes]
+    if: needs.determine-changes.outputs.core == 'true'
+    outputs:
+      core-tests: ${{ steps.set-matrix.outputs.core-tests }}
+      has-core-tests: ${{ steps.set-matrix.outputs.has-core-tests }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Discover core test files
+        id: set-matrix
+        run: |
+          core_tests=$(find packages/core/tests -type f -name "*.test.ts" 2>/dev/null | sort || true)
+
+          core_json="["
+          first=true
+          for test_file in $core_tests; do
+            if [ "$first" = true ]; then
+              first=false
+            else
+              core_json+=","
+            fi
+            name=$(echo "$test_file" | sed 's|^packages/core/tests/||' | sed 's|\.test\.ts$||')
+            core_json+="{\"path\":\"$test_file\",\"name\":\"$name\"}"
+          done
+          core_json+="]"
+
+          echo "core-tests=$core_json" >> $GITHUB_OUTPUT
+
+          if [ "$core_json" = "[]" ]; then
+            echo "has-core-tests=false" >> $GITHUB_OUTPUT
+          else
+            echo "has-core-tests=true" >> $GITHUB_OUTPUT
+          fi
+
+          echo "Found core tests: $core_json"
+
+  core-unit-tests:
+    name: core/${{ matrix.test.name }}
+    runs-on: ubuntu-latest
+    needs: [run-build, discover-core-tests]
+    if: needs.discover-core-tests.outputs.has-core-tests == 'true'
+
+    strategy:
+      fail-fast: true
+      max-parallel: 100
+      matrix:
+        test: ${{ fromJson(needs.discover-core-tests.outputs.core-tests) }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+
+      - name: Run Vitest - ${{ matrix.test.name }}
+        run: |
+          test_path="${{ matrix.test.path }}"
+          rel_path="${test_path#packages/core/}"
+          pnpm --filter @browserbasehq/stagehand exec vitest run --config vitest.config.ts "$rel_path"
+
+  discover-e2e-tests:
+    runs-on: ubuntu-latest
+    needs: [determine-changes]
+    if: needs.determine-changes.outputs.core == 'true'
+    outputs:
+      e2e-tests: ${{ steps.set-matrix.outputs.e2e-tests }}
+      has-e2e-tests: ${{ steps.set-matrix.outputs.has-e2e-tests }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Discover e2e test files
+        id: set-matrix
+        run: |
+          e2e_tests=$(find packages/core/lib/v3/tests -type f -name "*.spec.ts" 2>/dev/null | sort || true)
+
+          e2e_json="["
+          first=true
+          for test_file in $e2e_tests; do
+            if [ "$first" = true ]; then
+              first=false
+            else
+              e2e_json+=","
+            fi
+            name=$(echo "$test_file" | sed 's|^packages/core/lib/v3/tests/||' | sed 's|\.spec\.ts$||')
+            e2e_json+="{\"path\":\"$test_file\",\"name\":\"$name\"}"
+          done
+          e2e_json+="]"
+
+          echo "e2e-tests=$e2e_json" >> $GITHUB_OUTPUT
+
+          if [ "$e2e_json" = "[]" ]; then
+            echo "has-e2e-tests=false" >> $GITHUB_OUTPUT
+          else
+            echo "has-e2e-tests=true" >> $GITHUB_OUTPUT
+          fi
+
+          echo "Found e2e tests: $e2e_json"
 
   run-e2e-local-tests:
-    needs: [run-lint, run-build]
+    name: e2e/local/${{ matrix.test.name }}
+    needs: [run-build, discover-e2e-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 50
     if: >
-      github.event_name == 'push' ||
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+      needs.discover-e2e-tests.outputs.has-e2e-tests == 'true' &&
+      (github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -223,63 +301,35 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
+    strategy:
+      fail-fast: true
+      max-parallel: 50
+      matrix:
+        test: ${{ fromJson(needs.discover-e2e-tests.outputs.e2e-tests) }}
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
+      - uses: ./.github/actions/setup-node-pnpm-turbo
 
-      - name: Enable Corepack
+      - uses: ./.github/actions/verify-chromium-launch
+
+      - name: Run local E2E Tests - ${{ matrix.test.name }}
         run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install stable Chromium
-        run: |
-          set -euo pipefail
-          CHROME_VERSION=$(curl -s https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json | jq -r '.channels.Stable.version')
-          DOWNLOAD_URL="https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chrome-linux64.zip"
-          INSTALL_DIR="${RUNNER_TEMP}/chrome-stable"
-          mkdir -p "$INSTALL_DIR"
-          curl -sSL "$DOWNLOAD_URL" -o "$INSTALL_DIR/chrome-linux64.zip"
-          unzip -q "$INSTALL_DIR/chrome-linux64.zip" -d "$INSTALL_DIR"
-          CHROME_BIN="$INSTALL_DIR/chrome-linux64/chrome"
-          chmod +x "$CHROME_BIN"
-          echo "Installed Chromium version: $CHROME_VERSION"
-          "$CHROME_BIN" --version
-          echo "CHROME_PATH=$CHROME_BIN" >> $GITHUB_ENV
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Stagehand
-        run: pnpm run build
-
-      - name: Run local E2E Tests (Deterministic Playwright)
-        run: pnpm run e2e:local --log-order=stream
+          test_path="${{ matrix.test.path }}"
+          rel_path="${test_path#packages/core/}"
+          pnpm exec turbo run e2e:local --only --log-order=stream \
+            --filter @browserbasehq/stagehand -- "$rel_path"
 
   run-e2e-bb-tests:
-    needs: [run-lint, run-build]
+    name: e2e/bb/${{ matrix.test.name }}
+    needs: [run-build, discover-e2e-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 50
     if: >
-      github.event_name == 'push' ||
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+      needs.discover-e2e-tests.outputs.has-e2e-tests == 'true' &&
+      (github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -287,45 +337,42 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
+    strategy:
+      fail-fast: true
+      max-parallel: 100
+      matrix:
+        test: ${{ fromJson(needs.discover-e2e-tests.outputs.e2e-tests) }}
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+
+      - name: Select Browserbase region
+        uses: ./.github/actions/select-browserbase-region
         with:
-          node-version: "20"
+          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
-      - name: Enable Corepack
+      - name: Run E2E Tests (browserbase) - ${{ matrix.test.name }}
         run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Stagehand
-        run: pnpm run build
-
-      - name: Run E2E Tests (browserbase)
-        run: pnpm run e2e:bb --log-order=stream
+          test_path="${{ matrix.test.path }}"
+          rel_path="${test_path#packages/core/}"
+          pnpm exec turbo run e2e:bb --only --log-order=stream \
+            --filter @browserbasehq/stagehand -- "$rel_path"
 
   run-regression-evals:
-    needs:
-      [run-e2e-bb-tests, run-e2e-local-tests, run-build, determine-evals]
-    if: needs.determine-evals.outputs.skip-all-evals != 'true' && needs.determine-evals.outputs.run-regression == 'true'
+    name: evals/regression
+    needs: [run-build, determine-evals, run-e2e-bb-tests]
+    if: >-
+      ${{
+        always() &&
+        needs.run-build.result == 'success' &&
+        needs.determine-evals.result == 'success' &&
+        needs.run-e2e-bb-tests.result != 'failure' &&
+        needs.run-e2e-bb-tests.result != 'cancelled' &&
+        needs.determine-evals.outputs.skip-all-evals != 'true' &&
+        needs.determine-evals.outputs.run-regression == 'true'
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 9
     outputs:
@@ -338,51 +385,29 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      EVAL_ENV: browserbase
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+
+      - name: Select Browserbase region
+        uses: ./.github/actions/select-browserbase-region
         with:
-          node-version: "20"
-
-      - name: Enable Corepack
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
+          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
       - name: Run Regression Evals
-        run: pnpm run evals category regression trials=2 concurrency=20 env=BROWSERBASE
+        run: pnpm run evals category regression trials=2 concurrency=${EVAL_MAX_CONCURRENCY} env=BROWSERBASE
 
       - name: Log Regression Evals Performance
+        id: set-regression-score
         run: |
           experimentName=$(jq -r '.experimentName' eval-summary.json)
           echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
           if [ -f eval-summary.json ]; then
             regression_score=$(jq '.categories.regression' eval-summary.json)
             echo "Regression category score: $regression_score%"
+            echo "regression_score=$regression_score" >> $GITHUB_OUTPUT
             if (( $(echo "$regression_score < 90" | bc -l) )); then
               echo "Regression category score is below 90%. Failing CI."
               exit 1
@@ -393,7 +418,19 @@ jobs:
           fi
 
   run-combination-evals:
-    needs: [run-regression-evals, run-build, determine-evals]
+    name: evals/combination
+    needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
+    if: >-
+      ${{
+        always() &&
+        needs.run-build.result == 'success' &&
+        needs.determine-evals.result == 'success' &&
+        needs.run-e2e-bb-tests.result != 'failure' &&
+        needs.run-e2e-bb-tests.result != 'cancelled' &&
+        needs.run-regression-evals.result != 'failure' &&
+        needs.run-regression-evals.result != 'cancelled' &&
+        needs.determine-evals.outputs.skip-all-evals != 'true'
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -404,7 +441,6 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      EVAL_ENV: browserbase
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -419,41 +455,14 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set up Node.js
+      - uses: ./.github/actions/setup-node-pnpm-turbo
         if: needs.determine-evals.outputs.run-combination == 'true'
-        uses: actions/setup-node@v4
+
+      - name: Select Browserbase region
+        if: needs.determine-evals.outputs.run-combination == 'true'
+        uses: ./.github/actions/select-browserbase-region
         with:
-          node-version: "20"
-
-      - name: Enable Corepack
-        if: needs.determine-evals.outputs.run-combination == 'true'
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        if: needs.determine-evals.outputs.run-combination == 'true'
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        if: needs.determine-evals.outputs.run-combination == 'true'
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        if: needs.determine-evals.outputs.run-combination == 'true'
-        run: pnpm install --frozen-lockfile
-
-      - name: Download build artifacts
-        if: needs.determine-evals.outputs.run-combination == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
+          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
       - name: Run Combination Evals
         if: needs.determine-evals.outputs.run-combination == 'true'
@@ -474,7 +483,19 @@ jobs:
           fi
 
   run-act-evals:
-    needs: [run-regression-evals, run-build, determine-evals]
+    name: evals/act
+    needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
+    if: >-
+      ${{
+        always() &&
+        needs.run-build.result == 'success' &&
+        needs.determine-evals.result == 'success' &&
+        needs.run-e2e-bb-tests.result != 'failure' &&
+        needs.run-e2e-bb-tests.result != 'cancelled' &&
+        needs.run-regression-evals.result != 'failure' &&
+        needs.run-regression-evals.result != 'cancelled' &&
+        needs.determine-evals.outputs.skip-all-evals != 'true'
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -485,7 +506,6 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      EVAL_ENV: browserbase
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -500,41 +520,14 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set up Node.js
+      - uses: ./.github/actions/setup-node-pnpm-turbo
         if: needs.determine-evals.outputs.run-act == 'true'
-        uses: actions/setup-node@v4
+
+      - name: Select Browserbase region
+        if: needs.determine-evals.outputs.run-act == 'true'
+        uses: ./.github/actions/select-browserbase-region
         with:
-          node-version: "20"
-
-      - name: Enable Corepack
-        if: needs.determine-evals.outputs.run-act == 'true'
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        if: needs.determine-evals.outputs.run-act == 'true'
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        if: needs.determine-evals.outputs.run-act == 'true'
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        if: needs.determine-evals.outputs.run-act == 'true'
-        run: pnpm install --frozen-lockfile
-
-      - name: Download build artifacts
-        if: needs.determine-evals.outputs.run-act == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
+          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
       - name: Run Act Evals
         if: needs.determine-evals.outputs.run-act == 'true'
@@ -558,7 +551,19 @@ jobs:
           fi
 
   run-extract-evals:
-    needs: [run-regression-evals, run-build, determine-evals]
+    name: evals/extract
+    needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
+    if: >-
+      ${{
+        always() &&
+        needs.run-build.result == 'success' &&
+        needs.determine-evals.result == 'success' &&
+        needs.run-e2e-bb-tests.result != 'failure' &&
+        needs.run-e2e-bb-tests.result != 'cancelled' &&
+        needs.run-regression-evals.result != 'failure' &&
+        needs.run-regression-evals.result != 'cancelled' &&
+        needs.determine-evals.outputs.skip-all-evals != 'true'
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 50
     env:
@@ -569,7 +574,6 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      EVAL_ENV: browserbase
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -584,41 +588,14 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set up Node.js
+      - uses: ./.github/actions/setup-node-pnpm-turbo
         if: needs.determine-evals.outputs.run-extract == 'true'
-        uses: actions/setup-node@v4
+
+      - name: Select Browserbase region
+        if: needs.determine-evals.outputs.run-extract == 'true'
+        uses: ./.github/actions/select-browserbase-region
         with:
-          node-version: "20"
-
-      - name: Enable Corepack
-        if: needs.determine-evals.outputs.run-extract == 'true'
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        if: needs.determine-evals.outputs.run-extract == 'true'
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        if: needs.determine-evals.outputs.run-extract == 'true'
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        if: needs.determine-evals.outputs.run-extract == 'true'
-        run: pnpm install --frozen-lockfile
-
-      - name: Download build artifacts
-        if: needs.determine-evals.outputs.run-extract == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
+          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
       # 1. Run extract category with domExtract
       - name: Run Extract Evals (domExtract)
@@ -645,7 +622,19 @@ jobs:
           fi
 
   run-observe-evals:
-    needs: [run-regression-evals, run-build, determine-evals]
+    name: evals/observe
+    needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
+    if: >-
+      ${{
+        always() &&
+        needs.run-build.result == 'success' &&
+        needs.determine-evals.result == 'success' &&
+        needs.run-e2e-bb-tests.result != 'failure' &&
+        needs.run-e2e-bb-tests.result != 'cancelled' &&
+        needs.run-regression-evals.result != 'failure' &&
+        needs.run-regression-evals.result != 'cancelled' &&
+        needs.determine-evals.outputs.skip-all-evals != 'true'
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -656,7 +645,6 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      EVAL_ENV: browserbase
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -671,41 +659,14 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set up Node.js
+      - uses: ./.github/actions/setup-node-pnpm-turbo
         if: needs.determine-evals.outputs.run-observe == 'true'
-        uses: actions/setup-node@v4
+
+      - name: Select Browserbase region
+        if: needs.determine-evals.outputs.run-observe == 'true'
+        uses: ./.github/actions/select-browserbase-region
         with:
-          node-version: "20"
-
-      - name: Enable Corepack
-        if: needs.determine-evals.outputs.run-observe == 'true'
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        if: needs.determine-evals.outputs.run-observe == 'true'
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        if: needs.determine-evals.outputs.run-observe == 'true'
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        if: needs.determine-evals.outputs.run-observe == 'true'
-        run: pnpm install --frozen-lockfile
-
-      - name: Download build artifacts
-        if: needs.determine-evals.outputs.run-observe == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
+          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
       - name: Run Observe Evals
         if: needs.determine-evals.outputs.run-observe == 'true'
@@ -729,7 +690,19 @@ jobs:
           fi
 
   run-targeted-extract-evals:
-    needs: [run-regression-evals, run-build, determine-evals]
+    name: evals/targeted-extract
+    needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
+    if: >-
+      ${{
+        always() &&
+        needs.run-build.result == 'success' &&
+        needs.determine-evals.result == 'success' &&
+        needs.run-e2e-bb-tests.result != 'failure' &&
+        needs.run-e2e-bb-tests.result != 'cancelled' &&
+        needs.run-regression-evals.result != 'failure' &&
+        needs.run-regression-evals.result != 'cancelled' &&
+        needs.determine-evals.outputs.skip-all-evals != 'true'
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -740,7 +713,6 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      EVAL_ENV: browserbase
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -755,41 +727,14 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set up Node.js
+      - uses: ./.github/actions/setup-node-pnpm-turbo
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        uses: actions/setup-node@v4
+
+      - name: Select Browserbase region
+        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
+        uses: ./.github/actions/select-browserbase-region
         with:
-          node-version: "20"
-
-      - name: Enable Corepack
-        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        run: pnpm install --frozen-lockfile
-
-      - name: Download build artifacts
-        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
+          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
       - name: Run targeted extract Evals
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
@@ -813,7 +758,19 @@ jobs:
           fi
 
   run-agent-evals:
-    needs: [run-regression-evals, run-build, determine-evals]
+    name: evals/agent
+    needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
+    if: >-
+      ${{
+        always() &&
+        needs.run-build.result == 'success' &&
+        needs.determine-evals.result == 'success' &&
+        needs.run-e2e-bb-tests.result != 'failure' &&
+        needs.run-e2e-bb-tests.result != 'cancelled' &&
+        needs.run-regression-evals.result != 'failure' &&
+        needs.run-regression-evals.result != 'cancelled' &&
+        needs.determine-evals.outputs.skip-all-evals != 'true'
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 90 # Agent evals can be long-running
     env:
@@ -824,11 +781,6 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      EVAL_ENV: browserbase
-      # Use agent models for agent evals in CI
-      EVAL_AGENT_MODELS: "computer-use-preview-2025-03-11,claude-3-7-sonnet-latest"
-      EVAL_TRIAL_COUNT: 2 # Reduce trials for agent evals
-      EVAL_MAX_CONCURRENCY: 10 # Lower concurrency for agent evals
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -843,45 +795,18 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set up Node.js
+      - uses: ./.github/actions/setup-node-pnpm-turbo
         if: needs.determine-evals.outputs.run-agent == 'true'
-        uses: actions/setup-node@v4
+
+      - name: Select Browserbase region
+        if: needs.determine-evals.outputs.run-agent == 'true'
+        uses: ./.github/actions/select-browserbase-region
         with:
-          node-version: "20"
-
-      - name: Enable Corepack
-        if: needs.determine-evals.outputs.run-agent == 'true'
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        if: needs.determine-evals.outputs.run-agent == 'true'
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        if: needs.determine-evals.outputs.run-agent == 'true'
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        if: needs.determine-evals.outputs.run-agent == 'true'
-        run: pnpm install --frozen-lockfile
-
-      - name: Download build artifacts
-        if: needs.determine-evals.outputs.run-agent == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
+          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
       - name: Run Agent Evals
         if: needs.determine-evals.outputs.run-agent == 'true'
-        run: pnpm run evals category agent
+        run: pnpm run evals category agent trials=${EVAL_AGENT_TRIAL_COUNT} concurrency=${EVAL_AGENT_MAX_CONCURRENCY}
 
       - name: Log Agent Evals Performance
         if: needs.determine-evals.outputs.run-agent == 'true'

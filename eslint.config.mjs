@@ -8,11 +8,16 @@ export default [
   { files: ["**/*.{js,mjs,cjs,ts}"] },
   { languageOptions: { globals: globals.browser } },
   {
+    files: ["packages/core/scripts/**/*.{js,cjs,mjs}"],
+    languageOptions: { globals: globals.node },
+  },
+  {
     ignores: [
       "**/dist/**",
       "**/node_modules/**",
       "packages/core/lib/dom/build/**",
       "packages/core/lib/v3/dom/build/**",
+      "packages/core/scripts/prepare.js",
       "**/*.config.js",
       "**/*.config.mjs",
       ".browserbase/**",

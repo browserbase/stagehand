@@ -12,13 +12,22 @@ dotenv.config({ path: repoRootEnvPath, override: false });
 // Set TEST_ENV before tests run
 process.env.TEST_ENV = "BROWSERBASE";
 
+const ciWorkerOverride = Number(
+  process.env.BROWSERBASE_SESSION_LIMIT_PER_E2E_TEST,
+);
+const workerCount =
+  process.env.CI && Number.isFinite(ciWorkerOverride) && ciWorkerOverride > 0
+    ? ciWorkerOverride
+    : 3;
+
 export default defineConfig({
   testDir: ".",
   timeout: 90_000,
   expect: { timeout: 10_000 },
-  // Conservative parallelization for Browserbase: 2 workers in CI to avoid resource exhaustion.
+  retries: process.env.CI ? 1 : 0,
+  // Conservative parallelization for Browserbase in CI (override via env if needed).
   // Browserbase tests are heavier due to remote browser connections.
-  workers: process.env.CI ? 2 : 3,
+  workers: workerCount,
   fullyParallel: true,
   reporter: "list",
   use: {

@@ -1,0 +1,61 @@
+name: Select Browserbase region
+description: Select a Browserbase region based on a weighted distribution.
+inputs:
+  distribution:
+    description: Comma-separated region=weight list (e.g. us-west-2=40,us-east-1=20).
+    required: true
+outputs:
+  region:
+    description: Selected region.
+    value: ${{ steps.select.outputs.region }}
+runs:
+  using: composite
+  steps:
+    - id: select
+      shell: bash
+      run: |
+        dist="${{ inputs.distribution }}"
+        if [ -z "$dist" ]; then
+          echo "BROWSERBASE_REGION_DISTRIBUTION is empty"
+          exit 1
+        fi
+        IFS=',' read -r -a entries <<< "$dist"
+        total=0
+        regions=()
+        weights=()
+        for entry in "${entries[@]}"; do
+          region="${entry%%=*}"
+          weight="${entry#*=}"
+          if [ -z "$region" ] || [ -z "$weight" ]; then
+            echo "Invalid region distribution entry: $entry"
+            exit 1
+          fi
+          if ! [[ "$weight" =~ ^[0-9]+$ ]]; then
+            echo "Invalid weight for region $region: $weight"
+            exit 1
+          fi
+          regions+=("$region")
+          weights+=("$weight")
+          total=$((total + weight))
+        done
+        if [ "$total" -le 0 ]; then
+          echo "Invalid total weight: $total"
+          exit 1
+        fi
+        roll=$((RANDOM % total))
+        cumulative=0
+        chosen=""
+        for i in "${!regions[@]}"; do
+          cumulative=$((cumulative + weights[i]))
+          if [ "$roll" -lt "$cumulative" ]; then
+            chosen="${regions[i]}"
+            break
+          fi
+        done
+        if [ -z "$chosen" ]; then
+          echo "Failed to choose Browserbase region"
+          exit 1
+        fi
+        echo "Selected Browserbase region: $chosen"
+        echo "region=$chosen" >> "$GITHUB_OUTPUT"
+        echo "BROWSERBASE_REGION=$chosen" >> "$GITHUB_ENV"

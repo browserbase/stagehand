@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { V3 } from "../v3";
 import { v3DynamicTestConfig } from "./v3.dynamic.config";
+import { closeV3 } from "./testUtils";
 
 test.describe.configure({ mode: "parallel" });
 test.describe("V3 default page tracking", () => {
@@ -12,7 +13,7 @@ test.describe("V3 default page tracking", () => {
   });
 
   test.afterEach(async () => {
-    await v3?.close?.().catch(() => {});
+    await closeV3(v3);
   });
 
   test("activePage points to initial page", async () => {

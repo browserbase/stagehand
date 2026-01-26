@@ -47,6 +47,7 @@ import { generateSummary } from "./summary";
 import { buildGAIATestcases } from "./suites/gaia";
 import { buildWebVoyagerTestcases } from "./suites/webvoyager";
 import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web";
+import { endBrowserbaseSession } from "./browserbaseCleanup";
 
 dotenv.config();
 
@@ -273,6 +274,7 @@ const generateFilteredTestcases = (): Testcase[] => {
         const logger = new EvalLogger();
         // Track V3 instance at outer scope to ensure cleanup in all cases
         let v3Input: Awaited<ReturnType<typeof initV3>> | undefined;
+        let v3ToClose: Awaited<ReturnType<typeof initV3>>["v3"] | null = null;
 
         try {
           // Dynamically import the task based on its name
@@ -365,6 +367,7 @@ const generateFilteredTestcases = (): Testcase[] => {
               createAgent: isAgentTask,
               isCUA: input.isCUA,
             });
+            v3ToClose = v3Input.v3;
           } else {
             let llmClient: LLMClient;
             if (input.modelName.includes("/")) {
@@ -382,6 +385,7 @@ const generateFilteredTestcases = (): Testcase[] => {
               createAgent: isAgentTask,
               isCUA: input.isCUA,
             });
+            v3ToClose = v3Input.v3;
           }
           // Pass full EvalInput to the task (data-driven params available via input.params)
           const result = await taskFunction({ ...v3Input, input });
@@ -432,6 +436,7 @@ const generateFilteredTestcases = (): Testcase[] => {
               );
             }
           }
+          await endBrowserbaseSession(v3ToClose);
           // Clear logger to free memory (logs already captured in result)
           logger.clear();
         }

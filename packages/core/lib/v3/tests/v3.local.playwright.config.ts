@@ -12,24 +12,27 @@ dotenv.config({ path: repoRootEnvPath, override: false });
 // Set TEST_ENV before tests run
 process.env.TEST_ENV = "LOCAL";
 
+const localWorkerOverride = Number(
+  process.env.LOCAL_SESSION_LIMIT_PER_E2E_TEST,
+);
+const baseWorkerCount =
+  Number.isFinite(localWorkerOverride) && localWorkerOverride > 0
+    ? localWorkerOverride
+    : process.env.CI
+      ? 3
+      : 5;
+
 export default defineConfig({
   testDir: ".",
   timeout: 90_000,
   expect: { timeout: 10_000 },
-  // Balanced parallelization: 3 workers in CI to avoid resource exhaustion while maintaining speed.
-  // Local development can use more workers for faster test runs.
-  workers: process.env.CI ? 3 : 5,
+  retries: process.env.CI ? 1 : 0,
+  // Balanced parallelization for local E2E runs (override via env if needed).
+  workers: baseWorkerCount,
   fullyParallel: true,
   projects: [
     {
       name: "default",
-      testIgnore: /shadow-iframe\.spec\.ts$/,
-    },
-    {
-      name: "shadow-iframe",
-      testMatch: /shadow-iframe\.spec\.ts$/,
-      workers: 2,
-      fullyParallel: true,
     },
   ],
   reporter: "list",

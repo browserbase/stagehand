@@ -17,6 +17,9 @@
         "**/*.ts",
         "**/*.tsx",
         "**/*.js",
+        "!lib/version.ts",
+        "!lib/dom/build/**",
+        "!lib/v3/dom/build/**",
         "package.json",
         "tsconfig.json"
       ]
@@ -35,7 +38,10 @@
       "outputs": ["dist/**"],
       "inputs": [
         "lib/**/*.ts",
-        "lib/**/*.tsx"
+        "lib/**/*.tsx",
+        "!lib/version.ts",
+        "!lib/dom/build/**",
+        "!lib/v3/dom/build/**"
       ]
     },
     "build:cli": {

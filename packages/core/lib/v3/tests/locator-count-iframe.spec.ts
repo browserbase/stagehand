@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { V3 } from "../v3";
 import { v3DynamicTestConfig } from "./v3.dynamic.config";
+import { closeV3 } from "./testUtils";
 
 test.describe("Locator count() method with iframes", () => {
   let v3: V3;
@@ -11,7 +12,7 @@ test.describe("Locator count() method with iframes", () => {
   });
 
   test.afterEach(async () => {
-    await v3?.close?.().catch(() => {});
+    await closeV3(v3);
   });
 
   test("count() does not search inside iframes by default", async () => {

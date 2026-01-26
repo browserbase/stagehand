@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { V3 } from "../v3";
 import { v3BBTestConfig } from "./v3.bb.config";
+import { closeV3 } from "./testUtils";
 
 const PAGE_TARGET_COUNT = 5;
 
@@ -61,8 +62,8 @@ test.describe("connect to existing Browserbase session", () => {
       const resumedPagesCount = resumedStagehand.context.pages().length;
       expect(resumedPagesCount).toBe(PAGE_TARGET_COUNT);
     } finally {
-      await resumedStagehand?.close().catch(() => {});
-      await initialStagehand.close().catch(() => {});
+      await closeV3(resumedStagehand);
+      await closeV3(initialStagehand);
     }
   });
 });
