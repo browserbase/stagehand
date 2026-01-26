@@ -51,11 +51,27 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          curl -sSL -i \
+          headers_file=$(mktemp)
+          body_file=$(mktemp)
+          curl -sSL \
+            -D "$headers_file" \
+            -o "$body_file" \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
             https://api.github.com/rate_limit
+          cat "$headers_file"
+          echo ""
+          cat "$body_file"
+          remaining=$(jq -r '.rate.remaining' "$body_file")
+          if [ "$remaining" -eq 0 ]; then
+            reset_epoch=$(jq -r '.rate.reset' "$body_file")
+            reset_utc=$(date -u -d "@$reset_epoch" +"%Y-%m-%d %H:%M:%S")
+            reset_pacific=$(TZ=America/Los_Angeles date -d "@$reset_epoch" +"%Y-%m-%d %H:%M:%S %Z")
+            echo "Github API rate limited until: ${reset_pacific} (${reset_utc} UTC)" >> "$GITHUB_STEP_SUMMARY"
+            echo "GitHub API rate limit exhausted."
+            exit 1
+          fi
 
       - uses: dorny/paths-filter@v3
         id: filter
