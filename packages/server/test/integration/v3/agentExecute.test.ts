@@ -1033,4 +1033,32 @@ describe("POST /v1/sessions/:id/agentExecute - validation errors (V3)", () => {
       ctx,
     );
   });
+
+  it("should return 400 for invalid agentConfig.mode", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<{
+      success?: boolean;
+      error?: string;
+      message?: string;
+    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        agentConfig: {
+          mode: "invalid-mode",
+        },
+        executeOptions: {
+          instruction: "Do something",
+        },
+      }),
+    });
+
+    assertFetchStatus(ctx, HTTP_BAD_REQUEST);
+    assertFetchOk(
+      !ctx.body?.success || ctx.body.error !== undefined,
+      "Response should indicate failure",
+      ctx,
+    );
+  });
 });
