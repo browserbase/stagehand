@@ -213,7 +213,8 @@ jobs:
               core_json+=","
             fi
             name=$(echo "$test_file" | sed 's|^packages/core/tests/||' | sed 's|\.test\.ts$||')
-            core_json+="{\"path\":\"$test_file\",\"name\":\"$name\"}"
+            safe_name=$(echo "$name" | tr '/' '-')
+            core_json+="{\"path\":\"$test_file\",\"name\":\"$name\",\"safe_name\":\"$safe_name\"}"
           done
           core_json+="]"
 
@@ -263,10 +264,11 @@ jobs:
             --coverage.reporter=text-summary \
             "$rel_path"
 
-      - uses: ./.github/actions/upload-artifact-sanitized
+      - name: Upload Vitest coverage - ${{ matrix.test.name }}
         if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: vitest-coverage-${{ matrix.test.name }}
+          name: vitest-coverage-${{ matrix.test.safe_name }}
           path: coverage/vitest/${{ matrix.test.name }}
 
       - uses: ./.github/actions/publish-ctrf-report
