@@ -11,7 +11,7 @@ import {
   diffCombinedTrees,
 } from "../understudy/a11y/snapshot";
 import { LLMClient } from "../llm/LLMClient";
-import { SupportedPlaywrightAction } from "../types/private";
+import { SupportedUnderstudyAction } from "../types/private";
 import { EncodedId } from "../types/private/internal";
 import {
   AvailableModel,
@@ -157,7 +157,7 @@ export class ActHandler {
 
     const actInstruction = buildActPrompt(
       instruction,
-      Object.values(SupportedPlaywrightAction),
+      Object.values(SupportedUnderstudyAction),
       variables,
     );
 
@@ -218,13 +218,13 @@ export class ActHandler {
     const stepTwoInstructions = buildStepTwoPrompt(
       instruction,
       previousAction,
-      Object.values(SupportedPlaywrightAction).filter(
+      Object.values(SupportedUnderstudyAction).filter(
         (
           action,
         ): action is Exclude<
-          SupportedPlaywrightAction,
-          SupportedPlaywrightAction.SELECT_OPTION_FROM_DROPDOWN
-        > => action !== SupportedPlaywrightAction.SELECT_OPTION_FROM_DROPDOWN,
+          SupportedUnderstudyAction,
+          SupportedUnderstudyAction.SELECT_OPTION_FROM_DROPDOWN
+        > => action !== SupportedUnderstudyAction.SELECT_OPTION_FROM_DROPDOWN,
       ),
       variables,
     );
@@ -364,7 +364,7 @@ export class ActHandler {
 
           const instruction = buildActPrompt(
             actCommand,
-            Object.values(SupportedPlaywrightAction),
+            Object.values(SupportedUnderstudyAction),
             {},
           );
 
@@ -471,10 +471,47 @@ function normalizeActInferenceElement(
     return undefined;
   }
 
+  // For dragAndDrop, convert element ID in arguments to xpath (target element)
+  let resolvedArgs = hasArgs ? args : undefined;
+  if (method === "dragAndDrop" && hasArgs && args.length > 0) {
+    const targetArg = args[0];
+    // Check if argument looks like an element ID (e.g., "1-67")
+    if (typeof targetArg === "string" && /^\d+-\d+$/.test(targetArg)) {
+      const argXpath = xpathMap[targetArg as EncodedId];
+      const trimmedArgXpath = trimTrailingTextNode(argXpath);
+      if (trimmedArgXpath) {
+        resolvedArgs = [`xpath=${trimmedArgXpath}`, ...args.slice(1)];
+      } else {
+        // Target element lookup failed, filter out this action
+        v3Logger({
+          category: "action",
+          message: "dragAndDrop target element lookup failed",
+          level: 1,
+          auxiliary: {
+            targetElementId: { value: targetArg, type: "string" },
+            sourceElementId: { value: elementId, type: "string" },
+          },
+        });
+        return undefined;
+      }
+    } else {
+      v3Logger({
+        category: "action",
+        message: "dragAndDrop target element invalid ID format",
+        level: 0,
+        auxiliary: {
+          targetElementId: { value: String(targetArg), type: "string" },
+          sourceElementId: { value: elementId, type: "string" },
+        },
+      });
+      return undefined;
+    }
+  }
+
   return {
     description,
     method,
-    arguments: hasArgs ? args : undefined,
+    arguments: resolvedArgs,
     selector: `xpath=${trimmed}`,
   } as Action;
 }
