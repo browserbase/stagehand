@@ -117,7 +117,9 @@ export class AgentCache {
     );
 
     const isCuaMode =
-      agentOptions?.mode === "cua" || agentOptions?.cua === true;
+      agentOptions?.mode !== undefined
+        ? agentOptions.mode === "cua"
+        : agentOptions?.cua === true;
 
     return JSON.stringify({
       v3Model: this.getBaseModelName(),

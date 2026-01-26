@@ -309,6 +309,9 @@ importers:
       eslint:
         specifier: ^9.7.0
         version: 9.25.1(jiti@1.21.7)
+      eslint-plugin-security:
+        specifier: ^3.0.1
+        version: 3.0.1
       openai:
         specifier: 4.87.1
         version: 4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1)
