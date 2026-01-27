@@ -81,15 +81,14 @@ const SESSION_READY_DELAY_MS = 250;
 export interface SessionInfo {
   sessionId: string;
   cdpUrl: string;
-}
+};
 
-const LOCAL_BROWSER_BODY = {
+export const LOCAL_BROWSER_BODY = {
   browser: {
     type: "local",
     launchOptions: {
       headless: true,
-      // Prefer Playwright's cached Chromium over system Chrome/Chromium.
-      executablePath: chromium.executablePath(),
+      executablePath: process.env.CHROME_PATH ?? chromium.executablePath(),
       args: process.env.CI ? ["--no-sandbox"] : undefined,
     },
   },
