@@ -257,9 +257,10 @@ export async function observe({
           method: z
             .enum(
               // Use Object.values() for Zod v3 compatibility - z.enum() in v3 doesn't accept TypeScript enums directly
-              Object.values(
-                SupportedUnderstudyAction,
-              ) as unknown as readonly [string, ...string[]],
+              Object.values(SupportedUnderstudyAction) as unknown as readonly [
+                string,
+                ...string[],
+              ],
             )
             .describe(
               `the candidate method/action to interact with the element. Select one of the available Understudy interaction methods.`,
@@ -397,9 +398,10 @@ export async function act({
     method: z
       .enum(
         // Use Object.values() for Zod v3 compatibility - z.enum() in v3 doesn't accept TypeScript enums directly
-        Object.values(
-          SupportedUnderstudyAction,
-        ) as unknown as readonly [string, ...string[]],
+        Object.values(SupportedUnderstudyAction) as unknown as readonly [
+          string,
+          ...string[],
+        ],
       )
       .describe(
         "the candidate method/action to interact with the element. Select one of the available Understudy interaction methods.",

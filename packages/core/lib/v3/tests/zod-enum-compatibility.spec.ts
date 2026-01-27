@@ -107,9 +107,7 @@ test.describe("SupportedUnderstudyAction enum Zod compatibility", () => {
     });
 
     // This should throw an error because the enum is not iterable
-    expect(() => schema.safeParse(testInput)).toThrow(
-      "object is not iterable",
-    );
+    expect(() => schema.safeParse(testInput)).toThrow("object is not iterable");
   });
 
   test("Zod v4 z.enum() with raw TypeScript enum works (but not v3 compatible)", () => {
