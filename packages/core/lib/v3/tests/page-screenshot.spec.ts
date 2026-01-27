@@ -82,6 +82,8 @@ test.describe("Page.screenshot options", () => {
 
   test("applies advanced options and cleans up overlays", async () => {
     const page = v3.context.pages()[0];
+    const screenshotTimeout =
+      process.env.TEST_ENV === "BROWSERBASE" ? 5000 : 2000;
 
     const html = `
       <!doctype html>
@@ -168,7 +170,7 @@ test.describe("Page.screenshot options", () => {
         quality: 80,
         scale: "css",
         style: "body { border: 3px solid black; }",
-        timeout: 2000,
+        timeout: screenshotTimeout,
         type: "jpeg",
       });
 
