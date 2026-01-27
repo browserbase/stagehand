@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-chore: consolidate test directories in packages/core
+chore: move Vitest unit tests to packages/core/test

@@ -14,7 +14,6 @@ process.env.TEST_ENV = "BROWSERBASE";
 
 export default defineConfig({
   testDir: ".",
-  testIgnore: ["**/unit/**"],
   timeout: 90_000,
   expect: { timeout: 10_000 },
   // Conservative parallelization for Browserbase: 2 workers in CI to avoid resource exhaustion.

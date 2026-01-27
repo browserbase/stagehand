@@ -1,5 +1,5 @@
 import { describe, expectTypeOf, it } from "vitest";
-import * as Stagehand from "../../../../../dist/index.js";
+import * as Stagehand from "../../dist/index.js";
 
 describe("Runtime Utils public API types", () => {
   describe("injectUrls", () => {

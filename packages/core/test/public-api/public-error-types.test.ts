@@ -1,5 +1,5 @@
 import { describe, expectTypeOf, it } from "vitest";
-import * as Stagehand from "../../../../../dist";
+import * as Stagehand from "../../dist";
 
 export const publicErrorTypes = {
   AgentAbortError: Stagehand.AgentAbortError,

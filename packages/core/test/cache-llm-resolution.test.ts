@@ -1,23 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
-import { ActCache } from "../../cache/ActCache";
-import { AgentCache } from "../../cache/AgentCache";
-import type { CacheStorage } from "../../cache/CacheStorage";
-import type { ActHandler } from "../../handlers/actHandler";
-import type { LLMClient } from "../../llm/LLMClient";
-import type { Page } from "../../understudy/page";
-import type { V3Context } from "../../understudy/context";
+import { ActCache } from "../lib/v3/cache/ActCache";
+import { AgentCache } from "../lib/v3/cache/AgentCache";
+import type { CacheStorage } from "../lib/v3/cache/CacheStorage";
+import type { ActHandler } from "../lib/v3/handlers/actHandler";
+import type { LLMClient } from "../lib/v3/llm/LLMClient";
+import type { Page } from "../lib/v3/understudy/page";
+import type { V3Context } from "../lib/v3/understudy/context";
 import type {
   ActCacheContext,
   CachedActEntry,
   CachedAgentEntry,
   AgentCacheContext,
   AgentReplayActStep,
-} from "../../types/private";
+} from "../lib/v3/types/private";
 import type {
   Action,
   AgentResult,
   AvailableModel,
-} from "../../types/public";
+} from "../lib/v3/types/public";
 
 function createFakeStorage<T>(entry: T): CacheStorage {
   return {

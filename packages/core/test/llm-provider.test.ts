@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getAISDKLanguageModel } from "../../llm/LLMProvider";
+import { getAISDKLanguageModel } from "../lib/v3/llm/LLMProvider";
 
 describe("getAISDKLanguageModel", () => {
   describe("ollama provider", () => {

@@ -1,4 +1,4 @@
-import type { CDPSessionLike } from "../../../understudy/cdp";
+import type { CDPSessionLike } from "../../lib/v3/understudy/cdp";
 
 type Handler = (params?: Record<string, unknown>) => Promise<unknown> | unknown;
 

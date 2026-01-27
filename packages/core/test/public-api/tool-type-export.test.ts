@@ -1,5 +1,5 @@
 import { describe, expectTypeOf, it, expect } from "vitest";
-import * as Stagehand from "../../../../../dist/index.js";
+import * as Stagehand from "../../dist/index.js";
 import { type Tool } from "ai";
 import { z } from "zod";
 

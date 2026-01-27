@@ -2,7 +2,6 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: ".",
-  testIgnore: ["**/unit/**"],
   timeout: 90_000,
   expect: { timeout: 10_000 },
   // Increased from 2 to improve CI performance. Use environment variable to control.

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Protocol } from "devtools-protocol";
 
-import { captureHybridSnapshot } from "../../understudy/a11y/snapshot";
+import { captureHybridSnapshot } from "../lib/v3/understudy/a11y/snapshot";
 import { MockCDPSession } from "./helpers/mockCDPSession";
-import type { Page } from "../../understudy/page";
-import { StagehandDomProcessError } from "../../types/public/sdkErrors";
-import { CDPSessionLike } from "../../understudy/cdp";
+import type { Page } from "../lib/v3/understudy/page";
+import { StagehandDomProcessError } from "../lib/v3/types/public/sdkErrors";
+import { CDPSessionLike } from "../lib/v3/understudy/cdp";
 
 type Handler = (params?: Record<string, unknown>) => Promise<unknown> | unknown;
 
