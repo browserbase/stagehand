@@ -53,14 +53,18 @@ function summarizeV3Config(): ConfigSummary {
 
 function summarizeEnv() {
   return {
-    STAGEHAND_ENV: process.env.STAGEHAND_ENV,    // STAGEHAND_ENV = 'LOCAL' | 'BROWSERBASE'                      (client setting passed to Stagehand(env) init param)
-    BB_ENV: process.env.BB_ENV,                  // BB_ENV = 'local' | 'dev' | 'prod'                            (hosting environment the stagehand-api server is running in)
-    NODE_ENV: process.env.NODE_ENV,              // NODE_ENV = 'development' | 'test' | 'production' | 'staging' (used only to control logging)
-    CI: process.env.CI,                          // CI = 'true' | 'false'                                        (used only to control test parallelism and pnpm prepare script)
+    STAGEHAND_ENV: process.env.STAGEHAND_ENV, // STAGEHAND_ENV = 'LOCAL' | 'BROWSERBASE'                      (client setting passed to Stagehand(env) init param)
+    BB_ENV: process.env.BB_ENV, // BB_ENV = 'local' | 'dev' | 'prod'                            (hosting environment the stagehand-api server is running in)
+    NODE_ENV: process.env.NODE_ENV, // NODE_ENV = 'development' | 'test' | 'production' | 'staging' (used only to control logging)
+    CI: process.env.CI, // CI = 'true' | 'false'                                        (used only to control test parallelism and pnpm prepare script)
     STAGEHAND_API_URL: process.env.STAGEHAND_API_URL,
     BROWSERBASE_REGION: process.env.BROWSERBASE_REGION,
-    BROWSERBASE_API_KEY: process.env.BROWSERBASE_API_KEY ? '[redacted]' : 'missing!',
-    BROWSERBASE_PROJECT_ID: process.env.BROWSERBASE_PROJECT_ID ? '[redacted]' : 'missing!',
+    BROWSERBASE_API_KEY: process.env.BROWSERBASE_API_KEY
+      ? "[redacted]"
+      : "missing!",
+    BROWSERBASE_PROJECT_ID: process.env.BROWSERBASE_PROJECT_ID
+      ? "[redacted]"
+      : "missing!",
   };
 }
 
