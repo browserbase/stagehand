@@ -60,9 +60,11 @@ export function withErrorHandling<
         return error(reply, err.getClientMessage(), err.statusCode);
       }
 
+      const errMessage =
+        err instanceof Error ? err.stack ?? err.message : String(err);
       return error(
         reply,
-        "An unexpected error occurred",
+        errMessage,
         StatusCodes.INTERNAL_SERVER_ERROR,
       );
     }
