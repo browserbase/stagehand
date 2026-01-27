@@ -35,8 +35,7 @@ import startRoute from "./routes/v1/sessions/start.js";
 const READY_WAIT_PERIOD = 10_000; // 10 seconds
 const GRACEFUL_SHUTDOWN_PERIOD = 30_000; // 30 seconds
 
-const usePrettyLogs =
-  process.env.NODE_ENV === "development" && !process.env.CI;
+const usePrettyLogs = process.env.NODE_ENV === "development" && !process.env.CI;
 
 const app = fastify({
   disableRequestLogging: true,

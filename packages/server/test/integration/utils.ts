@@ -81,7 +81,7 @@ const SESSION_READY_DELAY_MS = 250;
 export interface SessionInfo {
   sessionId: string;
   cdpUrl: string;
-};
+}
 
 export const LOCAL_BROWSER_BODY = {
   browser: {
