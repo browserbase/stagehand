@@ -6,7 +6,4 @@ export default defineConfig({
   target: "node20",
   clean: true,
   shims: true,
-  banner: {
-    js: "#!/usr/bin/env node",
-  },
 });

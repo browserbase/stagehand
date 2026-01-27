@@ -298,6 +298,7 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
           context,
           request.command,
           request.args,
+          stagehand,
         );
         response = { success: true, result };
       } catch (e) {
@@ -522,6 +523,7 @@ async function executeCommand(
   context: BrowseContext,
   command: string,
   args: unknown[],
+  stagehand?: Stagehand,
 ): Promise<unknown> {
   const page = context.activePage();
   if (!page && command !== "pages" && command !== "newpage") {
@@ -782,6 +784,18 @@ async function executeCommand(
     case "eval": {
       const [expr] = args as [string];
       const result = await page!.evaluate(expr);
+      return { result };
+    }
+    case "execute": {
+      const [code] = args as [string];
+      if (!stagehand) {
+        throw new Error("Stagehand instance not available");
+      }
+
+      const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+      const fn = new AsyncFunction('context', 'page', 'stagehand', code);
+
+      const result = await fn(context, page, stagehand);
       return { result };
     }
 
@@ -1158,7 +1172,7 @@ async function runCommand(command: string, args: unknown[]): Promise<unknown> {
     });
     await stagehand.init();
     try {
-      return await executeCommand(stagehand.context, command, args);
+      return await executeCommand(stagehand.context, command, args, stagehand);
     } finally {
       await stagehand.close();
     }
@@ -1636,6 +1650,20 @@ program
     const opts = program.opts<GlobalOpts>();
     try {
       const result = await runCommand("eval", [expr]);
+      output(result, opts.json ?? false);
+    } catch (e) {
+      console.error("Error:", e instanceof Error ? e.message : e);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("execute <code>")
+  .description("Execute Node.js code with Stagehand API access")
+  .action(async (code: string) => {
+    const opts = program.opts<GlobalOpts>();
+    try {
+      const result = await runCommand("execute", [code]);
       output(result, opts.json ?? false);
     } catch (e) {
       console.error("Error:", e instanceof Error ? e.message : e);
