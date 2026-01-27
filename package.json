@@ -31,6 +31,7 @@
     "eslint": "^9.16.0",
     "eslint-plugin-security": "^3.0.1",
     "globals": "^15.13.0",
+    "junit-to-ctrf": "^0.0.14",
     "prettier": "^3.2.5",
     "turbo": "^2.5.8",
     "typescript": "^5.2.2",

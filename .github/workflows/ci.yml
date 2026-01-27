@@ -473,7 +473,8 @@ jobs:
           NODE_OPTIONS: --enable-source-maps
           NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-integration/${{ matrix.test.name }}/sea
         run: |
-          packages/server/dist/sea/stagehand-server-linux-x64-sourcemap &
+          server_log="/tmp/stagehand-server.log"
+          packages/server/dist/sea/stagehand-server-linux-x64-sourcemap > >(tee "$server_log") 2>&1 &
           echo $! > /tmp/server.pid
 
           echo "Waiting for server to start..."
@@ -497,7 +498,20 @@ jobs:
           NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-integration/${{ matrix.test.name }}/tests
         run: |
           cd packages/server
+          set +e
           pnpm run node:test "${{ matrix.test.path }}"
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo ""
+            echo "----- stagehand server log -----"
+            if [ -f /tmp/stagehand-server.log ]; then
+              cat /tmp/stagehand-server.log
+            else
+              echo "No server log found at /tmp/stagehand-server.log"
+            fi
+            echo "--------------------------------"
+          fi
+          exit "$status"
 
       - uses: ./.github/actions/publish-ctrf-report
         if: always()

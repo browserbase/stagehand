@@ -52,7 +52,7 @@ runs:
             echo "JUnit report is empty at $junit_path"
             exit 0
           fi
-          if ! pnpm dlx junit-to-ctrf "$junit_path" \
+          if ! pnpm exec junit-to-ctrf "$junit_path" \
             -o "${{ steps.ctrf-meta.outputs.REPORT_PATH }}" \
             -t "${{ inputs.tool }}"; then
             echo "JUnit-to-CTRF conversion failed; leaving no CTRF report."
