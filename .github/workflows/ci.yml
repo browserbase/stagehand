@@ -1293,6 +1293,7 @@ jobs:
             --merge-async \
             --reporter=html \
             --reporter=lcov \
+            --reporter=json \
             --reporter=text-summary \
             --reports-dir coverage/merged \
             --include "packages/**" \
@@ -1328,6 +1329,61 @@ jobs:
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "[Download full HTML coverage report](${{ steps.upload-coverage-artifact.outputs.artifact-url }})" >> "$GITHUB_STEP_SUMMARY"
           fi
+          if [ -f coverage/merged/coverage-final.json ]; then
+            node - <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          const fs = require("node:fs");
+          const path = require("node:path");
+
+          const coveragePath = path.join("coverage", "merged", "coverage-final.json");
+          const data = JSON.parse(fs.readFileSync(coveragePath, "utf8"));
+          const root = process.cwd();
+          const rootPrefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
+          const groups = new Map();
+
+          for (const [file, cov] of Object.entries(data)) {
+            let rel = file.startsWith(rootPrefix) ? file.slice(rootPrefix.length) : file;
+            if (!rel.startsWith(`packages${path.sep}`)) continue;
+            const parts = rel.split(path.sep);
+            if (parts.length < 2) continue;
+            const group =
+              parts.length >= 3
+                ? `packages/${parts[1]}/${parts[2]}`
+                : `packages/${parts[1]}/(root)`;
+            const lineMap = cov.l ?? {};
+            const lineKeys = Object.keys(lineMap);
+            if (lineKeys.length === 0) continue;
+            let covered = 0;
+            for (const count of Object.values(lineMap)) {
+              if (count > 0) covered += 1;
+            }
+            const agg = groups.get(group) ?? { covered: 0, total: 0 };
+            agg.covered += covered;
+            agg.total += lineKeys.length;
+            groups.set(group, agg);
+          }
+
+          const rows = Array.from(groups.entries())
+            .map(([group, stats]) => {
+              const pct = stats.total ? (stats.covered / stats.total) * 100 : 0;
+              return { group, covered: stats.covered, total: stats.total, pct };
+            })
+            .sort((a, b) => a.group.localeCompare(b.group));
+
+          console.log("");
+          console.log("### Coverage by folder (packages/*/*)");
+          console.log("");
+          if (rows.length === 0) {
+            console.log("No package coverage data found.");
+            process.exit(0);
+          }
+          console.log("| Folder | Lines | % |");
+          console.log("| --- | ---: | ---: |");
+          for (const row of rows) {
+            const pct = `${row.pct.toFixed(1)}%`;
+            console.log(`| ${row.group} | ${row.covered}/${row.total} | ${pct} |`);
+          }
+          NODE
+          fi
 
       - name: Publish merged CTRF report
         if: always()
@@ -1335,7 +1391,7 @@ jobs:
         with:
           report-path: './ctrf/**/*.json'
           summary: true
-          summary-report: true
+          summary-report: false
           summary-delta-report: true
           test-report: false
           failed-report: false
