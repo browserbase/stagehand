@@ -3,9 +3,11 @@
  * as a string constant (`v3ScriptContent`) for CDP injection (document-start).
  */
 import fs from "node:fs";
-import path from "node:path";
+import path, { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import esbuild from "esbuild";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const here = __dirname;
 const outDir = path.join(here, "./build");
 fs.mkdirSync(outDir, { recursive: true });

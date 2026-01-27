@@ -1,8 +1,9 @@
 import fs from "node:fs";
-import path from "node:path";
-import { pathToFileURL } from "node:url";
+import path, { dirname } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import esbuild from "esbuild";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const here = __dirname;
 const outDir = path.join(here, "./build");
 const entry = path.join(here, "./locatorScripts/index.ts");

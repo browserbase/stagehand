@@ -1,6 +1,9 @@
 import { defineConfig } from "@playwright/test";
 import dotenv from "dotenv";
-import path from "path";
+import path, { dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Load environment variables before setting TEST_ENV
 dotenv.config();

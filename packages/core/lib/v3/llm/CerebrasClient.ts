@@ -14,8 +14,7 @@ import { toJsonSchema } from "../zodCompat";
 export class CerebrasClient extends LLMClient {
   public type = "cerebras" as const;
   private client: OpenAI;
-  public clientOptions: ClientOptions;
-  public hasVision = false;
+  public override hasVision = false;
 
   constructor({
     modelName,
