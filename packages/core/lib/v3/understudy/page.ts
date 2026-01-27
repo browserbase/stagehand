@@ -1386,33 +1386,42 @@ export class Page {
       }
     }
 
-    // Synthesize a simple mouse move + press + release sequence
+    // Synthesize a simple mouse move + press + release sequence.
+    // Fire events without waiting between them to keep multi-clicks tight.
     await this.updateCursor(x, y);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseMoved",
-      x,
-      y,
-      button: "none",
-    } as Protocol.Input.DispatchMouseEventRequest);
+    const dispatches: Array<Promise<unknown>> = [];
+    dispatches.push(
+      this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x,
+        y,
+        button: "none",
+      } as Protocol.Input.DispatchMouseEventRequest),
+    );
 
-    // Dispatch mouse pressed and released events for the given click count
     for (let i = 1; i <= clickCount; i++) {
-      await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-        type: "mousePressed",
-        x,
-        y,
-        button,
-        clickCount: i,
-      } as Protocol.Input.DispatchMouseEventRequest);
+      dispatches.push(
+        this.mainSession.send<never>("Input.dispatchMouseEvent", {
+          type: "mousePressed",
+          x,
+          y,
+          button,
+          clickCount: i,
+        } as Protocol.Input.DispatchMouseEventRequest),
+      );
 
-      await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-        type: "mouseReleased",
-        x,
-        y,
-        button,
-        clickCount: i,
-      } as Protocol.Input.DispatchMouseEventRequest);
+      dispatches.push(
+        this.mainSession.send<never>("Input.dispatchMouseEvent", {
+          type: "mouseReleased",
+          x,
+          y,
+          button,
+          clickCount: i,
+        } as Protocol.Input.DispatchMouseEventRequest),
+      );
     }
+
+    await Promise.all(dispatches);
 
     return xpathResult ?? "";
   }
