@@ -169,10 +169,19 @@ export class LLMProvider {
       });
     }
 
+    // Model name doesn't include "/" - this format is deprecated
+    // Log a deprecation warning at level 0 (always shown) but continue with legacy functionality
     const provider = modelToProviderMap[modelName];
     if (!provider) {
       throw new UnsupportedModelError(Object.keys(modelToProviderMap));
     }
+
+    this.logger({
+      category: "llm",
+      message: `Deprecation warning: Model format "${modelName}" is deprecated. Please use the provider/model format (e.g., "openai/gpt-4o" or "anthropic/claude-3-5-sonnet-latest").`,
+      level: 0,
+    });
+
     const availableModel = modelName as AvailableModel;
     switch (provider) {
       case "openai":
@@ -206,6 +215,8 @@ export class LLMProvider {
           clientOptions,
         });
       default:
+        // This default case handles unknown providers that exist in modelToProviderMap
+        // but aren't implemented in the switch. This is an internal consistency issue.
         throw new UnsupportedModelProviderError([
           ...new Set(Object.values(modelToProviderMap)),
         ]);
