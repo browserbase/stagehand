@@ -6,7 +6,7 @@ import type { Page } from "../../lib/v3/understudy/page";
 import type { ClientOptions } from "../../lib/v3/types/public/model";
 import type { LLMClient } from "../../lib/v3/llm/LLMClient";
 import { createTimeoutGuard } from "../../lib/v3/handlers/handlerUtils/timeoutGuard";
-import { waitForDomNetworkQuiet } from "../../../lib/v3/handlers/handlerUtils/actHandlerUtils";
+import { waitForDomNetworkQuiet } from "../../lib/v3/handlers/handlerUtils/actHandlerUtils";
 import { captureHybridSnapshot } from "../../lib/v3/understudy/a11y/snapshot";
 import {
   ActTimeoutError,
