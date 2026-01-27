@@ -19,9 +19,7 @@ export const observe_simple_google_search: EvalFunction = async ({
       const action1 = observation1[0];
       await v3.act(action1);
     }
-    const observation2 = await v3.observe(
-      "Press enter",
-    );
+    const observation2 = await v3.observe("Press enter");
 
     if (observation2.length > 0) {
       const action2 = observation2[0];
