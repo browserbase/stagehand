@@ -30,6 +30,7 @@ const baseConfig = {
   verbose: 0 as const,
   disablePino: true,
   logger: (line: LogLine) => console.log(line),
+  disableAPI: true,
 };
 
 export const v3DynamicTestConfig: V3Options =

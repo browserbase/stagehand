@@ -30,6 +30,7 @@ export const v3BBTestConfig: V3Options = {
   projectId: process.env.BROWSERBASE_PROJECT_ID!,
   verbose: 0,
   disablePino: true,
+  disableAPI: true,
   logger: (line: LogLine) => console.log(line),
   ...(browserbaseRegion
     ? { browserbaseSessionCreateParams: { region: browserbaseRegion } }
