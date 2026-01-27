@@ -42,6 +42,27 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Builds a messages array with a cached system prompt prepended - this also caches the tools.
+ * Uses Anthropic cache control to enable prompt caching for the system message.
+ * todo - implement this for messages as well
+ */
+function buildMessagesWithCachedSystem(
+  systemPrompt: string,
+  messages: ModelMessage[],
+): ModelMessage[] {
+  return [
+    {
+      role: "system",
+      content: systemPrompt,
+      providerOptions: {
+        anthropic: { cacheControl: { type: "ephemeral" } },
+      },
+    },
+    ...messages,
+  ];
+}
+
 export class V3AgentHandler {
   private v3: V3;
   private logger: (message: LogLine) => void;
@@ -275,20 +296,9 @@ export class V3AgentHandler {
         }
       }
 
-      const messagesWithSystem: ModelMessage[] = [
-        {
-          role: "system",
-          content: systemPrompt,
-          providerOptions: {
-            anthropic: { cacheControl: { type: "ephemeral" } },
-          },
-        },
-        ...messages,
-      ];
-
       const result = await this.llmClient.generateText({
         model: wrappedModel,
-        messages: messagesWithSystem,
+        messages: buildMessagesWithCachedSystem(systemPrompt, messages),
         tools: allTools,
         stopWhen: (result) => this.handleStop(result, maxSteps),
         temperature: 1,
@@ -410,20 +420,9 @@ export class V3AgentHandler {
       rejectResult(error);
     };
 
-    const messagesWithSystem: ModelMessage[] = [
-      {
-        role: "system",
-        content: systemPrompt,
-        providerOptions: {
-          anthropic: { cacheControl: { type: "ephemeral" } },
-        },
-      },
-      ...messages,
-    ];
-
     const streamResult = this.llmClient.streamText({
       model: wrappedModel,
-      messages: messagesWithSystem,
+      messages: buildMessagesWithCachedSystem(systemPrompt, messages),
       tools: allTools,
       stopWhen: (result) => this.handleStop(result, maxSteps),
       temperature: 1,
