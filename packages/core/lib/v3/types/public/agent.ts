@@ -34,6 +34,7 @@ export interface AgentContext {
   messages: ModelMessage[];
   wrappedModel: ReturnType<typeof wrapLanguageModel>;
   initialPageUrl: string;
+  isAnthropic: boolean;
 }
 
 export interface AgentState {

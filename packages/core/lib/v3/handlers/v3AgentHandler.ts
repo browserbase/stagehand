@@ -96,15 +96,41 @@ export class V3AgentHandler {
       const tools = this.createTools(options.excludeTools);
       const allTools: ToolSet = { ...tools, ...this.mcpTools };
 
-      // Use provided messages for continuation, or start fresh with the instruction
-      const messages: ModelMessage[] = options.messages?.length
-        ? [...options.messages, { role: "user", content: options.instruction }]
-        : [{ role: "user", content: options.instruction }];
-
       if (!this.llmClient?.getLanguageModel) {
         throw new MissingLLMConfigurationError();
       }
       const baseModel = this.llmClient.getLanguageModel();
+
+      // Detect if this is an Anthropic model for caching purposes
+      const isAnthropic =
+        baseModel.provider?.startsWith("anthropic") ||
+        baseModel.provider?.includes("anthropic") ||
+        baseModel.modelId?.includes("claude");
+
+      // Use provided messages for continuation, or start fresh with the instruction
+      // For Anthropic, include system prompt as a message to enable caching
+      let messages: ModelMessage[];
+      if (options.messages?.length) {
+        messages = [
+          ...options.messages,
+          { role: "user", content: options.instruction },
+        ];
+      } else if (isAnthropic) {
+        // For Anthropic: put system prompt in messages array with cache control
+        messages = [
+          {
+            role: "system",
+            content: systemPrompt,
+            providerOptions: {
+              anthropic: { cacheControl: { type: "ephemeral" } },
+            },
+          } as ModelMessage,
+          { role: "user", content: options.instruction },
+        ];
+      } else {
+        messages = [{ role: "user", content: options.instruction }];
+      }
+
       //to do - we likely do not need middleware anymore
       const wrappedModel = wrapLanguageModel({
         model: baseModel,
@@ -121,6 +147,7 @@ export class V3AgentHandler {
         messages,
         wrappedModel,
         initialPageUrl,
+        isAnthropic,
       };
     } catch (error) {
       this.logger({
@@ -135,15 +162,40 @@ export class V3AgentHandler {
     userCallback?: PrepareStepFunction<ToolSet>,
   ): PrepareStepFunction<ToolSet> {
     return async (options) => {
+      // Compress old screenshots/aria trees to reduce token usage
+      // Note: This modifies old messages which prevents incremental message caching,
+      // but the system prompt caching (which is the main benefit) still works.
       processMessages(options.messages);
 
-      // Add Anthropic cache control at specific message lengths for prompt caching
-      // We can only have 4 cache breakpoints: when length hits 5, 10, 15, 20
-      const model = options.model as { provider?: string };
-      const isAnthropic = model.provider?.startsWith("anthropic");
-      const len = options.messages.length;
-      if (isAnthropic && [5, 10, 15, 20].includes(len)) {
-        options.messages.at(-1)!.providerOptions = {
+      // Add Anthropic cache control for prompt caching.
+      const model = options.model as { provider?: string; modelId?: string };
+      const isAnthropic =
+        model.provider?.startsWith("anthropic") ||
+        model.provider?.includes("anthropic") ||
+        model.modelId?.includes("claude");
+
+      if (isAnthropic && options.messages.length > 0) {
+        // Clear cache_control from non-system messages to stay within 4 breakpoint limit
+        // Skip system messages (they should keep their cache control)
+        for (let i = 0; i < options.messages.length; i++) {
+          const msg = options.messages[i];
+          // Skip system messages - they should keep their cache_control
+          if (msg.role === "system") continue;
+
+          if (msg.providerOptions?.anthropic?.cacheControl) {
+            delete msg.providerOptions.anthropic.cacheControl;
+            if (Object.keys(msg.providerOptions.anthropic).length === 0) {
+              delete msg.providerOptions.anthropic;
+            }
+            if (Object.keys(msg.providerOptions).length === 0) {
+              delete msg.providerOptions;
+            }
+          }
+        }
+        // Set cache_control on the last message (for incremental conversation caching)
+        const lastMsg = options.messages.at(-1)!;
+        lastMsg.providerOptions = {
+          ...lastMsg.providerOptions,
           anthropic: { cacheControl: { type: "ephemeral" } },
         };
       }
@@ -259,6 +311,7 @@ export class V3AgentHandler {
         messages: preparedMessages,
         wrappedModel,
         initialPageUrl,
+        isAnthropic,
       } = await this.prepareAgent(instructionOrOptions);
 
       // Enable cursor overlay for hybrid mode (coordinate-based interactions)
@@ -289,7 +342,8 @@ export class V3AgentHandler {
 
       const result = await this.llmClient.generateText({
         model: wrappedModel,
-        system: systemPrompt,
+        // For Anthropic, system is already in messages array with cache control
+        system: isAnthropic ? undefined : systemPrompt,
         messages,
         tools: allTools,
         stopWhen: (result) => this.handleStop(result, maxSteps),
@@ -374,6 +428,7 @@ export class V3AgentHandler {
       messages,
       wrappedModel,
       initialPageUrl,
+      isAnthropic,
     } = await this.prepareAgent(instructionOrOptions);
 
     // Enable cursor overlay for hybrid mode (coordinate-based interactions)
@@ -414,7 +469,8 @@ export class V3AgentHandler {
 
     const streamResult = this.llmClient.streamText({
       model: wrappedModel,
-      system: systemPrompt,
+      // For Anthropic, system is already in messages array with cache control
+      system: isAnthropic ? undefined : systemPrompt,
       messages,
       tools: allTools,
       stopWhen: (result) => this.handleStop(result, maxSteps),
