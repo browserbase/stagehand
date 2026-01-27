@@ -1,7 +1,7 @@
-import { test, expect } from "@playwright/test";
+import { describe, expect, it } from "vitest";
 import * as z3 from "zod/v3";
 import { z as z4 } from "zod";
-import { SupportedUnderstudyAction } from "../types/private/handlers";
+import { SupportedUnderstudyAction } from "../lib/v3/types/private/handlers";
 
 /**
  * Tests for Zod v3/v4 compatibility with the SupportedUnderstudyAction enum.
@@ -16,7 +16,7 @@ import { SupportedUnderstudyAction } from "../types/private/handlers";
  *
  * See PR #1613: https://github.com/browserbase/stagehand/pull/1613
  */
-test.describe("SupportedUnderstudyAction enum Zod compatibility", () => {
+describe("SupportedUnderstudyAction enum Zod compatibility", () => {
   const testInput = {
     elementId: "1-2",
     method: "click",
@@ -29,7 +29,7 @@ test.describe("SupportedUnderstudyAction enum Zod compatibility", () => {
     arguments: [] as string[],
   };
 
-  test("Object.values(SupportedUnderstudyAction) produces correct array for z.enum()", () => {
+  it("Object.values(SupportedUnderstudyAction) produces correct array for z.enum()", () => {
     const enumValues = Object.values(
       SupportedUnderstudyAction,
     ) as unknown as readonly [string, ...string[]];
@@ -48,7 +48,7 @@ test.describe("SupportedUnderstudyAction enum Zod compatibility", () => {
     expect(enumValues.length).toBe(11);
   });
 
-  test("Zod v3 z.enum() with Object.values(SupportedUnderstudyAction) works correctly", () => {
+  it("Zod v3 z.enum() with Object.values(SupportedUnderstudyAction) works correctly", () => {
     const enumValues = Object.values(
       SupportedUnderstudyAction,
     ) as unknown as readonly [string, ...string[]];
@@ -71,7 +71,7 @@ test.describe("SupportedUnderstudyAction enum Zod compatibility", () => {
     expect(invalidResult.success).toBe(false);
   });
 
-  test("Zod v4 z.enum() with Object.values(SupportedUnderstudyAction) works correctly", () => {
+  it("Zod v4 z.enum() with Object.values(SupportedUnderstudyAction) works correctly", () => {
     const enumValues = Object.values(
       SupportedUnderstudyAction,
     ) as unknown as readonly [string, ...string[]];
@@ -94,7 +94,7 @@ test.describe("SupportedUnderstudyAction enum Zod compatibility", () => {
     expect(invalidResult.success).toBe(false);
   });
 
-  test("Zod v3 z.enum() with raw TypeScript enum throws error on parse", () => {
+  it("Zod v3 z.enum() with raw TypeScript enum throws error on parse", () => {
     // This demonstrates the bug that PR #1613 would introduce
     // In Zod v3, z.enum() does NOT accept TypeScript enums directly
     // The schema creation might succeed, but parsing will fail
@@ -110,7 +110,7 @@ test.describe("SupportedUnderstudyAction enum Zod compatibility", () => {
     expect(() => schema.safeParse(testInput)).toThrow("object is not iterable");
   });
 
-  test("Zod v4 z.enum() with raw TypeScript enum works (but not v3 compatible)", () => {
+  it("Zod v4 z.enum() with raw TypeScript enum works (but not v3 compatible)", () => {
     // Zod v4 allows passing TypeScript enums directly to z.enum()
     // But this approach is NOT backwards compatible with v3
 
@@ -125,7 +125,7 @@ test.describe("SupportedUnderstudyAction enum Zod compatibility", () => {
     expect(validResult.success).toBe(true);
   });
 
-  test("All SupportedUnderstudyAction values are valid enum options", () => {
+  it("All SupportedUnderstudyAction values are valid enum options", () => {
     const enumValues = Object.values(
       SupportedUnderstudyAction,
     ) as unknown as readonly [string, ...string[]];
