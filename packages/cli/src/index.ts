@@ -123,21 +123,36 @@ interface DaemonResponse {
 // Default viewport matching Stagehand core
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
 
+// Detect if Browserbase should be used based on environment variables
+function getBrowserEnvironment(): "LOCAL" | "BROWSERBASE" {
+  const apiKey = process.env.BROWSERBASE_API_KEY || process.env.BB_API_KEY;
+  const projectId = process.env.BROWSERBASE_PROJECT_ID || process.env.BB_PROJECT_ID;
+
+  if (apiKey && projectId) {
+    return "BROWSERBASE";
+  }
+  return "LOCAL";
+}
+
 async function runDaemon(session: string, headless: boolean): Promise<void> {
   await cleanupStaleFiles(session);
 
   // Write daemon PID file
   await fs.writeFile(getPidPath(session), String(process.pid));
 
+  const env = getBrowserEnvironment();
+
   // Create Stagehand instance with dummy model (never used for CLI operations)
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env,
     verbose: 0,
     disablePino: true,
-    localBrowserLaunchOptions: {
-      headless,
-      viewport: DEFAULT_VIEWPORT,
-    },
+    ...(env === "LOCAL" && {
+      localBrowserLaunchOptions: {
+        headless,
+        viewport: DEFAULT_VIEWPORT,
+      },
+    }),
   });
 
   // Initialize browser
@@ -1160,7 +1175,7 @@ async function runCommand(command: string, args: unknown[]): Promise<unknown> {
   const session = getSession(opts);
   const headless = isHeadless(opts);
 
-  // If --ws provided, create direct Stagehand connection
+  // If --ws provided, create direct Stagehand connection (LOCAL mode only)
   if (opts.ws) {
     const stagehand = new Stagehand({
       env: "LOCAL",
