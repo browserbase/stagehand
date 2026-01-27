@@ -695,7 +695,7 @@ export const providerEnvVarMap: Partial<
   google_legacy: "GOOGLE_API_KEY",
 };
 
-const providersWithoutApiKey = new Set(["ollama"]);
+const providersWithoutApiKey = new Set(["bedrock", "ollama"]);
 
 /**
  * Loads an API key for a provider, checking environment variables.
