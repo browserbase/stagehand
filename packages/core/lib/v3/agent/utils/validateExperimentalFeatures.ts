@@ -62,6 +62,9 @@ export function validateExperimentalFeatures(
     if (executeOptions?.output) {
       unsupportedFeatures.push("output schema");
     }
+    if (executeOptions?.thinking) {
+      unsupportedFeatures.push("thinking configuration");
+    }
 
     if (unsupportedFeatures.length > 0) {
       throw new StagehandInvalidArgumentError(
@@ -105,6 +108,9 @@ export function validateExperimentalFeatures(
     }
     if (executeOptions.output) {
       features.push("output schema");
+    }
+    if (executeOptions.thinking) {
+      features.push("thinking configuration");
     }
   }
 
