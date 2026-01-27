@@ -29,6 +29,8 @@ env:
   CHROME_PATH: /usr/bin/chromium # GitHub Actions runners ship with Chromium by default
   BROWSERBASE_CDP_CONNECT_MAX_MS: "10000"
   BROWSERBASE_SESSION_CREATE_MAX_MS: "10000"
+  PUPPETEER_SKIP_DOWNLOAD: "1"
+  PLAYWRIGHT_SKIP_DOWNLOAD: "1"
   TURBO_TELEMETRY_DISABLED: 1
 
 concurrency:
@@ -443,6 +445,7 @@ jobs:
       PORT: "3107"
       STAGEHAND_API_URL: http://127.0.0.1:3107
       NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-integration/${{ matrix.test.name }}
+      PLAYWRIGHT_SKIP_DOWNLOAD: "0"
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
