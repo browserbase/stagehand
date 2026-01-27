@@ -11,7 +11,6 @@ export const observe_yc_startup: EvalFunction = async ({
     await page.goto("https://www.ycombinator.com/companies", {
       waitUntil: "networkidle",
     });
-    console.log(await v3.extract());
 
     const observations = await v3.observe(
       "Click the container element that holds links to each of the startup companies. The companies each have a name, a description, and a link to their website.",
