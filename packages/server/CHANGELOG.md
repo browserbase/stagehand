@@ -1,5 +1,20 @@
 # @browserbasehq/stagehand-server
 
+## 3.6.0
+
+### Minor Changes
+
+- [#1611](https://github.com/browserbase/stagehand/pull/1611) [`8a3c066`](https://github.com/browserbase/stagehand/commit/8a3c06600a9ba98485db7e9ed5c3cc43ea180334) Thanks [@monadoid](https://github.com/monadoid)! - Using `mode` enum instead of old `cua` boolean in openapi spec
+
+### Patch Changes
+
+- [#1604](https://github.com/browserbase/stagehand/pull/1604) [`4753078`](https://github.com/browserbase/stagehand/commit/4753078cc9d37cbdb8d1a63dfdb53ccc4b4c2bd2) Thanks [@miguelg719](https://github.com/miguelg719)! - Enable bedrock
+
+- [#1602](https://github.com/browserbase/stagehand/pull/1602) [`22a0502`](https://github.com/browserbase/stagehand/commit/22a0502e8b042bef0cfafa32901984a8be9529d8) Thanks [@miguelg719](https://github.com/miguelg719)! - Include vertex as a supported provider
+
+- Updated dependencies [[`677bff5`](https://github.com/browserbase/stagehand/commit/677bff5834c879a2d95f7dbff918b8e1510516b3), [`ff0f979`](https://github.com/browserbase/stagehand/commit/ff0f9795f3b2c1cf4f2610a80ebcb3341a24f987), [`aa4d981`](https://github.com/browserbase/stagehand/commit/aa4d981e440bdd0e3d3f42ccc310d5958aa25cc6), [`3f9ca4d`](https://github.com/browserbase/stagehand/commit/3f9ca4d9acc109101357378d29cf969168991608), [`8a3c066`](https://github.com/browserbase/stagehand/commit/8a3c06600a9ba98485db7e9ed5c3cc43ea180334), [`bdd8b4e`](https://github.com/browserbase/stagehand/commit/bdd8b4ee3c697a02728375510ab7fae764990576)]:
+  - @browserbasehq/stagehand@3.1.0
+
 ## 3.5.0
 
 ### Minor Changes
