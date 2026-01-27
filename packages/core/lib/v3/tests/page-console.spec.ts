@@ -31,7 +31,23 @@ test.describe("Page console events", () => {
       console.error("stagehand console error");
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    const waitForConsole = async (
+      predicate: () => boolean,
+      timeoutMs = 2000,
+    ) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        if (predicate()) return;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    };
+
+    await waitForConsole(
+      () =>
+        received.some((m) => m.type === "log") &&
+        received.some((m) => m.type === "error" && m.text.includes("error")),
+      5000,
+    );
 
     expect(received.length).toBeGreaterThanOrEqual(2);
     expect(received.some((m) => m.type === "log")).toBeTruthy();
