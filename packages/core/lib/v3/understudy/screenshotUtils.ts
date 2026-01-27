@@ -8,6 +8,7 @@ import type {
   ScreenshotScaleOption,
 } from "../types/public/screenshotTypes";
 import { StagehandInvalidArgumentError } from "../types/public/sdkErrors";
+import { screenshotScriptSources } from "../dom/build/screenshotScripts.generated";
 
 export type ScreenshotCleanup = () => Promise<void> | void;
 
@@ -325,21 +326,7 @@ async function resolveMaskRectForObject(
     "Runtime.callFunctionOn",
     {
       objectId,
-      functionDeclaration: `function() {
-        if (!this || typeof this.getBoundingClientRect !== 'function') return null;
-        const rect = this.getBoundingClientRect();
-        if (!rect) return null;
-        const style = window.getComputedStyle(this);
-        if (!style) return null;
-        if (style.visibility === 'hidden' || style.display === 'none') return null;
-        if (rect.width <= 0 || rect.height <= 0) return null;
-        return {
-          x: rect.left + window.scrollX,
-          y: rect.top + window.scrollY,
-          width: rect.width,
-          height: rect.height,
-        };
-      }`,
+      functionDeclaration: screenshotScriptSources.resolveMaskRect,
       returnByValue: true,
     },
   );
