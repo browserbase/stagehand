@@ -4,3 +4,4 @@ packages:
   - "packages/evals"
   - "packages/docs"
   - "packages/server"
+  - "packages/cli"

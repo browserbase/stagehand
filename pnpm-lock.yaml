@@ -38,39 +38,12 @@ importers:
 
   packages/cli:
     dependencies:
-      ai:
-        specifier: ^5.0.0
-        version: 5.0.76(zod@3.25.76)
+      '@browserbasehq/stagehand':
+        specifier: ^3.0.0
+        version: 3.0.8(deepmerge@4.3.1)(dotenv@16.5.0)(zod@4.2.1)
       commander:
         specifier: ^12.0.0
         version: 12.1.0
-      deepmerge:
-        specifier: ^4.3.1
-        version: 4.3.1
-      dotenv:
-        specifier: ^16.4.5
-        version: 16.4.5
-      openai:
-        specifier: ^4.87.1
-        version: 4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.76)
-      pino:
-        specifier: ^9.6.0
-        version: 9.14.0
-      pino-pretty:
-        specifier: ^13.0.0
-        version: 13.0.0
-      playwright:
-        specifier: ^1.50.0
-        version: 1.52.0
-      ws:
-        specifier: ^8.18.0
-        version: 8.18.3(bufferutil@4.0.9)
-      zod:
-        specifier: ^3.25.76
-        version: 3.25.76
-      zod-to-json-schema:
-        specifier: ^3.25.0
-        version: 3.25.0(zod@3.25.76)
     devDependencies:
       '@eslint/js':
         specifier: ^9.16.0
@@ -541,6 +514,13 @@ packages:
 
   '@browserbasehq/sdk@2.5.0':
     resolution: {integrity: sha512-bcnbYZvm5Ht1nrHUfWDK4crspiTy1ESJYMApsMiOTUnlKOan0ocRD6m7hZH34iSC2c2XWsoryR80cwsYgCBWzQ==}
+
+  '@browserbasehq/stagehand@3.0.8':
+    resolution: {integrity: sha512-ppI4PmqjRnFEpTtaQyRzKZgL4uVzscOQsDjBpQlvZNhhEp3da1wBaP1ml/hMfsuAmY9wOUwdN4V0uyyRbxWAdA==}
+    peerDependencies:
+      deepmerge: ^4.3.1
+      dotenv: ^16.4.5
+      zod: ^3.25.76 || ^4.2.0
 
   '@cfworker/json-schema@4.1.1':
     resolution: {integrity: sha512-gAmrUZSGtKc3AiBL71iNWxDsyUC5uMaKKGdvzYsBoTW/xi42JQHl7eKV2OYzCUqvc+D2RCcf7EXY2iCyFIk6og==}
@@ -6426,13 +6406,6 @@ snapshots:
       zod: 4.2.1
     optional: true
 
-  '@ai-sdk/gateway@2.0.0(zod@3.25.76)':
-    dependencies:
-      '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.12(zod@3.25.76)
-      '@vercel/oidc': 3.0.3
-      zod: 3.25.76
-
   '@ai-sdk/gateway@2.0.0(zod@4.1.12)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
@@ -6507,13 +6480,6 @@ snapshots:
       '@ai-sdk/provider-utils': 3.0.12(zod@4.2.1)
       zod: 4.2.1
     optional: true
-
-  '@ai-sdk/provider-utils@3.0.12(zod@3.25.76)':
-    dependencies:
-      '@ai-sdk/provider': 2.0.0
-      '@standard-schema/spec': 1.0.0
-      eventsource-parser: 3.0.6
-      zod: 3.25.76
 
   '@ai-sdk/provider-utils@3.0.12(zod@4.1.12)':
     dependencies:
@@ -6635,6 +6601,53 @@ snapshots:
       node-fetch: 2.7.0
     transitivePeerDependencies:
       - encoding
+
+  '@browserbasehq/stagehand@3.0.8(deepmerge@4.3.1)(dotenv@16.5.0)(zod@4.2.1)':
+    dependencies:
+      '@ai-sdk/provider': 2.0.0
+      '@anthropic-ai/sdk': 0.39.0
+      '@browserbasehq/sdk': 2.5.0
+      '@google/genai': 1.24.0(@modelcontextprotocol/sdk@1.17.2)(bufferutil@4.0.9)
+      '@langchain/openai': 0.4.9(@langchain/core@0.3.50(openai@4.96.2(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1)))(ws@8.18.3(bufferutil@4.0.9))
+      '@modelcontextprotocol/sdk': 1.17.2
+      ai: 5.0.76(zod@4.2.1)
+      deepmerge: 4.3.1
+      devtools-protocol: 0.0.1464554
+      dotenv: 16.5.0
+      fetch-cookie: 3.1.0
+      openai: 4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1)
+      pino: 9.14.0
+      pino-pretty: 13.0.0
+      uuid: 11.1.0
+      ws: 8.18.3(bufferutil@4.0.9)
+      zod: 4.2.1
+      zod-to-json-schema: 3.25.0(zod@4.2.1)
+    optionalDependencies:
+      '@ai-sdk/anthropic': 2.0.53(zod@4.2.1)
+      '@ai-sdk/azure': 2.0.54(zod@4.2.1)
+      '@ai-sdk/cerebras': 1.0.25(zod@4.2.1)
+      '@ai-sdk/deepseek': 1.0.23(zod@4.2.1)
+      '@ai-sdk/google': 2.0.44(zod@4.2.1)
+      '@ai-sdk/google-vertex': 3.0.85(zod@4.2.1)
+      '@ai-sdk/groq': 2.0.24(zod@4.2.1)
+      '@ai-sdk/mistral': 2.0.19(zod@4.2.1)
+      '@ai-sdk/openai': 2.0.53(zod@4.2.1)
+      '@ai-sdk/perplexity': 2.0.13(zod@4.2.1)
+      '@ai-sdk/togetherai': 1.0.23(zod@4.2.1)
+      '@ai-sdk/xai': 2.0.26(zod@4.2.1)
+      '@langchain/core': 0.3.50(openai@4.96.2(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1))
+      bufferutil: 4.0.9
+      chrome-launcher: 1.2.0
+      ollama-ai-provider-v2: 1.5.0(zod@4.2.1)
+      patchright-core: 1.55.2
+      playwright: 1.52.0
+      playwright-core: 1.54.2
+      puppeteer-core: 22.15.0(bufferutil@4.0.9)
+    transitivePeerDependencies:
+      - bare-buffer
+      - encoding
+      - supports-color
+      - utf-8-validate
 
   '@cfworker/json-schema@4.1.1': {}
 
@@ -8598,14 +8611,6 @@ snapshots:
     dependencies:
       clean-stack: 4.2.0
       indent-string: 5.0.0
-
-  ai@5.0.76(zod@3.25.76):
-    dependencies:
-      '@ai-sdk/gateway': 2.0.0(zod@3.25.76)
-      '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.12(zod@3.25.76)
-      '@opentelemetry/api': 1.9.0
-      zod: 3.25.76
 
   ai@5.0.76(zod@4.1.12):
     dependencies:
@@ -11411,7 +11416,7 @@ snapshots:
   micromark@4.0.2:
     dependencies:
       '@types/debug': 4.1.12
-      debug: 4.4.3
+      debug: 4.4.1
       decode-named-character-reference: 1.1.0
       devlop: 1.1.0
       micromark-core-commonmark: 2.0.3
@@ -11657,21 +11662,6 @@ snapshots:
       define-lazy-prop: 2.0.0
       is-docker: 2.2.1
       is-wsl: 2.2.0
-
-  openai@4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.76):
-    dependencies:
-      '@types/node': 18.19.87
-      '@types/node-fetch': 2.6.12
-      abort-controller: 3.0.0
-      agentkeepalive: 4.6.0
-      form-data-encoder: 1.7.2
-      formdata-node: 4.4.1
-      node-fetch: 2.7.0
-    optionalDependencies:
-      ws: 8.18.3(bufferutil@4.0.9)
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - encoding
 
   openai@4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1):
     dependencies:
