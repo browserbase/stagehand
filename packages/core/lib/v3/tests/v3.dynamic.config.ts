@@ -50,6 +50,7 @@ export const v3DynamicTestConfig: V3Options =
         env: "LOCAL",
         localBrowserLaunchOptions: {
           executablePath: process.env.CHROME_PATH,
+          args: process.env.CI ? ["--no-sandbox"] : undefined,
           headless: true,
           viewport: { width: 1288, height: 711 },
         },
