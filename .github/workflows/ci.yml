@@ -263,7 +263,7 @@ jobs:
       NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/core-unit/${{ matrix.test.name }}
 
     strategy:
-      fail-fast: true
+      fail-fast: false
       max-parallel: 100
       matrix:
         test: ${{ fromJson(needs.discover-core-tests.outputs.core-tests) }}
@@ -588,8 +588,8 @@ jobs:
       CTRF_JUNIT_PATH: ${{ github.workspace }}/ctrf/playwright-local-${{ matrix.test.safe_name }}.xml
       NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/e2e-local/${{ matrix.test.name }}
     strategy:
-      fail-fast: true
-      max-parallel: 50
+      fail-fast: false
+      max-parallel: 20
       matrix:
         test: ${{ fromJson(needs.discover-e2e-tests.outputs.e2e-tests) }}
     steps:
@@ -638,7 +638,7 @@ jobs:
       CTRF_JUNIT_PATH: ${{ github.workspace }}/ctrf/playwright-bb-${{ matrix.test.safe_name }}.xml
       NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/e2e-bb/${{ matrix.test.name }}
     strategy:
-      fail-fast: true
+      fail-fast: false
       max-parallel: 100
       matrix:
         test: ${{ fromJson(needs.discover-e2e-tests.outputs.e2e-tests) }}
@@ -1298,6 +1298,7 @@ jobs:
             exit 0
           fi
           set -euo pipefail
+          mkdir -p coverage/merged
           pnpm dlx c8 report \
             --temp-directory coverage/v8 \
             --merge-async \
