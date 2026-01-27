@@ -31,6 +31,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 // Per-instance routing using AsyncLocalStorage
 const logContext = new AsyncLocalStorage<string>();
 const instanceLoggers = new Map<string, (line: LogLine) => void>();
+const FALLBACK_VERBOSITY = 1;
 
 export function bindInstanceLogger(
   instanceId: string,
@@ -76,6 +77,10 @@ export function v3Logger(line: LogLine): void {
   const lvl = line.level ?? 1;
   const levelStr = lvl === 0 ? "ERROR" : lvl === 2 ? "DEBUG" : "INFO";
   let output = `[${ts}] ${levelStr}: ${line.message}`;
+
+  if (lvl > FALLBACK_VERBOSITY) {
+    return;
+  }
 
   if (line.auxiliary) {
     for (const [key, { value, type }] of Object.entries(line.auxiliary)) {
