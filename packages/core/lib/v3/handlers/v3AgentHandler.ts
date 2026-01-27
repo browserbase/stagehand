@@ -275,10 +275,20 @@ export class V3AgentHandler {
         }
       }
 
+      const messagesWithSystem: ModelMessage[] = [
+        {
+          role: "system",
+          content: systemPrompt,
+          providerOptions: {
+            anthropic: { cacheControl: { type: "ephemeral" } },
+          },
+        },
+        ...messages,
+      ];
+
       const result = await this.llmClient.generateText({
         model: wrappedModel,
-        system: systemPrompt,
-        messages,
+        messages: messagesWithSystem,
         tools: allTools,
         stopWhen: (result) => this.handleStop(result, maxSteps),
         temperature: 1,
@@ -400,10 +410,20 @@ export class V3AgentHandler {
       rejectResult(error);
     };
 
+    const messagesWithSystem: ModelMessage[] = [
+      {
+        role: "system",
+        content: systemPrompt,
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
+      },
+      ...messages,
+    ];
+
     const streamResult = this.llmClient.streamText({
       model: wrappedModel,
-      system: systemPrompt,
-      messages,
+      messages: messagesWithSystem,
       tools: allTools,
       stopWhen: (result) => this.handleStop(result, maxSteps),
       temperature: 1,
