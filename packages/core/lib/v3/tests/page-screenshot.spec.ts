@@ -90,12 +90,13 @@ test.describe("Page.screenshot options", () => {
           <meta charset="utf-8" />
           <style>
             body { background: #aaccee; margin: 0; height: 100vh; display: flex; flex-direction: column; align-items: flex-start; }
-            #mask-target { width: 80px; height: 80px; margin: 40px; background: rgb(0, 180, 60); animation: pulse 1s infinite alternate; }
+            .mask-target { width: 80px; height: 80px; margin: 40px; background: rgb(0, 180, 60); animation: pulse 1s infinite alternate; }
             @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.2); } }
           </style>
         </head>
         <body>
-          <div id="mask-target"></div>
+          <div class="mask-target"></div>
+          <div class="mask-target"></div>
           <input id="focus-me" value="focus" />
           <script>document.getElementById('focus-me').focus();</script>
         </body>
@@ -104,7 +105,7 @@ test.describe("Page.screenshot options", () => {
 
     await page.goto("data:text/html," + encodeURIComponent(html));
 
-    const maskLocator = page.locator("#mask-target");
+    const maskLocator = page.locator(".mask-target");
     const tempPath = path.join(
       os.tmpdir(),
       `stagehand-screenshot-${Date.now()}-${Math.random().toString(36).slice(2)}.jpeg`,
@@ -242,16 +243,19 @@ test.describe("Page.screenshot options", () => {
         cssArgs.some((css) => css.includes("border: 3px solid black")),
       ).toBeTruthy();
 
-      expect(
-        evaluateCalls.some((entry) => {
-          const arg = entry.arg;
-          return (
-            arg &&
-            typeof arg === "object" &&
-            "rects" in (arg as Record<string, unknown>)
-          );
-        }),
-      ).toBeTruthy();
+      const maskCalls = evaluateCalls.filter((entry) => {
+        const arg = entry.arg;
+        return (
+          arg &&
+          typeof arg === "object" &&
+          "rects" in (arg as Record<string, unknown>)
+        );
+      });
+      expect(maskCalls.length).toBeGreaterThan(0);
+      const rects = (maskCalls[0]?.arg as { rects?: unknown } | undefined)
+        ?.rects;
+      expect(Array.isArray(rects)).toBeTruthy();
+      expect((rects as unknown[]).length).toBe(2);
     } finally {
       Frame.prototype.screenshot = originalScreenshot;
       Frame.prototype.evaluate = originalEvaluate;

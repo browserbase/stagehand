@@ -3,7 +3,10 @@ import { Locator } from "./locator";
 import type { Page } from "./page";
 import { Frame } from "./frame";
 import { executionContexts } from "./executionContextRegistry";
-import { ContentFrameNotFoundError } from "../types/public/sdkErrors";
+import {
+  ContentFrameNotFoundError,
+  StagehandInvalidArgumentError,
+} from "../types/public/sdkErrors";
 
 /**
  * FrameLocator: resolves iframe elements to their child Frames and allows
@@ -92,11 +95,14 @@ class LocatorDelegate {
   constructor(
     private readonly fl: FrameLocator,
     private readonly sel: string,
+    private readonly nthIndex: number = -1,
   ) {}
 
   private async real(): Promise<Locator> {
     const frame = await this.fl.resolveFrame();
-    return frame.locator(this.sel);
+    const locator = frame.locator(this.sel);
+    if (this.nthIndex < 0) return locator;
+    return locator.nth(this.nthIndex);
   }
 
   // Locator API delegates
@@ -143,8 +149,20 @@ class LocatorDelegate {
     return (await this.real()).count();
   }
   first(): LocatorDelegate {
-    // Underlying querySelector already returns the first; keep chaining stable
-    return this;
+    return this.nth(0);
+  }
+  nth(index: number): LocatorDelegate {
+    const value = Number(index);
+    if (!Number.isFinite(value) || value < 0) {
+      throw new StagehandInvalidArgumentError(
+        "locator().nth() expects a non-negative index",
+      );
+    }
+
+    const nextIndex = Math.floor(value);
+    if (nextIndex === this.nthIndex) return this;
+
+    return new LocatorDelegate(this.fl, this.sel, nextIndex);
   }
 }
 
