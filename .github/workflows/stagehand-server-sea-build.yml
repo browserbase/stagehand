@@ -54,12 +54,13 @@ jobs:
 
       - name: Build SEA binary
         env:
+          CI: true
           SEA_TARGET_PLATFORM: ${{ matrix.platform }}
           SEA_TARGET_ARCH: ${{ matrix.arch }}
           SEA_BINARY_NAME: ${{ matrix.binary_name }}
           SEA_SOURCEMAP: ${{ matrix.sourcemap }}
         run: |
-          CI=true pnpm --filter @browserbasehq/stagehand-server build:binary
+          pnpm --filter @browserbasehq/stagehand-server build:binary
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
