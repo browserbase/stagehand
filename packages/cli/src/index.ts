@@ -142,11 +142,24 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
 
   const env = getBrowserEnvironment();
 
+  // Get API key for model (required by Stagehand, even though CLI doesn't use act/extract/observe directly)
+  const modelApiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY;
+
   // Create Stagehand instance with dummy model (never used for CLI operations)
   const stagehand = new Stagehand({
     env,
     verbose: 0,
     disablePino: true,
+    ...(modelApiKey && {
+      model: {
+        modelName: "anthropic/claude-haiku-4-5-20251001",
+        apiKey: modelApiKey,
+      },
+    }),
+    ...(env === "BROWSERBASE" && {
+      apiKey: process.env.BROWSERBASE_API_KEY || process.env.BB_API_KEY,
+      projectId: process.env.BROWSERBASE_PROJECT_ID || process.env.BB_PROJECT_ID,
+    }),
     ...(env === "LOCAL" && {
       localBrowserLaunchOptions: {
         headless,
