@@ -24,7 +24,7 @@ test.describe("userDataDir persistence", () => {
 
   test("Chrome uses the specified userDataDir", async () => {
     test.skip(
-      process.env.TEST_ENV === "BROWSERBASE",
+      process.env.STAGEHAND_ENV === "BROWSERBASE",
       "Requires local Chromium for userDataDir checks",
     );
 

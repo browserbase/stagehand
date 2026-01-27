@@ -12,8 +12,8 @@ dotenv.config({ path: rootEnvPath, override: false });
 const localTestEnvPath = path.resolve(__dirname, ".env");
 dotenv.config({ path: localTestEnvPath, override: false });
 
-// Determine environment from TEST_ENV variable
-const testEnv = process.env.TEST_ENV || "LOCAL";
+// Determine environment from STAGEHAND_ENV variable
+const testEnv = process.env.STAGEHAND_ENV || "LOCAL";
 const browserbaseRegionRaw = process.env.BROWSERBASE_REGION;
 const browserbaseRegion = (
   [

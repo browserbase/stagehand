@@ -15,6 +15,12 @@ test.describe("Page console events", () => {
   });
 
   test("captures console messages emitted by the page", async () => {
+    if (process.env.STAGEHAND_ENV === "BROWSERBASE") {
+      console.warn(
+        "[page-console] TODO: re-enable once BB cloud browsers support Runtime.consoleAPICalled events again. See https://browserbase.slack.com/archives/C06U6CM7YS1/p1769483322836589",
+      );
+      test.skip(true, "TODO: re-enable once BB cloud browsers support Runtime.consoleAPICalled events again.");
+    }
     const page = v3.context.pages()[0];
     const received: Array<{ type: string; text: string }> = [];
 

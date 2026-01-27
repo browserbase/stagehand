@@ -2,15 +2,15 @@ import { defineConfig, type ReporterDescription } from "@playwright/test";
 import dotenv from "dotenv";
 import path from "path";
 
-// Load environment variables before setting TEST_ENV
+// Load environment variables before setting STAGEHAND_ENV
 dotenv.config();
 
 // Try loading from repo root (packages/core/lib/v3/tests -> repo root = 5 levels up)
 const repoRootEnvPath = path.resolve(__dirname, "../../../../../.env");
 dotenv.config({ path: repoRootEnvPath, override: false });
 
-// Set TEST_ENV before tests run
-process.env.TEST_ENV = "LOCAL";
+// Set STAGEHAND_ENV before tests run
+process.env.STAGEHAND_ENV = "LOCAL";
 
 const localWorkerOverride = Number(
   process.env.LOCAL_SESSION_LIMIT_PER_E2E_TEST,
