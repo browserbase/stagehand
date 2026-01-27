@@ -14,6 +14,7 @@ process.env.TEST_ENV = "LOCAL";
 
 export default defineConfig({
   testDir: ".",
+  testIgnore: ["**/unit/**"],
   timeout: 90_000,
   expect: { timeout: 10_000 },
   // Balanced parallelization: 3 workers in CI to avoid resource exhaustion while maintaining speed.
