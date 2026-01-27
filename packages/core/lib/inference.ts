@@ -245,6 +245,7 @@ export async function observe({
         z.object({
           elementId: z
             .string()
+            .regex(/^\d+-\d+$/)
             .describe(
               "the ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'.",
             ),
@@ -382,6 +383,7 @@ export async function act({
   const actSchema = z.object({
     elementId: z
       .string()
+      .regex(/^\d+-\d+$/)
       .describe(
         "the ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'.",
       ),

@@ -601,8 +601,14 @@ export const AgentConfigSchema = z
       description: "Custom system prompt for the agent",
     }),
     cua: z.boolean().optional().meta({
-      description: "Enable Computer Use Agent mode",
+      description:
+        "Deprecated. Use mode: 'cua' instead. If both are provided, mode takes precedence.",
       example: true,
+    }),
+    mode: z.enum(["dom", "hybrid", "cua"]).optional().meta({
+      description:
+        "Tool mode for the agent (dom, hybrid, cua). If set, overrides cua.",
+      example: "cua",
     }),
   })
   .meta({ id: "AgentConfig" });

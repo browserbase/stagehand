@@ -43,20 +43,19 @@ export class Locator {
 
   private readonly selectorQuery: SelectorQuery;
 
+  // -1 means "no explicit nth()"; default locator resolves to first match for actions.
   private readonly nthIndex: number;
 
   constructor(
     private readonly frame: Frame,
     private readonly selector: string,
     private readonly options?: { deep?: boolean; depth?: number },
-    nthIndex: number = 0,
+    nthIndex: number = -1,
   ) {
     this.selectorResolver = new FrameSelectorResolver(this.frame);
     this.selectorQuery = FrameSelectorResolver.parseSelector(selector);
-    this.nthIndex = Math.max(
-      0,
-      Math.floor(Number.isFinite(nthIndex) ? nthIndex : 0),
-    );
+    const normalized = Number.isFinite(nthIndex) ? Math.floor(nthIndex) : -1;
+    this.nthIndex = normalized < 0 ? -1 : normalized;
   }
 
   /** Return the owning Frame for this locator (typed accessor, no private access). */
@@ -821,10 +820,10 @@ export class Locator {
   }
 
   /**
-   * For API parity, returns the same locator (querySelector already returns the first match).
+   * Return a locator narrowed to the first match.
    */
   first(): Locator {
-    return this;
+    return this.nth(0);
   }
 
   /** Return a locator narrowed to the element at the given zero-based index. */
