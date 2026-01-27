@@ -49,23 +49,25 @@ test.describe("context.addInitScript", () => {
   test("re-applies the script on every navigation for the same page", async () => {
     const page = await ctx.awaitActivePage();
 
-    await ctx.addInitScript(() => {
-      function markVisit() {
-        const root = document.documentElement;
-        if (!root) return;
-        const current = Number(window.name || "0");
-        const next = current + 1;
-        window.name = String(next);
-        root.dataset.visitCount = String(next);
-      }
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", markVisit, {
-          once: true,
-        });
-      } else {
-        markVisit();
-      }
-    });
+    await ctx.addInitScript(`
+      (function () {
+        function markVisit() {
+          var root = document.documentElement;
+          if (!root) return;
+          var current = Number(window.name || "0");
+          var next = current + 1;
+          window.name = String(next);
+          root.dataset.visitCount = String(next);
+        }
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", markVisit, {
+            once: true,
+          });
+        } else {
+          markVisit();
+        }
+      })();
+    `);
 
     await page.goto(toDataUrl("<html><body>first</body></html>"), {
       waitUntil: "load",
@@ -87,20 +89,24 @@ test.describe("context.addInitScript", () => {
   test("applies script (with args) to newly created pages", async () => {
     const payload = { greeting: "hi", nested: { count: 2 } };
 
-    await ctx.addInitScript((arg) => {
-      function setPayload(): void {
-        const root = document.documentElement;
-        if (!root) return;
-        root.dataset.initPayload = JSON.stringify(arg);
-      }
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", setPayload, {
-          once: true,
-        });
-      } else {
-        setPayload();
-      }
-    }, payload);
+    const payloadJson = JSON.stringify(payload);
+    await ctx.addInitScript(`
+      (function () {
+        var payload = ${payloadJson};
+        function setPayload() {
+          var root = document.documentElement;
+          if (!root) return;
+          root.dataset.initPayload = JSON.stringify(payload);
+        }
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", setPayload, {
+            once: true,
+          });
+        } else {
+          setPayload();
+        }
+      })();
+    `);
 
     const newPage = await ctx.newPage();
     await newPage.goto(toDataUrl("<html><body>child</body></html>"), {

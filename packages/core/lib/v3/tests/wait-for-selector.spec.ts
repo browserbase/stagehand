@@ -772,28 +772,37 @@ test.describe("Page.waitForSelector tests", () => {
       const page = v3.context.pages()[0];
       await page.goto(
         "data:text/html," +
-          encodeURIComponent(
-            '<div id="toggle-me">Toggle</div>' +
-              "<script>" +
-              "const el = document.getElementById('toggle-me');" +
-              "const parent = el.parentNode;" +
-              "setTimeout(() => { parent.removeChild(el); }, 200);" +
-              "setTimeout(() => { parent.appendChild(el); }, 500);" +
-              "</script>",
-          ),
+          encodeURIComponent('<div id="toggle-me">Toggle</div>'),
       );
 
-      // First wait for detached
-      const detached = await page.waitForSelector("#toggle-me", {
+      const isBrowserbase = process.env.STAGEHAND_ENV === "BROWSERBASE";
+      const removeDelayMs = isBrowserbase ? 1000 : 200;
+      const addDelayMs = isBrowserbase ? 1600 : 500;
+      const waitTimeoutMs = isBrowserbase ? 10000 : 5000;
+
+      // Start waiting before scheduling DOM changes to avoid racey timing in CI.
+      const detachedPromise = page.waitForSelector("#toggle-me", {
         state: "detached",
-        timeout: 5000,
+        timeout: waitTimeoutMs,
       });
+      await page.evaluate(
+        ({ removeDelay, addDelay }) => {
+          const el = document.getElementById("toggle-me");
+          const parent = el?.parentNode;
+          if (!el || !parent) return;
+          setTimeout(() => parent.removeChild(el), removeDelay);
+          setTimeout(() => parent.appendChild(el), addDelay);
+        },
+        { removeDelay: removeDelayMs, addDelay: addDelayMs },
+      );
+
+      const detached = await detachedPromise;
       expect(detached).toBe(true);
 
       // Then wait for visible again
       const visible = await page.waitForSelector("#toggle-me", {
         state: "visible",
-        timeout: 5000,
+        timeout: waitTimeoutMs,
       });
       expect(visible).toBe(true);
     });
