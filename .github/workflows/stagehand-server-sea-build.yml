@@ -55,6 +55,8 @@ jobs:
       - name: Build binary (Linux/macOS x64/host arch)
         if: matrix.platform != 'win32' && !(matrix.platform == 'linux' && matrix.arch == 'arm64')
         shell: bash
+        env:
+          SEA_SOURCEMAP: ${{ matrix.sourcemap }}
         run: |
           CI=true pnpm --filter @browserbasehq/stagehand-server build:binary
 

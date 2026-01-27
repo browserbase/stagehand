@@ -386,7 +386,7 @@ jobs:
     with:
       matrix: |
         [
-          {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64"}
+          {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64-sourcemap","sourcemap":"inline"}
         ]
 
   server-unit-tests:
@@ -444,7 +444,6 @@ jobs:
       BB_ENV: local
       PORT: "3107"
       STAGEHAND_API_URL: http://127.0.0.1:3107
-      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-integration/${{ matrix.test.name }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -461,18 +460,20 @@ jobs:
       - name: Download SEA binary
         uses: actions/download-artifact@v4
         with:
-          name: stagehand-server-linux-x64
+          name: stagehand-server-linux-x64-sourcemap
           path: packages/server/dist/sea
 
       - name: Ensure SEA binary is executable
         run: |
-          chmod +x packages/server/dist/sea/stagehand-server-linux-x64
+          chmod +x packages/server/dist/sea/stagehand-server-linux-x64-sourcemap
 
       - name: Start stagehand server (SEA binary)
         env:
           NODE_ENV: production
+          NODE_OPTIONS: --enable-source-maps
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-integration/${{ matrix.test.name }}/sea
         run: |
-          packages/server/dist/sea/stagehand-server-linux-x64 &
+          packages/server/dist/sea/stagehand-server-linux-x64-sourcemap &
           echo $! > /tmp/server.pid
 
           echo "Waiting for server to start..."
@@ -493,6 +494,7 @@ jobs:
           NODE_TEST_REPORTER: junit
           NODE_TEST_REPORTER_DESTINATION: ${{ github.workspace }}/ctrf/node-test-integration-${{ matrix.test.safe_name }}.xml
           NODE_TEST_EXTRA_ARGS: --experimental-test-coverage
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-integration/${{ matrix.test.name }}/tests
         run: |
           cd packages/server
           pnpm run node:test "${{ matrix.test.path }}"
@@ -506,6 +508,8 @@ jobs:
 
       - uses: ./.github/actions/upload-v8-coverage
         if: always()
+        env:
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-integration/${{ matrix.test.name }}
         with:
           name: coverage-v8-server-integration-${{ matrix.test.name }}
 
@@ -1296,6 +1300,7 @@ jobs:
             --reporter=json \
             --reporter=text-summary \
             --reports-dir coverage/merged \
+            --cwd "$GITHUB_WORKSPACE" \
             --include "packages/**" \
             --exclude "**/node_modules/**" \
             --exclude "packages/**/test/**" \
