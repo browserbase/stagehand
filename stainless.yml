@@ -218,7 +218,7 @@ settings:
   #
   # [prism mock http server]: https://stoplight.io/open-source/prism
   disable_mock_tests: true
-  license: Apache-2.0
+  license: MIT
 
 # `client_settings` define settings for the API client, such as extra constructor
 # arguments (used for authentication), retry behavior, idempotency, etc.
