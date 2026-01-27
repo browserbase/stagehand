@@ -48,14 +48,34 @@ runs:
       run: |
         junit_path="${{ inputs.junit-path }}"
         if [ -f "$junit_path" ]; then
-          pnpm dlx junit-to-ctrf "$junit_path" \
+          if [ ! -s "$junit_path" ]; then
+            echo "JUnit report is empty at $junit_path"
+            exit 0
+          fi
+          if ! pnpm dlx junit-to-ctrf "$junit_path" \
             -o "${{ steps.ctrf-meta.outputs.REPORT_PATH }}" \
-            -t "${{ inputs.tool }}"
+            -t "${{ inputs.tool }}"; then
+            echo "JUnit-to-CTRF conversion failed; leaving no CTRF report."
+            exit 0
+          fi
         else
           echo "JUnit report not found at $junit_path"
+          exit 0
+        fi
+
+    - name: Check CTRF report
+      id: ctrf-report
+      shell: bash
+      run: |
+        report_path="${{ steps.ctrf-meta.outputs.REPORT_PATH }}"
+        if [ -f "$report_path" ]; then
+          echo "found=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "found=false" >> "$GITHUB_OUTPUT"
         fi
 
     - name: Upload CTRF report artifact
+      if: ${{ steps.ctrf-report.outputs.found == 'true' }}
       uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.ctrf-meta.outputs.ARTIFACT_NAME }}
