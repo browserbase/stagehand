@@ -1,9 +1,11 @@
 import { defineConfig, type ReporterDescription } from "@playwright/test";
+import path from "path";
 
 const ctrfJunitPath = process.env.CTRF_JUNIT_PATH;
+const envReporterPath = path.resolve(__dirname, "envReporter.ts");
 const reporter: ReporterDescription[] = ctrfJunitPath
-  ? [["list"], ["junit", { outputFile: ctrfJunitPath }]]
-  : [["list"]];
+  ? [["list"], [envReporterPath], ["junit", { outputFile: ctrfJunitPath }]]
+  : [["list"], [envReporterPath]];
 
 export default defineConfig({
   testDir: ".",

@@ -9,7 +9,7 @@ const bbEnvSchema = z.enum(["local", "dev", "prod"]);
 
 export const env = createEnv({
   server: {
-    NODE_ENV: z.enum(["development", "production"]),
+    NODE_ENV: z.enum(["development", "production", "staging", "test"]),
     BB_ENV: bbEnvSchema,
   },
   client: {},

@@ -23,12 +23,14 @@ const baseWorkerCount =
       : 5;
 
 const ctrfJunitPath = process.env.CTRF_JUNIT_PATH;
+const envReporterPath = path.resolve(__dirname, "envReporter.ts");
 const reporter: ReporterDescription[] = ctrfJunitPath
   ? [
       ["list"],
+      [envReporterPath],
       ["junit", { outputFile: ctrfJunitPath, includeProjectInTestName: true }],
     ]
-  : [["list"]];
+  : [["list"], [envReporterPath]];
 
 export default defineConfig({
   testDir: ".",
