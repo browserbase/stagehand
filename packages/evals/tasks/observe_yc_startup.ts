@@ -8,7 +8,8 @@ export const observe_yc_startup: EvalFunction = async ({
 }) => {
   try {
     const page = v3.context.pages()[0];
-    await page.goto("https://www.ycombinator.com/companies");
+    await page.goto("https://www.ycombinator.com/companies", { waitUntil: "networkidle" });
+    console.log(await v3.extract())
 
     const observations = await v3.observe(
       "Click the container element that holds links to each of the startup companies. The companies each have a name, a description, and a link to their website.",
@@ -25,8 +26,8 @@ export const observe_yc_startup: EvalFunction = async ({
     }
 
     const possibleLocators = [
-      `div._rightCol_i9oky_592`,
-      `div._section_i9oky_163._results_i9oky_343`,
+      `div._rightCol_zhfs4_592`,
+      `div._section_zhfs4_163._results_zhfs4_343`,
     ];
 
     // Precompute candidate backendNodeIds

@@ -20,13 +20,14 @@ export const observe_simple_google_search: EvalFunction = async ({
       await v3.act(action1);
     }
     const observation2 = await v3.observe(
-      "Click the search button in the suggestions dropdown",
+      "Press enter",
     );
 
     if (observation2.length > 0) {
       const action2 = observation2[0];
       await v3.act(action2);
     }
+    await new Promise((resolve) => setTimeout(resolve, 3000));
 
     const expectedUrl =
       "https://browserbase.github.io/stagehand-eval-sites/sites/google/openai.html";
