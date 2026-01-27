@@ -18,6 +18,7 @@ import { GroqClient } from "./GroqClient";
 import { LLMClient } from "./LLMClient";
 import { OpenAIClient } from "./OpenAIClient";
 import { openai, createOpenAI } from "@ai-sdk/openai";
+import { bedrock, createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { vertex, createVertex } from "@ai-sdk/google-vertex";
 import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
 import { google, createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -34,6 +35,7 @@ import { AISDKProvider, AISDKCustomProvider } from "../types/public/model";
 
 const AISDKProviders: Record<string, AISDKProvider> = {
   openai,
+  bedrock,
   anthropic,
   google,
   xai,
@@ -49,6 +51,7 @@ const AISDKProviders: Record<string, AISDKProvider> = {
 };
 const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   openai: createOpenAI,
+  bedrock: createAmazonBedrock,
   anthropic: createAnthropic,
   google: createGoogleGenerativeAI,
   vertex: createVertex,

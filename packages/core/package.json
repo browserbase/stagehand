@@ -59,6 +59,7 @@
     "zod-to-json-schema": "^3.25.0"
   },
   "optionalDependencies": {
+    "@ai-sdk/amazon-bedrock": "^3.0.73",
     "@ai-sdk/anthropic": "^2.0.34",
     "@ai-sdk/azure": "^2.0.54",
     "@ai-sdk/cerebras": "^1.0.25",
