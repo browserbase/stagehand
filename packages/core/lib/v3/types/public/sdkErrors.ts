@@ -48,10 +48,15 @@ export class MissingEnvironmentVariableError extends StagehandError {
 
 export class UnsupportedModelError extends StagehandError {
   constructor(supportedModels: string[], feature?: string) {
+    const modelList = supportedModels.join(", ");
+    const deprecationNote =
+      `\n\nNote: The legacy model format (e.g., "gpt-4o") is deprecated. ` +
+      `Please use the provider/model format instead (e.g., "openai/gpt-4o", "anthropic/claude-3-5-sonnet-latest").`;
+
     super(
       feature
-        ? `${feature} requires one of the following models: ${supportedModels}`
-        : `please use one of the supported models: ${supportedModels}`,
+        ? `${feature} requires one of the following models: ${modelList}${deprecationNote}`
+        : `Please use one of the supported models: ${modelList}${deprecationNote}`,
     );
   }
 }
