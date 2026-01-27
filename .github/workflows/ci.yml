@@ -1314,31 +1314,6 @@ jobs:
             --exclude "**/*.d.ts" \
             | tee coverage/merged/coverage-summary.txt
 
-      - name: Publish merged CTRF report
-        if: always()
-        uses: ctrf-io/github-test-reporter@v1
-        with:
-          report-path: './ctrf/**/*.json'
-          summary: true
-          summary-report: true
-          summary-delta-report: true
-          test-report: true
-          failed-report: true
-          insights-report: true
-          flaky-rate-report: true
-          fail-rate-report: true
-          slowest-report: true
-          previous-results-report: true
-          fetch-previous-results: true
-          baseline: 1
-          previous-results-max: 1
-          max-workflow-runs-to-check: 5
-          max-previous-runs-to-fetch: 1
-          upload-artifact: true
-          artifact-name: ctrf-report-merged
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Upload merged coverage report
         if: always()
         id: upload-coverage-artifact
@@ -1364,6 +1339,31 @@ jobs:
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "[Download full HTML coverage report](${{ steps.upload-coverage-artifact.outputs.artifact-url }})" >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      - name: Publish merged CTRF report
+        if: always()
+        uses: ctrf-io/github-test-reporter@v1
+        with:
+          report-path: './ctrf/**/*.json'
+          summary: true
+          summary-report: true
+          summary-delta-report: true
+          test-report: false
+          failed-report: false
+          insights-report: true
+          flaky-rate-report: true
+          fail-rate-report: true
+          slowest-report: true
+          previous-results-report: true
+          fetch-previous-results: true
+          baseline: 1
+          previous-results-max: 1
+          max-workflow-runs-to-check: 5
+          max-previous-runs-to-fetch: 1
+          upload-artifact: true
+          artifact-name: ctrf-report-merged
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compute coverage status metrics
         if: always()

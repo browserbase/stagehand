@@ -24,7 +24,10 @@ const baseWorkerCount =
 
 const ctrfJunitPath = process.env.CTRF_JUNIT_PATH;
 const reporter: ReporterDescription[] = ctrfJunitPath
-  ? [["list"], ["junit", { outputFile: ctrfJunitPath }]]
+  ? [
+      ["list"],
+      ["junit", { outputFile: ctrfJunitPath, includeProjectInTestName: true }],
+    ]
   : [["list"]];
 
 export default defineConfig({
@@ -37,7 +40,7 @@ export default defineConfig({
   fullyParallel: true,
   projects: [
     {
-      name: "default",
+      name: "e2e-local",
     },
   ],
   reporter,

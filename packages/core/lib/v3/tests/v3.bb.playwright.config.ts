@@ -22,7 +22,10 @@ const workerCount =
 
 const ctrfJunitPath = process.env.CTRF_JUNIT_PATH;
 const reporter: ReporterDescription[] = ctrfJunitPath
-  ? [["list"], ["junit", { outputFile: ctrfJunitPath }]]
+  ? [
+      ["list"],
+      ["junit", { outputFile: ctrfJunitPath, includeProjectInTestName: true }],
+    ]
   : [["list"]];
 
 export default defineConfig({
@@ -34,6 +37,11 @@ export default defineConfig({
   // Browserbase tests are heavier due to remote browser connections.
   workers: workerCount,
   fullyParallel: true,
+  projects: [
+    {
+      name: "e2e-bb",
+    },
+  ],
   reporter,
   use: {
     headless: false,
