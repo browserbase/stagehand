@@ -1,11 +1,11 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { V3 } from "../lib/v3/v3";
+import { V3 } from "../../v3";
 
 const MOCK_SESSION_ID = "session-123";
 const MOCK_SESSION_URL = `https://www.browserbase.com/sessions/${MOCK_SESSION_ID}`;
 const MOCK_DEBUG_URL = `https://debug.browserbase.com/${MOCK_SESSION_ID}`;
 
-vi.mock("../lib/v3/understudy/context", () => {
+vi.mock("../../understudy/context", () => {
   class MockConnection {
     onTransportClosed = vi.fn();
     offTransportClosed = vi.fn();
@@ -31,7 +31,7 @@ vi.mock("../lib/v3/understudy/context", () => {
   return { V3Context: MockV3Context };
 });
 
-vi.mock("../lib/v3/launch/browserbase", () => ({
+vi.mock("../../launch/browserbase", () => ({
   createBrowserbaseSession: vi.fn(async () => ({
     ws: "wss://mock-browserbase",
     sessionId: MOCK_SESSION_ID,
@@ -43,7 +43,7 @@ vi.mock("../lib/v3/launch/browserbase", () => ({
   })),
 }));
 
-vi.mock("../lib/v3/launch/local", () => ({
+vi.mock("../../launch/local", () => ({
   launchLocalChrome: vi.fn(async () => ({
     ws: "ws://local-cdp",
     chrome: { kill: vi.fn(async () => {}) },

@@ -1,5 +1,5 @@
 import { describe, expectTypeOf, it } from "vitest";
-import * as Stagehand from "../../dist/index.js";
+import * as Stagehand from "../../../../../dist/index.js";
 
 describe("Schema Utils public API types", () => {
   describe("defaultExtractSchema", () => {

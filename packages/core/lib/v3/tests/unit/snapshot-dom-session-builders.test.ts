@@ -5,8 +5,8 @@ import {
   domMapsForSession,
   getDomTreeWithFallback,
   hydrateDomTree,
-} from "../lib/v3/understudy/a11y/snapshot/domTree";
-import { StagehandDomProcessError } from "../lib/v3/types/public/sdkErrors";
+} from "../../understudy/a11y/snapshot/domTree";
+import { StagehandDomProcessError } from "../../types/public/sdkErrors";
 import { MockCDPSession } from "./helpers/mockCDPSession";
 
 let nextNodeId = 1;

@@ -1,13 +1,13 @@
 import type { Protocol } from "devtools-protocol";
 import { describe, expect, it } from "vitest";
-import type { A11yNode, A11yOptions } from "../lib/v3/types/private/snapshot";
+import type { A11yNode, A11yOptions } from "../../types/private/snapshot";
 import {
   buildHierarchicalTree,
   decorateRoles,
   extractUrlFromAXNode,
   isStructural,
   removeRedundantStaticTextChildren,
-} from "../lib/v3/understudy/a11y/snapshot/a11yTree";
+} from "../../understudy/a11y/snapshot/a11yTree";
 
 const axString = (value: string): Protocol.Accessibility.AXValue => ({
   type: "string",

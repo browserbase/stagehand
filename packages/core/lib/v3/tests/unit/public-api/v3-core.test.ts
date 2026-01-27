@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
-import * as Stagehand from "../../dist/index.js";
+import * as Stagehand from "../../../../../dist/index.js";
 
 describe("V3 Core public API types", () => {
   describe("Stagehand", () => {
