@@ -37,7 +37,8 @@ runs:
           echo "REPORT_PATH=ctrf/${safe_name}.json" >> "$GITHUB_OUTPUT"
         else
           job_name="${GITHUB_JOB:-ctrf-report}"
-          echo "ARTIFACT_NAME=ctrf-${job_name}" >> "$GITHUB_OUTPUT"
+          safe_job_name="${job_name//\//-}"
+          echo "ARTIFACT_NAME=ctrf-${safe_job_name}" >> "$GITHUB_OUTPUT"
           echo "REPORT_PATH=./ctrf/*.json" >> "$GITHUB_OUTPUT"
         fi
 
@@ -54,22 +55,8 @@ runs:
           echo "JUnit report not found at $junit_path"
         fi
 
-    - name: Publish Test Report with Insights
-      uses: ctrf-io/github-test-reporter@v1
+    - name: Upload CTRF report artifact
+      uses: actions/upload-artifact@v4
       with:
-        report-path: './ctrf/*.json'
-        summary: false
-        summary-report: true
-        summary-delta-report: false
-        test-report: true
-        failed-report: true
-        insights-report: true
-        flaky-rate-report: true
-        fail-rate-report: true
-        slowest-report: true
-        previous-results-report: false
-        fetch-previous-results: false
-        upload-artifact: true
-        artifact-name: ${{ steps.ctrf-meta.outputs.ARTIFACT_NAME }}
-      env:
-        GITHUB_TOKEN: ${{ inputs.github-token }}
+        name: ${{ steps.ctrf-meta.outputs.ARTIFACT_NAME }}
+        path: ${{ steps.ctrf-meta.outputs.REPORT_PATH }}

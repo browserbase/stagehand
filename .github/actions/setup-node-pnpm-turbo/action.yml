@@ -45,7 +45,7 @@ runs:
     - name: Prepare test output directories
       shell: bash
       run: |
-        mkdir -p ctrf
+        mkdir -p "${GITHUB_WORKSPACE}/ctrf"
         if [ -n "${NODE_V8_COVERAGE:-}" ]; then
           mkdir -p "$NODE_V8_COVERAGE"
         fi

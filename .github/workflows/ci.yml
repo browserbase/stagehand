@@ -283,7 +283,7 @@ jobs:
             --config vitest.config.ts \
             --reporter=default \
             --reporter=junit \
-            --outputFile.junit="${{ github.workspace }}/ctrf/vitest-${{ matrix.test.name }}.xml" \
+            --outputFile.junit="${{ github.workspace }}/ctrf/vitest-${{ matrix.test.safe_name }}.xml" \
             --coverage \
             --coverage.reportsDirectory="${{ github.workspace }}/coverage/vitest/${{ matrix.test.name }}" \
             --coverage.reporter=lcov \
@@ -300,7 +300,7 @@ jobs:
       - uses: ./.github/actions/publish-ctrf-report
         if: always()
         with:
-          junit-path: ${{ github.workspace }}/ctrf/vitest-${{ matrix.test.name }}.xml
+          junit-path: ${{ github.workspace }}/ctrf/vitest-${{ matrix.test.safe_name }}.xml
           tool: vitest
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -341,7 +341,8 @@ jobs:
               unit_json+=","
             fi
             name=$(basename "$test_file" .test.ts)
-            unit_json+="{\"path\":\"$test_file\",\"name\":\"$name\"}"
+            safe_name="${name//\//-}"
+            unit_json+="{\"path\":\"$test_file\",\"name\":\"$name\",\"safe_name\":\"$safe_name\"}"
           done
           unit_json+="]"
 
@@ -354,7 +355,8 @@ jobs:
               int_json+=","
             fi
             name=$(echo "$test_file" | sed 's|^\./test/integration/||' | sed 's|\.test\.ts$||')
-            int_json+="{\"path\":\"$test_file\",\"name\":\"$name\"}"
+            safe_name="${name//\//-}"
+            int_json+="{\"path\":\"$test_file\",\"name\":\"$name\",\"safe_name\":\"$safe_name\"}"
           done
           int_json+="]"
 
@@ -408,7 +410,7 @@ jobs:
       - name: Run server unit test - ${{ matrix.test.name }}
         env:
           NODE_TEST_REPORTER: junit
-          NODE_TEST_REPORTER_DESTINATION: ${{ github.workspace }}/ctrf/node-test-unit-${{ matrix.test.name }}.xml
+          NODE_TEST_REPORTER_DESTINATION: ${{ github.workspace }}/ctrf/node-test-unit-${{ matrix.test.safe_name }}.xml
         run: |
           cd packages/server
           pnpm run node:test "${{ matrix.test.path }}"
@@ -416,7 +418,7 @@ jobs:
       - uses: ./.github/actions/publish-ctrf-report
         if: always()
         with:
-          junit-path: ${{ github.workspace }}/ctrf/node-test-unit-${{ matrix.test.name }}.xml
+          junit-path: ${{ github.workspace }}/ctrf/node-test-unit-${{ matrix.test.safe_name }}.xml
           tool: node-test
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -500,7 +502,7 @@ jobs:
       - name: Run server integration test - ${{ matrix.test.name }}
         env:
           NODE_TEST_REPORTER: junit
-          NODE_TEST_REPORTER_DESTINATION: ${{ github.workspace }}/ctrf/node-test-integration-${{ matrix.test.name }}.xml
+          NODE_TEST_REPORTER_DESTINATION: ${{ github.workspace }}/ctrf/node-test-integration-${{ matrix.test.safe_name }}.xml
           NODE_TEST_EXTRA_ARGS: --experimental-test-coverage
         run: |
           cd packages/server
@@ -509,7 +511,7 @@ jobs:
       - uses: ./.github/actions/publish-ctrf-report
         if: always()
         with:
-          junit-path: ${{ github.workspace }}/ctrf/node-test-integration-${{ matrix.test.name }}.xml
+          junit-path: ${{ github.workspace }}/ctrf/node-test-integration-${{ matrix.test.safe_name }}.xml
           tool: node-test
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -552,7 +554,8 @@ jobs:
               e2e_json+=","
             fi
             name=$(echo "$test_file" | sed 's|^packages/core/lib/v3/tests/||' | sed 's|\.spec\.ts$||')
-            e2e_json+="{\"path\":\"$test_file\",\"name\":\"$name\"}"
+            safe_name="${name//\//-}"
+            e2e_json+="{\"path\":\"$test_file\",\"name\":\"$name\",\"safe_name\":\"$safe_name\"}"
           done
           e2e_json+="]"
 
@@ -582,7 +585,7 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      CTRF_JUNIT_PATH: ${{ github.workspace }}/ctrf/playwright-local-${{ matrix.test.name }}.xml
+      CTRF_JUNIT_PATH: ${{ github.workspace }}/ctrf/playwright-local-${{ matrix.test.safe_name }}.xml
       NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/e2e-local/${{ matrix.test.name }}
     strategy:
       fail-fast: true
@@ -607,7 +610,7 @@ jobs:
       - uses: ./.github/actions/publish-ctrf-report
         if: always()
         with:
-          junit-path: ${{ github.workspace }}/ctrf/playwright-local-${{ matrix.test.name }}.xml
+          junit-path: ${{ github.workspace }}/ctrf/playwright-local-${{ matrix.test.safe_name }}.xml
           tool: playwright
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -632,7 +635,7 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      CTRF_JUNIT_PATH: ${{ github.workspace }}/ctrf/playwright-bb-${{ matrix.test.name }}.xml
+      CTRF_JUNIT_PATH: ${{ github.workspace }}/ctrf/playwright-bb-${{ matrix.test.safe_name }}.xml
       NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/e2e-bb/${{ matrix.test.name }}
     strategy:
       fail-fast: true
@@ -660,7 +663,7 @@ jobs:
       - uses: ./.github/actions/publish-ctrf-report
         if: always()
         with:
-          junit-path: ${{ github.workspace }}/ctrf/playwright-bb-${{ matrix.test.name }}.xml
+          junit-path: ${{ github.workspace }}/ctrf/playwright-bb-${{ matrix.test.safe_name }}.xml
           tool: playwright
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -1294,9 +1297,11 @@ jobs:
             echo "No V8 coverage files found."
             exit 0
           fi
+          set -euo pipefail
           pnpm dlx c8 report \
             --temp-directory coverage/v8 \
             --merge-async \
+            --reporter=html \
             --reporter=lcov \
             --reporter=text-summary \
             --reports-dir coverage/merged \
@@ -1305,7 +1310,8 @@ jobs:
             --exclude "packages/**/test/**" \
             --exclude "packages/**/tests/**" \
             --exclude "packages/**/lib/**/tests/**" \
-            --exclude "**/*.d.ts"
+            --exclude "**/*.d.ts" \
+            | tee coverage/merged/coverage-summary.txt
 
       - name: Publish merged CTRF report
         if: always()
@@ -1334,7 +1340,84 @@ jobs:
 
       - name: Upload merged coverage report
         if: always()
+        id: upload-coverage-artifact
         uses: actions/upload-artifact@v4
         with:
           name: coverage-merged
           path: coverage/merged
+
+      - name: Add coverage summary to job summary
+        if: always()
+        shell: bash
+        run: |
+          echo "### Code Coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f coverage/merged/coverage-summary.txt ]; then
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            cat coverage/merged/coverage-summary.txt >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Coverage summary not available." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -n "${{ steps.upload-coverage-artifact.outputs.artifact-url }}" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "[Download full HTML coverage report](${{ steps.upload-coverage-artifact.outputs.artifact-url }})" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Compute coverage status metrics
+        if: always()
+        id: coverage-status
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          tests_failed=0
+          ctrf_files=(ctrf/**/*.json)
+          if [ "${#ctrf_files[@]}" -gt 0 ]; then
+            tests_failed=$(jq -s '[.[].results.summary.failed // 0] | add' "${ctrf_files[@]}")
+          fi
+          total_coverage=0
+          if [ -f coverage/merged/coverage-summary.txt ]; then
+            total_coverage=$(awk '/^Lines/ {gsub(/%/,"",$3); print $3}' coverage/merged/coverage-summary.txt)
+          fi
+          echo "tests_failed=${tests_failed}" >> "$GITHUB_OUTPUT"
+          echo "total_coverage=${total_coverage}" >> "$GITHUB_OUTPUT"
+
+      - name: Set coverage status
+        if: always()
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.run_id }}
+          PULL_NUMBER: ${{ github.event.pull_request.number }}
+          TESTS_FAILED: ${{ steps.coverage-status.outputs.tests_failed }}
+          TOTAL_COVERAGE: ${{ steps.coverage-status.outputs.total_coverage }}
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY}"
+          sha="${GITHUB_SHA}"
+          tests_failed="${TESTS_FAILED:-0}"
+          total_coverage="${TOTAL_COVERAGE:-0}"
+          if [ "${tests_failed}" = "0" ]; then
+            state="success"
+          else
+            state="failure"
+          fi
+          if [ -n "${PULL_NUMBER:-}" ]; then
+            target_url="https://github.com/${repo}/pull/${PULL_NUMBER}/checks?check_run_id=${RUN_ID}"
+          else
+            target_url="https://github.com/${repo}/actions/runs/${RUN_ID}"
+          fi
+          description="${tests_failed} tests failed. ${total_coverage}% coverage"
+          payload=$(jq -n \
+            --arg state "$state" \
+            --arg target_url "$target_url" \
+            --arg description "$description" \
+            --arg context "Measured coverage" \
+            '{state: $state, target_url: $target_url, description: $description, context: $context}')
+          curl -sSfL -X POST \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${repo}/statuses/${sha}" \
+            -d "$payload"
