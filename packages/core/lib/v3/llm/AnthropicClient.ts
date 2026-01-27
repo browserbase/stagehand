@@ -21,7 +21,6 @@ import { toJsonSchema } from "../zodCompat";
 export class AnthropicClient extends LLMClient {
   public type = "anthropic" as const;
   private client: Anthropic;
-  public clientOptions: ClientOptions;
 
   constructor({
     modelName,
