@@ -19,11 +19,18 @@ pnpm --filter @browserbasehq/stagehand build
 cd "${PKG_DIR}"
 mkdir -p dist/sea
 
+SOURCEMAP_MODE="${SEA_SOURCEMAP:-}"
+ESBUILD_SOURCEMAP_FLAGS=()
+if [ -n "${SOURCEMAP_MODE}" ]; then
+  ESBUILD_SOURCEMAP_FLAGS+=(--sourcemap="${SOURCEMAP_MODE}")
+fi
+
 pnpm exec esbuild src/server.ts \
   --bundle \
   --platform=node \
   --format=cjs \
   --outfile=dist/sea/bundle.cjs \
+  "${ESBUILD_SOURCEMAP_FLAGS[@]}" \
   --log-level=warning
 
 node --experimental-sea-config sea-config.json
