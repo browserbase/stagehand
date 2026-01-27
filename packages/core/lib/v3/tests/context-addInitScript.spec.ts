@@ -89,14 +89,13 @@ test.describe("context.addInitScript", () => {
   test("applies script (with args) to newly created pages", async () => {
     const payload = { greeting: "hi", nested: { count: 2 } };
 
-    const payloadJson = JSON.stringify(payload);
-    await ctx.addInitScript(`
-      (function () {
-        var payload = ${payloadJson};
+    const initPayload = new Function(
+      "arg",
+      `
         function setPayload() {
           var root = document.documentElement;
           if (!root) return;
-          root.dataset.initPayload = JSON.stringify(payload);
+          root.dataset.initPayload = JSON.stringify(arg);
         }
         if (document.readyState === "loading") {
           document.addEventListener("DOMContentLoaded", setPayload, {
@@ -105,8 +104,9 @@ test.describe("context.addInitScript", () => {
         } else {
           setPayload();
         }
-      })();
-    `);
+      `,
+    ) as (arg: typeof payload) => void;
+    await ctx.addInitScript(initPayload, payload);
 
     const newPage = await ctx.newPage();
     await newPage.goto(toDataUrl("<html><body>child</body></html>"), {

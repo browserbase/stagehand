@@ -80,14 +80,13 @@ test.describe("page.addInitScript", () => {
     const page = await ctx.awaitActivePage();
     const payload = { greeting: "hi", nested: { count: 1 } };
 
-    const payloadJson = JSON.stringify(payload);
-    await page.addInitScript(`
-      (function () {
-        var payload = ${payloadJson};
+    const initPayload = new Function(
+      "arg",
+      `
         function setPayload() {
           var root = document.documentElement;
           if (!root) return;
-          root.dataset.pageInitPayload = JSON.stringify(payload);
+          root.dataset.pageInitPayload = JSON.stringify(arg);
         }
         if (document.readyState === "loading") {
           document.addEventListener("DOMContentLoaded", setPayload, {
@@ -96,8 +95,9 @@ test.describe("page.addInitScript", () => {
         } else {
           setPayload();
         }
-      })();
-    `);
+      `,
+    ) as (arg: typeof payload) => void;
+    await page.addInitScript(initPayload, payload);
 
     await page.goto(`${EXAMPLE_URL}/?page=payload`, {
       waitUntil: "domcontentloaded",
