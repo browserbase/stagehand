@@ -60,8 +60,6 @@ const safetySettings = [
 export class GoogleClient extends LLMClient {
   public type = "google" as const;
   private client: GoogleGenAI;
-  public clientOptions: ClientOptions;
-  public hasVision: boolean;
   private logger: (message: LogLine) => void;
 
   constructor({

@@ -1,14 +1,22 @@
 {
   "name": "@browserbasehq/stagehand",
   "version": "3.0.8",
+  "type": "module",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
   "scripts": {
     "gen-version": "tsx scripts/gen-version.ts",
     "build-dom-scripts": "tsx lib/v3/dom/genDomScripts.ts && tsx lib/v3/dom/genLocatorScripts.ts && tsx lib/v3/dom/genA11yScripts.ts",
-    "build-js": "tsup --entry.index lib/v3/index.ts --dts",
+    "build-js": "tsup --entry.index lib/v3/index.ts --format esm,cjs --dts --target es2022",
     "typecheck": "tsc --noEmit",
     "build": "pnpm run gen-version && pnpm run build-dom-scripts && pnpm run build-js && pnpm run typecheck",
     "example": "node --import tsx -e \"const args=process.argv.slice(1).filter(a=>a!=='--'); const [p]=args; const n=(p||'example').replace(/^\\.\\//,'').replace(/\\.ts$/i,''); import(new URL(require('node:path').resolve('examples', n + '.ts'), 'file:'));\" --",

@@ -1,8 +1,10 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 type PackageJson = { version: string };
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkgPath = join(__dirname, "..", "package.json");
 const pkg: PackageJson = JSON.parse(readFileSync(pkgPath, "utf8"));
 

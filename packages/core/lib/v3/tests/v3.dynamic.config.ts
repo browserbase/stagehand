@@ -1,7 +1,10 @@
 import type { V3Options } from "../types/public/options";
 import type { LogLine } from "../types/public/logs";
 import dotenv from "dotenv";
-import path from "path";
+import path, { dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 dotenv.config();
 

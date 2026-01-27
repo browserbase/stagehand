@@ -28,7 +28,6 @@ import { toJsonSchema } from "../zodCompat";
 export class OpenAIClient extends LLMClient {
   public type = "openai" as const;
   private client: OpenAI;
-  public clientOptions: ClientOptions;
 
   constructor({
     modelName,
