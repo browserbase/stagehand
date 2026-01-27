@@ -99,9 +99,9 @@ test.describe("SupportedUnderstudyAction enum Zod compatibility", () => {
     // In Zod v3, z.enum() does NOT accept TypeScript enums directly
     // The schema creation might succeed, but parsing will fail
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const schema = z3.z.object({
       elementId: z3.z.string(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       method: z3.z.enum(SupportedUnderstudyAction as any),
       arguments: z3.z.array(z3.z.string()),
     });
@@ -116,8 +116,7 @@ test.describe("SupportedUnderstudyAction enum Zod compatibility", () => {
 
     const schema = z4.object({
       elementId: z4.string(),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      method: z4.enum(SupportedUnderstudyAction as any),
+      method: z4.enum(SupportedUnderstudyAction),
       arguments: z4.array(z4.string()),
     });
 
