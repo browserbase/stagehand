@@ -859,14 +859,48 @@ export class Locator {
     await session.send("Runtime.enable");
     await session.send("DOM.enable");
 
+    const index = this.nthIndex < 0 ? 0 : this.nthIndex;
     const resolved = await this.selectorResolver.resolveAtIndex(
       this.selectorQuery,
-      this.nthIndex,
+      index,
     );
     if (!resolved) {
       throw new StagehandElementNotFoundError([this.selector]);
     }
 
+    return resolved;
+  }
+
+  /**
+   * Resolve all matching nodes for this locator.
+   * If the locator is narrowed via nth(), only that index is returned.
+   */
+  public async resolveNodesForMask(): Promise<
+    Array<{
+      nodeId: Protocol.DOM.NodeId | null;
+      objectId: Protocol.Runtime.RemoteObjectId;
+    }>
+  > {
+    const session = this.frame.session;
+
+    await session.send("Runtime.enable");
+    await session.send("DOM.enable");
+
+    if (this.nthIndex >= 0) {
+      const resolved = await this.selectorResolver.resolveAtIndex(
+        this.selectorQuery,
+        this.nthIndex,
+      );
+      if (!resolved) {
+        throw new StagehandElementNotFoundError([this.selector]);
+      }
+      return [resolved];
+    }
+
+    const resolved = await this.selectorResolver.resolveAll(this.selectorQuery);
+    if (!resolved.length) {
+      throw new StagehandElementNotFoundError([this.selector]);
+    }
     return resolved;
   }
 
