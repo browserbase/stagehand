@@ -80,6 +80,7 @@ test.describe("page.addInitScript", () => {
     const page = await ctx.awaitActivePage();
     const payload = { greeting: "hi", nested: { count: 1 } };
 
+    // eslint-disable-next-line no-new-func, no-restricted-syntax
     const initPayload = new Function(
       "arg",
       `

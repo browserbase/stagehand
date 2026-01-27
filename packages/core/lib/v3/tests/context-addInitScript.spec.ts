@@ -89,6 +89,7 @@ test.describe("context.addInitScript", () => {
   test("applies script (with args) to newly created pages", async () => {
     const payload = { greeting: "hi", nested: { count: 2 } };
 
+    // eslint-disable-next-line no-new-func, no-restricted-syntax
     const initPayload = new Function(
       "arg",
       `
