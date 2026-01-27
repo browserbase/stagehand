@@ -477,7 +477,7 @@ jobs:
 
       - name: Install Playwright browsers
         run: |
-          pnpm dlx playwright install --with-deps chromium
+          pnpm --filter @browserbasehq/stagehand-server exec playwright install --with-deps chromium
 
       - name: Start stagehand server (SEA binary)
         env:

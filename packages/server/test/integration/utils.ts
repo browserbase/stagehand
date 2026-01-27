@@ -89,7 +89,8 @@ const LOCAL_BROWSER_BODY = {
     launchOptions: {
       headless: true,
       // Prefer Playwright's cached Chromium over system Chrome/Chromium.
-      // executablePath: chromium.executablePath(),
+      executablePath: chromium.executablePath(),
+      args: process.env.CI ? ["--no-sandbox"] : undefined,
     },
   },
 };
