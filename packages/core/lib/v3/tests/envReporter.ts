@@ -19,6 +19,7 @@ type ConfigSummary = {
   error?: string;
 };
 
+// Keep this small and log-safe; never emit secrets in CI logs.
 function summarizeV3Config(): ConfigSummary {
   try {
     const cfg = getV3DynamicTestConfig();
@@ -51,6 +52,7 @@ function summarizeV3Config(): ConfigSummary {
   }
 }
 
+// Env snapshot for debugging CI. STAGEHAND_ENV replaces TEST_ENV.
 function summarizeEnv() {
   return {
     STAGEHAND_ENV: process.env.STAGEHAND_ENV, // STAGEHAND_ENV = 'LOCAL' | 'BROWSERBASE'                      (client setting passed to Stagehand(env) init param)
