@@ -61,12 +61,8 @@ export function withErrorHandling<
       }
 
       const errMessage =
-        err instanceof Error ? err.stack ?? err.message : String(err);
-      return error(
-        reply,
-        errMessage,
-        StatusCodes.INTERNAL_SERVER_ERROR,
-      );
+        err instanceof Error ? (err.stack ?? err.message) : String(err);
+      return error(reply, errMessage, StatusCodes.INTERNAL_SERVER_ERROR);
     }
   };
 }
