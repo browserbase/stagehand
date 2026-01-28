@@ -39,11 +39,9 @@ const mcpCommand = process.env.CHROME_DEVTOOLS_MCP_PATH
 console.error(`[chrome-devtools-wrapper] Launching chrome-devtools-mcp: ${mcpCommand.join(' ')}`);
 
 // Launch chrome-devtools-mcp with CDP URL pointing to pre-created session
-const chromeDevToolsMcp = spawn(mcpCommand[0], mcpCommand.slice(1), {
+const chromeDevToolsMcp = spawn(mcpCommand[0], [...mcpCommand.slice(1), '--wsEndpoint', BROWSERBASE_CONNECT_URL], {
   env: {
     ...process.env,
-    CHROME_CDP_URL: BROWSERBASE_CONNECT_URL,
-    CDP_URL: BROWSERBASE_CONNECT_URL, // Some servers use this
   },
   stdio: ['pipe', 'pipe', 'pipe'], // Use pipes instead of inherit for buffering
 });

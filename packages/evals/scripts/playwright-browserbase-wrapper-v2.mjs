@@ -40,10 +40,9 @@ if (process.env.BROWSERBASE_DEBUG_URL) {
 console.error(`[playwright-wrapper] Launching playwright-mcp CLI: ${PLAYWRIGHT_MCP_CLI_PATH}`);
 
 // Launch playwright-mcp with CDP URL pointing to pre-created session
-const playwrightMcp = spawn('node', [PLAYWRIGHT_MCP_CLI_PATH], {
+const playwrightMcp = spawn('node', [PLAYWRIGHT_MCP_CLI_PATH, '--cdp-endpoint', BROWSERBASE_CONNECT_URL], {
   env: {
     ...process.env,
-    PLAYWRIGHT_CDP_URL: BROWSERBASE_CONNECT_URL,
   },
   stdio: ['pipe', 'pipe', 'pipe'], // Use pipes instead of inherit for buffering
 });
