@@ -44,6 +44,10 @@ function getWsPath(session: string): string {
   return path.join(SOCKET_DIR, `browse-${session}.ws`);
 }
 
+function getCdpPath(session: string): string {
+  return path.join(SOCKET_DIR, `browse-${session}.cdp`);
+}
+
 function getChromePidPath(session: string): string {
   return path.join(SOCKET_DIR, `browse-${session}.chrome.pid`);
 }
@@ -76,6 +80,9 @@ async function cleanupStaleFiles(session: string): Promise<void> {
   } catch {}
   try {
     await fs.unlink(getWsPath(session));
+  } catch {}
+  try {
+    await fs.unlink(getCdpPath(session));
   } catch {}
   try {
     await fs.unlink(getChromePidPath(session));
@@ -144,13 +151,14 @@ function getBrowserEnvironment(envOverride?: "LOCAL" | "BROWSERBASE"): "LOCAL" |
   return "LOCAL";
 }
 
-async function runDaemon(session: string, headless: boolean, envOverride?: "LOCAL" | "BROWSERBASE"): Promise<void> {
+async function runDaemon(session: string, headless: boolean, envOverride?: "LOCAL" | "BROWSERBASE", cdpUrl?: string): Promise<void> {
   await cleanupStaleFiles(session);
 
   // Write daemon PID file
   await fs.writeFile(getPidPath(session), String(process.pid));
 
-  const env = getBrowserEnvironment(envOverride);
+  // If CDP URL provided, force LOCAL mode (connecting to remote browser)
+  const env = cdpUrl ? "LOCAL" : getBrowserEnvironment(envOverride);
 
   // Get API key for model (required by Stagehand, even though CLI doesn't use act/extract/observe directly)
   const modelApiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY;
@@ -179,10 +187,9 @@ async function runDaemon(session: string, headless: boolean, envOverride?: "LOCA
       projectId: process.env.BROWSERBASE_PROJECT_ID || process.env.BB_PROJECT_ID,
     }),
     ...(env === "LOCAL" && {
-      localBrowserLaunchOptions: {
-        headless,
-        viewport: DEFAULT_VIEWPORT,
-      },
+      localBrowserLaunchOptions: cdpUrl
+        ? { cdpUrl } // Connect to remote browser via CDP
+        : { headless, viewport: DEFAULT_VIEWPORT }, // Launch local browser
     }),
   });
 
@@ -193,9 +200,14 @@ async function runDaemon(session: string, headless: boolean, envOverride?: "LOCA
 
   // Try to save Chrome info for reference (best effort)
   try {
-    // Get WebSocket URL from context connection
-    const wsUrl = (context as any).conn?.wsUrl || "unknown";
+    // If CDP URL was provided, save it; otherwise get from context connection
+    const wsUrl = cdpUrl || (context as any).conn?.wsUrl || "unknown";
     await fs.writeFile(getWsPath(session), wsUrl);
+
+    // Also save CDP URL separately for tracking
+    if (cdpUrl) {
+      await fs.writeFile(getCdpPath(session), cdpUrl);
+    }
   } catch {}
 
   // Store session name for network capture
@@ -1124,14 +1136,33 @@ async function sendCommand(
   }
 }
 
-async function ensureDaemon(session: string, headless: boolean, envOverride?: "LOCAL" | "BROWSERBASE"): Promise<void> {
-  if (await isDaemonRunning(session)) {
+async function ensureDaemon(session: string, headless: boolean, envOverride?: "LOCAL" | "BROWSERBASE", cdpUrl?: string): Promise<void> {
+  const isRunning = await isDaemonRunning(session);
+
+  // Check if CDP URL has changed (requires daemon restart)
+  if (isRunning && cdpUrl) {
+    try {
+      const storedCdpUrl = await fs.readFile(getCdpPath(session), "utf-8");
+      if (storedCdpUrl !== cdpUrl) {
+        // CDP URL changed - restart daemon
+        console.error(`[stagehand] CDP URL changed for session ${session}, restarting daemon...`);
+        await killChromeProcesses(session);
+        await cleanupStaleFiles(session);
+      } else {
+        // Same CDP URL - reuse existing daemon
+        return;
+      }
+    } catch {
+      // No stored CDP URL - continue with startup
+    }
+  } else if (isRunning) {
     return;
   }
 
   const args = ["--session", session, "daemon"];
   if (headless) args.push("--headless");
   if (envOverride) args.push("--env", envOverride);
+  if (cdpUrl) args.push("--ws", cdpUrl);
 
   const child = spawn(process.argv[0], [process.argv[1], ...args], {
     detached: true,
@@ -1210,26 +1241,12 @@ async function runCommand(command: string, args: unknown[]): Promise<unknown> {
   const headless = isHeadless(opts);
   const envOverride = opts.env;
 
-  // If --ws provided or BROWSERBASE_CONNECT_URL env var set, create direct Stagehand connection (LOCAL mode only)
-  const wsUrl = opts.ws || process.env.BROWSERBASE_CONNECT_URL;
-  if (wsUrl) {
-    const stagehand = new Stagehand({
-      env: "LOCAL",
-      verbose: 0,
-      disablePino: true,
-      localBrowserLaunchOptions: {
-        cdpUrl: wsUrl,
-      },
-    });
-    await stagehand.init();
-    try {
-      return await executeCommand(stagehand.context, command, args, stagehand);
-    } finally {
-      await stagehand.close();
-    }
-  }
+  // Get CDP URL from --ws flag or BROWSERBASE_CONNECT_URL env var
+  const cdpUrl = opts.ws || process.env.BROWSERBASE_CONNECT_URL;
 
-  await ensureDaemon(session, headless, envOverride);
+  // Use daemon mode for all commands (with or without CDP URL)
+  // This ensures session isolation for concurrent tests
+  await ensureDaemon(session, headless, envOverride, cdpUrl);
   return sendCommand(session, command, args, headless, envOverride);
 }
 
@@ -1239,7 +1256,7 @@ program
   .version(VERSION)
   .option(
     "--ws <url>",
-    "CDP WebSocket URL (bypasses daemon, direct connection)",
+    "CDP WebSocket URL for connecting to remote browser",
   )
   .option("--headless", "Run Chrome in headless mode")
   .option("--headed", "Run Chrome with visible window (default)")
@@ -1323,7 +1340,8 @@ program
   .description("Run as daemon (internal use)")
   .action(async () => {
     const opts = program.opts<GlobalOpts>();
-    await runDaemon(getSession(opts), isHeadless(opts), opts.env);
+    const cdpUrl = opts.ws || process.env.BROWSERBASE_CONNECT_URL;
+    await runDaemon(getSession(opts), isHeadless(opts), opts.env, cdpUrl);
   });
 
 // ==================== NAVIGATION ====================
