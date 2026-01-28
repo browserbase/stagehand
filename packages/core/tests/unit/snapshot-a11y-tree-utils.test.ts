@@ -1,6 +1,9 @@
 import type { Protocol } from "devtools-protocol";
 import { describe, expect, it } from "vitest";
-import type { A11yNode, A11yOptions } from "../../lib/v3/types/private/snapshot";
+import type {
+  A11yNode,
+  A11yOptions,
+} from "../../lib/v3/types/private/snapshot";
 import {
   buildHierarchicalTree,
   decorateRoles,
