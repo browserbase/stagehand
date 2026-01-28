@@ -34,6 +34,8 @@ export function createLogger(options: LoggerOptions = {}) {
   // and not in a test environment
   if (options.pretty && !isTestEnvironment()) {
     try {
+      // checking if pino-pretty is available
+      require.resolve("pino-pretty");
       // Use require for dynamic import
       const transport = {
         transport: {
