@@ -280,6 +280,10 @@ export class GoogleCUAClient extends AgentClient {
         message: finalMessage,
         completed,
         usage: {
+          // TODO(deprecation): remove snake_case fields after the deprecation window.
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
+          inferenceTimeMs: totalInferenceTime,
           input_tokens: totalInputTokens,
           output_tokens: totalOutputTokens,
           inference_time_ms: totalInferenceTime,
@@ -300,6 +304,10 @@ export class GoogleCUAClient extends AgentClient {
         message: `Failed to execute task: ${errorMessage}`,
         completed: false,
         usage: {
+          // TODO(deprecation): remove snake_case fields after the deprecation window.
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
+          inferenceTimeMs: totalInferenceTime,
           input_tokens: totalInputTokens,
           output_tokens: totalOutputTokens,
           inference_time_ms: totalInferenceTime,

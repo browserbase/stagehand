@@ -63,13 +63,7 @@ export interface AgentResult {
   actions: AgentAction[];
   completed: boolean;
   metadata?: Record<string, unknown>;
-  usage?: {
-    input_tokens: number;
-    output_tokens: number;
-    reasoning_tokens?: number;
-    cached_input_tokens?: number;
-    inference_time_ms: number;
-  };
+  usage?: AgentUsage;
   /**
    * The conversation messages from this execution.
    * Pass these to a subsequent execute() call via the `messages` option to continue the conversation.
@@ -87,6 +81,31 @@ export interface AgentResult {
 export type AgentStreamResult = StreamTextResult<ToolSet, never> & {
   result: Promise<AgentResult>;
 };
+
+type AgentUsageCamel = {
+  inputTokens: number;
+  outputTokens: number;
+  reasoningTokens?: number;
+  cachedInputTokens?: number;
+  inferenceTimeMs: number;
+};
+
+type AgentUsageSnake = {
+  input_tokens: number;
+  output_tokens: number;
+  reasoning_tokens?: number;
+  cached_input_tokens?: number;
+  inference_time_ms: number;
+};
+
+// TODO(deprecation): remove legacy snake_case support after the deprecation window.
+export type AgentUsage = AgentUsageCamel & Partial<AgentUsageSnake>;
+
+// TODO(deprecation): remove once all inputs are guaranteed camelCase.
+export type AgentUsageInput =
+  | AgentUsageCamel
+  | AgentUsageSnake
+  | (AgentUsageCamel & Partial<AgentUsageSnake>);
 
 /**
  * Base callbacks shared between execute (non-streaming) and streaming modes.

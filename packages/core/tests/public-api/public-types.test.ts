@@ -30,6 +30,8 @@ type ExpectedExportedTypes = {
   Tool: Stagehand.Tool;
   AgentAction: Stagehand.AgentAction;
   AgentResult: Stagehand.AgentResult;
+  AgentUsage: Stagehand.AgentUsage;
+  AgentUsageInput: Stagehand.AgentUsageInput;
   AgentExecuteOptions: Stagehand.AgentExecuteOptions;
   AgentType: Stagehand.AgentType;
   AgentExecutionOptions: Stagehand.AgentExecutionOptions<Stagehand.AgentExecuteOptions>;
@@ -245,13 +247,7 @@ describe("Stagehand public API types", () => {
       actions: Stagehand.AgentAction[];
       completed: boolean;
       metadata?: Record<string, unknown>;
-      usage?: {
-        input_tokens: number;
-        output_tokens: number;
-        reasoning_tokens?: number;
-        cached_input_tokens?: number;
-        inference_time_ms: number;
-      };
+      usage?: Stagehand.AgentUsage;
       messages?: Stagehand.ModelMessage[];
       output?: Record<string, unknown>;
     };

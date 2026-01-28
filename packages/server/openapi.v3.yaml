@@ -76,6 +76,22 @@ components:
         id: $response.body#/data/sessionId
       description: End the session and release resources
   schemas:
+    AgentUsageLegacy:
+      type: object
+      properties:
+        input_tokens:
+          example: 1500
+          type: number
+        output_tokens:
+          example: 250
+          type: number
+        reasoning_tokens:
+          type: number
+        cached_input_tokens:
+          type: number
+        inference_time_ms:
+          example: 2500
+          type: number
     AgentCacheEntry:
       type: object
       properties:
@@ -704,25 +720,27 @@ components:
         - type
       additionalProperties: {}
     AgentUsage:
-      type: object
-      properties:
-        input_tokens:
-          example: 1500
-          type: number
-        output_tokens:
-          example: 250
-          type: number
-        reasoning_tokens:
-          type: number
-        cached_input_tokens:
-          type: number
-        inference_time_ms:
-          example: 2500
-          type: number
-      required:
-        - input_tokens
-        - output_tokens
-        - inference_time_ms
+      allOf:
+        - type: object
+          properties:
+            inputTokens:
+              example: 1500
+              type: number
+            outputTokens:
+              example: 250
+              type: number
+            reasoningTokens:
+              type: number
+            cachedInputTokens:
+              type: number
+            inferenceTimeMs:
+              example: 2500
+              type: number
+          required:
+            - inputTokens
+            - outputTokens
+            - inferenceTimeMs
+        - $ref: "#/components/schemas/AgentUsageLegacy"
     AgentResultData:
       type: object
       properties:
@@ -1024,6 +1042,23 @@ components:
       required:
         - success
         - data
+      additionalProperties: false
+    AgentUsageLegacyOutput:
+      type: object
+      properties:
+        input_tokens:
+          example: 1500
+          type: number
+        output_tokens:
+          example: 250
+          type: number
+        reasoning_tokens:
+          type: number
+        cached_input_tokens:
+          type: number
+        inference_time_ms:
+          example: 2500
+          type: number
       additionalProperties: false
     AgentCacheEntryOutput:
       type: object
@@ -1544,26 +1579,28 @@ components:
             - cua
       additionalProperties: false
     AgentUsageOutput:
-      type: object
-      properties:
-        input_tokens:
-          example: 1500
-          type: number
-        output_tokens:
-          example: 250
-          type: number
-        reasoning_tokens:
-          type: number
-        cached_input_tokens:
-          type: number
-        inference_time_ms:
-          example: 2500
-          type: number
-      required:
-        - input_tokens
-        - output_tokens
-        - inference_time_ms
-      additionalProperties: false
+      allOf:
+        - type: object
+          properties:
+            inputTokens:
+              example: 1500
+              type: number
+            outputTokens:
+              example: 250
+              type: number
+            reasoningTokens:
+              type: number
+            cachedInputTokens:
+              type: number
+            inferenceTimeMs:
+              example: 2500
+              type: number
+          required:
+            - inputTokens
+            - outputTokens
+            - inferenceTimeMs
+          additionalProperties: false
+        - $ref: "#/components/schemas/AgentUsageLegacyOutput"
     AgentResultDataOutput:
       type: object
       properties:
