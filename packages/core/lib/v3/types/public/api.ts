@@ -636,7 +636,8 @@ export const AgentActionSchema = z
   .meta({ id: "AgentAction" });
 
 /** Token usage statistics for agent execution */
-export const AgentUsageSchema = z
+// TODO(deprecation): remove legacy snake_case schema after the deprecation window.
+const AgentUsageLegacySchema = z
   .object({
     input_tokens: z.number().meta({ example: 1500 }),
     output_tokens: z.number().meta({ example: 250 }),
@@ -644,6 +645,19 @@ export const AgentUsageSchema = z
     cached_input_tokens: z.number().optional(),
     inference_time_ms: z.number().meta({ example: 2500 }),
   })
+  .partial()
+  .meta({ id: "AgentUsageLegacy" });
+
+export const AgentUsageSchema = z
+  .object({
+    inputTokens: z.number().meta({ example: 1500 }),
+    outputTokens: z.number().meta({ example: 250 }),
+    reasoningTokens: z.number().optional(),
+    cachedInputTokens: z.number().optional(),
+    inferenceTimeMs: z.number().meta({ example: 2500 }),
+  })
+  // TODO(deprecation): remove legacy snake_case merge after the deprecation window.
+  .and(AgentUsageLegacySchema)
   .meta({ id: "AgentUsage" });
 
 /** Result data from agent execution */

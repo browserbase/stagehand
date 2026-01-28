@@ -516,6 +516,12 @@ export class V3AgentHandler {
       output,
       usage: result.totalUsage
         ? {
+            // TODO(deprecation): remove snake_case fields after the deprecation window.
+            inputTokens: result.totalUsage.inputTokens || 0,
+            outputTokens: result.totalUsage.outputTokens || 0,
+            reasoningTokens: result.totalUsage.reasoningTokens || 0,
+            cachedInputTokens: result.totalUsage.cachedInputTokens || 0,
+            inferenceTimeMs: inferenceTimeMs,
             input_tokens: result.totalUsage.inputTokens || 0,
             output_tokens: result.totalUsage.outputTokens || 0,
             reasoning_tokens: result.totalUsage.reasoningTokens || 0,

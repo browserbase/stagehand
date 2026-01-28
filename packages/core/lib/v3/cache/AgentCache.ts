@@ -581,6 +581,12 @@ export class AgentCache {
       }
       const result = cloneForCache(entry.result);
       result.usage = {
+        // TODO(deprecation): remove snake_case fields after the deprecation window.
+        inputTokens: 0,
+        outputTokens: 0,
+        reasoningTokens: 0,
+        cachedInputTokens: 0,
+        inferenceTimeMs: 0,
         input_tokens: 0,
         output_tokens: 0,
         reasoning_tokens: 0,
