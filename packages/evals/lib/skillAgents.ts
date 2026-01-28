@@ -168,6 +168,7 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
     env: {
       BROWSERBASE_API_KEY: process.env.BROWSERBASE_API_KEY,
       BROWSERBASE_PROJECT_ID: process.env.BROWSERBASE_PROJECT_ID,
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
       PATH: process.env.PATH,
     },
     allowedTools: ["Bash", "Read", "Glob"],
