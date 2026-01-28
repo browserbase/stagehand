@@ -5,6 +5,12 @@
 
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { AvailableModel } from "@browserbasehq/stagehand";
+import * as path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const HOME = process.env.HOME || process.env.USERPROFILE || "~";
 
 export interface SkillAgentConfig {
   name: string;
@@ -13,6 +19,8 @@ export interface SkillAgentConfig {
   // For skills
   cwd?: string;
   settingSources?: Array<"user" | "project">;
+  env?: Record<string, string>;
+  executable?: "node" | "bun" | "deno";
 
   // For MCPs
   mcpServers?: Record<string, {
@@ -54,17 +62,12 @@ export async function runSkillAgent(
     for await (const message of query({
       prompt: instruction,
       options: {
-        // MCP configuration
         mcpServers: config.mcpServers,
-
-        // Skills configuration
         cwd: config.cwd,
         settingSources: config.settingSources,
-
-        // Tool permissions
+        env: config.env,
+        executable: config.executable || "node",
         allowedTools: config.allowedTools,
-
-        // Model and limits
         model: config.model as AvailableModel,
         maxBudgetUsd: 5.0,
         maxTurns: 30,
@@ -111,33 +114,37 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
   "agent-browse": {
     name: "agent-browse",
     type: "skill",
-    cwd: "/Users/shrey/Developer/agent-browse",
+    cwd: path.join(HOME, "Developer/agent-browse"),
     settingSources: ["project"],
     allowedTools: ["Bash", "Read", "Glob"],
-    model: "claude-opus-4-5-20251101",
+    model: "claude-sonnet-4-5-20250929",
   },
 
   "dev-browser": {
     name: "dev-browser",
     type: "skill",
-    cwd: "/Users/shrey/Developer/dev-browser",
+    cwd: path.join(HOME, "Developer/dev-browser"),
     settingSources: ["project"],
     allowedTools: ["Bash", "Read", "Glob"],
-    model: "claude-opus-4-5-20251101",
+    model: "claude-sonnet-4-5-20250929",
   },
 
-  // MCPs: Load via mcpServers
   "playwright-mcp": {
     name: "playwright-mcp",
     type: "mcp",
     mcpServers: {
       playwright: {
         command: "node",
-        args: ["/Users/shrey/Developer/playwright-mcp/cli.js"]
+        args: [path.resolve(__dirname, "../scripts/playwright-browserbase-wrapper.mjs")],
+        env: {
+          BROWSERBASE_API_KEY: process.env.BROWSERBASE_API_KEY,
+          BROWSERBASE_PROJECT_ID: process.env.BROWSERBASE_PROJECT_ID,
+          PLAYWRIGHT_MCP_CLI_PATH: path.join(HOME, "Developer/playwright-mcp/cli.js")
+        }
       }
     },
     allowedTools: ["mcp__playwright__*"],
-    model: "claude-opus-4-5-20251101",
+    model: "claude-sonnet-4-5-20250929",
   },
 
   "playwriter": {
@@ -146,28 +153,57 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
     mcpServers: {
       playwriter: {
         command: "node",
-        args: ["/Users/shrey/Developer/playwriter/playwriter/bin.js"]
+        args: [path.join(HOME, "Developer/playwriter/playwriter/bin.js")]
       }
     },
     allowedTools: ["mcp__playwriter__*"],
-    model: "claude-opus-4-5-20251101",
+    model: "claude-sonnet-4-5-20250929",
   },
 
   "stagehand-cli": {
     name: "stagehand-cli",
     type: "skill",
-    cwd: "/Users/shrey/Developer/browserbase-skills",
+    cwd: path.join(HOME, "Developer/browserbase-skills"),
     settingSources: ["project"],
+    env: {
+      BROWSERBASE_API_KEY: process.env.BROWSERBASE_API_KEY,
+      BROWSERBASE_PROJECT_ID: process.env.BROWSERBASE_PROJECT_ID,
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+      PATH: process.env.PATH,
+    },
     allowedTools: ["Bash", "Read", "Glob"],
-    model: "claude-opus-4-5-20251101",
+    model: "claude-sonnet-4-5-20250929",
   },
 
   "agent-browser": {
     name: "agent-browser",
     type: "skill",
-    cwd: "/Users/shrey/Developer/agent-browser",
+    cwd: path.join(HOME, "Developer/agent-browser"),
     settingSources: ["project"],
+    env: {
+      AGENT_BROWSER_PROVIDER: "browserbase",
+      BROWSERBASE_API_KEY: process.env.BROWSERBASE_API_KEY,
+      BROWSERBASE_PROJECT_ID: process.env.BROWSERBASE_PROJECT_ID,
+      PATH: process.env.PATH,
+    },
     allowedTools: ["Bash", "Read", "Glob"],
-    model: "claude-opus-4-5-20251101",
+    model: "claude-sonnet-4-5-20250929",
+  },
+
+  "chrome-devtools-mcp": {
+    name: "chrome-devtools-mcp",
+    type: "mcp",
+    mcpServers: {
+      "chrome-devtools": {
+        command: "node",
+        args: [path.resolve(__dirname, "../scripts/chrome-devtools-browserbase-wrapper.mjs")],
+        env: {
+          BROWSERBASE_API_KEY: process.env.BROWSERBASE_API_KEY,
+          BROWSERBASE_PROJECT_ID: process.env.BROWSERBASE_PROJECT_ID,
+        }
+      }
+    },
+    allowedTools: ["mcp__chrome-devtools__*"],
+    model: "claude-sonnet-4-5-20250929",
   },
 };
