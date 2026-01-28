@@ -537,7 +537,7 @@ components:
         result:
           $ref: "#/components/schemas/ActResultData"
         actionId:
-          description: Action ID for tracking
+          description: Action ID for tracking (debug only)
           type: string
       required:
         - result
@@ -1439,7 +1439,7 @@ components:
         result:
           $ref: "#/components/schemas/ActResultDataOutput"
         actionId:
-          description: Action ID for tracking
+          description: Action ID for tracking (debug only)
           type: string
       required:
         - result

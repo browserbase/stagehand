@@ -458,7 +458,7 @@ export const ActResultSchema = z
   .object({
     result: ActResultDataSchema,
     actionId: z.string().optional().meta({
-      description: "Action ID for tracking",
+      description: "Action ID for tracking (debug only)",
     }),
   })
   .meta({ id: "ActResult" });
