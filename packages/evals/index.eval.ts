@@ -47,6 +47,7 @@ import { generateSummary } from "./summary";
 import { buildGAIATestcases } from "./suites/gaia";
 import { buildWebVoyagerTestcases } from "./suites/webvoyager";
 import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web";
+import { buildOnlineMind2WebSkillsTestcases } from "./suites/onlineMind2Web-skills";
 
 dotenv.config();
 
@@ -131,6 +132,10 @@ const generateFilteredTestcases = (): Testcase[] => {
   const isMind2WebTaskIncluded = taskNamesToRun.includes(
     "agent/onlineMind2Web",
   );
+  // Special handling: fan out Mind2Web skills comparison
+  const isMind2WebSkillsTaskIncluded = taskNamesToRun.includes(
+    "agent/onlineMind2Web_skills_comparison",
+  );
 
   let allTestcases: Testcase[] = [];
 
@@ -173,6 +178,31 @@ const generateFilteredTestcases = (): Testcase[] => {
   ) {
     // Remove Mind2Web from tasks to run if dataset filter excludes it
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/onlineMind2Web");
+  }
+
+  // Only include Mind2Web Skills Comparison if no dataset filter or if onlineMind2Web is selected
+  if (
+    isMind2WebSkillsTaskIncluded &&
+    (!datasetFilter || datasetFilter === "onlineMind2Web")
+  ) {
+    taskNamesToRun = taskNamesToRun.filter(
+      (t) => t !== "agent/onlineMind2Web_skills_comparison",
+    );
+    // Only use Browserbase-enabled skills by default
+    const BROWSERBASE_SKILLS = ["stagehand-cli", "playwright-mcp", "chrome-devtools-mcp", "agent-browser"];
+    const skillsFilter = process.env.EVAL_SKILLS
+      ? process.env.EVAL_SKILLS.split(",")
+      : BROWSERBASE_SKILLS;
+    allTestcases.push(...buildOnlineMind2WebSkillsTestcases(skillsFilter));
+  } else if (
+    isMind2WebSkillsTaskIncluded &&
+    datasetFilter &&
+    datasetFilter !== "onlineMind2Web"
+  ) {
+    // Remove Mind2Web Skills from tasks to run if dataset filter excludes it
+    taskNamesToRun = taskNamesToRun.filter(
+      (t) => t !== "agent/onlineMind2Web_skills_comparison",
+    );
   }
 
   // Create a list of all remaining testcases using the determined task names and models
@@ -328,6 +358,25 @@ const generateFilteredTestcases = (): Testcase[] => {
           // Execute the task
           const isAgentTask =
             input.name.startsWith("agent/") || input.name.includes("/agent/");
+
+          // Skills comparison tasks use Agent SDK directly, no V3 needed
+          if (input.name === "agent/onlineMind2Web_skills_comparison") {
+            const result = await taskFunction({
+              logger,
+              debugUrl: "",
+              sessionUrl: "",
+              input,
+            });
+
+            if (result && result._success) {
+              console.log(`✅ ${input.name}: Passed`);
+            } else {
+              console.log(`❌ ${input.name}: Failed`);
+            }
+
+            return result;
+          }
+
           if (USE_API) {
             // Derive provider from model. Prefer explicit "provider/model"; otherwise infer for agent models
             let provider: string;
