@@ -7,6 +7,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "pnpm run typecheck",
+    "build:esm": "pnpm -w exec tsc -p packages/evals/tsconfig.esm.json && node -e \"const fs=require('node:fs');const path=require('node:path');const out=path.join('dist','esm');fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,'package.json'), '{\\n  \\\"type\\\": \\\"module\\\"\\n}\\n');for (const file of ['evals.config.json']) {const src=path.join(file);const dest=path.join(out,file);if (fs.existsSync(src)) {fs.copyFileSync(src,dest);}}for (const dir of ['datasets','assets']) {const srcDir=path.join(dir);const destDir=path.join(out,dir);if (fs.existsSync(srcDir)) {fs.cpSync(srcDir,destDir,{recursive:true});}}\"",
     "build:cli": "tsup cli.ts --outDir ../../dist/evals --format cjs && cp evals.config.json ../../dist/evals/ && chmod +x ../../dist/evals/cli.js",
     "evals": "tsx run.ts",
     "lint": "cd ../.. && prettier --check packages/evals && cd packages/evals && eslint .",

@@ -12,8 +12,10 @@
  * - Runs each selected task against each selected model in parallel, collecting results.
  * - Saves a summary of the evaluation results to `../../eval-summary.json`.
  */
-import path from "path";
-import process from "process";
+import fs from "node:fs";
+import path from "node:path";
+import process from "node:process";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   DEFAULT_EVAL_CATEGORIES,
   filterByCategory,
@@ -50,6 +52,7 @@ import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web";
 import { endBrowserbaseSession } from "./browserbaseCleanup";
 
 dotenv.config();
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Read max concurrency and trial count from environment variables set in args.ts.
@@ -277,42 +280,22 @@ const generateFilteredTestcases = (): Testcase[] => {
         let v3ToClose: Awaited<ReturnType<typeof initV3>>["v3"] | null = null;
 
         try {
-          // Dynamically import the task based on its name
-          const taskModulePath = path.join(
-            __dirname,
-            "tasks",
-            `${input.name}.ts`,
+          const taskBasePath = path.join(moduleDir, "tasks", input.name);
+          const taskCandidates = [`${taskBasePath}.js`, `${taskBasePath}.ts`];
+          const taskModulePath = taskCandidates.find((candidate) =>
+            fs.existsSync(candidate),
           );
 
-          // Check if file exists at direct path
-          let taskModule;
-          try {
-            // First try to import directly (for backward compatibility)
-            taskModule = await import(taskModulePath);
-          } catch (error) {
-            if (input.name.includes("/")) {
-              // If the name includes a path separator, try to import from subdirectory
-              const subDirPath = path.join(
-                __dirname,
-                "tasks",
-                `${input.name}.ts`,
-              );
-              try {
-                taskModule = await import(subDirPath);
-              } catch (subError) {
-                throw new StagehandEvalError(
-                  `Failed to import task module for ${input.name}. Tried paths:\n` +
-                    `- ${taskModulePath}\n` +
-                    `- ${subDirPath}\n` +
-                    `Error: ${subError.message}`,
-                );
-              }
-            } else {
-              throw new StagehandEvalError(
-                `Failed to import task module for ${input.name} at path ${taskModulePath}: ${error.message}`,
-              );
-            }
+          if (!taskModulePath) {
+            throw new StagehandEvalError(
+              `Failed to find task module for ${input.name}. Tried paths:\n` +
+                taskCandidates.map((candidate) => `- ${candidate}`).join("\n"),
+            );
           }
+
+          const taskModule = await import(
+            pathToFileURL(taskModulePath).href
+          );
 
           // Extract the task function
           const taskName = input.name.includes("/")

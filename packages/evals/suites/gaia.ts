@@ -1,13 +1,15 @@
 import path from "path";
+import { fileURLToPath } from "node:url";
 import type { Testcase, EvalInput } from "../types/evals";
 import type { AvailableModel } from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig";
 import { readJsonlFile, parseJsonlRows, applySampling } from "../utils";
 
 export const buildGAIATestcases = (models: string[]): Testcase[] => {
+  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
   const gaiaFilePath =
     process.env.EVAL_GAIA_FILE ||
-    path.join(__dirname, "..", "datasets", "gaia", "GAIA_web.jsonl");
+    path.join(moduleDir, "..", "datasets", "gaia", "GAIA_web.jsonl");
 
   const gaiaLines = readJsonlFile(gaiaFilePath);
 

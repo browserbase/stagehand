@@ -1,10 +1,13 @@
 import { spawnSync } from "node:child_process";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 const args: readonly string[] = process.argv.slice(2);
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
 const wantsHelp: boolean = args.some((a) => /^(?:--?)?(?:h|help)$/i.test(a));
 const wantsMan: boolean = args.some((a) => /^(?:--?)?man$/i.test(a));
@@ -18,8 +21,8 @@ if (!wantsHelp && !wantsMan) {
   if (build.status !== 0) process.exit(build.status ?? 1);
 }
 
-const run = spawnSync("tsx", ["index.eval.ts", ...args], {
-  stdio: "inherit",
-  cwd: __dirname,
-});
+  const run = spawnSync("tsx", ["index.eval.ts", ...args], {
+    stdio: "inherit",
+    cwd: moduleDir,
+  });
 process.exit(run.status ?? 0);
