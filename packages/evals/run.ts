@@ -21,8 +21,8 @@ if (!wantsHelp && !wantsMan) {
   if (build.status !== 0) process.exit(build.status ?? 1);
 }
 
-  const run = spawnSync("tsx", ["index.eval.ts", ...args], {
-    stdio: "inherit",
-    cwd: moduleDir,
-  });
+const run = spawnSync("tsx", ["index.eval.ts", ...args], {
+  stdio: "inherit",
+  cwd: moduleDir,
+});
 process.exit(run.status ?? 0);

@@ -293,9 +293,7 @@ const generateFilteredTestcases = (): Testcase[] => {
             );
           }
 
-          const taskModule = await import(
-            pathToFileURL(taskModulePath).href
-          );
+          const taskModule = await import(pathToFileURL(taskModulePath).href);
 
           // Extract the task function
           const taskName = input.name.includes("/")

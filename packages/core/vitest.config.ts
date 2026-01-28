@@ -34,7 +34,9 @@ const resolveDistFile = (candidate: string): string | null => {
 };
 
 const shouldSkipLibPath = (resolvedPath: string): boolean =>
-  resolvedPath.includes(`${path.sep}lib${path.sep}v3${path.sep}tests${path.sep}`);
+  resolvedPath.includes(
+    `${path.sep}lib${path.sep}v3${path.sep}tests${path.sep}`,
+  );
 
 const mapLibPathToDist = (resolvedPath: string): string | null => {
   if (!resolvedPath.startsWith(coreLibRoot + path.sep)) return null;
@@ -63,7 +65,10 @@ export default defineConfig({
         const stagehandMatch = resolveStagehandSpecifier(source);
         if (stagehandMatch) return stagehandMatch;
 
-        if (!importer || (!source.startsWith(".") && !path.isAbsolute(source))) {
+        if (
+          !importer ||
+          (!source.startsWith(".") && !path.isAbsolute(source))
+        ) {
           return null;
         }
 

@@ -478,18 +478,20 @@ export class StagehandAPIClient {
         if (tokenUsage) {
           const inputTokens = tokenUsage.inputTokens || 0;
           const outputTokens = tokenUsage.outputTokens || 0;
-          const reasoningTokens = "reasoningTokens" in tokenUsage
-            ? Number(
-                (tokenUsage as { reasoningTokens?: number }).reasoningTokens ??
-                  0,
-              )
-            : 0;
-          const cachedInputTokens = "cachedInputTokens" in tokenUsage
-            ? Number(
-                (tokenUsage as { cachedInputTokens?: number })
-                  .cachedInputTokens ?? 0,
-              )
-            : 0;
+          const reasoningTokens =
+            "reasoningTokens" in tokenUsage
+              ? Number(
+                  (tokenUsage as { reasoningTokens?: number })
+                    .reasoningTokens ?? 0,
+                )
+              : 0;
+          const cachedInputTokens =
+            "cachedInputTokens" in tokenUsage
+              ? Number(
+                  (tokenUsage as { cachedInputTokens?: number })
+                    .cachedInputTokens ?? 0,
+                )
+              : 0;
           const timeMs = tokenUsage.timeMs || 0;
 
           // Map method to metrics fields
