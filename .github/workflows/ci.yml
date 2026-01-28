@@ -527,12 +527,12 @@ jobs:
                 if [ -f "$dir/chrome-out.log" ]; then
                   echo ""
                   echo "[$dir/chrome-out.log]"
-                  grep -vi "dbus" "$dir/chrome-out.log" || true
+                  grep -vi "dbus\\|PHONE_REGISTRATION_ERROR" "$dir/chrome-out.log" || true
                 fi
                 if [ -f "$dir/chrome-err.log" ]; then
                   echo ""
                   echo "[$dir/chrome-err.log]"
-                  grep -vi "dbus" "$dir/chrome-err.log" || true
+                  grep -vi "dbus\\|PHONE_REGISTRATION_ERROR" "$dir/chrome-err.log" || true
                 fi
               fi
             done
