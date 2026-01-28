@@ -316,7 +316,7 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
         }
       }
     },
-    allowedTools: ["mcp__playwright__*"],
+    allowedTools: ["mcp__playwright__*", "WebFetch", "WebSearch"],
     model: "claude-sonnet-4-5-20250929",
   },
 
@@ -344,7 +344,7 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
       PATH: process.env.PATH,
     },
-    allowedTools: ["Bash", "Read", "Glob"],
+    allowedTools: ["Bash", "Read", "Glob", "WebFetch", "WebSearch"],
     model: "claude-sonnet-4-5-20250929",
     useBrowserbaseSession: true, // Create session with stealth/proxy/captcha
   },
@@ -357,7 +357,7 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
     env: {
       PATH: process.env.PATH,
     },
-    allowedTools: ["Bash", "Read", "Glob"],
+    allowedTools: ["Bash", "Read", "Glob", "WebFetch", "WebSearch"],
     model: "claude-sonnet-4-5-20250929",
     useBrowserbaseSession: true, // Create session with stealth/proxy/captcha
   },
@@ -377,7 +377,7 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
         }
       }
     },
-    allowedTools: ["mcp__chrome-devtools__*"],
+    allowedTools: ["mcp__chrome-devtools__*", "WebFetch", "WebSearch"],
     model: "claude-sonnet-4-5-20250929",
   },
 };
