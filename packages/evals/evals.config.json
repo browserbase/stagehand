@@ -546,6 +546,10 @@
       "categories": ["external_agent_benchmarks"]
     },
     {
+      "name": "agent/onlineMind2Web_skills_comparison",
+      "categories": ["external_agent_benchmarks"]
+    },
+    {
       "name": "agent/alibaba_supplier_search",
       "categories": ["agent"]
     },
