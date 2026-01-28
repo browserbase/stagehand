@@ -441,7 +441,7 @@ jobs:
   server-integration-tests:
     name: server/integration/${{ matrix.test.name }}
     runs-on: ubuntu-latest
-    needs: [build-server-sea, discover-server-tests]
+    needs: [build-server-sea, discover-server-tests, run-build]
     if: needs.discover-server-tests.outputs.has-integration-tests == 'true'
 
     strategy:
