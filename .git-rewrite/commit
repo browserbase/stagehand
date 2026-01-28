@@ -1,0 +1,65 @@
+tree bd2806d1b391dbd9d5270ed074b23d4b784286dc
+parent 6b5a3c9035654caaed2da375085b465edda97de4
+author Sean McGuire <75873287+seanmcguire12@users.noreply.github.com> 1764639543 -0800
+committer GitHub <noreply@github.com> 1764639543 -0800
+gpgsig -----BEGIN PGP SIGNATURE-----
+ 
+ wsFcBAABCAAQBQJpLkM3CRC1aQ7uu5UhlAAAxnMQAKSbb4e4yX9trd+hlPXkMipC
+ VW/hLKcVPi+43JlC8kP3xpHMBgg0DmmhVZAKSgE0PcqeteWWt0GnCXElzMg4Ku0F
+ e9qHYWUZiaQBFen7lJ0PIvcVI7Up7E0YsQXWDkW7CjjjSmvDla7kp5+ewpJvZXsd
+ uH/03vKFDBHNb/0NwtrjnrMo8+/Q/YrA8ItdkWEF0me334L6luwXHcuiG+gAVQZ/
+ 5WS8qhikKUTF3CH+l6MhXQxn4FqNgCI5sJ4uz9sqA7cTFVBxMMRDjc5h0ZGvRwXv
+ tAYl8RMZX5x/N0COOtxQi2tkmtEPt+xgUFLDdQvu3WDfVR/JYRVWGiFSSyUauNPH
+ euEeeXJZbGDeCJJw+Skt3UdK3QgnE60q9hAf3a1kliPEei6DG4zjAzoFUSUxcYsr
+ 6s0AGry0lD1DnP3f8qGlYRUHQAw5OCOoYnyok7w30QcZWLr6Ddv/QrG6RjYkw1ST
+ F2xeiT55KK8PdpeNDs6wszI0tX5sYcTlGUNbAgS8mJ707gnZiyKSTQIIMl3wNKSR
+ aCjmkN16Q+W6zQcxD76VJagQA/x/a6Wtlav0u+DHzY+l7BwrZUj2r1x9CnolsI92
+ W2vdDQdl5HZNNHKCe/559XvE2nf3OQ29jdmWRi9k7vmjgGoh1p5N4wYmhY/zmCSX
+ b+mEYGmCSqy294kNtcRR
+ =Bijv
+ -----END PGP SIGNATURE-----
+ 
+
+[fix]: make `page.evaluate()` use main world (#1331)
+
+# why
+- currently, we add the init scripts to the main world
+- this is problematic, because `page.evaluate()` uses the `v3-world`
+- this means that you can't easily evaluate the script you add with
+`addInitScript()`
+# what changed
+- makes sure that `page.evaluate()` uses the main world
+# test plan
+- added a test which calls `page.evaluate()` on a script added via
+`context.addInitScript()`
+
+
+
+
+
+<!-- This is an auto-generated description by cubic. -->
+---
+## Summary by cubic
+Fixes a context mismatch: page.evaluate now runs in the main world so
+scripts injected via context.addInitScript are callable. Frame.evaluate
+was updated to use the main world too.
+
+## Why:
+- evaluate() used the v3 isolated world while init scripts were in the
+main world, making injected globals inaccessible.
+
+## What:
+- Switched page.evaluate and frame.evaluate to use the main-world
+execution context via executionContextRegistry.
+- Added a test verifying an init-script function is callable from
+page.evaluate.
+
+## Test Plan:
+- [x] New test: init-script function is callable from page.evaluate
+(passes).
+- [x] Ran existing context.addInitScript tests to ensure no regressions.
+
+<sup>Written for commit d4bf59d9f7cf2942e52c4b0799012ee287bfdd06.
+Summary will update automatically on new commits.</sup>
+
+<!-- End of auto-generated description by cubic. -->
