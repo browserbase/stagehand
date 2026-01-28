@@ -124,23 +124,32 @@ interface DaemonResponse {
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
 
 // Detect if Browserbase should be used based on environment variables
-function getBrowserEnvironment(): "LOCAL" | "BROWSERBASE" {
+function getBrowserEnvironment(envOverride?: "LOCAL" | "BROWSERBASE"): "LOCAL" | "BROWSERBASE" {
   const apiKey = process.env.BROWSERBASE_API_KEY || process.env.BB_API_KEY;
   const projectId = process.env.BROWSERBASE_PROJECT_ID || process.env.BB_PROJECT_ID;
 
+  // If --env is explicitly set, use that
+  if (envOverride) {
+    if (envOverride === "BROWSERBASE" && (!apiKey || !projectId)) {
+      throw new Error("--env BROWSERBASE requires BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID environment variables");
+    }
+    return envOverride;
+  }
+
+  // Otherwise, auto-detect based on environment variables
   if (apiKey && projectId) {
     return "BROWSERBASE";
   }
   return "LOCAL";
 }
 
-async function runDaemon(session: string, headless: boolean): Promise<void> {
+async function runDaemon(session: string, headless: boolean, envOverride?: "LOCAL" | "BROWSERBASE"): Promise<void> {
   await cleanupStaleFiles(session);
 
   // Write daemon PID file
   await fs.writeFile(getPidPath(session), String(process.pid));
 
-  const env = getBrowserEnvironment();
+  const env = getBrowserEnvironment(envOverride);
 
   // Get API key for model (required by Stagehand, even though CLI doesn't use act/extract/observe directly)
   const modelApiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY;
@@ -1078,6 +1087,7 @@ async function sendCommand(
   command: string,
   args: unknown[],
   headless: boolean = false,
+  envOverride?: "LOCAL" | "BROWSERBASE",
 ): Promise<unknown> {
   try {
     return await sendCommandOnce(session, command, args);
@@ -1099,19 +1109,20 @@ async function sendCommand(
 
     await killChromeProcesses(session);
     await cleanupStaleFiles(session);
-    await ensureDaemon(session, headless);
+    await ensureDaemon(session, headless, envOverride);
 
     return await sendCommandOnce(session, command, args);
   }
 }
 
-async function ensureDaemon(session: string, headless: boolean): Promise<void> {
+async function ensureDaemon(session: string, headless: boolean, envOverride?: "LOCAL" | "BROWSERBASE"): Promise<void> {
   if (await isDaemonRunning(session)) {
     return;
   }
 
   const args = ["--session", session, "daemon"];
   if (headless) args.push("--headless");
+  if (envOverride) args.push("--env", envOverride);
 
   const child = spawn(process.argv[0], [process.argv[1], ...args], {
     detached: true,
@@ -1161,6 +1172,7 @@ interface GlobalOpts {
   ws?: string;
   headless?: boolean;
   headed?: boolean;
+  env?: "LOCAL" | "BROWSERBASE";
   json?: boolean;
   session?: string;
 }
@@ -1187,6 +1199,7 @@ async function runCommand(command: string, args: unknown[]): Promise<unknown> {
   const opts = program.opts<GlobalOpts>();
   const session = getSession(opts);
   const headless = isHeadless(opts);
+  const envOverride = opts.env;
 
   // If --ws provided, create direct Stagehand connection (LOCAL mode only)
   if (opts.ws) {
@@ -1206,8 +1219,8 @@ async function runCommand(command: string, args: unknown[]): Promise<unknown> {
     }
   }
 
-  await ensureDaemon(session, headless);
-  return sendCommand(session, command, args, headless);
+  await ensureDaemon(session, headless, envOverride);
+  return sendCommand(session, command, args, headless, envOverride);
 }
 
 program
@@ -1220,6 +1233,7 @@ program
   )
   .option("--headless", "Run Chrome in headless mode")
   .option("--headed", "Run Chrome with visible window (default)")
+  .option("--env <environment>", "Browser environment: LOCAL or BROWSERBASE (auto-detected if not specified)")
   .option("--json", "Output as JSON", false)
   .option(
     "--session <name>",
@@ -1239,7 +1253,7 @@ program
       console.log(JSON.stringify({ status: "already running", session }));
       return;
     }
-    await ensureDaemon(session, isHeadless(opts));
+    await ensureDaemon(session, isHeadless(opts), opts.env);
     console.log(JSON.stringify({ status: "started", session }));
   });
 
@@ -1299,7 +1313,7 @@ program
   .description("Run as daemon (internal use)")
   .action(async () => {
     const opts = program.opts<GlobalOpts>();
-    await runDaemon(getSession(opts), isHeadless(opts));
+    await runDaemon(getSession(opts), isHeadless(opts), opts.env);
   });
 
 // ==================== NAVIGATION ====================
