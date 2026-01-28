@@ -178,7 +178,7 @@ export class LLMProvider {
 
     this.logger({
       category: "llm",
-      message: `Deprecation warning: Model format "${modelName}" is deprecated. Please use the provider/model format (e.g., "openai/gpt-4o" or "anthropic/claude-3-5-sonnet-latest").`,
+      message: `Deprecation warning: Model format "${modelName}" is deprecated. Please use the provider/model format (e.g., "openai/gpt-5" or "anthropic/claude-sonnet-4").`,
       level: 0,
     });
 

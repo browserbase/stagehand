@@ -26,8 +26,8 @@ describe("Model format deprecation", () => {
     it("includes example of provider/model format", () => {
       const error = new UnsupportedModelError(["gpt-4o"]);
 
-      // Should provide an example like openai/gpt-4o
-      expect(error.message).toMatch(/openai\/gpt-4o|provider\/model/i);
+      // Should provide an example like openai/gpt-5
+      expect(error.message).toMatch(/openai\/gpt-5|provider\/model/i);
     });
 
     it("works with feature parameter", () => {
@@ -79,7 +79,7 @@ describe("Model format deprecation", () => {
       // Should mention the provider/model format
       expect(message).toContain("provider/model");
       // Should give an example
-      expect(message).toContain("openai/gpt-4o");
+      expect(message).toContain("openai/gpt-5");
     });
 
     it("returns OpenAIClient for legacy OpenAI model names", () => {

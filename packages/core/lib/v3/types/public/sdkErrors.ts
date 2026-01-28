@@ -51,7 +51,7 @@ export class UnsupportedModelError extends StagehandError {
     const modelList = supportedModels.join(", ");
     const deprecationNote =
       `\n\nNote: The legacy model format (e.g., "gpt-4o") is deprecated. ` +
-      `Please use the provider/model format instead (e.g., "openai/gpt-4o", "anthropic/claude-3-5-sonnet-latest").`;
+      `Please use the provider/model format instead (e.g., "openai/gpt-5", "anthropic/claude-sonnet-4").`;
 
     super(
       feature
