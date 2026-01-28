@@ -97,7 +97,16 @@ const extractRoute: RouteOptions = {
     params: Api.SessionIdParamsSchema,
     body: Api.ExtractRequestSchema,
     response: {
-      200: Api.ExtractResponseSchema,
+      200: {
+        content: {
+          "application/json": {
+            schema: Api.ExtractResponseSchema,
+          },
+          "text/event-stream": {
+            schema: Api.StreamEventSchema,
+          },
+        },
+      },
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: extractRouteHandler,

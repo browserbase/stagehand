@@ -88,7 +88,16 @@ const actRoute: RouteOptions = {
     params: Api.SessionIdParamsSchema,
     body: Api.ActRequestSchema,
     response: {
-      200: Api.ActResponseSchema,
+      200: {
+        content: {
+          "application/json": {
+            schema: Api.ActResponseSchema,
+          },
+          "text/event-stream": {
+            schema: Api.StreamEventSchema,
+          },
+        },
+      },
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: actRouteHandler,

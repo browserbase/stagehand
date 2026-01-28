@@ -89,7 +89,16 @@ const observeRoute: RouteOptions = {
     params: Api.SessionIdParamsSchema,
     body: Api.ObserveRequestSchema,
     response: {
-      200: Api.ObserveResponseSchema,
+      200: {
+        content: {
+          "application/json": {
+            schema: Api.ObserveResponseSchema,
+          },
+          "text/event-stream": {
+            schema: Api.StreamEventSchema,
+          },
+        },
+      },
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: observeRouteHandler,

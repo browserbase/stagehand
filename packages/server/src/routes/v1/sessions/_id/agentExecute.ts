@@ -94,7 +94,16 @@ const agentExecuteRoute: RouteOptions = {
     params: Api.SessionIdParamsSchema,
     body: Api.AgentExecuteRequestSchema,
     response: {
-      200: Api.AgentExecuteResponseSchema,
+      200: {
+        content: {
+          "application/json": {
+            schema: Api.AgentExecuteResponseSchema,
+          },
+          "text/event-stream": {
+            schema: Api.StreamEventSchema,
+          },
+        },
+      },
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: agentExecuteRouteHandler,

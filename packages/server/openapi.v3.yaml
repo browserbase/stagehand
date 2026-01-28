@@ -1025,6 +1025,30 @@ components:
         - success
         - data
       additionalProperties: false
+    StreamEvent:
+      description:
+        "Server-Sent Event emitted during streaming responses. Events are
+        sent as `data: <JSON>\\n\\n`. Key order: data (with status first), type,
+        id."
+      type: object
+      properties:
+        data:
+          anyOf:
+            - $ref: "#/components/schemas/StreamEventSystemDataOutput"
+            - $ref: "#/components/schemas/StreamEventLogDataOutput"
+        type:
+          $ref: "#/components/schemas/StreamEventType"
+        id:
+          description: Unique identifier for this event
+          example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      required:
+        - data
+        - type
+        - id
+      additionalProperties: false
     AgentCacheEntryOutput:
       type: object
       properties:
@@ -1764,30 +1788,6 @@ components:
       type: object
       properties: {}
       additionalProperties: false
-    StreamEvent:
-      description:
-        "Server-Sent Event emitted during streaming responses. Events are
-        sent as `data: <JSON>\\n\\n`. Key order: data (with status first), type,
-        id."
-      type: object
-      properties:
-        data:
-          anyOf:
-            - $ref: "#/components/schemas/StreamEventSystemDataOutput"
-            - $ref: "#/components/schemas/StreamEventLogDataOutput"
-        type:
-          $ref: "#/components/schemas/StreamEventType"
-        id:
-          description: Unique identifier for this event
-          example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
-          type: string
-          format: uuid
-          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
-      required:
-        - data
-        - type
-        - id
-      additionalProperties: false
 paths:
   /v1/sessions/{id}/act:
     post:
@@ -1828,6 +1828,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ActResponse"
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/StreamEvent"
   /v1/sessions/{id}/end:
     post:
       operationId: SessionEnd
@@ -1896,6 +1899,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExtractResponse"
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/StreamEvent"
   /v1/sessions/{id}/navigate:
     post:
       operationId: SessionNavigate
@@ -1933,6 +1939,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NavigateResponse"
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/StreamEvent"
   /v1/sessions/{id}/observe:
     post:
       operationId: SessionObserve
@@ -1972,6 +1981,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ObserveResponse"
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/StreamEvent"
   /v1/sessions/{id}/replay:
     get:
       operationId: SessionReplay
@@ -2073,6 +2085,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AgentExecuteResponse"
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/StreamEvent"
 servers:
   - url: https://api.stagehand.browserbase.com
     description: Production Browserbase Cloud API

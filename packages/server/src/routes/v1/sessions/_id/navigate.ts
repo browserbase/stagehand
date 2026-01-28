@@ -64,7 +64,16 @@ const navigateRoute: RouteOptions = {
     params: Api.SessionIdParamsSchema,
     body: Api.NavigateRequestSchema,
     response: {
-      200: Api.NavigateResponseSchema,
+      200: {
+        content: {
+          "application/json": {
+            schema: Api.NavigateResponseSchema,
+          },
+          "text/event-stream": {
+            schema: Api.StreamEventSchema,
+          },
+        },
+      },
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: navigateRouteHandler,
