@@ -64,6 +64,7 @@
     "@ai-sdk/azure": "^2.0.54",
     "@ai-sdk/cerebras": "^1.0.25",
     "@ai-sdk/deepseek": "^1.0.23",
+    "@ai-sdk/gateway": "^3.0.25",
     "@ai-sdk/google": "^2.0.23",
     "@ai-sdk/google-vertex": "^3.0.70",
     "@ai-sdk/groq": "^2.0.24",
