@@ -87,7 +87,6 @@ export const buildOnlineMind2WebSkillsTestcases = (
           "onlineMind2Web",
         ],
         metadata: {
-          skill: skill,
           model: "claude-opus-4-5-20251101",
           test: `${input.name}:${row.task_id}:${skill}`,
           category: "skills_comparison",
