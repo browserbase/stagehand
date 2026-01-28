@@ -193,6 +193,15 @@ jobs:
       - name: Run Build
         run: pnpm run build
 
+      - name: Build Stagehand ESM test output
+        run: pnpm --filter @browserbasehq/stagehand run build:esm
+
+      - name: Build server ESM test output
+        run: pnpm --filter @browserbasehq/stagehand-server run build:esm-tests
+
+      - name: Build evals ESM output
+        run: pnpm --filter @browserbasehq/stagehand-evals run build:esm
+
       - name: Save Turbo cache
         if: always()
         uses: actions/cache/save@v4
@@ -210,6 +219,7 @@ jobs:
             packages/core/lib/version.ts
             packages/core/lib/dom/build/**
             packages/core/lib/v3/dom/build/**
+            packages/evals/dist/**
             packages/server/dist/**
             packages/server/openapi.v3.yaml
           retention-days: 1
@@ -261,8 +271,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [run-build, discover-core-tests]
     if: needs.discover-core-tests.outputs.has-core-tests == 'true'
-    env:
-      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/core-unit/${{ matrix.test.name }}
 
     strategy:
       fail-fast: false
@@ -278,26 +286,19 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm-turbo
 
       - name: Run Vitest - ${{ matrix.test.name }}
+        env:
+          NODE_OPTIONS: --enable-source-maps --experimental-specifier-resolution=node
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/core-unit/${{ matrix.test.name }}
         run: |
           test_path="${{ matrix.test.path }}"
           rel_path="${test_path#packages/core/}"
+          compiled_path="dist/esm/${rel_path%.ts}.js"
           pnpm --filter @browserbasehq/stagehand exec vitest run \
-            --config vitest.config.ts \
+            --config vitest.esm.config.mjs \
             --reporter=default \
             --reporter=junit \
             --outputFile.junit="${{ github.workspace }}/ctrf/vitest-${{ matrix.test.safe_name }}.xml" \
-            --coverage \
-            --coverage.reportsDirectory="${{ github.workspace }}/coverage/vitest/${{ matrix.test.name }}" \
-            --coverage.reporter=lcov \
-            --coverage.reporter=text-summary \
-            "$rel_path"
-
-      - name: Upload Vitest coverage - ${{ matrix.test.name }}
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: vitest-coverage-${{ matrix.test.safe_name }}
-          path: coverage/vitest/${{ matrix.test.name }}
+            "$compiled_path"
 
       - uses: ./.github/actions/publish-ctrf-report
         if: always()
@@ -308,6 +309,8 @@ jobs:
 
       - uses: ./.github/actions/upload-v8-coverage
         if: always()
+        env:
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/core-unit/${{ matrix.test.name }}
         with:
           name: coverage-v8-core-unit-${{ matrix.test.name }}
 
@@ -394,8 +397,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [discover-server-tests]
     if: needs.discover-server-tests.outputs.has-unit-tests == 'true'
-    env:
-      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-unit/${{ matrix.test.name }}
 
     strategy:
       fail-fast: false
@@ -411,11 +412,16 @@ jobs:
 
       - name: Run server unit test - ${{ matrix.test.name }}
         env:
+          NODE_TEST_NODE_OPTIONS: --import ${{ github.workspace }}/scripts/register-stagehand-dist.mjs
           NODE_TEST_REPORTER: junit
           NODE_TEST_REPORTER_DESTINATION: ${{ github.workspace }}/ctrf/node-test-unit-${{ matrix.test.safe_name }}.xml
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-unit/${{ matrix.test.name }}
         run: |
           cd packages/server
-          pnpm run node:test "${{ matrix.test.path }}"
+          test_path="${{ matrix.test.path }}"
+          rel_path="${test_path#./test/}"
+          compiled_path="dist/tests/${rel_path%.ts}.js"
+          pnpm run node:test:compiled "$compiled_path"
 
       - uses: ./.github/actions/publish-ctrf-report
         if: always()
@@ -426,6 +432,8 @@ jobs:
 
       - uses: ./.github/actions/upload-v8-coverage
         if: always()
+        env:
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-unit/${{ matrix.test.name }}
         with:
           name: coverage-v8-server-unit-${{ matrix.test.name }}
 
@@ -492,6 +500,7 @@ jobs:
 
       - name: Run server integration test - ${{ matrix.test.name }}
         env:
+          NODE_TEST_NODE_OPTIONS: --import ${{ github.workspace }}/scripts/register-stagehand-dist.mjs
           NODE_TEST_REPORTER: junit
           NODE_TEST_REPORTER_DESTINATION: ${{ github.workspace }}/ctrf/node-test-integration-${{ matrix.test.safe_name }}.xml
           NODE_TEST_EXTRA_ARGS: --experimental-test-coverage
@@ -499,7 +508,10 @@ jobs:
         run: |
           cd packages/server
           set +e
-          pnpm run node:test "${{ matrix.test.path }}"
+          test_path="${{ matrix.test.path }}"
+          rel_path="${test_path#./test/}"
+          compiled_path="dist/tests/${rel_path%.ts}.js"
+          pnpm run node:test:compiled "$compiled_path"
           status=$?
           if [ "$status" -ne 0 ]; then
             echo ""
@@ -510,6 +522,23 @@ jobs:
               echo "No server log found at /tmp/stagehand-server.log"
             fi
             echo "--------------------------------"
+            echo ""
+            echo "----- chrome logs -----"
+            for dir in /tmp/stagehand-int-*; do
+              if [ -d "$dir" ]; then
+                if [ -f "$dir/chrome-out.log" ]; then
+                  echo ""
+                  echo "[$dir/chrome-out.log]"
+                  cat "$dir/chrome-out.log"
+                fi
+                if [ -f "$dir/chrome-err.log" ]; then
+                  echo ""
+                  echo "[$dir/chrome-err.log]"
+                  cat "$dir/chrome-err.log"
+                fi
+              fi
+            done
+            echo "-----------------------"
           fi
           exit "$status"
 
@@ -593,7 +622,6 @@ jobs:
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
       CTRF_JUNIT_PATH: ${{ github.workspace }}/ctrf/playwright-local-${{ matrix.test.safe_name }}.xml
-      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/e2e-local/${{ matrix.test.name }}
     strategy:
       fail-fast: false
       max-parallel: 20
@@ -608,11 +636,13 @@ jobs:
       - uses: ./.github/actions/verify-chromium-launch
 
       - name: Run local E2E Tests - ${{ matrix.test.name }}
+        env:
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/e2e-local/${{ matrix.test.name }}
         run: |
           test_path="${{ matrix.test.path }}"
           rel_path="${test_path#packages/core/}"
-          pnpm exec turbo run e2e:local --only --log-order=stream \
-            --filter @browserbasehq/stagehand -- "$rel_path"
+          compiled_path="dist/esm/${rel_path%.ts}.js"
+          pnpm --filter @browserbasehq/stagehand run e2e:local:esm -- "$compiled_path"
 
       - uses: ./.github/actions/publish-ctrf-report
         if: always()
@@ -623,6 +653,8 @@ jobs:
 
       - uses: ./.github/actions/upload-v8-coverage
         if: always()
+        env:
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/e2e-local/${{ matrix.test.name }}
         with:
           name: coverage-v8-e2e-local-${{ matrix.test.name }}
 
@@ -643,7 +675,6 @@ jobs:
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
       CTRF_JUNIT_PATH: ${{ github.workspace }}/ctrf/playwright-bb-${{ matrix.test.safe_name }}.xml
-      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/e2e-bb/${{ matrix.test.name }}
     strategy:
       fail-fast: false
       max-parallel: 100
@@ -661,11 +692,13 @@ jobs:
           distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
       - name: Run E2E Tests (browserbase) - ${{ matrix.test.name }}
+        env:
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/e2e-bb/${{ matrix.test.name }}
         run: |
           test_path="${{ matrix.test.path }}"
           rel_path="${test_path#packages/core/}"
-          pnpm exec turbo run e2e:bb --only --log-order=stream \
-            --filter @browserbasehq/stagehand -- "$rel_path"
+          compiled_path="dist/esm/${rel_path%.ts}.js"
+          pnpm --filter @browserbasehq/stagehand run e2e:bb:esm -- "$compiled_path"
 
       - uses: ./.github/actions/publish-ctrf-report
         if: always()
@@ -676,6 +709,8 @@ jobs:
 
       - uses: ./.github/actions/upload-v8-coverage
         if: always()
+        env:
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/e2e-bb/${{ matrix.test.name }}
         with:
           name: coverage-v8-e2e-bb-${{ matrix.test.name }}
 
@@ -704,7 +739,6 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/regression
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -717,7 +751,12 @@ jobs:
           distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
       - name: Run Regression Evals
-        run: pnpm run evals category regression trials=2 concurrency=${EVAL_MAX_CONCURRENCY} env=BROWSERBASE
+        env:
+          NODE_OPTIONS: --enable-source-maps --experimental-specifier-resolution=node --import ${{ github.workspace }}/scripts/register-stagehand-dist.mjs
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/regression
+        run: |
+          cd packages/evals
+          node dist/esm/index.eval.js category regression trials=2 concurrency=${EVAL_MAX_CONCURRENCY} env=BROWSERBASE
 
       - name: Log Regression Evals Performance
         id: set-regression-score
@@ -749,6 +788,8 @@ jobs:
 
       - uses: ./.github/actions/upload-v8-coverage
         if: always()
+        env:
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/regression
         with:
           name: coverage-v8-evals-regression
 
@@ -776,7 +817,6 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/combination
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -802,7 +842,12 @@ jobs:
 
       - name: Run Combination Evals
         if: needs.determine-evals.outputs.run-combination == 'true'
-        run: pnpm run evals category combination
+        env:
+          NODE_OPTIONS: --enable-source-maps --experimental-specifier-resolution=node --import ${{ github.workspace }}/scripts/register-stagehand-dist.mjs
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/combination
+        run: |
+          cd packages/evals
+          node dist/esm/index.eval.js category combination
 
       - name: Log Combination Evals Performance
         if: needs.determine-evals.outputs.run-combination == 'true'
@@ -830,6 +875,8 @@ jobs:
 
       - uses: ./.github/actions/upload-v8-coverage
         if: always() && needs.determine-evals.outputs.run-combination == 'true'
+        env:
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/combination
         with:
           name: coverage-v8-evals-combination
 
@@ -857,7 +904,6 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/act
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -883,7 +929,12 @@ jobs:
 
       - name: Run Act Evals
         if: needs.determine-evals.outputs.run-act == 'true'
-        run: pnpm run evals category act
+        env:
+          NODE_OPTIONS: --enable-source-maps --experimental-specifier-resolution=node --import ${{ github.workspace }}/scripts/register-stagehand-dist.mjs
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/act
+        run: |
+          cd packages/evals
+          node dist/esm/index.eval.js category act
 
       - name: Log Act Evals Performance
         if: needs.determine-evals.outputs.run-act == 'true'
@@ -914,6 +965,8 @@ jobs:
 
       - uses: ./.github/actions/upload-v8-coverage
         if: always() && needs.determine-evals.outputs.run-act == 'true'
+        env:
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/act
         with:
           name: coverage-v8-evals-act
 
@@ -941,7 +994,6 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/extract
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -968,7 +1020,12 @@ jobs:
       # 1. Run extract category with domExtract
       - name: Run Extract Evals (domExtract)
         if: needs.determine-evals.outputs.run-extract == 'true'
-        run: pnpm run evals category extract -- --extract-method=domExtract
+        env:
+          NODE_OPTIONS: --enable-source-maps --experimental-specifier-resolution=node --import ${{ github.workspace }}/scripts/register-stagehand-dist.mjs
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/extract
+        run: |
+          cd packages/evals
+          node dist/esm/index.eval.js category extract -- --extract-method=domExtract
 
       - name: Save Extract Dom Results
         if: needs.determine-evals.outputs.run-extract == 'true'
@@ -1002,6 +1059,8 @@ jobs:
 
       - uses: ./.github/actions/upload-v8-coverage
         if: always() && needs.determine-evals.outputs.run-extract == 'true'
+        env:
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/extract
         with:
           name: coverage-v8-evals-extract
 
@@ -1029,7 +1088,6 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/observe
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -1055,7 +1113,12 @@ jobs:
 
       - name: Run Observe Evals
         if: needs.determine-evals.outputs.run-observe == 'true'
-        run: pnpm run evals category observe
+        env:
+          NODE_OPTIONS: --enable-source-maps --experimental-specifier-resolution=node --import ${{ github.workspace }}/scripts/register-stagehand-dist.mjs
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/observe
+        run: |
+          cd packages/evals
+          node dist/esm/index.eval.js category observe
 
       - name: Log Observe Evals Performance
         if: needs.determine-evals.outputs.run-observe == 'true'
@@ -1086,6 +1149,8 @@ jobs:
 
       - uses: ./.github/actions/upload-v8-coverage
         if: always() && needs.determine-evals.outputs.run-observe == 'true'
+        env:
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/observe
         with:
           name: coverage-v8-evals-observe
 
@@ -1113,7 +1178,6 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/targeted-extract
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -1139,7 +1203,12 @@ jobs:
 
       - name: Run targeted extract Evals
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        run: pnpm run evals category targeted_extract
+        env:
+          NODE_OPTIONS: --enable-source-maps --experimental-specifier-resolution=node --import ${{ github.workspace }}/scripts/register-stagehand-dist.mjs
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/targeted-extract
+        run: |
+          cd packages/evals
+          node dist/esm/index.eval.js category targeted_extract
 
       - name: Log targeted extract Evals Performance
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
@@ -1170,6 +1239,8 @@ jobs:
 
       - uses: ./.github/actions/upload-v8-coverage
         if: always() && needs.determine-evals.outputs.run-targeted-extract == 'true'
+        env:
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/targeted-extract
         with:
           name: coverage-v8-evals-targeted-extract
 
@@ -1223,7 +1294,11 @@ jobs:
 
       - name: Run Agent Evals
         if: needs.determine-evals.outputs.run-agent == 'true'
-        run: pnpm run evals category agent trials=${EVAL_AGENT_TRIAL_COUNT} concurrency=${EVAL_AGENT_MAX_CONCURRENCY}
+        env:
+          NODE_OPTIONS: --enable-source-maps --experimental-specifier-resolution=node --import ${{ github.workspace }}/scripts/register-stagehand-dist.mjs
+        run: |
+          cd packages/evals
+          node dist/esm/index.eval.js category agent trials=${EVAL_AGENT_TRIAL_COUNT} concurrency=${EVAL_AGENT_MAX_CONCURRENCY}
 
       - name: Log Agent Evals Performance
         if: needs.determine-evals.outputs.run-agent == 'true'
@@ -1317,9 +1392,15 @@ jobs:
             --cwd "$GITHUB_WORKSPACE" \
             --include "packages/**" \
             --exclude "**/node_modules/**" \
+            --exclude "**/dist/**" \
+            --exclude "**/examples/**" \
+            --exclude "**/scripts/**" \
             --exclude "packages/**/test/**" \
             --exclude "packages/**/tests/**" \
+            --exclude "packages/**/examples/**" \
             --exclude "packages/**/lib/**/tests/**" \
+            --exclude "packages/**/scripts/**" \
+            --exclude-after-remap \
             --exclude "**/*.d.ts" \
             | tee coverage/merged/coverage-summary.txt
 
