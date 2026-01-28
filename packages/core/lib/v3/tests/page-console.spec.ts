@@ -15,6 +15,15 @@ test.describe("Page console events", () => {
   });
 
   test("captures console messages emitted by the page", async () => {
+    if (process.env.STAGEHAND_ENV === "BROWSERBASE") {
+      console.warn(
+        "[page-console] TODO: re-enable once BB cloud browsers support Runtime.consoleAPICalled events again. See https://browserbase.slack.com/archives/C06U6CM7YS1/p1769483322836589",
+      );
+      test.skip(
+        true,
+        "TODO: re-enable once BB cloud browsers support Runtime.consoleAPICalled events again.",
+      );
+    }
     const page = v3.context.pages()[0];
     const received: Array<{ type: string; text: string }> = [];
 
@@ -31,7 +40,23 @@ test.describe("Page console events", () => {
       console.error("stagehand console error");
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    const waitForConsole = async (
+      predicate: () => boolean,
+      timeoutMs = 2000,
+    ) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        if (predicate()) return;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    };
+
+    await waitForConsole(
+      () =>
+        received.some((m) => m.type === "log") &&
+        received.some((m) => m.type === "error" && m.text.includes("error")),
+      5000,
+    );
 
     expect(received.length).toBeGreaterThanOrEqual(2);
     expect(received.some((m) => m.type === "log")).toBeTruthy();

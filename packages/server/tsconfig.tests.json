@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "rootDir": "test",
+    "outDir": "dist/tests",
+    "noEmit": false,
+    "declaration": false,
+    "emitDeclarationOnly": false,
+    "sourceMap": true,
+    "inlineSources": true
+  },
+  "include": ["test/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

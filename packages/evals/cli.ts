@@ -4,8 +4,10 @@ import chalk from "chalk";
 import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
+import { fileURLToPath } from "node:url";
 
-const CONFIG_PATH = path.join(__dirname, "evals.config.json");
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const CONFIG_PATH = path.join(moduleDir, "evals.config.json");
 
 interface Config {
   defaults: {
@@ -451,11 +453,11 @@ function handleRun(args: string[]): void {
       process.exit(buildCode || 1);
     }
 
-    const compiledEvalPath = path.join(__dirname, "index.eval.js");
-    // When built to dist/evals/cli.js, __dirname is dist/evals/
+    const compiledEvalPath = path.join(moduleDir, "index.eval.js");
+    // When built to dist/evals/cli.js, moduleDir is dist/evals/
     // Source is at packages/evals/index.eval.ts from repo root
     const sourceEvalPath = path.resolve(
-      __dirname,
+      moduleDir,
       "..",
       "..",
       "packages",

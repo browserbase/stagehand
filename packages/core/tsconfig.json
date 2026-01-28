@@ -11,6 +11,8 @@
     "rootDir": "../../",
     "baseUrl": "../../",
     "paths": {
+      "@browserbasehq/stagehand": ["packages/core/tests/public-api/stagehand-entry.ts"],
+      "@browserbasehq/stagehand/*": ["packages/core/lib/*"],
       "*": ["node_modules/*", "packages/core/lib/types/*"],
       "@/*": ["./"]
     },

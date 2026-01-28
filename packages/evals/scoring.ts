@@ -4,6 +4,27 @@
 
 import { EvalArgs, EvalInput, EvalResult } from "./types/evals";
 
+function formatTaskOutput(output: unknown): string {
+  let value: string | undefined;
+  if (typeof output === "string") {
+    value = output;
+  } else {
+    try {
+      value = JSON.stringify(output);
+    } catch {
+      value = undefined;
+    }
+    if (value === undefined) {
+      value = String(output);
+    }
+  }
+
+  if (value.length > 160) {
+    return `${value.slice(0, 157)}...`;
+  }
+  return value;
+}
+
 /**
  * Scoring function: exactMatch
  * Given the arguments (including input, output, and expected result),
@@ -16,7 +37,9 @@ import { EvalArgs, EvalInput, EvalResult } from "./types/evals";
 export function exactMatch(
   args: EvalArgs<EvalInput, boolean | { _success: boolean }, unknown>,
 ): EvalResult {
-  console.log(`Task "${args.input.name}" returned: ${args.output}`);
+  console.log(
+    `Task "${args.input.name}" returned: ${formatTaskOutput(args.output)}`,
+  );
 
   const expected = args.expected ?? true;
   if (expected === true) {
@@ -53,7 +76,9 @@ export function errorMatch(
     unknown
   >,
 ): EvalResult {
-  console.log(`Task "${args.input.name}" returned: ${args.output}`);
+  console.log(
+    `Task "${args.input.name}" returned: ${formatTaskOutput(args.output)}`,
+  );
 
   return {
     name: "Error rate",

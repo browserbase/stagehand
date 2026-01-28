@@ -865,26 +865,54 @@ components:
           type: number
         outputTokens:
           type: number
-        reasoningTokens:
-          type: number
-        cachedInputTokens:
-          type: number
         timeMs:
+          type: number
+        cost:
           type: number
     ReplayAction:
       type: object
       properties:
         method:
           type: string
+        parameters:
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties: {}
+        result:
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties: {}
+        timestamp:
+          type: number
+        endTime:
+          type: number
         tokenUsage:
           $ref: "#/components/schemas/TokenUsage"
+      required:
+        - method
+        - parameters
+        - result
+        - timestamp
     ReplayPage:
       type: object
       properties:
+        url:
+          type: string
+        timestamp:
+          type: number
+        duration:
+          type: number
         actions:
           type: array
           items:
             $ref: "#/components/schemas/ReplayAction"
+      required:
+        - url
+        - timestamp
+        - duration
+        - actions
     ReplayResult:
       type: object
       properties:
@@ -892,6 +920,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ReplayPage"
+        clientLanguage:
+          type: string
+      required:
+        - pages
     StreamEventStatus:
       description: Current status of the streaming operation
       type: string
@@ -1667,11 +1699,9 @@ components:
           type: number
         outputTokens:
           type: number
-        reasoningTokens:
-          type: number
-        cachedInputTokens:
-          type: number
         timeMs:
+          type: number
+        cost:
           type: number
       additionalProperties: false
     ReplayActionOutput:
@@ -1679,16 +1709,46 @@ components:
       properties:
         method:
           type: string
+        parameters:
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties: {}
+        result:
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties: {}
+        timestamp:
+          type: number
+        endTime:
+          type: number
         tokenUsage:
           $ref: "#/components/schemas/TokenUsageOutput"
+      required:
+        - method
+        - parameters
+        - result
+        - timestamp
       additionalProperties: false
     ReplayPageOutput:
       type: object
       properties:
+        url:
+          type: string
+        timestamp:
+          type: number
+        duration:
+          type: number
         actions:
           type: array
           items:
             $ref: "#/components/schemas/ReplayActionOutput"
+      required:
+        - url
+        - timestamp
+        - duration
+        - actions
       additionalProperties: false
     ReplayResultOutput:
       type: object
@@ -1697,6 +1757,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ReplayPageOutput"
+        clientLanguage:
+          type: string
+      required:
+        - pages
       additionalProperties: false
     StreamEventSystemDataOutput:
       type: object

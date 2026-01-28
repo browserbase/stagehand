@@ -31,19 +31,9 @@ jobs:
           fetch-depth: 1
           fetch-tags: true
 
-      - uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
-          node-version: 22.x
-          cache: 'pnpm'
-          cache-dependency-path: '**/pnpm-lock.yaml'
-
-      - name: Install dependencies
-        env:
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
-        run: pnpm install --frozen-lockfile
+          use-prebuilt-artifacts: "false"
 
       - name: Determine release metadata
         id: meta
@@ -101,8 +91,6 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
 
           if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
             echo "Tag already exists: ${TAG}"
