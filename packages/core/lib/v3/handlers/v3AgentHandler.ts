@@ -113,6 +113,18 @@ export class V3AgentHandler {
         },
       });
 
+      if (
+        this.mode === "hybrid" &&
+        !baseModel.modelId.includes("gemini-3-flash") &&
+        !baseModel.modelId.includes("claude")
+      ) {
+        this.logger({
+          category: "agent",
+          message: `Warning: "${baseModel.modelId}" may not perform well in hybrid mode. See recommended models: https://docs.stagehand.dev/v3/basics/agent#hybrid-mode`,
+          level: 0,
+        });
+      }
+
       return {
         options,
         maxSteps,
