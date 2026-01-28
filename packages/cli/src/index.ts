@@ -154,6 +154,14 @@ async function runDaemon(session: string, headless: boolean, envOverride?: "LOCA
   // Get API key for model (required by Stagehand, even though CLI doesn't use act/extract/observe directly)
   const modelApiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY;
 
+  // When using BROWSERBASE, model API key is required
+  if (env === "BROWSERBASE" && !modelApiKey) {
+    throw new Error(
+      "BROWSERBASE mode requires ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable to be set.\n" +
+      "The Stagehand SDK requires an AI model API key when running on Browserbase."
+    );
+  }
+
   // Create Stagehand instance with dummy model (never used for CLI operations)
   const stagehand = new Stagehand({
     env,
