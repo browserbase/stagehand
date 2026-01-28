@@ -462,8 +462,6 @@ jobs:
           fetch-depth: 1
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
-        with:
-          use-prebuilt-artifacts: "false"
 
       - name: Download SEA binary
         uses: actions/download-artifact@v4
