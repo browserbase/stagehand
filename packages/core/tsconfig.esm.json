@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "rootDir": ".",
+    "outDir": "./dist/esm",
+    "declaration": false,
+    "emitDeclarationOnly": false,
+    "sourceMap": true,
+    "inlineSources": true,
+    "paths": {
+      "@browserbasehq/stagehand": ["packages/core/lib/v3/index.ts"],
+      "@browserbasehq/stagehand/*": ["packages/core/lib/*"],
+      "*": ["node_modules/*", "packages/core/lib/types/*"],
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["lib/**/*"],
+  "exclude": ["node_modules", "dist", "tests", "examples", "lib/**/tests/**"]
+}

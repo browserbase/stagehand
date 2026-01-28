@@ -2,14 +2,39 @@ import type { V3Options } from "../types/public/options";
 import type { BrowserbaseSessionCreateParams } from "../types/public/api";
 import type { LogLine } from "../types/public/logs";
 import dotenv from "dotenv";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
 
 dotenv.config();
 
-const rootEnvPath = path.resolve(__dirname, "../../../.env");
+const resolveRepoRoot = (startDir: string): string => {
+  let current = startDir;
+  while (true) {
+    if (fs.existsSync(path.join(current, "pnpm-workspace.yaml"))) {
+      return current;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return startDir;
+    }
+    current = parent;
+  }
+};
+
+const repoRoot = resolveRepoRoot(process.cwd());
+
+const rootEnvPath = path.join(repoRoot, ".env");
 dotenv.config({ path: rootEnvPath, override: false });
 
-const localTestEnvPath = path.resolve(__dirname, ".env");
+const localTestEnvPath = path.join(
+  repoRoot,
+  "packages",
+  "core",
+  "lib",
+  "v3",
+  "tests",
+  ".env",
+);
 dotenv.config({ path: localTestEnvPath, override: false });
 
 // Determine environment from STAGEHAND_ENV variable

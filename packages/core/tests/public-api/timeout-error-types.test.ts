@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import * as Stagehand from "../../dist";
+import * as Stagehand from "@browserbasehq/stagehand";
 
 // ============================================================================
 // Public Timeout Error Types Runtime Tests

@@ -1,8 +1,47 @@
 import { defineConfig, type ReporterDescription } from "@playwright/test";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
+
+const resolveRepoRoot = (startDir: string): string => {
+  let current = startDir;
+  while (true) {
+    if (fs.existsSync(path.join(current, "pnpm-workspace.yaml"))) {
+      return current;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return startDir;
+    }
+    current = parent;
+  }
+};
+
+const repoRoot = resolveRepoRoot(process.cwd());
 
 const ctrfJunitPath = process.env.CTRF_JUNIT_PATH;
-const envReporterPath = path.resolve(__dirname, "envReporter.ts");
+const envReporterPath = (() => {
+  const distPath = path.join(
+    repoRoot,
+    "packages",
+    "core",
+    "dist",
+    "esm",
+    "lib",
+    "v3",
+    "tests",
+    "envReporter.js",
+  );
+  if (fs.existsSync(distPath)) return distPath;
+  return path.join(
+    repoRoot,
+    "packages",
+    "core",
+    "lib",
+    "v3",
+    "tests",
+    "envReporter.ts",
+  );
+})();
 const reporter: ReporterDescription[] = ctrfJunitPath
   ? [["list"], [envReporterPath], ["junit", { outputFile: ctrfJunitPath }]]
   : [["list"], [envReporterPath]];

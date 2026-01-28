@@ -4,13 +4,11 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
-const coreRoot = rootDir;
-const coreLibRoot = path.resolve(coreRoot, "lib");
 const distEsmRoot = path.resolve(rootDir, "dist", "esm");
 
 const fileExtensions = [".js", ".mjs", ".cjs"];
 
-const isFile = (candidate: string): boolean => {
+const isFile = (candidate) => {
   try {
     return fs.statSync(candidate).isFile();
   } catch {
@@ -18,7 +16,7 @@ const isFile = (candidate: string): boolean => {
   }
 };
 
-const resolveDistFile = (candidate: string): string | null => {
+const resolveDistFile = (candidate) => {
   const ext = path.extname(candidate);
   if (ext) {
     const jsCandidate = candidate.replace(ext, ".js");
@@ -33,25 +31,13 @@ const resolveDistFile = (candidate: string): string | null => {
   return null;
 };
 
-const shouldSkipLibPath = (resolvedPath: string): boolean =>
-  resolvedPath.includes(`${path.sep}lib${path.sep}v3${path.sep}tests${path.sep}`);
-
-const mapLibPathToDist = (resolvedPath: string): string | null => {
-  if (!resolvedPath.startsWith(coreLibRoot + path.sep)) return null;
-  if (shouldSkipLibPath(resolvedPath)) return null;
-  const rel = path.relative(coreRoot, resolvedPath);
-  const candidate = path.join(distEsmRoot, rel);
-  return resolveDistFile(candidate);
-};
-
-const resolveStagehandSpecifier = (source: string): string | null => {
+const resolveStagehandSpecifier = (source) => {
   if (source === "@browserbasehq/stagehand") {
     return resolveDistFile(path.join(distEsmRoot, "index.js"));
   }
   if (!source.startsWith("@browserbasehq/stagehand/")) return null;
   const subpath = source.slice("@browserbasehq/stagehand/".length);
-  const candidate = path.join(distEsmRoot, subpath);
-  return resolveDistFile(candidate);
+  return resolveDistFile(path.join(distEsmRoot, subpath));
 };
 
 export default defineConfig({
@@ -59,25 +45,15 @@ export default defineConfig({
     {
       name: "stagehand-dist-resolver",
       enforce: "pre",
-      resolveId(source, importer) {
+      resolveId(source) {
         const stagehandMatch = resolveStagehandSpecifier(source);
         if (stagehandMatch) return stagehandMatch;
-
-        if (!importer || (!source.startsWith(".") && !path.isAbsolute(source))) {
-          return null;
-        }
-
-        const importerPath = importer.startsWith("file:")
-          ? fileURLToPath(importer)
-          : importer.split("?")[0];
-        const resolved = path.resolve(path.dirname(importerPath), source);
-        const mapped = mapLibPathToDist(resolved);
-        return mapped ?? null;
+        return null;
       },
     },
   ],
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    include: ["dist/esm/tests/**/*.test.js"],
   },
 });

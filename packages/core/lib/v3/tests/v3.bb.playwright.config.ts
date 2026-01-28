@@ -1,12 +1,29 @@
 import { defineConfig, type ReporterDescription } from "@playwright/test";
 import dotenv from "dotenv";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
 
 // Load environment variables before setting STAGEHAND_ENV
 dotenv.config();
 
-// Try loading from repo root (packages/core/lib/v3/tests -> repo root = 5 levels up)
-const repoRootEnvPath = path.resolve(__dirname, "../../../../../.env");
+const resolveRepoRoot = (startDir: string): string => {
+  let current = startDir;
+  while (true) {
+    if (fs.existsSync(path.join(current, "pnpm-workspace.yaml"))) {
+      return current;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return startDir;
+    }
+    current = parent;
+  }
+};
+
+const repoRoot = resolveRepoRoot(process.cwd());
+
+// Try loading from repo root without assuming dist vs src layout.
+const repoRootEnvPath = path.join(repoRoot, ".env");
 dotenv.config({ path: repoRootEnvPath, override: false });
 
 // Set STAGEHAND_ENV before tests run
@@ -21,7 +38,29 @@ const workerCount =
     : 3;
 
 const ctrfJunitPath = process.env.CTRF_JUNIT_PATH;
-const envReporterPath = path.resolve(__dirname, "envReporter.ts");
+const envReporterPath = (() => {
+  const distPath = path.join(
+    repoRoot,
+    "packages",
+    "core",
+    "dist",
+    "esm",
+    "lib",
+    "v3",
+    "tests",
+    "envReporter.js",
+  );
+  if (fs.existsSync(distPath)) return distPath;
+  return path.join(
+    repoRoot,
+    "packages",
+    "core",
+    "lib",
+    "v3",
+    "tests",
+    "envReporter.ts",
+  );
+})();
 const reporter: ReporterDescription[] = ctrfJunitPath
   ? [
       ["list"],
