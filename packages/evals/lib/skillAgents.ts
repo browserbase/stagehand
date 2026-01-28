@@ -140,10 +140,29 @@ export async function runSkillAgent(
       }),
     };
 
+    // For MCPs, also merge session info into each MCP server's env
+    let mcpServers = config.mcpServers;
+    if (mcpServers && sessionInfo) {
+      mcpServers = Object.fromEntries(
+        Object.entries(mcpServers).map(([name, serverConfig]) => [
+          name,
+          {
+            ...serverConfig,
+            env: {
+              ...serverConfig.env,
+              BROWSERBASE_SESSION_ID: sessionInfo.sessionId,
+              BROWSERBASE_CONNECT_URL: sessionInfo.connectUrl,
+              BROWSERBASE_DEBUG_URL: sessionInfo.debugUrl,
+            },
+          },
+        ])
+      );
+    }
+
     for await (const message of query({
       prompt: instruction,
       options: {
-        mcpServers: config.mcpServers,
+        mcpServers,
         cwd: config.cwd,
         settingSources: config.settingSources,
         env,
@@ -163,22 +182,40 @@ export async function runSkillAgent(
 
       // LOG MESSAGES AS THEY ARRIVE for real-time observability
       const msg = message as any; // Agent SDK messages have dynamic types
-      if (msg.type === "text") {
-        console.log(`[Agent SDK] ${msg.text || ""}`);
-      } else if (msg.type === "tool_use") {
-        console.log(`[Agent SDK] Tool use: ${msg.tool_use?.name || "unknown"}`);
-        if (msg.tool_use?.input) {
-          console.log(`[Agent SDK] Tool input:`, JSON.stringify(msg.tool_use.input).substring(0, 200));
+
+      // Handle assistant messages (contain text and tool_use blocks)
+      if (msg.type === "assistant" && msg.message?.content) {
+        for (const block of msg.message.content) {
+          if (block.type === "text") {
+            console.log(`[Agent SDK] Assistant: ${block.text.substring(0, 200)}`);
+          } else if (block.type === "tool_use") {
+            console.log(`[Agent SDK] Tool use: ${block.name}`);
+            if (block.input) {
+              console.log(`[Agent SDK] Input:`, JSON.stringify(block.input).substring(0, 200));
+            }
+          }
         }
-      } else if (msg.type === "tool_result") {
-        console.log(`[Agent SDK] Tool result (${msg.tool_result?.tool_use_id || "unknown"})`);
-        if (msg.tool_result?.content) {
-          const resultStr = typeof msg.tool_result.content === 'string'
-            ? msg.tool_result.content
-            : JSON.stringify(msg.tool_result.content);
-          console.log(`[Agent SDK] Result preview:`, resultStr.substring(0, 200));
+      }
+      // Handle user messages (contain tool_result blocks)
+      else if (msg.type === "user" && msg.message?.content) {
+        for (const block of msg.message.content) {
+          if (block.type === "tool_result") {
+            console.log(`[Agent SDK] Tool result: ${block.tool_use_id}`);
+            const content = block.content;
+            if (typeof content === 'string') {
+              console.log(`[Agent SDK] Result:`, content.substring(0, 200));
+            } else if (Array.isArray(content)) {
+              for (const item of content) {
+                if (item.type === "text") {
+                  console.log(`[Agent SDK] Result:`, item.text.substring(0, 200));
+                }
+              }
+            }
+          }
         }
-      } else if (msg.type === "result") {
+      }
+      // Handle final result
+      else if (msg.type === "result") {
         metrics.durationMs = Date.now() - startTime;
         metrics.turnCount = msg.num_turns;
         metrics.totalCostUsd = msg.total_cost_usd;
@@ -237,6 +274,7 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
   "playwright-mcp": {
     name: "playwright-mcp",
     type: "mcp",
+    useBrowserbaseSession: true, // Create session with stealth/proxy/captcha
     mcpServers: {
       playwright: {
         command: "node",
@@ -297,6 +335,7 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
   "chrome-devtools-mcp": {
     name: "chrome-devtools-mcp",
     type: "mcp",
+    useBrowserbaseSession: true, // Create session with stealth/proxy/captcha
     mcpServers: {
       "chrome-devtools": {
         command: "node",

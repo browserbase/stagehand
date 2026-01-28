@@ -2,7 +2,6 @@ import { EvalFunction } from "../../types/evals";
 import { runSkillAgent, SKILL_CONFIGS } from "../../lib/skillAgents";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 import dotenv from "dotenv";
-import type { V3 } from "@browserbasehq/stagehand";
 
 dotenv.config();
 
@@ -80,22 +79,27 @@ At the end, produce: "Final Answer: <answer>"`;
       level: 1,
     });
 
-    // Use V3Evaluator to validate the answer (text-only mode, no screenshots from Agent SDK)
+    // Use V3Evaluator to validate the answer (LLM-as-a-judge, text-only without screenshots)
     let evaluationSuccess = false;
     let evaluationReasoning = "No evaluation performed";
 
     if (metrics.reasoning) {
       try {
-        // Create a stub V3 instance for V3Evaluator (it only needs the model, not the browser)
+        // Create a minimal stub V3 instance for V3Evaluator
+        // V3Evaluator only needs logger and LLMProvider, not the full browser context
         const stubV3 = {
-          logger: () => {},
-        } as any as V3;
+          logger: (message: any) => logger.log({
+            category: "evaluator",
+            message: typeof message === "string" ? message : message.message,
+            level: 1,
+          }),
+        } as any;
 
-        // Use Anthropic model for evaluation
+        // Use Anthropic Claude for evaluation
         const evaluatorModel = "anthropic/claude-sonnet-4-20250514";
         const evaluator = new V3Evaluator(
           stubV3,
-          evaluatorModel,
+          evaluatorModel as any,
           { apiKey: process.env.ANTHROPIC_API_KEY || "" }
         );
 
@@ -105,10 +109,12 @@ At the end, produce: "Final Answer: <answer>"`;
           level: 1,
         });
 
+        // Use V3Evaluator with screenshot: false for text-only evaluation
         const evalResult = await evaluator.ask({
           question: `Did the agent successfully complete this task: "${params.confirmed_task}"?`,
-          screenshot: [], // No screenshots available from Agent SDK
-          agentReasoning: metrics.reasoning || "No reasoning provided",
+          answer: metrics.reasoning || "No reasoning provided",
+          screenshot: false, // Text-only evaluation without screenshots
+          agentReasoning: metrics.reasoning,
         });
 
         evaluationSuccess = evalResult.evaluation === "YES";
