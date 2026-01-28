@@ -92,12 +92,29 @@ export async function runSkillAgent(
       }
     })) {
       // Capture ALL messages for full turn-by-turn logging
-      metrics.agentMessages!.push({
+      const timestampedMessage = {
         ...message,
         timestamp: new Date().toISOString(),
-      });
+      };
+      metrics.agentMessages!.push(timestampedMessage);
 
-      if (message.type === "result") {
+      // LOG MESSAGES AS THEY ARRIVE for real-time observability
+      if (message.type === "text") {
+        console.log(`[Agent SDK] ${message.text || ""}`);
+      } else if (message.type === "tool_use") {
+        console.log(`[Agent SDK] Tool use: ${message.tool_use?.name || "unknown"}`);
+        if (message.tool_use?.input) {
+          console.log(`[Agent SDK] Tool input:`, JSON.stringify(message.tool_use.input).substring(0, 200));
+        }
+      } else if (message.type === "tool_result") {
+        console.log(`[Agent SDK] Tool result (${message.tool_result?.tool_use_id || "unknown"})`);
+        if (message.tool_result?.content) {
+          const resultStr = typeof message.tool_result.content === 'string'
+            ? message.tool_result.content
+            : JSON.stringify(message.tool_result.content);
+          console.log(`[Agent SDK] Result preview:`, resultStr.substring(0, 200));
+        }
+      } else if (message.type === "result") {
         metrics.durationMs = Date.now() - startTime;
         metrics.turnCount = message.num_turns;
         metrics.totalCostUsd = message.total_cost_usd;
