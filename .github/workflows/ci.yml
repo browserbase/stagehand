@@ -502,7 +502,6 @@ jobs:
           NODE_TEST_NODE_OPTIONS: --import ${{ github.workspace }}/scripts/register-stagehand-dist.mjs
           NODE_TEST_REPORTER: junit
           NODE_TEST_REPORTER_DESTINATION: ${{ github.workspace }}/ctrf/node-test-integration-${{ matrix.test.safe_name }}.xml
-          NODE_TEST_EXTRA_ARGS: --experimental-test-coverage
           NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-integration/${{ matrix.test.name }}/tests
         run: |
           cd packages/server
@@ -528,12 +527,12 @@ jobs:
                 if [ -f "$dir/chrome-out.log" ]; then
                   echo ""
                   echo "[$dir/chrome-out.log]"
-                  cat "$dir/chrome-out.log"
+                  grep -vi "dbus" "$dir/chrome-out.log" || true
                 fi
                 if [ -f "$dir/chrome-err.log" ]; then
                   echo ""
                   echo "[$dir/chrome-err.log]"
-                  cat "$dir/chrome-err.log"
+                  grep -vi "dbus" "$dir/chrome-err.log" || true
                 fi
               fi
             done
