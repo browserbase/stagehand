@@ -664,9 +664,19 @@ components:
           description: Custom system prompt for the agent
           type: string
         cua:
-          description: Enable Computer Use Agent mode
+          description:
+            "Deprecated. Use mode: 'cua' instead. If both are provided, mode
+            takes precedence."
           example: true
           type: boolean
+        mode:
+          description: Tool mode for the agent (dom, hybrid, cua). If set, overrides cua.
+          example: cua
+          type: string
+          enum:
+            - dom
+            - hybrid
+            - cua
     AgentAction:
       type: object
       properties:
@@ -1551,9 +1561,19 @@ components:
           description: Custom system prompt for the agent
           type: string
         cua:
-          description: Enable Computer Use Agent mode
+          description:
+            "Deprecated. Use mode: 'cua' instead. If both are provided, mode
+            takes precedence."
           example: true
           type: boolean
+        mode:
+          description: Tool mode for the agent (dom, hybrid, cua). If set, overrides cua.
+          example: cua
+          type: string
+          enum:
+            - dom
+            - hybrid
+            - cua
       additionalProperties: false
     AgentUsageOutput:
       type: object

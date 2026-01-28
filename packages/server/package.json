@@ -41,6 +41,7 @@
     "@types/node": "22.13.1",
     "esbuild": "0.27.2",
     "eslint": "^9.7.0",
+    "eslint-plugin-security": "^3.0.1",
     "openai": "4.87.1",
     "postject": "1.0.0-alpha.6",
     "prettier": "^3.2.5",

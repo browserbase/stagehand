@@ -13,6 +13,7 @@ import {
 } from "./prompt";
 import { appendSummary, writeTimestampedTxtFile } from "./inferenceLogUtils";
 import type { InferStagehandSchema, StagehandZodObject } from "./v3/zodCompat";
+import { SupportedUnderstudyAction } from "./v3/types/private/handlers";
 
 // Re-export for backward compatibility
 export type { LLMParsedResponse, LLMUsage } from "./v3/llm/LLMClient";
@@ -256,6 +257,7 @@ export async function observe({
         z.object({
           elementId: z
             .string()
+            .regex(/^\d+-\d+$/)
             .describe(
               "the ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'.",
             ),
@@ -265,9 +267,15 @@ export async function observe({
               "a description of the accessible element and its purpose",
             ),
           method: z
-            .string()
+            .enum(
+              // Use Object.values() for Zod v3 compatibility - z.enum() in v3 doesn't accept TypeScript enums directly
+              Object.values(SupportedUnderstudyAction) as unknown as readonly [
+                string,
+                ...string[],
+              ],
+            )
             .describe(
-              "the candidate method/action to interact with the element. Select one of the available Playwright interaction methods.",
+              `the candidate method/action to interact with the element. Select one of the available Understudy interaction methods.`,
             ),
           arguments: z.array(
             z
@@ -393,6 +401,7 @@ export async function act({
   const actSchema = z.object({
     elementId: z
       .string()
+      .regex(/^\d+-\d+$/)
       .describe(
         "the ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'.",
       ),
@@ -400,9 +409,15 @@ export async function act({
       .string()
       .describe("a description of the accessible element and its purpose"),
     method: z
-      .string()
+      .enum(
+        // Use Object.values() for Zod v3 compatibility - z.enum() in v3 doesn't accept TypeScript enums directly
+        Object.values(SupportedUnderstudyAction) as unknown as readonly [
+          string,
+          ...string[],
+        ],
+      )
       .describe(
-        "the candidate method/action to interact with the element. Select one of the available Playwright interaction methods.",
+        "the candidate method/action to interact with the element. Select one of the available Understudy interaction methods.",
       ),
     arguments: z.array(
       z
