@@ -137,8 +137,18 @@ export async function runSkillAgent(
         BROWSERBASE_SESSION_ID: sessionInfo.sessionId,
         BROWSERBASE_CONNECT_URL: sessionInfo.connectUrl,
         BROWSERBASE_DEBUG_URL: sessionInfo.debugUrl,
+        // For stagehand-cli: unique session name to prevent contamination during concurrent tests
+        STAGEHAND_SESSION: `eval-${sessionInfo.sessionId.substring(0, 8)}`,
       }),
     };
+
+    // Debug: Log session isolation env vars
+    if (sessionInfo) {
+      console.log(`[${config.name}] Session isolation env vars:`, {
+        STAGEHAND_SESSION: env.STAGEHAND_SESSION,
+        BROWSERBASE_CONNECT_URL: sessionInfo.connectUrl.substring(0, 50) + '...',
+      });
+    }
 
     // For MCPs, also merge session info into each MCP server's env
     let mcpServers = config.mcpServers;
@@ -342,7 +352,8 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
       BROWSERBASE_API_KEY: process.env.BROWSERBASE_API_KEY,
       BROWSERBASE_PROJECT_ID: process.env.BROWSERBASE_PROJECT_ID,
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-      PATH: process.env.PATH,
+      // Prepend browserbase-skills to PATH so our stagehand wrapper is found first
+      PATH: `${path.join(HOME, "Developer/browserbase-skills")}:${process.env.PATH}`,
     },
     allowedTools: ["Bash", "Read", "Glob", "WebFetch", "WebSearch"],
     model: "claude-sonnet-4-5-20250929",
