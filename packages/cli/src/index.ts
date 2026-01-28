@@ -1210,14 +1210,15 @@ async function runCommand(command: string, args: unknown[]): Promise<unknown> {
   const headless = isHeadless(opts);
   const envOverride = opts.env;
 
-  // If --ws provided, create direct Stagehand connection (LOCAL mode only)
-  if (opts.ws) {
+  // If --ws provided or BROWSERBASE_CONNECT_URL env var set, create direct Stagehand connection (LOCAL mode only)
+  const wsUrl = opts.ws || process.env.BROWSERBASE_CONNECT_URL;
+  if (wsUrl) {
     const stagehand = new Stagehand({
       env: "LOCAL",
       verbose: 0,
       disablePino: true,
       localBrowserLaunchOptions: {
-        cdpUrl: opts.ws,
+        cdpUrl: wsUrl,
       },
     });
     await stagehand.init();
