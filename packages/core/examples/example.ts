@@ -38,7 +38,11 @@ async function example(stagehand: Stagehand) {
   const stagehand = new Stagehand({
     env: "BROWSERBASE",
     verbose: 2,
+    browserbaseSessionCreateParams: {
+      region: "us-east-1",
+    }
   });
   await stagehand.init();
+  console.log(stagehand.browserbaseDebugURL);
   await example(stagehand);
 })();

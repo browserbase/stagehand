@@ -33,6 +33,7 @@ describe("computeFramePrefixes", () => {
           scrollableMap: {},
           urlMap: {},
           xpathMap: { "0-200": "/html[1]/body[1]/iframe[1]" },
+          cssMap: {},
         },
       ],
     ]);
@@ -80,6 +81,7 @@ describe("computeFramePrefixes", () => {
           scrollableMap: {},
           urlMap: {},
           xpathMap: { "0-200": "/iframe[1]" },
+          cssMap: {},
         },
       ],
       [
@@ -89,6 +91,7 @@ describe("computeFramePrefixes", () => {
           scrollableMap: {},
           urlMap: {},
           xpathMap: { "1-300": "/div[1]/iframe[1]" },
+          cssMap: {},
         },
       ],
     ]);
@@ -127,6 +130,7 @@ describe("computeFramePrefixes", () => {
           scrollableMap: {},
           urlMap: {},
           xpathMap: {},
+          cssMap: {},
         },
       ],
     ]);
@@ -143,7 +147,7 @@ describe("computeFramePrefixes", () => {
     const result = await computeFramePrefixes(
       page,
       context,
-      perFrameMaps as Map<string, FrameDomMaps>,
+      perFrameMaps,
     );
     expect(result.absPrefix.get("frame-2")).toBe("");
   });
@@ -168,6 +172,7 @@ describe("mergeFramesIntoSnapshot", () => {
           scrollableMap: {},
           urlMap: { "0-10": "https://example.com" },
           xpathMap: { "0-10": "/html[1]/body[1]" },
+          cssMap: {},
         },
       ],
       [
@@ -177,6 +182,7 @@ describe("mergeFramesIntoSnapshot", () => {
           scrollableMap: {},
           urlMap: { "1-20": "https://child.com" },
           xpathMap: { "1-20": "/div[1]/span[1]" },
+          cssMap: {},
         },
       ],
     ]);
@@ -228,6 +234,7 @@ describe("mergeFramesIntoSnapshot", () => {
           scrollableMap: {},
           urlMap: {},
           xpathMap: { "0-10": "/html[1]" },
+          cssMap: {},
         },
       ],
     ]);
@@ -272,6 +279,7 @@ describe("mergeFramesIntoSnapshot", () => {
           scrollableMap: {},
           urlMap: {},
           xpathMap: {},
+          cssMap: {},
         },
       ],
     ]);
@@ -310,6 +318,7 @@ describe("mergeFramesIntoSnapshot", () => {
           scrollableMap: {},
           urlMap: {},
           xpathMap: {},
+          cssMap: {},
         },
       ],
     ]);

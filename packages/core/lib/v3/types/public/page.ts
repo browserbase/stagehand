@@ -16,4 +16,5 @@ export type SnapshotResult = {
   formattedTree: string;
   xpathMap: Record<string, string>;
   urlMap: Record<string, string>;
+  cssMap: Record<string, string>;
 };

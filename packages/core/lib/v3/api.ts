@@ -24,7 +24,10 @@ import type {
   ObserveOptions,
   Api,
 } from "./types/public";
-import type { SerializableResponse } from "./types/private";
+import type {
+  SerializableResponse,
+  AgentCacheTransferPayload,
+} from "./types/private";
 import type { ModelConfiguration } from "./types/public/model";
 import { toJsonSchema } from "./zodCompat";
 import type { StagehandZodSchema } from "./zodCompat";
@@ -131,6 +134,8 @@ export class StagehandAPIClient {
   private modelProvider?: string;
   private logger: (message: LogLine) => void;
   private fetchWithCookies;
+  private lastFinishedEventData: Record<string, unknown> | null = null;
+  private latestAgentCacheEntry: AgentCacheTransferPayload | null = null;
 
   constructor({ apiKey, projectId, logger }: StagehandAPIConstructorParams) {
     this.apiKey = apiKey;
@@ -334,6 +339,7 @@ export class StagehandAPIClient {
     agentConfig: AgentConfig,
     executeOptions: AgentExecuteOptions | string,
     frameId?: string,
+    shouldCache?: boolean,
   ): Promise<AgentResult> {
     // Check if integrations are being used in API mode (not supported)
     if (agentConfig.integrations && agentConfig.integrations.length > 0) {
@@ -367,12 +373,27 @@ export class StagehandAPIClient {
       agentConfig: wireAgentConfig,
       executeOptions: wireExecuteOptions,
       frameId,
+      shouldCache,
     };
 
-    return this.execute<AgentResult>({
+    const result = await this.execute<AgentResult>({
       method: "agentExecute",
       args: requestBody,
     });
+
+    const finishedData =
+      this.consumeFinishedEventData<Api.AgentExecuteResult>() ?? null;
+    this.latestAgentCacheEntry =
+      finishedData?.cacheEntry !== undefined
+        ? (finishedData.cacheEntry as AgentCacheTransferPayload)
+        : null;
+    return result;
+  }
+
+  consumeLatestAgentCacheEntry(): AgentCacheTransferPayload | null {
+    const entry = this.latestAgentCacheEntry;
+    this.latestAgentCacheEntry = null;
+    return entry ?? null;
   }
 
   async end(): Promise<Response> {
@@ -545,11 +566,18 @@ export class StagehandAPIClient {
     >;
   }
 
+  private consumeFinishedEventData<T>(): T | null {
+    const data = this.lastFinishedEventData as T | null;
+    this.lastFinishedEventData = null;
+    return data;
+  }
+
   private async execute<T>({
     method,
     args,
     params,
   }: ExecuteActionParams): Promise<T> {
+    this.lastFinishedEventData = null;
     const urlParams = new URLSearchParams(params as Record<string, string>);
     const queryString = urlParams.toString();
     const url = `/sessions/${this.sessionId}/${method}${queryString ? `?${queryString}` : ""}`;
@@ -600,6 +628,7 @@ export class StagehandAPIClient {
               throw new Error(errorMsg);
             }
             if (eventData.data.status === "finished") {
+              this.lastFinishedEventData = eventData.data;
               return eventData.data.result as T;
             }
           } else if (eventData.type === "log") {

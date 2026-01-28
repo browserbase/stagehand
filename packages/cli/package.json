@@ -1,0 +1,70 @@
+{
+  "name": "@browserbasehq/browse-cli",
+  "version": "0.1.0",
+  "description": "Browser automation CLI for AI agents, built on Stagehand",
+  "type": "module",
+  "license": "MIT",
+  "author": "Browserbase <support@browserbase.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/browserbase/stagehand.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/browserbase/stagehand/issues"
+  },
+  "homepage": "https://github.com/browserbase/stagehand/tree/main/packages/cli#readme",
+  "keywords": [
+    "browser",
+    "automation",
+    "cli",
+    "ai",
+    "agent",
+    "chrome",
+    "cdp",
+    "web-scraping",
+    "testing",
+    "stagehand"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "main": "./dist/index.js",
+  "bin": {
+    "browse": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/index.ts",
+    "browse": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "^3.0.0",
+    "commander": "^12.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.16.0",
+    "@types/node": "^20.11.30",
+    "eslint": "^9.16.0",
+    "globals": "^15.13.0",
+    "prettier": "^3.2.5",
+    "tsup": "^8.2.1",
+    "tsx": "^4.10.5",
+    "typescript": "^5.2.2",
+    "typescript-eslint": "^8.17.0",
+    "vitest": "^1.6.0"
+  }
+}
