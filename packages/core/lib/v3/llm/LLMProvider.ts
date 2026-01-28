@@ -31,6 +31,7 @@ import { mistral, createMistral } from "@ai-sdk/mistral";
 import { deepseek, createDeepSeek } from "@ai-sdk/deepseek";
 import { perplexity, createPerplexity } from "@ai-sdk/perplexity";
 import { ollama, createOllama } from "ollama-ai-provider-v2";
+import { gateway, createGateway } from "ai";
 import { AISDKProvider, AISDKCustomProvider } from "../types/public/model";
 
 const AISDKProviders: Record<string, AISDKProvider> = {
@@ -48,6 +49,7 @@ const AISDKProviders: Record<string, AISDKProvider> = {
   perplexity,
   ollama,
   vertex,
+  gateway,
 };
 const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   openai: createOpenAI,
@@ -64,6 +66,7 @@ const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   deepseek: createDeepSeek,
   perplexity: createPerplexity,
   ollama: createOllama,
+  gateway: createGateway,
 };
 
 const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
