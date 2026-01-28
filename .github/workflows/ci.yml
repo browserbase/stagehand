@@ -184,8 +184,6 @@ jobs:
         uses: actions/checkout@v4
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
-        with:
-          use-prebuilt-artifacts: "false"
 
       - name: Run Lint
         run: pnpm run lint
