@@ -159,26 +159,48 @@ export async function runSkillAgent(
       );
     }
 
-    for await (const message of query({
-      prompt: instruction,
-      options: {
-        mcpServers,
-        cwd: config.cwd,
-        settingSources: config.settingSources,
-        env,
-        executable: config.executable || "node",
-        allowedTools: config.allowedTools,
-        model: config.model as AvailableModel,
-        maxBudgetUsd: 5.0,
-        maxTurns: 30,
-      }
-    })) {
+    // Debug: Log MCP servers configuration
+    if (mcpServers) {
+      console.log(`[${config.name}] MCP servers configured:`, JSON.stringify(mcpServers, null, 2));
+    }
+
+    console.log(`[${config.name}] Starting Agent SDK query()...`);
+
+    // Build query options based on config type
+    const queryOptions: any = {
+      model: config.model as AvailableModel,
+      allowedTools: config.allowedTools,
+      maxBudgetUsd: 5.0,
+      maxTurns: 30,
+    };
+
+    if (config.type === "mcp") {
+      // For MCP servers, only pass mcpServers - no executable/cwd/settingSources
+      queryOptions.mcpServers = mcpServers;
+    } else {
+      // For skills, pass executable, cwd, settingSources, and env
+      queryOptions.cwd = config.cwd;
+      queryOptions.settingSources = config.settingSources;
+      queryOptions.env = env;
+      queryOptions.executable = config.executable || "node";
+    }
+
+    console.log(`[${config.name}] Query options:`, JSON.stringify(queryOptions, null, 2).substring(0, 500));
+
+    try {
+      for await (const message of query({
+        prompt: instruction,
+        options: queryOptions,
+      })) {
       // Capture ALL messages for full turn-by-turn logging
       const timestampedMessage = {
         ...message,
         timestamp: new Date().toISOString(),
       };
       metrics.agentMessages!.push(timestampedMessage);
+
+      // DEBUG: Log all message types
+      console.log(`[${config.name}] Message type: ${(message as any).type}, subtype: ${(message as any).subtype || 'N/A'}`);
 
       // LOG MESSAGES AS THEY ARRIVE for real-time observability
       const msg = message as any; // Agent SDK messages have dynamic types
@@ -230,7 +252,14 @@ export async function runSkillAgent(
         }
       }
     }
+
+    console.log(`[${config.name}] Agent SDK query() loop ended`);
+    } catch (queryError) {
+      console.error(`[${config.name}] Agent SDK query() threw error:`, queryError);
+      throw queryError;
+    }
   } catch (error) {
+    console.error(`[${config.name}] Outer catch:`, error);
     metrics.error = String(error);
     metrics.durationMs = Date.now() - startTime;
   }
@@ -277,12 +306,13 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
     useBrowserbaseSession: true, // Create session with stealth/proxy/captcha
     mcpServers: {
       playwright: {
-        command: "node",
-        args: [path.join(SCRIPTS_DIR, "playwright-browserbase-wrapper.mjs")],
+        command: "/Users/shrey/.nvm/versions/node/v20.19.5/bin/node",
+        args: [path.join(SCRIPTS_DIR, "playwright-browserbase-wrapper-v2.mjs")],
         env: {
           BROWSERBASE_API_KEY: process.env.BROWSERBASE_API_KEY,
           BROWSERBASE_PROJECT_ID: process.env.BROWSERBASE_PROJECT_ID,
-          PLAYWRIGHT_MCP_CLI_PATH: path.join(HOME, "Developer/playwright-mcp/cli.js")
+          PLAYWRIGHT_MCP_CLI_PATH: path.join(HOME, "Developer/playwright-mcp/cli.js"),
+          PATH: process.env.PATH, // Include PATH for subprocess
         }
       }
     },
@@ -338,11 +368,12 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
     useBrowserbaseSession: true, // Create session with stealth/proxy/captcha
     mcpServers: {
       "chrome-devtools": {
-        command: "node",
-        args: [path.join(SCRIPTS_DIR, "chrome-devtools-browserbase-wrapper.mjs")],
+        command: "/Users/shrey/.nvm/versions/node/v20.19.5/bin/node",
+        args: [path.join(SCRIPTS_DIR, "chrome-devtools-browserbase-wrapper-v2.mjs")],
         env: {
           BROWSERBASE_API_KEY: process.env.BROWSERBASE_API_KEY,
           BROWSERBASE_PROJECT_ID: process.env.BROWSERBASE_PROJECT_ID,
+          PATH: process.env.PATH, // Include PATH for subprocess
         }
       }
     },
