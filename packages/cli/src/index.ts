@@ -9,16 +9,18 @@
  */
 
 import { Command } from "commander";
-import { Stagehand } from "@browserbasehq/stagehand";
+import { Stagehand } from "../../core/lib/v3";
 import { promises as fs } from "fs";
 import * as path from "path";
 import * as os from "os";
 import * as net from "net";
 import { spawn } from "child_process";
 import * as readline from "readline";
+import { createRequire } from "module";
 
-// Version from package.json
-const VERSION = "0.1.0";
+// Load version from package.json
+const require = createRequire(import.meta.url);
+const { version: VERSION } = require("../package.json");
 
 const program = new Command();
 
