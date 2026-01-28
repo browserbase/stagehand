@@ -156,37 +156,37 @@ openapi:
         target: "$.components.schemas.StreamEventSystemDataOutput.properties.result"
         value:
           x-stainless-any: true
-    # Explicitly mark SSE streaming responses for Stainless codegen.
+    # Add stream helper metadata for Stainless codegen (used to emit X-Stainless-Stream-Helper).
     - command: merge
-      reason: Mark SSE streaming response (act)
+      reason: Mark SSE streaming helper (act)
       args:
-        target: "$.paths['/v1/sessions/{id}/act'].post.responses['200']"
+        target: "$.paths['/v1/sessions/{id}/act'].post"
         value:
-          x-stainless-streaming: true
+          x-stainless-stream-helper: sessions.act
     - command: merge
-      reason: Mark SSE streaming response (extract)
+      reason: Mark SSE streaming helper (extract)
       args:
-        target: "$.paths['/v1/sessions/{id}/extract'].post.responses['200']"
+        target: "$.paths['/v1/sessions/{id}/extract'].post"
         value:
-          x-stainless-streaming: true
+          x-stainless-stream-helper: sessions.extract
     - command: merge
-      reason: Mark SSE streaming response (observe)
+      reason: Mark SSE streaming helper (observe)
       args:
-        target: "$.paths['/v1/sessions/{id}/observe'].post.responses['200']"
+        target: "$.paths['/v1/sessions/{id}/observe'].post"
         value:
-          x-stainless-streaming: true
+          x-stainless-stream-helper: sessions.observe
     - command: merge
-      reason: Mark SSE streaming response (agentExecute)
+      reason: Mark SSE streaming helper (agentExecute)
       args:
-        target: "$.paths['/v1/sessions/{id}/agentExecute'].post.responses['200']"
+        target: "$.paths['/v1/sessions/{id}/agentExecute'].post"
         value:
-          x-stainless-streaming: true
+          x-stainless-stream-helper: sessions.execute
     - command: merge
-      reason: Mark SSE streaming response (navigate)
+      reason: Mark SSE streaming helper (navigate)
       args:
-        target: "$.paths['/v1/sessions/{id}/navigate'].post.responses['200']"
+        target: "$.paths['/v1/sessions/{id}/navigate'].post"
         value:
-          x-stainless-streaming: true
+          x-stainless-stream-helper: sessions.navigate
 
 # `resources` define the structure and organization for your API, such as how
 # methods and models are grouped together and accessed. See the [configuration
