@@ -33,6 +33,22 @@ export interface SkillAgentConfig {
   model: string;
 }
 
+export interface AgentMessage {
+  type: string;
+  subtype?: string;
+  num_turns?: number;
+  total_cost_usd?: number;
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+  };
+  result?: string;
+  text?: string;
+  tool_use?: any;
+  tool_result?: any;
+  [key: string]: any;
+}
+
 export interface SkillAgentMetrics {
   success: boolean;
   totalCostUsd: number;
@@ -42,6 +58,7 @@ export interface SkillAgentMetrics {
   turnCount: number;
   reasoning?: string;
   error?: string;
+  agentMessages?: AgentMessage[]; // Full turn-by-turn traces from Agent SDK
 }
 
 export async function runSkillAgent(
@@ -56,6 +73,7 @@ export async function runSkillAgent(
     outputTokens: 0,
     durationMs: 0,
     turnCount: 0,
+    agentMessages: [], // Capture all messages for full tracing
   };
 
   try {
@@ -73,6 +91,12 @@ export async function runSkillAgent(
         maxTurns: 30,
       }
     })) {
+      // Capture ALL messages for full turn-by-turn logging
+      metrics.agentMessages!.push({
+        ...message,
+        timestamp: new Date().toISOString(),
+      });
+
       if (message.type === "result") {
         metrics.durationMs = Date.now() - startTime;
         metrics.turnCount = message.num_turns;
