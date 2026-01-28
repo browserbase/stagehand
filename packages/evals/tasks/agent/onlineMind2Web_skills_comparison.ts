@@ -1,5 +1,10 @@
 import { EvalFunction } from "../../types/evals";
 import { runSkillAgent, SKILL_CONFIGS } from "../../lib/skillAgents";
+import { V3Evaluator } from "@browserbasehq/stagehand";
+import dotenv from "dotenv";
+import type { V3 } from "@browserbasehq/stagehand";
+
+dotenv.config();
 
 export const onlineMind2Web_skills_comparison: EvalFunction = async ({
   logger,
@@ -40,7 +45,7 @@ export const onlineMind2Web_skills_comparison: EvalFunction = async ({
 
     const instruction = `Navigate to ${params.website} and complete: "${params.confirmed_task}"
 
-Use "stagehand execute" to batch operations. At the end, produce: "Final Answer: <answer>"`;
+At the end, produce: "Final Answer: <answer>"`;
 
     logger.log({
       category: "evaluation",
@@ -75,11 +80,67 @@ Use "stagehand execute" to batch operations. At the end, produce: "Final Answer:
       level: 1,
     });
 
-    const taskSuccess = metrics.success && metrics.reasoning && !metrics.error;
+    // Use V3Evaluator to validate the answer (text-only mode, no screenshots from Agent SDK)
+    let evaluationSuccess = false;
+    let evaluationReasoning = "No evaluation performed";
+
+    if (metrics.reasoning) {
+      try {
+        // Create a stub V3 instance for V3Evaluator (it only needs the model, not the browser)
+        const stubV3 = {
+          logger: () => {},
+        } as any as V3;
+
+        // Use Anthropic model for evaluation
+        const evaluatorModel = "anthropic/claude-sonnet-4-20250514";
+        const evaluator = new V3Evaluator(
+          stubV3,
+          evaluatorModel,
+          { apiKey: process.env.ANTHROPIC_API_KEY || "" }
+        );
+
+        logger.log({
+          category: "evaluation",
+          message: `Validating answer with V3Evaluator (${evaluatorModel})`,
+          level: 1,
+        });
+
+        const evalResult = await evaluator.ask({
+          question: `Did the agent successfully complete this task: "${params.confirmed_task}"?`,
+          screenshot: [], // No screenshots available from Agent SDK
+          agentReasoning: metrics.reasoning || "No reasoning provided",
+        });
+
+        evaluationSuccess = evalResult.evaluation === "YES";
+        evaluationReasoning = evalResult.reasoning;
+
+        logger.log({
+          category: "evaluation",
+          message: `V3Evaluator result: ${evalResult.evaluation} - ${evalResult.reasoning}`,
+          level: 1,
+        });
+      } catch (evalError) {
+        logger.log({
+          category: "evaluation",
+          message: `V3Evaluator error: ${evalError}`,
+          level: 0,
+        });
+        // Fall back to Agent SDK's success determination if evaluator fails
+        evaluationSuccess = metrics.success;
+        evaluationReasoning = `Evaluator failed: ${evalError}. Fallback to agent result: ${metrics.success}`;
+      }
+    } else {
+      // No reasoning output, mark as failure
+      evaluationSuccess = false;
+      evaluationReasoning = "No reasoning output from agent";
+    }
 
     return {
-      _success: taskSuccess,
+      _success: evaluationSuccess,
+      agent_completed: metrics.success, // Whether agent finished without hitting limits
+      evaluation_result: evaluationSuccess, // Whether LLM judge thinks task was completed
       reasoning: metrics.reasoning,
+      evaluation_reasoning: evaluationReasoning,
       error: metrics.error,
       cost_usd: metrics.totalCostUsd,
       input_tokens: metrics.inputTokens,
@@ -91,6 +152,7 @@ Use "stagehand execute" to batch operations. At the end, produce: "Final Answer:
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
+      agent_messages: metrics.agentMessages, // Full turn-by-turn traces
     };
   } catch (error) {
     logger.log({
