@@ -21,6 +21,10 @@ const isFile = (candidate) => {
 const resolveDistFile = (candidate) => {
   const ext = path.extname(candidate);
   if (ext) {
+    if (ext === ".generated") {
+      const generatedCandidate = `${candidate}.js`;
+      if (isFile(generatedCandidate)) return generatedCandidate;
+    }
     const jsCandidate = candidate.replace(ext, ".js");
     if (isFile(jsCandidate)) return jsCandidate;
   }
@@ -75,6 +79,16 @@ export async function resolve(specifier, context, nextResolve) {
         url: pathToFileURL(mapped).href,
         shortCircuit: true,
       };
+    }
+    const resolvedExt = path.extname(resolved);
+    if (!resolvedExt || resolvedExt === ".generated") {
+      const withExtension = resolveDistFile(resolved);
+      if (withExtension) {
+        return {
+          url: pathToFileURL(withExtension).href,
+          shortCircuit: true,
+        };
+      }
     }
   }
 

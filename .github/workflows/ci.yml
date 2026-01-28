@@ -641,8 +641,7 @@ jobs:
         run: |
           test_path="${{ matrix.test.path }}"
           rel_path="${test_path#packages/core/}"
-          compiled_path="dist/esm/${rel_path%.ts}.js"
-          pnpm --filter @browserbasehq/stagehand run e2e:local:esm -- "$compiled_path"
+          pnpm --filter @browserbasehq/stagehand run e2e:local:esm -- "$rel_path"
 
       - uses: ./.github/actions/publish-ctrf-report
         if: always()
@@ -697,8 +696,7 @@ jobs:
         run: |
           test_path="${{ matrix.test.path }}"
           rel_path="${test_path#packages/core/}"
-          compiled_path="dist/esm/${rel_path%.ts}.js"
-          pnpm --filter @browserbasehq/stagehand run e2e:bb:esm -- "$compiled_path"
+          pnpm --filter @browserbasehq/stagehand run e2e:bb:esm -- "$rel_path"
 
       - uses: ./.github/actions/publish-ctrf-report
         if: always()
