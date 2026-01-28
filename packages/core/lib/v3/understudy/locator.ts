@@ -17,7 +17,7 @@ import { NormalizedFilePayload } from "../types/private/locator";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
 
-type MouseButton = "left" | "right" | "middle";
+export type MouseButton = "left" | "right" | "middle";
 
 /**
  * Locator
