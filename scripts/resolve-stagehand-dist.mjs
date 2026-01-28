@@ -38,7 +38,9 @@ const resolveDistFile = (candidate) => {
 };
 
 const shouldSkipLibPath = (resolvedPath) =>
-  resolvedPath.includes(`${path.sep}lib${path.sep}v3${path.sep}tests${path.sep}`);
+  resolvedPath.includes(
+    `${path.sep}lib${path.sep}v3${path.sep}tests${path.sep}`,
+  );
 
 const mapLibPathToDist = (resolvedPath) => {
   if (!resolvedPath.startsWith(coreLibRoot + path.sep)) return null;
