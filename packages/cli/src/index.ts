@@ -157,64 +157,101 @@ async function runDaemon(session: string, headless: boolean, envOverride?: "LOCA
   // Write daemon PID file
   await fs.writeFile(getPidPath(session), String(process.pid));
 
-  // If CDP URL provided, force LOCAL mode (connecting to remote browser)
-  const env = cdpUrl ? "LOCAL" : getBrowserEnvironment(envOverride);
+  // Store browser launch config for lazy initialization
+  const browserConfig = {
+    session,
+    headless,
+    envOverride,
+    cdpUrl,
+  };
 
-  // Get API key for model (required by Stagehand, even though CLI doesn't use act/extract/observe directly)
-  const modelApiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY;
+  // Browser state (initialized lazily on first command)
+  let stagehand: Stagehand | null = null;
+  let context: BrowseContext | null = null;
+  let isInitializing = false;
 
-  // When using BROWSERBASE, model API key is required
-  if (env === "BROWSERBASE" && !modelApiKey) {
-    throw new Error(
-      "BROWSERBASE mode requires ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable to be set.\n" +
-      "The Stagehand SDK requires an AI model API key when running on Browserbase."
-    );
-  }
-
-  // Create Stagehand instance with dummy model (never used for CLI operations)
-  const stagehand = new Stagehand({
-    env,
-    verbose: 0,
-    disablePino: true,
-    ...(modelApiKey && {
-      model: {
-        modelName: "anthropic/claude-haiku-4-5-20251001",
-        apiKey: modelApiKey,
-      },
-    }),
-    ...(env === "BROWSERBASE" && {
-      apiKey: process.env.BROWSERBASE_API_KEY || process.env.BB_API_KEY,
-      projectId: process.env.BROWSERBASE_PROJECT_ID || process.env.BB_PROJECT_ID,
-    }),
-    ...(env === "LOCAL" && {
-      localBrowserLaunchOptions: cdpUrl
-        ? { cdpUrl } // Connect to remote browser via CDP
-        : { headless, viewport: DEFAULT_VIEWPORT }, // Launch local browser
-    }),
-  });
-
-  // Initialize browser
-  await stagehand.init();
-
-  const context = stagehand.context;
-
-  // Try to save Chrome info for reference (best effort)
-  try {
-    // If CDP URL was provided, save it; otherwise get from context connection
-    const wsUrl = cdpUrl || (context as any).conn?.wsUrl || "unknown";
-    await fs.writeFile(getWsPath(session), wsUrl);
-
-    // Also save CDP URL separately for tracking
-    if (cdpUrl) {
-      await fs.writeFile(getCdpPath(session), cdpUrl);
+  /**
+   * Lazy browser initialization - called on first command (like agent-browser)
+   * This allows daemon to signal "started" immediately without waiting for browser
+   */
+  async function ensureBrowserInitialized(): Promise<{ stagehand: Stagehand; context: BrowseContext }> {
+    if (stagehand && context) {
+      return { stagehand, context };
     }
-  } catch {}
 
-  // Store session name for network capture
-  networkSession = session;
+    // Prevent concurrent initialization
+    if (isInitializing) {
+      // Wait for initialization to complete
+      while (isInitializing) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      if (stagehand && context) {
+        return { stagehand, context };
+      }
+      throw new Error("Browser initialization failed");
+    }
 
-  // Setup network capture helpers (called when network is enabled)
-  const setupNetworkCapture = async (targetPage: BrowsePage) => {
+    isInitializing = true;
+
+    try {
+      // If CDP URL provided, force LOCAL mode (connecting to remote browser)
+      const env = browserConfig.cdpUrl ? "LOCAL" : getBrowserEnvironment(browserConfig.envOverride);
+
+      // Get API key for model (required by Stagehand, even though CLI doesn't use act/extract/observe directly)
+      const modelApiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY;
+
+      // When using BROWSERBASE, model API key is required
+      if (env === "BROWSERBASE" && !modelApiKey) {
+        throw new Error(
+          "BROWSERBASE mode requires ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable to be set.\n" +
+          "The Stagehand SDK requires an AI model API key when running on Browserbase."
+        );
+      }
+
+      // Create Stagehand instance with dummy model (never used for CLI operations)
+      stagehand = new Stagehand({
+        env,
+        verbose: 0,
+        disablePino: true,
+        ...(modelApiKey && {
+          model: {
+            modelName: "anthropic/claude-haiku-4-5-20251001",
+            apiKey: modelApiKey,
+          },
+        }),
+        ...(env === "BROWSERBASE" && {
+          apiKey: process.env.BROWSERBASE_API_KEY || process.env.BB_API_KEY,
+          projectId: process.env.BROWSERBASE_PROJECT_ID || process.env.BB_PROJECT_ID,
+        }),
+        ...(env === "LOCAL" && {
+          localBrowserLaunchOptions: browserConfig.cdpUrl
+            ? { cdpUrl: browserConfig.cdpUrl } // Connect to remote browser via CDP
+            : { headless: browserConfig.headless, viewport: DEFAULT_VIEWPORT }, // Launch local browser
+        }),
+      });
+
+      // Initialize browser
+      await stagehand.init();
+
+      context = stagehand.context;
+
+      // Try to save Chrome info for reference (best effort)
+      try {
+        // If CDP URL was provided, save it; otherwise get from context connection
+        const wsUrl = browserConfig.cdpUrl || (context as any).conn?.wsUrl || "unknown";
+        await fs.writeFile(getWsPath(browserConfig.session), wsUrl);
+
+        // Also save CDP URL separately for tracking
+        if (browserConfig.cdpUrl) {
+          await fs.writeFile(getCdpPath(browserConfig.session), browserConfig.cdpUrl);
+        }
+      } catch {}
+
+      // Store session name for network capture
+      networkSession = browserConfig.session;
+
+      // Setup network capture helpers (called when network is enabled)
+      const setupNetworkCapture = async (targetPage: BrowsePage) => {
     const cdpSession = targetPage.mainFrame().session;
 
     // Track request start times for duration calculation
@@ -338,10 +375,16 @@ async function runDaemon(session: string, headless: boolean, envOverride?: "LOCA
       requestStartTimes.delete(params.requestId);
       requestDirs.delete(params.requestId);
     });
-  };
+      }; // Close setupNetworkCapture function
 
-  // Store the setup function for use when network is enabled
-  (context as any)._setupNetworkCapture = setupNetworkCapture;
+      // Store the setup function for use when network is enabled
+      (context as any)._setupNetworkCapture = setupNetworkCapture;
+
+      return { stagehand, context };
+    } finally {
+      isInitializing = false;
+    }
+  }
 
   // Create Unix socket server
   const socketPath = getSocketPath(session);
@@ -352,11 +395,15 @@ async function runDaemon(session: string, headless: boolean, envOverride?: "LOCA
       let response: DaemonResponse;
       try {
         const request: DaemonRequest = JSON.parse(line);
+
+        // Lazy browser initialization on first command (like agent-browser)
+        const { stagehand: sh, context: ctx } = await ensureBrowserInitialized();
+
         const result = await executeCommand(
-          context,
+          ctx,
           request.command,
           request.args,
-          stagehand,
+          sh,
         );
         response = { success: true, result };
       } catch (e) {
@@ -375,6 +422,9 @@ async function runDaemon(session: string, headless: boolean, envOverride?: "LOCA
 
   server.listen(socketPath);
 
+  // Signal daemon started immediately (before browser initialization)
+  console.log(JSON.stringify({ daemon: "started", session, pid: process.pid }));
+
   // Graceful shutdown handler
   let shuttingDown = false;
   const shutdown = async (signal?: string) => {
@@ -384,7 +434,9 @@ async function runDaemon(session: string, headless: boolean, envOverride?: "LOCA
     server.close();
 
     try {
-      await stagehand.close();
+      if (stagehand) {
+        await stagehand.close();
+      }
     } catch {}
 
     await cleanupStaleFiles(session);
@@ -404,8 +456,7 @@ async function runDaemon(session: string, headless: boolean, envOverride?: "LOCA
     shutdown("unhandledRejection");
   });
 
-  // Keep daemon running
-  console.log(JSON.stringify({ daemon: "started", session, pid: process.pid }));
+  // Keep daemon running (signal already sent above)
 }
 
 // ==================== REF MAP (cached from last snapshot) ====================
