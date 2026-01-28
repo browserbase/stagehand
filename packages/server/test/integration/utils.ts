@@ -1,4 +1,7 @@
 import dotenv from "dotenv";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { chromium } from "playwright";
 
 dotenv.config();
@@ -83,16 +86,38 @@ export interface SessionInfo {
   cdpUrl: string;
 }
 
-export const LOCAL_BROWSER_BODY = {
-  browser: {
-    type: "local",
-    launchOptions: {
-      headless: true,
-      executablePath: process.env.CHROME_PATH ?? chromium.executablePath(),
-      args: process.env.CI ? ["--no-sandbox"] : undefined,
+function createLocalBrowserBody(userDataDir: string) {
+  return {
+    browser: {
+      type: "local",
+      launchOptions: {
+        headless: true,
+        executablePath: process.env.CHROME_PATH ?? chromium.executablePath(),
+        args: process.env.CI ? ["--no-sandbox"] : undefined,
+        userDataDir,
+      },
     },
-  },
-};
+  };
+}
+
+function createUserDataDir(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), "stagehand-int-"));
+}
+
+export const LOCAL_BROWSER_BODY = createLocalBrowserBody(createUserDataDir());
+
+function readChromeLogs(userDataDir: string): string {
+  const entries: string[] = [];
+  const outPath = path.join(userDataDir, "chrome-out.log");
+  const errPath = path.join(userDataDir, "chrome-err.log");
+  if (fs.existsSync(outPath)) {
+    entries.push(`--- chrome stdout ---\n${fs.readFileSync(outPath, "utf8")}`);
+  }
+  if (fs.existsSync(errPath)) {
+    entries.push(`--- chrome stderr ---\n${fs.readFileSync(errPath, "utf8")}`);
+  }
+  return entries.join("\n");
+}
 
 export async function createSession(
   headers: Record<string, string>,
@@ -105,23 +130,32 @@ export async function createSessionWithCdp(
   headers: Record<string, string>,
 ): Promise<SessionInfo> {
   const url = getBaseUrl();
+  const userDataDir = createUserDataDir();
 
   const response = await fetch(`${url}/v1/sessions/start`, {
     method: "POST",
     headers,
     body: JSON.stringify({
       modelName: "gpt-4.1-nano",
-      ...LOCAL_BROWSER_BODY,
+      ...createLocalBrowserBody(userDataDir),
     }),
   });
 
   const body = (await response.json()) as StartSessionResponse;
 
   if (!body.success) {
-    throw new Error(`Failed to create session: ${JSON.stringify(body)}`);
+    const chromeLogs = readChromeLogs(userDataDir);
+    throw new Error(
+      `Failed to create session: ${JSON.stringify(body)}${
+        chromeLogs ? `\n${chromeLogs}` : ""
+      }`,
+    );
   }
   if (!body.data?.available) {
-    throw new Error("Session not available");
+    const chromeLogs = readChromeLogs(userDataDir);
+    throw new Error(
+      `Session not available${chromeLogs ? `\n${chromeLogs}` : ""}`,
+    );
   }
   if (!body.data.sessionId) {
     throw new Error("No sessionId returned");

@@ -107,6 +107,7 @@ const main = async () => {
     "--platform=node",
     "--format=cjs",
     "--outfile=dist/sea/bundle.cjs",
+    `--source-root=${pkgDir}`,
     "--log-level=warning",
   ];
   if (sourcemapMode) {
