@@ -263,4 +263,68 @@ test.describe("Page.screenshot options", () => {
       await fs.unlink(tempPath).catch(() => {});
     }
   });
+
+  test("masks elements inside dialog top layer", async () => {
+    const page = v3.context.pages()[0];
+
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <style>
+            dialog { padding: 16px; border: 2px solid #444; }
+            #dialog-input { display: block; width: 160px; height: 32px; }
+          </style>
+        </head>
+        <body>
+          <dialog id="dialog">
+            <label>Secret <input id="dialog-input" value="top-layer" /></label>
+          </dialog>
+          <script>
+            const dialog = document.getElementById("dialog");
+            if (dialog) {
+              if (typeof dialog.showModal === "function") {
+                try {
+                  dialog.showModal();
+                } catch {
+                  dialog.setAttribute("open", "");
+                }
+              } else {
+                dialog.setAttribute("open", "");
+              }
+            }
+          </script>
+        </body>
+      </html>
+    `;
+
+    await page.goto("data:text/html," + encodeURIComponent(html));
+
+    const targetId = page.targetId();
+    const originalScreenshot = Frame.prototype.screenshot;
+    let dialogMaskCount = 0;
+
+    Frame.prototype.screenshot = async function screenshotSpy(options) {
+      const frame = this as Frame;
+      if (frame.pageId === targetId) {
+        dialogMaskCount = await frame.evaluate(() => {
+          const dialog = document.querySelector("dialog[open]");
+          if (!dialog) return 0;
+          return dialog.querySelectorAll("[data-stagehand-mask]").length;
+        });
+        return Buffer.from("stub-image");
+      }
+      return originalScreenshot.call(this, options);
+    };
+
+    try {
+      await page.screenshot({
+        mask: [page.locator("#dialog-input")],
+      });
+      expect(dialogMaskCount).toBeGreaterThan(0);
+    } finally {
+      Frame.prototype.screenshot = originalScreenshot;
+    }
+  });
 });
