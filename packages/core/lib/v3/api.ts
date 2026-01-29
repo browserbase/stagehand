@@ -367,6 +367,11 @@ export class StagehandAPIClient {
             agentConfig.model as unknown as ModelConfiguration,
           ) as unknown as Api.ModelConfig)
         : undefined,
+      executionModel: agentConfig.executionModel
+        ? (this.prepareModelConfig(
+            agentConfig.executionModel as unknown as ModelConfiguration,
+          ) as unknown as Api.ModelConfig)
+        : undefined,
     };
 
     // Build wire-format request body
@@ -699,6 +704,7 @@ export class StagehandAPIClient {
     if (options.method === "POST" && options.body) {
       defaultHeaders["Content-Type"] = "application/json";
     }
+    console.log(JSON.stringify(options, null, 2));
 
     const response = await this.fetchWithCookies(
       `${process.env.STAGEHAND_API_URL ?? "https://api.stagehand.browserbase.com/v1"}${path}`,

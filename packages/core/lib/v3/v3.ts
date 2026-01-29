@@ -1917,7 +1917,7 @@ export class V3 {
     const agentConfigSignature = this.agentCache.buildConfigSignature(options);
     const isStreaming = options?.stream ?? false;
 
-    return {
+    return { 
       execute: async (
         instructionOrOptions:
           | string
@@ -2011,6 +2011,7 @@ export class V3 {
           try {
             if (this.apiClient && !this.experimental) {
               const page = await this.ctx!.awaitActivePage();
+              console.log(JSON.stringify(options, null, 2));
               result = await this.apiClient.agentExecute(
                 options ?? {},
                 resolvedOptions as AgentExecuteOptions,
