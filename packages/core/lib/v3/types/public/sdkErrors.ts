@@ -48,16 +48,15 @@ export class MissingEnvironmentVariableError extends StagehandError {
 
 export class UnsupportedModelError extends StagehandError {
   constructor(supportedModels: string[], feature?: string) {
-    const modelList = supportedModels.join(", ");
-    const deprecationNote =
-      `\n\nNote: The legacy model format (e.g., "gpt-4o") is deprecated. ` +
-      `Please use the provider/model format instead (e.g., "openai/gpt-5", "anthropic/claude-sonnet-4").`;
+    const message = feature
+      ? `${feature} requires a valid model.`
+      : `Unsupported model.`;
 
-    super(
-      feature
-        ? `${feature} requires one of the following models: ${modelList}${deprecationNote}`
-        : `Please use one of the supported models: ${modelList}${deprecationNote}`,
-    );
+    const guidance =
+      `\n\nPlease use the provider/model format (e.g., "openai/gpt-4o", "anthropic/claude-sonnet-4-5", "google/gemini-3-flash-preview".` +
+      `\n\nFor a complete list of supported models and providers, see: https://docs.stagehand.dev/v3/configuration/models#configuration-setup`;
+
+    super(`${message}${guidance}`);
   }
 }
 

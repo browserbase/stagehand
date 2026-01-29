@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { LLMProvider } from "../lib/v3/llm/LLMProvider";
 import {
   UnsupportedModelError,
@@ -19,15 +19,18 @@ describe("Model format deprecation", () => {
 
       // Should mention the new format
       expect(error.message).toContain("provider/model");
-      // Should still list supported models
-      expect(error.message).toContain("gpt-4o");
+      // Should include link to docs
+      expect(error.message).toContain(
+        "https://docs.stagehand.dev/v3/configuration/models",
+      );
     });
 
     it("includes example of provider/model format", () => {
       const error = new UnsupportedModelError(["gpt-4o"]);
 
-      // Should provide an example like openai/gpt-5
-      expect(error.message).toMatch(/openai\/gpt-5|provider\/model/i);
+      // Should provide examples like openai/gpt-4o
+      expect(error.message).toContain("openai/gpt-4o");
+      expect(error.message).toContain("anthropic/claude-sonnet-4");
     });
 
     it("works with feature parameter", () => {
@@ -35,6 +38,9 @@ describe("Model format deprecation", () => {
 
       expect(error.message).toContain("extract");
       expect(error.message).toContain("provider/model");
+      expect(error.message).toContain(
+        "https://docs.stagehand.dev/v3/configuration/models",
+      );
     });
   });
 
@@ -46,7 +52,7 @@ describe("Model format deprecation", () => {
 
       // Using a legacy model name like "gpt-4o" instead of "openai/gpt-4o"
       // Should not throw, but should log a deprecation warning
-      const client = provider.getClient("gpt-4o" as any, mockClientOptions);
+      const client = provider.getClient("gpt-4o", mockClientOptions);
 
       // Should return a client (not throw)
       expect(client).toBeDefined();
@@ -66,7 +72,7 @@ describe("Model format deprecation", () => {
       const logger = (line: LogLine) => logs.push(line);
       const provider = new LLMProvider(logger);
 
-      provider.getClient("gpt-4o" as any, mockClientOptions);
+      provider.getClient("gpt-4o", mockClientOptions);
 
       const deprecationWarning = logs.find(
         (log) =>
@@ -87,7 +93,7 @@ describe("Model format deprecation", () => {
       const logger = (line: LogLine) => logs.push(line);
       const provider = new LLMProvider(logger);
 
-      const client = provider.getClient("gpt-4o" as any, mockClientOptions);
+      const client = provider.getClient("gpt-4o", mockClientOptions);
 
       // Should return a client
       expect(client).toBeDefined();
@@ -101,7 +107,7 @@ describe("Model format deprecation", () => {
       const provider = new LLMProvider(logger);
 
       const client = provider.getClient(
-        "claude-3-5-sonnet-latest" as any,
+        "claude-3-5-sonnet-latest",
         mockClientOptions,
       );
 
@@ -120,7 +126,7 @@ describe("Model format deprecation", () => {
 
       // Unknown model without slash should throw UnsupportedModelError
       expect(() => {
-        provider.getClient("some-unknown-model" as any, mockClientOptions);
+        provider.getClient("some-unknown-model", mockClientOptions);
       }).toThrow(UnsupportedModelError);
     });
 
@@ -130,7 +136,7 @@ describe("Model format deprecation", () => {
       const provider = new LLMProvider(logger);
 
       try {
-        provider.getClient("some-unknown-model" as any, mockClientOptions);
+        provider.getClient("some-unknown-model", mockClientOptions);
       } catch (error) {
         expect((error as Error).message).toContain("provider/model");
       }
@@ -143,10 +149,7 @@ describe("Model format deprecation", () => {
 
       // Invalid provider but correct format
       expect(() => {
-        provider.getClient(
-          "invalid-provider/some-model" as any,
-          mockClientOptions,
-        );
+        provider.getClient("invalid-provider/some-model", mockClientOptions);
       }).toThrow(UnsupportedAISDKModelProviderError);
     });
 
@@ -156,10 +159,7 @@ describe("Model format deprecation", () => {
       const provider = new LLMProvider(logger);
 
       try {
-        provider.getClient(
-          "invalid-provider/some-model" as any,
-          mockClientOptions,
-        );
+        provider.getClient("invalid-provider/some-model", mockClientOptions);
       } catch (error) {
         const message = (error as Error).message;
         // Should list valid providers
@@ -177,10 +177,7 @@ describe("Model format deprecation", () => {
       const provider = new LLMProvider(logger);
 
       // Using the new format
-      const client = provider.getClient(
-        "openai/gpt-4o" as any,
-        mockClientOptions,
-      );
+      const client = provider.getClient("openai/gpt-4o", mockClientOptions);
 
       expect(client).toBeDefined();
 

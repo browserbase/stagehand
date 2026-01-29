@@ -170,7 +170,6 @@ export class LLMProvider {
     }
 
     // Model name doesn't include "/" - this format is deprecated
-    // Log a deprecation warning at level 0 (always shown) but continue with legacy functionality
     const provider = modelToProviderMap[modelName];
     if (!provider) {
       throw new UnsupportedModelError(Object.keys(modelToProviderMap));
