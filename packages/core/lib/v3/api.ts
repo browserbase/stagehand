@@ -367,6 +367,11 @@ export class StagehandAPIClient {
             agentConfig.model as unknown as ModelConfiguration,
           ) as unknown as Api.ModelConfig)
         : undefined,
+      executionModel: agentConfig.executionModel
+        ? (this.prepareModelConfig(
+            agentConfig.executionModel as unknown as ModelConfiguration,
+          ) as unknown as Api.ModelConfig)
+        : undefined,
     };
 
     // Build wire-format request body
