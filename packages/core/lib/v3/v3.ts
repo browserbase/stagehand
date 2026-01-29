@@ -2011,7 +2011,6 @@ export class V3 {
           try {
             if (this.apiClient && !this.experimental) {
               const page = await this.ctx!.awaitActivePage();
-              console.log(JSON.stringify(options, null, 2));
               result = await this.apiClient.agentExecute(
                 options ?? {},
                 resolvedOptions as AgentExecuteOptions,
