@@ -53,7 +53,7 @@ export class UnsupportedModelError extends StagehandError {
       : `Unsupported model.`;
 
     const guidance =
-      `\n\nPlease use the provider/model format (e.g., "openai/gpt-4o", "anthropic/claude-sonnet-4-5", "google/gemini-3-flash-preview".` +
+      `\n\nPlease use the provider/model format (e.g., "openai/gpt-4o", "anthropic/claude-sonnet-4-5", "google/gemini-3-flash-preview").` +
       `\n\nFor a complete list of supported models and providers, see: https://docs.stagehand.dev/v3/configuration/models#configuration-setup`;
 
     super(`${message}${guidance}`);
