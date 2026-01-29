@@ -68,3 +68,11 @@ jobs:
           name: ${{ matrix.binary_name }}
           path: packages/server/dist/sea/${{ matrix.binary_name }}
           retention-days: 7
+
+      - name: Upload SEA bundle (sourcemap)
+        if: matrix.platform == 'linux' && matrix.arch == 'x64' && matrix.sourcemap == 'inline'
+        uses: actions/upload-artifact@v4
+        with:
+          name: stagehand-server-linux-x64-sourcemap-bundle
+          path: packages/server/dist/sea/bundle.cjs
+          retention-days: 7
