@@ -704,7 +704,6 @@ export class StagehandAPIClient {
     if (options.method === "POST" && options.body) {
       defaultHeaders["Content-Type"] = "application/json";
     }
-    console.log(JSON.stringify(options, null, 2));
 
     const response = await this.fetchWithCookies(
       `${process.env.STAGEHAND_API_URL ?? "https://api.stagehand.browserbase.com/v1"}${path}`,
