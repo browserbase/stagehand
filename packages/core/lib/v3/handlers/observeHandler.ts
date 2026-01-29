@@ -147,7 +147,17 @@ export class ObserveHandler {
             const lookUpIndex = elementId as EncodedId;
             const xpath = combinedXpathMap[lookUpIndex];
             const trimmedXpath = trimTrailingTextNode(xpath);
-            if (!trimmedXpath) return undefined;
+            if (!trimmedXpath) {
+              v3Logger({
+                category: "observation",
+                message: `LLM returned ID ${elementId}, there is no xpath keyed by this ID`,
+                level: 0,
+                auxiliary: {
+                  elementId: { value: elementId, type: "string" },
+                },
+              });
+              return undefined;
+            }
 
             // For dragAndDrop, convert element ID in arguments to xpath (target element)
             let resolvedArgs = rest.arguments;
