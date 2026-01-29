@@ -15,7 +15,8 @@
     "node:test:compiled": "if [ -f ../../.env ]; then set -a && . ../../.env && set +a; fi; NODE_OPTIONS=\"--enable-source-maps --experimental-specifier-resolution=node --stack-trace-limit=50 ${NODE_TEST_NODE_OPTIONS:-}\" node --test ${NODE_TEST_EXTRA_ARGS:-} --test-reporter=spec --test-reporter-destination=stdout ${NODE_TEST_REPORTER:+--test-reporter=$NODE_TEST_REPORTER} ${NODE_TEST_REPORTER_DESTINATION:+--test-reporter-destination=$NODE_TEST_REPORTER_DESTINATION} --test-concurrency=2",
     "test": "pnpm run node:test $(find ./test -type f -name '*.test.ts')",
     "test:integration": "pnpm run node:test $(find ./test/integration -type f -name '*.test.ts')",
-    "test:integration:local": "bash scripts/run-integration-tests.sh",
+    "test:integration:local": "tsx scripts/run-integration-tests.ts",
+    "test:integration:sea": "SEA_MODE=1 pnpm run test:integration:local",
     "gen:openapi": "tsx scripts/gen-openapi.ts && prettier --write openapi.v3.yaml"
   },
   "dependencies": {
@@ -45,6 +46,7 @@
     "openai": "4.87.1",
     "postject": "1.0.0-alpha.6",
     "prettier": "^3.2.5",
+    "source-map": "^0.7.4",
     "tsc-alias": "^1.8.10",
     "tsx": "^4.18.0",
     "typescript": "~5.9.2",

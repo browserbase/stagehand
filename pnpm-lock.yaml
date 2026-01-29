@@ -333,6 +333,9 @@ importers:
       prettier:
         specifier: ^3.2.5
         version: 3.5.3
+      source-map:
+        specifier: ^0.7.4
+        version: 0.7.4
       tsc-alias:
         specifier: ^1.8.10
         version: 1.8.16

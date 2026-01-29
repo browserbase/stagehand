@@ -1,4 +1,5 @@
 {
-  "main": "dist/sea/bundle.cjs",
-  "output": "dist/sea/sea-prep.blob"
+  "main": "dist/sea/sea-bootstrap.cjs",
+  "output": "dist/sea/sea-prep.blob",
+  "execArgvExtension": "cli"
 }

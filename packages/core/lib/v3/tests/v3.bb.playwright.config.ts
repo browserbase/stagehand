@@ -21,6 +21,18 @@ const resolveRepoRoot = (startDir: string): string => {
 };
 
 const repoRoot = resolveRepoRoot(process.cwd());
+const distTestDir = path.join(
+  repoRoot,
+  "packages",
+  "core",
+  "dist",
+  "esm",
+  "lib",
+  "v3",
+  "tests",
+);
+const srcTestDir = path.join(repoRoot, "packages", "core", "lib", "v3", "tests");
+const testDir = fs.existsSync(distTestDir) ? distTestDir : srcTestDir;
 
 // Try loading from repo root without assuming dist vs src layout.
 const repoRootEnvPath = path.join(repoRoot, ".env");
@@ -70,7 +82,7 @@ const reporter: ReporterDescription[] = ctrfJunitPath
   : [["list"], [envReporterPath]];
 
 export default defineConfig({
-  testDir: ".",
+  testDir,
   timeout: 90_000,
   expect: { timeout: 10_000 },
   retries: process.env.CI ? 1 : 0,
