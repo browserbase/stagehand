@@ -105,6 +105,40 @@ async function createBrowserbaseSession(): Promise<{
   });
 }
 
+/**
+ * Close a Browserbase session to avoid unnecessary charges
+ */
+async function closeBrowserbaseSession(sessionId: string): Promise<void> {
+  const BROWSERBASE_API_KEY = process.env.BROWSERBASE_API_KEY;
+
+  if (!BROWSERBASE_API_KEY) {
+    console.warn(`[browserbase] Cannot close session ${sessionId}: BROWSERBASE_API_KEY not set`);
+    return;
+  }
+
+  try {
+    const response = await fetch(`https://api.browserbase.com/v1/sessions/${sessionId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-BB-API-Key': BROWSERBASE_API_KEY,
+      },
+      body: JSON.stringify({
+        status: 'REQUEST_RELEASE',
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Browserbase API error (${response.status}): ${errorText}`);
+    }
+
+    console.log(`[browserbase] Session ${sessionId} closed successfully`);
+  } catch (error) {
+    console.error(`[browserbase] Failed to close session ${sessionId}:`, error instanceof Error ? error.message : String(error));
+  }
+}
+
 export async function runSkillAgent(
   instruction: string,
   config: SkillAgentConfig
@@ -120,9 +154,11 @@ export async function runSkillAgent(
     agentMessages: [], // Capture all messages for full tracing
   };
 
+  // Track session info for cleanup in finally block
+  let sessionInfo: { sessionId: string; connectUrl: string; debugUrl: string } | undefined;
+
   try {
     // Create Browserbase session if needed
-    let sessionInfo: { sessionId: string; connectUrl: string; debugUrl: string } | undefined;
     if (config.useBrowserbaseSession) {
       console.log(`[${config.name}] Creating Browserbase session with stealth/proxy/captcha...`);
       sessionInfo = await createBrowserbaseSession();
@@ -272,6 +308,12 @@ export async function runSkillAgent(
     console.error(`[${config.name}] Outer catch:`, error);
     metrics.error = String(error);
     metrics.durationMs = Date.now() - startTime;
+  } finally {
+    // Clean up Browserbase session to avoid unnecessary charges
+    if (sessionInfo) {
+      console.log(`[${config.name}] Cleaning up Browserbase session: ${sessionInfo.sessionId}`);
+      await closeBrowserbaseSession(sessionInfo.sessionId);
+    }
   }
 
   return metrics;

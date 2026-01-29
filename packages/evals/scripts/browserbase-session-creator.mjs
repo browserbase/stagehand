@@ -17,6 +17,8 @@
  *   }
  *
  * This session is configured with:
+ * - keepAlive: true (survives temporary disconnects)
+ * - timeout: 3600 (1 hour max duration)
  * - proxies: true (managed proxies)
  * - browserSettings.solveCaptchas: true
  * - browserSettings.advancedStealth: true
@@ -43,6 +45,8 @@ async function createSession() {
       },
       body: JSON.stringify({
         projectId: BROWSERBASE_PROJECT_ID,
+        keepAlive: true, // Allow reconnection after disconnects
+        timeout: 3600, // 1 hour session timeout (in seconds)
         proxies: true, // Enable managed proxies
         browserSettings: {
           advancedStealth: true,
