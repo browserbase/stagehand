@@ -7,6 +7,7 @@ dotenv.config();
 
 // Try loading from repo root (packages/core/lib/v3/tests -> repo root = 5 levels up)
 const repoRootEnvPath = path.resolve(__dirname, "../../../../../.env");
+// @ts-ignore
 dotenv.config({ path: repoRootEnvPath, override: false });
 
 // Set TEST_ENV before tests run
