@@ -48,11 +48,15 @@ export class MissingEnvironmentVariableError extends StagehandError {
 
 export class UnsupportedModelError extends StagehandError {
   constructor(supportedModels: string[], feature?: string) {
-    super(
-      feature
-        ? `${feature} requires one of the following models: ${supportedModels}`
-        : `please use one of the supported models: ${supportedModels}`,
-    );
+    const message = feature
+      ? `${feature} requires a valid model.`
+      : `Unsupported model.`;
+
+    const guidance =
+      `\n\nPlease use the provider/model format (e.g., "openai/gpt-4o", "anthropic/claude-sonnet-4-5", "google/gemini-3-flash-preview").` +
+      `\n\nFor a complete list of supported models and providers, see: https://docs.stagehand.dev/v3/configuration/models#configuration-setup`;
+
+    super(`${message}${guidance}`);
   }
 }
 
