@@ -610,6 +610,10 @@ export const AgentConfigSchema = z
         "Tool mode for the agent (dom, hybrid, cua). If set, overrides cua.",
       example: "cua",
     }),
+    executionModel: z.union([ModelConfigSchema, z.string()]).optional().meta({
+      description:
+        "Model configuration object or model name string (e.g., 'openai/gpt-5-nano') for tool execution (observe/act calls within agent tools). If not specified, inherits from the main model configuration.",
+    }),
   })
   .meta({ id: "AgentConfig" });
 
