@@ -1,5 +1,4 @@
 import { ChatMessage } from "./v3/llm/LLMClient";
-import { MouseButton } from "./v3/understudy/locator";
 
 export function buildUserInstructionsString(
   userProvidedInstructions?: string,
