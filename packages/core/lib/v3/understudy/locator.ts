@@ -12,12 +12,10 @@ import {
   ElementNotVisibleError,
 } from "../types/public/sdkErrors";
 import { normalizeInputFiles } from "./fileUploadUtils";
-import { SetInputFilesArgument } from "../types/public/locator";
+import { SetInputFilesArgument, MouseButton } from "../types/public/locator";
 import { NormalizedFilePayload } from "../types/private/locator";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
-
-export type MouseButton = "left" | "right" | "middle";
 
 /**
  * Locator
