@@ -320,7 +320,7 @@ async function clickElement(
 ): Promise<void> {
   const { locator, xpath, args } = ctx;
   try {
-    await locator.click({ button: args[0] as MouseButton });
+    await locator.click({ button: (args[0] as MouseButton) || undefined });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     v3Logger({
