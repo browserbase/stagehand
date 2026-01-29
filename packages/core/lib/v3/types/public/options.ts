@@ -50,8 +50,10 @@ export interface V3Options {
   domSettleTimeout?: number;
   disableAPI?: boolean;
   /**
-   * When true, disables server-side caching for API requests.
+   * When true, enables server-side caching for API requests.
+   * When false, disables server-side caching.
+   * Defaults to true (caching enabled).
    * Can be overridden per-method in act(), extract(), and observe() options.
    */
-  disableCaching?: boolean;
+  serverCache?: boolean;
 }

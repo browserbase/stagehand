@@ -51,10 +51,12 @@ interface StagehandAPIConstructorParams {
   projectId: string;
   logger: (message: LogLine) => void;
   /**
-   * When true, disables server-side caching by default for all requests.
+   * When true, enables server-side caching by default for all requests.
+   * When false, disables server-side caching.
+   * Defaults to true (caching enabled).
    * Can be overridden per-method in act(), extract(), and observe() options.
    */
-  disableCaching?: boolean;
+  serverCache?: boolean;
 }
 
 /**
@@ -93,10 +95,11 @@ interface ExecuteActionParams {
   args?: ApiRequestBody;
   params?: Record<string, string>;
   /**
-   * Override the instance-level disableCaching setting for this request.
-   * When true, bypasses server-side caching.
+   * Override the instance-level serverCache setting for this request.
+   * When true, enables server-side caching.
+   * When false, disables server-side caching.
    */
-  disableCaching?: boolean;
+  serverCache?: boolean;
 }
 
 /**
@@ -141,18 +144,18 @@ export class StagehandAPIClient {
   private modelProvider?: string;
   private logger: (message: LogLine) => void;
   private fetchWithCookies;
-  private disableCaching: boolean;
+  private serverCache: boolean;
 
   constructor({
     apiKey,
     projectId,
     logger,
-    disableCaching,
+    serverCache,
   }: StagehandAPIConstructorParams) {
     this.apiKey = apiKey;
     this.projectId = projectId;
     this.logger = logger;
-    this.disableCaching = disableCaching ?? false;
+    this.serverCache = serverCache ?? true;
     // Create a single cookie jar instance that will persist across all requests
     this.fetchWithCookies = makeFetchCookie(fetch);
   }
@@ -243,11 +246,11 @@ export class StagehandAPIClient {
   }: ClientActParameters): Promise<ActResult> {
     // Strip non-serializable `page` and SDK-only fields from options before wire serialization
     let wireOptions: Api.ActRequest["options"];
-    let disableCaching: boolean | undefined;
+    let serverCache: boolean | undefined;
     if (options) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { page: _, disableCaching: skipCache, ...restOptions } = options;
-      disableCaching = skipCache;
+      const { page: _, serverCache: enableCache, ...restOptions } = options;
+      serverCache = enableCache;
       if (Object.keys(restOptions).length > 0) {
         if (restOptions.model) {
           restOptions.model = this.prepareModelConfig(restOptions.model);
@@ -266,7 +269,7 @@ export class StagehandAPIClient {
     return this.execute<ActResult>({
       method: "act",
       args: requestBody,
-      disableCaching,
+      serverCache,
     });
   }
 
@@ -281,11 +284,11 @@ export class StagehandAPIClient {
 
     // Strip non-serializable `page` and SDK-only fields from options before wire serialization
     let wireOptions: Api.ExtractRequest["options"];
-    let disableCaching: boolean | undefined;
+    let serverCache: boolean | undefined;
     if (options) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { page: _, disableCaching: skipCache, ...restOptions } = options;
-      disableCaching = skipCache;
+      const { page: _, serverCache: enableCache, ...restOptions } = options;
+      serverCache = enableCache;
       if (Object.keys(restOptions).length > 0) {
         if (restOptions.model) {
           restOptions.model = this.prepareModelConfig(restOptions.model);
@@ -305,7 +308,7 @@ export class StagehandAPIClient {
     return this.execute<ExtractResult<T>>({
       method: "extract",
       args: requestBody,
-      disableCaching,
+      serverCache,
     });
   }
 
@@ -316,11 +319,11 @@ export class StagehandAPIClient {
   }: ClientObserveParameters): Promise<Action[]> {
     // Strip non-serializable `page` and SDK-only fields from options before wire serialization
     let wireOptions: Api.ObserveRequest["options"];
-    let disableCaching: boolean | undefined;
+    let serverCache: boolean | undefined;
     if (options) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { page: _, disableCaching: skipCache, ...restOptions } = options;
-      disableCaching = skipCache;
+      const { page: _, serverCache: enableCache, ...restOptions } = options;
+      serverCache = enableCache;
       if (Object.keys(restOptions).length > 0) {
         if (restOptions.model) {
           restOptions.model = this.prepareModelConfig(restOptions.model);
@@ -339,7 +342,7 @@ export class StagehandAPIClient {
     return this.execute<Action[]>({
       method: "observe",
       args: requestBody,
-      disableCaching,
+      serverCache,
     });
   }
 
@@ -575,7 +578,7 @@ export class StagehandAPIClient {
     method,
     args,
     params,
-    disableCaching,
+    serverCache,
   }: ExecuteActionParams): Promise<T> {
     const urlParams = new URLSearchParams(params as Record<string, string>);
     const queryString = urlParams.toString();
@@ -587,7 +590,7 @@ export class StagehandAPIClient {
         method: "POST",
         body: JSON.stringify(args),
       },
-      disableCaching,
+      serverCache,
     );
 
     if (!response.ok) {
@@ -687,22 +690,22 @@ export class StagehandAPIClient {
   }
 
   /**
-   * Determine if caching should be skipped for a request.
+   * Determine if caching should be enabled for a request.
    * Method-level setting takes precedence over instance-level setting.
    */
-  private shouldSkipCache(methodDisableCaching?: boolean): boolean {
+  private shouldUseCache(methodServerCache?: boolean): boolean {
     // If method-level setting is explicitly provided, use it
-    if (methodDisableCaching !== undefined) {
-      return methodDisableCaching;
+    if (methodServerCache !== undefined) {
+      return methodServerCache;
     }
     // Otherwise, use instance-level setting
-    return this.disableCaching;
+    return this.serverCache;
   }
 
   private async request(
     path: string,
     options: RequestInit,
-    disableCaching?: boolean,
+    serverCache?: boolean,
   ): Promise<Response> {
     const defaultHeaders: Record<string, string> = {
       "x-bb-api-key": this.apiKey,
@@ -716,7 +719,7 @@ export class StagehandAPIClient {
     };
 
     // Add cache skip header if caching is disabled
-    if (this.shouldSkipCache(disableCaching)) {
+    if (!this.shouldUseCache(serverCache)) {
       defaultHeaders["x-bb-skip-cache"] = "true";
     }
 
