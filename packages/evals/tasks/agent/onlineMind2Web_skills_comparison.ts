@@ -1,6 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { runSkillAgent, SKILL_CONFIGS } from "../../lib/skillAgents";
-import { V3Evaluator } from "@browserbasehq/stagehand";
+import { runSkillAgent, SKILL_CONFIGS, getAvailableSkills } from "../../lib/skillAgents";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -11,168 +10,85 @@ export const onlineMind2Web_skills_comparison: EvalFunction = async ({
   sessionUrl,
   input,
 }) => {
-  try {
-    const params = ((input && input.params) || {}) as {
-      task_id?: string;
-      confirmed_task?: string;
-      website?: string;
-      reference_length?: number;
-      level?: string;
-      skill?: string; // Which skill to use
-    };
+  const params = input.params as {
+    skill: string;
+    task: string;
+    website: string;
+  };
+  const { skill, task, website } = params;
 
-    if (!params.website || !params.confirmed_task || !params.skill) {
-      return {
-        _success: false,
-        error: `Missing params (website, confirmed_task, skill). Got: ${JSON.stringify(params)}`,
-        debugUrl,
-        sessionUrl,
-        logs: logger.getLogs(),
-      };
-    }
+  logger.log({
+    message: `Running skill: ${skill} on task`,
+    level: 1,
+    auxiliary: {
+      task: { value: task, type: "string" },
+      website: { value: website, type: "string" },
+    },
+  });
 
-    const skillConfig = SKILL_CONFIGS[params.skill];
-    if (!skillConfig) {
-      return {
-        _success: false,
-        error: `Unknown skill: ${params.skill}. Available: ${Object.keys(SKILL_CONFIGS).join(", ")}`,
-        debugUrl,
-        sessionUrl,
-        logs: logger.getLogs(),
-      };
-    }
+  // Run the skill agent
+  const result = await runSkillAgent(skill, task, {
+    startUrl: website,
+    maxTurns: 30,
+    maxBudgetUsd: 5.0,
+  });
 
-    const instruction = `Navigate to ${params.website} and complete: "${params.confirmed_task}"
-
-At the end, produce: "Final Answer: <answer>"`;
-
-    logger.log({
-      category: "evaluation",
-      message: `Running skill: ${params.skill} on task: ${params.task_id}`,
-      level: 1,
-    });
-
-    logger.log({
-      category: "evaluation",
-      message: `Website: ${params.website}`,
-      level: 1,
-    });
-
-    logger.log({
-      category: "evaluation",
-      message: `Task: ${params.confirmed_task}`,
-      level: 1,
-    });
-
-    // Run the agent with the specified skill
-    const metrics = await runSkillAgent(instruction, skillConfig);
-
-    logger.log({
-      category: "evaluation",
-      message: `Skill ${params.skill} completed in ${metrics.durationMs}ms with ${metrics.turnCount} turns`,
-      level: 1,
-    });
-
-    logger.log({
-      category: "evaluation",
-      message: `Cost: $${metrics.totalCostUsd.toFixed(4)}, Tokens: ${metrics.inputTokens} in / ${metrics.outputTokens} out`,
-      level: 1,
-    });
-
-    // Use V3Evaluator to validate the answer (LLM-as-a-judge, text-only without screenshots)
-    let evaluationSuccess = false;
-    let evaluationReasoning = "No evaluation performed";
-
-    if (metrics.reasoning) {
-      try {
-        // Create a minimal stub V3 instance for V3Evaluator
-        // V3Evaluator only needs logger and LLMProvider, not the full browser context
-        const stubV3 = {
-          logger: (message: any) => logger.log({
-            category: "evaluator",
-            message: typeof message === "string" ? message : message.message,
-            level: 1,
-          }),
-        } as any;
-
-        // Use Anthropic Claude for evaluation
-        const evaluatorModel = "anthropic/claude-sonnet-4-20250514";
-        const evaluator = new V3Evaluator(
-          stubV3,
-          evaluatorModel as any,
-          { apiKey: process.env.ANTHROPIC_API_KEY || "" }
-        );
-
-        logger.log({
-          category: "evaluation",
-          message: `Validating answer with V3Evaluator (${evaluatorModel})`,
-          level: 1,
-        });
-
-        // Use V3Evaluator with screenshot: false for text-only evaluation
-        const evalResult = await evaluator.ask({
-          question: `Did the agent successfully complete this task: "${params.confirmed_task}"?`,
-          answer: metrics.reasoning || "No reasoning provided",
-          screenshot: false, // Text-only evaluation without screenshots
-          agentReasoning: metrics.reasoning,
-        });
-
-        evaluationSuccess = evalResult.evaluation === "YES";
-        evaluationReasoning = evalResult.reasoning;
-
-        logger.log({
-          category: "evaluation",
-          message: `V3Evaluator result: ${evalResult.evaluation} - ${evalResult.reasoning}`,
-          level: 1,
-        });
-      } catch (evalError) {
-        logger.log({
-          category: "evaluation",
-          message: `V3Evaluator error: ${evalError}`,
-          level: 0,
-        });
-        // Fall back to Agent SDK's success determination if evaluator fails
-        evaluationSuccess = metrics.success;
-        evaluationReasoning = `Evaluator failed: ${evalError}. Fallback to agent result: ${metrics.success}`;
+  // Log all agent messages to Braintrust
+  for (const msg of result.agentMessages) {
+    if (msg.type === "assistant") {
+      const content = msg.message?.content;
+      if (content) {
+        for (const block of content) {
+          if (block.type === "text") {
+            logger.log({
+              message: `[Assistant] ${block.text}`,
+              level: 1,
+            });
+          } else if (block.type === "tool_use") {
+            logger.log({
+              message: `[Tool: ${block.name}] ${JSON.stringify(block.input).substring(0, 500)}`,
+              level: 1,
+            });
+          }
+        }
       }
-    } else {
-      // No reasoning output, mark as failure
-      evaluationSuccess = false;
-      evaluationReasoning = "No reasoning output from agent";
+    } else if (msg.type === "user") {
+      const content = msg.message?.content;
+      if (content) {
+        for (const block of content) {
+          if (block.type === "tool_result") {
+            const resultStr = typeof block.content === "string"
+              ? block.content.substring(0, 1000)
+              : JSON.stringify(block.content).substring(0, 1000);
+            logger.log({
+              message: `[Tool Result] ${resultStr}`,
+              level: 1,
+            });
+          }
+        }
+      }
     }
-
-    return {
-      _success: evaluationSuccess,
-      agent_completed: metrics.success, // Whether agent finished without hitting limits
-      evaluation_result: evaluationSuccess, // Whether LLM judge thinks task was completed
-      reasoning: metrics.reasoning,
-      evaluation_reasoning: evaluationReasoning,
-      error: metrics.error,
-      cost_usd: metrics.totalCostUsd,
-      input_tokens: metrics.inputTokens,
-      output_tokens: metrics.outputTokens,
-      duration_ms: metrics.durationMs,
-      turn_count: metrics.turnCount,
-      skill: params.skill,
-      task_level: params.level,
-      debugUrl,
-      sessionUrl,
-      logs: logger.getLogs(),
-      agent_messages: metrics.agentMessages, // Full turn-by-turn traces
-    };
-  } catch (error) {
-    logger.log({
-      category: "evaluation",
-      message: `Error: ${error}`,
-      level: 0,
-    });
-
-    return {
-      _success: false,
-      error: String(error),
-      debugUrl,
-      sessionUrl,
-      logs: logger.getLogs(),
-    };
   }
+
+  logger.log({
+    message: `Skill ${skill} completed in ${result.metrics.durationMs}ms with ${result.metrics.turns} turns`,
+    level: 1,
+    auxiliary: {
+      success: { value: result.success.toString(), type: "string" },
+      costUsd: { value: result.metrics.costUsd.toFixed(4), type: "string" },
+      turns: { value: result.metrics.turns.toString(), type: "integer" },
+    },
+  });
+
+  // Return result for Braintrust
+  return {
+    _success: result.success,
+    logs: logger.getLogs(),
+    debugUrl: result.browserbaseDebugUrl || debugUrl,
+    sessionUrl: result.browserbaseSessionUrl || sessionUrl,
+    error: result.error,
+  };
 };
+
+// Export skill configs for the test suite
+export { SKILL_CONFIGS, getAvailableSkills };

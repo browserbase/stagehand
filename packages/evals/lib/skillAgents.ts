@@ -6,431 +6,516 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { AvailableModel } from "@browserbasehq/stagehand";
 import * as path from "path";
-import { spawn } from "child_process";
+import * as fs from "fs";
+import * as os from "os";
+import dotenv from "dotenv";
 
-// Use path.resolve to get the directory containing this file
-const SCRIPTS_DIR = path.resolve(__dirname, "../scripts");
-const HOME = process.env.HOME || process.env.USERPROFILE || "~";
+// Load .env from the evals package directory
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
-export interface SkillAgentConfig {
+// Hardcoded fallback credentials for Browserbase (used if env vars not set)
+if (!process.env.BROWSERBASE_API_KEY) {
+  process.env.BROWSERBASE_API_KEY = "bb_live_2alz7DCv4wQs9gXjcgaI2YfKGXE";
+}
+if (!process.env.BROWSERBASE_PROJECT_ID) {
+  process.env.BROWSERBASE_PROJECT_ID = "fe1911a7-7576-4cf9-b2ab-e1d9c7dc277b";
+}
+
+const HOME = os.homedir();
+const SKILLS_DIR = path.join(HOME, "Documents/Browserbase/.agents/skills");
+const EVALS_SCRIPTS_DIR = path.resolve(__dirname, "../scripts");
+
+// Base interface for all skill configs
+interface BaseSkillConfig {
   name: string;
-  type: "skill" | "mcp";
-
-  // For skills
-  cwd?: string;
-  settingSources?: Array<"user" | "project">;
-  env?: Record<string, string>;
-  executable?: "node" | "bun" | "deno";
-
-  // For MCPs
-  mcpServers?: Record<string, {
-    command: string;
-    args: string[];
-    env?: Record<string, string>;
-  }>;
-
-  allowedTools?: string[];
+  description: string;
   model: string;
-
-  // Browserbase session management
-  useBrowserbaseSession?: boolean; // If true, creates session with stealth/proxy/captcha
+  useBrowserbase?: boolean; // If true, creates a Browserbase session
 }
 
-export interface AgentMessage {
-  type: string;
-  subtype?: string;
-  num_turns?: number;
-  total_cost_usd?: number;
-  usage?: any; // Flexible to accommodate different usage types
-  result?: string;
-  text?: string;
-  tool_use?: any;
-  tool_result?: any;
-  [key: string]: any;
+// CLI-based skill config (uses Bash commands to interact with a CLI tool)
+export interface CliSkillConfig extends BaseSkillConfig {
+  type: "cli";
+  cwd: string;
+  allowedTools: string[];
 }
 
-export interface SkillAgentMetrics {
+// MCP-based skill config (uses MCP server directly)
+export interface McpSkillConfig extends BaseSkillConfig {
+  type: "mcp";
+  mcpServerCommand: string;
+  mcpServerArgs?: string[];
+  mcpServerEnv?: Record<string, string>;
+}
+
+export type SkillAgentConfig = CliSkillConfig | McpSkillConfig;
+
+export interface SkillAgentResult {
   success: boolean;
-  totalCostUsd: number;
-  inputTokens: number;
-  outputTokens: number;
-  durationMs: number;
-  turnCount: number;
-  reasoning?: string;
   error?: string;
-  agentMessages?: AgentMessage[]; // Full turn-by-turn traces from Agent SDK
+  agentMessages: any[];
+  metrics: {
+    turns: number;
+    costUsd: number;
+    durationMs: number;
+    inputTokens: number;
+    outputTokens: number;
+  };
+  browserbaseSessionUrl?: string;
+  browserbaseDebugUrl?: string;
 }
 
 /**
- * Create a Browserbase session with stealth/proxy/captcha enabled
- * Returns session details: { sessionId, connectUrl, debugUrl }
+ * Resolve Claude Code executable path (handles symlinks)
  */
-async function createBrowserbaseSession(): Promise<{
-  sessionId: string;
+function getClaudeCodePath(): string {
+  const symlinkPath = path.join(HOME, ".local", "bin", "claude");
+  try {
+    return fs.realpathSync(symlinkPath);
+  } catch {
+    return symlinkPath;
+  }
+}
+
+interface BrowserbaseSession {
+  id: string;
   connectUrl: string;
   debugUrl: string;
-}> {
-  return new Promise((resolve, reject) => {
-    const sessionCreator = spawn('node', [
-      path.join(SCRIPTS_DIR, 'browserbase-session-creator.mjs'),
-    ], {
-      env: process.env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    let sessionOutput = '';
-    let sessionError = '';
-
-    sessionCreator.stdout.on('data', (data) => {
-      sessionOutput += data.toString();
-    });
-
-    sessionCreator.stderr.on('data', (data) => {
-      sessionError += data.toString();
-    });
-
-    sessionCreator.on('close', (code) => {
-      if (code !== 0) {
-        reject(new Error(`Failed to create Browserbase session: ${sessionError}`));
-        return;
-      }
-
-      try {
-        const session = JSON.parse(sessionOutput);
-        resolve(session);
-      } catch (error) {
-        reject(new Error(`Failed to parse session output: ${sessionOutput}`));
-      }
-    });
-  });
 }
 
 /**
- * Close a Browserbase session to avoid unnecessary charges
+ * Create a Browserbase session with stealth/proxy/captcha settings
+ */
+async function createBrowserbaseSession(): Promise<BrowserbaseSession> {
+  const apiKey = process.env.BROWSERBASE_API_KEY;
+  const projectId = process.env.BROWSERBASE_PROJECT_ID;
+
+  if (!apiKey || !projectId) {
+    throw new Error("BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID are required");
+  }
+
+  const response = await fetch("https://api.browserbase.com/v1/sessions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-bb-api-key": apiKey,
+    },
+    body: JSON.stringify({
+      projectId,
+      browserSettings: {
+        advancedStealth: true,
+        solveCaptchas: true,
+        blockAds: true,
+      },
+      proxies: true,
+      keepAlive: true,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to create Browserbase session: ${response.status} ${text}`);
+  }
+
+  const data = await response.json() as { id: string; connectUrl: string };
+  const sessionId = data.id;
+  const connectUrl = data.connectUrl;
+  const debugUrl = `https://www.browserbase.com/sessions/${sessionId}`;
+
+  console.log(`[browserbase] Session created: ${sessionId}`);
+  console.log(`[browserbase] Debug URL: ${debugUrl}`);
+
+  return { id: sessionId, connectUrl, debugUrl };
+}
+
+/**
+ * Close a Browserbase session
  */
 async function closeBrowserbaseSession(sessionId: string): Promise<void> {
-  const BROWSERBASE_API_KEY = process.env.BROWSERBASE_API_KEY;
+  const apiKey = process.env.BROWSERBASE_API_KEY;
+  const projectId = process.env.BROWSERBASE_PROJECT_ID;
 
-  if (!BROWSERBASE_API_KEY) {
-    console.warn(`[browserbase] Cannot close session ${sessionId}: BROWSERBASE_API_KEY not set`);
-    return;
-  }
+  if (!apiKey || !projectId) return;
 
   try {
-    const response = await fetch(`https://api.browserbase.com/v1/sessions/${sessionId}`, {
-      method: 'POST',
+    await fetch(`https://api.browserbase.com/v1/sessions/${sessionId}`, {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'X-BB-API-Key': BROWSERBASE_API_KEY,
+        "Content-Type": "application/json",
+        "x-bb-api-key": apiKey,
       },
       body: JSON.stringify({
-        status: 'REQUEST_RELEASE',
+        projectId,
+        status: "REQUEST_RELEASE",
       }),
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Browserbase API error (${response.status}): ${errorText}`);
-    }
-
-    console.log(`[browserbase] Session ${sessionId} closed successfully`);
+    console.log(`[browserbase] Session closed: ${sessionId}`);
   } catch (error) {
-    console.error(`[browserbase] Failed to close session ${sessionId}:`, error instanceof Error ? error.message : String(error));
+    console.error(`[browserbase] Failed to close session: ${error}`);
   }
-}
-
-export async function runSkillAgent(
-  instruction: string,
-  config: SkillAgentConfig
-): Promise<SkillAgentMetrics> {
-  const startTime = Date.now();
-  const metrics: SkillAgentMetrics = {
-    success: false,
-    totalCostUsd: 0,
-    inputTokens: 0,
-    outputTokens: 0,
-    durationMs: 0,
-    turnCount: 0,
-    agentMessages: [], // Capture all messages for full tracing
-  };
-
-  // Track session info for cleanup in finally block
-  let sessionInfo: { sessionId: string; connectUrl: string; debugUrl: string } | undefined;
-
-  try {
-    // Create Browserbase session if needed
-    if (config.useBrowserbaseSession) {
-      console.log(`[${config.name}] Creating Browserbase session with stealth/proxy/captcha...`);
-      sessionInfo = await createBrowserbaseSession();
-      console.log(`[${config.name}] Session created: ${sessionInfo.sessionId}`);
-      console.log(`[${config.name}] Debug URL: ${sessionInfo.debugUrl}`);
-    }
-
-    // Merge session info into env vars
-    const env = {
-      ...config.env,
-      ...(sessionInfo && {
-        BROWSERBASE_SESSION_ID: sessionInfo.sessionId,
-        BROWSERBASE_CONNECT_URL: sessionInfo.connectUrl,
-        BROWSERBASE_DEBUG_URL: sessionInfo.debugUrl,
-        // For stagehand-cli: unique session name to prevent contamination during concurrent tests
-        STAGEHAND_SESSION: `eval-${sessionInfo.sessionId.substring(0, 8)}`,
-      }),
-    };
-
-    // Debug: Log session isolation env vars
-    if (sessionInfo) {
-      console.log(`[${config.name}] Session isolation env vars:`, {
-        STAGEHAND_SESSION: env.STAGEHAND_SESSION,
-        BROWSERBASE_CONNECT_URL: sessionInfo.connectUrl.substring(0, 50) + '...',
-      });
-    }
-
-    // For MCPs, also merge session info into each MCP server's env
-    let mcpServers = config.mcpServers;
-    if (mcpServers && sessionInfo) {
-      mcpServers = Object.fromEntries(
-        Object.entries(mcpServers).map(([name, serverConfig]) => [
-          name,
-          {
-            ...serverConfig,
-            env: {
-              ...serverConfig.env,
-              BROWSERBASE_SESSION_ID: sessionInfo.sessionId,
-              BROWSERBASE_CONNECT_URL: sessionInfo.connectUrl,
-              BROWSERBASE_DEBUG_URL: sessionInfo.debugUrl,
-            },
-          },
-        ])
-      );
-    }
-
-    // Debug: Log MCP servers configuration
-    if (mcpServers) {
-      console.log(`[${config.name}] MCP servers configured:`, JSON.stringify(mcpServers, null, 2));
-    }
-
-    console.log(`[${config.name}] Starting Agent SDK query()...`);
-
-    // Build query options based on config type
-    const queryOptions: any = {
-      model: config.model as AvailableModel,
-      allowedTools: config.allowedTools,
-      maxBudgetUsd: 5.0,
-      maxTurns: 30,
-    };
-
-    if (config.type === "mcp") {
-      // For MCP servers, only pass mcpServers - no executable/cwd/settingSources
-      queryOptions.mcpServers = mcpServers;
-    } else {
-      // For skills, pass executable, cwd, settingSources, and env
-      queryOptions.cwd = config.cwd;
-      queryOptions.settingSources = config.settingSources;
-      queryOptions.env = env;
-      queryOptions.executable = config.executable || "node";
-    }
-
-    console.log(`[${config.name}] Query options:`, JSON.stringify(queryOptions, null, 2).substring(0, 500));
-
-    try {
-      for await (const message of query({
-        prompt: instruction,
-        options: queryOptions,
-      })) {
-      // Capture ALL messages for full turn-by-turn logging
-      const timestampedMessage = {
-        ...message,
-        timestamp: new Date().toISOString(),
-      };
-      metrics.agentMessages!.push(timestampedMessage);
-
-      // DEBUG: Log all message types
-      console.log(`[${config.name}] Message type: ${(message as any).type}, subtype: ${(message as any).subtype || 'N/A'}`);
-
-      // LOG MESSAGES AS THEY ARRIVE for real-time observability
-      const msg = message as any; // Agent SDK messages have dynamic types
-
-      // Handle assistant messages (contain text and tool_use blocks)
-      if (msg.type === "assistant" && msg.message?.content) {
-        for (const block of msg.message.content) {
-          if (block.type === "text") {
-            console.log(`[Agent SDK] Assistant: ${block.text.substring(0, 200)}`);
-          } else if (block.type === "tool_use") {
-            console.log(`[Agent SDK] Tool use: ${block.name}`);
-            if (block.input) {
-              console.log(`[Agent SDK] Input:`, JSON.stringify(block.input).substring(0, 200));
-            }
-          }
-        }
-      }
-      // Handle user messages (contain tool_result blocks)
-      else if (msg.type === "user" && msg.message?.content) {
-        for (const block of msg.message.content) {
-          if (block.type === "tool_result") {
-            console.log(`[Agent SDK] Tool result: ${block.tool_use_id}`);
-            const content = block.content;
-            if (typeof content === 'string') {
-              console.log(`[Agent SDK] Result:`, content.substring(0, 200));
-            } else if (Array.isArray(content)) {
-              for (const item of content) {
-                if (item.type === "text") {
-                  console.log(`[Agent SDK] Result:`, item.text.substring(0, 200));
-                }
-              }
-            }
-          }
-        }
-      }
-      // Handle final result
-      else if (msg.type === "result") {
-        metrics.durationMs = Date.now() - startTime;
-        metrics.turnCount = msg.num_turns;
-        metrics.totalCostUsd = msg.total_cost_usd;
-        metrics.inputTokens = msg.usage?.input_tokens || 0;
-        metrics.outputTokens = msg.usage?.output_tokens || 0;
-
-        if (msg.subtype === "success") {
-          metrics.success = true;
-          metrics.reasoning = msg.result;
-        } else {
-          metrics.error = msg.subtype;
-        }
-      }
-    }
-
-    console.log(`[${config.name}] Agent SDK query() loop ended`);
-    } catch (queryError) {
-      console.error(`[${config.name}] Agent SDK query() threw error:`, queryError);
-      throw queryError;
-    }
-  } catch (error) {
-    console.error(`[${config.name}] Outer catch:`, error);
-    metrics.error = String(error);
-    metrics.durationMs = Date.now() - startTime;
-  } finally {
-    // Clean up Browserbase session to avoid unnecessary charges
-    if (sessionInfo) {
-      console.log(`[${config.name}] Cleaning up Browserbase session: ${sessionInfo.sessionId}`);
-      await closeBrowserbaseSession(sessionInfo.sessionId);
-    }
-  }
-
-  return metrics;
 }
 
 /**
- * Skill configurations for all browser automation tools
- *
- * Setup instructions:
- * - agent-browse: git clone https://github.com/example/agent-browse
- * - dev-browser: git clone https://github.com/example/dev-browser
- * - playwright-mcp: git clone https://github.com/example/playwright-mcp && npm install
- * - playwriter: git clone https://github.com/example/playwriter && npm install
- * - stagehand-cli: Install from shrey/cli branch with execute command:
- *     git clone -b shrey/cli https://github.com/browserbase/stagehand ~/Developer/stagehand-cli
- *     cd ~/Developer/stagehand-cli && pnpm install && pnpm build
- *     Create skills directory at ~/Developer/browserbase-skills with browser-automation skill
- * - agent-browser: git clone https://github.com/vercel-labs/agent-browser && npm install
+ * Available skill configurations
  */
 export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
-  "agent-browse": {
-    name: "agent-browse",
-    type: "skill",
-    cwd: path.join(HOME, "Developer/agent-browse"),
-    settingSources: ["project"],
+  // CLI-based skills (use Bash commands)
+  "agent-browser": {
+    type: "cli",
+    name: "agent-browser",
+    description: "Browser automation using agent-browser CLI (local)",
+    cwd: path.join(SKILLS_DIR, "agent-browser"),
     allowedTools: ["Bash", "Read", "Glob"],
     model: "claude-sonnet-4-5-20250929",
+    useBrowserbase: false, // Uses local Playwright
+  },
+
+  "browse": {
+    type: "cli",
+    name: "browse",
+    description: "Browser automation using browse CLI (Browserbase)",
+    cwd: path.join(SKILLS_DIR, "browse"),
+    allowedTools: ["Bash", "Read", "Glob"],
+    model: "claude-sonnet-4-5-20250929",
+    useBrowserbase: false, // Browse CLI is designed for Browserbase
   },
 
   "dev-browser": {
+    type: "cli",
     name: "dev-browser",
-    type: "skill",
-    cwd: path.join(HOME, "Developer/dev-browser"),
-    settingSources: ["project"],
+    description: "Browser automation using dev-browser",
+    cwd: path.join(SKILLS_DIR, "dev-browser"),
     allowedTools: ["Bash", "Read", "Glob"],
     model: "claude-sonnet-4-5-20250929",
-  },
-
-  "playwright-mcp": {
-    name: "playwright-mcp",
-    type: "mcp",
-    useBrowserbaseSession: true, // Create session with stealth/proxy/captcha
-    mcpServers: {
-      playwright: {
-        command: "/Users/shrey/.nvm/versions/node/v20.19.5/bin/node",
-        args: [path.join(SCRIPTS_DIR, "playwright-browserbase-wrapper-v2.mjs")],
-        env: {
-          BROWSERBASE_API_KEY: process.env.BROWSERBASE_API_KEY,
-          BROWSERBASE_PROJECT_ID: process.env.BROWSERBASE_PROJECT_ID,
-          PLAYWRIGHT_MCP_CLI_PATH: path.join(HOME, "Developer/playwright-mcp/cli.js"),
-          PATH: process.env.PATH, // Include PATH for subprocess
-        }
-      }
-    },
-    allowedTools: ["mcp__playwright__*", "WebFetch", "WebSearch"],
-    model: "claude-sonnet-4-5-20250929",
+    useBrowserbase: false,
   },
 
   "playwriter": {
+    type: "cli",
     name: "playwriter",
+    description: "Browser automation using playwriter MCP",
+    cwd: path.join(SKILLS_DIR, "playwriter"),
+    allowedTools: ["Bash", "Read", "Glob"],
+    model: "claude-sonnet-4-5-20250929",
+    useBrowserbase: false,
+  },
+
+  // MCP-based skills (use MCP servers directly)
+  "playwright-mcp": {
     type: "mcp",
-    mcpServers: {
-      playwriter: {
-        command: "node",
-        args: [path.join(HOME, "Developer/playwriter/playwriter/bin.js")]
-      }
-    },
-    allowedTools: ["mcp__playwriter__*"],
+    name: "playwright-mcp",
+    description: "Browser automation using Playwright MCP server with Browserbase",
     model: "claude-sonnet-4-5-20250929",
-  },
-
-  "stagehand-cli": {
-    name: "stagehand-cli",
-    type: "skill",
-    cwd: path.join(HOME, "Developer/browserbase-skills"),
-    settingSources: ["project"],
-    env: {
-      BROWSERBASE_API_KEY: process.env.BROWSERBASE_API_KEY,
-      BROWSERBASE_PROJECT_ID: process.env.BROWSERBASE_PROJECT_ID,
-      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-      // Prepend browserbase-skills to PATH so our stagehand wrapper is found first
-      PATH: `${path.join(HOME, "Developer/browserbase-skills")}:${process.env.PATH}`,
-    },
-    allowedTools: ["Bash", "Read", "Glob", "WebFetch", "WebSearch"],
-    model: "claude-sonnet-4-5-20250929",
-    useBrowserbaseSession: true, // Create session with stealth/proxy/captcha
-  },
-
-  "agent-browser": {
-    name: "agent-browser",
-    type: "skill",
-    cwd: path.join(HOME, "Developer/agent-browser"),
-    settingSources: ["project"],
-    env: {
-      PATH: process.env.PATH,
-    },
-    allowedTools: ["Bash", "Read", "Glob", "WebFetch", "WebSearch"],
-    model: "claude-sonnet-4-5-20250929",
-    useBrowserbaseSession: true, // Create session with stealth/proxy/captcha
+    useBrowserbase: true,
+    mcpServerCommand: "node",
+    mcpServerArgs: [path.join(EVALS_SCRIPTS_DIR, "playwright-browserbase-wrapper-v2.mjs")],
   },
 
   "chrome-devtools-mcp": {
-    name: "chrome-devtools-mcp",
     type: "mcp",
-    useBrowserbaseSession: true, // Create session with stealth/proxy/captcha
-    mcpServers: {
-      "chrome-devtools": {
-        command: "/Users/shrey/.nvm/versions/node/v20.19.5/bin/node",
-        args: [path.join(SCRIPTS_DIR, "chrome-devtools-browserbase-wrapper-v2.mjs")],
-        env: {
-          BROWSERBASE_API_KEY: process.env.BROWSERBASE_API_KEY,
-          BROWSERBASE_PROJECT_ID: process.env.BROWSERBASE_PROJECT_ID,
-          PATH: process.env.PATH, // Include PATH for subprocess
-        }
-      }
-    },
-    allowedTools: ["mcp__chrome-devtools__*", "WebFetch", "WebSearch"],
+    name: "chrome-devtools-mcp",
+    description: "Browser automation using Chrome DevTools MCP server with Browserbase",
     model: "claude-sonnet-4-5-20250929",
+    useBrowserbase: true,
+    mcpServerCommand: "node",
+    mcpServerArgs: [path.join(EVALS_SCRIPTS_DIR, "chrome-devtools-browserbase-wrapper-v2.mjs")],
   },
 };
+
+/**
+ * Run a skill agent with the given instruction
+ */
+export async function runSkillAgent(
+  skillName: string,
+  instruction: string,
+  options?: {
+    maxTurns?: number;
+    maxBudgetUsd?: number;
+    startUrl?: string;
+  }
+): Promise<SkillAgentResult> {
+  const config = SKILL_CONFIGS[skillName];
+  if (!config) {
+    return {
+      success: false,
+      error: `Unknown skill: ${skillName}`,
+      agentMessages: [],
+      metrics: { turns: 0, costUsd: 0, durationMs: 0, inputTokens: 0, outputTokens: 0 },
+    };
+  }
+
+  // For CLI-based skills, verify cwd exists
+  if (config.type === "cli" && !fs.existsSync(config.cwd)) {
+    return {
+      success: false,
+      error: `Skill directory does not exist: ${config.cwd}`,
+      agentMessages: [],
+      metrics: { turns: 0, costUsd: 0, durationMs: 0, inputTokens: 0, outputTokens: 0 },
+    };
+  }
+
+  const claudeCodePath = getClaudeCodePath();
+  const startTime = Date.now();
+  const agentMessages: any[] = [];
+  let browserbaseSession: BrowserbaseSession | null = null;
+
+  // Create Browserbase session if needed
+  if (config.useBrowserbase) {
+    try {
+      browserbaseSession = await createBrowserbaseSession();
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to create Browserbase session: ${error}`,
+        agentMessages: [],
+        metrics: { turns: 0, costUsd: 0, durationMs: 0, inputTokens: 0, outputTokens: 0 },
+      };
+    }
+  }
+
+  // Build the prompt with optional start URL
+  let prompt = instruction;
+  if (options?.startUrl) {
+    prompt = `Start by navigating to ${options.startUrl}, then: ${instruction}`;
+  }
+
+  console.log(`[${skillName}] Starting Agent SDK query...`);
+  console.log(`[${skillName}] Skill type: ${config.type}`);
+  if (config.type === "cli") {
+    console.log(`[${skillName}] CWD: ${config.cwd}`);
+  }
+  console.log(`[${skillName}] Claude Code: ${claudeCodePath}`);
+  if (browserbaseSession) {
+    console.log(`[${skillName}] Browserbase session: ${browserbaseSession.id}`);
+    console.log(`[${skillName}] Debug URL: ${browserbaseSession.debugUrl}`);
+  }
+
+  // Build environment with Browserbase session info
+  const env: Record<string, string> = {
+    ...process.env as Record<string, string>,
+  };
+  if (browserbaseSession) {
+    env.BROWSERBASE_SESSION_ID = browserbaseSession.id;
+    env.BROWSERBASE_CONNECT_URL = browserbaseSession.connectUrl;
+    env.AGENT_BROWSER_PROVIDER = "browserbase";
+  }
+
+  // Build query options based on skill type
+  let queryOptions: any;
+
+  if (config.type === "mcp") {
+    // MCP-based skill: configure MCP server
+    const mcpServerName = config.name;
+    const mcpEnv: Record<string, string> = {
+      ...env,
+      ...(config.mcpServerEnv || {}),
+    };
+
+    // Add path to playwright-mcp CLI if needed
+    if (skillName === "playwright-mcp") {
+      // Try to find playwright-mcp in common locations
+      const playwrightMcpPath = path.join(
+        HOME,
+        "Documents/Browserbase/playwright-mcp/dist/cli.js"
+      );
+      if (fs.existsSync(playwrightMcpPath)) {
+        mcpEnv.PLAYWRIGHT_MCP_CLI_PATH = playwrightMcpPath;
+      }
+    }
+
+    const systemPrompt = `You are a browser automation agent with access to MCP (Model Context Protocol) tools for browser control.
+
+You have access to browser automation tools provided by the "${mcpServerName}" MCP server. Use these tools to complete web automation tasks.
+
+IMPORTANT:
+- You do NOT have access to WebFetch, WebSearch, or any other web tools. Do not attempt to use them.
+- Use the MCP tools (prefixed with mcp__${mcpServerName.replace(/-/g, "_")}__) to interact with the browser.
+- The browser is already connected to a cloud session - you don't need to launch or connect to a browser.
+- Start by navigating to the target URL, then complete the task step by step.`;
+
+    queryOptions = {
+      model: config.model as AvailableModel,
+      disallowedTools: ["WebFetch", "WebSearch", "Task"],
+      systemPrompt,
+      env,
+      maxTurns: options?.maxTurns ?? 20,
+      maxBudgetUsd: options?.maxBudgetUsd ?? 2.0,
+      pathToClaudeCodeExecutable: claudeCodePath,
+      mcpServers: {
+        [mcpServerName]: {
+          type: "stdio" as const,
+          command: config.mcpServerCommand,
+          args: config.mcpServerArgs || [],
+          env: mcpEnv,
+        },
+      },
+    };
+
+    console.log(`[${skillName}] MCP server: ${mcpServerName}`);
+    console.log(`[${skillName}] MCP command: ${config.mcpServerCommand} ${(config.mcpServerArgs || []).join(" ")}`);
+  } else {
+    // CLI-based skill: use Bash commands
+    let systemPrompt = `You are a browser automation agent. You ONLY have access to Bash, Read, and Glob tools.
+
+IMPORTANT: You do NOT have access to WebFetch, WebSearch, or any web tools. Do not attempt to use them - they will be denied.
+
+To complete browser automation tasks, you must use the browser automation CLI tool available via Bash commands.
+Read the SKILL.md file in your current directory to learn how to use the browser automation tool.
+
+Your workflow should be:
+1. First, read the SKILL.md file to understand the available commands
+2. Use Bash to run browser automation commands (like opening URLs, taking snapshots, clicking elements)
+3. Complete the task using only Bash commands`;
+
+    // Add skill-specific instruction to connect to Browserbase session if one was created
+    if (browserbaseSession) {
+      let connectionInstructions = "";
+
+      switch (skillName) {
+        case "agent-browser":
+          connectionInstructions = `Before running any browser commands, you MUST first connect to the cloud browser:
+  agent-browser connect "${browserbaseSession.connectUrl}"
+After connecting, run your browser automation commands normally.`;
+          break;
+
+        case "dev-browser":
+          connectionInstructions = `Connect to the cloud browser using the CDP URL:
+  Environment variable BROWSERBASE_CONNECT_URL is set to the WebSocket URL.
+  Use this URL to connect via CDP.`;
+          break;
+
+        case "playwriter":
+          connectionInstructions = `A Browserbase session is available. Connect using the CDP endpoint:
+  ${browserbaseSession.connectUrl}`;
+          break;
+
+        default:
+          connectionInstructions = `A cloud browser session is available at:
+  ${browserbaseSession.connectUrl}
+Connect to this session before running browser commands.`;
+      }
+
+      systemPrompt += `
+
+IMPORTANT - BROWSER CONNECTION:
+${connectionInstructions}`;
+    }
+
+    queryOptions = {
+      model: config.model as AvailableModel,
+      allowedTools: config.allowedTools,
+      disallowedTools: ["WebFetch", "WebSearch", "Task"],
+      systemPrompt,
+      env,
+      maxTurns: options?.maxTurns ?? 20,
+      maxBudgetUsd: options?.maxBudgetUsd ?? 2.0,
+      cwd: config.cwd,
+      pathToClaudeCodeExecutable: claudeCodePath,
+    };
+  }
+
+  try {
+    let turns = 0;
+    let costUsd = 0;
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let isError = false;
+
+    for await (const message of query({
+      prompt,
+      options: queryOptions,
+    })) {
+      agentMessages.push({
+        ...message,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Log progress with detailed traces
+      if (message.type === "assistant") {
+        const content = (message as any).message?.content;
+        if (content) {
+          for (const block of content) {
+            if (block.type === "text") {
+              console.log(`[${skillName}] Assistant: ${block.text.substring(0, 200)}...`);
+            } else if (block.type === "tool_use") {
+              console.log(`[${skillName}] Tool: ${block.name} - ${JSON.stringify(block.input).substring(0, 150)}`);
+            }
+          }
+        }
+      } else if (message.type === "user") {
+        const content = (message as any).message?.content;
+        if (content) {
+          for (const block of content) {
+            if (block.type === "tool_result") {
+              const resultStr = typeof block.content === "string"
+                ? block.content.substring(0, 200)
+                : JSON.stringify(block.content).substring(0, 200);
+              console.log(`[${skillName}] Tool Result: ${resultStr}...`);
+            }
+          }
+        }
+      } else if (message.type === "result") {
+        turns = (message as any).num_turns ?? 0;
+        costUsd = (message as any).cost_usd ?? 0;
+        inputTokens = (message as any).input_tokens ?? 0;
+        outputTokens = (message as any).output_tokens ?? 0;
+        isError = (message as any).is_error ?? false;
+        console.log(`[${skillName}] === COMPLETED ===`);
+        console.log(`[${skillName}] Turns: ${turns}, Cost: $${costUsd.toFixed(4)}`);
+        console.log(`[${skillName}] Tokens: ${inputTokens} in / ${outputTokens} out`);
+        console.log(`[${skillName}] Success: ${!isError}`);
+      }
+    }
+
+    const durationMs = Date.now() - startTime;
+
+    // Cleanup Browserbase session
+    if (browserbaseSession) {
+      await closeBrowserbaseSession(browserbaseSession.id);
+    }
+
+    return {
+      success: !isError,
+      agentMessages,
+      metrics: {
+        turns,
+        costUsd,
+        durationMs,
+        inputTokens,
+        outputTokens,
+      },
+      browserbaseSessionUrl: browserbaseSession ? `https://www.browserbase.com/sessions/${browserbaseSession.id}` : undefined,
+      browserbaseDebugUrl: browserbaseSession?.debugUrl,
+    };
+  } catch (error) {
+    const durationMs = Date.now() - startTime;
+    console.error(`[${skillName}] Error:`, error);
+
+    // Cleanup Browserbase session on error
+    if (browserbaseSession) {
+      await closeBrowserbaseSession(browserbaseSession.id);
+    }
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+      agentMessages,
+      metrics: {
+        turns: 0,
+        costUsd: 0,
+        durationMs,
+        inputTokens: 0,
+        outputTokens: 0,
+      },
+      browserbaseSessionUrl: browserbaseSession ? `https://www.browserbase.com/sessions/${browserbaseSession.id}` : undefined,
+      browserbaseDebugUrl: browserbaseSession?.debugUrl,
+    };
+  }
+}
+
+/**
+ * Get list of available skill names
+ */
+export function getAvailableSkills(): string[] {
+  return Object.keys(SKILL_CONFIGS);
+}

@@ -38,12 +38,24 @@ importers:
 
   packages/cli:
     dependencies:
-      '@browserbasehq/stagehand':
-        specifier: ^3.0.0
-        version: 3.0.8(deepmerge@4.3.1)(dotenv@16.5.0)(zod@4.2.1)
       commander:
         specifier: ^12.0.0
         version: 12.1.0
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.4.5
+      pino:
+        specifier: ^9.6.0
+        version: 9.14.0
+      pino-pretty:
+        specifier: ^13.0.0
+        version: 13.0.0
+      playwright:
+        specifier: ^1.50.0
+        version: 1.52.0
+      ws:
+        specifier: ^8.18.0
+        version: 8.18.3(bufferutil@4.0.9)
     devDependencies:
       '@eslint/js':
         specifier: ^9.16.0
@@ -251,6 +263,9 @@ importers:
       '@ai-sdk/provider':
         specifier: ^2.0.0
         version: 2.0.0
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: ^0.2.23
+        version: 0.2.23(zod@4.1.12)
       '@browserbasehq/stagehand':
         specifier: workspace:*
         version: link:../core
@@ -485,6 +500,12 @@ packages:
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
 
+  '@anthropic-ai/claude-agent-sdk@0.2.23':
+    resolution: {integrity: sha512-pkY8vQu4cVoy43JaGNlnV7cl7RiaBjwt5kwiYucLqs37B/EUmvcM2LK44CgC9YyPSM0OTTAXaTYy7Bp4hje4UQ==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      zod: ^4.0.0
+
   '@anthropic-ai/sdk@0.39.0':
     resolution: {integrity: sha512-eMyDIPRZbt1CCLErRCi3exlAvNkBtRe+kW5vvJyef93PmNr/clstYgHhtvmkxN82nlKgzyGPCyGxrm0JQ1ZIdg==}
 
@@ -514,13 +535,6 @@ packages:
 
   '@browserbasehq/sdk@2.5.0':
     resolution: {integrity: sha512-bcnbYZvm5Ht1nrHUfWDK4crspiTy1ESJYMApsMiOTUnlKOan0ocRD6m7hZH34iSC2c2XWsoryR80cwsYgCBWzQ==}
-
-  '@browserbasehq/stagehand@3.0.8':
-    resolution: {integrity: sha512-ppI4PmqjRnFEpTtaQyRzKZgL4uVzscOQsDjBpQlvZNhhEp3da1wBaP1ml/hMfsuAmY9wOUwdN4V0uyyRbxWAdA==}
-    peerDependencies:
-      deepmerge: ^4.3.1
-      dotenv: ^16.4.5
-      zod: ^3.25.76 || ^4.2.0
 
   '@cfworker/json-schema@4.1.1':
     resolution: {integrity: sha512-gAmrUZSGtKc3AiBL71iNWxDsyUC5uMaKKGdvzYsBoTW/xi42JQHl7eKV2OYzCUqvc+D2RCcf7EXY2iCyFIk6og==}
@@ -1601,6 +1615,7 @@ packages:
   '@mintlify/cli@4.0.682':
     resolution: {integrity: sha512-91XL+qCw9hm2KpMgKsNASIfUHYLhYwSmeoMRkE6p5Iy7P5dPAxJd+PUFPXdh4EGhMNALGRLHzm9rUoNvthM89w==}
     engines: {node: '>=18.0.0'}
+    deprecated: This version is deprecated. Please upgrade to version 4.0.423 or later.
     hasBin: true
 
   '@mintlify/common@1.0.496':
@@ -4518,6 +4533,7 @@ packages:
   mintlify@4.2.78:
     resolution: {integrity: sha512-g3naXSI7RsmxUNJ87mKzRefKaMdqbAhxfaPaMkApwmeDB0TROwwUO0CS6ZDsbV5Qq3Sm5kH4mEDieEpAE6JG8A==}
     engines: {node: '>=18.0.0'}
+    deprecated: This version is deprecated. Please upgrade to version 4.0.423 or later.
     hasBin: true
 
   mitt@3.0.1:
@@ -5116,7 +5132,7 @@ packages:
   puppeteer@22.15.0:
     resolution: {integrity: sha512-XjCY1SiSEi1T7iSYuxS82ft85kwDJUS7wj1Z0eGVXKdtr5g4xnVcbjwxhq5xBnpK/E7x1VZZoJDxpjAOasHT4Q==}
     engines: {node: '>=18'}
-    deprecated: < 24.9.0 is no longer supported
+    deprecated: < 24.15.0 is no longer supported
     hasBin: true
 
   qs@6.13.0:
@@ -5700,6 +5716,7 @@ packages:
   tar@6.2.1:
     resolution: {integrity: sha512-DZ4yORTwrbTj/7MZYq2w+/ZFdI6OZ/f9SFHR+71gIVUZhOQPHzVCLpvRnPgyaMpfWxxk/4ONva3GQSyNIKRv6A==}
     engines: {node: '>=10'}
+    deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exhorbitant rates) by contacting i@izs.me
 
   tdigest@0.1.2:
     resolution: {integrity: sha512-+G0LLgjjo9BZX2MfdvPfH+MKLCrxlXSYec5DaPYP1fe6Iyhf0/fSmJ0bFiZ1F8BT6cGXl2LpltQptzjXKWEkKA==}
@@ -6534,6 +6551,19 @@ snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
 
+  '@anthropic-ai/claude-agent-sdk@0.2.23(zod@4.1.12)':
+    dependencies:
+      zod: 4.1.12
+    optionalDependencies:
+      '@img/sharp-darwin-arm64': 0.33.5
+      '@img/sharp-darwin-x64': 0.33.5
+      '@img/sharp-linux-arm': 0.33.5
+      '@img/sharp-linux-arm64': 0.33.5
+      '@img/sharp-linux-x64': 0.33.5
+      '@img/sharp-linuxmusl-arm64': 0.33.5
+      '@img/sharp-linuxmusl-x64': 0.33.5
+      '@img/sharp-win32-x64': 0.33.5
+
   '@anthropic-ai/sdk@0.39.0':
     dependencies:
       '@types/node': 18.19.87
@@ -6601,53 +6631,6 @@ snapshots:
       node-fetch: 2.7.0
     transitivePeerDependencies:
       - encoding
-
-  '@browserbasehq/stagehand@3.0.8(deepmerge@4.3.1)(dotenv@16.5.0)(zod@4.2.1)':
-    dependencies:
-      '@ai-sdk/provider': 2.0.0
-      '@anthropic-ai/sdk': 0.39.0
-      '@browserbasehq/sdk': 2.5.0
-      '@google/genai': 1.24.0(@modelcontextprotocol/sdk@1.17.2)(bufferutil@4.0.9)
-      '@langchain/openai': 0.4.9(@langchain/core@0.3.50(openai@4.96.2(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1)))(ws@8.18.3(bufferutil@4.0.9))
-      '@modelcontextprotocol/sdk': 1.17.2
-      ai: 5.0.76(zod@4.2.1)
-      deepmerge: 4.3.1
-      devtools-protocol: 0.0.1464554
-      dotenv: 16.5.0
-      fetch-cookie: 3.1.0
-      openai: 4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1)
-      pino: 9.14.0
-      pino-pretty: 13.0.0
-      uuid: 11.1.0
-      ws: 8.18.3(bufferutil@4.0.9)
-      zod: 4.2.1
-      zod-to-json-schema: 3.25.0(zod@4.2.1)
-    optionalDependencies:
-      '@ai-sdk/anthropic': 2.0.53(zod@4.2.1)
-      '@ai-sdk/azure': 2.0.54(zod@4.2.1)
-      '@ai-sdk/cerebras': 1.0.25(zod@4.2.1)
-      '@ai-sdk/deepseek': 1.0.23(zod@4.2.1)
-      '@ai-sdk/google': 2.0.44(zod@4.2.1)
-      '@ai-sdk/google-vertex': 3.0.85(zod@4.2.1)
-      '@ai-sdk/groq': 2.0.24(zod@4.2.1)
-      '@ai-sdk/mistral': 2.0.19(zod@4.2.1)
-      '@ai-sdk/openai': 2.0.53(zod@4.2.1)
-      '@ai-sdk/perplexity': 2.0.13(zod@4.2.1)
-      '@ai-sdk/togetherai': 1.0.23(zod@4.2.1)
-      '@ai-sdk/xai': 2.0.26(zod@4.2.1)
-      '@langchain/core': 0.3.50(openai@4.96.2(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1))
-      bufferutil: 4.0.9
-      chrome-launcher: 1.2.0
-      ollama-ai-provider-v2: 1.5.0(zod@4.2.1)
-      patchright-core: 1.55.2
-      playwright: 1.52.0
-      playwright-core: 1.54.2
-      puppeteer-core: 22.15.0(bufferutil@4.0.9)
-    transitivePeerDependencies:
-      - bare-buffer
-      - encoding
-      - supports-color
-      - utf-8-validate
 
   '@cfworker/json-schema@4.1.1': {}
 

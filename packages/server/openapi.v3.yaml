@@ -98,8 +98,6 @@ components:
             type: string
         executablePath:
           type: string
-        port:
-          type: number
         userDataDir:
           type: string
         preserveUserDataDir:
@@ -962,8 +960,6 @@ components:
             type: string
         executablePath:
           type: string
-        port:
-          type: number
         userDataDir:
           type: string
         preserveUserDataDir:

@@ -1,107 +1,79 @@
-import path from "path";
-import type { Testcase, EvalInput } from "../types/evals";
+import { Testcase } from "../types/evals";
+import { SKILL_CONFIGS, getAvailableSkills } from "../lib/skillAgents";
+import * as fs from "fs";
+import * as path from "path";
 import type { AvailableModel } from "@browserbasehq/stagehand";
-import { tasksConfig } from "../taskConfig";
-import { readJsonlFile, parseJsonlRows, applySampling } from "../utils";
-import { SKILL_CONFIGS } from "../lib/skillAgents";
 
-export const buildOnlineMind2WebSkillsTestcases = (
-  skills?: string[]
-): Testcase[] => {
-  const mind2webFilePath = path.join(
-    __dirname,
-    "..",
-    "datasets",
-    "onlineMind2Web",
-    "onlineMind2Web.jsonl",
-  );
+interface Mind2WebRow {
+  task_id: string;
+  confirmed_task: string;
+  website: string;
+  level: string;
+}
 
-  const lines = readJsonlFile(mind2webFilePath);
+export function buildOnlineMind2WebSkillsTestcases(skillsFilter?: string[]): Testcase[] {
+  // Load dataset
+  const datasetPath = path.resolve(__dirname, "../datasets/onlineMind2Web/onlineMind2Web.jsonl");
+  const data = fs.readFileSync(datasetPath, "utf-8");
+  const rows: Mind2WebRow[] = data
+    .split("\n")
+    .filter((line) => line.trim() && !line.startsWith("//"))
+    .map((line) => JSON.parse(line));
 
-  const maxCases = process.env.EVAL_MAX_K
-    ? Number(process.env.EVAL_MAX_K)
-    : process.env.EVAL_ONLINEMIND2WEB_LIMIT
-      ? Number(process.env.EVAL_ONLINEMIND2WEB_LIMIT)
-      : 10;
+  // Get skills to test from filter or env var or use all available
+  const skills = skillsFilter ?? (process.env.EVAL_SKILLS
+    ? process.env.EVAL_SKILLS.split(",").map((s) => s.trim())
+    : getAvailableSkills());
 
-  const sampleCount = process.env.EVAL_ONLINEMIND2WEB_SAMPLE
-    ? Number(process.env.EVAL_ONLINEMIND2WEB_SAMPLE)
-    : undefined;
+  // Limit number of tasks from env var
+  const maxK = parseInt(process.env.EVAL_MAX_K || "10", 10);
+  const limitedRows = rows.slice(0, maxK);
 
-  type Mind2WebRow = {
-    task_id: string;
-    confirmed_task: string;
-    website: string;
-    reference_length?: number;
-    level?: string;
-    [key: string]: unknown;
-  };
+  console.log(`Generating testcases for ${skills.length} skills x ${limitedRows.length} tasks`);
 
-  function isMind2WebRow(parsed: unknown): parsed is Mind2WebRow {
-    if (parsed === null || typeof parsed !== "object") return false;
-    const obj = parsed as Record<string, unknown>;
-    return (
-      typeof obj.task_id === "string" &&
-      typeof obj.confirmed_task === "string" &&
-      typeof obj.website === "string"
-    );
-  }
+  // Generate test cases: one per skill x task combination
+  const testcases: Testcase[] = [];
+  const modelName: AvailableModel = "claude-sonnet-4-5-20250929";
 
-  const candidates = parseJsonlRows(lines, isMind2WebRow);
-  const rows = applySampling(candidates, sampleCount, maxCases);
+  for (const row of limitedRows) {
+    for (const skill of skills) {
+      // Verify skill exists
+      if (!SKILL_CONFIGS[skill]) {
+        console.warn(`Unknown skill: ${skill}, skipping`);
+        continue;
+      }
 
-  // Default to all skills if none specified
-  const skillsToTest = skills || Object.keys(SKILL_CONFIGS);
-
-  const allTestcases: Testcase[] = [];
-
-  for (const skill of skillsToTest) {
-    if (!SKILL_CONFIGS[skill]) {
-      console.warn(`Skill "${skill}" not found, skipping`);
-      continue;
-    }
-
-    for (const row of rows) {
-      const input: EvalInput = {
-        name: "agent/onlineMind2Web_skills_comparison",
-        modelName: "claude-opus-4-5-20251101" as AvailableModel,
-        params: {
-          task_id: row.task_id,
-          confirmed_task: row.confirmed_task,
-          website: row.website,
-          reference_length: row.reference_length,
-          level: row.level,
-          skill: skill,
+      const taskName = "agent/onlineMind2Web_skills_comparison";
+      testcases.push({
+        input: {
+          name: taskName,
+          modelName,
+          params: {
+            skill,
+            task: row.confirmed_task,
+            website: row.website,
+            task_id: row.task_id,
+            difficulty: row.level,
+          },
         },
-      };
-
-      const taskCategories =
-        tasksConfig.find((t) => t.name === input.name)?.categories || [];
-
-      allTestcases.push({
-        input,
-        name: input.name,
+        name: taskName,
         tags: [
-          skill,
-          "skills-comparison",
-          "onlineMind2Web",
+          modelName,
+          taskName,
+          `skill/${skill}`,
+          `difficulty/${row.level}`,
+          `task_id/${row.task_id}`,
         ],
-        metadata: {
-          model: "claude-opus-4-5-20251101",
-          test: `${input.name}:${row.task_id}:${skill}`,
-          category: "skills_comparison",
-          categories: [...taskCategories, "skills_comparison"],
-          dataset: "onlineMind2Web",
-          task_id: row.task_id,
-          difficulty: row.level,
-          website: row.website,
-        },
         expected: true,
+        metadata: {
+          model: modelName,
+          test: `${taskName}:${row.task_id}:${skill}`,
+          categories: ["skills_comparison", skill, row.level],
+        },
       });
     }
   }
 
-  console.log(`Generated ${allTestcases.length} testcases`);
-
-  return allTestcases;
-};
+  console.log(`Generated ${testcases.length} testcases`);
+  return testcases;
+}
