@@ -1917,7 +1917,7 @@ export class V3 {
     const agentConfigSignature = this.agentCache.buildConfigSignature(options);
     const isStreaming = options?.stream ?? false;
 
-    return { 
+    return {
       execute: async (
         instructionOrOptions:
           | string
