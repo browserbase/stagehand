@@ -2,6 +2,7 @@
 import { Protocol } from "devtools-protocol";
 import { Frame } from "../../understudy/frame";
 import { Locator } from "../../understudy/locator";
+import { MouseButton } from "../../types/public/locator";
 import { resolveLocatorWithHops } from "../../understudy/deepLocator";
 import type { Page } from "../../understudy/page";
 import { v3Logger } from "../../logger";
@@ -318,9 +319,9 @@ async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 async function clickElement(
   ctx: UnderstudyMethodHandlerContext,
 ): Promise<void> {
-  const { locator, xpath } = ctx;
+  const { locator, xpath, args } = ctx;
   try {
-    await locator.click();
+    await locator.click({ button: (args[0] as MouseButton) || undefined });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     v3Logger({
