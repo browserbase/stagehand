@@ -59,16 +59,18 @@ export class V3Context {
   private pendingCreatedTargetUrl = new Map<TargetId, string>();
   private readonly initScripts: string[] = [];
 
-  private async installInitScriptsOnSession(
+  private installInitScriptsOnSession(
     session: CDPSessionLike,
-  ): Promise<void> {
-    if (!this.initScripts.length) return;
-    session.send("Page.enable").catch(() => {});
+  ): Array<Promise<unknown>> {
+    if (!this.initScripts.length) return [];
+    const promises: Array<Promise<unknown>> = [];
+    promises.push(session.send("Page.enable"));
     for (const source of this.initScripts) {
-      session
-        .send("Page.addScriptToEvaluateOnNewDocument", { source })
-        .catch(() => {});
+      promises.push(
+        session.send("Page.addScriptToEvaluateOnNewDocument", { source }),
+      );
     }
+    return promises;
   }
 
   /**
@@ -460,12 +462,18 @@ export class V3Context {
     // Install any context-level init scripts as early as possible on this session.
     // If this throws, we still resume the target but avoid re-installing later.
     let scriptsInstalled = true;
+    let installPromises: Array<Promise<unknown>> = [];
     try {
-      await this.installInitScriptsOnSession(session);
+      installPromises = this.installInitScriptsOnSession(session);
     } catch {
       scriptsInstalled = false;
     }
+    // Resume immediately so we never deadlock on paused targets; we then wait
+    // for the init-script sends to settle in the background.
     await resume();
+    if (installPromises.length) {
+      await Promise.allSettled(installPromises);
+    }
 
     try {
       const piercerReady = await this.ensurePiercer(session);
