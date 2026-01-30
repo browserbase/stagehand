@@ -83,9 +83,6 @@ importers:
       devtools-protocol:
         specifier: ^0.0.1464554
         version: 0.0.1464554
-      dotenv:
-        specifier: ^16.4.5
-        version: 16.5.0
       fetch-cookie:
         specifier: ^3.1.0
         version: 3.1.0
@@ -229,9 +226,6 @@ importers:
       ai:
         specifier: ^5.0.0
         version: 5.0.76(zod@4.2.1)
-      dotenv:
-        specifier: 16.4.5
-        version: 16.4.5
       openai:
         specifier: ^4.87.1
         version: 4.96.2(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1)
@@ -275,9 +269,6 @@ importers:
       '@t3-oss/env-core':
         specifier: ^0.13.8
         version: 0.13.8(arktype@2.1.20)(typescript@5.9.3)(zod@4.2.1)
-      dotenv:
-        specifier: ^16.4.5
-        version: 16.4.5
       fastify:
         specifier: ^5.3.2
         version: 5.6.2
@@ -2790,10 +2781,6 @@ packages:
 
   dotenv@16.4.5:
     resolution: {integrity: sha512-ZmdL2rui+eB2YwhsWzjInR8LldtZHGDoQ1ugH85ppHKwpUHL7j7rN0Ti9NCnGiQbhaZ11FpR+7ao1dNsmduNUg==}
-    engines: {node: '>=12'}
-
-  dotenv@16.5.0:
-    resolution: {integrity: sha512-m/C+AwOAr9/W1UOIZUo232ejMNnJAJtYQjUbHoNTBNTJSvqzzDh7vnrei3o3r3m9blf6ZoDkvcw0VmozNRFJxg==}
     engines: {node: '>=12'}
 
   dotenv@8.6.0:
@@ -8742,8 +8729,6 @@ snapshots:
       dns-packet: 5.6.1
 
   dotenv@16.4.5: {}
-
-  dotenv@16.5.0: {}
 
   dotenv@8.6.0: {}
 

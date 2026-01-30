@@ -118,64 +118,201 @@ type SourceContext = {
   consumer: SourceMapConsumer;
 };
 
+type MappedPosition = {
+  source: string;
+  line: number;
+  column: number;
+};
+
+type OffsetMapping = {
+  mapped: MappedPosition;
+  offset: number;
+};
+
+const mapOriginalPosition = (
+  consumer: SourceMapConsumer,
+  line: number,
+  column: number,
+  bias: number,
+) =>
+  consumer.originalPositionFor({
+    line,
+    column,
+    bias,
+  });
+
+const findMappedStart = (
+  ctx: SourceContext,
+  startOffset: number,
+  endOffset: number,
+  options: NormalizerOptions,
+): OffsetMapping | null => {
+  const maxScan = Math.min(
+    options.maxScan,
+    Math.max(0, endOffset - startOffset),
+  );
+  const startPos = offsetToLineCol(ctx.lineStarts, startOffset);
+  let mapped = mapOriginalPosition(
+    ctx.consumer,
+    startPos.line,
+    startPos.column,
+    SourceMapConsumer.LEAST_UPPER_BOUND,
+  );
+  if (!mapped.source) {
+    mapped = mapOriginalPosition(
+      ctx.consumer,
+      startPos.line,
+      startPos.column,
+      SourceMapConsumer.GREATEST_LOWER_BOUND,
+    );
+  }
+  if (mapped.source) {
+    return {
+      mapped: {
+        source: mapped.source,
+        line: mapped.line ?? 1,
+        column: mapped.column ?? 0,
+      },
+      offset: startOffset,
+    };
+  }
+
+  const limit = Math.min(endOffset, startOffset + maxScan);
+  for (let off = startOffset + 1; off <= limit; off++) {
+    const pos = offsetToLineCol(ctx.lineStarts, off);
+    mapped = mapOriginalPosition(
+      ctx.consumer,
+      pos.line,
+      pos.column,
+      SourceMapConsumer.LEAST_UPPER_BOUND,
+    );
+    if (!mapped.source) {
+      mapped = mapOriginalPosition(
+        ctx.consumer,
+        pos.line,
+        pos.column,
+        SourceMapConsumer.GREATEST_LOWER_BOUND,
+      );
+    }
+    if (mapped.source) {
+      return {
+        mapped: {
+          source: mapped.source,
+          line: mapped.line ?? 1,
+          column: mapped.column ?? 0,
+        },
+        offset: off,
+      };
+    }
+  }
+
+  return null;
+};
+
+const findMappedEnd = (
+  ctx: SourceContext,
+  startOffset: number,
+  endOffset: number,
+  options: NormalizerOptions,
+  targetSource?: string,
+): OffsetMapping | null => {
+  const maxScan = Math.min(
+    options.maxScan,
+    Math.max(0, endOffset - startOffset),
+  );
+  const endPos = offsetToLineCol(ctx.lineStarts, endOffset);
+  let mapped = mapOriginalPosition(
+    ctx.consumer,
+    endPos.line,
+    endPos.column,
+    SourceMapConsumer.GREATEST_LOWER_BOUND,
+  );
+  if (!mapped.source || (targetSource && mapped.source !== targetSource)) {
+    mapped = mapOriginalPosition(
+      ctx.consumer,
+      endPos.line,
+      endPos.column,
+      SourceMapConsumer.LEAST_UPPER_BOUND,
+    );
+  }
+  if (mapped.source && (!targetSource || mapped.source === targetSource)) {
+    return {
+      mapped: {
+        source: mapped.source,
+        line: mapped.line ?? 1,
+        column: mapped.column ?? 0,
+      },
+      offset: endOffset,
+    };
+  }
+
+  const limit = Math.max(startOffset, endOffset - maxScan);
+  for (let off = endOffset - 1; off >= limit; off--) {
+    const pos = offsetToLineCol(ctx.lineStarts, off);
+    mapped = mapOriginalPosition(
+      ctx.consumer,
+      pos.line,
+      pos.column,
+      SourceMapConsumer.GREATEST_LOWER_BOUND,
+    );
+    if (!mapped.source || (targetSource && mapped.source !== targetSource)) {
+      mapped = mapOriginalPosition(
+        ctx.consumer,
+        pos.line,
+        pos.column,
+        SourceMapConsumer.LEAST_UPPER_BOUND,
+      );
+    }
+    if (mapped.source && (!targetSource || mapped.source === targetSource)) {
+      return {
+        mapped: {
+          source: mapped.source,
+          line: mapped.line ?? 1,
+          column: mapped.column ?? 0,
+        },
+        offset: off,
+      };
+    }
+  }
+
+  return null;
+};
+
 const normalizeRange = (
   range: CoverageRange,
   ctx: SourceContext,
   options: NormalizerOptions,
 ) => {
   if (range.endOffset <= range.startOffset) return false;
-  const maxScan = Math.min(
-    options.maxScan,
-    Math.max(0, range.endOffset - range.startOffset),
+  const startMapping = findMappedStart(
+    ctx,
+    range.startOffset,
+    range.endOffset,
+    options,
   );
+  if (!startMapping) return false;
+  const endMapping = findMappedEnd(
+    ctx,
+    range.startOffset,
+    range.endOffset,
+    options,
+    startMapping.mapped.source,
+  );
+  if (!endMapping) return false;
 
-  const startPos = offsetToLineCol(ctx.lineStarts, range.startOffset);
-  let start = ctx.consumer.originalPositionFor(startPos);
-  let startOffset = range.startOffset;
-  if (!start.source) {
-    let found: { source: string; offset: number } | null = null;
-    const limit = Math.min(range.endOffset, range.startOffset + maxScan);
-    for (let off = range.startOffset; off <= limit; off++) {
-      const pos = offsetToLineCol(ctx.lineStarts, off);
-      const mapped = ctx.consumer.originalPositionFor(pos);
-      if (mapped.source) {
-        found = { source: mapped.source, offset: off };
-        break;
-      }
-    }
-    if (!found) return false;
-    start = { ...start, source: found.source };
-    startOffset = found.offset;
-  }
+  let startOffset = startMapping.offset;
+  let endOffset = endMapping.offset;
 
-  const endPos = offsetToLineCol(ctx.lineStarts, range.endOffset);
-  const end = ctx.consumer.originalPositionFor(endPos);
-  let endOffset = range.endOffset;
-  if (!end.source || end.source !== start.source) {
-    let found: number | null = null;
-    const limit = Math.max(range.startOffset, range.endOffset - maxScan);
-    for (let off = range.endOffset; off >= limit; off--) {
-      const pos = offsetToLineCol(ctx.lineStarts, off);
-      const mapped = ctx.consumer.originalPositionFor(pos);
-      if (mapped.source === start.source) {
-        found = off;
-        break;
-      }
-    }
-    if (found === null) return false;
-    endOffset = found;
-  }
-
-  if (range.count === 0 && end.source === start.source) {
+  if (range.count === 0) {
     const genStart = ctx.consumer.generatedPositionFor({
-      source: start.source,
-      line: start.line ?? 1,
+      source: startMapping.mapped.source,
+      line: startMapping.mapped.line,
       column: 0,
       bias: SourceMapConsumer.LEAST_UPPER_BOUND,
     });
     const genEnd = ctx.consumer.generatedPositionFor({
-      source: start.source,
-      line: end.line ?? start.line ?? 1,
+      source: startMapping.mapped.source,
+      line: endMapping.mapped.line ?? startMapping.mapped.line,
       column: Number.MAX_SAFE_INTEGER,
       bias: SourceMapConsumer.GREATEST_LOWER_BOUND,
     });

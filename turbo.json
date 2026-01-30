@@ -6,12 +6,9 @@
   ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "gen-version", "build-dom-scripts"],
       "outputs": [
         "dist/**",
-        "lib/dom/build/**",
-        "lib/v3/dom/build/**",
-        "lib/version.ts",
         "openapi.v3.yaml"
       ],
       "inputs": [
@@ -22,13 +19,31 @@
         "tsconfig.*.json"
       ]
     },
-    "build:esm": {
-      "dependsOn": ["^build:esm"],
+    "gen-version": {
+      "outputs": ["lib/version.ts"],
+      "inputs": [
+        "scripts/gen-version.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "build-dom-scripts": {
       "outputs": [
-        "dist/esm/**",
         "lib/dom/build/**",
-        "lib/v3/dom/build/**",
-        "lib/version.ts"
+        "lib/v3/dom/build/**"
+      ],
+      "inputs": [
+        "lib/v3/dom/**/*.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "build:esm": {
+      "dependsOn": ["^build:esm", "gen-version", "build-dom-scripts"],
+      "outputs": [
+        "dist/esm/**"
       ],
       "inputs": [
         "**/*.ts",
@@ -74,12 +89,9 @@
       ]
     },
     "build:cjs": {
-      "dependsOn": ["^build:cjs"],
+      "dependsOn": ["^build:cjs", "gen-version", "build-dom-scripts"],
       "outputs": [
-        "dist/cjs/**",
-        "lib/dom/build/**",
-        "lib/v3/dom/build/**",
-        "lib/version.ts"
+        "dist/cjs/**"
       ],
       "inputs": [
         "**/*.ts",
@@ -124,6 +136,18 @@
       "dependsOn": ["build:esm"],
       "outputs": [],
       "cache": false,
+      "env": [
+        "ANTHROPIC_API_KEY",
+        "BROWSERBASE_API_KEY",
+        "BROWSERBASE_PROJECT_ID",
+        "CHROME_PATH",
+        "CTRF_JUNIT_PATH",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        "NODE_OPTIONS",
+        "NODE_V8_COVERAGE",
+        "OPENAI_API_KEY",
+        "STAGEHAND_BROWSER_TARGET"
+      ],
       "inputs": [
         "tests/**/*.ts",
         "package.json",
@@ -138,6 +162,21 @@
         "test-results/**"
       ],
       "cache": false,
+      "env": [
+        "ANTHROPIC_API_KEY",
+        "BROWSERBASE_API_KEY",
+        "BROWSERBASE_PROJECT_ID",
+        "BROWSERBASE_REGION",
+        "BROWSERBASE_SESSION_LIMIT_PER_E2E_TEST",
+        "CHROME_PATH",
+        "CTRF_JUNIT_PATH",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        "LOCAL_SESSION_LIMIT_PER_E2E_TEST",
+        "NODE_OPTIONS",
+        "NODE_V8_COVERAGE",
+        "OPENAI_API_KEY",
+        "STAGEHAND_BROWSER_TARGET"
+      ],
       "inputs": [
         "lib/v3/tests/**/*.ts",
         "package.json",
@@ -149,6 +188,20 @@
       "dependsOn": ["build:esm", "build:cli"],
       "outputs": [],
       "cache": false,
+      "env": [
+        "ANTHROPIC_API_KEY",
+        "BRAINTRUST_API_KEY",
+        "BROWSERBASE_API_KEY",
+        "BROWSERBASE_PROJECT_ID",
+        "CHROME_PATH",
+        "EVAL_MAX_CONCURRENCY",
+        "EVAL_TRIAL_COUNT",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        "NODE_OPTIONS",
+        "NODE_V8_COVERAGE",
+        "OPENAI_API_KEY",
+        "STAGEHAND_BROWSER_TARGET"
+      ],
       "inputs": [
         "scripts/**",
         "cli.ts",
@@ -162,6 +215,18 @@
       "dependsOn": ["build:sea:esm", "build:esm-tests"],
       "outputs": [],
       "cache": false,
+      "env": [
+        "ANTHROPIC_API_KEY",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        "NODE_OPTIONS",
+        "NODE_TEST_REPORTER",
+        "NODE_TEST_REPORTER_DESTINATION",
+        "NODE_V8_COVERAGE",
+        "OPENAI_API_KEY",
+        "SEA_BINARY_NAME",
+        "STAGEHAND_BASE_URL",
+        "STAGEHAND_SERVER_TARGET"
+      ],
       "inputs": [
         "test/**/*.ts",
         "scripts/**",
@@ -169,66 +234,6 @@
         "package.json",
         "tsconfig.json",
         "tsconfig.*.json"
-      ]
-    },
-    "e2e": {
-      "dependsOn": ["build"],
-      "outputs": [
-        "playwright-report/**",
-        "test-results/**"
-      ],
-      "cache": false
-    },
-    "e2e:local": {
-      "dependsOn": ["build"],
-      "outputs": [
-        "playwright-report/**",
-        "test-results/**"
-      ],
-      "cache": false,
-      "env": [
-        "BROWSERBASE_API_KEY",
-        "BROWSERBASE_PROJECT_ID",
-        "CHROME_PATH",
-        "CTRF_JUNIT_PATH",
-        "GOOGLE_GENERATIVE_AI_API_KEY",
-        "LOCAL_SESSION_LIMIT_PER_E2E_TEST",
-        "NODE_V8_COVERAGE",
-        "ANTHROPIC_API_KEY",
-        "OPENAI_API_KEY"
-      ]
-    },
-    "e2e:bb": {
-      "dependsOn": ["build"],
-      "outputs": [
-        "playwright-report/**",
-        "test-results/**"
-      ],
-      "cache": false,
-      "env": [
-        "BROWSERBASE_REGION",
-        "BROWSERBASE_SESSION_LIMIT_PER_E2E_TEST",
-        "CHROME_PATH",
-        "CTRF_JUNIT_PATH",
-        "NODE_V8_COVERAGE",
-        "BROWSERBASE_API_KEY",
-        "BROWSERBASE_PROJECT_ID",
-        "OPENAI_API_KEY",
-        "ANTHROPIC_API_KEY",
-        "GOOGLE_GENERATIVE_AI_API_KEY"
-      ]
-    },
-    "evals": {
-      "dependsOn": ["build"],
-      "outputs": [],
-      "cache": false,
-      "env": [
-        "BROWSERBASE_API_KEY",
-        "BROWSERBASE_PROJECT_ID",
-        "OPENAI_API_KEY",
-        "ANTHROPIC_API_KEY",
-        "GOOGLE_GENERATIVE_AI_API_KEY",
-        "BRAINTRUST_API_KEY"
       ]
     },
     "docs": {

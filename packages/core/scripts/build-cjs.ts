@@ -1,7 +1,7 @@
 /**
  * Build canonical dist/ (CJS) output for the core package, including types.
  *
- * Prereqs: pnpm install.
+ * Prereqs: pnpm install; run gen-version + build-dom-scripts first (turbo handles).
  * Args: none.
  * Env: none.
  * Example: pnpm run build:cjs

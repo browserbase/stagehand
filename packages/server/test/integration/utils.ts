@@ -1,10 +1,8 @@
-import dotenv from "dotenv";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
 
-dotenv.config();
 
 // =============================================================================
 // HTTP Status Codes

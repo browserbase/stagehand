@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { findRepoRoot } from "./test-utils";
+import normalizeV8Coverage from "./normalize-v8-coverage";
 
 const repoRoot = findRepoRoot(process.cwd());
 const command = process.argv[2];
@@ -22,26 +23,50 @@ if (!command || command !== "merge") {
 const coverageDir = path.join(repoRoot, "coverage");
 const outDir = path.join(repoRoot, "coverage", "merged");
 fs.rmSync(outDir, { recursive: true, force: true });
-const hasCoverageFiles = (dir: string): boolean => {
-  if (!fs.existsSync(dir)) return false;
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (hasCoverageFiles(fullPath)) return true;
-    } else if (entry.isFile() && entry.name.endsWith(".json")) {
-      return true;
+await normalizeV8Coverage(coverageDir);
+const collectV8CoverageFiles = (dir: string): string[] => {
+  const results: string[] = [];
+  if (!fs.existsSync(dir)) return results;
+  const walk = (current: string) => {
+    const entries = fs.readdirSync(current, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === ".v8-tmp" || entry.name === "merged") {
+          continue;
+        }
+        walk(fullPath);
+        continue;
+      }
+      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+      try {
+        const raw = fs.readFileSync(fullPath, "utf8");
+        if (!raw.trim()) continue;
+        const parsed = JSON.parse(raw) as { result?: unknown };
+        if (parsed?.result) results.push(fullPath);
+      } catch {
+        // ignore invalid JSON in coverage dir
+      }
     }
-  }
-  return false;
+  };
+  walk(dir);
+  return results;
 };
 
-if (!hasCoverageFiles(coverageDir)) {
+const v8CoverageFiles = collectV8CoverageFiles(coverageDir);
+if (v8CoverageFiles.length === 0) {
   console.log("No V8 coverage files found.");
   process.exit(0);
 }
 
 fs.mkdirSync(outDir, { recursive: true });
+const v8TempDir = path.join(coverageDir, ".v8-tmp");
+fs.rmSync(v8TempDir, { recursive: true, force: true });
+fs.mkdirSync(v8TempDir, { recursive: true });
+v8CoverageFiles.forEach((file, index) => {
+  const dest = path.join(v8TempDir, `coverage-${index}.json`);
+  fs.copyFileSync(file, dest);
+});
 
 const result = spawnSync(
   "pnpm",
@@ -50,7 +75,7 @@ const result = spawnSync(
     "c8",
     "report",
     "--temp-directory",
-    coverageDir,
+    v8TempDir,
     "--merge-async",
     "--reporter=html",
     "--reporter=lcov",

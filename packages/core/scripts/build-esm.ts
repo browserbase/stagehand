@@ -1,7 +1,7 @@
 /**
  * Build canonical dist/esm output for the core package (including test JS).
  *
- * Prereqs: pnpm install; gen-version + dom scripts already generated.
+ * Prereqs: pnpm install; run gen-version + build-dom-scripts first (turbo handles).
  * Args: none.
  * Env: none.
  * Example: pnpm run build:esm
