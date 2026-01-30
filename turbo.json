@@ -139,14 +139,20 @@
       "env": [
         "ANTHROPIC_API_KEY",
         "BROWSERBASE_API_KEY",
+        "BROWSERBASE_CDP_CONNECT_MAX_MS",
         "BROWSERBASE_PROJECT_ID",
+        "BROWSERBASE_SESSION_CREATE_MAX_MS",
         "CHROME_PATH",
         "CTRF_JUNIT_PATH",
+        "GEMINI_API_KEY",
         "GOOGLE_GENERATIVE_AI_API_KEY",
+        "HEADLESS",
+        "LLM_MAX_MS",
         "NODE_OPTIONS",
         "NODE_V8_COVERAGE",
         "OPENAI_API_KEY",
-        "STAGEHAND_BROWSER_TARGET"
+        "STAGEHAND_BROWSER_TARGET",
+        "STAGEHAND_SERVER_TARGET"
       ],
       "inputs": [
         "tests/**/*.ts",
@@ -166,16 +172,22 @@
         "ANTHROPIC_API_KEY",
         "BROWSERBASE_API_KEY",
         "BROWSERBASE_PROJECT_ID",
+        "BROWSERBASE_CDP_CONNECT_MAX_MS",
         "BROWSERBASE_REGION",
         "BROWSERBASE_SESSION_LIMIT_PER_E2E_TEST",
+        "BROWSERBASE_SESSION_CREATE_MAX_MS",
         "CHROME_PATH",
         "CTRF_JUNIT_PATH",
+        "GEMINI_API_KEY",
         "GOOGLE_GENERATIVE_AI_API_KEY",
+        "HEADLESS",
+        "LLM_MAX_MS",
         "LOCAL_SESSION_LIMIT_PER_E2E_TEST",
         "NODE_OPTIONS",
         "NODE_V8_COVERAGE",
         "OPENAI_API_KEY",
-        "STAGEHAND_BROWSER_TARGET"
+        "STAGEHAND_BROWSER_TARGET",
+        "STAGEHAND_SERVER_TARGET"
       ],
       "inputs": [
         "lib/v3/tests/**/*.ts",
@@ -192,15 +204,23 @@
         "ANTHROPIC_API_KEY",
         "BRAINTRUST_API_KEY",
         "BROWSERBASE_API_KEY",
+        "BROWSERBASE_CDP_CONNECT_MAX_MS",
         "BROWSERBASE_PROJECT_ID",
         "CHROME_PATH",
         "EVAL_MAX_CONCURRENCY",
+        "EVAL_AGENT_MODELS",
+        "EVAL_AGENT_MODELS_CUA",
+        "EVAL_CATEGORIES",
+        "EVAL_MODELS",
         "EVAL_TRIAL_COUNT",
+        "GEMINI_API_KEY",
         "GOOGLE_GENERATIVE_AI_API_KEY",
+        "LLM_MAX_MS",
         "NODE_OPTIONS",
         "NODE_V8_COVERAGE",
         "OPENAI_API_KEY",
-        "STAGEHAND_BROWSER_TARGET"
+        "STAGEHAND_BROWSER_TARGET",
+        "STAGEHAND_SERVER_TARGET"
       ],
       "inputs": [
         "scripts/**",
@@ -217,6 +237,8 @@
       "cache": false,
       "env": [
         "ANTHROPIC_API_KEY",
+        "BB_ENV",
+        "GEMINI_API_KEY",
         "GOOGLE_GENERATIVE_AI_API_KEY",
         "NODE_OPTIONS",
         "NODE_TEST_REPORTER",
@@ -224,7 +246,9 @@
         "NODE_V8_COVERAGE",
         "OPENAI_API_KEY",
         "SEA_BINARY_NAME",
+        "SEA_BINARY_PATH",
         "STAGEHAND_BASE_URL",
+        "STAGEHAND_BROWSER_TARGET",
         "STAGEHAND_SERVER_TARGET"
       ],
       "inputs": [
