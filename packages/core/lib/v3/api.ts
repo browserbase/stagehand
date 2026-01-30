@@ -479,14 +479,37 @@ export class StagehandAPIClient {
       for (const action of actions) {
         // Get method name and token usage
         const method = (action.method || "").toLowerCase();
-        const tokenUsage = action.tokenUsage;
+        // replay payloads put agent token usage under action.result.usage.
+        const actionResult = (action as { result?: unknown }).result;
+        const resultUsage =
+          actionResult && typeof actionResult === "object"
+            ? (actionResult as { usage?: unknown }).usage
+            : undefined;
+        // for all other methods, token usage is inside of action.tokenUsage
+        const tokenUsage = action.tokenUsage ?? resultUsage;
 
-        if (tokenUsage) {
-          const inputTokens = tokenUsage.inputTokens || 0;
-          const outputTokens = tokenUsage.outputTokens || 0;
-          const reasoningTokens = tokenUsage.reasoningTokens || 0;
-          const cachedInputTokens = tokenUsage.cachedInputTokens || 0;
-          const timeMs = tokenUsage.timeMs || 0;
+        if (tokenUsage && typeof tokenUsage === "object") {
+          const usage = tokenUsage as Record<string, unknown>;
+          const inputTokens =
+            (usage.inputTokens as number | undefined) ??
+            (usage.input_tokens as number | undefined) ??
+            0;
+          const outputTokens =
+            (usage.outputTokens as number | undefined) ??
+            (usage.output_tokens as number | undefined) ??
+            0;
+          const reasoningTokens =
+            (usage.reasoningTokens as number | undefined) ??
+            (usage.reasoning_tokens as number | undefined) ??
+            0;
+          const cachedInputTokens =
+            (usage.cachedInputTokens as number | undefined) ??
+            (usage.cached_input_tokens as number | undefined) ??
+            0;
+          const timeMs =
+            (usage.timeMs as number | undefined) ??
+            (usage.inference_time_ms as number | undefined) ??
+            0;
 
           // Map method to metrics fields
           if (method === "act") {
@@ -507,7 +530,8 @@ export class StagehandAPIClient {
             metrics.observeReasoningTokens += reasoningTokens;
             metrics.observeCachedInputTokens += cachedInputTokens;
             metrics.observeInferenceTimeMs += timeMs;
-          } else if (method === "agent") {
+          } else if (method === "agentexecute") {
+            // Replay logs label agent runs as "agentExecute".
             metrics.agentPromptTokens += inputTokens;
             metrics.agentCompletionTokens += outputTokens;
             metrics.agentReasoningTokens += reasoningTokens;
