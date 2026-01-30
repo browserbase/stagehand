@@ -134,6 +134,8 @@ export class CdpConnection implements CDPSessionLike {
         ts: Date.now(),
       });
     });
+    // Prevent unhandledRejection if a session detaches before the caller awaits.
+    void p.catch(() => {});
     this.cdpLogger?.({ method, params, targetId: null });
     this.ws.send(JSON.stringify(payload));
     return p;
@@ -266,6 +268,8 @@ export class CdpConnection implements CDPSessionLike {
         ts: Date.now(),
       });
     });
+    // Prevent unhandledRejection if a session detaches before the caller awaits.
+    void p.catch(() => {});
     const targetId = this.sessionToTarget.get(sessionId) ?? null;
     this.cdpLogger?.({ method, params, targetId });
     this.ws.send(JSON.stringify(payload));
