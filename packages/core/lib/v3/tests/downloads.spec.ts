@@ -19,9 +19,13 @@ test.describe("downloads on browserbase", () => {
   });
 
   test("downloaded pdf is available via downloads api", async () => {
+    const browserTarget = (
+      process.env.STAGEHAND_BROWSER_TARGET ?? "local"
+    ).toLowerCase();
+    const isBrowserbase = browserTarget === "browserbase";
     // Skip this test in LOCAL mode as it requires Browserbase session
     test.skip(
-      process.env.STAGEHAND_ENV === "LOCAL" || !process.env.STAGEHAND_ENV,
+      !isBrowserbase,
       "Skipping Browserbase-only downloads test in LOCAL mode",
     );
 

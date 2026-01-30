@@ -2,65 +2,107 @@
   "$schema": "https://turborepo.com/schema.json",
   "globalDependencies": [
     "tsconfig.json",
+    "tsconfig.base.json",
     ".env"
   ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build", "gen-version"],
+      "dependsOn": ["^build"],
       "outputs": [
         "dist/**",
+        "lib/dom/build/**",
+        "lib/v3/dom/build/**",
+        "lib/version.ts",
+        "openapi.v3.yaml"
+      ],
+      "inputs": [
+        "**/*.ts",
+        "**/*.js",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "build:esm": {
+      "dependsOn": ["^build:esm"],
+      "outputs": [
+        "dist/esm/**",
         "lib/dom/build/**",
         "lib/v3/dom/build/**",
         "lib/version.ts"
       ],
       "inputs": [
         "**/*.ts",
-        "**/*.tsx",
         "**/*.js",
-        "!lib/version.ts",
-        "!lib/dom/build/**",
-        "!lib/v3/dom/build/**",
         "package.json",
-        "tsconfig.json"
+        "tsconfig.json",
+        "tsconfig.*.json"
       ]
     },
-    "build-dom-scripts": {
+    "build:esm-tests": {
+      "dependsOn": ["^build:esm"],
+      "outputs": ["dist/tests/**"],
+      "inputs": [
+        "test/**/*.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "build:sea:esm": {
+      "dependsOn": ["^build:esm"],
       "outputs": [
-        "lib/dom/build/**",
-        "lib/v3/dom/build/**"
+        "dist/sea/**",
+        "dist/app.mjs"
       ],
       "inputs": [
-        "lib/v3/dom/**/*.ts"
+        "src/**/*.ts",
+        "scripts/**/*.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
       ]
     },
-    "build-js": {
-      "dependsOn": ["build-dom-scripts"],
-      "outputs": ["dist/**"],
+    "build:sea:cjs": {
+      "dependsOn": ["^build:cjs"],
+      "outputs": ["dist/sea/**"],
       "inputs": [
-        "lib/**/*.ts",
-        "lib/**/*.tsx",
-        "!lib/version.ts",
-        "!lib/dom/build/**",
-        "!lib/v3/dom/build/**"
+        "src/**/*.ts",
+        "scripts/**/*.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "build:cjs": {
+      "dependsOn": ["^build:cjs"],
+      "outputs": [
+        "dist/cjs/**",
+        "lib/dom/build/**",
+        "lib/v3/dom/build/**",
+        "lib/version.ts"
+      ],
+      "inputs": [
+        "**/*.ts",
+        "**/*.js",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
       ]
     },
     "build:cli": {
       "dependsOn": ["^build"],
-      "outputs": [],
+      "outputs": ["dist/cli/**"],
       "inputs": [
         "cli.ts",
-        "evals.config.json"
+        "evals.config.json",
+        "scripts/**"
       ]
-    },
-    "gen-version": {
-      "outputs": ["lib/version.ts"],
-      "inputs": ["package.json", "scripts/gen-version.ts"]
     },
     "lint": {
       "outputs": [],
       "inputs": [
         "**/*.ts",
-        "**/*.tsx",
         "**/*.js",
         "**/*.jsx",
         ".eslintrc*",
@@ -77,6 +119,57 @@
       "inputs": [
         "**/*.spec.ts",
         "**/*.test.ts"
+      ]
+    },
+    "test:core": {
+      "dependsOn": ["build:esm"],
+      "outputs": [],
+      "cache": false,
+      "inputs": [
+        "tests/**/*.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "test:e2e": {
+      "dependsOn": ["build:esm"],
+      "outputs": [
+        "playwright-report/**",
+        "test-results/**"
+      ],
+      "cache": false,
+      "inputs": [
+        "lib/v3/tests/**/*.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "test:evals": {
+      "dependsOn": ["build:esm", "build:cli"],
+      "outputs": [],
+      "cache": false,
+      "inputs": [
+        "scripts/**",
+        "cli.ts",
+        "evals.config.json",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "test:server": {
+      "dependsOn": ["build:sea:esm", "build:esm-tests"],
+      "outputs": [],
+      "cache": false,
+      "inputs": [
+        "test/**/*.ts",
+        "scripts/**",
+        "src/**/*.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
       ]
     },
     "e2e": {
@@ -136,8 +229,7 @@
         "OPENAI_API_KEY",
         "ANTHROPIC_API_KEY",
         "GOOGLE_GENERATIVE_AI_API_KEY",
-        "BRAINTRUST_API_KEY",
-        "EVAL_ENV"
+        "BRAINTRUST_API_KEY"
       ]
     },
     "docs": {

@@ -52,10 +52,9 @@ function summarizeV3Config(): ConfigSummary {
   }
 }
 
-// Env snapshot for debugging CI. STAGEHAND_ENV replaces TEST_ENV.
 function summarizeEnv() {
   return {
-    STAGEHAND_ENV: process.env.STAGEHAND_ENV, // STAGEHAND_ENV = 'LOCAL' | 'BROWSERBASE'                      (client setting passed to Stagehand(env) init param)
+    STAGEHAND_BROWSER_TARGET: process.env.STAGEHAND_BROWSER_TARGET,
     BB_ENV: process.env.BB_ENV, // BB_ENV = 'local' | 'dev' | 'prod'                            (hosting environment the stagehand-api server is running in)
     NODE_ENV: process.env.NODE_ENV, // NODE_ENV = 'development' | 'test' | 'production' | 'staging' (used only to control logging)
     CI: process.env.CI, // CI = 'true' | 'false'                                        (used only to control test parallelism and pnpm prepare script)

@@ -775,7 +775,10 @@ test.describe("Page.waitForSelector tests", () => {
           encodeURIComponent('<div id="toggle-me">Toggle</div>'),
       );
 
-      const isBrowserbase = process.env.STAGEHAND_ENV === "BROWSERBASE";
+      const browserTarget = (
+        process.env.STAGEHAND_BROWSER_TARGET ?? "local"
+      ).toLowerCase();
+      const isBrowserbase = browserTarget === "browserbase";
       const removeDelayMs = isBrowserbase ? 1000 : 200;
       const addDelayMs = isBrowserbase ? 1600 : 500;
       const waitTimeoutMs = isBrowserbase ? 10000 : 5000;

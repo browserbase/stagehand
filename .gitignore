@@ -27,4 +27,5 @@ packages/core/test-results/
 .turbo
 .idea
 coverage/
+ctrf/
 .stagehand-sea/

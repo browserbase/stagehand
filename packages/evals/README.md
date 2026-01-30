@@ -201,7 +201,7 @@ If you encounter build errors:
 
 ```bash
 # Clean and rebuild
-rm -rf dist/evals
+rm -rf packages/evals/dist/cli
 pnpm run build:cli
 ```
 
@@ -210,7 +210,7 @@ pnpm run build:cli
 If you get permission errors:
 
 ```bash
-chmod +x dist/evals/cli.js
+chmod +x packages/evals/dist/cli/cli.js
 ```
 
 ## Contributing

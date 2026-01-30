@@ -1,18 +1,18 @@
-name: Upload V8 coverage
-description: Upload V8 coverage artifacts.
+name: Upload CTRF report
+description: Upload CTRF report artifact.
 inputs:
   name:
-    description: Artifact name.
+    description: Report path (used as artifact name when sanitized).
     required: true
   path:
-    description: Coverage path to upload (defaults to name).
+    description: Optional explicit path (defaults to name).
     required: false
     default: ""
 
 runs:
   using: composite
   steps:
-    - name: Normalize artifact name
+    - name: Normalize inputs
       id: normalize
       shell: bash
       run: |
@@ -24,7 +24,7 @@ runs:
           echo "path=${{ inputs.name }}" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Upload coverage artifact
+    - name: Upload CTRF report artifact
       uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.normalize.outputs.name }}

@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import process from "process";
 import chalk from "chalk";
 import fs from "fs";
@@ -327,6 +326,15 @@ function handleRun(args: string[]): void {
   const { options, target, filters } = parseArgs(args);
 
   // Merge with defaults
+  const stagehandTarget = (process.env.STAGEHAND_BROWSER_TARGET ?? "")
+    .toLowerCase()
+    .trim();
+  if (
+    !options.env &&
+    (stagehandTarget === "local" || stagehandTarget === "browserbase")
+  ) {
+    options.env = stagehandTarget;
+  }
   const finalOptions = { ...config.defaults, ...options };
 
   // Build environment variables
@@ -453,8 +461,13 @@ function handleRun(args: string[]): void {
       process.exit(buildCode || 1);
     }
 
-    const compiledEvalPath = path.join(moduleDir, "index.eval.js");
-    // When built to dist/evals/cli.js, moduleDir is dist/evals/
+    const compiledEvalPath = path.resolve(
+      moduleDir,
+      "..",
+      "esm",
+      "index.eval.js",
+    );
+    // When built to packages/evals/dist/cli/cli.js, moduleDir is packages/evals/dist/cli/
     // Source is at packages/evals/index.eval.ts from repo root
     const sourceEvalPath = path.resolve(
       moduleDir,

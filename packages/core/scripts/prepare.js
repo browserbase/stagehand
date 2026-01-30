@@ -1,6 +1,4 @@
-/* eslint-env node */
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { spawnSync } = require("node:child_process");
+import { spawnSync } from "node:child_process";
 
 const isCi =
   process.env.CI === "true" ||

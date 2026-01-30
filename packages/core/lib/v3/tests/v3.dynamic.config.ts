@@ -1,44 +1,11 @@
 import type { V3Options } from "../types/public/options";
 import type { BrowserbaseSessionCreateParams } from "../types/public/api";
 import type { LogLine } from "../types/public/logs";
-import dotenv from "dotenv";
-import fs from "node:fs";
-import path from "node:path";
 
-dotenv.config();
-
-const resolveRepoRoot = (startDir: string): string => {
-  let current = startDir;
-  while (true) {
-    if (fs.existsSync(path.join(current, "pnpm-workspace.yaml"))) {
-      return current;
-    }
-    const parent = path.dirname(current);
-    if (parent === current) {
-      return startDir;
-    }
-    current = parent;
-  }
-};
-
-const repoRoot = resolveRepoRoot(process.cwd());
-
-const rootEnvPath = path.join(repoRoot, ".env");
-dotenv.config({ path: rootEnvPath, override: false });
-
-const localTestEnvPath = path.join(
-  repoRoot,
-  "packages",
-  "core",
-  "lib",
-  "v3",
-  "tests",
-  ".env",
-);
-dotenv.config({ path: localTestEnvPath, override: false });
-
-// Determine environment from STAGEHAND_ENV variable
-const testEnv = process.env.STAGEHAND_ENV || "LOCAL";
+const browserTarget = (
+  process.env.STAGEHAND_BROWSER_TARGET ?? "local"
+).toLowerCase();
+const isBrowserbase = browserTarget === "browserbase";
 const browserbaseRegionRaw = process.env.BROWSERBASE_REGION;
 const browserbaseRegion = (
   [
@@ -58,29 +25,28 @@ const baseConfig = {
   disableAPI: true,
 };
 
-export const v3DynamicTestConfig: V3Options =
-  testEnv === "BROWSERBASE"
-    ? {
-        ...baseConfig,
-        env: "BROWSERBASE",
-        apiKey: process.env.BROWSERBASE_API_KEY!,
-        projectId: process.env.BROWSERBASE_PROJECT_ID!,
-        disableAPI: true,
-        selfHeal: false,
-        ...(browserbaseRegion
-          ? { browserbaseSessionCreateParams: { region: browserbaseRegion } }
-          : {}),
-      }
-    : {
-        ...baseConfig,
-        env: "LOCAL",
-        localBrowserLaunchOptions: {
-          executablePath: process.env.CHROME_PATH,
-          args: process.env.CI ? ["--no-sandbox"] : undefined,
-          headless: true,
-          viewport: { width: 1288, height: 711 },
-        },
-      };
+export const v3DynamicTestConfig: V3Options = isBrowserbase
+  ? {
+      ...baseConfig,
+      env: "BROWSERBASE",
+      apiKey: process.env.BROWSERBASE_API_KEY!,
+      projectId: process.env.BROWSERBASE_PROJECT_ID!,
+      disableAPI: true,
+      selfHeal: false,
+      ...(browserbaseRegion
+        ? { browserbaseSessionCreateParams: { region: browserbaseRegion } }
+        : {}),
+    }
+  : {
+      ...baseConfig,
+      env: "LOCAL",
+      localBrowserLaunchOptions: {
+        executablePath: process.env.CHROME_PATH,
+        args: process.env.CI ? ["--no-sandbox"] : undefined,
+        headless: true,
+        viewport: { width: 1288, height: 711 },
+      },
+    };
 
 export function getV3DynamicTestConfig(
   overrides: Partial<V3Options> = {},

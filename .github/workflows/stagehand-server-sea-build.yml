@@ -47,32 +47,31 @@ jobs:
           fetch-depth: 1
           fetch-tags: false
 
-      - uses: ./.github/actions/setup-node-pnpm-turbo
+      - uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
           node-version: 22.x
-          use-prebuilt-artifacts: "false"
+          cache: 'pnpm'
+          cache-dependency-path: '**/pnpm-lock.yaml'
 
-      - name: Build SEA binary
+      - name: Install dependencies
         env:
-          CI: true
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: pnpm install --frozen-lockfile
+
+      - name: Build SEA binary (CJS)
+        env:
           SEA_TARGET_PLATFORM: ${{ matrix.platform }}
           SEA_TARGET_ARCH: ${{ matrix.arch }}
           SEA_BINARY_NAME: ${{ matrix.binary_name }}
-          SEA_SOURCEMAP: ${{ matrix.sourcemap }}
         run: |
-          pnpm --filter @browserbasehq/stagehand-server build:binary
+          pnpm exec turbo run build:sea:cjs
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.binary_name }}
           path: packages/server/dist/sea/${{ matrix.binary_name }}
-          retention-days: 7
-
-      - name: Upload SEA bundle (sourcemap)
-        if: matrix.platform == 'linux' && matrix.arch == 'x64' && matrix.sourcemap == 'inline'
-        uses: actions/upload-artifact@v4
-        with:
-          name: stagehand-server-linux-x64-sourcemap-bundle
-          path: packages/server/dist/sea/bundle.cjs
           retention-days: 7

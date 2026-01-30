@@ -1,8 +1,27 @@
+/**
+ * Module resolution hook for Stagehand dist/esm during tests.
+ *
+ * Prereqs: packages/core/dist/esm exists.
+ * Args: none (Node loader hook).
+ * Env: none.
+ * Example: node --import ./packages/core/scripts/register-stagehand-dist.js ...
+ */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const repoRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
+const findRepoRoot = (startDir) => {
+  let current = path.resolve(startDir);
+  while (true) {
+    if (fs.existsSync(path.join(current, "pnpm-workspace.yaml")))
+      return current;
+    const parent = path.dirname(current);
+    if (parent === current) return startDir;
+    current = parent;
+  }
+};
+
+const repoRoot = findRepoRoot(fileURLToPath(new URL(".", import.meta.url)));
 const stagehandPackage = "@browserbasehq/stagehand";
 const coreRoot = path.join(repoRoot, "packages", "core");
 const coreLibRoot = path.join(coreRoot, "lib");

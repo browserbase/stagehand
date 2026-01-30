@@ -15,14 +15,11 @@ on:
 
 env:
   LLM_MAX_MS: "15000"
-  EVAL_ENV: "browserbase"
   EVAL_MODELS: "openai/gpt-4.1,google/gemini-2.0-flash,anthropic/claude-haiku-4-5"
   EVAL_AGENT_MODELS: "computer-use-preview-2025-03-11,claude-3-7-sonnet-latest"
   EVAL_CATEGORIES: "observe,act,combination,extract,targeted_extract,agent"
   EVAL_MAX_CONCURRENCY: 25
   EVAL_TRIAL_COUNT: 3
-  EVAL_AGENT_MAX_CONCURRENCY: 30
-  EVAL_AGENT_TRIAL_COUNT: 2
   LOCAL_SESSION_LIMIT_PER_E2E_TEST: 2
   BROWSERBASE_SESSION_LIMIT_PER_E2E_TEST: 3
   BROWSERBASE_REGION_DISTRIBUTION: "us-west-2=30,us-east-1=30,eu-central-1=20,ap-southeast-1=20"  # percentage of load for each region when running e2e tests against prod
@@ -106,27 +103,35 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       skip-all-evals: ${{ steps.check-labels.outputs.skip-all-evals }}
-      run-regression: ${{ steps.check-labels.outputs.run-regression }}
-      run-combination: ${{ steps.check-labels.outputs.run-combination }}
-      run-extract: ${{ steps.check-labels.outputs.run-extract }}
-      run-act: ${{ steps.check-labels.outputs.run-act }}
-      run-observe: ${{ steps.check-labels.outputs.run-observe }}
-      run-targeted-extract: ${{ steps.check-labels.outputs.run-targeted-extract }}
-      run-agent: ${{ steps.check-labels.outputs.run-agent }}
+      eval-categories: ${{ steps.check-labels.outputs.eval-categories }}
     steps:
       - id: check-labels
         run: |
+          categories=()
+          declare -A seen
+          add_category() {
+            local category="$1"
+            if [[ -z "${seen[$category]:-}" ]]; then
+              categories+=("$category")
+              seen["$category"]=1
+            fi
+          }
+
+          emit_categories() {
+            local json="["
+            for category in "${categories[@]}"; do
+              json+="\"${category}\","
+            done
+            json="${json%,}"
+            json+="]"
+            echo "eval-categories=$json" >> $GITHUB_OUTPUT
+          }
+
           # Check if skip-evals label is present
           if [[ "${{ contains(github.event.pull_request.labels.*.name, 'skip-evals') }}" == "true" ]]; then
             echo "skip-evals label found - skipping all evals"
             echo "skip-all-evals=true" >> $GITHUB_OUTPUT
-            echo "run-regression=false" >> $GITHUB_OUTPUT
-            echo "run-combination=false" >> $GITHUB_OUTPUT
-            echo "run-extract=false" >> $GITHUB_OUTPUT
-            echo "run-act=false" >> $GITHUB_OUTPUT
-            echo "run-observe=false" >> $GITHUB_OUTPUT
-            echo "run-targeted-extract=false" >> $GITHUB_OUTPUT
-            echo "run-agent=false" >> $GITHUB_OUTPUT
+            emit_categories
             exit 0
           fi
 
@@ -134,13 +139,7 @@ jobs:
           if [[ "${{ needs.determine-changes.outputs.docs-only }}" == "true" && "${{ needs.determine-changes.outputs.core }}" == "false" && "${{ needs.determine-changes.outputs.evals }}" == "false" && "${{ github.ref }}" != "refs/heads/main" ]]; then
             echo "Only docs/examples changed - skipping evals"
             echo "skip-all-evals=true" >> $GITHUB_OUTPUT
-            echo "run-regression=false" >> $GITHUB_OUTPUT
-            echo "run-combination=false" >> $GITHUB_OUTPUT
-            echo "run-extract=false" >> $GITHUB_OUTPUT
-            echo "run-act=false" >> $GITHUB_OUTPUT
-            echo "run-observe=false" >> $GITHUB_OUTPUT
-            echo "run-targeted-extract=false" >> $GITHUB_OUTPUT
-            echo "run-agent=false" >> $GITHUB_OUTPUT
+            emit_categories
             exit 0
           fi
 
@@ -148,33 +147,44 @@ jobs:
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "Running all tests for main branch"
             echo "skip-all-evals=false" >> $GITHUB_OUTPUT
-            echo "run-regression=true" >> $GITHUB_OUTPUT
-            echo "run-combination=true" >> $GITHUB_OUTPUT
-            echo "run-extract=true" >> $GITHUB_OUTPUT
-            echo "run-act=true" >> $GITHUB_OUTPUT
-            echo "run-observe=true" >> $GITHUB_OUTPUT
-            echo "run-targeted-extract=true" >> $GITHUB_OUTPUT
-            echo "run-agent=true" >> $GITHUB_OUTPUT
+            IFS=',' read -r -a default_categories <<< "${EVAL_CATEGORIES}"
+            for category in "${default_categories[@]}"; do
+              add_category "$category"
+            done
+            add_category "regression"
+            emit_categories
             exit 0
           fi
 
           # Check for skip-regression-evals label
           if [[ "${{ contains(github.event.pull_request.labels.*.name, 'skip-regression-evals') }}" == "true" ]]; then
             echo "skip-regression-evals label found - regression evals will be skipped"
-            echo "run-regression=false" >> $GITHUB_OUTPUT
           else
             echo "Regression evals will run by default"
-            echo "run-regression=true" >> $GITHUB_OUTPUT
+            add_category "regression"
           fi
 
           # Check for specific labels
           echo "skip-all-evals=false" >> $GITHUB_OUTPUT
-          echo "run-combination=${{ contains(github.event.pull_request.labels.*.name, 'combination') }}" >> $GITHUB_OUTPUT
-          echo "run-extract=${{ contains(github.event.pull_request.labels.*.name, 'extract') }}" >> $GITHUB_OUTPUT
-          echo "run-act=${{ contains(github.event.pull_request.labels.*.name, 'act') }}" >> $GITHUB_OUTPUT
-          echo "run-observe=${{ contains(github.event.pull_request.labels.*.name, 'observe') }}" >> $GITHUB_OUTPUT
-          echo "run-targeted-extract=${{ contains(github.event.pull_request.labels.*.name, 'targeted-extract') }}" >> $GITHUB_OUTPUT
-          echo "run-agent=${{ contains(github.event.pull_request.labels.*.name, 'agent') }}" >> $GITHUB_OUTPUT
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'combination') }}" == "true" ]]; then
+            add_category "combination"
+          fi
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'extract') }}" == "true" ]]; then
+            add_category "extract"
+          fi
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'act') }}" == "true" ]]; then
+            add_category "act"
+          fi
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'observe') }}" == "true" ]]; then
+            add_category "observe"
+          fi
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'targeted-extract') }}" == "true" ]]; then
+            add_category "targeted_extract"
+          fi
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'agent') }}" == "true" ]]; then
+            add_category "agent"
+          fi
+          emit_categories
       
   run-build:
     name: Lint & Build
@@ -189,19 +199,10 @@ jobs:
           node-version: 20.x
 
       - name: Run Lint
-        run: pnpm run lint
+        run: pnpm exec turbo run lint
 
       - name: Run Build
-        run: pnpm run build
-
-      - name: Build Stagehand ESM test output
-        run: pnpm --filter @browserbasehq/stagehand run build:esm
-
-      - name: Build server ESM test output
-        run: pnpm --filter @browserbasehq/stagehand-server run build:esm-tests
-
-      - name: Build evals ESM output
-        run: pnpm --filter @browserbasehq/stagehand-evals run build:esm
+        run: pnpm exec turbo run build
 
       - name: Save Turbo cache
         if: always()
@@ -238,25 +239,14 @@ jobs:
         with:
           fetch-depth: 1
 
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+        with:
+          use-prebuilt-artifacts: "false"
+
       - name: Discover core test files
         id: set-matrix
         run: |
-          core_tests=$(find packages/core/tests -type f -name "*.test.ts" 2>/dev/null | sort || true)
-
-          core_json="["
-          first=true
-          for test_file in $core_tests; do
-            if [ "$first" = true ]; then
-              first=false
-            else
-              core_json+=","
-            fi
-            name=$(echo "$test_file" | sed 's|^packages/core/tests/||' | sed 's|\.test\.ts$||')
-            safe_name=$(echo "$name" | tr '/' '-')
-            core_json+="{\"path\":\"$test_file\",\"name\":\"$name\",\"safe_name\":\"$safe_name\"}"
-          done
-          core_json+="]"
-
+          core_json=$(pnpm exec turbo run test:core --filter=@browserbasehq/stagehand -- --list)
           echo "core-tests=$core_json" >> $GITHUB_OUTPUT
 
           if [ "$core_json" = "[]" ]; then
@@ -272,6 +262,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [run-build, discover-core-tests]
     if: needs.discover-core-tests.outputs.has-core-tests == 'true'
+    env:
+      STAGEHAND_BROWSER_TARGET: local
+      STAGEHAND_SERVER_TARGET: local
 
     strategy:
       fail-fast: false
@@ -287,33 +280,18 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm-turbo
 
       - name: Run Vitest - ${{ matrix.test.name }}
-        env:
-          NODE_OPTIONS: --enable-source-maps --experimental-specifier-resolution=node
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/core-unit/${{ matrix.test.name }}
         run: |
-          test_path="${{ matrix.test.path }}"
-          rel_path="${test_path#packages/core/}"
-          compiled_path="dist/esm/${rel_path%.ts}.js"
-          pnpm --filter @browserbasehq/stagehand exec vitest run \
-            --config vitest.esm.config.mjs \
-            --reporter=default \
-            --reporter=junit \
-            --outputFile.junit="${{ github.workspace }}/ctrf/vitest-${{ matrix.test.safe_name }}.xml" \
-            "$compiled_path"
+          pnpm exec turbo run test:core --filter=@browserbasehq/stagehand -- "${{ matrix.test.path }}"
 
-      - uses: ./.github/actions/publish-ctrf-report
+      - uses: ./.github/actions/upload-ctrf-report
         if: always()
         with:
-          junit-path: ${{ github.workspace }}/ctrf/vitest-${{ matrix.test.safe_name }}.xml
-          tool: vitest
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: ctrf/core-unit/${{ matrix.test.name }}.json
 
       - uses: ./.github/actions/upload-v8-coverage
         if: always()
-        env:
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/core-unit/${{ matrix.test.name }}
         with:
-          name: coverage-v8-core-unit-${{ matrix.test.name }}
+          name: coverage/core-unit/${{ matrix.test.name }}
 
   discover-server-tests:
     runs-on: ubuntu-latest
@@ -330,42 +308,15 @@ jobs:
         with:
           fetch-depth: 1
 
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+        with:
+          use-prebuilt-artifacts: "false"
+
       - name: Discover server test files
         id: set-matrix
         run: |
-          cd packages/server
-
-          unit_tests=$(find ./test/unit -type f -name "*.test.ts" 2>/dev/null | sort || true)
-          integration_tests=$(find ./test/integration -type f -name "*.test.ts" 2>/dev/null | sort || true)
-
-          unit_json="["
-          first=true
-          for test_file in $unit_tests; do
-            if [ "$first" = true ]; then
-              first=false
-            else
-              unit_json+=","
-            fi
-            name=$(basename "$test_file" .test.ts)
-            safe_name="${name//\//-}"
-            unit_json+="{\"path\":\"$test_file\",\"name\":\"$name\",\"safe_name\":\"$safe_name\"}"
-          done
-          unit_json+="]"
-
-          int_json="["
-          first=true
-          for test_file in $integration_tests; do
-            if [ "$first" = true ]; then
-              first=false
-            else
-              int_json+=","
-            fi
-            name=$(echo "$test_file" | sed 's|^\./test/integration/||' | sed 's|\.test\.ts$||')
-            safe_name="${name//\//-}"
-            int_json+="{\"path\":\"$test_file\",\"name\":\"$name\",\"safe_name\":\"$safe_name\"}"
-          done
-          int_json+="]"
-
+          unit_json=$(pnpm exec turbo run test:server --filter=@browserbasehq/stagehand-server -- --list unit)
+          int_json=$(pnpm exec turbo run test:server --filter=@browserbasehq/stagehand-server -- --list integration)
           echo "unit-tests=$unit_json" >> $GITHUB_OUTPUT
           echo "integration-tests=$int_json" >> $GITHUB_OUTPUT
 
@@ -385,19 +336,42 @@ jobs:
           echo "Found server integration tests: $int_json"
 
   build-server-sea:
-    name: Build SEA binary
-    uses: ./.github/workflows/stagehand-server-sea-build.yml
-    with:
-      matrix: |
-        [
-          {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64-sourcemap","sourcemap":"inline"}
-        ]
+    name: Build SEA binary (tests)
+    runs-on: ubuntu-latest
+    needs: [run-build]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+        with:
+          use-prebuilt-artifacts: "true"
+
+      - name: Build SEA binary (ESM)
+        env:
+          SEA_TARGET_PLATFORM: linux
+          SEA_TARGET_ARCH: x64
+          SEA_BINARY_NAME: stagehand-server-linux-x64-sourcemap
+        run: |
+          pnpm exec turbo run build:sea:esm --filter=@browserbasehq/stagehand-server
+
+      - name: Upload SEA binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: stagehand-server-linux-x64-sourcemap
+          path: packages/server/dist/sea/stagehand-server-linux-x64-sourcemap
+          retention-days: 1
 
   server-unit-tests:
     name: server/unit/${{ matrix.test.name }}
     runs-on: ubuntu-latest
-    needs: [discover-server-tests]
+    needs: [run-build, discover-server-tests]
     if: needs.discover-server-tests.outputs.has-unit-tests == 'true'
+    env:
+      STAGEHAND_BROWSER_TARGET: local
+      STAGEHAND_SERVER_TARGET: local
 
     strategy:
       fail-fast: false
@@ -412,31 +386,18 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm-turbo
 
       - name: Run server unit test - ${{ matrix.test.name }}
-        env:
-          NODE_TEST_NODE_OPTIONS: --import ${{ github.workspace }}/scripts/register-stagehand-dist.mjs
-          NODE_TEST_REPORTER: junit
-          NODE_TEST_REPORTER_DESTINATION: ${{ github.workspace }}/ctrf/node-test-unit-${{ matrix.test.safe_name }}.xml
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-unit/${{ matrix.test.name }}
         run: |
-          cd packages/server
-          test_path="${{ matrix.test.path }}"
-          rel_path="${test_path#./test/}"
-          compiled_path="dist/tests/${rel_path%.ts}.js"
-          pnpm run node:test:compiled "$compiled_path"
+          pnpm exec turbo run test:server --filter=@browserbasehq/stagehand-server -- "${{ matrix.test.path }}"
 
-      - uses: ./.github/actions/publish-ctrf-report
+      - uses: ./.github/actions/upload-ctrf-report
         if: always()
         with:
-          junit-path: ${{ github.workspace }}/ctrf/node-test-unit-${{ matrix.test.safe_name }}.xml
-          tool: node-test
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: ctrf/server-unit/${{ matrix.test.name }}.json
 
       - uses: ./.github/actions/upload-v8-coverage
         if: always()
-        env:
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-unit/${{ matrix.test.name }}
         with:
-          name: coverage-v8-server-unit-${{ matrix.test.name }}
+          name: coverage/server-unit/${{ matrix.test.name }}
 
   server-integration-tests:
     name: server/integration/${{ matrix.test.name }}
@@ -451,8 +412,9 @@ jobs:
 
     env:
       BB_ENV: local
-      PORT: "3107"
-      STAGEHAND_API_URL: http://127.0.0.1:3107
+      STAGEHAND_BASE_URL: http://stagehand-api.localhost:3107
+      STAGEHAND_BROWSER_TARGET: local
+      STAGEHAND_SERVER_TARGET: sea
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -474,92 +436,21 @@ jobs:
         run: |
           chmod +x packages/server/dist/sea/stagehand-server-linux-x64-sourcemap
 
-      - name: Start stagehand server (SEA binary)
-        env:
-          NODE_ENV: production
-          NODE_OPTIONS: --enable-source-maps
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-integration/${{ matrix.test.name }}/sea
-        run: |
-          server_log="/tmp/stagehand-server.log"
-          packages/server/dist/sea/stagehand-server-linux-x64-sourcemap > >(tee "$server_log") 2>&1 &
-          echo $! > /tmp/server.pid
-
-          echo "Waiting for server to start..."
-          for i in {1..30}; do
-            if curl -s http://127.0.0.1:3107/healthz > /dev/null 2>&1; then
-              echo "Server is ready!"
-              break
-            fi
-            if [ $i -eq 30 ]; then
-              echo "Server failed to start within 30 seconds"
-              exit 1
-            fi
-            sleep 1
-          done
-
       - name: Run server integration test - ${{ matrix.test.name }}
         env:
-          NODE_TEST_NODE_OPTIONS: --import ${{ github.workspace }}/scripts/register-stagehand-dist.mjs
-          NODE_TEST_REPORTER: junit
-          NODE_TEST_REPORTER_DESTINATION: ${{ github.workspace }}/ctrf/node-test-integration-${{ matrix.test.safe_name }}.xml
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-integration/${{ matrix.test.name }}/tests
+          SEA_BINARY_NAME: stagehand-server-linux-x64-sourcemap
         run: |
-          cd packages/server
-          set +e
-          test_path="${{ matrix.test.path }}"
-          rel_path="${test_path#./test/}"
-          compiled_path="dist/tests/${rel_path%.ts}.js"
-          pnpm run node:test:compiled "$compiled_path"
-          status=$?
-          if [ "$status" -ne 0 ]; then
-            echo ""
-            echo "----- stagehand server log -----"
-            if [ -f /tmp/stagehand-server.log ]; then
-              cat /tmp/stagehand-server.log
-            else
-              echo "No server log found at /tmp/stagehand-server.log"
-            fi
-            echo "--------------------------------"
-            echo ""
-            echo "----- chrome logs -----"
-            for dir in /tmp/stagehand-int-*; do
-              if [ -d "$dir" ]; then
-                if [ -f "$dir/chrome-out.log" ]; then
-                  echo ""
-                  echo "[$dir/chrome-out.log]"
-                  grep -vi "dbus\\|PHONE_REGISTRATION_ERROR" "$dir/chrome-out.log" || true
-                fi
-                if [ -f "$dir/chrome-err.log" ]; then
-                  echo ""
-                  echo "[$dir/chrome-err.log]"
-                  grep -vi "dbus\\|PHONE_REGISTRATION_ERROR" "$dir/chrome-err.log" || true
-                fi
-              fi
-            done
-            echo "-----------------------"
-          fi
-          exit "$status"
+          pnpm exec turbo run test:server --filter=@browserbasehq/stagehand-server -- "${{ matrix.test.path }}"
 
-      - uses: ./.github/actions/publish-ctrf-report
+      - uses: ./.github/actions/upload-ctrf-report
         if: always()
         with:
-          junit-path: ${{ github.workspace }}/ctrf/node-test-integration-${{ matrix.test.safe_name }}.xml
-          tool: node-test
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: ctrf/server-integration/${{ matrix.test.name }}.json
 
       - uses: ./.github/actions/upload-v8-coverage
         if: always()
-        env:
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-integration/${{ matrix.test.name }}
         with:
-          name: coverage-v8-server-integration-${{ matrix.test.name }}
-
-      - name: Stop server
-        if: always()
-        run: |
-          if [ -f /tmp/server.pid ]; then
-            kill $(cat /tmp/server.pid) 2>/dev/null || true
-          fi
+          name: coverage/server-integration/${{ matrix.test.name }}
 
   discover-e2e-tests:
     runs-on: ubuntu-latest
@@ -574,25 +465,14 @@ jobs:
         with:
           fetch-depth: 1
 
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+        with:
+          use-prebuilt-artifacts: "false"
+
       - name: Discover e2e test files
         id: set-matrix
         run: |
-          e2e_tests=$(find packages/core/lib/v3/tests -type f -name "*.spec.ts" 2>/dev/null | sort || true)
-
-          e2e_json="["
-          first=true
-          for test_file in $e2e_tests; do
-            if [ "$first" = true ]; then
-              first=false
-            else
-              e2e_json+=","
-            fi
-            name=$(echo "$test_file" | sed 's|^packages/core/lib/v3/tests/||' | sed 's|\.spec\.ts$||')
-            safe_name="${name//\//-}"
-            e2e_json+="{\"path\":\"$test_file\",\"name\":\"$name\",\"safe_name\":\"$safe_name\"}"
-          done
-          e2e_json+="]"
-
+          e2e_json=$(pnpm exec turbo run test:e2e --filter=@browserbasehq/stagehand -- --list)
           echo "e2e-tests=$e2e_json" >> $GITHUB_OUTPUT
 
           if [ "$e2e_json" = "[]" ]; then
@@ -619,7 +499,8 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      CTRF_JUNIT_PATH: ${{ github.workspace }}/ctrf/playwright-local-${{ matrix.test.safe_name }}.xml
+      STAGEHAND_BROWSER_TARGET: local
+      STAGEHAND_SERVER_TARGET: local
     strategy:
       fail-fast: false
       max-parallel: 20
@@ -634,27 +515,18 @@ jobs:
       - uses: ./.github/actions/verify-chromium-launch
 
       - name: Run local E2E Tests - ${{ matrix.test.name }}
-        env:
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/e2e-local/${{ matrix.test.name }}
         run: |
-          test_path="${{ matrix.test.path }}"
-          rel_path="${test_path#packages/core/}"
-          compiled_path="dist/esm/${rel_path%.ts}.js"
-          pnpm --filter @browserbasehq/stagehand run e2e:local:esm -- "$compiled_path"
+          pnpm exec turbo run test:e2e --filter=@browserbasehq/stagehand -- "${{ matrix.test.path }}"
 
-      - uses: ./.github/actions/publish-ctrf-report
+      - uses: ./.github/actions/upload-ctrf-report
         if: always()
         with:
-          junit-path: ${{ github.workspace }}/ctrf/playwright-local-${{ matrix.test.safe_name }}.xml
-          tool: playwright
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: ctrf/e2e-local/${{ matrix.test.name }}.json
 
       - uses: ./.github/actions/upload-v8-coverage
         if: always()
-        env:
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/e2e-local/${{ matrix.test.name }}
         with:
-          name: coverage-v8-e2e-local-${{ matrix.test.name }}
+          name: coverage/e2e-local/${{ matrix.test.name }}
 
   run-e2e-bb-tests:
     name: e2e/bb/${{ matrix.test.name }}
@@ -672,7 +544,8 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      CTRF_JUNIT_PATH: ${{ github.workspace }}/ctrf/playwright-bb-${{ matrix.test.safe_name }}.xml
+      STAGEHAND_BROWSER_TARGET: browserbase
+      STAGEHAND_SERVER_TARGET: local
     strategy:
       fail-fast: false
       max-parallel: 100
@@ -690,30 +563,21 @@ jobs:
           distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
       - name: Run E2E Tests (browserbase) - ${{ matrix.test.name }}
-        env:
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/e2e-bb/${{ matrix.test.name }}
         run: |
-          test_path="${{ matrix.test.path }}"
-          rel_path="${test_path#packages/core/}"
-          compiled_path="dist/esm/${rel_path%.ts}.js"
-          pnpm --filter @browserbasehq/stagehand run e2e:bb:esm -- "$compiled_path"
+          pnpm exec turbo run test:e2e --filter=@browserbasehq/stagehand -- "${{ matrix.test.path }}"
 
-      - uses: ./.github/actions/publish-ctrf-report
+      - uses: ./.github/actions/upload-ctrf-report
         if: always()
         with:
-          junit-path: ${{ github.workspace }}/ctrf/playwright-bb-${{ matrix.test.safe_name }}.xml
-          tool: playwright
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: ctrf/e2e-bb/${{ matrix.test.name }}.json
 
       - uses: ./.github/actions/upload-v8-coverage
         if: always()
-        env:
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/e2e-bb/${{ matrix.test.name }}
         with:
-          name: coverage-v8-e2e-bb-${{ matrix.test.name }}
+          name: coverage/e2e-bb/${{ matrix.test.name }}
 
-  run-regression-evals:
-    name: evals/regression
+  run-evals:
+    name: evals/${{ matrix.category }}
     needs: [run-build, determine-evals, run-e2e-bb-tests]
     if: >-
       ${{
@@ -723,12 +587,14 @@ jobs:
         needs.run-e2e-bb-tests.result != 'failure' &&
         needs.run-e2e-bb-tests.result != 'cancelled' &&
         needs.determine-evals.outputs.skip-all-evals != 'true' &&
-        needs.determine-evals.outputs.run-regression == 'true'
+        needs.determine-evals.outputs.eval-categories != '[]'
       }}
     runs-on: ubuntu-latest
-    timeout-minutes: 9
-    outputs:
-      regression_score: ${{ steps.set-regression-score.outputs.regression_score }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        category: ${{ fromJson(needs.determine-evals.outputs.eval-categories) }}
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -736,7 +602,8 @@ jobs:
       BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
-      HEADLESS: true
+      STAGEHAND_BROWSER_TARGET: browserbase
+      STAGEHAND_SERVER_TARGET: local
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -748,588 +615,37 @@ jobs:
         with:
           distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
-      - name: Run Regression Evals
+      - name: Run Evals - ${{ matrix.category }}
         env:
-          NODE_OPTIONS: --enable-source-maps --experimental-specifier-resolution=node --import ${{ github.workspace }}/scripts/register-stagehand-dist.mjs
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/regression
+          NODE_V8_COVERAGE: coverage/evals/${{ matrix.category }}
         run: |
-          cd packages/evals
-          node dist/esm/index.eval.js category regression trials=2 concurrency=${EVAL_MAX_CONCURRENCY} env=BROWSERBASE
+          pnpm exec turbo run test:evals --filter=@browserbasehq/stagehand-evals -- "${{ matrix.category }}" -t "${EVAL_TRIAL_COUNT}" -c "${EVAL_MAX_CONCURRENCY}"
 
-      - name: Log Regression Evals Performance
-        id: set-regression-score
+      - name: Log Evals Performance - ${{ matrix.category }}
         run: |
           experimentName=$(jq -r '.experimentName' eval-summary.json)
           echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
           if [ -f eval-summary.json ]; then
-            regression_score=$(jq '.categories.regression' eval-summary.json)
-            echo "Regression category score: $regression_score%"
-            echo "regression_score=$regression_score" >> $GITHUB_OUTPUT
-            if (( $(echo "$regression_score < 90" | bc -l) )); then
-              echo "Regression category score is below 90%. Failing CI."
+            category_score=$(jq ".categories[\"${{ matrix.category }}\"]" eval-summary.json)
+            echo "${{ matrix.category }} category score: $category_score%"
+            if (( $(echo "$category_score < 80" | bc -l) )); then
+              echo "${{ matrix.category }} category score is below 80%. Failing CI."
               exit 1
             fi
           else
-            echo "Eval summary not found for regression category. Failing CI."
+            echo "Eval summary not found for ${{ matrix.category }} category. Failing CI."
             exit 1
           fi
 
-      - uses: ./.github/actions/write-evals-ctrf
+      - uses: ./.github/actions/upload-ctrf-report
         if: always()
         with:
-          category: regression
-
-      - uses: ./.github/actions/publish-ctrf-report
-        if: always()
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: ctrf/evals/${{ matrix.category }}.json
 
       - uses: ./.github/actions/upload-v8-coverage
         if: always()
-        env:
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/regression
         with:
-          name: coverage-v8-evals-regression
-
-  run-combination-evals:
-    name: evals/combination
-    needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
-    if: >-
-      ${{
-        always() &&
-        needs.run-build.result == 'success' &&
-        needs.determine-evals.result == 'success' &&
-        needs.run-e2e-bb-tests.result != 'failure' &&
-        needs.run-e2e-bb-tests.result != 'cancelled' &&
-        needs.run-regression-evals.result != 'failure' &&
-        needs.run-regression-evals.result != 'cancelled' &&
-        needs.determine-evals.outputs.skip-all-evals != 'true'
-      }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
-      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
-      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
-      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
-      HEADLESS: true
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-
-      - name: Check for 'combination' label
-        id: label-check
-        run: |
-          if [ "${{ needs.determine-evals.outputs.run-combination }}" != "true" ]; then
-            echo "has_label=false" >> $GITHUB_OUTPUT
-            echo "No label for COMBINATION. Exiting with success."
-          else
-            echo "has_label=true" >> $GITHUB_OUTPUT
-          fi
-
-      - uses: ./.github/actions/setup-node-pnpm-turbo
-        if: needs.determine-evals.outputs.run-combination == 'true'
-
-      - name: Select Browserbase region
-        if: needs.determine-evals.outputs.run-combination == 'true'
-        uses: ./.github/actions/select-browserbase-region
-        with:
-          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
-
-      - name: Run Combination Evals
-        if: needs.determine-evals.outputs.run-combination == 'true'
-        env:
-          NODE_OPTIONS: --enable-source-maps --experimental-specifier-resolution=node --import ${{ github.workspace }}/scripts/register-stagehand-dist.mjs
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/combination
-        run: |
-          cd packages/evals
-          node dist/esm/index.eval.js category combination
-
-      - name: Log Combination Evals Performance
-        if: needs.determine-evals.outputs.run-combination == 'true'
-        run: |
-          experimentName=$(jq -r '.experimentName' eval-summary.json)
-          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
-          if [ -f eval-summary.json ]; then
-            combination_score=$(jq '.categories.combination' eval-summary.json)
-            echo "Combination category score: $combination_score%"
-            exit 0
-          else
-            echo "Eval summary not found for combination category. Failing CI."
-            exit 1
-          fi
-
-      - uses: ./.github/actions/write-evals-ctrf
-        if: always() && needs.determine-evals.outputs.run-combination == 'true'
-        with:
-          category: combination
-
-      - uses: ./.github/actions/publish-ctrf-report
-        if: always() && needs.determine-evals.outputs.run-combination == 'true'
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: ./.github/actions/upload-v8-coverage
-        if: always() && needs.determine-evals.outputs.run-combination == 'true'
-        env:
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/combination
-        with:
-          name: coverage-v8-evals-combination
-
-  run-act-evals:
-    name: evals/act
-    needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
-    if: >-
-      ${{
-        always() &&
-        needs.run-build.result == 'success' &&
-        needs.determine-evals.result == 'success' &&
-        needs.run-e2e-bb-tests.result != 'failure' &&
-        needs.run-e2e-bb-tests.result != 'cancelled' &&
-        needs.run-regression-evals.result != 'failure' &&
-        needs.run-regression-evals.result != 'cancelled' &&
-        needs.determine-evals.outputs.skip-all-evals != 'true'
-      }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
-      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
-      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
-      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
-      HEADLESS: true
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-
-      - name: Check for 'act' label
-        id: label-check
-        run: |
-          if [ "${{ needs.determine-evals.outputs.run-act }}" != "true" ]; then
-            echo "has_label=false" >> $GITHUB_OUTPUT
-            echo "No label for ACT. Exiting with success."
-          else
-            echo "has_label=true" >> $GITHUB_OUTPUT
-          fi
-
-      - uses: ./.github/actions/setup-node-pnpm-turbo
-        if: needs.determine-evals.outputs.run-act == 'true'
-
-      - name: Select Browserbase region
-        if: needs.determine-evals.outputs.run-act == 'true'
-        uses: ./.github/actions/select-browserbase-region
-        with:
-          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
-
-      - name: Run Act Evals
-        if: needs.determine-evals.outputs.run-act == 'true'
-        env:
-          NODE_OPTIONS: --enable-source-maps --experimental-specifier-resolution=node --import ${{ github.workspace }}/scripts/register-stagehand-dist.mjs
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/act
-        run: |
-          cd packages/evals
-          node dist/esm/index.eval.js category act
-
-      - name: Log Act Evals Performance
-        if: needs.determine-evals.outputs.run-act == 'true'
-        run: |
-          experimentName=$(jq -r '.experimentName' eval-summary.json)
-          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
-          if [ -f eval-summary.json ]; then
-            act_score=$(jq '.categories.act' eval-summary.json)
-            echo "Act category score: $act_score%"
-            if (( $(echo "$act_score < 80" | bc -l) )); then
-              echo "Act category score is below 80%. Failing CI."
-              exit 1
-            fi
-          else
-            echo "Eval summary not found for act category. Failing CI."
-            exit 1
-          fi
-
-      - uses: ./.github/actions/write-evals-ctrf
-        if: always() && needs.determine-evals.outputs.run-act == 'true'
-        with:
-          category: act
-
-      - uses: ./.github/actions/publish-ctrf-report
-        if: always() && needs.determine-evals.outputs.run-act == 'true'
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: ./.github/actions/upload-v8-coverage
-        if: always() && needs.determine-evals.outputs.run-act == 'true'
-        env:
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/act
-        with:
-          name: coverage-v8-evals-act
-
-  run-extract-evals:
-    name: evals/extract
-    needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
-    if: >-
-      ${{
-        always() &&
-        needs.run-build.result == 'success' &&
-        needs.determine-evals.result == 'success' &&
-        needs.run-e2e-bb-tests.result != 'failure' &&
-        needs.run-e2e-bb-tests.result != 'cancelled' &&
-        needs.run-regression-evals.result != 'failure' &&
-        needs.run-regression-evals.result != 'cancelled' &&
-        needs.determine-evals.outputs.skip-all-evals != 'true'
-      }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 50
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
-      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
-      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
-      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
-      HEADLESS: true
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-
-      - name: Check for 'extract' label
-        id: label-check
-        run: |
-          if [ "${{ needs.determine-evals.outputs.run-extract }}" != "true" ]; then
-            echo "has_label=false" >> $GITHUB_OUTPUT
-            echo "No label for EXTRACT. Exiting with success."
-          else
-            echo "has_label=true" >> $GITHUB_OUTPUT
-          fi
-
-      - uses: ./.github/actions/setup-node-pnpm-turbo
-        if: needs.determine-evals.outputs.run-extract == 'true'
-
-      - name: Select Browserbase region
-        if: needs.determine-evals.outputs.run-extract == 'true'
-        uses: ./.github/actions/select-browserbase-region
-        with:
-          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
-
-      # 1. Run extract category with domExtract
-      - name: Run Extract Evals (domExtract)
-        if: needs.determine-evals.outputs.run-extract == 'true'
-        env:
-          NODE_OPTIONS: --enable-source-maps --experimental-specifier-resolution=node --import ${{ github.workspace }}/scripts/register-stagehand-dist.mjs
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/extract
-        run: |
-          cd packages/evals
-          node dist/esm/index.eval.js category extract -- --extract-method=domExtract
-
-      - name: Save Extract Dom Results
-        if: needs.determine-evals.outputs.run-extract == 'true'
-        run: mv eval-summary.json eval-summary-extract-dom.json
-
-      # 2. Log and Compare Extract Evals Performance
-      - name: Log and Compare Extract Evals Performance
-        if: needs.determine-evals.outputs.run-extract == 'true'
-        run: |
-          experimentNameDom=$(jq -r '.experimentName' eval-summary-extract-dom.json)
-          dom_score=$(jq '.categories.extract' eval-summary-extract-dom.json)
-          echo "DomExtract Extract category score: $dom_score%"
-          echo "View domExtract results: https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentNameDom}"
-
-          # If domExtract <80% fail CI
-          if (( $(echo "$dom_score < 80" | bc -l) )); then
-            echo "DomExtract extract category score is below 80%. Failing CI."
-            exit 1
-          fi
-
-      - uses: ./.github/actions/write-evals-ctrf
-        if: always() && needs.determine-evals.outputs.run-extract == 'true'
-        with:
-          category: extract
-          summary-path: eval-summary-extract-dom.json
-
-      - uses: ./.github/actions/publish-ctrf-report
-        if: always() && needs.determine-evals.outputs.run-extract == 'true'
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: ./.github/actions/upload-v8-coverage
-        if: always() && needs.determine-evals.outputs.run-extract == 'true'
-        env:
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/extract
-        with:
-          name: coverage-v8-evals-extract
-
-  run-observe-evals:
-    name: evals/observe
-    needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
-    if: >-
-      ${{
-        always() &&
-        needs.run-build.result == 'success' &&
-        needs.determine-evals.result == 'success' &&
-        needs.run-e2e-bb-tests.result != 'failure' &&
-        needs.run-e2e-bb-tests.result != 'cancelled' &&
-        needs.run-regression-evals.result != 'failure' &&
-        needs.run-regression-evals.result != 'cancelled' &&
-        needs.determine-evals.outputs.skip-all-evals != 'true'
-      }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
-      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
-      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
-      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
-      HEADLESS: true
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-
-      - name: Check for 'observe' label
-        id: label-check
-        run: |
-          if [ "${{ needs.determine-evals.outputs.run-observe }}" != "true" ]; then
-            echo "has_label=false" >> $GITHUB_OUTPUT
-            echo "No label for OBSERVE. Exiting with success."
-          else
-            echo "has_label=true" >> $GITHUB_OUTPUT
-          fi
-
-      - uses: ./.github/actions/setup-node-pnpm-turbo
-        if: needs.determine-evals.outputs.run-observe == 'true'
-
-      - name: Select Browserbase region
-        if: needs.determine-evals.outputs.run-observe == 'true'
-        uses: ./.github/actions/select-browserbase-region
-        with:
-          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
-
-      - name: Run Observe Evals
-        if: needs.determine-evals.outputs.run-observe == 'true'
-        env:
-          NODE_OPTIONS: --enable-source-maps --experimental-specifier-resolution=node --import ${{ github.workspace }}/scripts/register-stagehand-dist.mjs
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/observe
-        run: |
-          cd packages/evals
-          node dist/esm/index.eval.js category observe
-
-      - name: Log Observe Evals Performance
-        if: needs.determine-evals.outputs.run-observe == 'true'
-        run: |
-          experimentName=$(jq -r '.experimentName' eval-summary.json)
-          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
-          if [ -f eval-summary.json ]; then
-            observe_score=$(jq '.categories.observe' eval-summary.json)
-            echo "Observe category score: $observe_score%"
-            if (( $(echo "$observe_score < 80" | bc -l) )); then
-              echo "Observe category score is below 80%. Failing CI."
-              exit 1
-            fi
-          else
-            echo "Eval summary not found for observe category. Failing CI."
-            exit 1
-          fi
-
-      - uses: ./.github/actions/write-evals-ctrf
-        if: always() && needs.determine-evals.outputs.run-observe == 'true'
-        with:
-          category: observe
-
-      - uses: ./.github/actions/publish-ctrf-report
-        if: always() && needs.determine-evals.outputs.run-observe == 'true'
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: ./.github/actions/upload-v8-coverage
-        if: always() && needs.determine-evals.outputs.run-observe == 'true'
-        env:
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/observe
-        with:
-          name: coverage-v8-evals-observe
-
-  run-targeted-extract-evals:
-    name: evals/targeted-extract
-    needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
-    if: >-
-      ${{
-        always() &&
-        needs.run-build.result == 'success' &&
-        needs.determine-evals.result == 'success' &&
-        needs.run-e2e-bb-tests.result != 'failure' &&
-        needs.run-e2e-bb-tests.result != 'cancelled' &&
-        needs.run-regression-evals.result != 'failure' &&
-        needs.run-regression-evals.result != 'cancelled' &&
-        needs.determine-evals.outputs.skip-all-evals != 'true'
-      }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
-      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
-      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
-      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
-      HEADLESS: true
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-
-      - name: Check for 'targeted-extract' label
-        id: label-check
-        run: |
-          if [ "${{ needs.determine-evals.outputs.run-targeted-extract }}" != "true" ]; then
-            echo "has_label=false" >> $GITHUB_OUTPUT
-            echo "No label for TARGETED-EXTRACT. Exiting with success."
-          else
-            echo "has_label=true" >> $GITHUB_OUTPUT
-          fi
-
-      - uses: ./.github/actions/setup-node-pnpm-turbo
-        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-
-      - name: Select Browserbase region
-        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        uses: ./.github/actions/select-browserbase-region
-        with:
-          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
-
-      - name: Run targeted extract Evals
-        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        env:
-          NODE_OPTIONS: --enable-source-maps --experimental-specifier-resolution=node --import ${{ github.workspace }}/scripts/register-stagehand-dist.mjs
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/targeted-extract
-        run: |
-          cd packages/evals
-          node dist/esm/index.eval.js category targeted_extract
-
-      - name: Log targeted extract Evals Performance
-        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        run: |
-          experimentName=$(jq -r '.experimentName' eval-summary.json)
-          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
-          if [ -f eval-summary.json ]; then
-            targeted_extract_score=$(jq '.categories.targeted_extract' eval-summary.json)
-            echo "Targeted extract category score: $targeted_extract_score%"
-            if (( $(echo "$targeted_extract_score < 80" | bc -l) )); then
-              echo "Targeted extract score is below 80%. Failing CI."
-              exit 1
-            fi
-          else
-            echo "Eval summary not found for targeted_extract category. Failing CI."
-            exit 1
-          fi
-
-      - uses: ./.github/actions/write-evals-ctrf
-        if: always() && needs.determine-evals.outputs.run-targeted-extract == 'true'
-        with:
-          category: targeted_extract
-
-      - uses: ./.github/actions/publish-ctrf-report
-        if: always() && needs.determine-evals.outputs.run-targeted-extract == 'true'
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: ./.github/actions/upload-v8-coverage
-        if: always() && needs.determine-evals.outputs.run-targeted-extract == 'true'
-        env:
-          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/targeted-extract
-        with:
-          name: coverage-v8-evals-targeted-extract
-
-  run-agent-evals:
-    name: evals/agent
-    needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
-    if: >-
-      ${{
-        always() &&
-        needs.run-build.result == 'success' &&
-        needs.determine-evals.result == 'success' &&
-        needs.run-e2e-bb-tests.result != 'failure' &&
-        needs.run-e2e-bb-tests.result != 'cancelled' &&
-        needs.run-regression-evals.result != 'failure' &&
-        needs.run-regression-evals.result != 'cancelled' &&
-        needs.determine-evals.outputs.skip-all-evals != 'true'
-      }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 90 # Agent evals can be long-running
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
-      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
-      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
-      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
-      HEADLESS: true
-      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/agent
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-
-      - name: Check for 'agent' label
-        id: label-check
-        run: |
-          if [ "${{ needs.determine-evals.outputs.run-agent }}" != "true" ]; then
-            echo "has_label=false" >> $GITHUB_OUTPUT
-            echo "No label for AGENT. Exiting with success."
-          else
-            echo "has_label=true" >> $GITHUB_OUTPUT
-          fi
-
-      - uses: ./.github/actions/setup-node-pnpm-turbo
-        if: needs.determine-evals.outputs.run-agent == 'true'
-
-      - name: Select Browserbase region
-        if: needs.determine-evals.outputs.run-agent == 'true'
-        uses: ./.github/actions/select-browserbase-region
-        with:
-          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
-
-      - name: Run Agent Evals
-        if: needs.determine-evals.outputs.run-agent == 'true'
-        env:
-          NODE_OPTIONS: --enable-source-maps --experimental-specifier-resolution=node --import ${{ github.workspace }}/scripts/register-stagehand-dist.mjs
-        run: |
-          cd packages/evals
-          node dist/esm/index.eval.js category agent trials=${EVAL_AGENT_TRIAL_COUNT} concurrency=${EVAL_AGENT_MAX_CONCURRENCY}
-
-      - name: Log Agent Evals Performance
-        if: needs.determine-evals.outputs.run-agent == 'true'
-        run: |
-          experimentName=$(jq -r '.experimentName' eval-summary.json)
-          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
-          if [ -f eval-summary.json ]; then
-            agent_score=$(jq '.categories.agent' eval-summary.json)
-            echo "Agent category score: $agent_score%"
-            # Lower threshold for agent evals since they're complex
-            if (( $(echo "$agent_score < 50" | bc -l) )); then
-              echo "Agent category score is below 50%. Failing CI."
-              exit 1
-            fi
-          else
-            echo "Eval summary not found for agent category. Failing CI."
-            exit 1
-          fi
-
-      - uses: ./.github/actions/write-evals-ctrf
-        if: always() && needs.determine-evals.outputs.run-agent == 'true'
-        with:
-          category: agent
-
-      - uses: ./.github/actions/publish-ctrf-report
-        if: always() && needs.determine-evals.outputs.run-agent == 'true'
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: ./.github/actions/upload-v8-coverage
-        if: always() && needs.determine-evals.outputs.run-agent == 'true'
-        with:
-          name: coverage-v8-evals-agent
+          name: coverage/evals/${{ matrix.category }}
 
   merge-coverage:
     name: Code Coverage Report
@@ -1338,13 +654,7 @@ jobs:
       - core-unit-tests
       - run-e2e-local-tests
       - run-e2e-bb-tests
-      - run-regression-evals
-      - run-combination-evals
-      - run-act-evals
-      - run-extract-evals
-      - run-observe-evals
-      - run-targeted-extract-evals
-      - run-agent-evals
+      - run-evals
       - server-unit-tests
       - server-integration-tests
     if: always()
@@ -1359,8 +669,8 @@ jobs:
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
-          pattern: coverage-v8-*
-          path: coverage/v8
+          pattern: coverage-*
+          path: coverage
           merge-multiple: true
 
       - name: Download CTRF artifacts
@@ -1373,34 +683,7 @@ jobs:
 
       - name: Generate merged coverage report
         run: |
-          if [ ! -d coverage/v8 ] || [ -z "$(find coverage/v8 -type f -name '*.json' -print -quit)" ]; then
-            echo "No V8 coverage files found."
-            exit 0
-          fi
-          set -euo pipefail
-          mkdir -p coverage/merged
-          pnpm exec c8 report \
-            --temp-directory coverage/v8 \
-            --merge-async \
-            --reporter=html \
-            --reporter=lcov \
-            --reporter=json \
-            --reporter=text-summary \
-            --reports-dir coverage/merged \
-            --cwd "$GITHUB_WORKSPACE" \
-            --include "packages/**" \
-            --exclude "**/node_modules/**" \
-            --exclude "**/dist/**" \
-            --exclude "**/examples/**" \
-            --exclude "**/scripts/**" \
-            --exclude "packages/**/test/**" \
-            --exclude "packages/**/tests/**" \
-            --exclude "packages/**/examples/**" \
-            --exclude "packages/**/lib/**/tests/**" \
-            --exclude "packages/**/scripts/**" \
-            --exclude-after-remap \
-            --exclude "**/*.d.ts" \
-            | tee coverage/merged/coverage-summary.txt
+          pnpm run coverage:merge
 
       - name: Upload merged coverage report
         if: always()
@@ -1426,61 +709,6 @@ jobs:
           if [ -n "${{ steps.upload-coverage-artifact.outputs.artifact-url }}" ]; then
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "[Download full HTML coverage report](${{ steps.upload-coverage-artifact.outputs.artifact-url }})" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          if [ -f coverage/merged/coverage-final.json ]; then
-            node - <<'NODE' >> "$GITHUB_STEP_SUMMARY"
-          const fs = require("node:fs");
-          const path = require("node:path");
-
-          const coveragePath = path.join("coverage", "merged", "coverage-final.json");
-          const data = JSON.parse(fs.readFileSync(coveragePath, "utf8"));
-          const root = process.cwd();
-          const rootPrefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
-          const groups = new Map();
-
-          for (const [file, cov] of Object.entries(data)) {
-            let rel = file.startsWith(rootPrefix) ? file.slice(rootPrefix.length) : file;
-            if (!rel.startsWith(`packages${path.sep}`)) continue;
-            const parts = rel.split(path.sep);
-            if (parts.length < 2) continue;
-            const group =
-              parts.length >= 3
-                ? `packages/${parts[1]}/${parts[2]}`
-                : `packages/${parts[1]}/(root)`;
-            const lineMap = cov.l ?? {};
-            const lineKeys = Object.keys(lineMap);
-            if (lineKeys.length === 0) continue;
-            let covered = 0;
-            for (const count of Object.values(lineMap)) {
-              if (count > 0) covered += 1;
-            }
-            const agg = groups.get(group) ?? { covered: 0, total: 0 };
-            agg.covered += covered;
-            agg.total += lineKeys.length;
-            groups.set(group, agg);
-          }
-
-          const rows = Array.from(groups.entries())
-            .map(([group, stats]) => {
-              const pct = stats.total ? (stats.covered / stats.total) * 100 : 0;
-              return { group, covered: stats.covered, total: stats.total, pct };
-            })
-            .sort((a, b) => a.group.localeCompare(b.group));
-
-          console.log("");
-          console.log("### Coverage by folder (packages/*/*)");
-          console.log("");
-          if (rows.length === 0) {
-            console.log("No package coverage data found.");
-            process.exit(0);
-          }
-          console.log("| Folder | Lines | % |");
-          console.log("| --- | ---: | ---: |");
-          for (const row of rows) {
-            const pct = `${row.pct.toFixed(1)}%`;
-            console.log(`| ${row.group} | ${row.covered}/${row.total} | ${pct} |`);
-          }
-          NODE
           fi
 
       - name: Publish merged CTRF report

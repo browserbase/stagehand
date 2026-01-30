@@ -1,15 +1,10 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "module": "ESNext",
-    "moduleResolution": "node",
     "rootDir": "test",
     "outDir": "dist/tests",
-    "noEmit": false,
     "declaration": false,
-    "emitDeclarationOnly": false,
-    "sourceMap": true,
-    "inlineSources": true
+    "noEmit": false
   },
   "include": ["test/**/*.ts"],
   "exclude": ["node_modules", "dist"]

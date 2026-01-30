@@ -28,7 +28,7 @@ Get listed as [one of our beloved contributors](https://github.com/browserbase/s
 4. **Merge into `evals` branch.** We don’t let external contributors [run our CI via GitHub Actions](https://github.com/browserbase/stagehand/blob/main/.github/workflows/ci.yml) to prevent spam and misuse. If your contribution passes an initial screen, we’ll run our evals on it
     1. By default, all PRs run the following tests that you can also run from the repo source:
         1. Lint (`npm run lint`) - Runs `prettier` and `eslint`. If this fails, you can most likely run `npm run format` to fix some simple linting errors.
-        2. Build (`npm run build`) - Lints and builds TS → JS in `dist/` via `tsup`
+        2. Build (`npm run build`) - Lints and builds TS → JS in `dist/`
         3. End-to-End (`npm run e2e`) - These are deterministic end-to-end Playwright tests to ensure the integrity of basic Playwright functionality of [`stagehand.page`](http://stagehand.page) and `stagehand.context` as well as compatibility with the Browserbase API
         4. Combination (`npm run evals category combination`) - This runs AI-based end-to-end tests using combinations of `act`, `extract`, and `observe` 
     2. If you’re changing anything about `act`, `extract`, or `observe` itself, we might also run specific act/extract/observe evals to ensure existing functionality doesn’t significantly drop.

@@ -1,23 +1,24 @@
 import { test, expect } from "@playwright/test";
 import { V3 } from "../v3";
-import { v3BBTestConfig } from "./v3.bb.config";
+import { v3DynamicTestConfig } from "./v3.dynamic.config";
 import { closeV3 } from "./testUtils";
 
 const PAGE_TARGET_COUNT = 5;
 
 test.describe("connect to existing Browserbase session", () => {
   test("new Stagehand instance reuses an existing Browserbase session", async () => {
-    test.skip(
-      process.env.STAGEHAND_ENV !== "BROWSERBASE",
-      "Requires STAGEHAND_ENV=BROWSERBASE",
-    );
+    const browserTarget = (
+      process.env.STAGEHAND_BROWSER_TARGET ?? "local"
+    ).toLowerCase();
+    const isBrowserbase = browserTarget === "browserbase";
+    test.skip(!isBrowserbase, "Requires STAGEHAND_BROWSER_TARGET=browserbase");
     test.skip(
       !process.env.BROWSERBASE_API_KEY || !process.env.BROWSERBASE_PROJECT_ID,
       "BROWSERBASE credentials are required",
     );
 
     const initialStagehand = new V3({
-      ...v3BBTestConfig,
+      ...v3DynamicTestConfig,
       disableAPI: true,
     });
     await initialStagehand.init();
@@ -46,7 +47,7 @@ test.describe("connect to existing Browserbase session", () => {
         verbose: 0,
         disablePino: true,
         disableAPI: true,
-        logger: v3BBTestConfig.logger,
+        logger: v3DynamicTestConfig.logger,
         localBrowserLaunchOptions: {
           cdpUrl: sessionUrl,
         },

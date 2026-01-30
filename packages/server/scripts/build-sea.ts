@@ -1,4 +1,16 @@
 #!/usr/bin/env node
+/**
+ * Build SEA binary from ESM (test) or CJS (release) bundles.
+ *
+ * Prereqs:
+ * - CJS mode: runs core CJS build via Turbo if dist is missing (pnpm exec turbo run build --filter @browserbasehq/stagehand).
+ * - ESM mode: core dist/esm available (pnpm run build:esm).
+ * - postject installed; tar available for non-Windows downloads.
+ *
+ * Args: --mode=esm|cjs --target-platform=<platform> --target-arch=<arch> --binary-name=<name>
+ * Env: SEA_BUILD_MODE, SEA_TARGET_PLATFORM, SEA_TARGET_ARCH, SEA_BINARY_NAME.
+ * Example: pnpm run build:sea:cjs -- --target-platform=linux --target-arch=arm64
+ */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -6,29 +18,49 @@ import os from "node:os";
 import path from "node:path";
 import https from "node:https";
 import { pathToFileURL } from "node:url";
-
-const findRepoRoot = (startDir: string): string => {
-  let current = startDir;
-  while (true) {
-    if (fs.existsSync(path.join(current, "pnpm-workspace.yaml"))) {
-      return current;
-    }
-    const parent = path.dirname(current);
-    if (parent === current) return startDir;
-    current = parent;
-  }
-};
+import { findRepoRoot } from "../../core/scripts/test-utils";
 
 const repoDir = findRepoRoot(process.cwd());
 const pkgDir = path.join(repoDir, "packages", "server");
 const distDir = path.join(pkgDir, "dist");
 const seaDir = path.join(distDir, "sea");
 const blobPath = path.join(seaDir, "sea-prep.blob");
-const coreEsmEntry = path.join(repoDir, "packages", "core", "dist", "esm", "index.js");
+const coreEsmEntry = path.join(
+  repoDir,
+  "packages",
+  "core",
+  "dist",
+  "esm",
+  "index.js",
+);
 
-const targetPlatform = process.env.SEA_TARGET_PLATFORM ?? process.platform;
-const targetArch = process.env.SEA_TARGET_ARCH ?? process.arch;
+const argValue = (name: string) => {
+  const prefix = `--${name}=`;
+  for (let i = 0; i < process.argv.length; i++) {
+    const arg = process.argv[i];
+    if (arg === `--${name}` && process.argv[i + 1]) return process.argv[i + 1];
+    if (arg.startsWith(prefix)) return arg.slice(prefix.length);
+  }
+  return undefined;
+};
+
+const mode = (
+  argValue("mode") ??
+  process.env.SEA_BUILD_MODE ??
+  "esm"
+).toLowerCase();
+const targetPlatform =
+  argValue("target-platform") ??
+  argValue("platform") ??
+  process.env.SEA_TARGET_PLATFORM ??
+  process.platform;
+const targetArch =
+  argValue("target-arch") ??
+  argValue("arch") ??
+  process.env.SEA_TARGET_ARCH ??
+  process.arch;
 const binaryName =
+  argValue("binary-name") ??
   process.env.SEA_BINARY_NAME ??
   `stagehand-server-${targetPlatform}-${targetArch}${targetPlatform === "win32" ? ".exe" : ""}`;
 
@@ -73,7 +105,12 @@ const download = (url: string, dest: string): Promise<void> =>
   });
 
 const resolveNodeBinary = async (): Promise<string> => {
-  if (targetPlatform === process.platform && targetArch === process.arch) {
+  if (targetPlatform !== process.platform) {
+    throw new Error(
+      `Cross-platform builds are not supported. Host=${process.platform}, target=${targetPlatform}`,
+    );
+  }
+  if (targetArch === process.arch) {
     return process.execPath;
   }
 
@@ -98,23 +135,78 @@ const resolveNodeBinary = async (): Promise<string> => {
     const url = `https://nodejs.org/dist/${version}/${archiveBase}.${archiveExt}`;
     await download(url, archivePath);
   }
-  run("tar", ["-xf", archivePath, "-C", tmpRoot]);
+
+  if (archiveExt === "zip") {
+    if (process.platform !== "win32") {
+      throw new Error("Windows binaries must be built on Windows runners.");
+    }
+    run("powershell", [
+      "-Command",
+      `Expand-Archive -Path '${archivePath}' -DestinationPath '${tmpRoot}' -Force`,
+    ]);
+  } else {
+    run("tar", ["-xf", archivePath, "-C", tmpRoot]);
+  }
+
   if (!fs.existsSync(binaryPath)) {
     throw new Error(`Missing Node binary at ${binaryPath}`);
   }
   return binaryPath;
 };
 
-const main = async () => {
+const writeSeaConfig = (
+  mainPath: string,
+  outputPath: string,
+  execArgvExtension?: string,
+) => {
+  const configPath = path.join(seaDir, `sea-config-${mode}.json`);
+  const config = {
+    main: path.relative(pkgDir, mainPath).split(path.sep).join("/"),
+    output: path.relative(pkgDir, outputPath).split(path.sep).join("/"),
+    ...(execArgvExtension ? { execArgvExtension } : {}),
+  };
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  return configPath;
+};
+
+const buildCjsBundle = () => {
+  run(
+    "pnpm",
+    [
+      "exec",
+      "turbo",
+      "run",
+      "build:cjs",
+      "--filter",
+      "@browserbasehq/stagehand",
+    ],
+    { cwd: repoDir },
+  );
   fs.mkdirSync(seaDir, { recursive: true });
+  const bundlePath = path.join(seaDir, "bundle.cjs");
+  run(
+    "pnpm",
+    [
+      "exec",
+      "esbuild",
+      "packages/server/src/server.ts",
+      "--bundle",
+      "--platform=node",
+      "--format=cjs",
+      `--outfile=${bundlePath}`,
+      "--log-level=warning",
+    ],
+    { cwd: repoDir },
+  );
+  return bundlePath;
+};
 
-  run("pnpm", ["--filter", "@browserbasehq/stagehand", "build"], {
-    cwd: repoDir,
-  });
-  run("pnpm", ["--filter", "@browserbasehq/stagehand", "run", "build:esm"], {
-    cwd: repoDir,
-  });
+const buildEsmBundle = () => {
+  if (!fs.existsSync(coreEsmEntry)) {
+    throw new Error(`Missing ${coreEsmEntry}. Run pnpm run build:esm first.`);
+  }
 
+  fs.mkdirSync(seaDir, { recursive: true });
   const appBundlePath = path.join(distDir, "app.mjs");
   const esbuildArgs = [
     "exec",
@@ -129,7 +221,7 @@ const main = async () => {
     "--sourcemap=inline",
     "--sources-content",
     `--source-root=${repoDir}`,
-    "--banner:js=import { createRequire as __createRequire } from \"node:module\"; const require = __createRequire(import.meta.url);",
+    '--banner:js=import { createRequire as __createRequire } from "node:module"; const require = __createRequire(import.meta.url);',
     "--log-level=warning",
   ];
   run("pnpm", esbuildArgs, { cwd: repoDir });
@@ -194,9 +286,14 @@ const main = async () => {
       return toPosix(path.join("packages", "core", rel));
     }
     if (sourcePath.startsWith("core/")) {
-      return toPosix(path.join("packages", "core", sourcePath.slice("core/".length)));
+      return toPosix(
+        path.join("packages", "core", sourcePath.slice("core/".length)),
+      );
     }
-    if (sourcePath.startsWith("packages/") || sourcePath.startsWith("node_modules/")) {
+    if (
+      sourcePath.startsWith("packages/") ||
+      sourcePath.startsWith("node_modules/")
+    ) {
       return toPosix(sourcePath);
     }
 
@@ -215,7 +312,10 @@ const main = async () => {
   fs.writeFileSync(appBundlePath, appSourceUpdated);
 
   const appBytes = Buffer.from(appSourceUpdated);
-  const bundleHash = createHash("sha256").update(appBytes).digest("hex").slice(0, 12);
+  const bundleHash = createHash("sha256")
+    .update(appBytes)
+    .digest("hex")
+    .slice(0, 12);
   const bootstrapPath = path.join(seaDir, "sea-bootstrap.cjs");
   const bootstrap = `/* eslint-disable */
 const fs = require("node:fs");
@@ -264,10 +364,27 @@ if (needsWrite) {
 });
 `;
   fs.writeFileSync(bootstrapPath, bootstrap);
+  return bootstrapPath;
+};
 
-  run("node", ["--experimental-sea-config", "sea-config.json"], {
-    cwd: pkgDir,
-  });
+const main = async () => {
+  fs.mkdirSync(seaDir, { recursive: true });
+
+  let mainPath: string;
+  let execArgvExtension: string | undefined;
+
+  if (mode === "cjs") {
+    mainPath = buildCjsBundle();
+  } else if (mode === "esm") {
+    mainPath = buildEsmBundle();
+    execArgvExtension = "cli";
+  } else {
+    throw new Error(`Unknown SEA build mode: ${mode}`);
+  }
+
+  const seaConfigPath = writeSeaConfig(mainPath, blobPath, execArgvExtension);
+
+  run("node", ["--experimental-sea-config", seaConfigPath], { cwd: pkgDir });
   if (!fs.existsSync(blobPath)) {
     throw new Error(`Missing ${blobPath}; SEA blob generation failed.`);
   }
