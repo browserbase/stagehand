@@ -160,7 +160,8 @@
                   "POST /v1/sessions/{id}/observe",
                   "POST /v1/sessions/{id}/extract",
                   "POST /v1/sessions/{id}/agentExecute",
-                  "POST /v1/sessions/{id}/end"
+                  "POST /v1/sessions/{id}/end",
+                  "GET /v1/sessions/{id}/replay"
                 ]
               }
             ]
@@ -191,7 +192,8 @@
                   "POST /v1/sessions/{id}/observe",
                   "POST /v1/sessions/{id}/extract",
                   "POST /v1/sessions/{id}/agentExecute",
-                  "POST /v1/sessions/{id}/end"
+                  "POST /v1/sessions/{id}/end",
+                  "GET /v1/sessions/{id}/replay"
                 ]
               }
             ]
@@ -222,7 +224,8 @@
                   "POST /v1/sessions/{id}/observe",
                   "POST /v1/sessions/{id}/extract",
                   "POST /v1/sessions/{id}/agentExecute",
-                  "POST /v1/sessions/{id}/end"
+                  "POST /v1/sessions/{id}/end",
+                  "GET /v1/sessions/{id}/replay"
                 ]
               }
             ]
@@ -253,7 +256,8 @@
                   "POST /v1/sessions/{id}/observe",
                   "POST /v1/sessions/{id}/extract",
                   "POST /v1/sessions/{id}/agentExecute",
-                  "POST /v1/sessions/{id}/end"
+                  "POST /v1/sessions/{id}/end",
+                  "GET /v1/sessions/{id}/replay"
                 ]
               }
             ]
