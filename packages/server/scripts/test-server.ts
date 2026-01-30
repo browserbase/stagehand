@@ -3,7 +3,7 @@
  *
  * Prereqs: pnpm run build (core dist/esm + server dist/tests) and pnpm run build:sea:esm for SEA.
  * Args: [test paths...] -- [node --test args...] | --list [unit|integration] (prints JSON matrix)
- * Env: STAGEHAND_SERVER_TARGET=sea|local|remote, STAGEHAND_BASE_URL, SEA_BINARY_NAME/SEA_BINARY_PATH,
+ * Env: STAGEHAND_SERVER_TARGET=sea|local|remote, STAGEHAND_BASE_URL, SEA_BINARY_NAME,
  *      NODE_V8_COVERAGE; writes CTRF to ctrf/node-test-*.xml by default.
  * Example: STAGEHAND_SERVER_TARGET=sea pnpm run test:server -- packages/server/test/integration/foo.test.ts
  */
@@ -249,9 +249,10 @@ const startServer = async () => {
 
   const seaDir = path.join(serverRoot, "dist", "sea");
   const defaultName = `stagehand-server-${process.platform}-${process.arch}${process.platform === "win32" ? ".exe" : ""}`;
-  const seaBinary = process.env.SEA_BINARY_PATH
-    ? path.resolve(repoRoot, process.env.SEA_BINARY_PATH)
-    : path.join(seaDir, process.env.SEA_BINARY_NAME ?? defaultName);
+  const seaBinary = path.join(
+    seaDir,
+    process.env.SEA_BINARY_NAME ?? defaultName,
+  );
 
   if (!fs.existsSync(seaBinary)) {
     console.error(`SEA binary not found at ${seaBinary}`);
