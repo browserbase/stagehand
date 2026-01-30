@@ -472,7 +472,10 @@ export class V3Context {
     // for the init-script sends to settle in the background.
     await resume();
     if (installPromises.length) {
-      await Promise.allSettled(installPromises);
+      const results = await Promise.allSettled(installPromises);
+      if (results.some((r) => r.status === "rejected")) {
+        scriptsInstalled = false;
+      }
     }
 
     try {
