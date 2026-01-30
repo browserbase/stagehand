@@ -4,7 +4,6 @@
  * structured evaluations (YES/NO with reasoning) on screenshots and/or text.
  */
 
-import dotenv from "dotenv";
 import { z } from "zod";
 import type { AvailableModel, ClientOptions } from "./v3/types/public/model";
 import type {
@@ -19,7 +18,6 @@ import { V3 } from "./v3/v3";
 import { LLMProvider } from "./v3/llm/LLMProvider.js";
 import { StagehandInvalidArgumentError } from "./v3/types/public/sdkErrors";
 
-dotenv.config();
 
 const EvaluationSchema = z.object({
   evaluation: z.enum(["YES", "NO"]),

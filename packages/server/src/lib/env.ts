@@ -1,8 +1,5 @@
 import { createEnv } from "@t3-oss/env-core";
-import dotenv from "dotenv";
 import { z } from "zod/v4";
-
-dotenv.config();
 
 // Temporarily defining here until browserbase zod package is updated to 3.25.0+
 const bbEnvSchema = z.enum(["local", "dev", "prod"]);

@@ -28,7 +28,6 @@
     "@fastify/swagger": "^9.6.1",
     "@fastify/swagger-ui": "^5.2.3",
     "@t3-oss/env-core": "^0.13.8",
-    "dotenv": "^16.4.5",
     "fastify": "^5.3.2",
     "fastify-metrics": "^12.1.0",
     "fastify-plugin": "^4.5.1",

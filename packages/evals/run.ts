@@ -2,9 +2,7 @@ import { spawnSync } from "node:child_process";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import dotenv from "dotenv";
 
-dotenv.config();
 
 const args: readonly string[] = process.argv.slice(2);
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));

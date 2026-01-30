@@ -2,8 +2,7 @@
   "$schema": "https://turborepo.com/schema.json",
   "globalDependencies": [
     "tsconfig.json",
-    "tsconfig.base.json",
-    ".env"
+    "tsconfig.base.json"
   ],
   "tasks": {
     "build": {

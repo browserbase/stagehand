@@ -27,7 +27,7 @@ jobs:
           use-prebuilt-artifacts: "false"
 
       - name: Run Lint & Build
-        run: pnpm run lint && pnpm run build
+        run: pnpm exec turbo run lint && pnpm exec turbo run build
 
       - name: Create Release Pull Request or Publish to npm
         id: changesets

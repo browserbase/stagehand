@@ -1,8 +1,6 @@
 import { Stagehand } from "../../lib/v3";
 import { v3Logger } from "../../lib/v3/logger";
-import dotenv from "dotenv";
 
-dotenv.config();
 
 async function runDemo(runNumber: number) {
   const startTime = Date.now();

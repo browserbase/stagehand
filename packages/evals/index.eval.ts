@@ -43,7 +43,6 @@ import {
 import { AISdkClientWrapped } from "./lib/AISdkClientWrapped";
 import { getAISDKLanguageModel } from "@browserbasehq/stagehand/lib/v3/llm/LLMProvider";
 import { env } from "./env";
-import dotenv from "dotenv";
 import { initV3 } from "./initV3";
 import { generateSummary } from "./summary";
 import { buildGAIATestcases } from "./suites/gaia";
@@ -51,7 +50,6 @@ import { buildWebVoyagerTestcases } from "./suites/webvoyager";
 import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web";
 import { endBrowserbaseSession } from "./browserbaseCleanup";
 
-dotenv.config();
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
 /**

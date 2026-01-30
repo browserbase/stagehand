@@ -85,21 +85,9 @@ const registerPath = path.join(
   "scripts",
   "register-stagehand-dist.js",
 );
-const repoEnvPath = path.join(repoRoot, ".env");
-const testsEnvPath = path.join(
-  repoRoot,
-  "packages",
-  "core",
-  "lib",
-  "v3",
-  "tests",
-  ".env",
-);
 const baseNodeOptions = [
   "--enable-source-maps",
   "--experimental-specifier-resolution=node",
-  `--env-file-if-exists=${repoEnvPath}`,
-  `--env-file-if-exists=${testsEnvPath}`,
   `--import ${registerPath}`,
 ].join(" ");
 const nodeOptions = [process.env.NODE_OPTIONS, baseNodeOptions]
