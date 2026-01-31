@@ -133,6 +133,11 @@ export class AISdkClient extends LLMClient {
     const usesLowReasoningEffort =
       this.model.modelId.includes("gpt-5.1") ||
       this.model.modelId.includes("gpt-5.2");
+    const isDeepSeek = this.model.modelId.includes("deepseek");
+    // Kimi models only support temperature=1
+    const isKimi = this.model.modelId.includes("kimi");
+    const temperature = isKimi ? 1 : options.temperature;
+
     if (options.response_model) {
       // Log LLM request for generateObject (extract)
       const llmRequestId = uuidv7();
@@ -146,9 +151,8 @@ export class AISdkClient extends LLMClient {
         prompt: promptPreview,
       });
 
-      const isDeepSeek = this.model.modelId.includes("deepseek");
-
-      if (isDeepSeek) {
+      // For models that don't support native structured outputs, add a prompt instruction
+      if (isDeepSeek || isKimi) {
         const parsedSchema = JSON.stringify(
           toJsonSchema(options.response_model.schema),
         );
@@ -165,7 +169,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
           model: this.model,
           messages: formattedMessages,
           schema: options.response_model.schema,
-          temperature: options.temperature,
+          temperature,
           providerOptions: isGPT5
             ? {
                 openai: {
@@ -304,7 +308,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
                 ? "none"
                 : "auto"
             : undefined,
-        temperature: options.temperature,
+        temperature,
       });
     } catch (err) {
       // Log error response to maintain request/response pairing
