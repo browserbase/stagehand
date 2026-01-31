@@ -54,9 +54,7 @@ targets:
     publish:
       npm: false
     options:
-      mcp_server:
-        package_name: stagehand-mcp
-        enable_all_resources: true
+      mcp_server: false
   php:
     edition: php.2025-10-08
     package_name: stagehand
