@@ -1,4 +1,3 @@
-import dotenv from "dotenv";
 import { EventEmitter } from "events";
 import fs from "fs";
 import os from "os";
@@ -117,7 +116,6 @@ function resolveModelConfiguration(
 
   return { modelName: DEFAULT_MODEL_NAME };
 }
-dotenv.config({ path: ".env" });
 
 /**
  * V3
@@ -1444,7 +1442,6 @@ export class V3 {
     let { apiKey, projectId } = this.opts;
 
     // Fall back to environment variables if not explicitly provided
-    // dotenv is already configured at the top of this module
     if (!apiKey)
       apiKey = process.env.BROWSERBASE_API_KEY ?? process.env.BB_API_KEY;
     if (!projectId)

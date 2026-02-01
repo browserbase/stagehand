@@ -39,20 +39,22 @@ test.describe("page.addInitScript", () => {
   test("scopes scripts to the page only", async () => {
     const first = await ctx.awaitActivePage();
 
-    await first.addInitScript(() => {
-      function markScope(): void {
-        const root = document.documentElement;
-        if (!root) return;
-        root.dataset.scopeWitness = "page-one";
-      }
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", markScope, {
-          once: true,
-        });
-      } else {
-        markScope();
-      }
-    });
+    await first.addInitScript(`
+      (function () {
+        function markScope() {
+          var root = document.documentElement;
+          if (!root) return;
+          root.dataset.scopeWitness = "page-one";
+        }
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", markScope, {
+            once: true,
+          });
+        } else {
+          markScope();
+        }
+      })();
+    `);
 
     await first.goto(`${EXAMPLE_URL}/?page=one`, {
       waitUntil: "domcontentloaded",
@@ -78,20 +80,25 @@ test.describe("page.addInitScript", () => {
     const page = await ctx.awaitActivePage();
     const payload = { greeting: "hi", nested: { count: 1 } };
 
-    await page.addInitScript((arg) => {
-      function setPayload(): void {
-        const root = document.documentElement;
-        if (!root) return;
-        root.dataset.pageInitPayload = JSON.stringify(arg);
-      }
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", setPayload, {
-          once: true,
-        });
-      } else {
-        setPayload();
-      }
-    }, payload);
+    // eslint-disable-next-line no-new-func, no-restricted-syntax
+    const initPayload = new Function(
+      "arg",
+      `
+        function setPayload() {
+          var root = document.documentElement;
+          if (!root) return;
+          root.dataset.pageInitPayload = JSON.stringify(arg);
+        }
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", setPayload, {
+            once: true,
+          });
+        } else {
+          setPayload();
+        }
+      `,
+    ) as (arg: typeof payload) => void;
+    await page.addInitScript(initPayload, payload);
 
     await page.goto(`${EXAMPLE_URL}/?page=payload`, {
       waitUntil: "domcontentloaded",
