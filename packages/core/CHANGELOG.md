@@ -1,5 +1,35 @@
 # @browserbasehq/stagehand
 
+## 3.1.0
+
+### Minor Changes
+
+- [#1611](https://github.com/browserbase/stagehand/pull/1611) [`8a3c066`](https://github.com/browserbase/stagehand/commit/8a3c06600a9ba98485db7e9ed5c3cc43ea180334) Thanks [@monadoid](https://github.com/monadoid)! - Using `mode` enum instead of old `cua` boolean in openapi spec
+
+### Patch Changes
+
+- [#1644](https://github.com/browserbase/stagehand/pull/1644) [`1e1c9c1`](https://github.com/browserbase/stagehand/commit/1e1c9c15773e49d5c3cd36021dbc1d23495c1bce) Thanks [@monadoid](https://github.com/monadoid)! - Fix unhandled CDP detaches by returning the original sendCDP promise
+
+- [#1614](https://github.com/browserbase/stagehand/pull/1614) [`677bff5`](https://github.com/browserbase/stagehand/commit/677bff5834c879a2d95f7dbff918b8e1510516b3) Thanks [@miguelg719](https://github.com/miguelg719)! - Enforce <number>-<number> regex validation on act/observe for elementId
+
+- [#1624](https://github.com/browserbase/stagehand/pull/1624) [`0e8d569`](https://github.com/browserbase/stagehand/commit/0e8d5695f662040f7384e64f46301152802e3c62) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix issue where screenshot masks were not being applied to dialog elements
+
+- [#1596](https://github.com/browserbase/stagehand/pull/1596) [`ff0f979`](https://github.com/browserbase/stagehand/commit/ff0f9795f3b2c1cf4f2610a80ebcb3341a24f987) Thanks [@tkattkat](https://github.com/tkattkat)! - Update usage/metrics handling in agent
+
+- [#1631](https://github.com/browserbase/stagehand/pull/1631) [`2d89d2b`](https://github.com/browserbase/stagehand/commit/2d89d2b35ce812431956b28e0c8b52d32ddc7a27) Thanks [@miguelg719](https://github.com/miguelg719)! - Add right and middle click support to act and observe
+
+- [#1613](https://github.com/browserbase/stagehand/pull/1613) [`aa4d981`](https://github.com/browserbase/stagehand/commit/aa4d981e440bdd0e3d3f42ccc310d5958aa25cc6) Thanks [@miguelg719](https://github.com/miguelg719)! - SupportedUnderstudyAction Enum validation for 'method' on act/observe inference
+
+- [#1633](https://github.com/browserbase/stagehand/pull/1633) [`22e371a`](https://github.com/browserbase/stagehand/commit/22e371ae4c25deb6350328fe02832bf2b2197b94) Thanks [@tkattkat](https://github.com/tkattkat)! - Add warning when incorrect models are used with agents hybrid mode
+
+- [#1609](https://github.com/browserbase/stagehand/pull/1609) [`3f9ca4d`](https://github.com/browserbase/stagehand/commit/3f9ca4d9acc109101357378d29cf969168991608) Thanks [@miguelg719](https://github.com/miguelg719)! - Add SupportedUnderstudyActions to observe system prompt
+
+- [#1636](https://github.com/browserbase/stagehand/pull/1636) [`ea33052`](https://github.com/browserbase/stagehand/commit/ea330520a325583b71b87d85beb740df4bdb9b2d) Thanks [@miguelg719](https://github.com/miguelg719)! - Include executionModel on the AgentConfigSchema
+
+- [#1637](https://github.com/browserbase/stagehand/pull/1637) [`a7d29de`](https://github.com/browserbase/stagehand/commit/a7d29decee0f7d12e2437267b9eef1795d3b4e3a) Thanks [@miguelg719](https://github.com/miguelg719)! - Improve error and warning message for legacy model format
+
+- [#1612](https://github.com/browserbase/stagehand/pull/1612) [`bdd8b4e`](https://github.com/browserbase/stagehand/commit/bdd8b4ee3c697a02728375510ab7fae764990576) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix issue where screenshot mask was only being applied to the first element that the locator resolved to. masks now apply to all matching elements.
+
 ## 3.0.8
 
 ### Patch Changes
