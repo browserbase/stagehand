@@ -1,6 +1,7 @@
 // lib/v3/understudy/cdp.ts
 import WebSocket from "ws";
 import type { Protocol } from "devtools-protocol";
+import { STAGEHAND_VERSION } from "../../version";
 
 /**
  * CDP transport & session multiplexer
@@ -97,7 +98,11 @@ export class CdpConnection implements CDPSessionLike {
   }
 
   static async connect(wsUrl: string): Promise<CdpConnection> {
-    const ws = new WebSocket(wsUrl);
+    const ws = new WebSocket(wsUrl, {
+      headers: {
+        "User-Agent": `Stagehand/${STAGEHAND_VERSION}`,
+      },
+    });
     await new Promise<void>((resolve, reject) => {
       ws.once("open", () => resolve());
       ws.once("error", (e) => reject(e));
