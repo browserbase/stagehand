@@ -54,6 +54,8 @@ type ExpectedExportedTypes = {
   AgentStreamCallbacks: Stagehand.AgentStreamCallbacks;
   AgentExecuteOptionsBase: Stagehand.AgentExecuteOptionsBase;
   AgentStreamExecuteOptions: Stagehand.AgentStreamExecuteOptions;
+  ThinkingConfig: Stagehand.ThinkingConfig;
+  AgentProviderOptions: Stagehand.AgentProviderOptions;
   ModelMessage: Stagehand.ModelMessage;
   // Types from agent/tools
   AgentTools: Stagehand.AgentTools;
@@ -196,6 +198,7 @@ describe("Stagehand public API types", () => {
       signal?: AbortSignal;
       excludeTools?: string[];
       output?: Stagehand.StagehandZodObject;
+      thinking?: Stagehand.ThinkingConfig;
       callbacks?: Stagehand.AgentExecuteCallbacks;
     };
 
@@ -214,6 +217,7 @@ describe("Stagehand public API types", () => {
       signal?: AbortSignal;
       excludeTools?: string[];
       output?: Stagehand.StagehandZodObject;
+      thinking?: Stagehand.ThinkingConfig;
       callbacks?: Stagehand.AgentStreamCallbacks;
     };
 
