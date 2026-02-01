@@ -447,6 +447,44 @@ asyncio.run(main())
 
 ---
 
+### 10. LLM Metrics
+
+<Tabs>
+<Tab title="Old SDK (v2)">
+
+```python
+metrics = stagehand.metrics
+print(f"Prompt tokens: {metrics['act_prompt_tokens']}")
+print(f"Completion tokens: {metrics['act_completion_tokens']}")
+```
+
+</Tab>
+<Tab title="New SDK (v3)">
+
+```python
+act_response = client.sessions.act(
+    id=session_id,
+    input="click the submit button",
+    x_language="python",
+    x_sdk_version=SDK_VERSION,
+)
+
+if act_response.data.result.usage:
+    usage = act_response.data.result.usage
+    print(f"Input tokens: {usage.input_tokens}")
+    print(f"Output tokens: {usage.output_tokens}")
+    print(f"Inference time: {usage.inference_time_ms} ms")
+```
+
+</Tab>
+</Tabs>
+
+<Note>
+Metrics are now returned per-operation via `response.data.result.usage` instead of a cumulative `stagehand.metrics` object. New fields include `cached_input_tokens` and `reasoning_tokens`.
+</Note>
+
+---
+
 ## Complete Migration Example
 
 <Tabs>
@@ -654,6 +692,7 @@ if __name__ == "__main__":
 | `await page.extract(instruction)` | `client.sessions.extract(id=session_id, instruction=..., schema=..., ...)` |
 | `await stagehand.close()` | `browser.close()` + `client.sessions.end(id=session_id, ...)` |
 | `configure_logging(...)` | Use standard `logging` module |
+| `stagehand.metrics` | `response.data.result.usage` (per-operation) |
 
 ---
 
@@ -674,6 +713,10 @@ if __name__ == "__main__":
   
   <Accordion title="Extraction returns unexpected format">
     The new SDK requires an explicit JSON schema. Make sure your schema matches the expected output structure.
+  </Accordion>
+
+  <Accordion title="LLM metrics endpoint returns 404">
+    In v3, LLM metrics are no longer available via a separate replay endpoint. Instead, access metrics directly from the `usage` field on operation responses (e.g., `response.data.result.usage`).
   </Accordion>
 </AccordionGroup>
 
