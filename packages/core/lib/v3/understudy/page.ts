@@ -607,10 +607,7 @@ export class Page {
    *   { expression: "1 + 1" }
    * );
    */
-  public async sendCDP<T = unknown>(
-    method: string,
-    params?: object,
-  ): Promise<T> {
+  public sendCDP<T = unknown>(method: string, params?: object): Promise<T> {
     return this.mainSession.send<T>(method, params);
   }
 
