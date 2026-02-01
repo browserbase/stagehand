@@ -1,6 +1,9 @@
-name: Evals
+name: Tests
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     types:
       - opened
@@ -11,10 +14,24 @@ on:
       - "packages/docs/**"
 
 env:
+  LLM_MAX_MS: "15000"
+  EVAL_ENV: "browserbase"
   EVAL_MODELS: "openai/gpt-4.1,google/gemini-2.0-flash,anthropic/claude-haiku-4-5"
+  EVAL_AGENT_MODELS: "computer-use-preview-2025-03-11,claude-3-7-sonnet-latest"
   EVAL_CATEGORIES: "observe,act,combination,extract,targeted_extract,agent"
   EVAL_MAX_CONCURRENCY: 25
   EVAL_TRIAL_COUNT: 3
+  EVAL_AGENT_MAX_CONCURRENCY: 30
+  EVAL_AGENT_TRIAL_COUNT: 2
+  LOCAL_SESSION_LIMIT_PER_E2E_TEST: 2
+  BROWSERBASE_SESSION_LIMIT_PER_E2E_TEST: 3
+  BROWSERBASE_REGION_DISTRIBUTION: "us-west-2=30,us-east-1=30,eu-central-1=20,ap-southeast-1=20"  # percentage of load for each region when running e2e tests against prod
+  CHROME_PATH: /usr/bin/chromium # GitHub Actions runners ship with Chromium by default
+  BROWSERBASE_CDP_CONNECT_MAX_MS: "10000"
+  BROWSERBASE_SESSION_CREATE_MAX_MS: "10000"
+  PUPPETEER_SKIP_DOWNLOAD: "1"
+  PLAYWRIGHT_SKIP_DOWNLOAD: "1"
+  TURBO_TELEMETRY_DISABLED: 1
 
 concurrency:
   group: ${{ github.ref }}
@@ -26,10 +43,37 @@ jobs:
     outputs:
       core: ${{ steps.filter.outputs.core }}
       evals: ${{ steps.filter.outputs.evals }}
+      server: ${{ steps.filter.outputs.server }}
       docs-only: ${{ steps.filter.outputs.docs-only }}
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
+
+      - name: Log GitHub API rate limit
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          headers_file=$(mktemp)
+          body_file=$(mktemp)
+          curl -sSL \
+            -D "$headers_file" \
+            -o "$body_file" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            https://api.github.com/rate_limit
+          cat "$headers_file"
+          echo ""
+          cat "$body_file"
+          remaining=$(jq -r '.rate.remaining' "$body_file")
+          if [ "$remaining" -eq 0 ]; then
+            reset_epoch=$(jq -r '.rate.reset' "$body_file")
+            reset_utc=$(date -u -d "@$reset_epoch" +"%Y-%m-%d %H:%M:%S")
+            reset_pacific=$(TZ=America/Los_Angeles date -d "@$reset_epoch" +"%Y-%m-%d %H:%M:%S %Z")
+            echo "Github API rate limited until: ${reset_pacific} (${reset_utc} UTC)" >> "$GITHUB_STEP_SUMMARY"
+            echo "GitHub API rate limit exhausted."
+            exit 1
+          fi
 
       - uses: dorny/paths-filter@v3
         id: filter
@@ -45,6 +89,13 @@ jobs:
               - 'packages/evals/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
+            server:
+              - 'packages/server/**'
+              - 'packages/core/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.github/workflows/ci.yml'
             docs-only:
               - '**/*.md'
               - 'examples/**'
@@ -124,98 +175,402 @@ jobs:
           echo "run-observe=${{ contains(github.event.pull_request.labels.*.name, 'observe') }}" >> $GITHUB_OUTPUT
           echo "run-targeted-extract=${{ contains(github.event.pull_request.labels.*.name, 'targeted-extract') }}" >> $GITHUB_OUTPUT
           echo "run-agent=${{ contains(github.event.pull_request.labels.*.name, 'agent') }}" >> $GITHUB_OUTPUT
-
-  run-lint:
-    needs: [determine-changes]
-    if: needs.determine-changes.outputs.core == 'true' || needs.determine-changes.outputs.evals == 'true'
+      
+  run-build:
+    name: Lint & Build
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
-          node-version: "20"
-
-      - name: Enable Corepack
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+          use-prebuilt-artifacts: "false"
 
       - name: Run Lint
         run: pnpm run lint
 
-  run-build:
-    needs: [determine-changes]
-    if: needs.determine-changes.outputs.core == 'true' || needs.determine-changes.outputs.evals == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Enable Corepack
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
       - name: Run Build
         run: pnpm run build
+
+      - name: Save Turbo cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
           path: |
+            package.json # Placeholder to anchor artifact root at repo root. do not remove or artifacts paths will all change to common ancestor packages/
             packages/core/dist/**
-            packages/core/lib/**
+            packages/core/lib/version.ts
+            packages/core/lib/dom/build/**
+            packages/core/lib/v3/dom/build/**
+            packages/server/dist/**
+            packages/server/openapi.v3.yaml
           retention-days: 1
 
-      - name: Run Vitest
-        run: pnpm --filter @browserbasehq/stagehand run test:vitest
+  discover-core-tests:
+    runs-on: ubuntu-latest
+    needs: [determine-changes]
+    if: needs.determine-changes.outputs.core == 'true'
+    outputs:
+      core-tests: ${{ steps.set-matrix.outputs.core-tests }}
+      has-core-tests: ${{ steps.set-matrix.outputs.has-core-tests }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Discover core test files
+        id: set-matrix
+        run: |
+          core_tests=$(find packages/core/tests -type f -name "*.test.ts" 2>/dev/null | sort || true)
+
+          core_json="["
+          first=true
+          for test_file in $core_tests; do
+            if [ "$first" = true ]; then
+              first=false
+            else
+              core_json+=","
+            fi
+            name=$(echo "$test_file" | sed 's|^packages/core/tests/||' | sed 's|\.test\.ts$||')
+            safe_name=$(echo "$name" | tr '/' '-')
+            core_json+="{\"path\":\"$test_file\",\"name\":\"$name\",\"safe_name\":\"$safe_name\"}"
+          done
+          core_json+="]"
+
+          echo "core-tests=$core_json" >> $GITHUB_OUTPUT
+
+          if [ "$core_json" = "[]" ]; then
+            echo "has-core-tests=false" >> $GITHUB_OUTPUT
+          else
+            echo "has-core-tests=true" >> $GITHUB_OUTPUT
+          fi
+
+          echo "Found core tests: $core_json"
+
+  core-unit-tests:
+    name: core/${{ matrix.test.name }}
+    runs-on: ubuntu-latest
+    needs: [run-build, discover-core-tests]
+    if: needs.discover-core-tests.outputs.has-core-tests == 'true'
+    env:
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/core-unit/${{ matrix.test.name }}
+
+    strategy:
+      fail-fast: false
+      max-parallel: 100
+      matrix:
+        test: ${{ fromJson(needs.discover-core-tests.outputs.core-tests) }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+
+      - name: Run Vitest - ${{ matrix.test.name }}
+        run: |
+          test_path="${{ matrix.test.path }}"
+          rel_path="${test_path#packages/core/}"
+          pnpm --filter @browserbasehq/stagehand exec vitest run \
+            --config vitest.config.ts \
+            --reporter=default \
+            --reporter=junit \
+            --outputFile.junit="${{ github.workspace }}/ctrf/vitest-${{ matrix.test.safe_name }}.xml" \
+            --coverage \
+            --coverage.reportsDirectory="${{ github.workspace }}/coverage/vitest/${{ matrix.test.name }}" \
+            --coverage.reporter=lcov \
+            --coverage.reporter=text-summary \
+            "$rel_path"
+
+      - name: Upload Vitest coverage - ${{ matrix.test.name }}
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-coverage-${{ matrix.test.safe_name }}
+          path: coverage/vitest/${{ matrix.test.name }}
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always()
+        with:
+          junit-path: ${{ github.workspace }}/ctrf/vitest-${{ matrix.test.safe_name }}.xml
+          tool: vitest
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always()
+        with:
+          name: coverage-v8-core-unit-${{ matrix.test.name }}
+
+  discover-server-tests:
+    runs-on: ubuntu-latest
+    needs: [determine-changes]
+    if: needs.determine-changes.outputs.server == 'true'
+    outputs:
+      unit-tests: ${{ steps.set-matrix.outputs.unit-tests }}
+      integration-tests: ${{ steps.set-matrix.outputs.integration-tests }}
+      has-unit-tests: ${{ steps.set-matrix.outputs.has-unit-tests }}
+      has-integration-tests: ${{ steps.set-matrix.outputs.has-integration-tests }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Discover server test files
+        id: set-matrix
+        run: |
+          cd packages/server
+
+          unit_tests=$(find ./test/unit -type f -name "*.test.ts" 2>/dev/null | sort || true)
+          integration_tests=$(find ./test/integration -type f -name "*.test.ts" 2>/dev/null | sort || true)
+
+          unit_json="["
+          first=true
+          for test_file in $unit_tests; do
+            if [ "$first" = true ]; then
+              first=false
+            else
+              unit_json+=","
+            fi
+            name=$(basename "$test_file" .test.ts)
+            safe_name="${name//\//-}"
+            unit_json+="{\"path\":\"$test_file\",\"name\":\"$name\",\"safe_name\":\"$safe_name\"}"
+          done
+          unit_json+="]"
+
+          int_json="["
+          first=true
+          for test_file in $integration_tests; do
+            if [ "$first" = true ]; then
+              first=false
+            else
+              int_json+=","
+            fi
+            name=$(echo "$test_file" | sed 's|^\./test/integration/||' | sed 's|\.test\.ts$||')
+            safe_name="${name//\//-}"
+            int_json+="{\"path\":\"$test_file\",\"name\":\"$name\",\"safe_name\":\"$safe_name\"}"
+          done
+          int_json+="]"
+
+          echo "unit-tests=$unit_json" >> $GITHUB_OUTPUT
+          echo "integration-tests=$int_json" >> $GITHUB_OUTPUT
+
+          if [ "$unit_json" = "[]" ]; then
+            echo "has-unit-tests=false" >> $GITHUB_OUTPUT
+          else
+            echo "has-unit-tests=true" >> $GITHUB_OUTPUT
+          fi
+
+          if [ "$int_json" = "[]" ]; then
+            echo "has-integration-tests=false" >> $GITHUB_OUTPUT
+          else
+            echo "has-integration-tests=true" >> $GITHUB_OUTPUT
+          fi
+
+          echo "Found server unit tests: $unit_json"
+          echo "Found server integration tests: $int_json"
+
+  build-server-sea:
+    name: Build SEA binary
+    uses: ./.github/workflows/stagehand-server-sea-build.yml
+    with:
+      matrix: |
+        [
+          {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64-sourcemap","sourcemap":"inline"}
+        ]
+
+  server-unit-tests:
+    name: server/unit/${{ matrix.test.name }}
+    runs-on: ubuntu-latest
+    needs: [discover-server-tests]
+    if: needs.discover-server-tests.outputs.has-unit-tests == 'true'
+    env:
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-unit/${{ matrix.test.name }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        test: ${{ fromJson(needs.discover-server-tests.outputs.unit-tests) }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+
+      - name: Run server unit test - ${{ matrix.test.name }}
+        env:
+          NODE_TEST_REPORTER: junit
+          NODE_TEST_REPORTER_DESTINATION: ${{ github.workspace }}/ctrf/node-test-unit-${{ matrix.test.safe_name }}.xml
+        run: |
+          cd packages/server
+          pnpm run node:test "${{ matrix.test.path }}"
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always()
+        with:
+          junit-path: ${{ github.workspace }}/ctrf/node-test-unit-${{ matrix.test.safe_name }}.xml
+          tool: node-test
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always()
+        with:
+          name: coverage-v8-server-unit-${{ matrix.test.name }}
+
+  server-integration-tests:
+    name: server/integration/${{ matrix.test.name }}
+    runs-on: ubuntu-latest
+    needs: [build-server-sea, discover-server-tests]
+    if: needs.discover-server-tests.outputs.has-integration-tests == 'true'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        test: ${{ fromJson(needs.discover-server-tests.outputs.integration-tests) }}
+
+    env:
+      BB_ENV: local
+      PORT: "3107"
+      STAGEHAND_API_URL: http://127.0.0.1:3107
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+        with:
+          use-prebuilt-artifacts: "false"
+
+      - name: Download SEA binary
+        uses: actions/download-artifact@v4
+        with:
+          name: stagehand-server-linux-x64-sourcemap
+          path: packages/server/dist/sea
+
+      - name: Ensure SEA binary is executable
+        run: |
+          chmod +x packages/server/dist/sea/stagehand-server-linux-x64-sourcemap
+
+      - name: Start stagehand server (SEA binary)
+        env:
+          NODE_ENV: production
+          NODE_OPTIONS: --enable-source-maps
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-integration/${{ matrix.test.name }}/sea
+        run: |
+          packages/server/dist/sea/stagehand-server-linux-x64-sourcemap &
+          echo $! > /tmp/server.pid
+
+          echo "Waiting for server to start..."
+          for i in {1..30}; do
+            if curl -s http://127.0.0.1:3107/healthz > /dev/null 2>&1; then
+              echo "Server is ready!"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Server failed to start within 30 seconds"
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Run server integration test - ${{ matrix.test.name }}
+        env:
+          NODE_TEST_REPORTER: junit
+          NODE_TEST_REPORTER_DESTINATION: ${{ github.workspace }}/ctrf/node-test-integration-${{ matrix.test.safe_name }}.xml
+          NODE_TEST_EXTRA_ARGS: --experimental-test-coverage
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-integration/${{ matrix.test.name }}/tests
+        run: |
+          cd packages/server
+          pnpm run node:test "${{ matrix.test.path }}"
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always()
+        with:
+          junit-path: ${{ github.workspace }}/ctrf/node-test-integration-${{ matrix.test.safe_name }}.xml
+          tool: node-test
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always()
+        env:
+          NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/server-integration/${{ matrix.test.name }}
+        with:
+          name: coverage-v8-server-integration-${{ matrix.test.name }}
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f /tmp/server.pid ]; then
+            kill $(cat /tmp/server.pid) 2>/dev/null || true
+          fi
+
+  discover-e2e-tests:
+    runs-on: ubuntu-latest
+    needs: [determine-changes]
+    if: needs.determine-changes.outputs.core == 'true'
+    outputs:
+      e2e-tests: ${{ steps.set-matrix.outputs.e2e-tests }}
+      has-e2e-tests: ${{ steps.set-matrix.outputs.has-e2e-tests }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Discover e2e test files
+        id: set-matrix
+        run: |
+          e2e_tests=$(find packages/core/lib/v3/tests -type f -name "*.spec.ts" 2>/dev/null | sort || true)
+
+          e2e_json="["
+          first=true
+          for test_file in $e2e_tests; do
+            if [ "$first" = true ]; then
+              first=false
+            else
+              e2e_json+=","
+            fi
+            name=$(echo "$test_file" | sed 's|^packages/core/lib/v3/tests/||' | sed 's|\.spec\.ts$||')
+            safe_name="${name//\//-}"
+            e2e_json+="{\"path\":\"$test_file\",\"name\":\"$name\",\"safe_name\":\"$safe_name\"}"
+          done
+          e2e_json+="]"
+
+          echo "e2e-tests=$e2e_json" >> $GITHUB_OUTPUT
+
+          if [ "$e2e_json" = "[]" ]; then
+            echo "has-e2e-tests=false" >> $GITHUB_OUTPUT
+          else
+            echo "has-e2e-tests=true" >> $GITHUB_OUTPUT
+          fi
+
+          echo "Found e2e tests: $e2e_json"
 
   run-e2e-local-tests:
-    needs: [run-lint, run-build]
+    name: e2e/local/${{ matrix.test.name }}
+    needs: [run-build, discover-e2e-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 50
     if: >
-      github.event_name == 'push' ||
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+      needs.discover-e2e-tests.outputs.has-e2e-tests == 'true' &&
+      (github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -223,63 +578,49 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
+      CTRF_JUNIT_PATH: ${{ github.workspace }}/ctrf/playwright-local-${{ matrix.test.safe_name }}.xml
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/e2e-local/${{ matrix.test.name }}
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        test: ${{ fromJson(needs.discover-e2e-tests.outputs.e2e-tests) }}
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+
+      - uses: ./.github/actions/verify-chromium-launch
+
+      - name: Run local E2E Tests - ${{ matrix.test.name }}
+        run: |
+          test_path="${{ matrix.test.path }}"
+          rel_path="${test_path#packages/core/}"
+          pnpm exec turbo run e2e:local --only --log-order=stream \
+            --filter @browserbasehq/stagehand -- "$rel_path"
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always()
         with:
-          node-version: "20"
+          junit-path: ${{ github.workspace }}/ctrf/playwright-local-${{ matrix.test.safe_name }}.xml
+          tool: playwright
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Enable Corepack
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always()
         with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install stable Chromium
-        run: |
-          set -euo pipefail
-          CHROME_VERSION=$(curl -s https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json | jq -r '.channels.Stable.version')
-          DOWNLOAD_URL="https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chrome-linux64.zip"
-          INSTALL_DIR="${RUNNER_TEMP}/chrome-stable"
-          mkdir -p "$INSTALL_DIR"
-          curl -sSL "$DOWNLOAD_URL" -o "$INSTALL_DIR/chrome-linux64.zip"
-          unzip -q "$INSTALL_DIR/chrome-linux64.zip" -d "$INSTALL_DIR"
-          CHROME_BIN="$INSTALL_DIR/chrome-linux64/chrome"
-          chmod +x "$CHROME_BIN"
-          echo "Installed Chromium version: $CHROME_VERSION"
-          "$CHROME_BIN" --version
-          echo "CHROME_PATH=$CHROME_BIN" >> $GITHUB_ENV
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Stagehand
-        run: pnpm run build
-
-      - name: Run local E2E Tests (Deterministic Playwright)
-        run: pnpm run e2e:local --log-order=stream
+          name: coverage-v8-e2e-local-${{ matrix.test.name }}
 
   run-e2e-bb-tests:
-    needs: [run-lint, run-build]
+    name: e2e/bb/${{ matrix.test.name }}
+    needs: [run-build, discover-e2e-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 50
     if: >
-      github.event_name == 'push' ||
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+      needs.discover-e2e-tests.outputs.has-e2e-tests == 'true' &&
+      (github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -287,45 +628,56 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
+      CTRF_JUNIT_PATH: ${{ github.workspace }}/ctrf/playwright-bb-${{ matrix.test.safe_name }}.xml
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/e2e-bb/${{ matrix.test.name }}
+    strategy:
+      fail-fast: false
+      max-parallel: 100
+      matrix:
+        test: ${{ fromJson(needs.discover-e2e-tests.outputs.e2e-tests) }}
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+
+      - name: Select Browserbase region
+        uses: ./.github/actions/select-browserbase-region
         with:
-          node-version: "20"
+          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
-      - name: Enable Corepack
+      - name: Run E2E Tests (browserbase) - ${{ matrix.test.name }}
         run: |
-          npm install -g corepack@latest
-          corepack enable
+          test_path="${{ matrix.test.path }}"
+          rel_path="${test_path#packages/core/}"
+          pnpm exec turbo run e2e:bb --only --log-order=stream \
+            --filter @browserbasehq/stagehand -- "$rel_path"
 
-      - name: Get pnpm store directory
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always()
         with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
+          junit-path: ${{ github.workspace }}/ctrf/playwright-bb-${{ matrix.test.safe_name }}.xml
+          tool: playwright
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Stagehand
-        run: pnpm run build
-
-      - name: Run E2E Tests (browserbase)
-        run: pnpm run e2e:bb --log-order=stream
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always()
+        with:
+          name: coverage-v8-e2e-bb-${{ matrix.test.name }}
 
   run-regression-evals:
-    needs:
-      [run-e2e-bb-tests, run-e2e-local-tests, run-build, determine-evals]
-    if: needs.determine-evals.outputs.skip-all-evals != 'true' && needs.determine-evals.outputs.run-regression == 'true'
+    name: evals/regression
+    needs: [run-build, determine-evals, run-e2e-bb-tests]
+    if: >-
+      ${{
+        always() &&
+        needs.run-build.result == 'success' &&
+        needs.determine-evals.result == 'success' &&
+        needs.run-e2e-bb-tests.result != 'failure' &&
+        needs.run-e2e-bb-tests.result != 'cancelled' &&
+        needs.determine-evals.outputs.skip-all-evals != 'true' &&
+        needs.determine-evals.outputs.run-regression == 'true'
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 9
     outputs:
@@ -338,51 +690,30 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      EVAL_ENV: browserbase
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/regression
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+
+      - name: Select Browserbase region
+        uses: ./.github/actions/select-browserbase-region
         with:
-          node-version: "20"
-
-      - name: Enable Corepack
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
+          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
       - name: Run Regression Evals
-        run: pnpm run evals category regression trials=2 concurrency=20 env=BROWSERBASE
+        run: pnpm run evals category regression trials=2 concurrency=${EVAL_MAX_CONCURRENCY} env=BROWSERBASE
 
       - name: Log Regression Evals Performance
+        id: set-regression-score
         run: |
           experimentName=$(jq -r '.experimentName' eval-summary.json)
           echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
           if [ -f eval-summary.json ]; then
             regression_score=$(jq '.categories.regression' eval-summary.json)
             echo "Regression category score: $regression_score%"
+            echo "regression_score=$regression_score" >> $GITHUB_OUTPUT
             if (( $(echo "$regression_score < 90" | bc -l) )); then
               echo "Regression category score is below 90%. Failing CI."
               exit 1
@@ -392,8 +723,35 @@ jobs:
             exit 1
           fi
 
+      - uses: ./.github/actions/write-evals-ctrf
+        if: always()
+        with:
+          category: regression
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always()
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always()
+        with:
+          name: coverage-v8-evals-regression
+
   run-combination-evals:
-    needs: [run-regression-evals, run-build, determine-evals]
+    name: evals/combination
+    needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
+    if: >-
+      ${{
+        always() &&
+        needs.run-build.result == 'success' &&
+        needs.determine-evals.result == 'success' &&
+        needs.run-e2e-bb-tests.result != 'failure' &&
+        needs.run-e2e-bb-tests.result != 'cancelled' &&
+        needs.run-regression-evals.result != 'failure' &&
+        needs.run-regression-evals.result != 'cancelled' &&
+        needs.determine-evals.outputs.skip-all-evals != 'true'
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -404,7 +762,7 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      EVAL_ENV: browserbase
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/combination
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -419,41 +777,14 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set up Node.js
+      - uses: ./.github/actions/setup-node-pnpm-turbo
         if: needs.determine-evals.outputs.run-combination == 'true'
-        uses: actions/setup-node@v4
+
+      - name: Select Browserbase region
+        if: needs.determine-evals.outputs.run-combination == 'true'
+        uses: ./.github/actions/select-browserbase-region
         with:
-          node-version: "20"
-
-      - name: Enable Corepack
-        if: needs.determine-evals.outputs.run-combination == 'true'
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        if: needs.determine-evals.outputs.run-combination == 'true'
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        if: needs.determine-evals.outputs.run-combination == 'true'
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        if: needs.determine-evals.outputs.run-combination == 'true'
-        run: pnpm install --frozen-lockfile
-
-      - name: Download build artifacts
-        if: needs.determine-evals.outputs.run-combination == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
+          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
       - name: Run Combination Evals
         if: needs.determine-evals.outputs.run-combination == 'true'
@@ -473,8 +804,35 @@ jobs:
             exit 1
           fi
 
+      - uses: ./.github/actions/write-evals-ctrf
+        if: always() && needs.determine-evals.outputs.run-combination == 'true'
+        with:
+          category: combination
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always() && needs.determine-evals.outputs.run-combination == 'true'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always() && needs.determine-evals.outputs.run-combination == 'true'
+        with:
+          name: coverage-v8-evals-combination
+
   run-act-evals:
-    needs: [run-regression-evals, run-build, determine-evals]
+    name: evals/act
+    needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
+    if: >-
+      ${{
+        always() &&
+        needs.run-build.result == 'success' &&
+        needs.determine-evals.result == 'success' &&
+        needs.run-e2e-bb-tests.result != 'failure' &&
+        needs.run-e2e-bb-tests.result != 'cancelled' &&
+        needs.run-regression-evals.result != 'failure' &&
+        needs.run-regression-evals.result != 'cancelled' &&
+        needs.determine-evals.outputs.skip-all-evals != 'true'
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -485,7 +843,7 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      EVAL_ENV: browserbase
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/act
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -500,41 +858,14 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set up Node.js
+      - uses: ./.github/actions/setup-node-pnpm-turbo
         if: needs.determine-evals.outputs.run-act == 'true'
-        uses: actions/setup-node@v4
+
+      - name: Select Browserbase region
+        if: needs.determine-evals.outputs.run-act == 'true'
+        uses: ./.github/actions/select-browserbase-region
         with:
-          node-version: "20"
-
-      - name: Enable Corepack
-        if: needs.determine-evals.outputs.run-act == 'true'
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        if: needs.determine-evals.outputs.run-act == 'true'
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        if: needs.determine-evals.outputs.run-act == 'true'
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        if: needs.determine-evals.outputs.run-act == 'true'
-        run: pnpm install --frozen-lockfile
-
-      - name: Download build artifacts
-        if: needs.determine-evals.outputs.run-act == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
+          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
       - name: Run Act Evals
         if: needs.determine-evals.outputs.run-act == 'true'
@@ -557,8 +888,35 @@ jobs:
             exit 1
           fi
 
+      - uses: ./.github/actions/write-evals-ctrf
+        if: always() && needs.determine-evals.outputs.run-act == 'true'
+        with:
+          category: act
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always() && needs.determine-evals.outputs.run-act == 'true'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always() && needs.determine-evals.outputs.run-act == 'true'
+        with:
+          name: coverage-v8-evals-act
+
   run-extract-evals:
-    needs: [run-regression-evals, run-build, determine-evals]
+    name: evals/extract
+    needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
+    if: >-
+      ${{
+        always() &&
+        needs.run-build.result == 'success' &&
+        needs.determine-evals.result == 'success' &&
+        needs.run-e2e-bb-tests.result != 'failure' &&
+        needs.run-e2e-bb-tests.result != 'cancelled' &&
+        needs.run-regression-evals.result != 'failure' &&
+        needs.run-regression-evals.result != 'cancelled' &&
+        needs.determine-evals.outputs.skip-all-evals != 'true'
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 50
     env:
@@ -569,7 +927,7 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      EVAL_ENV: browserbase
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/extract
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -584,41 +942,14 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set up Node.js
+      - uses: ./.github/actions/setup-node-pnpm-turbo
         if: needs.determine-evals.outputs.run-extract == 'true'
-        uses: actions/setup-node@v4
+
+      - name: Select Browserbase region
+        if: needs.determine-evals.outputs.run-extract == 'true'
+        uses: ./.github/actions/select-browserbase-region
         with:
-          node-version: "20"
-
-      - name: Enable Corepack
-        if: needs.determine-evals.outputs.run-extract == 'true'
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        if: needs.determine-evals.outputs.run-extract == 'true'
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        if: needs.determine-evals.outputs.run-extract == 'true'
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        if: needs.determine-evals.outputs.run-extract == 'true'
-        run: pnpm install --frozen-lockfile
-
-      - name: Download build artifacts
-        if: needs.determine-evals.outputs.run-extract == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
+          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
       # 1. Run extract category with domExtract
       - name: Run Extract Evals (domExtract)
@@ -644,8 +975,36 @@ jobs:
             exit 1
           fi
 
+      - uses: ./.github/actions/write-evals-ctrf
+        if: always() && needs.determine-evals.outputs.run-extract == 'true'
+        with:
+          category: extract
+          summary-path: eval-summary-extract-dom.json
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always() && needs.determine-evals.outputs.run-extract == 'true'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always() && needs.determine-evals.outputs.run-extract == 'true'
+        with:
+          name: coverage-v8-evals-extract
+
   run-observe-evals:
-    needs: [run-regression-evals, run-build, determine-evals]
+    name: evals/observe
+    needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
+    if: >-
+      ${{
+        always() &&
+        needs.run-build.result == 'success' &&
+        needs.determine-evals.result == 'success' &&
+        needs.run-e2e-bb-tests.result != 'failure' &&
+        needs.run-e2e-bb-tests.result != 'cancelled' &&
+        needs.run-regression-evals.result != 'failure' &&
+        needs.run-regression-evals.result != 'cancelled' &&
+        needs.determine-evals.outputs.skip-all-evals != 'true'
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -656,7 +1015,7 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      EVAL_ENV: browserbase
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/observe
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -671,41 +1030,14 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set up Node.js
+      - uses: ./.github/actions/setup-node-pnpm-turbo
         if: needs.determine-evals.outputs.run-observe == 'true'
-        uses: actions/setup-node@v4
+
+      - name: Select Browserbase region
+        if: needs.determine-evals.outputs.run-observe == 'true'
+        uses: ./.github/actions/select-browserbase-region
         with:
-          node-version: "20"
-
-      - name: Enable Corepack
-        if: needs.determine-evals.outputs.run-observe == 'true'
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        if: needs.determine-evals.outputs.run-observe == 'true'
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        if: needs.determine-evals.outputs.run-observe == 'true'
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        if: needs.determine-evals.outputs.run-observe == 'true'
-        run: pnpm install --frozen-lockfile
-
-      - name: Download build artifacts
-        if: needs.determine-evals.outputs.run-observe == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
+          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
       - name: Run Observe Evals
         if: needs.determine-evals.outputs.run-observe == 'true'
@@ -728,8 +1060,35 @@ jobs:
             exit 1
           fi
 
+      - uses: ./.github/actions/write-evals-ctrf
+        if: always() && needs.determine-evals.outputs.run-observe == 'true'
+        with:
+          category: observe
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always() && needs.determine-evals.outputs.run-observe == 'true'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always() && needs.determine-evals.outputs.run-observe == 'true'
+        with:
+          name: coverage-v8-evals-observe
+
   run-targeted-extract-evals:
-    needs: [run-regression-evals, run-build, determine-evals]
+    name: evals/targeted-extract
+    needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
+    if: >-
+      ${{
+        always() &&
+        needs.run-build.result == 'success' &&
+        needs.determine-evals.result == 'success' &&
+        needs.run-e2e-bb-tests.result != 'failure' &&
+        needs.run-e2e-bb-tests.result != 'cancelled' &&
+        needs.run-regression-evals.result != 'failure' &&
+        needs.run-regression-evals.result != 'cancelled' &&
+        needs.determine-evals.outputs.skip-all-evals != 'true'
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -740,7 +1099,7 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      EVAL_ENV: browserbase
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/targeted-extract
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -755,41 +1114,14 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set up Node.js
+      - uses: ./.github/actions/setup-node-pnpm-turbo
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        uses: actions/setup-node@v4
+
+      - name: Select Browserbase region
+        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
+        uses: ./.github/actions/select-browserbase-region
         with:
-          node-version: "20"
-
-      - name: Enable Corepack
-        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        run: pnpm install --frozen-lockfile
-
-      - name: Download build artifacts
-        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
+          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
       - name: Run targeted extract Evals
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
@@ -812,8 +1144,35 @@ jobs:
             exit 1
           fi
 
+      - uses: ./.github/actions/write-evals-ctrf
+        if: always() && needs.determine-evals.outputs.run-targeted-extract == 'true'
+        with:
+          category: targeted_extract
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always() && needs.determine-evals.outputs.run-targeted-extract == 'true'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always() && needs.determine-evals.outputs.run-targeted-extract == 'true'
+        with:
+          name: coverage-v8-evals-targeted-extract
+
   run-agent-evals:
-    needs: [run-regression-evals, run-build, determine-evals]
+    name: evals/agent
+    needs: [run-build, determine-evals, run-e2e-bb-tests, run-regression-evals]
+    if: >-
+      ${{
+        always() &&
+        needs.run-build.result == 'success' &&
+        needs.determine-evals.result == 'success' &&
+        needs.run-e2e-bb-tests.result != 'failure' &&
+        needs.run-e2e-bb-tests.result != 'cancelled' &&
+        needs.run-regression-evals.result != 'failure' &&
+        needs.run-regression-evals.result != 'cancelled' &&
+        needs.determine-evals.outputs.skip-all-evals != 'true'
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 90 # Agent evals can be long-running
     env:
@@ -824,11 +1183,7 @@ jobs:
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-      EVAL_ENV: browserbase
-      # Use agent models for agent evals in CI
-      EVAL_AGENT_MODELS: "computer-use-preview-2025-03-11,claude-3-7-sonnet-latest"
-      EVAL_TRIAL_COUNT: 2 # Reduce trials for agent evals
-      EVAL_MAX_CONCURRENCY: 10 # Lower concurrency for agent evals
+      NODE_V8_COVERAGE: ${{ github.workspace }}/coverage/v8/evals/agent
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -843,45 +1198,18 @@ jobs:
             echo "has_label=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set up Node.js
+      - uses: ./.github/actions/setup-node-pnpm-turbo
         if: needs.determine-evals.outputs.run-agent == 'true'
-        uses: actions/setup-node@v4
+
+      - name: Select Browserbase region
+        if: needs.determine-evals.outputs.run-agent == 'true'
+        uses: ./.github/actions/select-browserbase-region
         with:
-          node-version: "20"
-
-      - name: Enable Corepack
-        if: needs.determine-evals.outputs.run-agent == 'true'
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        if: needs.determine-evals.outputs.run-agent == 'true'
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        if: needs.determine-evals.outputs.run-agent == 'true'
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        if: needs.determine-evals.outputs.run-agent == 'true'
-        run: pnpm install --frozen-lockfile
-
-      - name: Download build artifacts
-        if: needs.determine-evals.outputs.run-agent == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
+          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
       - name: Run Agent Evals
         if: needs.determine-evals.outputs.run-agent == 'true'
-        run: pnpm run evals category agent
+        run: pnpm run evals category agent trials=${EVAL_AGENT_TRIAL_COUNT} concurrency=${EVAL_AGENT_MAX_CONCURRENCY}
 
       - name: Log Agent Evals Performance
         if: needs.determine-evals.outputs.run-agent == 'true'
@@ -900,3 +1228,247 @@ jobs:
             echo "Eval summary not found for agent category. Failing CI."
             exit 1
           fi
+
+      - uses: ./.github/actions/write-evals-ctrf
+        if: always() && needs.determine-evals.outputs.run-agent == 'true'
+        with:
+          category: agent
+
+      - uses: ./.github/actions/publish-ctrf-report
+        if: always() && needs.determine-evals.outputs.run-agent == 'true'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always() && needs.determine-evals.outputs.run-agent == 'true'
+        with:
+          name: coverage-v8-evals-agent
+
+  merge-coverage:
+    name: Code Coverage Report
+    runs-on: ubuntu-latest
+    needs:
+      - core-unit-tests
+      - run-e2e-local-tests
+      - run-e2e-bb-tests
+      - run-regression-evals
+      - run-combination-evals
+      - run-act-evals
+      - run-extract-evals
+      - run-observe-evals
+      - run-targeted-extract-evals
+      - run-agent-evals
+      - server-unit-tests
+      - server-integration-tests
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+
+      - name: Download V8 coverage artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: coverage-v8-*
+          path: coverage/v8
+          merge-multiple: true
+
+      - name: Download CTRF artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: ctrf-*
+          path: ctrf
+          merge-multiple: true
+
+      - name: Generate merged coverage report
+        run: |
+          if [ ! -d coverage/v8 ] || [ -z "$(find coverage/v8 -type f -name '*.json' -print -quit)" ]; then
+            echo "No V8 coverage files found."
+            exit 0
+          fi
+          set -euo pipefail
+          mkdir -p coverage/merged
+          pnpm exec c8 report \
+            --temp-directory coverage/v8 \
+            --merge-async \
+            --reporter=html \
+            --reporter=lcov \
+            --reporter=json \
+            --reporter=text-summary \
+            --reports-dir coverage/merged \
+            --cwd "$GITHUB_WORKSPACE" \
+            --include "packages/**" \
+            --exclude "**/node_modules/**" \
+            --exclude "packages/**/test/**" \
+            --exclude "packages/**/tests/**" \
+            --exclude "packages/**/lib/**/tests/**" \
+            --exclude "**/*.d.ts" \
+            | tee coverage/merged/coverage-summary.txt
+
+      - name: Upload merged coverage report
+        if: always()
+        id: upload-coverage-artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-merged
+          path: coverage/merged
+
+      - name: Add coverage summary to job summary
+        if: always()
+        shell: bash
+        run: |
+          echo "### Code Coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f coverage/merged/coverage-summary.txt ]; then
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            cat coverage/merged/coverage-summary.txt >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Coverage summary not available." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -n "${{ steps.upload-coverage-artifact.outputs.artifact-url }}" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "[Download full HTML coverage report](${{ steps.upload-coverage-artifact.outputs.artifact-url }})" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f coverage/merged/coverage-final.json ]; then
+            node - <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          const fs = require("node:fs");
+          const path = require("node:path");
+
+          const coveragePath = path.join("coverage", "merged", "coverage-final.json");
+          const data = JSON.parse(fs.readFileSync(coveragePath, "utf8"));
+          const root = process.cwd();
+          const rootPrefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
+          const groups = new Map();
+
+          for (const [file, cov] of Object.entries(data)) {
+            let rel = file.startsWith(rootPrefix) ? file.slice(rootPrefix.length) : file;
+            if (!rel.startsWith(`packages${path.sep}`)) continue;
+            const parts = rel.split(path.sep);
+            if (parts.length < 2) continue;
+            const group =
+              parts.length >= 3
+                ? `packages/${parts[1]}/${parts[2]}`
+                : `packages/${parts[1]}/(root)`;
+            const lineMap = cov.l ?? {};
+            const lineKeys = Object.keys(lineMap);
+            if (lineKeys.length === 0) continue;
+            let covered = 0;
+            for (const count of Object.values(lineMap)) {
+              if (count > 0) covered += 1;
+            }
+            const agg = groups.get(group) ?? { covered: 0, total: 0 };
+            agg.covered += covered;
+            agg.total += lineKeys.length;
+            groups.set(group, agg);
+          }
+
+          const rows = Array.from(groups.entries())
+            .map(([group, stats]) => {
+              const pct = stats.total ? (stats.covered / stats.total) * 100 : 0;
+              return { group, covered: stats.covered, total: stats.total, pct };
+            })
+            .sort((a, b) => a.group.localeCompare(b.group));
+
+          console.log("");
+          console.log("### Coverage by folder (packages/*/*)");
+          console.log("");
+          if (rows.length === 0) {
+            console.log("No package coverage data found.");
+            process.exit(0);
+          }
+          console.log("| Folder | Lines | % |");
+          console.log("| --- | ---: | ---: |");
+          for (const row of rows) {
+            const pct = `${row.pct.toFixed(1)}%`;
+            console.log(`| ${row.group} | ${row.covered}/${row.total} | ${pct} |`);
+          }
+          NODE
+          fi
+
+      - name: Publish merged CTRF report
+        if: always()
+        uses: ctrf-io/github-test-reporter@v1
+        with:
+          report-path: './ctrf/**/*.json'
+          summary: true
+          summary-report: false
+          summary-delta-report: true
+          test-report: false
+          failed-report: false
+          insights-report: true
+          flaky-rate-report: true
+          fail-rate-report: true
+          slowest-report: true
+          previous-results-report: true
+          fetch-previous-results: true
+          baseline: 1
+          previous-results-max: 1
+          max-workflow-runs-to-check: 5
+          max-previous-runs-to-fetch: 1
+          upload-artifact: true
+          artifact-name: ctrf-report-merged
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute coverage status metrics
+        if: always()
+        id: coverage-status
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          tests_failed=0
+          ctrf_files=(ctrf/**/*.json)
+          if [ "${#ctrf_files[@]}" -gt 0 ]; then
+            tests_failed=$(jq -s '[.[].results.summary.failed // 0] | add' "${ctrf_files[@]}")
+          fi
+          total_coverage=0
+          if [ -f coverage/merged/coverage-summary.txt ]; then
+            total_coverage=$(awk '/^Lines/ {gsub(/%/,"",$3); print $3}' coverage/merged/coverage-summary.txt)
+          fi
+          echo "tests_failed=${tests_failed}" >> "$GITHUB_OUTPUT"
+          echo "total_coverage=${total_coverage}" >> "$GITHUB_OUTPUT"
+
+      - name: Set coverage status
+        if: always()
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.run_id }}
+          PULL_NUMBER: ${{ github.event.pull_request.number }}
+          TESTS_FAILED: ${{ steps.coverage-status.outputs.tests_failed }}
+          TOTAL_COVERAGE: ${{ steps.coverage-status.outputs.total_coverage }}
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY}"
+          sha="${GITHUB_SHA}"
+          tests_failed="${TESTS_FAILED:-0}"
+          total_coverage="${TOTAL_COVERAGE:-0}"
+          if [ "${tests_failed}" = "0" ]; then
+            state="success"
+          else
+            state="failure"
+          fi
+          if [ -n "${PULL_NUMBER:-}" ]; then
+            target_url="https://github.com/${repo}/pull/${PULL_NUMBER}/checks?check_run_id=${RUN_ID}"
+          else
+            target_url="https://github.com/${repo}/actions/runs/${RUN_ID}"
+          fi
+          description="${tests_failed} tests failed. ${total_coverage}% coverage"
+          payload=$(jq -n \
+            --arg state "$state" \
+            --arg target_url "$target_url" \
+            --arg description "$description" \
+            --arg context "Measured coverage" \
+            '{state: $state, target_url: $target_url, description: $description, context: $context}')
+          curl -sSfL -X POST \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${repo}/statuses/${sha}" \
+            -d "$payload"

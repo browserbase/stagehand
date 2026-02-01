@@ -83,11 +83,13 @@ export interface SessionInfo {
   cdpUrl: string;
 }
 
-const LOCAL_BROWSER_BODY = {
+export const LOCAL_BROWSER_BODY = {
   browser: {
     type: "local",
     launchOptions: {
       headless: true,
+      executablePath: process.env.CHROME_PATH ?? chromium.executablePath(),
+      args: process.env.CI ? ["--no-sandbox"] : undefined,
     },
   },
 };

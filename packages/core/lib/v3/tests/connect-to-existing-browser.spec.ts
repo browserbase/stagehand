@@ -1,14 +1,15 @@
 import { test, expect } from "@playwright/test";
 import { V3 } from "../v3";
 import { v3BBTestConfig } from "./v3.bb.config";
+import { closeV3 } from "./testUtils";
 
 const PAGE_TARGET_COUNT = 5;
 
 test.describe("connect to existing Browserbase session", () => {
   test("new Stagehand instance reuses an existing Browserbase session", async () => {
     test.skip(
-      process.env.TEST_ENV !== "BROWSERBASE",
-      "Requires TEST_ENV=BROWSERBASE",
+      process.env.STAGEHAND_ENV !== "BROWSERBASE",
+      "Requires STAGEHAND_ENV=BROWSERBASE",
     );
     test.skip(
       !process.env.BROWSERBASE_API_KEY || !process.env.BROWSERBASE_PROJECT_ID,
@@ -61,8 +62,8 @@ test.describe("connect to existing Browserbase session", () => {
       const resumedPagesCount = resumedStagehand.context.pages().length;
       expect(resumedPagesCount).toBe(PAGE_TARGET_COUNT);
     } finally {
-      await resumedStagehand?.close().catch(() => {});
-      await initialStagehand.close().catch(() => {});
+      await closeV3(resumedStagehand);
+      await closeV3(initialStagehand);
     }
   });
 });

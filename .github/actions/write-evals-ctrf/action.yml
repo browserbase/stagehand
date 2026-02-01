@@ -1,0 +1,78 @@
+name: Write evals CTRF report
+description: Generate a CTRF report from eval-summary.json.
+inputs:
+  summary-path:
+    description: Path to the eval summary JSON.
+    required: false
+    default: "eval-summary.json"
+  category:
+    description: Evals category name.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Write CTRF report
+      shell: bash
+      run: |
+        timestamp=$(date -u +"%Y-%m-%dT%H:%M:%S.%3NZ")
+        output_path="ctrf/evals-${{ inputs.category }}.json"
+        if [ -f "${{ inputs.summary-path }}" ]; then
+          jq --arg timestamp "$timestamp" --arg category "${{ inputs.category }}" '
+            def toTests(arr; status):
+              arr | map({
+                name: ("evals/" + .eval + " [" + .model + "]"),
+                status: status,
+                duration: 0,
+                suite: (["evals", $category] + (.categories // []))
+              });
+            {
+              reportFormat: "CTRF",
+              specVersion: "0.0.0",
+              generatedBy: "stagehand-evals",
+              timestamp: $timestamp,
+              results: {
+                tool: { name: "evals" },
+                summary: {
+                  tests: ((.passed | length) + (.failed | length)),
+                  passed: (.passed | length),
+                  failed: (.failed | length),
+                  skipped: 0,
+                  pending: 0,
+                  other: 0,
+                  start: 0,
+                  stop: 0
+                },
+                tests: (toTests(.passed; "passed") + toTests(.failed; "failed"))
+              }
+            }' "${{ inputs.summary-path }}" > "$output_path"
+        else
+          jq -n --arg timestamp "$timestamp" --arg category "${{ inputs.category }}" '
+            {
+              reportFormat: "CTRF",
+              specVersion: "0.0.0",
+              generatedBy: "stagehand-evals",
+              timestamp: $timestamp,
+              results: {
+                tool: { name: "evals" },
+                summary: {
+                  tests: 1,
+                  passed: 0,
+                  failed: 1,
+                  skipped: 0,
+                  pending: 0,
+                  other: 0,
+                  start: 0,
+                  stop: 0
+                },
+                tests: [
+                  {
+                    name: ("evals/" + $category + " summary missing"),
+                    status: "failed",
+                    duration: 0,
+                    suite: ["evals", $category]
+                  }
+                ]
+              }
+            }' > "$output_path"
+        fi

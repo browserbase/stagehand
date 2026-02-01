@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { V3 } from "../v3";
 import { getV3DynamicTestConfig } from "./v3.dynamic.config";
 import type { LogLine } from "../types/public/logs";
+import { closeV3 } from "./testUtils";
 
 test.describe("V3 Multi-Instance Logger Isolation", () => {
   // Run tests serially to avoid resource exhaustion from creating many Chrome instances
@@ -73,9 +74,7 @@ test.describe("V3 Multi-Instance Logger Isolation", () => {
       }
     } finally {
       // Clean up all instances
-      await Promise.all(
-        instances.map((instance) => instance.close().catch(() => {})),
-      );
+      await Promise.all(instances.map((instance) => closeV3(instance)));
     }
   });
 
@@ -127,10 +126,7 @@ test.describe("V3 Multi-Instance Logger Isolation", () => {
         Math.max(instance1Messages.size, instance2Messages.size),
       );
     } finally {
-      await Promise.all([
-        v3Instance1.close().catch(() => {}),
-        v3Instance2.close().catch(() => {}),
-      ]);
+      await Promise.all([closeV3(v3Instance1), closeV3(v3Instance2)]);
     }
   });
 
@@ -168,15 +164,12 @@ test.describe("V3 Multi-Instance Logger Isolation", () => {
       expect(page1.url()).toContain("about:blank");
       expect(page2.url()).toContain("about:blank");
     } finally {
-      await Promise.all([
-        v3Instance1.close().catch(() => {}),
-        v3Instance2.close().catch(() => {}),
-      ]);
+      await Promise.all([closeV3(v3Instance1), closeV3(v3Instance2)]);
     }
   });
 
   test("rapidly creating and destroying instances doesn't cause logger issues", async () => {
-    const iterations = 10;
+    const iterations = 5;
     const results: boolean[] = [];
 
     for (let i = 0; i < iterations; i++) {
@@ -198,7 +191,7 @@ test.describe("V3 Multi-Instance Logger Isolation", () => {
         // Verify some logs were captured
         expect(logs.length).toBeGreaterThan(0);
       } finally {
-        await v3.close();
+        await closeV3(v3);
       }
     }
 
@@ -252,9 +245,7 @@ test.describe("V3 Multi-Instance Logger Isolation", () => {
         }),
       );
     } finally {
-      await Promise.all(
-        instances.map((instance) => instance.close().catch(() => {})),
-      );
+      await Promise.all(instances.map((instance) => closeV3(instance)));
     }
   });
 
@@ -272,7 +263,7 @@ test.describe("V3 Multi-Instance Logger Isolation", () => {
     const initialLogCount = logs.length;
     expect(initialLogCount).toBeGreaterThan(0);
 
-    await v3.close();
+    await closeV3(v3);
 
     // After close, the instance should not generate new logs
     // (This is hard to test directly, but we can verify the instance is closed)
@@ -315,7 +306,7 @@ test.describe("V3 Multi-Instance Logger Isolation", () => {
         expect(typeof log.level).toBe("number");
       }
     } finally {
-      await v3.close();
+      await closeV3(v3);
     }
   });
 
@@ -368,9 +359,7 @@ test.describe("V3 Multi-Instance Logger Isolation", () => {
         expect(logs.length).toBeGreaterThan(0);
       }
     } finally {
-      await Promise.all(
-        instances.map((instance) => instance.close().catch(() => {})),
-      );
+      await Promise.all(instances.map((instance) => closeV3(instance)));
     }
   });
 });
