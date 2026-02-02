@@ -127,7 +127,10 @@ interface ToolResultPart {
  * Check if output has type "content" (array-based value format).
  * Only outputs with type "content" should have array values.
  */
-function isContentTypeOutput(output: { type: string; value?: unknown }): boolean {
+function isContentTypeOutput(output: {
+  type: string;
+  value?: unknown;
+}): boolean {
   return output.type === "content";
 }
 
