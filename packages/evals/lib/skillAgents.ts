@@ -9,6 +9,10 @@ import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
 import dotenv from "dotenv";
+import {
+  BrowserbaseScreenshotCapture,
+  type ScreenshotCaptureOptions,
+} from "./BrowserbaseScreenshotCapture";
 
 // Load .env from the evals package directory
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
@@ -23,7 +27,6 @@ if (!process.env.BROWSERBASE_PROJECT_ID) {
 
 const HOME = os.homedir();
 const SKILLS_DIR = path.join(HOME, "Documents/Browserbase/.agents/skills");
-const EVALS_SCRIPTS_DIR = path.resolve(__dirname, "../scripts");
 
 // Base interface for all skill configs
 interface BaseSkillConfig {
@@ -40,12 +43,13 @@ export interface CliSkillConfig extends BaseSkillConfig {
   allowedTools: string[];
 }
 
-// MCP-based skill config (uses MCP server directly)
+// MCP-based skill config (uses MCP server directly via Agent SDK)
 export interface McpSkillConfig extends BaseSkillConfig {
   type: "mcp";
-  mcpServerCommand: string;
-  mcpServerArgs?: string[];
-  mcpServerEnv?: Record<string, string>;
+  // MCP package to run via npx (e.g., "@playwright/mcp@latest")
+  mcpPackage: string;
+  // Argument name for CDP/WebSocket endpoint (e.g., "--cdp-endpoint" or "--wsEndpoint")
+  cdpArgName: string;
 }
 
 export type SkillAgentConfig = CliSkillConfig | McpSkillConfig;
@@ -54,6 +58,7 @@ export interface SkillAgentResult {
   success: boolean;
   error?: string;
   agentMessages: any[];
+  screenshots: Buffer[];
   metrics: {
     turns: number;
     costUsd: number;
@@ -167,7 +172,7 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
     cwd: path.join(SKILLS_DIR, "agent-browser"),
     allowedTools: ["Bash", "Read", "Glob"],
     model: "claude-sonnet-4-5-20250929",
-    useBrowserbase: false, // Uses local Playwright
+    useBrowserbase: true,
   },
 
   "browse": {
@@ -177,7 +182,7 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
     cwd: path.join(SKILLS_DIR, "browse"),
     allowedTools: ["Bash", "Read", "Glob"],
     model: "claude-sonnet-4-5-20250929",
-    useBrowserbase: false, // Browse CLI is designed for Browserbase
+    useBrowserbase: true,
   },
 
   "dev-browser": {
@@ -187,7 +192,7 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
     cwd: path.join(SKILLS_DIR, "dev-browser"),
     allowedTools: ["Bash", "Read", "Glob"],
     model: "claude-sonnet-4-5-20250929",
-    useBrowserbase: false,
+    useBrowserbase: true,
   },
 
   "playwriter": {
@@ -197,18 +202,18 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
     cwd: path.join(SKILLS_DIR, "playwriter"),
     allowedTools: ["Bash", "Read", "Glob"],
     model: "claude-sonnet-4-5-20250929",
-    useBrowserbase: false,
+    useBrowserbase: true,
   },
 
-  // MCP-based skills (use MCP servers directly)
+  // MCP-based skills (use MCP servers directly via Agent SDK)
   "playwright-mcp": {
     type: "mcp",
     name: "playwright-mcp",
     description: "Browser automation using Playwright MCP server with Browserbase",
     model: "claude-sonnet-4-5-20250929",
     useBrowserbase: true,
-    mcpServerCommand: "node",
-    mcpServerArgs: [path.join(EVALS_SCRIPTS_DIR, "playwright-browserbase-wrapper-v2.mjs")],
+    mcpPackage: "@playwright/mcp@latest",
+    cdpArgName: "--cdp-endpoint",
   },
 
   "chrome-devtools-mcp": {
@@ -217,8 +222,8 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
     description: "Browser automation using Chrome DevTools MCP server with Browserbase",
     model: "claude-sonnet-4-5-20250929",
     useBrowserbase: true,
-    mcpServerCommand: "node",
-    mcpServerArgs: [path.join(EVALS_SCRIPTS_DIR, "chrome-devtools-browserbase-wrapper-v2.mjs")],
+    mcpPackage: "chrome-devtools-mcp@latest",
+    cdpArgName: "--wsEndpoint",
   },
 };
 
@@ -240,6 +245,7 @@ export async function runSkillAgent(
       success: false,
       error: `Unknown skill: ${skillName}`,
       agentMessages: [],
+      screenshots: [],
       metrics: { turns: 0, costUsd: 0, durationMs: 0, inputTokens: 0, outputTokens: 0 },
     };
   }
@@ -250,6 +256,7 @@ export async function runSkillAgent(
       success: false,
       error: `Skill directory does not exist: ${config.cwd}`,
       agentMessages: [],
+      screenshots: [],
       metrics: { turns: 0, costUsd: 0, durationMs: 0, inputTokens: 0, outputTokens: 0 },
     };
   }
@@ -258,6 +265,7 @@ export async function runSkillAgent(
   const startTime = Date.now();
   const agentMessages: any[] = [];
   let browserbaseSession: BrowserbaseSession | null = null;
+  let screenshotCapture: BrowserbaseScreenshotCapture | null = null;
 
   // Create Browserbase session if needed
   if (config.useBrowserbase) {
@@ -268,9 +276,13 @@ export async function runSkillAgent(
         success: false,
         error: `Failed to create Browserbase session: ${error}`,
         agentMessages: [],
+        screenshots: [],
         metrics: { turns: 0, costUsd: 0, durationMs: 0, inputTokens: 0, outputTokens: 0 },
       };
     }
+
+    // Note: Screenshot capture will be started after MCP server connects
+    // to avoid CDP connection conflicts
   }
 
   // Build the prompt with optional start URL
@@ -304,24 +316,13 @@ export async function runSkillAgent(
   let queryOptions: any;
 
   if (config.type === "mcp") {
-    // MCP-based skill: configure MCP server
+    // MCP-based skill: configure MCP server directly via Agent SDK
+    // The Agent SDK handles spawning the MCP process and stdio forwarding
     const mcpServerName = config.name;
-    const mcpEnv: Record<string, string> = {
-      ...env,
-      ...(config.mcpServerEnv || {}),
-    };
 
-    // Add path to playwright-mcp CLI if needed
-    if (skillName === "playwright-mcp") {
-      // Try to find playwright-mcp in common locations
-      const playwrightMcpPath = path.join(
-        HOME,
-        "Documents/Browserbase/playwright-mcp/dist/cli.js"
-      );
-      if (fs.existsSync(playwrightMcpPath)) {
-        mcpEnv.PLAYWRIGHT_MCP_CLI_PATH = playwrightMcpPath;
-      }
-    }
+    const browserContext = browserbaseSession
+      ? "The browser is already connected to a cloud session - you don't need to launch or connect to a browser."
+      : "The MCP server will launch a local browser for you.";
 
     const systemPrompt = `You are a browser automation agent with access to MCP (Model Context Protocol) tools for browser control.
 
@@ -329,13 +330,26 @@ You have access to browser automation tools provided by the "${mcpServerName}" M
 
 IMPORTANT:
 - You do NOT have access to WebFetch, WebSearch, or any other web tools. Do not attempt to use them.
-- Use the MCP tools (prefixed with mcp__${mcpServerName.replace(/-/g, "_")}__) to interact with the browser.
-- The browser is already connected to a cloud session - you don't need to launch or connect to a browser.
-- Start by navigating to the target URL, then complete the task step by step.`;
+- Use the MCP tools (prefixed with mcp__${mcpServerName}__) to interact with the browser.
+- ${browserContext}
+- Start by navigating to the target URL, then complete the task step by step.
+
+If you face issues connecting to a site it is most likely anti-bot protection, try reload once or max twice and exit if you're still unable to load the page.
+Avoid overusing the navigate tools (navigate to the url), for all sites you will receive a starting url from which the task can be completed entirely. `;
+
+    // Configure MCP server args
+    // If Browserbase session exists, pass CDP endpoint; otherwise let MCP launch its own browser
+    const mcpArgs = browserbaseSession
+      ? ["-y", config.mcpPackage, config.cdpArgName, browserbaseSession.connectUrl]
+      : ["-y", config.mcpPackage];
+
+    // MCP tool prefix: mcp__<server_name>__
+    const mcpToolPrefix = `mcp__${mcpServerName}__`;
 
     queryOptions = {
       model: config.model as AvailableModel,
-      disallowedTools: ["WebFetch", "WebSearch", "Task"],
+      disallowedTools: ["WebFetch", "WebSearch"],
+      allowedTools: [`${mcpToolPrefix}*`],
       systemPrompt,
       env,
       maxTurns: options?.maxTurns ?? 20,
@@ -344,15 +358,15 @@ IMPORTANT:
       mcpServers: {
         [mcpServerName]: {
           type: "stdio" as const,
-          command: config.mcpServerCommand,
-          args: config.mcpServerArgs || [],
-          env: mcpEnv,
+          command: "npx",
+          args: mcpArgs,
+          env,
         },
       },
     };
 
     console.log(`[${skillName}] MCP server: ${mcpServerName}`);
-    console.log(`[${skillName}] MCP command: ${config.mcpServerCommand} ${(config.mcpServerArgs || []).join(" ")}`);
+    console.log(`[${skillName}] MCP command: npx ${mcpArgs.join(" ")}`);
   } else {
     // CLI-based skill: use Bash commands
     let systemPrompt = `You are a browser automation agent. You ONLY have access to Bash, Read, and Glob tools.
@@ -365,7 +379,10 @@ Read the SKILL.md file in your current directory to learn how to use the browser
 Your workflow should be:
 1. First, read the SKILL.md file to understand the available commands
 2. Use Bash to run browser automation commands (like opening URLs, taking snapshots, clicking elements)
-3. Complete the task using only Bash commands`;
+3. Complete the task using only Bash commands
+
+      IMPORTANT: If you face issues connecting to a site it is most likely anti-bot protection, try reload once or max twice and exit if you're still unable to load the page.
+      Avoid overusing the navigate tools (navigate to the url), for all sites you will receive a starting url from which the task can be completed entirely. `;
 
     // Add skill-specific instruction to connect to Browserbase session if one was created
     if (browserbaseSession) {
@@ -379,9 +396,10 @@ After connecting, run your browser automation commands normally.`;
           break;
 
         case "dev-browser":
-          connectionInstructions = `Connect to the cloud browser using the CDP URL:
-  Environment variable BROWSERBASE_CONNECT_URL is set to the WebSocket URL.
-  Use this URL to connect via CDP.`;
+          connectionInstructions = `A cloud browser session is available via BROWSERBASE_CONNECT_URL environment variable.
+When you start the dev-browser server, it will automatically connect to the cloud browser.
+Just run: ./skills/dev-browser/server.sh &
+The server will detect the BROWSERBASE_CONNECT_URL and connect to it instead of launching a local browser.`;
           break;
 
         case "playwriter":
@@ -421,6 +439,9 @@ ${connectionInstructions}`;
     let outputTokens = 0;
     let isError = false;
 
+    // Track if screenshot capture has been started (delayed until MCP connects)
+    let screenshotCaptureStarted = false;
+
     for await (const message of query({
       prompt,
       options: queryOptions,
@@ -439,6 +460,31 @@ ${connectionInstructions}`;
               console.log(`[${skillName}] Assistant: ${block.text.substring(0, 200)}...`);
             } else if (block.type === "tool_use") {
               console.log(`[${skillName}] Tool: ${block.name} - ${JSON.stringify(block.input).substring(0, 150)}`);
+
+              // Start screenshot capture after first tool use (MCP has connected)
+              if (!screenshotCaptureStarted && browserbaseSession && !screenshotCapture) {
+                screenshotCaptureStarted = true;
+                const screenshotOptions: ScreenshotCaptureOptions = {
+                  maxScreenshots: 8,
+                  intervalMs: 3000,
+                  captureOnNavigation: true,
+                  scrollThreshold: 400,
+                };
+                try {
+                  screenshotCapture = new BrowserbaseScreenshotCapture(
+                    browserbaseSession.connectUrl,
+                    screenshotOptions
+                  );
+                  // Don't await - let it start in background
+                  screenshotCapture.start().then(() => {
+                    console.log(`[${skillName}] Screenshot capture started (delayed)`);
+                  }).catch((err) => {
+                    console.warn(`[${skillName}] Failed to start screenshot capture:`, err);
+                  });
+                } catch (error) {
+                  console.warn(`[${skillName}] Failed to create screenshot capture:`, error);
+                }
+              }
             }
           }
         }
@@ -469,14 +515,22 @@ ${connectionInstructions}`;
 
     const durationMs = Date.now() - startTime;
 
-    // Cleanup Browserbase session
-    if (browserbaseSession) {
-      await closeBrowserbaseSession(browserbaseSession.id);
+    // Stop screenshot capture and get screenshots
+    let screenshots: Buffer[] = [];
+    if (screenshotCapture) {
+      try {
+        screenshots = await screenshotCapture.stop();
+      } catch (error) {
+        console.warn(`[${skillName}] Failed to stop screenshot capture:`, error);
+      }
     }
+
+    console.log(`[${skillName}] Collected ${screenshots.length} screenshots for evaluation`);
 
     return {
       success: !isError,
       agentMessages,
+      screenshots,
       metrics: {
         turns,
         costUsd,
@@ -491,15 +545,21 @@ ${connectionInstructions}`;
     const durationMs = Date.now() - startTime;
     console.error(`[${skillName}] Error:`, error);
 
-    // Cleanup Browserbase session on error
-    if (browserbaseSession) {
-      await closeBrowserbaseSession(browserbaseSession.id);
+    // Stop screenshot capture and get screenshots even on error
+    let screenshots: Buffer[] = [];
+    if (screenshotCapture) {
+      try {
+        screenshots = await screenshotCapture.stop();
+      } catch {
+        // Ignore stop errors
+      }
     }
 
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
       agentMessages,
+      screenshots,
       metrics: {
         turns: 0,
         costUsd: 0,
@@ -510,6 +570,11 @@ ${connectionInstructions}`;
       browserbaseSessionUrl: browserbaseSession ? `https://www.browserbase.com/sessions/${browserbaseSession.id}` : undefined,
       browserbaseDebugUrl: browserbaseSession?.debugUrl,
     };
+  } finally {
+    // Clean up Browserbase session
+    if (browserbaseSession) {
+      await closeBrowserbaseSession(browserbaseSession.id);
+    }
   }
 }
 

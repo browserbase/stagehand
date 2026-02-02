@@ -7,7 +7,6 @@
  *
  * Environment variables:
  *   BROWSERBASE_CONNECT_URL      - Required (wss:// URL from pre-created session)
- *   CHROME_DEVTOOLS_MCP_PATH     - Path to chrome-devtools-mcp (optional, defaults to npx)
  *   BROWSERBASE_SESSION_ID       - Optional (for logging)
  *   BROWSERBASE_DEBUG_URL        - Optional (for logging)
  */
@@ -31,15 +30,12 @@ if (process.env.BROWSERBASE_DEBUG_URL) {
   console.error(`[chrome-devtools-wrapper] Debug URL: ${process.env.BROWSERBASE_DEBUG_URL}`);
 }
 
-// Determine command to use
-const mcpCommand = process.env.CHROME_DEVTOOLS_MCP_PATH
-  ? ['node', process.env.CHROME_DEVTOOLS_MCP_PATH]
-  : ['npx', '@modelcontextprotocol/server-chrome-devtools'];
+// Use npx to run chrome-devtools-mcp (the official package from Google)
+console.error(`[chrome-devtools-wrapper] Launching chrome-devtools-mcp via npx chrome-devtools-mcp@latest`);
+console.error(`[chrome-devtools-wrapper] WebSocket endpoint: ${BROWSERBASE_CONNECT_URL}`);
 
-console.error(`[chrome-devtools-wrapper] Launching chrome-devtools-mcp: ${mcpCommand.join(' ')}`);
-
-// Launch chrome-devtools-mcp with CDP URL pointing to pre-created session
-const chromeDevToolsMcp = spawn(mcpCommand[0], [...mcpCommand.slice(1), '--wsEndpoint', BROWSERBASE_CONNECT_URL], {
+// Launch chrome-devtools-mcp with WebSocket endpoint pointing to pre-created session
+const chromeDevToolsMcp = spawn('npx', ['-y', 'chrome-devtools-mcp@latest', '--wsEndpoint', BROWSERBASE_CONNECT_URL], {
   env: {
     ...process.env,
   },

@@ -1,8 +1,40 @@
 import { EvalFunction } from "../../types/evals";
 import { runSkillAgent, SKILL_CONFIGS, getAvailableSkills } from "../../lib/skillAgents";
+import { SkillsEvaluator } from "../../lib/SkillsEvaluator";
 import dotenv from "dotenv";
 
 dotenv.config();
+
+/**
+ * Extract agent reasoning from the agent messages.
+ * Looks for the final assistant message and extracts text content.
+ */
+function extractAgentReasoning(agentMessages: any[]): string {
+  const reasoningParts: string[] = [];
+
+  for (const msg of agentMessages) {
+    if (msg.type === "assistant") {
+      const content = msg.message?.content;
+      if (content) {
+        for (const block of content) {
+          if (block.type === "text") {
+            reasoningParts.push(block.text);
+          } else if (block.type === "tool_use") {
+            reasoningParts.push(`[Tool: ${block.name}] ${JSON.stringify(block.input).substring(0, 200)}`);
+          }
+        }
+      }
+    }
+  }
+
+  // Return last N characters to keep context manageable
+  const fullReasoning = reasoningParts.join("\n");
+  const maxLength = 4000;
+  if (fullReasoning.length > maxLength) {
+    return "..." + fullReasoning.slice(-maxLength);
+  }
+  return fullReasoning;
+}
 
 export const onlineMind2Web_skills_comparison: EvalFunction = async ({
   logger,
@@ -14,6 +46,8 @@ export const onlineMind2Web_skills_comparison: EvalFunction = async ({
     skill: string;
     task: string;
     website: string;
+    task_id?: string;
+    difficulty?: string;
   };
   const { skill, task, website } = params;
 
@@ -77,16 +111,72 @@ export const onlineMind2Web_skills_comparison: EvalFunction = async ({
       success: { value: result.success.toString(), type: "string" },
       costUsd: { value: result.metrics.costUsd.toFixed(4), type: "string" },
       turns: { value: result.metrics.turns.toString(), type: "integer" },
+      screenshotCount: { value: result.screenshots.length.toString(), type: "integer" },
     },
   });
 
+  // If we have screenshots, use the LLM evaluator for more accurate assessment
+  let evaluationResult: { evaluation: string; reasoning: string } | null = null;
+
+  if (result.screenshots.length > 0) {
+    try {
+      const evaluator = new SkillsEvaluator();
+      const agentReasoning = extractAgentReasoning(result.agentMessages);
+
+      logger.log({
+        message: `Evaluating task completion with ${result.screenshots.length} screenshots`,
+        level: 1,
+      });
+
+      evaluationResult = await evaluator.evaluateWithMultipleScreenshots({
+        question: `Did the agent successfully complete this task: "${task}"?`,
+        screenshots: result.screenshots,
+        agentReasoning,
+      });
+
+      logger.log({
+        message: `Evaluation result: ${evaluationResult.evaluation}`,
+        level: 1,
+        auxiliary: {
+          evaluation: { value: evaluationResult.evaluation, type: "string" },
+          reasoning: { value: evaluationResult.reasoning.substring(0, 500), type: "string" },
+        },
+      });
+    } catch (error) {
+      logger.log({
+        message: `Evaluation failed: ${error}`,
+        level: 1,
+      });
+      // Fall back to agent's success flag if evaluation fails
+    }
+  } else {
+    logger.log({
+      message: "No screenshots collected, using agent success flag for evaluation",
+      level: 1,
+    });
+  }
+
+  // Determine final success based on evaluation or agent result
+  const isSuccess = evaluationResult
+    ? evaluationResult.evaluation === "YES"
+    : result.success;
+
   // Return result for Braintrust
   return {
-    _success: result.success,
+    _success: isSuccess,
     logs: logger.getLogs(),
     debugUrl: result.browserbaseDebugUrl || debugUrl,
     sessionUrl: result.browserbaseSessionUrl || sessionUrl,
     error: result.error,
+    evaluation: evaluationResult ? {
+      result: evaluationResult.evaluation,
+      reasoning: evaluationResult.reasoning,
+    } : undefined,
+    metrics: {
+      ...result.metrics,
+      screenshotCount: result.screenshots.length,
+    },
+    task_level: params.difficulty,
   };
 };
 

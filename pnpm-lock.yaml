@@ -260,6 +260,9 @@ importers:
 
   packages/evals:
     dependencies:
+      '@ai-sdk/google':
+        specifier: ^2.0.23
+        version: 2.0.44(zod@4.1.12)
       '@ai-sdk/provider':
         specifier: ^2.0.0
         version: 2.0.0
@@ -278,6 +281,9 @@ importers:
       openai:
         specifier: ^4.87.1
         version: 4.96.2(ws@8.18.3(bufferutil@4.0.9))(zod@4.1.12)
+      playwright:
+        specifier: ^1.52.0
+        version: 1.52.0
       sharp:
         specifier: ^0.34.5
         version: 0.34.5
@@ -6456,6 +6462,12 @@ snapshots:
       zod: 4.2.1
     optional: true
 
+  '@ai-sdk/google@2.0.44(zod@4.1.12)':
+    dependencies:
+      '@ai-sdk/provider': 2.0.0
+      '@ai-sdk/provider-utils': 3.0.18(zod@4.1.12)
+      zod: 4.1.12
+
   '@ai-sdk/google@2.0.44(zod@4.2.1)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
@@ -6511,6 +6523,13 @@ snapshots:
       '@standard-schema/spec': 1.0.0
       eventsource-parser: 3.0.6
       zod: 4.2.1
+
+  '@ai-sdk/provider-utils@3.0.18(zod@4.1.12)':
+    dependencies:
+      '@ai-sdk/provider': 2.0.0
+      '@standard-schema/spec': 1.0.0
+      eventsource-parser: 3.0.6
+      zod: 4.1.12
 
   '@ai-sdk/provider-utils@3.0.18(zod@4.2.1)':
     dependencies:

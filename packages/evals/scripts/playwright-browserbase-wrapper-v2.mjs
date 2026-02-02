@@ -7,7 +7,6 @@
  *
  * Environment variables:
  *   BROWSERBASE_CONNECT_URL     - Required (wss:// URL from pre-created session)
- *   PLAYWRIGHT_MCP_CLI_PATH     - Path to playwright-mcp cli.js
  *   BROWSERBASE_SESSION_ID      - Optional (for logging)
  *   BROWSERBASE_DEBUG_URL       - Optional (for logging)
  */
@@ -15,13 +14,7 @@
 import { spawn } from 'child_process';
 import { createInterface } from 'readline';
 
-const PLAYWRIGHT_MCP_CLI_PATH = process.env.PLAYWRIGHT_MCP_CLI_PATH;
 const BROWSERBASE_CONNECT_URL = process.env.BROWSERBASE_CONNECT_URL;
-
-if (!PLAYWRIGHT_MCP_CLI_PATH) {
-  console.error('[playwright-wrapper] ERROR: PLAYWRIGHT_MCP_CLI_PATH environment variable is required');
-  process.exit(1);
-}
 
 if (!BROWSERBASE_CONNECT_URL) {
   console.error('[playwright-wrapper] ERROR: BROWSERBASE_CONNECT_URL environment variable is required');
@@ -37,10 +30,12 @@ if (process.env.BROWSERBASE_DEBUG_URL) {
   console.error(`[playwright-wrapper] Debug URL: ${process.env.BROWSERBASE_DEBUG_URL}`);
 }
 
-console.error(`[playwright-wrapper] Launching playwright-mcp CLI: ${PLAYWRIGHT_MCP_CLI_PATH}`);
+console.error(`[playwright-wrapper] Launching playwright-mcp via npx @playwright/mcp@latest`);
+console.error(`[playwright-wrapper] CDP endpoint: ${BROWSERBASE_CONNECT_URL}`);
 
 // Launch playwright-mcp with CDP URL pointing to pre-created session
-const playwrightMcp = spawn(process.execPath, [PLAYWRIGHT_MCP_CLI_PATH, '--cdp-endpoint', BROWSERBASE_CONNECT_URL], {
+// Using npx to run the official @playwright/mcp package
+const playwrightMcp = spawn('npx', ['@playwright/mcp@latest', '--cdp-endpoint', BROWSERBASE_CONNECT_URL], {
   env: {
     ...process.env,
   },
