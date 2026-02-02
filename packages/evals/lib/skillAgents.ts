@@ -8,6 +8,7 @@ import type { AvailableModel } from "@browserbasehq/stagehand";
 import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
+import { execSync, spawn, ChildProcess } from "child_process";
 import dotenv from "dotenv";
 import {
   BrowserbaseScreenshotCapture,
@@ -318,6 +319,87 @@ export async function runSkillAgent(
     env.BROWSE_SESSION = sessionTag;
   }
 
+  // Pre-connect CLI skills to Browserbase session before starting the agent
+  let devBrowserServerProcess: ChildProcess | null = null;
+
+  if (config.type === "cli" && browserbaseSession) {
+    if (skillName === "agent-browser") {
+      // Pre-connect agent-browser to the Browserbase session
+      console.log(`[${skillName}] Pre-connecting to Browserbase session...`);
+      try {
+        execSync(`agent-browser connect "${browserbaseSession.connectUrl}"`, {
+          env,
+          cwd: config.cwd,
+          timeout: 30000,
+          stdio: "pipe",
+        });
+        console.log(`[${skillName}] Pre-connected successfully`);
+      } catch (error) {
+        console.error(`[${skillName}] Failed to pre-connect:`, error);
+        return {
+          success: false,
+          error: `Failed to pre-connect agent-browser: ${error}`,
+          agentMessages: [],
+          screenshots: [],
+          metrics: { turns: 0, costUsd: 0, durationMs: 0, inputTokens: 0, outputTokens: 0 },
+        };
+      }
+    } else if (skillName === "dev-browser") {
+      // Start the dev-browser server before the agent
+      console.log(`[${skillName}] Starting dev-browser server with Browserbase connection...`);
+      try {
+        devBrowserServerProcess = spawn("./server.sh", [], {
+          env,
+          cwd: config.cwd,
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+
+        // Wait for server to be ready (look for "Ready" message or timeout after 30s)
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            console.log(`[${skillName}] Server startup timeout, continuing anyway...`);
+            resolve();
+          }, 30000);
+
+          devBrowserServerProcess!.stdout?.on("data", (data: Buffer) => {
+            const output = data.toString();
+            console.log(`[${skillName}] Server: ${output.trim()}`);
+            if (output.includes("Ready")) {
+              clearTimeout(timeout);
+              resolve();
+            }
+          });
+
+          devBrowserServerProcess!.stderr?.on("data", (data: Buffer) => {
+            console.error(`[${skillName}] Server error: ${data.toString().trim()}`);
+          });
+
+          devBrowserServerProcess!.on("error", (err) => {
+            clearTimeout(timeout);
+            reject(err);
+          });
+
+          devBrowserServerProcess!.on("exit", (code) => {
+            if (code !== 0 && code !== null) {
+              clearTimeout(timeout);
+              reject(new Error(`Server exited with code ${code}`));
+            }
+          });
+        });
+        console.log(`[${skillName}] Server started successfully`);
+      } catch (error) {
+        console.error(`[${skillName}] Failed to start server:`, error);
+        return {
+          success: false,
+          error: `Failed to start dev-browser server: ${error}`,
+          agentMessages: [],
+          screenshots: [],
+          metrics: { turns: 0, costUsd: 0, durationMs: 0, inputTokens: 0, outputTokens: 0 },
+        };
+      }
+    }
+  }
+
   // Build query options based on skill type
   let queryOptions: any;
 
@@ -390,22 +472,27 @@ Your workflow should be:
       IMPORTANT: If you face issues connecting to a site it is most likely anti-bot protection, try reload once or max twice and exit if you're still unable to load the page.
       Avoid overusing the navigate tools (navigate to the url), for all sites you will receive a starting url from which the task can be completed entirely. `;
 
-    // Add skill-specific instruction to connect to Browserbase session if one was created
+    // Add skill-specific instruction about the pre-connected Browserbase session
     if (browserbaseSession) {
       let connectionInstructions = "";
 
       switch (skillName) {
         case "agent-browser":
-          connectionInstructions = `Before running any browser commands, you MUST first connect to the cloud browser:
-  agent-browser connect "${browserbaseSession.connectUrl}"
-After connecting, run your browser automation commands normally.`;
+          connectionInstructions = `The browser is ALREADY CONNECTED to a cloud Browserbase session.
+DO NOT run 'agent-browser connect' - the connection is already established.
+Just start using browser commands directly (e.g., 'agent-browser open <url>').`;
           break;
 
         case "dev-browser":
-          connectionInstructions = `A cloud browser session is available via BROWSERBASE_CONNECT_URL environment variable.
-When you start the dev-browser server, it will automatically connect to the cloud browser.
-Just run: ./skills/dev-browser/server.sh &
-The server will detect the BROWSERBASE_CONNECT_URL and connect to it instead of launching a local browser.`;
+          connectionInstructions = `The dev-browser server is ALREADY RUNNING and connected to a cloud Browserbase session.
+DO NOT run './server.sh' or start the server - it's already running.
+Just connect to it and start using it:
+  cd skills/dev-browser && npx tsx <<'EOF'
+  import { connect } from "@/client.js";
+  const client = await connect();
+  const page = await client.page("main");
+  // ... your automation code
+  EOF`;
           break;
 
         case "playwriter":
@@ -445,6 +532,12 @@ ${connectionInstructions}`;
     let outputTokens = 0;
     let isError = false;
 
+    // Track processed message IDs for deduplication (per Agent SDK docs)
+    const processedMessageIds = new Set<string>();
+    // Accumulate tokens from individual assistant messages as fallback
+    let stepInputTokens = 0;
+    let stepOutputTokens = 0;
+
     // Track if screenshot capture has been started (delayed until MCP connects)
     let screenshotCaptureStarted = false;
 
@@ -459,7 +552,16 @@ ${connectionInstructions}`;
 
       // Log progress with detailed traces
       if (message.type === "assistant") {
-        const content = (message as any).message?.content;
+        // Track usage from assistant messages (deduplicate by message ID)
+        const assistantMsg = message as any;
+        const msgId = assistantMsg.id;
+        if (msgId && !processedMessageIds.has(msgId) && assistantMsg.usage) {
+          processedMessageIds.add(msgId);
+          stepInputTokens += assistantMsg.usage.input_tokens ?? 0;
+          stepOutputTokens += assistantMsg.usage.output_tokens ?? 0;
+        }
+
+        const content = assistantMsg.message?.content;
         if (content) {
           for (const block of content) {
             if (block.type === "text") {
@@ -507,14 +609,39 @@ ${connectionInstructions}`;
           }
         }
       } else if (message.type === "result") {
-        turns = (message as any).num_turns ?? 0;
-        costUsd = (message as any).cost_usd ?? 0;
-        inputTokens = (message as any).input_tokens ?? 0;
-        outputTokens = (message as any).output_tokens ?? 0;
-        isError = (message as any).is_error ?? false;
+        const resultMsg = message as any;
+        turns = resultMsg.num_turns ?? 0;
+        isError = resultMsg.is_error ?? false;
+
+        // Get cost from usage.total_cost_usd (per Agent SDK docs)
+        costUsd = resultMsg.usage?.total_cost_usd ?? resultMsg.total_cost_usd ?? 0;
+
+        // Get tokens from modelUsage (aggregated per-model breakdown)
+        // modelUsage is a map of model name -> { inputTokens, outputTokens, costUSD, ... }
+        if (resultMsg.modelUsage) {
+          for (const [modelName, usage] of Object.entries(resultMsg.modelUsage)) {
+            const modelData = usage as any;
+            inputTokens += modelData.inputTokens ?? 0;
+            outputTokens += modelData.outputTokens ?? 0;
+          }
+        }
+
+        // Fallback 1: try direct fields on result message
+        if (inputTokens === 0 && outputTokens === 0) {
+          inputTokens = resultMsg.usage?.input_tokens ?? resultMsg.input_tokens ?? 0;
+          outputTokens = resultMsg.usage?.output_tokens ?? resultMsg.output_tokens ?? 0;
+        }
+
+        // Fallback 2: use accumulated step tokens from assistant messages
+        if (inputTokens === 0 && outputTokens === 0) {
+          inputTokens = stepInputTokens;
+          outputTokens = stepOutputTokens;
+        }
+
         console.log(`[${skillName}] === COMPLETED ===`);
         console.log(`[${skillName}] Turns: ${turns}, Cost: $${costUsd.toFixed(4)}`);
         console.log(`[${skillName}] Tokens: ${inputTokens} in / ${outputTokens} out`);
+        console.log(`[${skillName}] Model usage:`, JSON.stringify(resultMsg.modelUsage, null, 2));
         console.log(`[${skillName}] Success: ${!isError}`);
       }
     }
@@ -577,6 +704,21 @@ ${connectionInstructions}`;
       browserbaseDebugUrl: browserbaseSession?.debugUrl,
     };
   } finally {
+    // Clean up dev-browser server process if it was started
+    if (devBrowserServerProcess) {
+      console.log(`[${skillName}] Stopping dev-browser server...`);
+      try {
+        devBrowserServerProcess.kill("SIGTERM");
+        // Give it a moment to clean up
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        if (!devBrowserServerProcess.killed) {
+          devBrowserServerProcess.kill("SIGKILL");
+        }
+      } catch {
+        // Ignore kill errors
+      }
+    }
+
     // Clean up Browserbase session
     if (browserbaseSession) {
       await closeBrowserbaseSession(browserbaseSession.id);

@@ -36,6 +36,88 @@ function getSocketPath(session: string): string {
   return path.join(SOCKET_DIR, `browse-${session}.sock`);
 }
 
+function getLockPath(session: string): string {
+  return path.join(SOCKET_DIR, `browse-${session}.lock`);
+}
+
+/**
+ * Acquire an exclusive lock for daemon operations.
+ * Uses O_EXCL for atomic file creation to prevent race conditions.
+ */
+async function acquireLock(session: string, timeoutMs: number = 10000): Promise<boolean> {
+  const lockPath = getLockPath(session);
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < timeoutMs) {
+    try {
+      // O_EXCL ensures atomic creation - fails if file exists
+      const handle = await fs.open(lockPath, "wx");
+      await handle.write(String(process.pid));
+      await handle.close();
+      return true;
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === "EEXIST") {
+        // Lock exists - check if holder is still alive
+        try {
+          const holderPid = parseInt(await fs.readFile(lockPath, "utf-8"));
+          process.kill(holderPid, 0); // Throws if process doesn't exist
+          // Process exists, wait and retry
+          await new Promise(r => setTimeout(r, 100));
+        } catch {
+          // Lock holder is dead, remove stale lock
+          try { await fs.unlink(lockPath); } catch {}
+        }
+        continue;
+      }
+      throw err;
+    }
+  }
+  return false;
+}
+
+async function releaseLock(session: string): Promise<void> {
+  try { await fs.unlink(getLockPath(session)); } catch {}
+}
+
+/**
+ * Check if a socket is actually connectable (not just exists on disk).
+ */
+async function isSocketConnectable(socketPath: string, timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const client = net.createConnection(socketPath);
+    const timeout = setTimeout(() => {
+      client.destroy();
+      resolve(false);
+    }, timeoutMs);
+
+    client.on("connect", () => {
+      clearTimeout(timeout);
+      client.destroy();
+      resolve(true);
+    });
+
+    client.on("error", () => {
+      clearTimeout(timeout);
+      resolve(false);
+    });
+  });
+}
+
+/**
+ * Wait for socket to become connectable with exponential backoff.
+ */
+async function waitForSocketReady(socketPath: string, timeoutMs: number): Promise<void> {
+  const startTime = Date.now();
+  let delay = 50;
+
+  while (Date.now() - startTime < timeoutMs) {
+    if (await isSocketConnectable(socketPath, 500)) return;
+    await new Promise(r => setTimeout(r, delay));
+    delay = Math.min(delay * 1.5, 500);
+  }
+  throw new Error(`Socket not ready after ${timeoutMs}ms`);
+}
+
 function getPidPath(session: string): string {
   return path.join(SOCKET_DIR, `browse-${session}.pid`);
 }
@@ -62,31 +144,30 @@ async function isDaemonRunning(session: string): Promise<boolean> {
     const pid = parseInt(await fs.readFile(pidFile, "utf-8"));
     process.kill(pid, 0); // Check if process exists
 
-    // Also verify socket exists and is connectable
+    // Also verify socket exists and is actually connectable
     const socketPath = getSocketPath(session);
     await fs.access(socketPath);
-    return true;
+
+    // Verify socket is actually connectable (not just exists on disk)
+    return await isSocketConnectable(socketPath, 500);
   } catch {
     return false;
   }
 }
 
 async function cleanupStaleFiles(session: string): Promise<void> {
-  try {
-    await fs.unlink(getSocketPath(session));
-  } catch {}
-  try {
-    await fs.unlink(getPidPath(session));
-  } catch {}
-  try {
-    await fs.unlink(getWsPath(session));
-  } catch {}
-  try {
-    await fs.unlink(getCdpPath(session));
-  } catch {}
-  try {
-    await fs.unlink(getChromePidPath(session));
-  } catch {}
+  const files = [
+    getSocketPath(session),
+    getPidPath(session),
+    getWsPath(session),
+    getCdpPath(session),
+    getChromePidPath(session),
+    getLockPath(session),
+  ];
+
+  for (const file of files) {
+    try { await fs.unlink(file); } catch {}
+  }
 }
 
 /** Find and kill Chrome processes for this session */
@@ -1197,33 +1278,51 @@ async function sendCommand(
   headless: boolean = false,
   envOverride?: "LOCAL" | "BROWSERBASE",
 ): Promise<unknown> {
-  try {
-    return await sendCommandOnce(session, command, args);
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
+  const maxRetries = 3;
 
-    if (command === "stop") {
-      throw err;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await sendCommandOnce(session, command, args);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+
+      if (command === "stop") {
+        throw err;
+      }
+
+      const isConnectionError =
+        errMsg.includes("ENOENT") ||
+        errMsg.includes("ECONNREFUSED") ||
+        errMsg.includes("Connection failed");
+
+      if (!isConnectionError) {
+        throw err;
+      }
+
+      // Attempt 0: Brief wait and retry (socket might be temporarily unavailable)
+      if (attempt === 0) {
+        await new Promise(r => setTimeout(r, 200));
+        continue;
+      }
+
+      // Attempt 1: Try to restart daemon without cleanup
+      if (attempt === 1) {
+        await ensureDaemon(session, headless, envOverride);
+        continue;
+      }
+
+      // Final attempt: Full cleanup and restart
+      await killChromeProcesses(session);
+      await cleanupStaleFiles(session);
+      await ensureDaemon(session, headless, envOverride);
     }
-
-    const isConnectionError =
-      errMsg.includes("ENOENT") ||
-      errMsg.includes("ECONNREFUSED") ||
-      errMsg.includes("Connection failed");
-
-    if (!isConnectionError) {
-      throw err;
-    }
-
-    await killChromeProcesses(session);
-    await cleanupStaleFiles(session);
-    await ensureDaemon(session, headless, envOverride);
-
-    return await sendCommandOnce(session, command, args);
   }
+
+  throw new Error(`Max retries exceeded for command ${command} on session ${session}`);
 }
 
 async function ensureDaemon(session: string, headless: boolean, envOverride?: "LOCAL" | "BROWSERBASE", cdpUrl?: string): Promise<void> {
+  // Fast path: check if daemon is already running without lock
   const isRunning = await isDaemonRunning(session);
 
   // Check if CDP URL has changed (requires daemon restart)
@@ -1231,10 +1330,9 @@ async function ensureDaemon(session: string, headless: boolean, envOverride?: "L
     try {
       const storedCdpUrl = await fs.readFile(getCdpPath(session), "utf-8");
       if (storedCdpUrl !== cdpUrl) {
-        // CDP URL changed - restart daemon
+        // CDP URL changed - restart daemon (need lock for this)
         console.error(`[stagehand] CDP URL changed for session ${session}, restarting daemon...`);
-        await killChromeProcesses(session);
-        await cleanupStaleFiles(session);
+        // Fall through to locked section to restart
       } else {
         // Same CDP URL - reuse existing daemon
         return;
@@ -1246,51 +1344,88 @@ async function ensureDaemon(session: string, headless: boolean, envOverride?: "L
     return;
   }
 
-  const args = ["--session", session, "daemon"];
-  if (headless) args.push("--headless");
-  if (envOverride) args.push("--env", envOverride);
-  if (cdpUrl) args.push("--ws", cdpUrl);
+  // Acquire lock before spawning to prevent race conditions
+  const locked = await acquireLock(session);
+  if (!locked) {
+    throw new Error(`Timeout acquiring lock for session ${session}`);
+  }
 
-  const child = spawn(process.argv[0], [process.argv[1], ...args], {
-    detached: true,
-    stdio: ["ignore", "pipe", "ignore"],
-  });
-
-  return new Promise((resolve, reject) => {
-    let done = false;
-
-    const cleanup = () => {
-      if (!done) {
-        done = true;
-        rl.close();
-        child.stdout?.destroy();
-        child.unref();
-      }
-    };
-
-    const timeout = setTimeout(() => {
-      cleanup();
-      reject(new Error("Timeout waiting for daemon to start"));
-    }, 30000);
-
-    const rl = readline.createInterface({ input: child.stdout! });
-    rl.on("line", (line) => {
-      try {
-        const data = JSON.parse(line);
-        if (data.daemon === "started") {
-          clearTimeout(timeout);
-          cleanup();
-          setTimeout(() => resolve(), 50);
+  try {
+    // Re-check after acquiring lock (another process may have started daemon)
+    if (await isDaemonRunning(session)) {
+      // Check CDP URL again under lock
+      if (cdpUrl) {
+        try {
+          const storedCdpUrl = await fs.readFile(getCdpPath(session), "utf-8");
+          if (storedCdpUrl === cdpUrl) {
+            return; // Same CDP URL - reuse existing daemon
+          }
+          // CDP URL changed - need to restart
+          await killChromeProcesses(session);
+          await cleanupStaleFiles(session);
+        } catch {
+          // No stored CDP URL - continue with startup
         }
-      } catch {}
+      } else {
+        return; // Daemon started by another process
+      }
+    }
+
+    const args = ["--session", session, "daemon"];
+    if (headless) args.push("--headless");
+    if (envOverride) args.push("--env", envOverride);
+    if (cdpUrl) args.push("--ws", cdpUrl);
+
+    const child = spawn(process.argv[0], [process.argv[1], ...args], {
+      detached: true,
+      stdio: ["ignore", "pipe", "ignore"],
     });
 
-    child.on("error", (err) => {
-      clearTimeout(timeout);
-      cleanup();
-      reject(err);
+    await new Promise<void>((resolve, reject) => {
+      let done = false;
+
+      const cleanup = () => {
+        if (!done) {
+          done = true;
+          rl.close();
+          child.stdout?.destroy();
+          child.unref();
+        }
+      };
+
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error("Timeout waiting for daemon to start"));
+      }, 30000);
+
+      const rl = readline.createInterface({ input: child.stdout! });
+      rl.on("line", async (line) => {
+        try {
+          const data = JSON.parse(line);
+          if (data.daemon === "started") {
+            clearTimeout(timeout);
+            cleanup();
+
+            // Wait for socket to be actually connectable instead of fixed delay
+            try {
+              await waitForSocketReady(getSocketPath(session), 5000);
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          }
+        } catch {}
+      });
+
+      child.on("error", (err) => {
+        clearTimeout(timeout);
+        cleanup();
+        reject(err);
+      });
     });
-  });
+  } finally {
+    await releaseLock(session);
+  }
 }
 
 // ==================== CLI INTERFACE ====================
