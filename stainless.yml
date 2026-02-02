@@ -154,6 +154,96 @@ openapi:
         value:
           x-stainless-any: true
 
+    # Accept both camelCase and snake_case token usage fields in SDKs.
+    - command: update
+      reason: Allow replay TokenUsage to accept camelCase or snake_case
+      args:
+        target: "$.components.schemas.TokenUsage"
+        value:
+          anyOf:
+            - type: object
+              properties:
+                inputTokens: { type: number }
+                outputTokens: { type: number }
+                reasoningTokens: { type: number }
+                cachedInputTokens: { type: number }
+                timeMs: { type: number }
+            - type: object
+              properties:
+                input_tokens: { type: number }
+                output_tokens: { type: number }
+                reasoning_tokens: { type: number }
+                cached_input_tokens: { type: number }
+                inference_time_ms: { type: number }
+    - command: update
+      reason: Allow replay TokenUsageOutput to accept camelCase or snake_case
+      args:
+        target: "$.components.schemas.TokenUsageOutput"
+        value:
+          anyOf:
+            - type: object
+              properties:
+                inputTokens: { type: number }
+                outputTokens: { type: number }
+                reasoningTokens: { type: number }
+                cachedInputTokens: { type: number }
+                timeMs: { type: number }
+              additionalProperties: false
+            - type: object
+              properties:
+                input_tokens: { type: number }
+                output_tokens: { type: number }
+                reasoning_tokens: { type: number }
+                cached_input_tokens: { type: number }
+                inference_time_ms: { type: number }
+              additionalProperties: false
+    - command: update
+      reason: Allow AgentUsage to accept camelCase or snake_case
+      args:
+        target: "$.components.schemas.AgentUsage"
+        value:
+          anyOf:
+            - type: object
+              properties:
+                inputTokens: { type: number, example: 1500 }
+                outputTokens: { type: number, example: 250 }
+                reasoningTokens: { type: number }
+                cachedInputTokens: { type: number }
+                timeMs: { type: number, example: 2500 }
+              required: [inputTokens, outputTokens, timeMs]
+            - type: object
+              properties:
+                input_tokens: { type: number, example: 1500 }
+                output_tokens: { type: number, example: 250 }
+                reasoning_tokens: { type: number }
+                cached_input_tokens: { type: number }
+                inference_time_ms: { type: number, example: 2500 }
+              required: [input_tokens, output_tokens, inference_time_ms]
+    - command: update
+      reason: Allow AgentUsageOutput to accept camelCase or snake_case
+      args:
+        target: "$.components.schemas.AgentUsageOutput"
+        value:
+          anyOf:
+            - type: object
+              properties:
+                inputTokens: { type: number, example: 1500 }
+                outputTokens: { type: number, example: 250 }
+                reasoningTokens: { type: number }
+                cachedInputTokens: { type: number }
+                timeMs: { type: number, example: 2500 }
+              required: [inputTokens, outputTokens, timeMs]
+              additionalProperties: false
+            - type: object
+              properties:
+                input_tokens: { type: number, example: 1500 }
+                output_tokens: { type: number, example: 250 }
+                reasoning_tokens: { type: number }
+                cached_input_tokens: { type: number }
+                inference_time_ms: { type: number, example: 2500 }
+              required: [input_tokens, output_tokens, inference_time_ms]
+              additionalProperties: false
+
 # `resources` define the structure and organization for your API, such as how
 # methods and models are grouped together and accessed. See the [configuration
 # guide] for more information.
