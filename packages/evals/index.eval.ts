@@ -493,10 +493,14 @@ const generateFilteredTestcases = (): Testcase[] => {
 
     // Map results to the SummaryResult format
     const summaryResults: SummaryResult[] = evalResult.results.map((result) => {
+      const rawOutput = result.output as any;
       const output =
         typeof result.output === "boolean"
           ? { _success: result.output }
-          : result.output;
+          : {
+              _success: rawOutput._success,
+              metrics: rawOutput.metrics,
+            };
 
       return {
         input: result.input,

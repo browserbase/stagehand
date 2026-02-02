@@ -1,6 +1,6 @@
 import fs from "fs";
 import { tasksByName } from "./taskConfig";
-import type { SummaryResult } from "./types/evals";
+import type { SummaryResult, EvalMetrics } from "./types/evals";
 
 export const generateSummary = async (
   results: SummaryResult[],
@@ -11,7 +11,8 @@ export const generateSummary = async (
     .map((r) => ({
       eval: r.input.name,
       model: r.input.modelName,
-      categories: tasksByName[r.input.name].categories,
+      categories: tasksByName[r.input.name]?.categories ?? [],
+      metrics: r.output.metrics,
     }));
 
   const failed = results
@@ -19,7 +20,8 @@ export const generateSummary = async (
     .map((r) => ({
       eval: r.input.name,
       model: r.input.modelName,
-      categories: tasksByName[r.input.name].categories,
+      categories: tasksByName[r.input.name]?.categories ?? [],
+      metrics: r.output.metrics,
     }));
 
   const categorySuccessCounts: Record<
@@ -53,12 +55,50 @@ export const generateSummary = async (
     models[model] = Math.round((successCount / modelResults.length) * 100);
   }
 
+  // Aggregate token and runtime metrics
+  const aggregateMetrics = {
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+    totalTokens: 0,
+    totalCostUsd: 0,
+    totalRuntimeMs: 0,
+    totalEvalRuntimeMs: 0,
+    evalCount: 0,
+  };
+
+  for (const result of results) {
+    const metrics = result.output.metrics;
+    if (metrics) {
+      aggregateMetrics.totalInputTokens += metrics.inputTokens ?? 0;
+      aggregateMetrics.totalOutputTokens += metrics.outputTokens ?? 0;
+      aggregateMetrics.totalCostUsd += metrics.costUsd ?? 0;
+      aggregateMetrics.totalRuntimeMs += metrics.durationMs ?? 0;
+      aggregateMetrics.totalEvalRuntimeMs += metrics.totalEvalRuntimeMs ?? 0;
+      aggregateMetrics.evalCount++;
+    }
+  }
+  aggregateMetrics.totalTokens = aggregateMetrics.totalInputTokens + aggregateMetrics.totalOutputTokens;
+
+  // Log aggregate metrics to console
+  if (aggregateMetrics.evalCount > 0) {
+    console.log("\n=== Aggregate Metrics ===");
+    console.log(`Total evals with metrics: ${aggregateMetrics.evalCount}`);
+    console.log(`Total input tokens: ${aggregateMetrics.totalInputTokens.toLocaleString()}`);
+    console.log(`Total output tokens: ${aggregateMetrics.totalOutputTokens.toLocaleString()}`);
+    console.log(`Total tokens: ${aggregateMetrics.totalTokens.toLocaleString()}`);
+    console.log(`Total cost: $${aggregateMetrics.totalCostUsd.toFixed(4)}`);
+    console.log(`Total agent runtime: ${(aggregateMetrics.totalRuntimeMs / 1000).toFixed(2)}s`);
+    console.log(`Total eval runtime: ${(aggregateMetrics.totalEvalRuntimeMs / 1000).toFixed(2)}s`);
+    console.log("=========================\n");
+  }
+
   const formattedSummary = {
     experimentName,
     passed,
     failed,
     categories,
     models,
+    aggregateMetrics,
   };
 
   fs.writeFileSync(

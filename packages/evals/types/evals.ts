@@ -49,22 +49,43 @@ export interface EvalInput {
   params?: Record<string, unknown>;
 }
 
+export interface TestcaseMetadata {
+  model: AvailableModel;
+  test: string;
+  categories?: string[];
+  skill?: string;
+  task_id?: string;
+  difficulty?: string;
+  website?: string;
+  [key: string]: unknown;
+}
+
 export interface Testcase
   extends EvalCase<
     EvalInput,
     unknown,
-    { model: AvailableModel; test: string; categories?: string[] }
+    TestcaseMetadata
   > {
   input: EvalInput;
   name: string;
   tags: string[];
-  metadata: { model: AvailableModel; test: string; categories?: string[] };
+  metadata: TestcaseMetadata;
   expected: unknown;
+}
+
+export interface EvalMetrics {
+  turns?: number;
+  costUsd?: number;
+  durationMs?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalEvalRuntimeMs?: number;
+  screenshotCount?: number;
 }
 
 export interface SummaryResult {
   input: EvalInput;
-  output: { _success: boolean };
+  output: { _success: boolean; metrics?: EvalMetrics };
   name: string;
   score: number;
 }

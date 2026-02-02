@@ -311,6 +311,12 @@ export async function runSkillAgent(
     env.BROWSERBASE_CONNECT_URL = browserbaseSession.connectUrl;
     env.AGENT_BROWSER_PROVIDER = "browserbase";
   }
+  if (!env.BROWSE_SESSION) {
+    const sessionTag = browserbaseSession?.id
+      ? `bb-${browserbaseSession.id}`
+      : `eval-${skillName}-${startTime}-${process.pid}`;
+    env.BROWSE_SESSION = sessionTag;
+  }
 
   // Build query options based on skill type
   let queryOptions: any;

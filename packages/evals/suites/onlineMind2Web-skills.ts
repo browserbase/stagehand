@@ -69,6 +69,10 @@ export function buildOnlineMind2WebSkillsTestcases(skillsFilter?: string[]): Tes
           model: modelName,
           test: `${taskName}:${row.task_id}:${skill}`,
           categories: ["skills_comparison", skill, row.level],
+          skill,
+          task_id: row.task_id,
+          difficulty: row.level,
+          website: row.website,
         },
       });
     }

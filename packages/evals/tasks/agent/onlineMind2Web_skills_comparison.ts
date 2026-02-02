@@ -42,6 +42,8 @@ export const onlineMind2Web_skills_comparison: EvalFunction = async ({
   sessionUrl,
   input,
 }) => {
+  const evalStartTime = Date.now();
+
   const params = input.params as {
     skill: string;
     task: string;
@@ -112,6 +114,9 @@ export const onlineMind2Web_skills_comparison: EvalFunction = async ({
       costUsd: { value: result.metrics.costUsd.toFixed(4), type: "string" },
       turns: { value: result.metrics.turns.toString(), type: "integer" },
       screenshotCount: { value: result.screenshots.length.toString(), type: "integer" },
+      inputTokens: { value: result.metrics.inputTokens.toString(), type: "integer" },
+      outputTokens: { value: result.metrics.outputTokens.toString(), type: "integer" },
+      durationMs: { value: result.metrics.durationMs.toString(), type: "integer" },
     },
   });
 
@@ -161,6 +166,24 @@ export const onlineMind2Web_skills_comparison: EvalFunction = async ({
     ? evaluationResult.evaluation === "YES"
     : result.success;
 
+  // Calculate total eval runtime
+  const totalEvalRuntimeMs = Date.now() - evalStartTime;
+
+  // Log final metrics summary with tokens and runtime
+  logger.log({
+    message: "Eval completed",
+    level: 1,
+    auxiliary: {
+      totalEvalRuntimeMs: { value: totalEvalRuntimeMs.toString(), type: "integer" },
+      agentDurationMs: { value: result.metrics.durationMs.toString(), type: "integer" },
+      inputTokens: { value: result.metrics.inputTokens.toString(), type: "integer" },
+      outputTokens: { value: result.metrics.outputTokens.toString(), type: "integer" },
+      totalTokens: { value: (result.metrics.inputTokens + result.metrics.outputTokens).toString(), type: "integer" },
+      costUsd: { value: result.metrics.costUsd.toFixed(4), type: "string" },
+      success: { value: isSuccess.toString(), type: "string" },
+    },
+  });
+
   // Return result for Braintrust
   return {
     _success: isSuccess,
@@ -175,6 +198,7 @@ export const onlineMind2Web_skills_comparison: EvalFunction = async ({
     metrics: {
       ...result.metrics,
       screenshotCount: result.screenshots.length,
+      totalEvalRuntimeMs,
     },
     task_level: params.difficulty,
   };
