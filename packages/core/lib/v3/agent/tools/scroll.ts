@@ -65,17 +65,14 @@ export const scrollTool = (v3: V3) =>
       };
     },
     toModelOutput: (result) => {
-      const content: ModelOutputContentItem[] = [
-        {
-          type: "text",
-          text: JSON.stringify({
-            success: result.success,
-            message: result.message,
-            scrolledPixels: result.scrolledPixels,
-          }),
+      return {
+        type: "json",
+        value: {
+          success: result.success,
+          message: result.message,
+          scrolledPixels: result.scrolledPixels,
         },
-      ];
-      return { type: "content", value: content };
+      };
     },
   });
 

@@ -48,25 +48,6 @@ function isAriaTreePart(part: unknown): boolean {
 }
 
 /**
- * Check if the output has type "content" which uses array value format.
- * The AI SDK output schema is a discriminated union:
- * - type: "content" -> value: Array<{type: "text", text: string} | {type: "media", ...}>
- * - type: "text" -> value: string
- * - type: "json" -> value: JSONValue
- * - type: "error-text" -> value: string
- * - type: "error-json" -> value: JSONValue
- *
- * We should only modify outputs with type "content" to avoid corrupting other formats.
- */
-function isContentTypeOutput(output: unknown): boolean {
-  return (
-    !!output &&
-    typeof output === "object" &&
-    (output as { type?: unknown }).type === "content"
-  );
-}
-
-/**
  * Compress old screenshot/ariaTree data in messages in-place.
  *
  * Strategy:
@@ -128,8 +109,12 @@ export function processMessages(messages: ModelMessage[]): number {
 
 /**
  * Tool result part structure from AI SDK.
- * The output field has a discriminated union type based on output.type.
- * We only modify outputs with type "content" to maintain schema validity.
+ * The output field uses a discriminated union - type determines value format:
+ * - type: "content" -> value: Array<{type: "text", ...} | {type: "media", ...}>
+ * - type: "text" -> value: string
+ * - type: "json" -> value: JSONValue
+ * - type: "error-text" -> value: string
+ * - type: "error-json" -> value: JSONValue
  */
 interface ToolResultPart {
   output?: {
@@ -139,8 +124,17 @@ interface ToolResultPart {
 }
 
 /**
+ * Check if output has type "content" (array-based value format).
+ * Only outputs with type "content" should have array values.
+ */
+function isContentTypeOutput(output: { type: string; value?: unknown }): boolean {
+  return output.type === "content";
+}
+
+/**
  * Compress screenshot message content in-place.
- * Only modifies outputs with type "content" to avoid corrupting other formats.
+ * Only modifies outputs with type "content" to maintain schema validity.
+ * Replaces entire output object to ensure type/value consistency.
  */
 function compressScreenshotMessage(message: {
   role: "tool";
@@ -149,10 +143,13 @@ function compressScreenshotMessage(message: {
   for (const part of message.content) {
     if (isScreenshotPart(part)) {
       const typedPart = part as ToolResultPart;
-      // Only compress if output is type "content" (array-based value)
+      // Only compress if output exists and has type "content"
       if (typedPart.output && isContentTypeOutput(typedPart.output)) {
-        const placeholder = [{ type: "text", text: "screenshot taken" }];
-        typedPart.output.value = placeholder;
+        // Replace entire output to ensure type/value consistency
+        typedPart.output = {
+          type: "content",
+          value: [{ type: "text", text: "screenshot taken" }],
+        };
       }
     }
   }
@@ -161,7 +158,7 @@ function compressScreenshotMessage(message: {
 /**
  * Compress vision action message content in-place by removing the screenshot
  * but keeping the action result text.
- * Only modifies outputs with type "content" to avoid corrupting other formats.
+ * Only modifies outputs with type "content" to maintain schema validity.
  */
 function compressVisionActionMessage(message: {
   role: "tool";
@@ -177,12 +174,17 @@ function compressVisionActionMessage(message: {
         isContentTypeOutput(typedPart.output) &&
         Array.isArray(typedPart.output.value)
       ) {
-        // Filter out the media content but keep the text result
-        typedPart.output.value = (
+        // Filter out media content but keep text results
+        const filteredValue = (
           typedPart.output.value as Array<{ type?: string }>
         ).filter(
           (item) => item && typeof item === "object" && item.type !== "media",
         );
+        // Replace entire output to ensure type/value consistency
+        typedPart.output = {
+          type: "content",
+          value: filteredValue,
+        };
       }
     }
   }
@@ -190,7 +192,8 @@ function compressVisionActionMessage(message: {
 
 /**
  * Compress ariaTree message content in-place.
- * Only modifies outputs with type "content" to avoid corrupting other formats.
+ * Only modifies outputs with type "content" to maintain schema validity.
+ * Replaces entire output object to ensure type/value consistency.
  */
 function compressAriaTreeMessage(message: {
   role: "tool";
@@ -199,15 +202,17 @@ function compressAriaTreeMessage(message: {
   for (const part of message.content) {
     if (isAriaTreePart(part)) {
       const typedPart = part as ToolResultPart;
-      // Only compress if output is type "content" (array-based value)
+      // Only compress if output exists and has type "content"
       if (typedPart.output && isContentTypeOutput(typedPart.output)) {
-        const placeholder = [
-          {
-            type: "text",
-            text: "ARIA tree extracted for context of page elements",
-          },
-        ];
-        typedPart.output.value = placeholder;
+        typedPart.output = {
+          type: "content",
+          value: [
+            {
+              type: "text",
+              text: "ARIA tree extracted for context of page elements",
+            },
+          ],
+        };
       }
     }
   }
