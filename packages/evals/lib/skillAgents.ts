@@ -466,7 +466,7 @@ ${connectionInstructions}`;
                 screenshotCaptureStarted = true;
                 const screenshotOptions: ScreenshotCaptureOptions = {
                   maxScreenshots: 8,
-                  intervalMs: 3000,
+                  intervalMs: 8000,
                   captureOnNavigation: true,
                   scrollThreshold: 400,
                 };

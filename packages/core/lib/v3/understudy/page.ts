@@ -1286,10 +1286,26 @@ export class Page {
       );
 
     if (exceptionDetails) {
-      const msg =
-        exceptionDetails.text ||
-        exceptionDetails.exception?.description ||
-        "Evaluation failed";
+      // Extract the most useful error message from CDP exception details
+      const exception = exceptionDetails.exception;
+      let msg = "Evaluation failed";
+
+      if (exception?.description) {
+        // description usually has the full error like "TypeError: Cannot read property 'x' of null"
+        msg = exception.description;
+      } else if (exception?.value) {
+        // For thrown primitives like `throw "error"`
+        msg = String(exception.value);
+      } else if (exceptionDetails.text) {
+        // Fallback to the basic text which is often just "Uncaught"
+        // Try to append line/column info if available
+        const lineInfo =
+          exceptionDetails.lineNumber !== undefined
+            ? ` at line ${exceptionDetails.lineNumber + 1}:${(exceptionDetails.columnNumber ?? 0) + 1}`
+            : "";
+        msg = exceptionDetails.text + lineInfo;
+      }
+
       throw new StagehandEvalError(msg);
     }
 

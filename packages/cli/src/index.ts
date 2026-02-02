@@ -213,6 +213,7 @@ async function runDaemon(session: string, headless: boolean, envOverride?: "LOCA
         env,
         verbose: 0,
         disablePino: true,
+        selfHeal: false,
         ...(modelApiKey && {
           model: {
             modelName: "anthropic/claude-haiku-4-5-20251001",
@@ -234,6 +235,18 @@ async function runDaemon(session: string, headless: boolean, envOverride?: "LOCA
       await stagehand.init();
 
       context = stagehand.context;
+
+      // Enable CDP domains on the initial page for proper element interaction
+      // This matches what stagehand.act() does via waitForDomNetworkQuiet
+      try {
+        const initialPage = context.pages()[0];
+        if (initialPage) {
+          const cdpSession = initialPage.mainFrame().session;
+          await cdpSession.send("Network.enable").catch(() => {});
+          await cdpSession.send("Page.enable").catch(() => {});
+          await cdpSession.send("DOM.enable").catch(() => {});
+        }
+      } catch {}
 
       // Try to save Chrome info for reference (best effort)
       try {
@@ -577,6 +590,7 @@ async function writeResponseToFs(
   }
 }
 
+
 /**
  * Parse a ref from a selector argument.
  * Supports: @0-3, @[0-3], [0-3], 0-3, ref=0-3
@@ -607,14 +621,12 @@ function parseRef(selector: string): string | null {
 
 /**
  * Resolve a selector - if it's a ref, look up from refMap.
+ * Always uses XPath since CSS selectors cannot cross shadow DOM boundaries
+ * and can cause issues with dynamically generated class names.
  */
 function resolveSelector(selector: string): string {
   const ref = parseRef(selector);
   if (ref) {
-    const css = refMap.cssMap[ref];
-    if (css) {
-      return css;
-    }
     const xpath = refMap.xpathMap[ref];
     if (!xpath) {
       throw new Error(
@@ -634,7 +646,10 @@ async function executeCommand(
   args: unknown[],
   stagehand?: Stagehand,
 ): Promise<unknown> {
-  const page = context.activePage();
+  // Use awaitActivePage() like stagehand.act() does - handles popups and waits for page to be ready
+  const page = command !== "pages" && command !== "newpage"
+    ? await context.awaitActivePage()
+    : context.activePage();
   if (!page && command !== "pages" && command !== "newpage") {
     throw new Error("No active page");
   }
@@ -662,25 +677,24 @@ async function executeCommand(
       return { url: page!.url() };
     }
 
-    // Click by ref
+    // Click by ref - uses stagehand.act with Action type (skips LLM, uses deterministic path)
     case "click": {
-      const [selector, opts] = args as [
-        string,
-        { button?: string; clickCount?: number }?,
-      ];
+      const [selector] = args as [string];
+      if (!stagehand) {
+        throw new Error("Stagehand instance not available");
+      }
       const resolved = resolveSelector(selector);
-      const locator = page!.deepLocator(resolved);
-      const { x, y } = await locator.centroid();
-      await page!.click(x, y, {
-        button: (opts?.button as "left" | "right" | "middle") ?? "left",
-        clickCount: opts?.clickCount ?? 1,
-      });
-      return {
-        clicked: true,
-        ref: selector,
-        x: Math.round(x),
-        y: Math.round(y),
+
+      // Construct an Action object (like observe() returns) to use the deterministic path
+      const action = {
+        selector: resolved,
+        description: "click element",
+        method: "click",
+        arguments: [],
       };
+
+      await stagehand.act(action);
+      return { clicked: true };
     }
 
     // Click by coordinates
@@ -753,14 +767,24 @@ async function executeCommand(
       return { pressed: key };
     }
 
-    // Element actions
+    // Element actions - use stagehand.act with Action type for reliable interaction
     case "fill": {
       const [selector, value, opts] = args as [
         string,
         string,
         { pressEnter?: boolean }?,
       ];
-      await page!.deepLocator(resolveSelector(selector)).fill(value);
+      if (!stagehand) {
+        throw new Error("Stagehand instance not available");
+      }
+      const resolved = resolveSelector(selector);
+      const action = {
+        selector: resolved,
+        description: "fill element",
+        method: "fill",
+        arguments: [value],
+      };
+      await stagehand.act(action);
       if (opts?.pressEnter) {
         await page!.keyPress("Enter");
       }
@@ -768,7 +792,18 @@ async function executeCommand(
     }
     case "select": {
       const [selector, values] = args as [string, string[]];
-      await page!.deepLocator(resolveSelector(selector)).selectOption(values);
+      if (!stagehand) {
+        throw new Error("Stagehand instance not available");
+      }
+      const resolved = resolveSelector(selector);
+      // selectOption takes the first value as argument
+      const action = {
+        selector: resolved,
+        description: "select option",
+        method: "selectOption",
+        arguments: [values[0] || ""],
+      };
+      await stagehand.act(action);
       return { selected: values };
     }
     case "highlight": {
@@ -850,6 +885,7 @@ async function executeCommand(
           | undefined,
         animations: opts?.animations as "disabled" | "allow" | undefined,
         caret: opts?.caret as "hide" | "initial" | undefined,
+        timeout: 10000,
       });
       if (opts?.path) {
         await fs.writeFile(opts.path, buffer);
@@ -1471,12 +1507,13 @@ program
   .description("Click element by ref (e.g., @0-5, 0-5, or CSS/XPath selector)")
   .option("-b, --button <btn>", "Mouse button: left, right, middle", "left")
   .option("-c, --count <n>", "Click count", "1")
+  .option("-f, --force", "Force click even if element has no layout (uses synthetic event)")
   .action(async (ref: string, cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     try {
       const result = await runCommand("click", [
         ref,
-        { button: cmdOpts.button, clickCount: parseInt(cmdOpts.count) },
+        { button: cmdOpts.button, clickCount: parseInt(cmdOpts.count), force: cmdOpts.force },
       ]);
       output(result, opts.json ?? false);
     } catch (e) {

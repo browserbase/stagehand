@@ -30,7 +30,7 @@ export interface ScreenshotCaptureOptions {
 
 const DEFAULT_OPTIONS: Required<ScreenshotCaptureOptions> = {
   maxScreenshots: 8,
-  intervalMs: 3000, // Every 3 seconds
+  intervalMs: 8000, // Every 3 seconds
   stepInterval: 0, // Disabled by default
   captureOnNavigation: true,
   scrollThreshold: 500, // 500px scroll triggers capture
@@ -223,10 +223,13 @@ export class BrowserbaseScreenshotCapture {
 
   private startScrollDetection(): void {
     const checkScroll = async () => {
-      if (this.isStopped || !this.page) return;
+      if (this.isStopped) return;
+
+      const page = this.getCurrentPage();
+      if (!page) return;
 
       try {
-        const scrollY = await this.page.evaluate(() => window.scrollY);
+        const scrollY = await page.evaluate(() => window.scrollY);
         const scrollDelta = Math.abs(scrollY - this.lastScrollY);
 
         if (scrollDelta >= this.options.scrollThreshold) {
@@ -247,16 +250,40 @@ export class BrowserbaseScreenshotCapture {
     setTimeout(checkScroll, 1000);
   }
 
+  /**
+   * Get the current active page from the browser context.
+   * This handles cases where the MCP server creates/closes pages.
+   */
+  private getCurrentPage(): Page | null {
+    if (!this.browser) return null;
+
+    try {
+      const contexts = this.browser.contexts();
+      if (contexts.length === 0) return null;
+
+      const pages = contexts[0].pages();
+      if (pages.length === 0) return null;
+
+      // Return the last page (most recently created/active)
+      return pages[pages.length - 1];
+    } catch {
+      return null;
+    }
+  }
+
   private async captureScreenshot(trigger: CaptureMetadata["trigger"]): Promise<boolean> {
     if (this.isStopped && trigger !== "final") return false;
     if (this.isCapturing) return false;
-    if (!this.page) return false;
+
+    // Get current active page dynamically (MCP server may have created new pages)
+    const page = this.getCurrentPage();
+    if (!page) return false;
 
     this.isCapturing = true;
 
     try {
       // Take screenshot
-      const buffer = await this.page.screenshot({
+      const buffer = await page.screenshot({
         type: "png",
         fullPage: false,
       });
@@ -265,8 +292,8 @@ export class BrowserbaseScreenshotCapture {
       let url = "";
       let scrollY = 0;
       try {
-        url = this.page.url();
-        scrollY = await this.page.evaluate(() => window.scrollY);
+        url = page.url();
+        scrollY = await page.evaluate(() => window.scrollY);
       } catch {
         // Ignore evaluation errors
       }
@@ -297,8 +324,8 @@ export class BrowserbaseScreenshotCapture {
       }
 
       return false;
-    } catch (error) {
-      console.error(`[ScreenshotCapture] Capture failed (${trigger}):`, error);
+    } catch {
+      // Expected during page navigation/transitions - silently skip
       return false;
     } finally {
       this.isCapturing = false;

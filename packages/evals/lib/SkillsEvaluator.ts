@@ -49,7 +49,7 @@ export class SkillsEvaluator {
       );
     }
 
-    this.modelName = options.modelName || "gemini-2.0-flash";
+    this.modelName = options.modelName || "gemini-2.5-flash";
   }
 
   private getModel() {
