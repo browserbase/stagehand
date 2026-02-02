@@ -176,6 +176,12 @@ export class Page {
     await Promise.all(installs);
   }
 
+  // Seed an init script without re-installing it on the current sessions.
+  public seedInitScript(source: string): void {
+    if (this.initScripts.includes(source)) return;
+    this.initScripts.push(source);
+  }
+
   // --- Optional visual cursor overlay management ---
   private cursorEnabled = false;
   private async ensureCursorScript(): Promise<void> {

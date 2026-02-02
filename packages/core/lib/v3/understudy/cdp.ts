@@ -109,12 +109,7 @@ export class CdpConnection implements CDPSessionLike {
     await this.send("Target.setAutoAttach", {
       autoAttach: true,
       flatten: true,
-      waitForDebuggerOnStart: false,
-      filter: [
-        { type: "worker", exclude: true },
-        { type: "shared_worker", exclude: true },
-        { type: "service_worker", exclude: true },
-      ],
+      waitForDebuggerOnStart: true,
     });
     await this.send("Target.setDiscoverTargets", { discover: true });
   }
