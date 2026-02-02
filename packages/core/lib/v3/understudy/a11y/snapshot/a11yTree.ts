@@ -12,6 +12,35 @@ import {
 import { formatTreeLine, normaliseSpaces } from "./treeFormatUtils";
 
 /**
+ * ARIA roles that represent interactive elements.
+ * Based on WAI-ARIA 1.2 widget roles specification.
+ * Used for filtering snapshots to only actionable elements.
+ */
+export const INTERACTIVE_ROLES = new Set([
+  "button",
+  "link",
+  "textbox",
+  "checkbox",
+  "radio",
+  "combobox",
+  "listbox",
+  "menuitem",
+  "menuitemcheckbox",
+  "menuitemradio",
+  "option",
+  "searchbox",
+  "slider",
+  "spinbutton",
+  "switch",
+  "tab",
+  "treeitem",
+  "gridcell",
+  "columnheader",
+  "rowheader",
+  "select",
+]);
+
+/**
  * Fetch and prune the accessibility tree for a frame, optionally scoping the
  * output to a selector root for faster targeted snapshots.
  */
@@ -144,6 +173,14 @@ export function decorateRoles(
   });
 }
 
+/**
+ * Check if a role is interactive (clickable, typeable, etc.)
+ */
+export function isInteractive(role: string): boolean {
+  const r = role?.toLowerCase();
+  return INTERACTIVE_ROLES.has(r);
+}
+
 export async function buildHierarchicalTree(
   nodes: A11yNode[],
   opts: A11yOptions,
@@ -173,6 +210,11 @@ export async function buildHierarchicalTree(
   const cleaned = (await Promise.all(roots.map(pruneStructuralSafe))).filter(
     Boolean,
   ) as A11yNode[];
+
+  // If interactive mode, filter to only interactive nodes (flattened)
+  if (opts.interactive) {
+    return { tree: filterToInteractiveNodes(cleaned, opts.maxDepth) };
+  }
 
   return { tree: cleaned };
 
@@ -208,6 +250,58 @@ export async function buildHierarchicalTree(
 
     return { ...node, role: newRole, children: prunedStatic };
   }
+}
+
+/**
+ * Extract only interactive nodes from the tree, preserving hierarchy
+ * for nodes that have interactive descendants.
+ */
+function filterToInteractiveNodes(
+  roots: A11yNode[],
+  maxDepth?: number,
+): A11yNode[] {
+  const result: A11yNode[] = [];
+
+  function traverse(node: A11yNode, depth: number): A11yNode | null {
+    // Respect depth limit
+    if (maxDepth !== undefined && depth > maxDepth) {
+      return null;
+    }
+
+    const children = node.children ?? [];
+    const filteredChildren: A11yNode[] = [];
+
+    // Recursively filter children
+    for (const child of children) {
+      const filtered = traverse(child, depth + 1);
+      if (filtered) {
+        filteredChildren.push(filtered);
+      }
+    }
+
+    const nodeIsInteractive = isInteractive(node.role);
+
+    // Keep this node if:
+    // 1. It's interactive, OR
+    // 2. It has interactive descendants (filteredChildren not empty)
+    if (nodeIsInteractive || filteredChildren.length > 0) {
+      return {
+        ...node,
+        children: filteredChildren.length > 0 ? filteredChildren : undefined,
+      };
+    }
+
+    return null;
+  }
+
+  for (const root of roots) {
+    const filtered = traverse(root, 0);
+    if (filtered) {
+      result.push(filtered);
+    }
+  }
+
+  return result;
 }
 
 export function isStructural(role: string): boolean {

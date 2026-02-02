@@ -96,7 +96,9 @@ async function createBrowserbaseSession(): Promise<BrowserbaseSession> {
   const projectId = process.env.BROWSERBASE_PROJECT_ID;
 
   if (!apiKey || !projectId) {
-    throw new Error("BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID are required");
+    throw new Error(
+      "BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID are required",
+    );
   }
 
   const response = await fetch("https://api.browserbase.com/v1/sessions", {
@@ -119,10 +121,12 @@ async function createBrowserbaseSession(): Promise<BrowserbaseSession> {
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`Failed to create Browserbase session: ${response.status} ${text}`);
+    throw new Error(
+      `Failed to create Browserbase session: ${response.status} ${text}`,
+    );
   }
 
-  const data = await response.json() as { id: string; connectUrl: string };
+  const data = (await response.json()) as { id: string; connectUrl: string };
   const sessionId = data.id;
   const connectUrl = data.connectUrl;
   const debugUrl = `https://www.browserbase.com/sessions/${sessionId}`;
@@ -175,11 +179,11 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
     useBrowserbase: true,
   },
 
-  "browse": {
+  browse: {
     type: "cli",
     name: "browse",
     description: "Browser automation using browse CLI (Browserbase)",
-    cwd: path.join(SKILLS_DIR, "browse"),
+    cwd: path.join(SKILLS_DIR, "browse/skills/browser-automation"),
     allowedTools: ["Bash", "Read", "Glob"],
     model: "claude-sonnet-4-5-20250929",
     useBrowserbase: true,
@@ -195,7 +199,7 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
     useBrowserbase: true,
   },
 
-  "playwriter": {
+  playwriter: {
     type: "cli",
     name: "playwriter",
     description: "Browser automation using playwriter MCP",
@@ -209,7 +213,8 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
   "playwright-mcp": {
     type: "mcp",
     name: "playwright-mcp",
-    description: "Browser automation using Playwright MCP server with Browserbase",
+    description:
+      "Browser automation using Playwright MCP server with Browserbase",
     model: "claude-sonnet-4-5-20250929",
     useBrowserbase: true,
     mcpPackage: "@playwright/mcp@latest",
@@ -219,7 +224,8 @@ export const SKILL_CONFIGS: Record<string, SkillAgentConfig> = {
   "chrome-devtools-mcp": {
     type: "mcp",
     name: "chrome-devtools-mcp",
-    description: "Browser automation using Chrome DevTools MCP server with Browserbase",
+    description:
+      "Browser automation using Chrome DevTools MCP server with Browserbase",
     model: "claude-sonnet-4-5-20250929",
     useBrowserbase: true,
     mcpPackage: "chrome-devtools-mcp@latest",
@@ -237,7 +243,7 @@ export async function runSkillAgent(
     maxTurns?: number;
     maxBudgetUsd?: number;
     startUrl?: string;
-  }
+  },
 ): Promise<SkillAgentResult> {
   const config = SKILL_CONFIGS[skillName];
   if (!config) {
@@ -246,7 +252,13 @@ export async function runSkillAgent(
       error: `Unknown skill: ${skillName}`,
       agentMessages: [],
       screenshots: [],
-      metrics: { turns: 0, costUsd: 0, durationMs: 0, inputTokens: 0, outputTokens: 0 },
+      metrics: {
+        turns: 0,
+        costUsd: 0,
+        durationMs: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+      },
     };
   }
 
@@ -257,7 +269,13 @@ export async function runSkillAgent(
       error: `Skill directory does not exist: ${config.cwd}`,
       agentMessages: [],
       screenshots: [],
-      metrics: { turns: 0, costUsd: 0, durationMs: 0, inputTokens: 0, outputTokens: 0 },
+      metrics: {
+        turns: 0,
+        costUsd: 0,
+        durationMs: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+      },
     };
   }
 
@@ -277,7 +295,13 @@ export async function runSkillAgent(
         error: `Failed to create Browserbase session: ${error}`,
         agentMessages: [],
         screenshots: [],
-        metrics: { turns: 0, costUsd: 0, durationMs: 0, inputTokens: 0, outputTokens: 0 },
+        metrics: {
+          turns: 0,
+          costUsd: 0,
+          durationMs: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+        },
       };
     }
 
@@ -304,12 +328,14 @@ export async function runSkillAgent(
 
   // Build environment with Browserbase session info
   const env: Record<string, string> = {
-    ...process.env as Record<string, string>,
+    ...(process.env as Record<string, string>),
   };
   if (browserbaseSession) {
     env.BROWSERBASE_SESSION_ID = browserbaseSession.id;
     env.BROWSERBASE_CONNECT_URL = browserbaseSession.connectUrl;
     env.AGENT_BROWSER_PROVIDER = "browserbase";
+    // Use unique session name for browse CLI to isolate concurrent tasks
+    env.BROWSE_SESSION = browserbaseSession.id;
   }
 
   // Build query options based on skill type
@@ -340,7 +366,12 @@ Avoid overusing the navigate tools (navigate to the url), for all sites you will
     // Configure MCP server args
     // If Browserbase session exists, pass CDP endpoint; otherwise let MCP launch its own browser
     const mcpArgs = browserbaseSession
-      ? ["-y", config.mcpPackage, config.cdpArgName, browserbaseSession.connectUrl]
+      ? [
+          "-y",
+          config.mcpPackage,
+          config.cdpArgName,
+          browserbaseSession.connectUrl,
+        ]
       : ["-y", config.mcpPackage];
 
     // MCP tool prefix: mcp__<server_name>__
@@ -457,12 +488,20 @@ ${connectionInstructions}`;
         if (content) {
           for (const block of content) {
             if (block.type === "text") {
-              console.log(`[${skillName}] Assistant: ${block.text.substring(0, 200)}...`);
+              console.log(
+                `[${skillName}] Assistant: ${block.text.substring(0, 200)}...`,
+              );
             } else if (block.type === "tool_use") {
-              console.log(`[${skillName}] Tool: ${block.name} - ${JSON.stringify(block.input).substring(0, 150)}`);
+              console.log(
+                `[${skillName}] Tool: ${block.name} - ${JSON.stringify(block.input).substring(0, 150)}`,
+              );
 
               // Start screenshot capture after first tool use (MCP has connected)
-              if (!screenshotCaptureStarted && browserbaseSession && !screenshotCapture) {
+              if (
+                !screenshotCaptureStarted &&
+                browserbaseSession &&
+                !screenshotCapture
+              ) {
                 screenshotCaptureStarted = true;
                 const screenshotOptions: ScreenshotCaptureOptions = {
                   maxScreenshots: 8,
@@ -473,16 +512,27 @@ ${connectionInstructions}`;
                 try {
                   screenshotCapture = new BrowserbaseScreenshotCapture(
                     browserbaseSession.connectUrl,
-                    screenshotOptions
+                    screenshotOptions,
                   );
                   // Don't await - let it start in background
-                  screenshotCapture.start().then(() => {
-                    console.log(`[${skillName}] Screenshot capture started (delayed)`);
-                  }).catch((err) => {
-                    console.warn(`[${skillName}] Failed to start screenshot capture:`, err);
-                  });
+                  screenshotCapture
+                    .start()
+                    .then(() => {
+                      console.log(
+                        `[${skillName}] Screenshot capture started (delayed)`,
+                      );
+                    })
+                    .catch((err) => {
+                      console.warn(
+                        `[${skillName}] Failed to start screenshot capture:`,
+                        err,
+                      );
+                    });
                 } catch (error) {
-                  console.warn(`[${skillName}] Failed to create screenshot capture:`, error);
+                  console.warn(
+                    `[${skillName}] Failed to create screenshot capture:`,
+                    error,
+                  );
                 }
               }
             }
@@ -493,9 +543,10 @@ ${connectionInstructions}`;
         if (content) {
           for (const block of content) {
             if (block.type === "tool_result") {
-              const resultStr = typeof block.content === "string"
-                ? block.content.substring(0, 200)
-                : JSON.stringify(block.content).substring(0, 200);
+              const resultStr =
+                typeof block.content === "string"
+                  ? block.content.substring(0, 200)
+                  : JSON.stringify(block.content).substring(0, 200);
               console.log(`[${skillName}] Tool Result: ${resultStr}...`);
             }
           }
@@ -507,8 +558,12 @@ ${connectionInstructions}`;
         outputTokens = (message as any).output_tokens ?? 0;
         isError = (message as any).is_error ?? false;
         console.log(`[${skillName}] === COMPLETED ===`);
-        console.log(`[${skillName}] Turns: ${turns}, Cost: $${costUsd.toFixed(4)}`);
-        console.log(`[${skillName}] Tokens: ${inputTokens} in / ${outputTokens} out`);
+        console.log(
+          `[${skillName}] Turns: ${turns}, Cost: $${costUsd.toFixed(4)}`,
+        );
+        console.log(
+          `[${skillName}] Tokens: ${inputTokens} in / ${outputTokens} out`,
+        );
         console.log(`[${skillName}] Success: ${!isError}`);
       }
     }
@@ -521,11 +576,16 @@ ${connectionInstructions}`;
       try {
         screenshots = await screenshotCapture.stop();
       } catch (error) {
-        console.warn(`[${skillName}] Failed to stop screenshot capture:`, error);
+        console.warn(
+          `[${skillName}] Failed to stop screenshot capture:`,
+          error,
+        );
       }
     }
 
-    console.log(`[${skillName}] Collected ${screenshots.length} screenshots for evaluation`);
+    console.log(
+      `[${skillName}] Collected ${screenshots.length} screenshots for evaluation`,
+    );
 
     return {
       success: !isError,
@@ -538,7 +598,9 @@ ${connectionInstructions}`;
         inputTokens,
         outputTokens,
       },
-      browserbaseSessionUrl: browserbaseSession ? `https://www.browserbase.com/sessions/${browserbaseSession.id}` : undefined,
+      browserbaseSessionUrl: browserbaseSession
+        ? `https://www.browserbase.com/sessions/${browserbaseSession.id}`
+        : undefined,
       browserbaseDebugUrl: browserbaseSession?.debugUrl,
     };
   } catch (error) {
@@ -567,7 +629,9 @@ ${connectionInstructions}`;
         inputTokens: 0,
         outputTokens: 0,
       },
-      browserbaseSessionUrl: browserbaseSession ? `https://www.browserbase.com/sessions/${browserbaseSession.id}` : undefined,
+      browserbaseSessionUrl: browserbaseSession
+        ? `https://www.browserbase.com/sessions/${browserbaseSession.id}`
+        : undefined,
       browserbaseDebugUrl: browserbaseSession?.debugUrl,
     };
   } finally {

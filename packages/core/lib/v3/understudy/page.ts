@@ -1796,10 +1796,19 @@ export class Page {
   }
 
   @logAction("Page.snapshot")
-  async snapshot(): Promise<SnapshotResult> {
+  async snapshot(options?: {
+    interactive?: boolean;
+    maxDepth?: number;
+    focusSelector?: string;
+  }): Promise<SnapshotResult> {
     try {
       const { combinedTree, combinedXpathMap, combinedUrlMap, combinedCssMap } =
-        await captureHybridSnapshot(this, { pierceShadow: true });
+        await captureHybridSnapshot(this, {
+          pierceShadow: true,
+          interactive: options?.interactive,
+          maxDepth: options?.maxDepth,
+          focusSelector: options?.focusSelector,
+        });
       return {
         formattedTree: combinedTree,
         xpathMap: combinedXpathMap,

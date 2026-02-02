@@ -16,6 +16,15 @@ export type SnapshotOptions = {
    * Optional feature flag that surfaces experimental traversal tweaks in the Accessibility layer.
    */
   experimental?: boolean;
+  /**
+   * Filter snapshot to only include interactive elements (buttons, links, inputs, etc.).
+   * Dramatically reduces output size for agent use cases.
+   */
+  interactive?: boolean;
+  /**
+   * Maximum tree depth to include in the snapshot.
+   */
+  maxDepth?: number;
 };
 
 /**
@@ -109,6 +118,10 @@ export type A11yOptions = {
   tagNameMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
   encode: (backendNodeId: number) => string;
+  /** Filter to only include interactive elements */
+  interactive?: boolean;
+  /** Maximum tree depth to include */
+  maxDepth?: number;
 };
 
 export type AccessibilityTreeResult = {

@@ -885,8 +885,19 @@ async function executeCommand(
 
     // Snapshot
     case "snapshot": {
-      const [compact] = args as [boolean?];
-      const snapshot = await page!.snapshot();
+      const [options] = args as [
+        {
+          compact?: boolean;
+          interactive?: boolean;
+          depth?: number;
+          selector?: string;
+        }?,
+      ];
+      const snapshot = await page!.snapshot({
+        interactive: options?.interactive,
+        maxDepth: options?.depth,
+        focusSelector: options?.selector,
+      });
 
       refMap = {
         xpathMap: snapshot.xpathMap ?? {},
@@ -894,7 +905,7 @@ async function executeCommand(
         urlMap: snapshot.urlMap ?? {},
       };
 
-      if (compact) {
+      if (options?.compact) {
         return { tree: snapshot.formattedTree };
       }
       return {
@@ -1359,7 +1370,6 @@ program
   .option(
     "--session <name>",
     "Session name for multiple browsers (or use BROWSE_SESSION env var)",
-    "default",
   );
 
 // ==================== DAEMON COMMANDS ====================
@@ -1764,10 +1774,23 @@ program
   .command("snapshot")
   .description("Get accessibility tree snapshot")
   .option("-c, --compact", "Output tree only (no xpath map)")
+  .option(
+    "-i, --interactive",
+    "Only include interactive elements (buttons, links, inputs)",
+  )
+  .option("-d, --depth <n>", "Maximum tree depth", parseInt)
+  .option("-s, --selector <sel>", "Scope snapshot to CSS selector or XPath")
   .action(async (cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     try {
-      const result = (await runCommand("snapshot", [cmdOpts.compact])) as {
+      const result = (await runCommand("snapshot", [
+        {
+          compact: cmdOpts.compact,
+          interactive: cmdOpts.interactive,
+          depth: cmdOpts.depth,
+          selector: cmdOpts.selector,
+        },
+      ])) as {
         tree: string;
         xpathMap?: Record<string, string>;
         urlMap?: Record<string, string>;
