@@ -48,6 +48,25 @@ function isAriaTreePart(part: unknown): boolean {
 }
 
 /**
+ * Check if the output has type "content" which uses array value format.
+ * The AI SDK output schema is a discriminated union:
+ * - type: "content" -> value: Array<{type: "text", text: string} | {type: "media", ...}>
+ * - type: "text" -> value: string
+ * - type: "json" -> value: JSONValue
+ * - type: "error-text" -> value: string
+ * - type: "error-json" -> value: JSONValue
+ *
+ * We should only modify outputs with type "content" to avoid corrupting other formats.
+ */
+function isContentTypeOutput(output: unknown): boolean {
+  return (
+    !!output &&
+    typeof output === "object" &&
+    (output as { type?: unknown }).type === "content"
+  );
+}
+
+/**
  * Compress old screenshot/ariaTree data in messages in-place.
  *
  * Strategy:
@@ -108,18 +127,20 @@ export function processMessages(messages: ModelMessage[]): number {
 }
 
 /**
- * Tool result part structure from AI SDK - has both output.value AND result
+ * Tool result part structure from AI SDK.
+ * The output field has a discriminated union type based on output.type.
+ * We only modify outputs with type "content" to maintain schema validity.
  */
 interface ToolResultPart {
   output?: {
     type: string;
-    value?: unknown[];
+    value?: unknown;
   };
-  result?: unknown[];
 }
 
 /**
- * Compress screenshot message content in-place
+ * Compress screenshot message content in-place.
+ * Only modifies outputs with type "content" since that's what screenshot tool uses.
  */
 function compressScreenshotMessage(message: {
   role: "tool";
@@ -128,13 +149,10 @@ function compressScreenshotMessage(message: {
   for (const part of message.content) {
     if (isScreenshotPart(part)) {
       const typedPart = part as ToolResultPart;
-      const placeholder = [{ type: "text", text: "screenshot taken" }];
-
-      if (typedPart.output?.value) {
+      // Only compress if output is type "content" (array-based value)
+      if (typedPart.output && isContentTypeOutput(typedPart.output)) {
+        const placeholder = [{ type: "text", text: "screenshot taken" }];
         typedPart.output.value = placeholder;
-      }
-      if (typedPart.result) {
-        typedPart.result = placeholder;
       }
     }
   }
@@ -142,7 +160,8 @@ function compressScreenshotMessage(message: {
 
 /**
  * Compress vision action message content in-place by removing the screenshot
- * but keeping the action result text
+ * but keeping the action result text.
+ * Only modifies outputs with type "content" since that's what vision tools use.
  */
 function compressVisionActionMessage(message: {
   role: "tool";
@@ -152,21 +171,18 @@ function compressVisionActionMessage(message: {
     if (isVisionActionPart(part)) {
       const typedPart = part as ToolResultPart;
 
-      // For vision action tools, filter out the media content but keep the text result
-      if (typedPart.output?.value && Array.isArray(typedPart.output.value)) {
-        typedPart.output.value = typedPart.output.value.filter(
-          (item) =>
-            item &&
-            typeof item === "object" &&
-            (item as { type?: string }).type !== "media",
-        );
-      }
-      if (typedPart.result && Array.isArray(typedPart.result)) {
-        typedPart.result = typedPart.result.filter(
-          (item) =>
-            item &&
-            typeof item === "object" &&
-            (item as { type?: string }).type !== "media",
+      // Only compress if output is type "content" (array-based value)
+      // This ensures we don't corrupt tools without toModelOutput that return type "json"
+      if (
+        typedPart.output &&
+        isContentTypeOutput(typedPart.output) &&
+        Array.isArray(typedPart.output.value)
+      ) {
+        // Filter out the media content but keep the text result
+        typedPart.output.value = (
+          typedPart.output.value as Array<{ type?: string }>
+        ).filter(
+          (item) => item && typeof item === "object" && item.type !== "media",
         );
       }
     }
@@ -174,7 +190,8 @@ function compressVisionActionMessage(message: {
 }
 
 /**
- * Compress ariaTree message content in-place
+ * Compress ariaTree message content in-place.
+ * Only modifies outputs with type "content" since that's what ariaTree tool uses.
  */
 function compressAriaTreeMessage(message: {
   role: "tool";
@@ -183,17 +200,15 @@ function compressAriaTreeMessage(message: {
   for (const part of message.content) {
     if (isAriaTreePart(part)) {
       const typedPart = part as ToolResultPart;
-      const placeholder = [
-        {
-          type: "text",
-          text: "ARIA tree extracted for context of page elements",
-        },
-      ];
-      if (typedPart.output?.value) {
+      // Only compress if output is type "content" (array-based value)
+      if (typedPart.output && isContentTypeOutput(typedPart.output)) {
+        const placeholder = [
+          {
+            type: "text",
+            text: "ARIA tree extracted for context of page elements",
+          },
+        ];
         typedPart.output.value = placeholder;
-      }
-      if (typedPart.result) {
-        typedPart.result = placeholder;
       }
     }
   }
