@@ -59,6 +59,20 @@ export class V3Context {
   private pendingCreatedTargetUrl = new Map<TargetId, string>();
   private readonly initScripts: string[] = [];
 
+  private installInitScriptsOnSession(
+    session: CDPSessionLike,
+  ): Array<Promise<unknown>> {
+    if (!this.initScripts.length) return [];
+    const promises: Array<Promise<unknown>> = [];
+    promises.push(session.send("Page.enable"));
+    for (const source of this.initScripts) {
+      promises.push(
+        session.send("Page.addScriptToEvaluateOnNewDocument", { source }),
+      );
+    }
+    return promises;
+  }
+
   /**
    * Create a Context for a given CDP websocket URL and bootstrap target wiring.
    */
@@ -214,6 +228,7 @@ export class V3Context {
     arg?: Arg,
   ): Promise<void> {
     const source = await normalizeInitScriptSource(script, arg);
+    if (this.initScripts.includes(source)) return;
     this.initScripts.push(source);
     const pages = this.pages();
     await Promise.all(pages.map((page) => page.registerInitScript(source)));
@@ -233,7 +248,16 @@ export class V3Context {
     return rows.map((r) => r.page);
   }
 
-  private async applyInitScriptsToPage(page: Page): Promise<void> {
+  private async applyInitScriptsToPage(
+    page: Page,
+    opts?: { seedOnly?: boolean },
+  ): Promise<void> {
+    if (opts?.seedOnly) {
+      for (const source of this.initScripts) {
+        page.seedInitScript(source);
+      }
+      return;
+    }
     for (const source of this.initScripts) {
       await page.registerInitScript(source);
     }
@@ -264,18 +288,31 @@ export class V3Context {
    * Waits until the target is attached and registered.
    */
   public async newPage(url = "about:blank"): Promise<Page> {
+    const targetUrl = String(url ?? "about:blank");
     const { targetId } = await this.conn.send<{ targetId: string }>(
       "Target.createTarget",
-      { url },
+      // Create at about:blank so init scripts can install before first real navigation.
+      { url: "about:blank" },
     );
-    this.pendingCreatedTargetUrl.set(targetId, url);
+    this.pendingCreatedTargetUrl.set(targetId, "about:blank");
     // Best-effort bring-to-front
     await this.conn.send("Target.activateTarget", { targetId }).catch(() => {});
 
     const deadline = Date.now() + 5000;
     while (Date.now() < deadline) {
       const page = this.pagesByTarget.get(targetId);
-      if (page) return page;
+      if (page) {
+        // we created at about:blank; navigate only after attach so init scripts run
+        // on the first real document. Fire-and-forget so newPage() resolves on attach.
+        if (targetUrl !== "about:blank") {
+          // Seed requested URL into the page cache before navigation events arrive.
+          page.seedCurrentUrl(targetUrl);
+          void page
+            .sendCDP("Page.navigate", { url: targetUrl })
+            .catch(() => {});
+        }
+        return page;
+      }
       await new Promise((r) => setTimeout(r, 25));
     }
     throw new TimeoutError(`newPage: target not attached (${targetId})`, 5000);
@@ -346,6 +383,9 @@ export class V3Context {
         if (info.type === "page" && (ti?.openerId || ti?.openerFrameId)) {
           this._notePopupSignal();
         }
+        // Let auto-attach handle top-level pages so waitForDebuggerOnStart can pause them.
+        if (isTopLevelPage(info)) return;
+
         try {
           await this.conn.attachToTarget(info.targetId);
         } catch {
@@ -385,93 +425,143 @@ export class V3Context {
     info: Protocol.Target.TargetInfo,
     sessionId: SessionId,
   ): Promise<void> {
+    // Workers are ignored by Stagehand, but with waitForDebuggerOnStart enabled
+    // they still need to be resumed so we don't leave them paused.
+    if (
+      info.type === "worker" ||
+      info.type === "service_worker" ||
+      info.type === "shared_worker"
+    ) {
+      const session = this.conn.getSession(sessionId);
+      if (session) {
+        await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
+      }
+      return;
+    }
+
     const session = this.conn.getSession(sessionId);
     if (!session) return;
 
     // Init guard
     if (this._sessionInit.has(sessionId)) return;
     this._sessionInit.add(sessionId);
-    await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
 
     // Register for Runtime events before enabling it so we don't miss initial contexts.
     executionContexts.attachSession(session);
 
-    const piercerReady = await this.ensurePiercer(session);
-    if (!piercerReady) return;
+    // Ensure we only resume once even if multiple code paths hit finally.
+    let resumed = false;
+    const resume = async (): Promise<void> => {
+      if (resumed) return;
+      resumed = true;
+      // waitForDebuggerOnStart pauses new targets; resume once we've done
+      // any "must happen before first document" work.
+      await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
+    };
 
-    await session
-      .send("Page.setLifecycleEventsEnabled", { enabled: true })
-      .catch(() => {});
-
-    // Top-level handling
-    if (isTopLevelPage(info)) {
-      const page = await Page.create(
-        this.conn,
-        session,
-        info.targetId,
-        this.apiClient,
-        this.localBrowserLaunchOptions,
-        this.env === "BROWSERBASE",
-      );
-      this.wireSessionToOwnerPage(sessionId, page);
-      this.pagesByTarget.set(info.targetId, page);
-      this.mainFrameToTarget.set(page.mainFrameId(), info.targetId);
-      this.sessionOwnerPage.set(sessionId, page);
-      this.frameOwnerPage.set(page.mainFrameId(), page);
-      this.typeByTarget.set(info.targetId, "page");
-      if (!this.createdAtByTarget.has(info.targetId)) {
-        this.createdAtByTarget.set(info.targetId, Date.now());
+    // Install any context-level init scripts as early as possible on this session.
+    // If this throws, we still resume the target but avoid re-installing later.
+    let scriptsInstalled = true;
+    let installPromises: Array<Promise<unknown>> = [];
+    try {
+      installPromises = this.installInitScriptsOnSession(session);
+    } catch {
+      scriptsInstalled = false;
+    }
+    // Resume immediately so we never deadlock on paused targets; we then wait
+    // for the init-script sends to settle in the background.
+    await resume();
+    if (installPromises.length) {
+      const results = await Promise.allSettled(installPromises);
+      if (results.some((r) => r.status === "rejected")) {
+        scriptsInstalled = false;
       }
-      const pendingSeedUrl = this.pendingCreatedTargetUrl.get(info.targetId);
-      this.pendingCreatedTargetUrl.delete(info.targetId);
-      page.seedCurrentUrl(pendingSeedUrl ?? info.url ?? "");
-      this._pushActive(info.targetId);
-      this.installFrameEventBridges(sessionId, page);
-      await this.applyInitScriptsToPage(page);
-
-      return;
     }
 
-    // Child (iframe / OOPIF)
     try {
-      const { frameTree } =
-        await session.send<Protocol.Page.GetFrameTreeResponse>(
-          "Page.getFrameTree",
-        );
-      const childMainId = frameTree.frame.id;
+      const piercerReady = await this.ensurePiercer(session);
+      if (!piercerReady) return;
 
-      // Try to find owner Page now (it may already have the node in its tree)
-      let owner = this.frameOwnerPage.get(childMainId);
-      if (!owner) {
-        for (const p of this.pagesByTarget.values()) {
-          const tree = p.asProtocolFrameTree(p.mainFrameId());
-          const has = (function find(n: Protocol.Page.FrameTree): boolean {
-            if (n.frame.id === childMainId) return true;
-            for (const c of n.childFrames ?? []) if (find(c)) return true;
-            return false;
-          })(tree);
-          if (has) {
-            owner = p;
-            break;
+      await session
+        .send("Page.setLifecycleEventsEnabled", { enabled: true })
+        .catch(() => {});
+
+      // Top-level handling
+      if (isTopLevelPage(info)) {
+        const page = await Page.create(
+          this.conn,
+          session,
+          info.targetId,
+          this.apiClient,
+          this.localBrowserLaunchOptions,
+          this.env === "BROWSERBASE",
+        );
+        this.wireSessionToOwnerPage(sessionId, page);
+        this.pagesByTarget.set(info.targetId, page);
+        this.mainFrameToTarget.set(page.mainFrameId(), info.targetId);
+        this.sessionOwnerPage.set(sessionId, page);
+        this.frameOwnerPage.set(page.mainFrameId(), page);
+        this.typeByTarget.set(info.targetId, "page");
+        if (!this.createdAtByTarget.has(info.targetId)) {
+          this.createdAtByTarget.set(info.targetId, Date.now());
+        }
+        const pendingSeedUrl = this.pendingCreatedTargetUrl.get(info.targetId);
+        this.pendingCreatedTargetUrl.delete(info.targetId);
+        page.seedCurrentUrl(pendingSeedUrl ?? info.url ?? "");
+        this._pushActive(info.targetId);
+        this.installFrameEventBridges(sessionId, page);
+        // If we already installed scripts at the session level, only seed the
+        // Page's registry to avoid double-installing DOMContentLoaded handlers.
+        await this.applyInitScriptsToPage(page, {
+          seedOnly: scriptsInstalled,
+        });
+
+        return;
+      }
+
+      // Child (iframe / OOPIF)
+      try {
+        const { frameTree } =
+          await session.send<Protocol.Page.GetFrameTreeResponse>(
+            "Page.getFrameTree",
+          );
+        const childMainId = frameTree.frame.id;
+
+        // Try to find owner Page now (it may already have the node in its tree)
+        let owner = this.frameOwnerPage.get(childMainId);
+        if (!owner) {
+          for (const p of this.pagesByTarget.values()) {
+            const tree = p.asProtocolFrameTree(p.mainFrameId());
+            const has = (function find(n: Protocol.Page.FrameTree): boolean {
+              if (n.frame.id === childMainId) return true;
+              for (const c of n.childFrames ?? []) if (find(c)) return true;
+              return false;
+            })(tree);
+            if (has) {
+              owner = p;
+              break;
+            }
           }
         }
-      }
 
-      if (owner) {
-        owner.adoptOopifSession(session, childMainId);
-        this.sessionOwnerPage.set(sessionId, owner);
-        this.installFrameEventBridges(sessionId, owner);
-        // Prime the execution-context registry so later lookups succeed even if
-        // the frame navigates before we issue a command.
-        void executionContexts
-          .waitForMainWorld(session, childMainId)
-          .catch(() => {});
-      } else {
-        this.pendingOopifByMainFrame.set(childMainId, sessionId);
+        if (owner) {
+          owner.adoptOopifSession(session, childMainId);
+          this.sessionOwnerPage.set(sessionId, owner);
+          this.installFrameEventBridges(sessionId, owner);
+          // Prime the execution-context registry so later lookups succeed even if
+          // the frame navigates before we issue a command.
+          void executionContexts
+            .waitForMainWorld(session, childMainId)
+            .catch(() => {});
+        } else {
+          this.pendingOopifByMainFrame.set(childMainId, sessionId);
+        }
+      } catch {
+        // page.getFrameTree failed. Most likely was an ad iframe
+        // that opened & closed before we could attach. ignore
       }
-    } catch {
-      // page.getFrameTree failed. Most likely was an ad iframe
-      // that opened & closed before we could attach. ignore
+    } finally {
+      await resume();
     }
   }
 
