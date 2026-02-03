@@ -43,6 +43,7 @@ export class V3Context {
   private readonly _piercerInstalled = new Set<string>();
   // Timestamp for most recent popup/open signal
   private _lastPopupSignalAt = 0;
+  private readonly _targetSessionListeners = new Set<SessionId>();
 
   private sessionKey(session: CDPSessionLike): string {
     return session.id ?? "root";
@@ -59,18 +60,30 @@ export class V3Context {
   private pendingCreatedTargetUrl = new Map<TargetId, string>();
   private readonly initScripts: string[] = [];
 
-  private installInitScriptsOnSession(
-    session: CDPSessionLike,
-  ): Array<Promise<unknown>> {
-    if (!this.initScripts.length) return [];
-    const promises: Array<Promise<unknown>> = [];
-    promises.push(session.send("Page.enable"));
-    for (const source of this.initScripts) {
-      promises.push(
-        session.send("Page.addScriptToEvaluateOnNewDocument", { source }),
-      );
-    }
-    return promises;
+  private installTargetSessionListeners(session: CDPSessionLike): void {
+    const sessionId = session.id;
+    if (!sessionId) return;
+    if (this._targetSessionListeners.has(sessionId)) return;
+    this._targetSessionListeners.add(sessionId);
+
+    session.on<Protocol.Target.AttachedToTargetEvent>(
+      "Target.attachedToTarget",
+      (evt) => {
+        void this.onAttachedToTarget(evt.targetInfo, evt.sessionId);
+      },
+    );
+    session.on<Protocol.Target.DetachedFromTargetEvent>(
+      "Target.detachedFromTarget",
+      (evt) => {
+        this.onDetachedFromTarget(evt.sessionId, evt.targetId ?? null);
+      },
+    );
+    session.on<Protocol.Target.TargetDestroyedEvent>(
+      "Target.targetDestroyed",
+      (evt) => {
+        this.cleanupByTarget(evt.targetId);
+      },
+    );
   }
 
   /**
@@ -336,7 +349,6 @@ export class V3Context {
   /**
    * Bootstrap target lifecycle:
    * - Attach to existing targets.
-   * - Attach on `Target.targetCreated` (fallback for OOPIFs).
    * - Handle auto-attach events.
    * - Clean up on detach/destroy.
    */
@@ -365,31 +377,14 @@ export class V3Context {
       },
     );
 
-    // Fallback: explicitly attach when a target is created (covers OOPIFs that don't auto-attach reliably)
     this.conn.on<Protocol.Target.TargetCreatedEvent>(
       "Target.targetCreated",
       async (evt) => {
         const info = evt.targetInfo;
-        // Skip noisy workers; everything else (page/iframe/fenced_frame/etc.) we attach to.
-        if (
-          info.type === "worker" ||
-          info.type === "service_worker" ||
-          info.type === "shared_worker"
-        ) {
-          return;
-        }
         // Note popups to help activePage settle
         const ti = info;
         if (info.type === "page" && (ti?.openerId || ti?.openerFrameId)) {
           this._notePopupSignal();
-        }
-        // Let auto-attach handle top-level pages so waitForDebuggerOnStart can pause them.
-        if (isTopLevelPage(info)) return;
-
-        try {
-          await this.conn.attachToTarget(info.targetId);
-        } catch {
-          // harmless if already attached or if target vanished
         }
       },
     );
@@ -446,6 +441,8 @@ export class V3Context {
     if (this._sessionInit.has(sessionId)) return;
     this._sessionInit.add(sessionId);
 
+    this.installTargetSessionListeners(session);
+
     // Register for Runtime events before enabling it so we don't miss initial contexts.
     executionContexts.attachSession(session);
 
@@ -462,15 +459,37 @@ export class V3Context {
     // Install any context-level init scripts as early as possible on this session.
     // If this throws, we still resume the target but avoid re-installing later.
     let scriptsInstalled = true;
-    let installPromises: Array<Promise<unknown>> = [];
+    const installPromises: Array<Promise<unknown>> = [];
     try {
-      installPromises = this.installInitScriptsOnSession(session);
+      const send = (method: string, params?: object) =>
+        session.send(method, params).catch(() => {});
+      // Match Playwright's attach prelude so init scripts land before any subframe work.
+      installPromises.push(send("Page.enable"));
+      installPromises.push(send("Runtime.enable"));
+      installPromises.push(
+        session
+          .send("Target.setAutoAttach", {
+            autoAttach: true,
+            waitForDebuggerOnStart: true,
+            flatten: true,
+          })
+          .catch(() => {}),
+      );
+      // Send init scripts only after auto-attach has been issued.
+      if (this.initScripts.length) {
+        for (const source of this.initScripts) {
+          installPromises.push(
+            session.send("Page.addScriptToEvaluateOnNewDocument", {
+              source,
+              runImmediately: true,
+            }),
+          );
+        }
+      }
+      installPromises.push(resume());
     } catch {
       scriptsInstalled = false;
     }
-    // Resume immediately so we never deadlock on paused targets; we then wait
-    // for the init-script sends to settle in the background.
-    await resume();
     if (installPromises.length) {
       const results = await Promise.allSettled(installPromises);
       if (results.some((r) => r.status === "rejected")) {
