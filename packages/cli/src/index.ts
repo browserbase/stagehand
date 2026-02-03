@@ -44,7 +44,10 @@ function getLockPath(session: string): string {
  * Acquire an exclusive lock for daemon operations.
  * Uses O_EXCL for atomic file creation to prevent race conditions.
  */
-async function acquireLock(session: string, timeoutMs: number = 10000): Promise<boolean> {
+async function acquireLock(
+  session: string,
+  timeoutMs: number = 10000,
+): Promise<boolean> {
   const lockPath = getLockPath(session);
   const startTime = Date.now();
 
@@ -62,10 +65,12 @@ async function acquireLock(session: string, timeoutMs: number = 10000): Promise<
           const holderPid = parseInt(await fs.readFile(lockPath, "utf-8"));
           process.kill(holderPid, 0); // Throws if process doesn't exist
           // Process exists, wait and retry
-          await new Promise(r => setTimeout(r, 100));
+          await new Promise((r) => setTimeout(r, 100));
         } catch {
           // Lock holder is dead, remove stale lock
-          try { await fs.unlink(lockPath); } catch {}
+          try {
+            await fs.unlink(lockPath);
+          } catch {}
         }
         continue;
       }
@@ -76,13 +81,18 @@ async function acquireLock(session: string, timeoutMs: number = 10000): Promise<
 }
 
 async function releaseLock(session: string): Promise<void> {
-  try { await fs.unlink(getLockPath(session)); } catch {}
+  try {
+    await fs.unlink(getLockPath(session));
+  } catch {}
 }
 
 /**
  * Check if a socket is actually connectable (not just exists on disk).
  */
-async function isSocketConnectable(socketPath: string, timeoutMs: number): Promise<boolean> {
+async function isSocketConnectable(
+  socketPath: string,
+  timeoutMs: number,
+): Promise<boolean> {
   return new Promise((resolve) => {
     const client = net.createConnection(socketPath);
     const timeout = setTimeout(() => {
@@ -106,13 +116,16 @@ async function isSocketConnectable(socketPath: string, timeoutMs: number): Promi
 /**
  * Wait for socket to become connectable with exponential backoff.
  */
-async function waitForSocketReady(socketPath: string, timeoutMs: number): Promise<void> {
+async function waitForSocketReady(
+  socketPath: string,
+  timeoutMs: number,
+): Promise<void> {
   const startTime = Date.now();
   let delay = 50;
 
   while (Date.now() - startTime < timeoutMs) {
     if (await isSocketConnectable(socketPath, 500)) return;
-    await new Promise(r => setTimeout(r, delay));
+    await new Promise((r) => setTimeout(r, delay));
     delay = Math.min(delay * 1.5, 500);
   }
   throw new Error(`Socket not ready after ${timeoutMs}ms`);
@@ -166,7 +179,9 @@ async function cleanupStaleFiles(session: string): Promise<void> {
   ];
 
   for (const file of files) {
-    try { await fs.unlink(file); } catch {}
+    try {
+      await fs.unlink(file);
+    } catch {}
   }
 }
 
@@ -213,14 +228,19 @@ interface DaemonResponse {
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
 
 // Detect if Browserbase should be used based on environment variables
-function getBrowserEnvironment(envOverride?: "LOCAL" | "BROWSERBASE"): "LOCAL" | "BROWSERBASE" {
+function getBrowserEnvironment(
+  envOverride?: "LOCAL" | "BROWSERBASE",
+): "LOCAL" | "BROWSERBASE" {
   const apiKey = process.env.BROWSERBASE_API_KEY || process.env.BB_API_KEY;
-  const projectId = process.env.BROWSERBASE_PROJECT_ID || process.env.BB_PROJECT_ID;
+  const projectId =
+    process.env.BROWSERBASE_PROJECT_ID || process.env.BB_PROJECT_ID;
 
   // If --env is explicitly set, use that
   if (envOverride) {
     if (envOverride === "BROWSERBASE" && (!apiKey || !projectId)) {
-      throw new Error("--env BROWSERBASE requires BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID environment variables");
+      throw new Error(
+        "--env BROWSERBASE requires BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID environment variables",
+      );
     }
     return envOverride;
   }
@@ -232,7 +252,12 @@ function getBrowserEnvironment(envOverride?: "LOCAL" | "BROWSERBASE"): "LOCAL" |
   return "LOCAL";
 }
 
-async function runDaemon(session: string, headless: boolean, envOverride?: "LOCAL" | "BROWSERBASE", cdpUrl?: string): Promise<void> {
+async function runDaemon(
+  session: string,
+  headless: boolean,
+  envOverride?: "LOCAL" | "BROWSERBASE",
+  cdpUrl?: string,
+): Promise<void> {
   await cleanupStaleFiles(session);
 
   // Write daemon PID file
@@ -255,7 +280,10 @@ async function runDaemon(session: string, headless: boolean, envOverride?: "LOCA
    * Lazy browser initialization - called on first command (like agent-browser)
    * This allows daemon to signal "started" immediately without waiting for browser
    */
-  async function ensureBrowserInitialized(): Promise<{ stagehand: Stagehand; context: BrowseContext }> {
+  async function ensureBrowserInitialized(): Promise<{
+    stagehand: Stagehand;
+    context: BrowseContext;
+  }> {
     if (stagehand && context) {
       return { stagehand, context };
     }
@@ -264,7 +292,7 @@ async function runDaemon(session: string, headless: boolean, envOverride?: "LOCA
     if (isInitializing) {
       // Wait for initialization to complete
       while (isInitializing) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
       if (stagehand && context) {
         return { stagehand, context };
@@ -276,16 +304,19 @@ async function runDaemon(session: string, headless: boolean, envOverride?: "LOCA
 
     try {
       // If CDP URL provided, force LOCAL mode (connecting to remote browser)
-      const env = browserConfig.cdpUrl ? "LOCAL" : getBrowserEnvironment(browserConfig.envOverride);
+      const env = browserConfig.cdpUrl
+        ? "LOCAL"
+        : getBrowserEnvironment(browserConfig.envOverride);
 
       // Get API key for model (required by Stagehand, even though CLI doesn't use act/extract/observe directly)
-      const modelApiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY;
+      const modelApiKey =
+        process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY;
 
       // When using BROWSERBASE, model API key is required
       if (env === "BROWSERBASE" && !modelApiKey) {
         throw new Error(
           "BROWSERBASE mode requires ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable to be set.\n" +
-          "The Stagehand SDK requires an AI model API key when running on Browserbase."
+            "The Stagehand SDK requires an AI model API key when running on Browserbase.",
         );
       }
 
@@ -303,7 +334,8 @@ async function runDaemon(session: string, headless: boolean, envOverride?: "LOCA
         }),
         ...(env === "BROWSERBASE" && {
           apiKey: process.env.BROWSERBASE_API_KEY || process.env.BB_API_KEY,
-          projectId: process.env.BROWSERBASE_PROJECT_ID || process.env.BB_PROJECT_ID,
+          projectId:
+            process.env.BROWSERBASE_PROJECT_ID || process.env.BB_PROJECT_ID,
         }),
         ...(env === "LOCAL" && {
           localBrowserLaunchOptions: browserConfig.cdpUrl
@@ -332,12 +364,16 @@ async function runDaemon(session: string, headless: boolean, envOverride?: "LOCA
       // Try to save Chrome info for reference (best effort)
       try {
         // If CDP URL was provided, save it; otherwise get from context connection
-        const wsUrl = browserConfig.cdpUrl || (context as any).conn?.wsUrl || "unknown";
+        const wsUrl =
+          browserConfig.cdpUrl || (context as any).conn?.wsUrl || "unknown";
         await fs.writeFile(getWsPath(browserConfig.session), wsUrl);
 
         // Also save CDP URL separately for tracking
         if (browserConfig.cdpUrl) {
-          await fs.writeFile(getCdpPath(browserConfig.session), browserConfig.cdpUrl);
+          await fs.writeFile(
+            getCdpPath(browserConfig.session),
+            browserConfig.cdpUrl,
+          );
         }
       } catch {}
 
@@ -346,129 +382,132 @@ async function runDaemon(session: string, headless: boolean, envOverride?: "LOCA
 
       // Setup network capture helpers (called when network is enabled)
       const setupNetworkCapture = async (targetPage: BrowsePage) => {
-    const cdpSession = targetPage.mainFrame().session;
+        const cdpSession = targetPage.mainFrame().session;
 
-    // Track request start times for duration calculation
-    const requestStartTimes = new Map<string, number>();
-    const requestDirs = new Map<string, string>();
+        // Track request start times for duration calculation
+        const requestStartTimes = new Map<string, number>();
+        const requestDirs = new Map<string, string>();
 
-    cdpSession.on("Network.requestWillBeSent", async (params: any) => {
-      if (!networkEnabled || !networkDir) return;
+        cdpSession.on("Network.requestWillBeSent", async (params: any) => {
+          if (!networkEnabled || !networkDir) return;
 
-      const request: PendingRequest = {
-        id: params.requestId,
-        timestamp: new Date().toISOString(),
-        method: params.request.method,
-        url: params.request.url,
-        headers: params.request.headers || {},
-        body: params.request.postData || null,
-        resourceType: params.type || "Other",
-      };
+          const request: PendingRequest = {
+            id: params.requestId,
+            timestamp: new Date().toISOString(),
+            method: params.request.method,
+            url: params.request.url,
+            headers: params.request.headers || {},
+            body: params.request.postData || null,
+            resourceType: params.type || "Other",
+          };
 
-      pendingRequests.set(params.requestId, request);
-      requestStartTimes.set(params.requestId, Date.now());
+          pendingRequests.set(params.requestId, request);
+          requestStartTimes.set(params.requestId, Date.now());
 
-      // Write request immediately
-      const requestDir = await writeRequestToFs(request);
-      if (requestDir) {
-        requestDirs.set(params.requestId, requestDir);
-      }
-    });
-
-    cdpSession.on("Network.responseReceived", async (params: any) => {
-      if (!networkEnabled) return;
-
-      const requestDir = requestDirs.get(params.requestId);
-      if (!requestDir) return;
-
-      // Store response info for when we get the body
-      const startTime = requestStartTimes.get(params.requestId) || Date.now();
-      const duration = Date.now() - startTime;
-
-      // Response info without body (body comes later)
-      const responseInfo = {
-        id: params.requestId,
-        status: params.response.status,
-        statusText: params.response.statusText || "",
-        headers: params.response.headers || {},
-        mimeType: params.response.mimeType || "",
-        body: null as string | null,
-        duration,
-      };
-
-      // Store for body retrieval
-      (params as any)._responseInfo = responseInfo;
-      (params as any)._requestDir = requestDir;
-    });
-
-    cdpSession.on("Network.loadingFinished", async (params: any) => {
-      if (!networkEnabled) return;
-
-      const requestDir = requestDirs.get(params.requestId);
-      const pending = pendingRequests.get(params.requestId);
-      if (!requestDir || !pending) return;
-
-      const startTime = requestStartTimes.get(params.requestId) || Date.now();
-      const duration = Date.now() - startTime;
-
-      let body: string | null = null;
-      try {
-        const result = await cdpSession.send("Network.getResponseBody", {
-          requestId: params.requestId,
+          // Write request immediately
+          const requestDir = await writeRequestToFs(request);
+          if (requestDir) {
+            requestDirs.set(params.requestId, requestDir);
+          }
         });
-        body = (result as any).body || null;
-        if ((result as any).base64Encoded && body) {
-          body = `[base64] ${body.slice(0, 100)}...`;
-        }
-      } catch {
-        // Body not available (e.g., for redirects)
-      }
 
-      const responseData = {
-        id: params.requestId,
-        status: 0,
-        statusText: "",
-        headers: {} as Record<string, string>,
-        mimeType: "",
-        body,
-        duration,
-      };
+        cdpSession.on("Network.responseReceived", async (params: any) => {
+          if (!networkEnabled) return;
 
-      await writeResponseToFs(requestDir, responseData);
+          const requestDir = requestDirs.get(params.requestId);
+          if (!requestDir) return;
 
-      // Cleanup
-      pendingRequests.delete(params.requestId);
-      requestStartTimes.delete(params.requestId);
-      requestDirs.delete(params.requestId);
-    });
+          // Store response info for when we get the body
+          const startTime =
+            requestStartTimes.get(params.requestId) || Date.now();
+          const duration = Date.now() - startTime;
 
-    cdpSession.on("Network.loadingFailed", async (params: any) => {
-      if (!networkEnabled) return;
+          // Response info without body (body comes later)
+          const responseInfo = {
+            id: params.requestId,
+            status: params.response.status,
+            statusText: params.response.statusText || "",
+            headers: params.response.headers || {},
+            mimeType: params.response.mimeType || "",
+            body: null as string | null,
+            duration,
+          };
 
-      const requestDir = requestDirs.get(params.requestId);
-      if (!requestDir) return;
+          // Store for body retrieval
+          (params as any)._responseInfo = responseInfo;
+          (params as any)._requestDir = requestDir;
+        });
 
-      const startTime = requestStartTimes.get(params.requestId) || Date.now();
-      const duration = Date.now() - startTime;
+        cdpSession.on("Network.loadingFinished", async (params: any) => {
+          if (!networkEnabled) return;
 
-      const responseData = {
-        id: params.requestId,
-        status: 0,
-        statusText: "Failed",
-        headers: {},
-        mimeType: "",
-        body: null,
-        duration,
-        error: params.errorText || "Unknown error",
-      };
+          const requestDir = requestDirs.get(params.requestId);
+          const pending = pendingRequests.get(params.requestId);
+          if (!requestDir || !pending) return;
 
-      await writeResponseToFs(requestDir, responseData);
+          const startTime =
+            requestStartTimes.get(params.requestId) || Date.now();
+          const duration = Date.now() - startTime;
 
-      // Cleanup
-      pendingRequests.delete(params.requestId);
-      requestStartTimes.delete(params.requestId);
-      requestDirs.delete(params.requestId);
-    });
+          let body: string | null = null;
+          try {
+            const result = await cdpSession.send("Network.getResponseBody", {
+              requestId: params.requestId,
+            });
+            body = (result as any).body || null;
+            if ((result as any).base64Encoded && body) {
+              body = `[base64] ${body.slice(0, 100)}...`;
+            }
+          } catch {
+            // Body not available (e.g., for redirects)
+          }
+
+          const responseData = {
+            id: params.requestId,
+            status: 0,
+            statusText: "",
+            headers: {} as Record<string, string>,
+            mimeType: "",
+            body,
+            duration,
+          };
+
+          await writeResponseToFs(requestDir, responseData);
+
+          // Cleanup
+          pendingRequests.delete(params.requestId);
+          requestStartTimes.delete(params.requestId);
+          requestDirs.delete(params.requestId);
+        });
+
+        cdpSession.on("Network.loadingFailed", async (params: any) => {
+          if (!networkEnabled) return;
+
+          const requestDir = requestDirs.get(params.requestId);
+          if (!requestDir) return;
+
+          const startTime =
+            requestStartTimes.get(params.requestId) || Date.now();
+          const duration = Date.now() - startTime;
+
+          const responseData = {
+            id: params.requestId,
+            status: 0,
+            statusText: "Failed",
+            headers: {},
+            mimeType: "",
+            body: null,
+            duration,
+            error: params.errorText || "Unknown error",
+          };
+
+          await writeResponseToFs(requestDir, responseData);
+
+          // Cleanup
+          pendingRequests.delete(params.requestId);
+          requestStartTimes.delete(params.requestId);
+          requestDirs.delete(params.requestId);
+        });
       }; // Close setupNetworkCapture function
 
       // Store the setup function for use when network is enabled
@@ -491,7 +530,8 @@ async function runDaemon(session: string, headless: boolean, envOverride?: "LOCA
         const request: DaemonRequest = JSON.parse(line);
 
         // Lazy browser initialization on first command (like agent-browser)
-        const { stagehand: sh, context: ctx } = await ensureBrowserInitialized();
+        const { stagehand: sh, context: ctx } =
+          await ensureBrowserInitialized();
 
         const result = await executeCommand(
           ctx,
@@ -671,7 +711,6 @@ async function writeResponseToFs(
   }
 }
 
-
 /**
  * Parse a ref from a selector argument.
  * Supports: @0-3, @[0-3], [0-3], 0-3, ref=0-3
@@ -728,9 +767,10 @@ async function executeCommand(
   stagehand?: Stagehand,
 ): Promise<unknown> {
   // Use awaitActivePage() like stagehand.act() does - handles popups and waits for page to be ready
-  const page = command !== "pages" && command !== "newpage"
-    ? await context.awaitActivePage()
-    : context.activePage();
+  const page =
+    command !== "pages" && command !== "newpage"
+      ? await context.awaitActivePage()
+      : context.activePage();
   if (!page && command !== "pages" && command !== "newpage") {
     throw new Error("No active page");
   }
@@ -977,8 +1017,19 @@ async function executeCommand(
 
     // Snapshot
     case "snapshot": {
-      const [compact] = args as [boolean?];
-      const snapshot = await page!.snapshot();
+      const [options] = args as [
+        {
+          compact?: boolean;
+          interactive?: boolean;
+          depth?: number;
+          selector?: string;
+        }?,
+      ];
+      const snapshot = await page!.snapshot({
+        interactive: options?.interactive,
+        maxDepth: options?.depth,
+        focusSelector: options?.selector,
+      });
 
       refMap = {
         xpathMap: snapshot.xpathMap ?? {},
@@ -986,7 +1037,7 @@ async function executeCommand(
         urlMap: snapshot.urlMap ?? {},
       };
 
-      if (compact) {
+      if (options?.compact) {
         return { tree: snapshot.formattedTree };
       }
       return {
@@ -1018,8 +1069,10 @@ async function executeCommand(
         throw new Error("Stagehand instance not available");
       }
 
-      const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-      const fn = new AsyncFunction('context', 'page', 'stagehand', code);
+      const AsyncFunction = Object.getPrototypeOf(
+        async function () {},
+      ).constructor;
+      const fn = new AsyncFunction("context", "page", "stagehand", code);
 
       const result = await fn(context, page, stagehand);
       return { result };
@@ -1301,7 +1354,7 @@ async function sendCommand(
 
       // Attempt 0: Brief wait and retry (socket might be temporarily unavailable)
       if (attempt === 0) {
-        await new Promise(r => setTimeout(r, 200));
+        await new Promise((r) => setTimeout(r, 200));
         continue;
       }
 
@@ -1318,10 +1371,17 @@ async function sendCommand(
     }
   }
 
-  throw new Error(`Max retries exceeded for command ${command} on session ${session}`);
+  throw new Error(
+    `Max retries exceeded for command ${command} on session ${session}`,
+  );
 }
 
-async function ensureDaemon(session: string, headless: boolean, envOverride?: "LOCAL" | "BROWSERBASE", cdpUrl?: string): Promise<void> {
+async function ensureDaemon(
+  session: string,
+  headless: boolean,
+  envOverride?: "LOCAL" | "BROWSERBASE",
+  cdpUrl?: string,
+): Promise<void> {
   // Fast path: check if daemon is already running without lock
   const isRunning = await isDaemonRunning(session);
 
@@ -1331,7 +1391,9 @@ async function ensureDaemon(session: string, headless: boolean, envOverride?: "L
       const storedCdpUrl = await fs.readFile(getCdpPath(session), "utf-8");
       if (storedCdpUrl !== cdpUrl) {
         // CDP URL changed - restart daemon (need lock for this)
-        console.error(`[stagehand] CDP URL changed for session ${session}, restarting daemon...`);
+        console.error(
+          `[stagehand] CDP URL changed for session ${session}, restarting daemon...`,
+        );
         // Fall through to locked section to restart
       } else {
         // Same CDP URL - reuse existing daemon
@@ -1476,13 +1538,13 @@ program
   .name("browse")
   .description("Browser automation CLI for AI agents")
   .version(VERSION)
-  .option(
-    "--ws <url>",
-    "CDP WebSocket URL for connecting to remote browser",
-  )
+  .option("--ws <url>", "CDP WebSocket URL for connecting to remote browser")
   .option("--headless", "Run Chrome in headless mode")
   .option("--headed", "Run Chrome with visible window (default)")
-  .option("--env <environment>", "Browser environment: LOCAL or BROWSERBASE (auto-detected if not specified)")
+  .option(
+    "--env <environment>",
+    "Browser environment: LOCAL or BROWSERBASE (auto-detected if not specified)",
+  )
   .option("--json", "Output as JSON", false)
   .option(
     "--session <name>",
@@ -1642,13 +1704,20 @@ program
   .description("Click element by ref (e.g., @0-5, 0-5, or CSS/XPath selector)")
   .option("-b, --button <btn>", "Mouse button: left, right, middle", "left")
   .option("-c, --count <n>", "Click count", "1")
-  .option("-f, --force", "Force click even if element has no layout (uses synthetic event)")
+  .option(
+    "-f, --force",
+    "Force click even if element has no layout (uses synthetic event)",
+  )
   .action(async (ref: string, cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     try {
       const result = await runCommand("click", [
         ref,
-        { button: cmdOpts.button, clickCount: parseInt(cmdOpts.count), force: cmdOpts.force },
+        {
+          button: cmdOpts.button,
+          clickCount: parseInt(cmdOpts.count),
+          force: cmdOpts.force,
+        },
       ]);
       output(result, opts.json ?? false);
     } catch (e) {
@@ -1893,10 +1962,23 @@ program
   .command("snapshot")
   .description("Get accessibility tree snapshot")
   .option("-c, --compact", "Output tree only (no xpath map)")
+  .option(
+    "-i, --interactive",
+    "Only include interactive elements (buttons, links, inputs)",
+  )
+  .option("-d, --depth <n>", "Maximum tree depth", parseInt)
+  .option("-s, --selector <sel>", "Scope snapshot to CSS selector or XPath")
   .action(async (cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     try {
-      const result = (await runCommand("snapshot", [cmdOpts.compact])) as {
+      const result = (await runCommand("snapshot", [
+        {
+          compact: cmdOpts.compact,
+          interactive: cmdOpts.interactive,
+          depth: cmdOpts.depth,
+          selector: cmdOpts.selector,
+        },
+      ])) as {
         tree: string;
         xpathMap?: Record<string, string>;
         urlMap?: Record<string, string>;

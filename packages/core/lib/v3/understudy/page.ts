@@ -1812,15 +1812,51 @@ export class Page {
   }
 
   @logAction("Page.snapshot")
-  async snapshot(): Promise<SnapshotResult> {
+  async snapshot(options?: {
+    interactive?: boolean;
+    maxDepth?: number;
+    focusSelector?: string;
+  }): Promise<SnapshotResult> {
     try {
       const { combinedTree, combinedXpathMap, combinedUrlMap, combinedCssMap } =
-        await captureHybridSnapshot(this, { pierceShadow: true });
+        await captureHybridSnapshot(this, {
+          pierceShadow: true,
+          interactive: options?.interactive,
+          maxDepth: options?.maxDepth,
+          focusSelector: options?.focusSelector,
+        });
+
+      // When interactive mode is enabled, filter maps to only include refs present in tree
+      let filteredXpathMap = combinedXpathMap;
+      let filteredUrlMap = combinedUrlMap;
+      let filteredCssMap = combinedCssMap;
+
+      if (options?.interactive) {
+        const treeRefs = new Set<string>();
+        if (combinedTree) {
+          const refMatches = combinedTree.matchAll(/\[(\d+-\d+)\]/g);
+          for (const match of refMatches) {
+            treeRefs.add(match[1]);
+          }
+        }
+
+        filteredXpathMap = {};
+        filteredUrlMap = {};
+        filteredCssMap = {};
+
+        for (const ref of treeRefs) {
+          if (combinedXpathMap[ref])
+            filteredXpathMap[ref] = combinedXpathMap[ref];
+          if (combinedUrlMap[ref]) filteredUrlMap[ref] = combinedUrlMap[ref];
+          if (combinedCssMap[ref]) filteredCssMap[ref] = combinedCssMap[ref];
+        }
+      }
+
       return {
         formattedTree: combinedTree,
-        xpathMap: combinedXpathMap,
-        urlMap: combinedUrlMap,
-        cssMap: combinedCssMap,
+        xpathMap: filteredXpathMap,
+        urlMap: filteredUrlMap,
+        cssMap: filteredCssMap,
       };
     } catch (err) {
       throw new StagehandSnapshotError(err);
