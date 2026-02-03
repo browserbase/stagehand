@@ -670,10 +670,13 @@ export interface FillFormVisionToolResult {
   screenshotBase64?: string;
 }
 
-export interface ScrollVisionToolResult {
+export interface ScrollToolResult {
   success: boolean;
   message: string;
   scrolledPixels: number;
+}
+
+export interface ScrollVisionToolResult extends ScrollToolResult {
   screenshotBase64?: string;
 }
 

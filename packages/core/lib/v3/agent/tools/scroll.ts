@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3";
 import type {
+  ScrollToolResult,
   ScrollVisionToolResult,
   ModelOutputContentItem,
 } from "../../types/public/agent";
@@ -20,7 +21,10 @@ export const scrollTool = (v3: V3) =>
       direction: z.enum(["up", "down"]),
       percentage: z.number().min(1).max(200).optional(),
     }),
-    execute: async ({ direction, percentage = 80 }) => {
+    execute: async ({
+      direction,
+      percentage = 80,
+    }): Promise<ScrollToolResult> => {
       v3.logger({
         category: "agent",
         message: `Agent calling tool: scroll`,
@@ -58,6 +62,16 @@ export const scrollTool = (v3: V3) =>
         success: true,
         message: `Scrolled ${percentage}% ${direction} (${scrollDistance}px)`,
         scrolledPixels: scrollDistance,
+      };
+    },
+    toModelOutput: (result) => {
+      return {
+        type: "json",
+        value: {
+          success: result.success,
+          message: result.message,
+          scrolledPixels: result.scrolledPixels,
+        },
       };
     },
   });
