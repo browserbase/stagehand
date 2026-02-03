@@ -28,7 +28,7 @@ async function main() {
     const agent = stagehand.agent({
       mode: "cua",
       model: {
-        modelName: "google/gemini-2.5-computer-use-preview-10-2025",
+        modelName: "google/gemini-3-flash-preview",
         apiKey: process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY,
       },
       systemPrompt: `You are a helpful assistant that can use a web browser.
