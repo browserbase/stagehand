@@ -84,27 +84,18 @@ export class V3AgentHandler {
     modelId: string,
     userOptions?: ThinkingProviderOptions,
   ): AgentProviderOptions | undefined {
-    const isGoogle = modelId.includes("gemini");
     const isGemini3 = modelId.includes("gemini-3");
 
-    // Build Google provider options with required defaults
-    if (isGoogle) {
-      const googleDefaults: GoogleGenerativeAIProviderOptions = {};
-
-      // Gemini 3 needs high media resolution for best results
-      if (isGemini3) {
-        googleDefaults.mediaResolution = "MEDIA_RESOLUTION_HIGH";
-      }
-
-      // Merge user's Google thinking options with defaults if provided
-      if (userOptions?.google || Object.keys(googleDefaults).length > 0) {
-        return {
-          google: {
-            ...googleDefaults,
-            ...userOptions?.google,
-          },
-        };
-      }
+    // Add Gemini 3 defaults and/or pass through user's Google options if provided
+    if (isGemini3 || userOptions?.google) {
+      return {
+        google: {
+          ...(isGemini3 && {
+            mediaResolution: "MEDIA_RESOLUTION_HIGH",
+          }),
+          ...userOptions?.google,
+        },
+      };
     }
 
     // Pass through Anthropic thinking options directly
