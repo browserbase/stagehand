@@ -40,8 +40,6 @@ import {
 } from "../types/public/sdkErrors";
 import { handleDoneToolCall } from "../agent/utils/handleDoneToolCall";
 
-import type { GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
-
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
