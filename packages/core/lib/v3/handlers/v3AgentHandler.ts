@@ -29,8 +29,8 @@ import {
   AgentStreamCallbacks,
   AgentToolMode,
   ThinkingProviderOptions,
-  AgentProviderOptions,
 } from "../types/public/agent";
+import { AgentProviderOptions } from "../types/private/agent";
 import { V3FunctionName } from "../types/public/methods";
 import { mapToolResultToActions } from "../agent/utils/actionMapping";
 import {

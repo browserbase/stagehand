@@ -671,21 +671,6 @@ export interface ThinkingProviderOptions {
   openai?: OpenAIThinkingOptions;
 }
 
-/**
- * Internal provider options type used by the AI SDK.
- * Extends ThinkingProviderOptions with full provider options for internal use.
- */
-export interface AgentProviderOptions {
-  google?: GoogleGenerativeAIProviderOptions;
-  anthropic?: AnthropicProviderOptions;
-  openai?: OpenAIResponsesProviderOptions;
-  [key: string]:
-    | GoogleGenerativeAIProviderOptions
-    | AnthropicProviderOptions
-    | OpenAIResponsesProviderOptions
-    | undefined;
-}
-
 export type AgentConfig = {
   /**
    * Custom system prompt to provide to the agent. Overrides the default system prompt.
