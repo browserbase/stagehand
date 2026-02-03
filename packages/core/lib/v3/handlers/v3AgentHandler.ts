@@ -28,7 +28,7 @@ import {
   AgentStreamResult,
   AgentStreamCallbacks,
   AgentToolMode,
-  ThinkingConfig,
+  ThinkingProviderOptions,
   AgentProviderOptions,
 } from "../types/public/agent";
 import { V3FunctionName } from "../types/public/methods";
@@ -37,18 +37,14 @@ import {
   MissingLLMConfigurationError,
   StreamingCallbacksInNonStreamingModeError,
   AgentAbortError,
-  StagehandInvalidArgumentError,
 } from "../types/public/sdkErrors";
 import { handleDoneToolCall } from "../agent/utils/handleDoneToolCall";
 
-import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
 import type { GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
-import type { OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
-
 export class V3AgentHandler {
   private v3: V3;
   private logger: (message: LogLine) => void;
@@ -77,121 +73,51 @@ export class V3AgentHandler {
   }
 
   /**
-   * Suppress AI SDK warnings temporarily.
-   * Used for Google thinkingConfig which incorrectly warns about Vertex-only support.
-   */
-  private suppressAiSdkWarnings(): () => void {
-    const originalValue = (globalThis as Record<string, unknown>)
-      .AI_SDK_LOG_WARNINGS;
-    (globalThis as Record<string, unknown>).AI_SDK_LOG_WARNINGS = false;
-    return () => {
-      (globalThis as Record<string, unknown>).AI_SDK_LOG_WARNINGS =
-        originalValue;
-    };
-  }
-
-  /**
-   * Build provider-specific options based on model type and thinking configuration.
-   * Maps the standardized ThinkingConfig to provider-specific formats:
-   * - Google: `google.thinkingConfig: { includeThoughts, thinkingLevel }`
-   * - Anthropic: `anthropic.thinking: { type: 'enabled', budgetTokens }` and `anthropic.effort`
-   * - OpenAI: `openai.reasoningSummary` and `openai.reasoningEffort`
+   * Build provider-specific options based on model type and user-provided thinking options.
+   * Merges user's thinking options with any required defaults (e.g., mediaResolution for Gemini 3).
    *
-   * Returns both the provider options and whether to suppress AI SDK warnings
-   * (needed for Google thinkingConfig which incorrectly warns about Vertex-only support).
+   * @param modelId - The model identifier to determine provider-specific defaults
+   * @param userOptions - User-provided thinking/reasoning options
+   * @returns The merged provider options ready for the AI SDK
    */
   private buildProviderOptions(
     modelId: string,
-    thinkingConfig?: ThinkingConfig,
-  ): { options: AgentProviderOptions | undefined; suppressWarnings: boolean } {
+    userOptions?: ThinkingProviderOptions,
+  ): AgentProviderOptions | undefined {
     const isGoogle = modelId.includes("gemini");
-    const isAnthropic = modelId.includes("claude");
-    const isOpenAI =
-      modelId.includes("gpt-") ||
-      modelId.includes("o1") ||
-      modelId.includes("o3") ||
-      modelId.includes("o4");
     const isGemini3 = modelId.includes("gemini-3");
 
-    // Build Google provider options
+    // Build Google provider options with required defaults
     if (isGoogle) {
-      const googleOptions: GoogleGenerativeAIProviderOptions = {};
-      // Suppress warnings for Google thinkingConfig (AI SDK incorrectly warns about Vertex-only)
-      let suppressWarnings = false;
+      const googleDefaults: GoogleGenerativeAIProviderOptions = {};
 
+      // Gemini 3 needs high media resolution for best results
       if (isGemini3) {
-        googleOptions.mediaResolution = "MEDIA_RESOLUTION_HIGH";
+        googleDefaults.mediaResolution = "MEDIA_RESOLUTION_HIGH";
       }
 
-      if (thinkingConfig?.enableThinking) {
-        googleOptions.thinkingConfig = {
-          includeThoughts: true,
-          ...(thinkingConfig.thinkingLevel && {
-            thinkingLevel: thinkingConfig.thinkingLevel,
-          }),
-          ...(thinkingConfig.budgetTokens && {
-            thinkingBudget: thinkingConfig.budgetTokens,
-          }),
-        };
-        suppressWarnings = true;
-      }
-
-      if (Object.keys(googleOptions).length > 0) {
+      // Merge user's Google thinking options with defaults if provided
+      if (userOptions?.google || Object.keys(googleDefaults).length > 0) {
         return {
-          options: { google: googleOptions },
-          suppressWarnings,
+          google: {
+            ...googleDefaults,
+            ...userOptions?.google,
+          },
         };
       }
     }
 
-    // Build Anthropic provider options
-    if (isAnthropic && thinkingConfig?.enableThinking) {
-      if (!thinkingConfig.budgetTokens) {
-        throw new StagehandInvalidArgumentError(
-          "Anthropic models require 'budgetTokens' when thinking is enabled. " +
-            "Add 'budgetTokens' to your thinking config. " +
-            "Example: thinking: { enableThinking: true, budgetTokens: 10000 }",
-        );
-      }
-      if (
-        thinkingConfig.budgetTokens < 1024 ||
-        thinkingConfig.budgetTokens > 64000
-      ) {
-        throw new StagehandInvalidArgumentError(
-          `Anthropic 'budgetTokens' must be between 1024 and 64000, got ${thinkingConfig.budgetTokens}. ` +
-            "Example: thinking: { enableThinking: true, budgetTokens: 10000 }",
-        );
-      }
-      const anthropicOptions: AnthropicProviderOptions = {
-        thinking: {
-          type: "enabled",
-          budgetTokens: thinkingConfig.budgetTokens,
-        },
-      };
-      return {
-        options: { anthropic: anthropicOptions },
-        // Suppress warnings for Anthropic thinking (AI SDK warns about temperature not supported)
-        suppressWarnings: true,
-      };
+    // Pass through Anthropic thinking options directly
+    if (userOptions?.anthropic) {
+      return { anthropic: userOptions.anthropic };
     }
 
-    // Build OpenAI provider options
-    if (isOpenAI && thinkingConfig?.enableThinking) {
-      const openaiOptions: OpenAIResponsesProviderOptions = {
-        // Map thinkingLevel to reasoningSummary: high → detailed, low/medium → auto
-        reasoningSummary:
-          thinkingConfig.thinkingLevel === "high" ? "detailed" : "auto",
-        ...(thinkingConfig.thinkingLevel && {
-          reasoningEffort: thinkingConfig.thinkingLevel,
-        }),
-      };
-      return {
-        options: { openai: openaiOptions },
-        suppressWarnings: false,
-      };
+    // Pass through OpenAI reasoning options directly
+    if (userOptions?.openai) {
+      return { openai: userOptions.openai };
     }
 
-    return { options: undefined, suppressWarnings: false };
+    return undefined;
   }
 
   private async prepareAgent(
@@ -421,34 +347,24 @@ export class V3AgentHandler {
         }
       }
 
-      const { options: providerOptions, suppressWarnings } =
-        this.buildProviderOptions(
-          wrappedModel.modelId,
-          preparedOptions.thinking,
-        );
+      const providerOptions = this.buildProviderOptions(
+        wrappedModel.modelId,
+        preparedOptions.providerOptions,
+      );
 
-      // Suppress AI SDK warnings for Google thinkingConfig (incorrectly warns about Vertex-only)
-      const restoreWarnings = suppressWarnings
-        ? this.suppressAiSdkWarnings()
-        : null;
-      let result;
-      try {
-        result = await this.llmClient.generateText({
-          model: wrappedModel,
-          system: systemPrompt,
-          messages,
-          tools: allTools,
-          stopWhen: (result) => this.handleStop(result, maxSteps),
-          temperature: 1,
-          toolChoice: "auto",
-          prepareStep: this.createPrepareStep(callbacks?.prepareStep),
-          onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
-          abortSignal: preparedOptions.signal,
-          providerOptions,
-        });
-      } finally {
-        restoreWarnings?.();
-      }
+      const result = await this.llmClient.generateText({
+        model: wrappedModel,
+        system: systemPrompt,
+        messages,
+        tools: allTools,
+        stopWhen: (result) => this.handleStop(result, maxSteps),
+        temperature: 1,
+        toolChoice: "auto",
+        prepareStep: this.createPrepareStep(callbacks?.prepareStep),
+        onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
+        abortSignal: preparedOptions.signal,
+        providerOptions,
+      });
 
       const allMessages = [...messages, ...(result.response?.messages || [])];
       const doneResult = await this.ensureDone(
@@ -554,13 +470,10 @@ export class V3AgentHandler {
       rejectResult(error);
     };
 
-    const { options: providerOptions, suppressWarnings } =
-      this.buildProviderOptions(wrappedModel.modelId, options.thinking);
-
-    // Suppress AI SDK warnings for Google thinkingConfig (incorrectly warns about Vertex-only)
-    const restoreWarnings = suppressWarnings
-      ? this.suppressAiSdkWarnings()
-      : null;
+    const providerOptions = this.buildProviderOptions(
+      wrappedModel.modelId,
+      options.providerOptions,
+    );
 
     const streamResult = this.llmClient.streamText({
       model: wrappedModel,
@@ -573,9 +486,6 @@ export class V3AgentHandler {
       prepareStep: this.createPrepareStep(callbacks?.prepareStep),
       onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
       onError: (event) => {
-        // Restore warnings on error
-        restoreWarnings?.();
-
         if (callbacks?.onError) {
           callbacks.onError(event);
         }
@@ -583,9 +493,6 @@ export class V3AgentHandler {
       },
       onChunk: callbacks?.onChunk,
       onFinish: (event) => {
-        // Restore warnings after stream finishes
-        restoreWarnings?.();
-
         if (callbacks?.onFinish) {
           callbacks.onFinish(event);
         }
@@ -611,9 +518,6 @@ export class V3AgentHandler {
         });
       },
       onAbort: (event) => {
-        // Restore warnings on abort
-        restoreWarnings?.();
-
         if (callbacks?.onAbort) {
           callbacks.onAbort(event);
         }

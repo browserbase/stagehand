@@ -343,27 +343,52 @@ export interface AgentExecuteOptionsBase {
    */
   output?: StagehandZodObject;
   /**
-   * Thinking/reasoning configuration for supported models.
-   * Enables extended thinking capabilities in supported models:
-   * - Google Gemini: Uses `thinkingConfig` with `includeThoughts` and `thinkingLevel`
-   * - Anthropic Claude: Uses `thinking` (type: enabled) and `effort`
-   * - OpenAI: Uses `reasoningSummary` and `reasoningEffort`
+   * Provider-specific thinking/reasoning options.
+   * Pass options directly to your model's provider for thinking capabilities.
    *
    * **Note:** Not supported in CUA mode (`mode: "cua"`).
    *
    * @example
    * ```typescript
+   * // Google Gemini thinking
    * const result = await agent.execute({
    *   instruction: "Solve this complex problem",
-   *   thinking: {
-   *     enableThinking: true,
-   *     thinkingLevel: "high",
-   *     budgetTokens: 10000
+   *   providerOptions: {
+   *     google: {
+   *       thinkingConfig: {
+   *         includeThoughts: true,
+   *         thinkingBudget: 10000
+   *       }
+   *     }
+   *   }
+   * });
+   *
+   * // Anthropic Claude extended thinking
+   * const result = await agent.execute({
+   *   instruction: "Solve this complex problem",
+   *   providerOptions: {
+   *     anthropic: {
+   *       thinking: {
+   *         type: "enabled",
+   *         budgetTokens: 10000
+   *       }
+   *     }
+   *   }
+   * });
+   *
+   * // OpenAI reasoning
+   * const result = await agent.execute({
+   *   instruction: "Solve this complex problem",
+   *   providerOptions: {
+   *     openai: {
+   *       reasoningSummary: "detailed",
+   *       reasoningEffort: "high"
+   *     }
    *   }
    * });
    * ```
    */
-  thinking?: ThinkingConfig;
+  providerOptions?: ThinkingProviderOptions;
 }
 
 /**
@@ -582,41 +607,73 @@ export type AgentModelConfig<TModelName extends string = string> = {
 export type AgentToolMode = "dom" | "hybrid" | "cua";
 
 /**
- * Standardized thinking configuration for agent models.
- * Maps to provider-specific options:
- * - Google: `thinkingConfig: { includeThoughts, thinkingLevel, thinkingBudget }`
- * - Anthropic: `thinking: { type: 'enabled', budgetTokens }`
- * - OpenAI: `reasoningSummary` and `reasoningEffort`
+ * Thinking-only options for Google Gemini models.
  */
-export interface ThinkingConfig {
-  /**
-   * Enable thinking/reasoning mode.
-   * - Google: Maps to `includeThoughts: true`
-   * - Anthropic: Maps to `thinking: { type: 'enabled' }`
-   * - OpenAI: Maps to `reasoningSummary: 'auto'`
-   */
-  enableThinking: boolean;
-  /**
-   * Level of thinking effort/depth.
-   * - Google: Maps to `thinkingLevel` ("low" | "medium" | "high")
-   * - Anthropic: Not directly supported (use `budgetTokens` to control depth)
-   * - OpenAI: Maps to `reasoningEffort` ("low" | "medium" | "high")
-   *           Also affects `reasoningSummary`: "high" → "detailed", others → "auto"
-   * @default "medium"
-   */
-  thinkingLevel?: "low" | "medium" | "high";
-  /**
-   * Token budget for thinking/reasoning.
-   * - Google: Maps to `thinkingBudget` (number of tokens for reasoning)
-   * - Anthropic: Maps to `budgetTokens` (required for thinking, min 1024, max 64000)
-   * - OpenAI: Not supported
-   */
-  budgetTokens?: number;
+export type GoogleThinkingOptions = Pick<
+  GoogleGenerativeAIProviderOptions,
+  "thinkingConfig"
+>;
+
+/**
+ * Thinking-only options for Anthropic Claude models.
+ */
+export type AnthropicThinkingOptions = Pick<
+  AnthropicProviderOptions,
+  "thinking"
+>;
+
+/**
+ * Reasoning-only options for OpenAI models.
+ */
+export type OpenAIThinkingOptions = Pick<
+  OpenAIResponsesProviderOptions,
+  "reasoningSummary" | "reasoningEffort"
+>;
+
+/**
+ * Provider-specific thinking/reasoning options.
+ * Users can pass options for their specific provider to enable thinking capabilities.
+ *
+ * @example
+ * ```typescript
+ * // Google Gemini thinking
+ * providerOptions: {
+ *   google: {
+ *     thinkingConfig: {
+ *       includeThoughts: true,
+ *       thinkingBudget: 10000
+ *     }
+ *   }
+ * }
+ *
+ * // Anthropic Claude thinking
+ * providerOptions: {
+ *   anthropic: {
+ *     thinking: {
+ *       type: "enabled",
+ *       budgetTokens: 10000
+ *     }
+ *   }
+ * }
+ *
+ * // OpenAI reasoning
+ * providerOptions: {
+ *   openai: {
+ *     reasoningSummary: "detailed",
+ *     reasoningEffort: "high"
+ *   }
+ * }
+ * ```
+ */
+export interface ThinkingProviderOptions {
+  google?: GoogleThinkingOptions;
+  anthropic?: AnthropicThinkingOptions;
+  openai?: OpenAIThinkingOptions;
 }
 
 /**
- * Provider-specific options for AI SDK calls.
- * Used internally to pass thinking/reasoning configuration to different providers.
+ * Internal provider options type used by the AI SDK.
+ * Extends ThinkingProviderOptions with full provider options for internal use.
  */
 export interface AgentProviderOptions {
   google?: GoogleGenerativeAIProviderOptions;
