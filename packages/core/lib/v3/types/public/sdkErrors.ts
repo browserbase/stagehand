@@ -161,6 +161,14 @@ export class StagehandDomProcessError extends StagehandError {
   }
 }
 
+export class StagehandLocatorError extends StagehandError {
+  constructor(action: string, selector: string, message: string) {
+    super(
+      `Error ${action} Element with selector: ${selector} Reason: ${message}`,
+    );
+  }
+}
+
 export class StagehandClickError extends StagehandError {
   constructor(message: string, selector: string) {
     super(

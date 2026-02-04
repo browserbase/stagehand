@@ -13,6 +13,7 @@ import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver";
 import {
   StagehandElementNotFoundError,
   StagehandInvalidArgumentError,
+  StagehandLocatorError,
   ElementNotVisibleError,
 } from "../types/public/sdkErrors";
 import { normalizeInputFiles } from "./fileUploadUtils";
@@ -530,6 +531,14 @@ export class Locator {
           returnByValue: true,
         },
       );
+      if (res.exceptionDetails) {
+        // prefer exception.description over text (eg "Uncaught")
+        const message =
+          res.exceptionDetails.exception?.description ??
+          res.exceptionDetails.text ??
+          "Unknown exception during locator().fill()";
+        throw new StagehandLocatorError("Filling", this.selector, message);
+      }
 
       const result = res.result.value as
         | { status?: string; reason?: string; value?: string }
