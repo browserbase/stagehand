@@ -83,12 +83,6 @@ export function validateExperimentalFeatures(
   if (hasIntegrations || hasTools) {
     features.push("MCP integrations and custom tools");
   }
-
-  // Check streaming mode (either explicit or derived from config) - only for non-CUA
-  if (!isCuaMode && (isStreaming || agentConfig?.stream)) {
-    features.push("streaming");
-  }
-
   // Check execute options features - only for non-CUA
   if (executeOptions && !isCuaMode) {
     if (executeOptions.callbacks) {
