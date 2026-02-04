@@ -14,7 +14,9 @@ import {
 } from "ai";
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
 import type { GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
+import type { GroqProviderOptions } from "@ai-sdk/groq";
 import type { OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
+import type { XaiProviderOptions } from "@ai-sdk/xai";
 import { LogLine } from "./logs";
 import { ClientOptions } from "./model";
 import { StagehandZodObject } from "../../zodCompat";
@@ -631,6 +633,19 @@ export type OpenAIThinkingOptions = Pick<
 >;
 
 /**
+ * Reasoning-only options for xAI (Grok) models.
+ */
+export type XaiThinkingOptions = Pick<XaiProviderOptions, "reasoningEffort">;
+
+/**
+ * Reasoning-only options for Groq models.
+ */
+export type GroqThinkingOptions = Pick<
+  GroqProviderOptions,
+  "reasoningFormat" | "reasoningEffort"
+>;
+
+/**
  * Provider-specific thinking/reasoning options.
  * Users can pass options for their specific provider to enable thinking capabilities.
  *
@@ -669,6 +684,8 @@ export interface ThinkingProviderOptions {
   google?: GoogleThinkingOptions;
   anthropic?: AnthropicThinkingOptions;
   openai?: OpenAIThinkingOptions;
+  xai?: XaiThinkingOptions;
+  groq?: GroqThinkingOptions;
 }
 
 export type AgentConfig = {

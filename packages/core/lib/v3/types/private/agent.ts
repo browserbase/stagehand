@@ -1,6 +1,8 @@
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
 import type { GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
+import type { GroqProviderOptions } from "@ai-sdk/groq";
 import type { OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
+import type { XaiProviderOptions } from "@ai-sdk/xai";
 
 export interface ActionMappingOptions {
   toolCallName: string;
@@ -19,9 +21,13 @@ export interface AgentProviderOptions {
   google?: GoogleGenerativeAIProviderOptions;
   anthropic?: AnthropicProviderOptions;
   openai?: OpenAIResponsesProviderOptions;
+  xai?: XaiProviderOptions;
+  groq?: GroqProviderOptions;
   [key: string]:
     | GoogleGenerativeAIProviderOptions
     | AnthropicProviderOptions
     | OpenAIResponsesProviderOptions
+    | XaiProviderOptions
+    | GroqProviderOptions
     | undefined;
 }

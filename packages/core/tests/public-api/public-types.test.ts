@@ -57,6 +57,8 @@ type ExpectedExportedTypes = {
   GoogleThinkingOptions: Stagehand.GoogleThinkingOptions;
   AnthropicThinkingOptions: Stagehand.AnthropicThinkingOptions;
   OpenAIThinkingOptions: Stagehand.OpenAIThinkingOptions;
+  XaiThinkingOptions: Stagehand.XaiThinkingOptions;
+  GroqThinkingOptions: Stagehand.GroqThinkingOptions;
   ThinkingProviderOptions: Stagehand.ThinkingProviderOptions;
   ModelMessage: Stagehand.ModelMessage;
   // Types from agent/tools

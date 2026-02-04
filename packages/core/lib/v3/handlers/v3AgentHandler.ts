@@ -106,6 +106,16 @@ export class V3AgentHandler {
       return { openai: userOptions.openai };
     }
 
+    // Pass through xAI reasoning options directly
+    if (userOptions?.xai) {
+      return { xai: userOptions.xai };
+    }
+
+    // Pass through Groq reasoning options directly
+    if (userOptions?.groq) {
+      return { groq: userOptions.groq };
+    }
+
     return undefined;
   }
 
