@@ -9,24 +9,41 @@ import { V3Banner } from '/snippets/v3-banner.mdx';
 
 ### User Data Directory
 
-Persist browser data between sessions using a custom user data directory:
+Persist browser data between sessions.
+
+#### Local Sessions
+
+For local sessions, use the `userDataDir` option:
 
 ```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
-// For Browserbase sessions
 const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  browserbaseSessionCreateParams: {
-    userDataDir: "/path/to/user/data/directory",
-  },
-});
-
-// For Local sessions
-const localStagehand = new Stagehand({
   env: "LOCAL",
   localBrowserLaunchOptions: {
     userDataDir: "./browser-data",
+  },
+});
+
+await stagehand.init();
+```
+
+#### Browserbase Sessions
+
+For Browserbase sessions, use [contexts](https://docs.browserbase.com/features/contexts) to persist browser data:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  browserbaseSessionCreateParams: {
+    browserSettings: {
+      context: {
+        id: "my-context-id",
+        persist: true,
+      },
+    },
   },
 });
 
