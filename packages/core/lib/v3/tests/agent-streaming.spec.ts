@@ -9,7 +9,7 @@ test.describe("Stagehand agent streaming behavior", () => {
   test.beforeEach(async () => {
     v3 = new V3({
       ...v3TestConfig,
-      experimental: true, // Required for streaming
+      experimental: true,
     });
     await v3.init();
   });

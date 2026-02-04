@@ -129,20 +129,6 @@ test.describe("Stagehand agent experimental feature validation", () => {
       }
     });
 
-    test("throws ExperimentalNotConfiguredError for streaming mode", async () => {
-      try {
-        const agent = v3.agent({
-          stream: true,
-          model: "anthropic/claude-sonnet-4-20250514",
-        });
-        await agent.execute("test instruction");
-        throw new Error("Expected error to be thrown");
-      } catch (error) {
-        expect(error).toBeInstanceOf(ExperimentalNotConfiguredError);
-        expect((error as Error).message).toContain("streaming");
-      }
-    });
-
     test("throws ExperimentalNotConfiguredError for callbacks", async () => {
       const agent = v3.agent({
         model: "anthropic/claude-sonnet-4-20250514",
