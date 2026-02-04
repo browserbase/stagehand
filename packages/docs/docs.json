@@ -15,7 +15,7 @@
       "og:site_name": "Stagehand Docs"
     }
   },
-  "openapi": "openapi.v3.yaml",
+  "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
   "navigation": {
     "versions": [
       {
@@ -150,7 +150,7 @@
               {
                 "group": "API Reference",
                 "openapi": {
-                  "source": "openapi.v3.yaml",
+                  "source": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
                   "directory": "v3/api-reference/python"
                 },
                 "pages": [
@@ -182,7 +182,7 @@
               {
                 "group": "API Reference",
                 "openapi": {
-                  "source": "openapi.v3.yaml",
+                  "source": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
                   "directory": "v3/api-reference/java"
                 },
                 "pages": [
@@ -214,7 +214,7 @@
               {
                 "group": "API Reference",
                 "openapi": {
-                  "source": "openapi.v3.yaml",
+                  "source": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
                   "directory": "v3/api-reference/go"
                 },
                 "pages": [
@@ -246,7 +246,7 @@
               {
                 "group": "API Reference",
                 "openapi": {
-                  "source": "openapi.v3.yaml",
+                  "source": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
                   "directory": "v3/api-reference/ruby"
                 },
                 "pages": [
