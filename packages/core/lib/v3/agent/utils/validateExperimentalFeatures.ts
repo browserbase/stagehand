@@ -13,8 +13,6 @@ export interface AgentValidationOptions {
   executeOptions?:
     | (Partial<AgentExecuteOptionsBase> & { callbacks?: unknown })
     | null;
-  /** Whether this is streaming mode (can be derived from agentConfig.stream) */
-  isStreaming?: boolean;
 }
 
 /**
@@ -32,7 +30,7 @@ export interface AgentValidationOptions {
 export function validateExperimentalFeatures(
   options: AgentValidationOptions,
 ): void {
-  const { isExperimental, agentConfig, executeOptions, isStreaming } = options;
+  const { isExperimental, agentConfig, executeOptions } = options;
 
   // Check if CUA mode is enabled (via mode: "cua" or deprecated cua: true)
   const isCuaMode =
