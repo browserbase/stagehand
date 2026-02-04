@@ -175,8 +175,8 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
   const yaml = app.swagger({ yaml: true });
   // Mintlify expects OpenAPI version fields to be strings, so quote them here.
   const fixedYaml = yaml
-    .replace(/^openapi:\s*([0-9.]+)\s*$/m, 'openapi: "$1"')
-    .replace(/^  version:\s*([0-9.]+)\s*$/m, '  version: "$1"');
+    .replace(/^openapi:\s*(?!['"])([^#\s]+)\s*$/m, 'openapi: "$1"')
+    .replace(/^  version:\s*(?!['"])([^#\s]+)\s*$/m, '  version: "$1"');
 
   await writeFile(OUTPUT_PATH, fixedYaml, "utf8");
 
