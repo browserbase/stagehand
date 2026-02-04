@@ -98,6 +98,7 @@ export class CdpConnection implements CDPSessionLike {
   }
 
   static async connect(wsUrl: string): Promise<CdpConnection> {
+    // Include User-Agent header for server-side observability and version tracking
     const ws = new WebSocket(wsUrl, {
       headers: {
         "User-Agent": `Stagehand/${STAGEHAND_VERSION}`,
