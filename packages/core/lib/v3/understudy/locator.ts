@@ -3,7 +3,11 @@ import { Protocol } from "devtools-protocol";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { locatorScriptSources } from "../dom/build/locatorScripts.generated";
+import {
+  locatorScriptBootstrap,
+  locatorScriptGlobalRefs,
+  locatorScriptSources,
+} from "../dom/build/locatorScripts.generated";
 import type { Frame } from "./frame";
 import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver";
 import {
@@ -510,6 +514,8 @@ export class Locator {
    */
   async fill(value: string): Promise<void> {
     const session = this.frame.session;
+    // Use the bundled locator globals; the raw fill snippet depends on helper symbols.
+    const fillDeclaration = `function(value) { ${locatorScriptBootstrap}; return ${locatorScriptGlobalRefs.fillElementValue}.call(this, value); }`;
     const { objectId } = await this.resolveNode();
 
     let releaseNeeded = true;
@@ -519,7 +525,7 @@ export class Locator {
         "Runtime.callFunctionOn",
         {
           objectId,
-          functionDeclaration: locatorScriptSources.fillElementValue,
+          functionDeclaration: fillDeclaration,
           arguments: [{ value }],
           returnByValue: true,
         },
