@@ -1,0 +1,206 @@
+---
+title: "Use Stagehand in Convex"
+sidebarTitle: Configuration
+description: "Set up AI-powered browser automation in your Convex application"
+---
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
+
+<Card
+  title="Check out the convex-stagehand repo"
+  icon="github"
+  href="https://github.com/browserbase/convex-stagehand"
+>
+  Clone the [GitHub repo](https://github.com/browserbase/convex-stagehand) to get started with Stagehand in Convex.
+</Card>
+
+## Installation
+
+Install the convex-stagehand component and Zod for schema validation:
+
+```bash
+npm install github:browserbase/convex-stagehand zod
+```
+
+## Configuration
+
+Add the Stagehand component to your `convex/convex.config.ts`:
+
+```typescript convex/convex.config.ts
+import { defineApp } from "convex/server";
+import stagehand from "convex-stagehand/convex.config";
+
+const app = defineApp();
+app.use(stagehand, { name: "stagehand" });
+export default app;
+```
+
+## Environment Variables
+
+Set the following environment variables in your [Convex Dashboard](https://dashboard.convex.dev):
+
+| Variable | Description |
+|----------|-------------|
+| `BROWSERBASE_API_KEY` | Your Browserbase API key |
+| `BROWSERBASE_PROJECT_ID` | Your Browserbase project ID |
+| `MODEL_API_KEY` | API key for your LLM provider (OpenAI, Anthropic, etc.) |
+
+## Basic Usage
+
+### Initialize the Client
+
+Create a Stagehand instance in your Convex action:
+
+```typescript convex/actions.ts
+"use node";
+
+import { Stagehand } from "convex-stagehand";
+import { components } from "./_generated/api";
+import { action } from "./_generated/server";
+import { z } from "zod";
+
+const stagehand = new Stagehand(components.stagehand);
+```
+
+### Extract Data
+
+Extract structured data from a web page using natural language instructions and Zod schemas:
+
+```typescript
+export const extractProducts = action({
+  handler: async (ctx) => {
+    const data = await stagehand.extract(ctx, {
+      url: "https://example.com/products",
+      instruction: "Extract all product names and prices",
+      schema: z.object({
+        products: z.array(z.object({
+          name: z.string(),
+          price: z.string(),
+        }))
+      })
+    });
+
+    return data.products;
+  }
+});
+```
+
+### Perform Actions
+
+Execute browser interactions using plain English:
+
+```typescript
+export const loginToSite = action({
+  handler: async (ctx) => {
+    const result = await stagehand.act(ctx, {
+      url: "https://example.com/login",
+      action: "Click the login button and wait for the page to load"
+    });
+
+    return result;
+  }
+});
+```
+
+### Observe Elements
+
+Identify interactive elements on a page:
+
+```typescript
+export const findNavLinks = action({
+  handler: async (ctx) => {
+    const actions = await stagehand.observe(ctx, {
+      url: "https://example.com",
+      instruction: "Find all clickable navigation links"
+    });
+
+    return actions;
+  }
+});
+```
+
+### Run Autonomous Tasks
+
+Use the agent API for complex multi-step workflows:
+
+```typescript
+export const searchAndExtract = action({
+  handler: async (ctx) => {
+    const result = await stagehand.agent(ctx, {
+      url: "https://google.com",
+      instruction: "Search for 'convex database' and extract the top 3 results",
+      options: { maxSteps: 10 }
+    });
+
+    return result;
+  }
+});
+```
+
+## Session Management
+
+For workflows that span multiple operations, you can reuse browser sessions:
+
+```typescript
+export const multiStepWorkflow = action({
+  handler: async (ctx) => {
+    // Start a session
+    const session = await stagehand.startSession(ctx, {
+      url: "https://example.com",
+      options: { timeout: 30000, waitUntil: "networkidle" }
+    });
+
+    // Perform multiple operations with the same session
+    await stagehand.act(ctx, {
+      sessionId: session.sessionId,
+      action: "Click the login button"
+    });
+
+    const data = await stagehand.extract(ctx, {
+      sessionId: session.sessionId,
+      instruction: "Extract the user profile information",
+      schema: z.object({
+        name: z.string(),
+        email: z.string(),
+      })
+    });
+
+    // End the session
+    await stagehand.endSession(ctx, { sessionId: session.sessionId });
+
+    return data;
+  }
+});
+```
+
+Session persistence allows you to preserve authentication state and cookies between operations.
+
+## Model Configuration
+
+The default model is `openai/gpt-4o`. You can configure alternative providers:
+
+```typescript
+const stagehand = new Stagehand(components.stagehand, {
+  modelName: "anthropic/claude-3-5-sonnet-20241022",
+  modelApiKey: process.env.ANTHROPIC_API_KEY!
+});
+```
+
+## Requirements
+
+- Convex 1.29.3 or later
+- A [Browserbase](https://browserbase.com) account with API credentials
+- An API key from a supported LLM provider (OpenAI, Anthropic, etc.)
+
+## References
+
+<CardGroup cols={2}>
+  <Card title="Source Code" icon="github" href="https://github.com/browserbase/convex-stagehand">
+    Browse the complete repository on GitHub
+  </Card>
+  <Card title="Convex Docs" icon="book" href="https://docs.convex.dev">
+    Learn more about Convex
+  </Card>
+</CardGroup>
