@@ -102,7 +102,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
+          # Try to fetch the tag if it exists on remote; ignore failure for new tags
+          git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}" 2>/dev/null || true
 
           if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
             echo "Tag already exists: ${TAG}"
