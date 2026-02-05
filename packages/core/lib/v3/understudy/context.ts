@@ -460,6 +460,7 @@ export class V3Context {
     // Install any context-level init scripts as early as possible on this session.
     // If this throws, we still resume the target but avoid re-installing later.
     let scriptsInstalled = true;
+    let piercerPreRegistered = false;
     const installPromises: Array<Promise<unknown>> = [];
     try {
       const send = (method: string, params?: object) =>
@@ -495,6 +496,9 @@ export class V3Context {
             source: v3ScriptContent,
             runImmediately: true,
           })
+          .then(() => {
+            piercerPreRegistered = true;
+          })
           .catch(() => {}),
       );
       installPromises.push(resume());
@@ -508,12 +512,14 @@ export class V3Context {
       }
     }
 
-    // The piercer was pre-registered via addScriptToEvaluateOnNewDocument in
-    // the install promises (before resume).  Mark it installed so
-    // ensurePiercer() short-circuits — its sequential CDP round-trips would
-    // otherwise delay Page.create / installFrameEventBridges and cause
-    // same-process iframe frame-events to be missed.
-    this._piercerInstalled.add(this.sessionKey(session));
+    // Only mark the piercer as installed when the pre-registration actually
+    // succeeded.  This lets ensurePiercer() short-circuit (avoiding sequential
+    // CDP round-trips that delay Page.create / installFrameEventBridges and
+    // cause same-process iframe frame-events to be missed) while still falling
+    // back to the full install path when registration failed.
+    if (piercerPreRegistered) {
+      this._piercerInstalled.add(this.sessionKey(session));
+    }
 
     try {
       const piercerReady = await this.ensurePiercer(session);
