@@ -37,6 +37,7 @@ export const publicErrorTypes = {
   StagehandIframeError: Stagehand.StagehandIframeError,
   StagehandInitError: Stagehand.StagehandInitError,
   StagehandInvalidArgumentError: Stagehand.StagehandInvalidArgumentError,
+  StagehandLocatorError: Stagehand.StagehandLocatorError,
   StagehandMissingArgumentError: Stagehand.StagehandMissingArgumentError,
   StagehandNotInitializedError: Stagehand.StagehandNotInitializedError,
   StagehandResponseBodyError: Stagehand.StagehandResponseBodyError,
