@@ -3,66 +3,52 @@ import { v3Logger } from "../logger";
 import type { CDPSessionLike } from "./cdp";
 import { v3ScriptContent } from "../dom/build/scriptV3Content";
 import { reRenderScriptContent } from "../dom/build/reRenderScriptContent";
-import { executionContexts } from "./executionContextRegistry";
 
 export async function installV3PiercerIntoSession(
   session: CDPSessionLike,
 ): Promise<boolean> {
-  if (!session) return false;
+  const pageEnabled = await session
+    .send("Page.enable")
+    .then(() => true)
+    .catch(() => false);
+  if (!pageEnabled) return false;
+
   await session.send("Runtime.enable").catch(() => {});
 
-  const deferRerender = `(() => {
-    const run = () => { try { ${reRenderScriptContent} } catch {} };
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", run, { once: true });
-    } else {
-      run();
-    }
-  })();`;
-
-  const installInFrame = async (frameId: Protocol.Page.FrameId) => {
-    const ctxId = await executionContexts
-      .waitForMainWorld(session, frameId)
-      .catch(() => {});
-    if (!ctxId) return;
-    await session
-      .send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression: v3ScriptContent,
-        contextId: ctxId,
-        returnByValue: true,
-        awaitPromise: true,
-      })
-      .catch(() => {});
-    await session
-      .send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression: deferRerender,
-        contextId: ctxId,
-        returnByValue: true,
-        awaitPromise: false,
-      })
-      .catch(() => {});
-  };
-
-  session.on<Protocol.Page.FrameNavigatedEvent>(
-    "Page.frameNavigated",
-    (evt) => {
-      void installInFrame(evt.frame.id);
-    },
-  );
-
+  // Register as an init script so it runs BEFORE page scripts on every
+  // future navigation within this session (timing guarantee).
   try {
-    const { frameTree } =
-      await session.send<Protocol.Page.GetFrameTreeResponse>(
-        "Page.getFrameTree",
-      );
-    const visit = (tree: Protocol.Page.FrameTree) => {
-      void installInFrame(tree.frame.id);
-      tree.childFrames?.forEach(visit);
-    };
-    visit(frameTree);
-  } catch {
-    // ignore if the session vanished during attach
+    await session.send<Protocol.Page.AddScriptToEvaluateOnNewDocumentResponse>(
+      "Page.addScriptToEvaluateOnNewDocument",
+      { source: v3ScriptContent, runImmediately: true },
+    );
+  } catch (e) {
+    const msg = String((e as Error)?.message ?? e ?? "");
+    // If the session vanished during attach (common with short-lived OOPIFs),
+    // swallow and report failure so callers can early-return.
+    if (msg.includes("Session with given id not found")) return false;
+    // For other errors, keep going but don't throw — the next evaluate is idempotent.
   }
+
+  // Also evaluate immediately on the current document as a fallback.
+  await session
+    .send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+      expression: v3ScriptContent,
+      returnByValue: true,
+      awaitPromise: true,
+    })
+    .catch(() => {});
+
+  // After the piercer is in place, re-render any custom elements whose
+  // shadow roots were created before we patched attachShadow so their
+  // closed roots are recreated under the hook.
+  await session
+    .send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+      expression: reRenderScriptContent,
+      returnByValue: true,
+      awaitPromise: false,
+    })
+    .catch(() => {});
 
   return true;
 }
