@@ -464,7 +464,7 @@ export class V3Context {
     try {
       const send = (method: string, params?: object) =>
         session.send(method, params).catch(() => {});
-      // Match Playwright's attach prelude so init scripts land before any subframe work.
+      // make sure init scripts land before any subframe work.
       installPromises.push(send("Page.enable"));
       installPromises.push(send("Runtime.enable"));
       installPromises.push(
