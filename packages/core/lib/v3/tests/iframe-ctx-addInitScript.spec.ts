@@ -4,7 +4,7 @@ import { v3TestConfig } from "./v3.config";
 import { V3Context } from "../understudy/context";
 
 // TODO: mark as unskipped once we have a fix
-test.describe.skip("context.addInitScript with iframes", () => {
+test.describe("context.addInitScript with iframes", () => {
   let v3: V3;
   let ctx: V3Context;
 
