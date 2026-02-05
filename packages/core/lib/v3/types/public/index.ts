@@ -9,7 +9,8 @@ export * from "./model";
 export * from "./options";
 export * from "./page";
 export * from "./sdkErrors";
-// Exporting the example AISdkClient for backwards compatibility
-// Note added for revisiting this scaffold for an improved version based on llm/aisdk.ts
-export { AISdkClient } from "../../../../examples/external_clients/aisdk";
+// Export the production AISdkClient with full AI SDK integration (including getLanguageModel)
+export { AISdkClient } from "../../llm/aisdk";
+// Export CustomOpenAIClient for backwards compatibility
+// Note: CustomOpenAIClient does NOT support v3 Agent - use AISdkClient for Agent workflows
 export { CustomOpenAIClient } from "../../../../examples/external_clients/customOpenAI";
