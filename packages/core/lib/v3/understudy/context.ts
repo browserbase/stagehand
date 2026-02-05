@@ -4,6 +4,7 @@ import { v3Logger } from "../logger";
 import { CdpConnection, CDPSessionLike } from "./cdp";
 import { Page } from "./page";
 import { installV3PiercerIntoSession } from "./piercer";
+import { v3ScriptContent } from "../dom/build/scriptV3Content";
 import { executionContexts } from "./executionContextRegistry";
 import type { StagehandAPIClient } from "../api";
 import { LocalBrowserLaunchOptions } from "../types/public";
@@ -486,6 +487,16 @@ export class V3Context {
           );
         }
       }
+      // register piercer (shadow-DOM hook) before resume so it runs
+      // before page scripts
+      installPromises.push(
+        session
+          .send("Page.addScriptToEvaluateOnNewDocument", {
+            source: v3ScriptContent,
+            runImmediately: true,
+          })
+          .catch(() => {}),
+      );
       installPromises.push(resume());
     } catch {
       scriptsInstalled = false;
@@ -496,6 +507,13 @@ export class V3Context {
         scriptsInstalled = false;
       }
     }
+
+    // The piercer was pre-registered via addScriptToEvaluateOnNewDocument in
+    // the install promises (before resume).  Mark it installed so
+    // ensurePiercer() short-circuits — its sequential CDP round-trips would
+    // otherwise delay Page.create / installFrameEventBridges and cause
+    // same-process iframe frame-events to be missed.
+    this._piercerInstalled.add(this.sessionKey(session));
 
     try {
       const piercerReady = await this.ensurePiercer(session);
