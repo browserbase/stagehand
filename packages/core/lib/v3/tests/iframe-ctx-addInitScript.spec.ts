@@ -3,7 +3,6 @@ import { V3 } from "../v3";
 import { v3TestConfig } from "./v3.config";
 import { V3Context } from "../understudy/context";
 
-// TODO: mark as unskipped once we have a fix
 test.describe("context.addInitScript with iframes", () => {
   let v3: V3;
   let ctx: V3Context;
