@@ -150,7 +150,6 @@ export class Page {
   ): Promise<void> {
     await session.send("Page.addScriptToEvaluateOnNewDocument", {
       source: source,
-      runImmediately: true,
     });
   }
 
