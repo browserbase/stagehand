@@ -45,8 +45,10 @@ test.describe("context.addInitScript with iframes", () => {
       expect(mainBgColor).toBe("rgb(255, 0, 0)");
 
       // Check iframe background - find the child frame (not main frame)
+      // Use frameId comparison since object references may differ
       const frames = page.frames();
-      const iframe = frames.find((f) => f !== page.mainFrame());
+      const mainFrameId = page.mainFrame().frameId;
+      const iframe = frames.find((f) => f.frameId !== mainFrameId);
       expect(iframe).toBeDefined();
 
       const iframeBgColor = await iframe!.evaluate(() => {
@@ -73,8 +75,10 @@ test.describe("context.addInitScript with iframes", () => {
       expect(mainBgColor).toBe("rgb(255, 0, 0)");
 
       // Check iframe background - find the child frame (not main frame)
+      // Use frameId comparison since object references may differ
       const frames = page.frames();
-      const iframe = frames.find((f) => f !== page.mainFrame());
+      const mainFrameId = page.mainFrame().frameId;
+      const iframe = frames.find((f) => f.frameId !== mainFrameId);
       expect(iframe).toBeDefined();
 
       const iframeBgColor = await iframe!.evaluate(() => {
@@ -103,8 +107,10 @@ test.describe("context.addInitScript with iframes", () => {
       expect(mainBgColor).toBe("rgb(255, 0, 0)");
 
       // Check iframe background - find the child frame (not main frame)
+      // Use frameId comparison since object references may differ
       const frames = page.frames();
-      const iframe = frames.find((f) => f !== page.mainFrame());
+      const mainFrameId = page.mainFrame().frameId;
+      const iframe = frames.find((f) => f.frameId !== mainFrameId);
       expect(iframe).toBeDefined();
 
       const iframeBgColor = await iframe!.evaluate(() => {
@@ -131,8 +137,10 @@ test.describe("context.addInitScript with iframes", () => {
       expect(mainBgColor).toBe("rgb(255, 0, 0)");
 
       // Check iframe background - find the child frame (not main frame)
+      // Use frameId comparison since object references may differ
       const frames = page.frames();
-      const iframe = frames.find((f) => f !== page.mainFrame());
+      const mainFrameId = page.mainFrame().frameId;
+      const iframe = frames.find((f) => f.frameId !== mainFrameId);
       expect(iframe).toBeDefined();
 
       const iframeBgColor = await iframe!.evaluate(() => {
@@ -167,8 +175,10 @@ test.describe("context.addInitScript with iframes", () => {
       expect(mainBgColor).toBe("rgb(255, 0, 0)");
 
       // Check iframe background in popup - find the child frame (not main frame)
+      // Use frameId comparison since object references may differ
       const frames = popup.frames();
-      const iframe = frames.find((f) => f !== popup.mainFrame());
+      const mainFrameId = popup.mainFrame().frameId;
+      const iframe = frames.find((f) => f.frameId !== mainFrameId);
       expect(iframe).toBeDefined();
 
       const iframeBgColor = await iframe!.evaluate(() => {
@@ -201,8 +211,10 @@ test.describe("context.addInitScript with iframes", () => {
       expect(mainBgColor).toBe("rgb(255, 0, 0)");
 
       // Check iframe background in popup - find the child frame (not main frame)
+      // Use frameId comparison since object references may differ
       const frames = popup.frames();
-      const iframe = frames.find((f) => f !== popup.mainFrame());
+      const mainFrameId = popup.mainFrame().frameId;
+      const iframe = frames.find((f) => f.frameId !== mainFrameId);
       expect(iframe).toBeDefined();
 
       const iframeBgColor = await iframe!.evaluate(() => {
