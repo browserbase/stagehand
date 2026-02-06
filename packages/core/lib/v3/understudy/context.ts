@@ -46,9 +46,6 @@ export class V3Context {
   private _lastPopupSignalAt = 0;
   private readonly _targetSessionListeners = new Set<SessionId>();
 
-  private sessionKey(session: CDPSessionLike): string {
-    return session.id ?? "root";
-  }
   private readonly _sessionInit = new Set<SessionId>();
   private pagesByTarget = new Map<TargetId, Page>();
   private mainFrameToTarget = new Map<string, TargetId>();
@@ -165,12 +162,12 @@ export class V3Context {
   }
 
   private async ensurePiercer(session: CDPSessionLike): Promise<boolean> {
-    const key = this.sessionKey(session);
-    if (this._piercerInstalled.has(key)) return true;
+    const id = session.id ?? "";
+    if (this._piercerInstalled.has(id)) return true;
 
     const installed = await installV3PiercerIntoSession(session);
     if (installed) {
-      this._piercerInstalled.add(key);
+      this._piercerInstalled.add(id);
     }
     return installed;
   }
@@ -518,7 +515,7 @@ export class V3Context {
     // cause same-process iframe frame-events to be missed) while still falling
     // back to the full install path when registration failed.
     if (piercerPreRegistered) {
-      this._piercerInstalled.add(this.sessionKey(session));
+      this._piercerInstalled.add(sessionId);
     }
 
     try {
