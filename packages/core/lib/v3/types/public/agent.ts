@@ -12,6 +12,11 @@ import {
   StreamTextOnChunkCallback,
   StreamTextOnFinishCallback,
 } from "ai";
+import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
+import type { GoogleGenerativeAIProviderOptions } from "@ai-sdk/google";
+import type { GroqProviderOptions } from "@ai-sdk/groq";
+import type { OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
+import type { XaiProviderOptions } from "@ai-sdk/xai";
 import { LogLine } from "./logs";
 import { ClientOptions } from "./model";
 import { StagehandZodObject } from "../../zodCompat";
@@ -339,6 +344,53 @@ export interface AgentExecuteOptionsBase {
    * ```
    */
   output?: StagehandZodObject;
+  /**
+   * Provider-specific thinking/reasoning options.
+   * Pass options directly to your model's provider for thinking capabilities.
+   *
+   * **Note:** Not supported in CUA mode (`mode: "cua"`).
+   *
+   * @example
+   * ```typescript
+   * // Google Gemini thinking
+   * const result = await agent.execute({
+   *   instruction: "Solve this complex problem",
+   *   providerOptions: {
+   *     google: {
+   *       thinkingConfig: {
+   *         includeThoughts: true,
+   *         thinkingBudget: 10000
+   *       }
+   *     }
+   *   }
+   * });
+   *
+   * // Anthropic Claude extended thinking
+   * const result = await agent.execute({
+   *   instruction: "Solve this complex problem",
+   *   providerOptions: {
+   *     anthropic: {
+   *       thinking: {
+   *         type: "enabled",
+   *         budgetTokens: 10000
+   *       }
+   *     }
+   *   }
+   * });
+   *
+   * // OpenAI reasoning
+   * const result = await agent.execute({
+   *   instruction: "Solve this complex problem",
+   *   providerOptions: {
+   *     openai: {
+   *       reasoningSummary: "detailed",
+   *       reasoningEffort: "high"
+   *     }
+   *   }
+   * });
+   * ```
+   */
+  providerOptions?: ThinkingProviderOptions;
 }
 
 /**
@@ -557,6 +609,86 @@ export type AgentModelConfig<TModelName extends string = string> = {
  * - 'cua': Uses Computer Use Agent (CUA) providers like Anthropic Claude or Google Gemini for screenshot-based automation
  */
 export type AgentToolMode = "dom" | "hybrid" | "cua";
+
+/**
+ * Thinking-only options for Google Gemini models.
+ */
+export type GoogleThinkingOptions = Pick<
+  GoogleGenerativeAIProviderOptions,
+  "thinkingConfig"
+>;
+
+/**
+ * Thinking-only options for Anthropic Claude models.
+ */
+export type AnthropicThinkingOptions = Pick<
+  AnthropicProviderOptions,
+  "thinking"
+>;
+
+/**
+ * Reasoning-only options for OpenAI models.
+ */
+export type OpenAIThinkingOptions = Pick<
+  OpenAIResponsesProviderOptions,
+  "reasoningSummary" | "reasoningEffort"
+>;
+
+/**
+ * Reasoning-only options for xAI (Grok) models.
+ */
+export type XaiThinkingOptions = Pick<XaiProviderOptions, "reasoningEffort">;
+
+/**
+ * Reasoning-only options for Groq models.
+ */
+export type GroqThinkingOptions = Pick<
+  GroqProviderOptions,
+  "reasoningFormat" | "reasoningEffort"
+>;
+
+/**
+ * Provider-specific thinking/reasoning options.
+ * Users can pass options for their specific provider to enable thinking capabilities.
+ *
+ * @example
+ * ```typescript
+ * // Google Gemini thinking
+ * providerOptions: {
+ *   google: {
+ *     thinkingConfig: {
+ *       includeThoughts: true,
+ *       thinkingBudget: 10000
+ *     }
+ *   }
+ * }
+ *
+ * // Anthropic Claude thinking
+ * providerOptions: {
+ *   anthropic: {
+ *     thinking: {
+ *       type: "enabled",
+ *       budgetTokens: 10000
+ *     }
+ *   }
+ * }
+ *
+ * // OpenAI reasoning
+ * providerOptions: {
+ *   openai: {
+ *     reasoningSummary: "detailed",
+ *     reasoningEffort: "high"
+ *   }
+ * }
+ * ```
+ */
+export interface ThinkingProviderOptions {
+  google?: GoogleThinkingOptions;
+  anthropic?: AnthropicThinkingOptions;
+  openai?: OpenAIThinkingOptions;
+  xai?: XaiThinkingOptions;
+  groq?: GroqThinkingOptions;
+}
 
 export type AgentConfig = {
   /**

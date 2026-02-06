@@ -28,7 +28,9 @@ import {
   AgentStreamResult,
   AgentStreamCallbacks,
   AgentToolMode,
+  ThinkingProviderOptions,
 } from "../types/public/agent";
+import { AgentProviderOptions } from "../types/private/agent";
 import { V3FunctionName } from "../types/public/methods";
 import { mapToolResultToActions } from "../agent/utils/actionMapping";
 import {
@@ -41,7 +43,6 @@ import { handleDoneToolCall } from "../agent/utils/handleDoneToolCall";
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
-
 export class V3AgentHandler {
   private v3: V3;
   private logger: (message: LogLine) => void;
@@ -67,6 +68,55 @@ export class V3AgentHandler {
     this.systemInstructions = systemInstructions;
     this.mcpTools = mcpTools;
     this.mode = mode ?? "dom";
+  }
+
+  /**
+   * Build provider-specific options based on model type and user-provided thinking options.
+   * Merges user's thinking options with any required defaults (e.g., mediaResolution for Gemini 3).
+   *
+   * @param modelId - The model identifier to determine provider-specific defaults
+   * @param userOptions - User-provided thinking/reasoning options
+   * @returns The merged provider options ready for the AI SDK
+   */
+  private buildProviderOptions(
+    modelId: string,
+    userOptions?: ThinkingProviderOptions,
+  ): AgentProviderOptions | undefined {
+    const isGemini3 = modelId.includes("gemini-3");
+
+    // Add Gemini 3 defaults and/or pass through user's Google options if provided
+    if (isGemini3 || userOptions?.google) {
+      return {
+        google: {
+          ...(isGemini3 && {
+            mediaResolution: "MEDIA_RESOLUTION_HIGH",
+          }),
+          ...userOptions?.google,
+        },
+      };
+    }
+
+    // Pass through Anthropic thinking options directly
+    if (userOptions?.anthropic) {
+      return { anthropic: userOptions.anthropic };
+    }
+
+    // Pass through OpenAI reasoning options directly
+    if (userOptions?.openai) {
+      return { openai: userOptions.openai };
+    }
+
+    // Pass through xAI reasoning options directly
+    if (userOptions?.xai) {
+      return { xai: userOptions.xai };
+    }
+
+    // Pass through Groq reasoning options directly
+    if (userOptions?.groq) {
+      return { groq: userOptions.groq };
+    }
+
+    return undefined;
   }
 
   private async prepareAgent(
@@ -155,6 +205,24 @@ export class V3AgentHandler {
     };
   }
 
+  /**
+   * Extract reasoning text from a step result.
+   * Handles reasoning from supported providers:
+   * - event.reasoningText: Reasoning text from Google thinkingConfig, Anthropic thinking, OpenAI reasoning
+   * - event.text: Fallback to regular text output
+   */
+  private extractReasoningFromStep(event: StepResult<ToolSet>): string | null {
+    if (event.reasoningText && event.reasoningText.length > 0) {
+      return event.reasoningText;
+    }
+    // Fallback: regular text output
+    if (event.text && event.text.length > 0) {
+      return event.text;
+    }
+
+    return null;
+  }
+
   private createStepHandler(
     state: AgentState,
     userCallback?:
@@ -168,20 +236,23 @@ export class V3AgentHandler {
         level: 2,
       });
 
+      // Capture reasoning from various sources (Google thinkingConfig, Anthropic thinking, OpenAI reasoning)
+      // The AI SDK provides reasoningText and reasoning array for models with thinking enabled
+      const stepReasoning = this.extractReasoningFromStep(event);
+      if (stepReasoning) {
+        state.collectedReasoning.push(stepReasoning);
+        this.logger({
+          category: "agent",
+          message: `reasoning: ${stepReasoning}`,
+          level: 1,
+        });
+      }
+
       if (event.toolCalls && event.toolCalls.length > 0) {
         for (let i = 0; i < event.toolCalls.length; i++) {
           const toolCall = event.toolCalls[i];
           const args = toolCall.input;
           const toolResult = event.toolResults?.[i];
-
-          if (event.text && event.text.length > 0) {
-            state.collectedReasoning.push(event.text);
-            this.logger({
-              category: "agent",
-              message: `reasoning: ${event.text}`,
-              level: 1,
-            });
-          }
 
           if (toolCall.toolName === "done") {
             state.completed = true;
@@ -197,7 +268,7 @@ export class V3AgentHandler {
             toolCallName: toolCall.toolName,
             toolResult,
             args,
-            reasoning: event.text || undefined,
+            reasoning: stepReasoning || undefined,
           });
 
           for (const action of mappedActions) {
@@ -287,6 +358,11 @@ export class V3AgentHandler {
         }
       }
 
+      const providerOptions = this.buildProviderOptions(
+        wrappedModel.modelId,
+        preparedOptions.providerOptions,
+      );
+
       const result = await this.llmClient.generateText({
         model: wrappedModel,
         system: systemPrompt,
@@ -295,17 +371,10 @@ export class V3AgentHandler {
         stopWhen: (result) => this.handleStop(result, maxSteps),
         temperature: 1,
         toolChoice: "auto",
-
         prepareStep: this.createPrepareStep(callbacks?.prepareStep),
         onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
         abortSignal: preparedOptions.signal,
-        providerOptions: wrappedModel.modelId.includes("gemini-3")
-          ? {
-              google: {
-                mediaResolution: "MEDIA_RESOLUTION_HIGH",
-              },
-            }
-          : undefined,
+        providerOptions,
       });
 
       const allMessages = [...messages, ...(result.response?.messages || [])];
@@ -412,6 +481,11 @@ export class V3AgentHandler {
       rejectResult(error);
     };
 
+    const providerOptions = this.buildProviderOptions(
+      wrappedModel.modelId,
+      options.providerOptions,
+    );
+
     const streamResult = this.llmClient.streamText({
       model: wrappedModel,
       system: systemPrompt,
@@ -465,13 +539,7 @@ export class V3AgentHandler {
         rejectResult(new AgentAbortError(reason));
       },
       abortSignal: options.signal,
-      providerOptions: wrappedModel.modelId.includes("gemini-3")
-        ? {
-            google: {
-              mediaResolution: "MEDIA_RESOLUTION_HIGH",
-            },
-          }
-        : undefined,
+      providerOptions,
     });
 
     const agentStreamResult = streamResult as AgentStreamResult;

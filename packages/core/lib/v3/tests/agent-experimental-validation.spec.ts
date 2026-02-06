@@ -315,6 +315,32 @@ test.describe("Stagehand agent experimental feature validation", () => {
       }
     });
 
+    test("throws StagehandInvalidArgumentError for CUA with provider options (not supported)", async () => {
+      const agent = v3.agent({
+        cua: true,
+        model: "anthropic/claude-sonnet-4-20250514",
+      });
+
+      try {
+        await agent.execute({
+          instruction: "test",
+          providerOptions: {
+            anthropic: {
+              thinking: {
+                type: "enabled",
+                budgetTokens: 10000,
+              },
+            },
+          },
+        });
+        throw new Error("Expected error to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(StagehandInvalidArgumentError);
+        expect((error as Error).message).toContain("provider options");
+        expect((error as Error).message).toContain("not supported with CUA");
+      }
+    });
+
     test("throws StagehandInvalidArgumentError for CUA unsupported features even with experimental: true", async () => {
       // Close the non-experimental instance
       await v3.close();
