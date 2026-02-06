@@ -14,9 +14,6 @@ export async function installV3PiercerIntoSession(
   if (!pageEnabled) return false;
 
   await session.send("Runtime.enable").catch(() => {});
-
-  // Register as an init script so it runs BEFORE page scripts on every
-  // future navigation within this session (timing guarantee).
   try {
     await session.send<Protocol.Page.AddScriptToEvaluateOnNewDocumentResponse>(
       "Page.addScriptToEvaluateOnNewDocument",
@@ -29,8 +26,6 @@ export async function installV3PiercerIntoSession(
     if (msg.includes("Session with given id not found")) return false;
     // For other errors, keep going but don't throw — the next evaluate is idempotent.
   }
-
-  // Also evaluate immediately on the current document as a fallback.
   await session
     .send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
       expression: v3ScriptContent,
@@ -49,7 +44,6 @@ export async function installV3PiercerIntoSession(
       awaitPromise: false,
     })
     .catch(() => {});
-
   return true;
 }
 

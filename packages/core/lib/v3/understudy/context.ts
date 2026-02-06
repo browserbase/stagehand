@@ -633,6 +633,10 @@ export class V3Context {
     )) {
       if (sid === sessionId) this.pendingOopifByMainFrame.delete(fid);
     }
+
+    this._targetSessionListeners.delete(sessionId);
+    this._sessionInit.delete(sessionId);
+    this._piercerInstalled.delete(sessionId);
   }
 
   /**
