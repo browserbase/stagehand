@@ -401,32 +401,41 @@ export class Locator {
       if (!box.model) throw new ElementNotVisibleError(this.selector);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
-      // Dispatch input (from the same session)
-      await session.send<never>("Input.dispatchMouseEvent", {
-        type: "mouseMoved",
-        x: cx,
-        y: cy,
-        button: "none",
-      } as Protocol.Input.DispatchMouseEventRequest);
+      // Dispatch input (from the same session) without waiting between events.
+      // This keeps multi-clicks within tight thresholds on remote browsers.
+      const dispatches: Array<Promise<unknown>> = [];
+      dispatches.push(
+        session.send<never>("Input.dispatchMouseEvent", {
+          type: "mouseMoved",
+          x: cx,
+          y: cy,
+          button: "none",
+        } as Protocol.Input.DispatchMouseEventRequest),
+      );
 
-      // Dispatch mouse pressed and released events for the given click count
       for (let i = 1; i <= clickCount; i++) {
-        await session.send<never>("Input.dispatchMouseEvent", {
-          type: "mousePressed",
-          x: cx,
-          y: cy,
-          button,
-          clickCount: i,
-        } as Protocol.Input.DispatchMouseEventRequest);
+        dispatches.push(
+          session.send<never>("Input.dispatchMouseEvent", {
+            type: "mousePressed",
+            x: cx,
+            y: cy,
+            button,
+            clickCount: i,
+          } as Protocol.Input.DispatchMouseEventRequest),
+        );
 
-        await session.send<never>("Input.dispatchMouseEvent", {
-          type: "mouseReleased",
-          x: cx,
-          y: cy,
-          button,
-          clickCount: i,
-        } as Protocol.Input.DispatchMouseEventRequest);
+        dispatches.push(
+          session.send<never>("Input.dispatchMouseEvent", {
+            type: "mouseReleased",
+            x: cx,
+            y: cy,
+            button,
+            clickCount: i,
+          } as Protocol.Input.DispatchMouseEventRequest),
+        );
       }
+
+      await Promise.all(dispatches);
     } finally {
       // release the element handle
       try {

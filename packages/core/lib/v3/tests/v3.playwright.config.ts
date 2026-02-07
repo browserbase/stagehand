@@ -1,4 +1,11 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig, type ReporterDescription } from "@playwright/test";
+import path from "path";
+
+const ctrfJunitPath = process.env.CTRF_JUNIT_PATH;
+const envReporterPath = path.resolve(__dirname, "envReporter.ts");
+const reporter: ReporterDescription[] = ctrfJunitPath
+  ? [["list"], [envReporterPath], ["junit", { outputFile: ctrfJunitPath }]]
+  : [["list"], [envReporterPath]];
 
 export default defineConfig({
   testDir: ".",
@@ -8,7 +15,7 @@ export default defineConfig({
   // CI uses 4 workers, local development can use up to 8 for faster test runs.
   workers: process.env.CI ? 4 : 6,
   fullyParallel: true,
-  reporter: "list",
+  reporter,
   use: {
     // we're not launching Playwright browsers in these tests; we connect via Puppeteer/CDP to V3.
     headless: false,

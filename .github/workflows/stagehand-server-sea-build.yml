@@ -47,25 +47,25 @@ jobs:
           fetch-depth: 1
           fetch-tags: false
 
-      - uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
           node-version: 22.x
-          cache: 'pnpm'
-          cache-dependency-path: '**/pnpm-lock.yaml'
-
-      - name: Install dependencies
-        env:
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
-        run: pnpm install --frozen-lockfile
+          use-prebuilt-artifacts: "false"
 
       - name: Build binary (Linux/macOS x64/host arch)
         if: matrix.platform != 'win32' && !(matrix.platform == 'linux' && matrix.arch == 'arm64')
         shell: bash
+        env:
+          SEA_SOURCEMAP: ${{ matrix.sourcemap }}
         run: |
           CI=true pnpm --filter @browserbasehq/stagehand-server build:binary
+
+      - name: Rename binary for custom artifact name
+        if: matrix.platform == 'linux' && matrix.arch == 'x64' && matrix.binary_name != 'stagehand-server-linux-x64'
+        shell: bash
+        run: |
+          mv packages/server/dist/sea/stagehand-server-linux-x64 \
+            "packages/server/dist/sea/${{ matrix.binary_name }}"
 
       - name: Build binary (Linux arm64)
         if: matrix.platform == 'linux' && matrix.arch == 'arm64'
