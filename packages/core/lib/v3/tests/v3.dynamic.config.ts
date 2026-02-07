@@ -6,9 +6,11 @@ import path from "path";
 dotenv.config();
 
 const rootEnvPath = path.resolve(__dirname, "../../../.env");
+// @ts-ignore
 dotenv.config({ path: rootEnvPath, override: false });
 
 const localTestEnvPath = path.resolve(__dirname, ".env");
+// @ts-ignore
 dotenv.config({ path: localTestEnvPath, override: false });
 
 // Determine environment from TEST_ENV variable
