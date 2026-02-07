@@ -92,6 +92,49 @@ importers:
       zod-to-json-schema:
         specifier: ^3.25.0
         version: 3.25.0(zod@4.2.1)
+    devDependencies:
+      '@playwright/test':
+        specifier: ^1.42.1
+        version: 1.54.2
+      '@types/adm-zip':
+        specifier: ^0.5.7
+        version: 0.5.7
+      '@types/node':
+        specifier: ^20.11.30
+        version: 20.17.32
+      '@types/ws':
+        specifier: ^8.5.13
+        version: 8.18.1
+      adm-zip:
+        specifier: ^0.5.16
+        version: 0.5.16
+      chalk:
+        specifier: ^5.4.1
+        version: 5.4.1
+      esbuild:
+        specifier: ^0.21.4
+        version: 0.21.5
+      eslint:
+        specifier: ^9.16.0
+        version: 9.25.1(jiti@1.21.7)
+      prettier:
+        specifier: ^3.2.5
+        version: 3.5.3
+      tsup:
+        specifier: ^8.2.1
+        version: 8.4.0(jiti@1.21.7)(postcss@8.5.6)(tsx@4.19.4)(typescript@5.8.3)(yaml@2.7.1)
+      tsx:
+        specifier: ^4.10.5
+        version: 4.19.4
+      typescript:
+        specifier: ^5.2.2
+        version: 5.8.3
+      vitest:
+        specifier: ^4.0.8
+        version: 4.0.8(@types/debug@4.1.12)(@types/node@20.17.32)(jiti@1.21.7)(tsx@4.19.4)(yaml@2.7.1)
+      zod:
+        specifier: ^3.25.76 || ^4.2.0
+        version: 4.2.1
     optionalDependencies:
       '@ai-sdk/amazon-bedrock':
         specifier: ^3.0.73
@@ -156,49 +199,6 @@ importers:
       puppeteer-core:
         specifier: ^22.8.0
         version: 22.15.0(bufferutil@4.0.9)
-    devDependencies:
-      '@playwright/test':
-        specifier: ^1.42.1
-        version: 1.54.2
-      '@types/adm-zip':
-        specifier: ^0.5.7
-        version: 0.5.7
-      '@types/node':
-        specifier: ^20.11.30
-        version: 20.17.32
-      '@types/ws':
-        specifier: ^8.5.13
-        version: 8.18.1
-      adm-zip:
-        specifier: ^0.5.16
-        version: 0.5.16
-      chalk:
-        specifier: ^5.4.1
-        version: 5.4.1
-      esbuild:
-        specifier: ^0.21.4
-        version: 0.21.5
-      eslint:
-        specifier: ^9.16.0
-        version: 9.25.1(jiti@1.21.7)
-      prettier:
-        specifier: ^3.2.5
-        version: 3.5.3
-      tsup:
-        specifier: ^8.2.1
-        version: 8.4.0(jiti@1.21.7)(postcss@8.5.6)(tsx@4.19.4)(typescript@5.8.3)(yaml@2.7.1)
-      tsx:
-        specifier: ^4.10.5
-        version: 4.19.4
-      typescript:
-        specifier: ^5.2.2
-        version: 5.8.3
-      vitest:
-        specifier: ^4.0.8
-        version: 4.0.8(@types/debug@4.1.12)(@types/node@20.17.32)(jiti@1.21.7)(tsx@4.19.4)(yaml@2.7.1)
-      zod:
-        specifier: ^3.25.76 || ^4.2.0
-        version: 4.2.1
 
   packages/docs:
     dependencies:
