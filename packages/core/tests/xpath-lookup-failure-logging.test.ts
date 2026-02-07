@@ -104,9 +104,9 @@ describe("ActHandler xpath lookup failure logging", () => {
       expect.objectContaining({
         level: 0,
         message: expect.stringMatching(
-          /LLM returned ID.*1-999.*no xpath keyed by this ID/i
+          /LLM returned ID.*1-999.*no xpath keyed by this ID/i,
         ),
-      })
+      }),
     );
   });
 
@@ -117,7 +117,7 @@ describe("ActHandler xpath lookup failure logging", () => {
     const captureHybridSnapshotMock = vi.mocked(captureHybridSnapshot);
     captureHybridSnapshotMock.mockResolvedValue({
       combinedTree: "tree content",
-      combinedXpathMap: {},  // Empty map - no xpaths at all
+      combinedXpathMap: {}, // Empty map - no xpaths at all
       combinedUrlMap: {},
     });
 
@@ -179,13 +179,13 @@ describe("ObserveHandler xpath lookup failure logging", () => {
     observeInferenceMock.mockResolvedValue({
       elements: [
         {
-          elementId: "1-0",  // This one has a valid xpath
+          elementId: "1-0", // This one has a valid xpath
           description: "Valid button",
           method: "click",
           arguments: [],
         },
         {
-          elementId: "1-999",  // This one does NOT have a valid xpath
+          elementId: "1-999", // This one does NOT have a valid xpath
           description: "Missing button",
           method: "click",
           arguments: [],
@@ -222,9 +222,9 @@ describe("ObserveHandler xpath lookup failure logging", () => {
       expect.objectContaining({
         level: 0,
         message: expect.stringMatching(
-          /LLM returned ID.*1-999.*no xpath keyed by this ID/i
+          /LLM returned ID.*1-999.*no xpath keyed by this ID/i,
         ),
-      })
+      }),
     );
   });
 
@@ -232,7 +232,7 @@ describe("ObserveHandler xpath lookup failure logging", () => {
     const captureHybridSnapshotMock = vi.mocked(captureHybridSnapshot);
     captureHybridSnapshotMock.mockResolvedValue({
       combinedTree: "tree content",
-      combinedXpathMap: {},  // Empty - no valid xpaths
+      combinedXpathMap: {}, // Empty - no valid xpaths
       combinedUrlMap: {},
     });
 
@@ -281,17 +281,17 @@ describe("ObserveHandler xpath lookup failure logging", () => {
       expect.objectContaining({
         level: 0,
         message: expect.stringMatching(
-          /LLM returned ID.*1-100.*no xpath keyed by this ID/i
+          /LLM returned ID.*1-100.*no xpath keyed by this ID/i,
         ),
-      })
+      }),
     );
     expect(loggerSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         level: 0,
         message: expect.stringMatching(
-          /LLM returned ID.*1-200.*no xpath keyed by this ID/i
+          /LLM returned ID.*1-200.*no xpath keyed by this ID/i,
         ),
-      })
+      }),
     );
   });
 });
@@ -312,9 +312,9 @@ function buildActHandler(): ActHandler {
     resolveLlmClient,
     undefined,
     false,
-    false,  // selfHeal
-    undefined,  // onMetrics
-    undefined,  // defaultDomSettleTimeoutMs
+    false, // selfHeal
+    undefined, // onMetrics
+    undefined, // defaultDomSettleTimeoutMs
   );
 }
 
@@ -332,9 +332,9 @@ function buildObserveHandler(): ObserveHandler {
     "gpt-4o",
     defaultClientOptions,
     resolveLlmClient,
-    undefined,  // systemPrompt
-    false,  // logInferenceToFile
-    false,  // experimental
-    undefined,  // onMetrics
+    undefined, // systemPrompt
+    false, // logInferenceToFile
+    false, // experimental
+    undefined, // onMetrics
   );
 }
