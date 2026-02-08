@@ -212,6 +212,9 @@ export class V3 {
     if (this.state.kind === "BROWSERBASE") {
       void this._logBrowserbaseSessionStatus();
     }
+    if (this.state.kind === "LOCAL" && this.opts.keepAlive === true) {
+      return;
+    }
 
     // Single place to react to the transport closing
     this._immediateShutdown(`CDP transport closed: ${why}`).catch(() => {});
@@ -588,10 +591,22 @@ export class V3 {
     if (V3._processGuardsInstalled) return;
     V3._processGuardsInstalled = true;
 
-    const shutdownAllImmediate = async (reason: string) => {
+    const shutdownAllImmediateRespectKeepAlive = async (reason: string) => {
       const instances = Array.from(V3._instances);
-      await Promise.all(instances.map((i) => i._immediateShutdown(reason)));
+      const closable = instances.filter((i) => i.opts.keepAlive !== true);
+      await Promise.all(closable.map((i) => i._immediateShutdown(reason)));
     };
+    const runShutdownWithKeepAlive = (reason: string) => {
+      const keepAlive = setInterval(() => {}, 250);
+      void shutdownAllImmediateRespectKeepAlive(reason)
+        .catch(() => {})
+        .finally(() => {
+          clearInterval(keepAlive);
+        });
+    };
+
+    const toError = (value: unknown): Error =>
+      value instanceof Error ? value : new Error(String(value));
 
     process.once("SIGINT", () => {
       v3Logger({
@@ -599,13 +614,7 @@ export class V3 {
         message: "SIGINT: initiating shutdown",
         level: 0,
       });
-      for (const instance of V3._instances) {
-        if (instance.apiClient) {
-          void instance.apiClient.end();
-          return;
-        }
-      }
-      void shutdownAllImmediate("signal SIGINT");
+      runShutdownWithKeepAlive("signal SIGINT");
     });
     process.once("SIGTERM", () => {
       v3Logger({
@@ -613,30 +622,51 @@ export class V3 {
         message: "SIGTERM: initiating shutdown",
         level: 0,
       });
-      for (const instance of V3._instances) {
-        if (instance.apiClient) {
-          void instance.apiClient.end();
-          return;
-        }
-      }
-      void shutdownAllImmediate("signal SIGTERM");
+      runShutdownWithKeepAlive("signal SIGTERM");
     });
-    process.once("uncaughtException", (err: unknown) => {
+
+    const onUncaughtException = (err: unknown) => {
+      const errToThrow = toError(err);
       v3Logger({
         category: "v3",
         message: "uncaughtException",
         level: 0,
         auxiliary: { err: { value: String(err), type: "string" } },
       });
-    });
-    process.once("unhandledRejection", (reason: unknown) => {
+      process.off("unhandledRejection", onUnhandledRejection);
+      void shutdownAllImmediateRespectKeepAlive(
+        `uncaughtException: ${String(err)}`,
+      )
+        .catch(() => {})
+        .finally(() => {
+          setImmediate(() => {
+            throw errToThrow;
+          });
+        });
+    };
+
+    const onUnhandledRejection = (reason: unknown) => {
+      const errToThrow = toError(reason);
       v3Logger({
         category: "v3",
         message: "unhandledRejection",
         level: 0,
         auxiliary: { reason: { value: String(reason), type: "string" } },
       });
-    });
+      process.off("uncaughtException", onUncaughtException);
+      void shutdownAllImmediateRespectKeepAlive(
+        `unhandledRejection: ${String(reason)}`,
+      )
+        .catch(() => {})
+        .finally(() => {
+          setImmediate(() => {
+            throw errToThrow;
+          });
+        });
+    };
+
+    process.once("uncaughtException", onUncaughtException);
+    process.once("unhandledRejection", onUnhandledRejection);
   }
 
   /**
@@ -829,6 +859,7 @@ export class V3 {
           // add user-supplied args last
           if (Array.isArray(lbo.args)) chromeFlags.push(...lbo.args);
 
+          const keepAlive = this.opts.keepAlive === true;
           const { ws, chrome } = await launchLocalChrome({
             chromePath: lbo.executablePath,
             chromeFlags,
@@ -836,7 +867,15 @@ export class V3 {
             headless: lbo.headless,
             userDataDir,
             connectTimeoutMs: lbo.connectTimeoutMs,
+            handleSIGINT: !keepAlive,
           });
+          if (keepAlive) {
+            try {
+              chrome.process?.unref?.();
+            } catch {
+              // best-effort: avoid keeping the event loop alive
+            }
+          }
           this.ctx = await V3Context.create(ws, {
             env: "LOCAL",
             localBrowserLaunchOptions: lbo,
@@ -875,6 +914,16 @@ export class V3 {
             message: "Starting browserbase session",
             level: 1,
           });
+          const baseSessionParams =
+            this.opts.browserbaseSessionCreateParams ?? {};
+          const resolvedKeepAlive =
+            this.opts.keepAlive !== undefined
+              ? this.opts.keepAlive
+              : baseSessionParams.keepAlive;
+          const effectiveSessionParams =
+            resolvedKeepAlive !== undefined
+              ? { ...baseSessionParams, keepAlive: resolvedKeepAlive }
+              : baseSessionParams;
           if (!this.disableAPI && !this.experimental) {
             this.apiClient = new StagehandAPIClient({
               apiKey,
@@ -882,19 +931,17 @@ export class V3 {
               logger: this.logger,
             });
             const createSessionPayload = {
-              projectId:
-                this.opts.browserbaseSessionCreateParams?.projectId ??
-                projectId,
-              ...this.opts.browserbaseSessionCreateParams,
+              projectId: effectiveSessionParams.projectId ?? projectId,
+              ...effectiveSessionParams,
               browserSettings: {
-                ...(this.opts.browserbaseSessionCreateParams?.browserSettings ??
-                  {}),
-                viewport: this.opts.browserbaseSessionCreateParams
-                  ?.browserSettings?.viewport ?? { width: 1288, height: 711 },
+                ...(effectiveSessionParams.browserSettings ?? {}),
+                viewport: effectiveSessionParams.browserSettings?.viewport ?? {
+                  width: 1288,
+                  height: 711,
+                },
               },
               userMetadata: {
-                ...(this.opts.browserbaseSessionCreateParams?.userMetadata ??
-                  {}),
+                ...(effectiveSessionParams.userMetadata ?? {}),
                 stagehand: "true",
               },
             };
@@ -916,7 +963,7 @@ export class V3 {
           const { ws, sessionId, bb } = await createBrowserbaseSession(
             apiKey,
             projectId,
-            this.opts.browserbaseSessionCreateParams,
+            effectiveSessionParams,
             this.opts.browserbaseSessionID,
           );
           this.ctx = await V3Context.create(ws, {
@@ -1361,6 +1408,7 @@ export class V3 {
 
   /** Best-effort cleanup of context and launched resources. */
   async close(opts?: { force?: boolean }): Promise<void> {
+    const keepAlive = this.opts.keepAlive === true;
     if (this.apiClient) {
       await this.apiClient.end();
     }
@@ -1394,22 +1442,27 @@ export class V3 {
 
       // Kill local Chrome if present
       if (this.state.kind === "LOCAL") {
-        try {
-          await this.state.chrome.kill();
-        } catch {
-          //
-        }
-        // cleanup temp user data dir if we created it and not preserved
-        try {
-          if (
-            this.state.createdTempProfile &&
-            !this.state.preserveUserDataDir &&
-            this.state.userDataDir
-          ) {
-            fs.rmSync(this.state.userDataDir, { recursive: true, force: true });
+        if (!keepAlive) {
+          try {
+            await this.state.chrome.kill();
+          } catch {
+            //
           }
-        } catch {
-          // ignore cleanup errors
+          // cleanup temp user data dir if we created it and not preserved
+          try {
+            if (
+              this.state.createdTempProfile &&
+              !this.state.preserveUserDataDir &&
+              this.state.userDataDir
+            ) {
+              fs.rmSync(this.state.userDataDir, {
+                recursive: true,
+                force: true,
+              });
+            }
+          } catch {
+            // ignore cleanup errors
+          }
         }
       }
     } finally {
