@@ -1932,7 +1932,6 @@ export class V3 {
               typeof instructionOrOptions === "object"
                 ? instructionOrOptions
                 : null,
-            isStreaming,
           });
           SessionFileLogger.logAgentTaskStarted({
             invocation: "Agent.execute",

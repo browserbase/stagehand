@@ -13,8 +13,6 @@ export interface AgentValidationOptions {
   executeOptions?:
     | (Partial<AgentExecuteOptionsBase> & { callbacks?: unknown })
     | null;
-  /** Whether this is streaming mode (can be derived from agentConfig.stream) */
-  isStreaming?: boolean;
 }
 
 /**
@@ -24,7 +22,7 @@ export interface AgentValidationOptions {
  * - Invalid argument errors for CUA (streaming, abort signal, message continuation, excludeTools, output schema are not supported)
  * - Experimental feature checks for integrations and tools (both CUA and non-CUA)
  * - Experimental feature checks for hybrid mode (requires experimental: true)
- * - Experimental feature checks for non-CUA only (callbacks, signal, messages, streaming, excludeTools, output schema)
+ * - Experimental feature checks for non-CUA only (callbacks, signal, messages, excludeTools, output schema)
  *
  * Throws StagehandInvalidArgumentError for invalid/unsupported configurations.
  * Throws ExperimentalNotConfiguredError if experimental features are used without experimental mode.
@@ -32,7 +30,7 @@ export interface AgentValidationOptions {
 export function validateExperimentalFeatures(
   options: AgentValidationOptions,
 ): void {
-  const { isExperimental, agentConfig, executeOptions, isStreaming } = options;
+  const { isExperimental, agentConfig, executeOptions } = options;
 
   // Check if CUA mode is enabled (via mode: "cua" or deprecated cua: true)
   const isCuaMode =
@@ -83,12 +81,6 @@ export function validateExperimentalFeatures(
   if (hasIntegrations || hasTools) {
     features.push("MCP integrations and custom tools");
   }
-
-  // Check streaming mode (either explicit or derived from config) - only for non-CUA
-  if (!isCuaMode && (isStreaming || agentConfig?.stream)) {
-    features.push("streaming");
-  }
-
   // Check execute options features - only for non-CUA
   if (executeOptions && !isCuaMode) {
     if (executeOptions.callbacks) {
