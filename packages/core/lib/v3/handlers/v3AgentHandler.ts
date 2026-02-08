@@ -14,6 +14,7 @@ import {
   type StreamTextOnStepFinishCallback,
   type PrepareStepFunction,
 } from "ai";
+import type { SharedV2ProviderOptions } from "@ai-sdk/provider";
 import { StagehandZodObject } from "../zodCompat";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { LLMClient } from "../llm/LLMClient";
@@ -72,6 +73,7 @@ export class V3AgentHandler {
   private systemInstructions?: string;
   private mcpTools?: ToolSet;
   private mode: AgentToolMode;
+  private userProviderOptions?: Record<string, unknown>;
 
   constructor(
     v3: V3,
@@ -81,6 +83,7 @@ export class V3AgentHandler {
     systemInstructions?: string,
     mcpTools?: ToolSet,
     mode?: AgentToolMode,
+    userProviderOptions?: Record<string, unknown>,
   ) {
     this.v3 = v3;
     this.logger = logger;
@@ -89,6 +92,65 @@ export class V3AgentHandler {
     this.systemInstructions = systemInstructions;
     this.mcpTools = mcpTools;
     this.mode = mode ?? "dom";
+    this.userProviderOptions = userProviderOptions;
+  }
+
+  /**
+   * Build provider options by merging user-provided options with defaults.
+   * For Gemini 3 models, defaults include mediaResolution: "MEDIA_RESOLUTION_HIGH".
+   * User options take precedence via deep merge.
+   */
+  private buildProviderOptions(
+    modelId: string,
+  ): SharedV2ProviderOptions | undefined {
+    const isGemini3 = modelId.includes("gemini-3");
+
+    if (!isGemini3 && !this.userProviderOptions) {
+      return undefined;
+    }
+
+    const defaultGemini3Options: SharedV2ProviderOptions = isGemini3
+      ? { google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" } }
+      : {};
+
+    if (!this.userProviderOptions) {
+      return defaultGemini3Options;
+    }
+
+    return this.deepMerge(
+      defaultGemini3Options,
+      this.userProviderOptions,
+    ) as SharedV2ProviderOptions;
+  }
+
+  /**
+   * Deep merge two objects. Source values override target values.
+   */
+  private deepMerge(
+    target: Record<string, unknown>,
+    source: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const result = { ...target };
+    for (const key of Object.keys(source)) {
+      const sourceVal = source[key];
+      const targetVal = target[key];
+      if (
+        sourceVal !== null &&
+        typeof sourceVal === "object" &&
+        !Array.isArray(sourceVal) &&
+        targetVal !== null &&
+        typeof targetVal === "object" &&
+        !Array.isArray(targetVal)
+      ) {
+        result[key] = this.deepMerge(
+          targetVal as Record<string, unknown>,
+          sourceVal as Record<string, unknown>,
+        );
+      } else {
+        result[key] = sourceVal;
+      }
+    }
+    return result;
   }
 
   private async prepareAgent(
@@ -320,13 +382,7 @@ export class V3AgentHandler {
         prepareStep: this.createPrepareStep(callbacks?.prepareStep),
         onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
         abortSignal: preparedOptions.signal,
-        providerOptions: wrappedModel.modelId.includes("gemini-3")
-          ? {
-              google: {
-                mediaResolution: "MEDIA_RESOLUTION_HIGH",
-              },
-            }
-          : undefined,
+        providerOptions: this.buildProviderOptions(wrappedModel.modelId),
       });
 
       const allMessages = [...messages, ...(result.response?.messages || [])];
@@ -485,13 +541,7 @@ export class V3AgentHandler {
         rejectResult(new AgentAbortError(reason));
       },
       abortSignal: options.signal,
-      providerOptions: wrappedModel.modelId.includes("gemini-3")
-        ? {
-            google: {
-              mediaResolution: "MEDIA_RESOLUTION_HIGH",
-            },
-          }
-        : undefined,
+      providerOptions: this.buildProviderOptions(wrappedModel.modelId),
     });
 
     const agentStreamResult = streamResult as AgentStreamResult;
