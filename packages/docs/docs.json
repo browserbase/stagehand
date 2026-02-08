@@ -105,6 +105,13 @@
                       "v3/integrations/vercel/configuration"
                     ]
                   },
+                  {
+                    "group": "Convex",
+                    "pages": [
+                      "v3/integrations/convex/introduction",
+                      "v3/integrations/convex/configuration"
+                    ]
+                  },
                   "v3/integrations/playwright",
                   "v3/integrations/puppeteer",
                   "v3/integrations/selenium"
@@ -452,6 +459,10 @@
     {
       "source": "/integrations/vercel/:slug*",
       "destination": "/v3/integrations/vercel/:slug*"
+    },
+    {
+      "source": "/integrations/convex/:slug*",
+      "destination": "/v3/integrations/convex/:slug*"
     },
     {
       "source": "/references/:slug*",
