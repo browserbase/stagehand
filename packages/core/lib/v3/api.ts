@@ -741,11 +741,9 @@ export class StagehandAPIClient {
     // Ensure /v1 suffix is present for consistency
     let baseUrl: string;
     if (process.env.STAGEHAND_API_URL) {
-      const envUrl = process.env.STAGEHAND_API_URL;
-      // Append /v1 if not already present (handles trailing slashes too)
-      baseUrl = envUrl.endsWith("/v1")
-        ? envUrl
-        : `${envUrl.replace(/\/$/, "")}/v1`;
+      const envUrl = process.env.STAGEHAND_API_URL.replace(/\/+$/, "");
+      // Append /v1 if not already present
+      baseUrl = envUrl.endsWith("/v1") ? envUrl : `${envUrl}/v1`;
     } else {
       baseUrl = getApiUrlForRegion(this.region);
     }
