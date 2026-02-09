@@ -1404,7 +1404,9 @@ export class V3 {
 
   /** Best-effort cleanup of context and launched resources. */
   async close(opts?: { force?: boolean }): Promise<void> {
-    const keepAlive = this.opts.keepAlive === true;
+    const keepAlive =
+      this.opts.keepAlive ??
+      this.opts.browserbaseSessionCreateParams?.keepAlive;
     if (this.apiClient && !keepAlive) {
       await this.apiClient.end();
     }
