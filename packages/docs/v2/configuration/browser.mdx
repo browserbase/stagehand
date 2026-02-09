@@ -17,51 +17,6 @@ Browserbase provides managed cloud browser infrastructure optimized for web auto
   Discover the power of cloud-managed browser infrastructure with Browserbase.
 </Card>
 
-### Multi-Region Support
-
-Stagehand API is available in multiple regions to optimize latency and support data residency requirements. The SDK automatically routes requests to the correct regional API endpoint based on your browser session's region.
-
-| Region | API Endpoint |
-| --- | --- |
-| **us-west-2** (Default) | https://api.stagehand.browserbase.com |
-| **us-east-1** | https://api.use1.stagehand.browserbase.com |
-| **eu-central-1** | https://api.euc1.stagehand.browserbase.com |
-| **ap-southeast-1** | https://api.apse1.stagehand.browserbase.com |
-
-Configure your browser session region in `browserbaseSessionCreateParams`:
-
-<CodeGroup>
-```typescript TypeScript
-import { Stagehand } from "@browserbasehq/stagehand";
-
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  browserbaseSessionCreateParams: {
-    region: "eu-central-1", // Browser runs in Frankfurt
-  },
-});
-
-await stagehand.init();
-```
-```python Python
-from stagehand import Stagehand
-
-stagehand = Stagehand(
-    env="BROWSERBASE",
-    browserbase_session_create_params={
-        "region": "eu-central-1",  # Browser runs in Frankfurt
-    },
-)
-
-await stagehand.init()
-```
-</CodeGroup>
-
-<Warning>
-The API endpoint must match your browser session region. If there's a mismatch, you'll receive an error:
-`Session is in region 'X' but this API instance serves 'Y'. Please route your request to the X Stagehand API endpoint.`
-</Warning>
-
 ### Disabling Stagehand API
 
 If you want to use Stagehand purely as a local library without routing through the Stagehand API, you can disable API mode:
