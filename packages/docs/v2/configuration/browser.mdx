@@ -17,37 +17,6 @@ Browserbase provides managed cloud browser infrastructure optimized for web auto
   Discover the power of cloud-managed browser infrastructure with Browserbase.
 </Card>
 
-### Disabling Stagehand API
-
-If you want to use Stagehand purely as a local library without routing through the Stagehand API, you can disable API mode:
-
-<CodeGroup>
-```typescript TypeScript
-import { Stagehand } from "@browserbasehq/stagehand";
-
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  disableAPI: true, // Disable Stagehand API - runs locally with Browserbase
-});
-
-await stagehand.init();
-```
-```python Python
-from stagehand import Stagehand
-
-stagehand = Stagehand(
-    env="BROWSERBASE",
-    disable_api=True,  # Disable Stagehand API - runs locally with Browserbase
-)
-
-await stagehand.init()
-```
-</CodeGroup>
-
-<Tip>
-Disabling the API is useful when you want to manage browser sessions directly while still using Stagehand's automation features locally.
-</Tip>
-
 ### Environment Variables
 
 Before getting started, set up the required environment variables:
