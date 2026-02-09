@@ -212,9 +212,6 @@ export class V3 {
     if (this.state.kind === "BROWSERBASE") {
       void this._logBrowserbaseSessionStatus();
     }
-    if (this.state.kind === "LOCAL" && this.opts.keepAlive === true) {
-      return;
-    }
 
     // Single place to react to the transport closing
     this._immediateShutdown(`CDP transport closed: ${why}`).catch(() => {});
@@ -593,8 +590,7 @@ export class V3 {
 
     const shutdownAllImmediateRespectKeepAlive = async (reason: string) => {
       const instances = Array.from(V3._instances);
-      const closable = instances.filter((i) => i.opts.keepAlive !== true);
-      await Promise.all(closable.map((i) => i._immediateShutdown(reason)));
+      await Promise.all(instances.map((i) => i._immediateShutdown(reason)));
     };
     const runShutdownWithKeepAlive = (reason: string) => {
       const keepAlive = setInterval(() => {}, 250);
@@ -1409,7 +1405,7 @@ export class V3 {
   /** Best-effort cleanup of context and launched resources. */
   async close(opts?: { force?: boolean }): Promise<void> {
     const keepAlive = this.opts.keepAlive === true;
-    if (this.apiClient) {
+    if (this.apiClient && !keepAlive) {
       await this.apiClient.end();
     }
     // If we're already closing and this isn't a forced close, no-op.
