@@ -41,6 +41,8 @@ async function main() {
   // Register all API schemas as components so fastify-zod-openapi can create $ref links
   const components: ZodOpenApiComponentsObject = {
     schemas: {
+      // Region support
+      BrowserbaseRegion: Api.BrowserbaseRegionSchema,
       // Shared components
       LocalBrowserLaunchOptions: Api.LocalBrowserLaunchOptionsSchema,
       ModelConfigObject: Api.ModelConfigObjectSchema,
@@ -123,6 +125,28 @@ async function main() {
         description: `Stagehand SDK for AI browser automation [ALPHA]. This API allows clients to
 execute browser automation tasks remotely on the Browserbase cloud.
 
+## Multi-Region Support
+
+The Stagehand API is available in multiple regions. Choose the API endpoint
+that matches where your browser session is running:
+
+| Region | Endpoint |
+|--------|----------|
+| us-west-2 (default) | https://api.stagehand.browserbase.com |
+| us-east-1 | https://api.use1.stagehand.browserbase.com |
+| eu-central-1 | https://api.euc1.stagehand.browserbase.com |
+| ap-southeast-1 | https://api.apse1.stagehand.browserbase.com |
+
+**Important:** The API endpoint must match your browser session region.
+If there's a mismatch, you'll receive a BAD_REQUEST error:
+\`Session is in region 'X' but this API instance serves 'Y'. Please route
+your request to the X Stagehand API endpoint.\`
+
+To disable API mode and use local browser automation, set \`disableAPI: true\`
+in your Stagehand configuration.
+
+## Authentication and Usage
+
 All endpoints except /sessions/start require an active session ID.
 Responses are streamed using Server-Sent Events (SSE) when the
 \`x-stream-response: true\` header is provided.
@@ -138,7 +162,19 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
       servers: [
         {
           url: "https://api.stagehand.browserbase.com",
-          description: "Production Browserbase Cloud API",
+          description: "US West (Oregon) - us-west-2 (Default)",
+        },
+        {
+          url: "https://api.use1.stagehand.browserbase.com",
+          description: "US East (N. Virginia) - us-east-1",
+        },
+        {
+          url: "https://api.euc1.stagehand.browserbase.com",
+          description: "EU Central (Frankfurt) - eu-central-1",
+        },
+        {
+          url: "https://api.apse1.stagehand.browserbase.com",
+          description: "Asia Pacific (Singapore) - ap-southeast-1",
         },
       ],
       components: {
