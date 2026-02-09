@@ -210,9 +210,17 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
 
   const yaml = app.swagger({ yaml: true });
   // Mintlify expects OpenAPI version fields to be strings, so quote them here.
+  // Also fix markdown table formatting: in folded YAML blocks, table rows must be
+  // on consecutive lines (no blank lines between them) for proper rendering.
   const fixedYaml = yaml
     .replace(/^openapi:\s*(?!['"])([^#\s]+)\s*$/m, 'openapi: "$1"')
-    .replace(/^ {2}version:\s*(?!['"])([^#\s]+)\s*$/m, '  version: "$1"');
+    .replace(/^ {2}version:\s*(?!['"])([^#\s]+)\s*$/m, '  version: "$1"')
+    // Remove blank lines between markdown table rows in folded YAML blocks
+    .replace(/(\| Region \| Endpoint \|)\n\n(\s*\|[-|]+\|)/g, "$1\n$2")
+    .replace(/(\|[-|]+\|)\n\n(\s*\| us-west-2)/g, "$1\n$2")
+    .replace(/(\| us-west-2[^|]+\|[^|]+\|)\n\n(\s*\| us-east-1)/g, "$1\n$2")
+    .replace(/(\| us-east-1[^|]+\|[^|]+\|)\n\n(\s*\| eu-central-1)/g, "$1\n$2")
+    .replace(/(\| eu-central-1[^|]+\|[^|]+\|)\n\n(\s*\| ap-southeast-1)/g, "$1\n$2");
 
   await writeFile(OUTPUT_PATH, fixedYaml, "utf8");
 

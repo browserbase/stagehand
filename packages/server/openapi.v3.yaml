@@ -17,15 +17,10 @@ info:
 
 
     | Region | Endpoint |
-
     |--------|----------|
-
     | us-west-2 (default) | https://api.stagehand.browserbase.com |
-
     | us-east-1 | https://api.use1.stagehand.browserbase.com |
-
     | eu-central-1 | https://api.euc1.stagehand.browserbase.com |
-
     | ap-southeast-1 | https://api.apse1.stagehand.browserbase.com |
 
 
