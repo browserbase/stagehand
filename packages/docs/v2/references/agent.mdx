@@ -1,0 +1,262 @@
+---
+title: agent()
+description: 'Complete API reference for the agent() method'
+icon: 'robot'
+---
+
+<CardGroup cols={1}>
+<Card title="Agent" icon="robot" href="/v2/basics/agent">
+  See how to use agent() to create autonomous AI agents for multi-step browser workflows
+</Card>
+</CardGroup>
+
+### Agent Creation
+
+<Tabs>
+<Tab title="TypeScript">
+
+```typescript
+// Create agent instance
+const agent = stagehand.agent(config: AgentConfig): AgentInstance
+```
+
+**AgentConfig Interface:**
+```typescript
+interface AgentConfig {
+  provider?: AgentProviderType;  // "openai" | "anthropic"
+  model?: string;
+  instructions?: string;
+  options?: Record<string, unknown>;
+  integrations?: (Client | string)[];
+  tools?: ToolSet;
+}
+```
+
+**AgentInstance Interface:**
+```typescript
+interface AgentInstance {
+  execute: (instructionOrOptions: string | AgentExecuteOptions) => Promise<AgentResult>;
+}
+```
+
+</Tab>
+<Tab title="Python">
+
+```python
+# Create agent instance
+agent = stagehand.agent(
+    model: str,
+    instructions: str = None,
+    options: Dict[str, Any] = None
+)
+```
+
+</Tab>
+</Tabs>
+
+### Agent Configuration
+
+<ParamField path="provider" type="AgentProviderType" optional>
+  AI provider for agent functionality.
+  
+  **Options:** `"anthropic"`, `"openai"`
+</ParamField>
+
+<ParamField path="model" type="string" optional>
+  Specific model for agent execution.
+  
+  **Anthropic:** `"claude-sonnet-4-20250514"`, `"claude-3-5-sonnet-20241022"`
+  
+  **OpenAI:** `"computer-use-preview"`, `"gpt-4o"`
+</ParamField>
+
+<ParamField path="instructions" type="string" optional>
+  System instructions defining agent behavior.
+</ParamField>
+
+<ParamField path="options" type="Record<string, unknown>" optional>
+  Provider-specific configuration.
+  
+  **Common:** `apiKey`, `baseURL`, `organization`
+</ParamField>
+
+<ParamField path="integrations" type="(Client | string)[]" optional>
+  MCP (Model Context Protocol) integrations for external tools and services.
+  
+  **Array of:** MCP server URLs (strings) or connected Client objects
+</ParamField>
+
+<ParamField path="tools" type="ToolSet" optional>
+  Custom tool definitions to extend agent capabilities.
+  
+  **Format:** Object with tool name keys and tool definition values
+</ParamField>
+
+### Execute Method
+
+<Tabs>
+<Tab title="TypeScript">
+
+```typescript
+// String instruction
+await agent.execute(instruction: string): Promise<AgentResult>
+
+// With options
+await agent.execute(options: AgentExecuteOptions): Promise<AgentResult>
+```
+
+**AgentExecuteOptions Interface:**
+```typescript
+interface AgentExecuteOptions {
+  instruction: string;
+  maxSteps?: number;
+  autoScreenshot?: boolean;
+  waitBetweenActions?: number;
+  context?: string;
+}
+```
+
+</Tab>
+<Tab title="Python">
+
+```python
+# String instruction
+await agent.execute(instruction: str) -> AgentResult
+
+# With options dictionary
+await agent.execute({
+    "instruction": str,
+    "max_steps": int = 20,
+    "auto_screenshot": bool = True,
+    "wait_between_actions": int = 0,
+    "context": str = None
+}) -> AgentResult
+```
+
+</Tab>
+</Tabs>
+
+### Execute Parameters
+
+<ParamField path="instruction" type="string" required>
+  High-level task description in natural language.
+</ParamField>
+
+<ParamField path="maxSteps" type="number" optional>
+  Maximum number of actions the agent can take.
+  
+  **Default:** `20`
+</ParamField>
+
+<ParamField path="autoScreenshot" type="boolean" optional>
+  Whether to take screenshots before each action.
+  
+  **Default:** `true`
+</ParamField>
+
+<ParamField path="waitBetweenActions" type="number" optional>
+  Delay in milliseconds between actions.
+  
+  **Default:** `0`
+</ParamField>
+
+<ParamField path="context" type="string" optional>
+  Additional context or constraints for the agent.
+</ParamField>
+
+### Response
+
+**Returns:** `Promise<AgentResult>`
+
+**AgentResult Interface:**
+```typescript
+interface AgentResult {
+  success: boolean;
+  message: string;
+  actions: AgentAction[];
+  completed: boolean;
+  metadata?: Record<string, unknown>;
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+    reasoning_tokens?: number;
+    cached_input_tokens?: number;
+    inference_time_ms: number;
+  };
+}
+```
+
+<Tabs>
+<Tab title="TypeScript">
+
+<ParamField path="success" type="boolean">
+  Whether the task was completed successfully.
+</ParamField>
+
+<ParamField path="message" type="string">
+  Description of the execution result and status.
+</ParamField>
+
+<ParamField path="actions" type="AgentAction[]">
+  Array of individual actions taken during execution.
+</ParamField>
+
+<ParamField path="completed" type="boolean">
+  Whether the agent believes the task is fully complete.
+</ParamField>
+
+<ParamField path="metadata" type="Record<string, unknown>" optional>
+  Additional execution metadata and debugging information.
+</ParamField>
+
+<ParamField path="usage" type="object" optional>
+  Token usage and performance metrics.
+</ParamField>
+
+</Tab>
+<Tab title="Python">
+
+<ParamField path="success" type="boolean">
+  Whether the task was completed successfully.
+</ParamField>
+
+<ParamField path="message" type="string">
+  Description of the execution result and status.
+</ParamField>
+
+<ParamField path="actions" type="AgentAction[]">
+  Array of individual actions taken during execution.
+</ParamField>
+
+<ParamField path="completed" type="boolean">
+  Whether the agent believes the task is fully complete.
+</ParamField>
+
+</Tab>
+</Tabs>
+
+### Example Response
+```json
+{
+  "success": true,
+  "message": "Task completed successfully",
+  "actions": [
+    {
+      "action": "click",
+      "selector": "button.primary",
+      "text": "Submit"
+    }
+  ],
+  "completed": true,
+  "metadata": {
+    "execution_time": 1000
+  },
+  "usage": {
+    "input_tokens": 100,
+    "output_tokens": 50,
+    "reasoning_tokens": 12,
+    "cached_input_tokens": 0,
+    "inference_time_ms": 100
+  }
+}
+```
