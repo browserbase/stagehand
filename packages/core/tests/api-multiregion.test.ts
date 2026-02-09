@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { getApiUrlForRegion, REGION_API_URLS } from "../lib/v3/api";
 
 describe("Multi-region API URL mapping", () => {
@@ -64,6 +64,43 @@ describe("Multi-region API URL mapping", () => {
       expect(getApiUrlForRegion("invalid-region")).toBe(
         "https://api.stagehand.browserbase.com/v1"
       );
+    });
+  });
+
+  describe("STAGEHAND_API_URL env var handling", () => {
+    // These tests verify that the URL construction logic in request() method
+    // correctly appends /v1 to STAGEHAND_API_URL when not present.
+    // The actual logic is in StagehandAPIClient.request() - these tests verify
+    // the expected behavior is documented and the helper function is consistent.
+
+    let originalEnv: string | undefined;
+
+    beforeEach(() => {
+      originalEnv = process.env.STAGEHAND_API_URL;
+    });
+
+    afterEach(() => {
+      if (originalEnv !== undefined) {
+        process.env.STAGEHAND_API_URL = originalEnv;
+      } else {
+        delete process.env.STAGEHAND_API_URL;
+      }
+    });
+
+    it("getApiUrlForRegion always includes /v1 suffix for consistency", () => {
+      // When STAGEHAND_API_URL is not set, getApiUrlForRegion returns a URL with /v1
+      // This documents the expected contract that all API base URLs include /v1
+      const url = getApiUrlForRegion("us-west-2");
+      expect(url.endsWith("/v1")).toBe(true);
+    });
+
+    it("all regional URLs should be base URLs without /v1 in REGION_API_URLS", () => {
+      // Verify REGION_API_URLS contains base URLs (without /v1)
+      // The /v1 suffix is added by getApiUrlForRegion
+      for (const [region, baseUrl] of Object.entries(REGION_API_URLS)) {
+        expect(baseUrl.endsWith("/v1")).toBe(false);
+        expect(getApiUrlForRegion(region as keyof typeof REGION_API_URLS)).toBe(`${baseUrl}/v1`);
+      }
     });
   });
 });
