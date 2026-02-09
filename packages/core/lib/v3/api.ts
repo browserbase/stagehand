@@ -56,8 +56,12 @@ export const REGION_API_URLS: Record<BrowserbaseRegion, string> = {
  * @param region - The Browserbase region (e.g., "us-west-2", "eu-central-1")
  * @returns The full API URL including /v1 suffix
  */
-export function getApiUrlForRegion(region: BrowserbaseRegion | undefined): string {
-  const baseUrl = REGION_API_URLS[region as BrowserbaseRegion] ?? REGION_API_URLS["us-west-2"];
+export function getApiUrlForRegion(
+  region: BrowserbaseRegion | undefined,
+): string {
+  const baseUrl =
+    REGION_API_URLS[region as BrowserbaseRegion] ??
+    REGION_API_URLS["us-west-2"];
   return `${baseUrl}/v1`;
 }
 
@@ -747,21 +751,20 @@ export class StagehandAPIClient {
     if (process.env.STAGEHAND_API_URL) {
       const envUrl = process.env.STAGEHAND_API_URL;
       // Append /v1 if not already present (handles trailing slashes too)
-      baseUrl = envUrl.endsWith("/v1") ? envUrl : `${envUrl.replace(/\/$/, "")}/v1`;
+      baseUrl = envUrl.endsWith("/v1")
+        ? envUrl
+        : `${envUrl.replace(/\/$/, "")}/v1`;
     } else {
       baseUrl = getApiUrlForRegion(this.region);
     }
 
-    const response = await this.fetchWithCookies(
-      `${baseUrl}${path}`,
-      {
-        ...options,
-        headers: {
-          ...defaultHeaders,
-          ...options.headers,
-        },
+    const response = await this.fetchWithCookies(`${baseUrl}${path}`, {
+      ...options,
+      headers: {
+        ...defaultHeaders,
+        ...options.headers,
       },
-    );
+    });
 
     return response;
   }

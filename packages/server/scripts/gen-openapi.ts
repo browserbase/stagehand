@@ -220,7 +220,10 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
     .replace(/(\|[-|]+\|)\n\n(\s*\| us-west-2)/g, "$1\n$2")
     .replace(/(\| us-west-2[^|]+\|[^|]+\|)\n\n(\s*\| us-east-1)/g, "$1\n$2")
     .replace(/(\| us-east-1[^|]+\|[^|]+\|)\n\n(\s*\| eu-central-1)/g, "$1\n$2")
-    .replace(/(\| eu-central-1[^|]+\|[^|]+\|)\n\n(\s*\| ap-southeast-1)/g, "$1\n$2");
+    .replace(
+      /(\| eu-central-1[^|]+\|[^|]+\|)\n\n(\s*\| ap-southeast-1)/g,
+      "$1\n$2",
+    );
 
   await writeFile(OUTPUT_PATH, fixedYaml, "utf8");
 
