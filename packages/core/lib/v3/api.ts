@@ -733,8 +733,10 @@ export class StagehandAPIClient {
       defaultHeaders["Content-Type"] = "application/json";
     }
 
-    // Use STAGEHAND_API_URL env var if set, otherwise use region-based URL
-    const baseUrl = process.env.STAGEHAND_API_URL ?? getApiUrlForRegion(this.region);
+    // Use STAGEHAND_API_URL env var if set (append /v1), otherwise use region-based URL
+    const baseUrl = process.env.STAGEHAND_API_URL
+      ? `${process.env.STAGEHAND_API_URL}/v1`
+      : getApiUrlForRegion(this.region);
 
     const response = await this.fetchWithCookies(
       `${baseUrl}${path}`,

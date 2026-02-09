@@ -72,7 +72,7 @@ import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
-  disableAPI: true, // Disable Stagehand API - runs locally with Browserbase
+  useAPI: false, // Disable Stagehand API - runs locally with Browserbase
 });
 
 await stagehand.init();
@@ -82,7 +82,7 @@ from stagehand import Stagehand
 
 stagehand = Stagehand(
     env="BROWSERBASE",
-    disable_api=True,  # Disable Stagehand API - runs locally with Browserbase
+    use_api=False,  # Disable Stagehand API - runs locally with Browserbase
 )
 
 await stagehand.init()
