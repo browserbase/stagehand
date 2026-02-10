@@ -597,9 +597,18 @@ export class V3 {
     };
     const runShutdownWithKeepAlive = (reason: string) => {
       const keepAlive = setInterval(() => {}, 250);
+      const hardTimeout = setTimeout(() => {
+        v3Logger({
+          category: "v3",
+          message: "shutdown timeout reached; proceeding without full cleanup",
+          level: 0,
+        });
+        clearInterval(keepAlive);
+      }, 4000);
       void shutdownAllImmediateRespectKeepAlive(reason)
         .catch(() => {})
         .finally(() => {
+          clearTimeout(hardTimeout);
           clearInterval(keepAlive);
         });
     };
@@ -607,21 +616,23 @@ export class V3 {
     const toError = (value: unknown): Error =>
       value instanceof Error ? value : new Error(String(value));
 
-    process.once("SIGINT", () => {
+    let shuttingDown = false;
+    const startShutdown = (signalLabel: "SIGINT" | "SIGTERM") => {
+      if (shuttingDown) return;
+      shuttingDown = true;
       v3Logger({
         category: "v3",
-        message: "SIGINT: initiating shutdown",
+        message: `${signalLabel}: initiating shutdown`,
         level: 0,
       });
-      runShutdownWithKeepAlive("signal SIGINT");
+      runShutdownWithKeepAlive(`signal ${signalLabel}`);
+    };
+
+    process.on("SIGINT", () => {
+      startShutdown("SIGINT");
     });
-    process.once("SIGTERM", () => {
-      v3Logger({
-        category: "v3",
-        message: "SIGTERM: initiating shutdown",
-        level: 0,
-      });
-      runShutdownWithKeepAlive("signal SIGTERM");
+    process.on("SIGTERM", () => {
+      startShutdown("SIGTERM");
     });
 
     const onUncaughtException = (err: unknown) => {
