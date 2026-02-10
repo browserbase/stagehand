@@ -230,6 +230,7 @@ export class V3 {
   private actCache: ActCache;
   private agentCache: AgentCache;
   private apiClient: StagehandAPIClient | null = null;
+  private keepAlive?: boolean;
 
   public stagehandMetrics: StagehandMetrics = {
     actPromptTokens: 0,
@@ -264,6 +265,8 @@ export class V3 {
     this.externalLogger = opts.logger;
     this.verbose = opts.verbose ?? 1;
     this.instanceId = uuidv7();
+    this.keepAlive =
+      opts.keepAlive ?? opts.browserbaseSessionCreateParams?.keepAlive;
 
     // Create per-instance StagehandLogger (handles usePino, verbose, externalLogger)
     // This gives each V3 instance independent logger configuration
@@ -855,7 +858,7 @@ export class V3 {
           // add user-supplied args last
           if (Array.isArray(lbo.args)) chromeFlags.push(...lbo.args);
 
-          const keepAlive = this.opts.keepAlive === true;
+          const keepAlive = this.keepAlive === true;
           const { ws, chrome } = await launchLocalChrome({
             chromePath: lbo.executablePath,
             chromeFlags,
@@ -912,10 +915,7 @@ export class V3 {
           });
           const baseSessionParams =
             this.opts.browserbaseSessionCreateParams ?? {};
-          const resolvedKeepAlive =
-            this.opts.keepAlive !== undefined
-              ? this.opts.keepAlive
-              : baseSessionParams.keepAlive;
+          const resolvedKeepAlive = this.keepAlive;
           const effectiveSessionParams =
             resolvedKeepAlive !== undefined
               ? { ...baseSessionParams, keepAlive: resolvedKeepAlive }
@@ -1404,10 +1404,7 @@ export class V3 {
 
   /** Best-effort cleanup of context and launched resources. */
   async close(opts?: { force?: boolean }): Promise<void> {
-    const keepAlive =
-      this.opts.keepAlive ??
-      this.opts.browserbaseSessionCreateParams?.keepAlive;
-    if (this.apiClient && !keepAlive) {
+    if (this.apiClient && !this.keepAlive) {
       await this.apiClient.end();
     }
     // If we're already closing and this isn't a forced close, no-op.
@@ -1440,7 +1437,7 @@ export class V3 {
 
       // Kill local Chrome if present
       if (this.state.kind === "LOCAL") {
-        if (!keepAlive) {
+        if (!this.keepAlive) {
           try {
             await this.state.chrome.kill();
           } catch {
