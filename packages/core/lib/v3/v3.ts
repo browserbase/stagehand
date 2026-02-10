@@ -1344,6 +1344,10 @@ export class V3 {
 
   /** Best-effort cleanup of context and launched resources. */
   async close(opts?: { force?: boolean }): Promise<void> {
+    // If we're already closing and this isn't a forced close, no-op.
+    if (this._isClosing && !opts?.force) return;
+    this._isClosing = true;
+
     const keepAlive = this.keepAlive === true;
     await shutdownBrowserSession({
       keepAlive,
@@ -1353,9 +1357,6 @@ export class V3 {
           }
         : undefined,
     });
-    // If we're already closing and this isn't a forced close, no-op.
-    if (this._isClosing && !opts?.force) return;
-    this._isClosing = true;
 
     let killLocalChrome: (() => Promise<void>) | undefined;
     let cleanupUserDataDir: (() => void) | undefined;

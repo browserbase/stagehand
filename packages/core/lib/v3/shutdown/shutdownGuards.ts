@@ -16,7 +16,27 @@ export function installShutdownGuards(opts: {
   logger: (line: LogLine) => void;
   shutdownAll: (reason: string) => Promise<void>;
 }): void {
-  const runShutdownWithKeepAlive = (reason: string) => {
+  let finalized = false;
+  let reemitted = false;
+  const finalize = (signalLabel?: "SIGINT" | "SIGTERM") => {
+    if (finalized) return;
+    finalized = true;
+    if (signalLabel && !reemitted) {
+      reemitted = true;
+      try {
+        process.off("SIGINT", onSigint);
+        process.off("SIGTERM", onSigterm);
+        process.kill(process.pid, signalLabel);
+      } catch {
+        // best-effort re-emit
+      }
+    }
+  };
+
+  const runShutdownWithKeepAlive = (
+    reason: string,
+    signalLabel?: "SIGINT" | "SIGTERM",
+  ) => {
     const keepAlive = setInterval(() => {}, 250);
     const hardTimeout = setTimeout(() => {
       opts.logger({
@@ -25,6 +45,7 @@ export function installShutdownGuards(opts: {
         level: 0,
       });
       clearInterval(keepAlive);
+      finalize(signalLabel);
     }, SHUTDOWN_HARD_TIMEOUT_MS);
 
     void opts
@@ -33,6 +54,7 @@ export function installShutdownGuards(opts: {
       .finally(() => {
         clearTimeout(hardTimeout);
         clearInterval(keepAlive);
+        finalize(signalLabel);
       });
   };
 
@@ -48,15 +70,18 @@ export function installShutdownGuards(opts: {
       message: `${signalLabel}: initiating shutdown`,
       level: 0,
     });
-    runShutdownWithKeepAlive(`signal ${signalLabel}`);
+    runShutdownWithKeepAlive(`signal ${signalLabel}`, signalLabel);
   };
 
-  process.on("SIGINT", () => {
+  const onSigint = () => {
     startShutdown("SIGINT");
-  });
-  process.on("SIGTERM", () => {
+  };
+  const onSigterm = () => {
     startShutdown("SIGTERM");
-  });
+  };
+
+  process.on("SIGINT", onSigint);
+  process.on("SIGTERM", onSigterm);
 
   const onUncaughtException = (err: unknown) => {
     const errToThrow = toError(err);
