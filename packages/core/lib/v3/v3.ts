@@ -32,6 +32,8 @@ import {
   withInstanceLogContext,
 } from "./logger";
 import { resolveTools } from "./mcp/utils";
+import { connectToWebMCP, ConnectToWebMCPOptions } from "./mcp/connection";
+import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
   ActHandlerParams,
   ExtractHandlerParams,
@@ -1437,6 +1439,27 @@ export class V3 {
       // Remove from global registry
       V3._instances.delete(this);
     }
+  }
+
+  /**
+   * Connect to a WebMCP server running inside the active browser page.
+   *
+   * Returns a standard MCP Client that can be passed directly to
+   * `stagehand.agent({ integrations: [client] })` — the page's WebMCP
+   * tools will appear alongside Stagehand's built-in agent tools.
+   *
+   * @example
+   * ```ts
+   * await stagehand.page.goto("https://webmcp.dev");
+   * const webmcp = await stagehand.connectToWebMCP();
+   * const agent = stagehand.agent({ integrations: [webmcp] });
+   * await agent.execute("Use the calculator tool to add 2 + 2");
+   * ```
+   */
+  async connectToWebMCP(options?: ConnectToWebMCPOptions): Promise<Client> {
+    const page = await this.resolvePage();
+    const session = page.getSessionForFrame(page.mainFrameId());
+    return connectToWebMCP(session, options);
   }
 
   /** Guard: ensure Browserbase credentials exist in options. */

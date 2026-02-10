@@ -5,6 +5,11 @@ import {
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { MCPConnectionError } from "../types/public/sdkErrors";
+import {
+  WebMCPTransport,
+  WebMCPTransportOptions,
+} from "./webmcpTransport";
+import type { CDPSessionLike } from "../understudy/cdp";
 
 export interface ConnectToMCPServerOptions {
   serverUrl: string | URL;
@@ -15,6 +20,10 @@ export interface StdioServerConfig {
   command: string;
   args?: string[];
   env?: Record<string, string>;
+}
+
+export interface ConnectToWebMCPOptions extends WebMCPTransportOptions {
+  clientOptions?: ClientOptions;
 }
 
 export const connectToMCPServer = async (
@@ -64,5 +73,48 @@ export const connectToMCPServer = async (
       throw error; // Re-throw our custom error
     }
     throw new MCPConnectionError(serverConfig.toString(), error);
+  }
+};
+
+/**
+ * Connects to a WebMCP server running inside a browser page.
+ *
+ * Uses CDP (Runtime.addBinding + Runtime.evaluate) to bridge JSON-RPC
+ * messages between a Node.js MCP Client and the page's WebMCP
+ * TabServerTransport, which communicates via window.postMessage.
+ *
+ * The returned Client can be passed directly to `stagehand.agent({ integrations: [client] })`.
+ *
+ * @param session - The CDP session for the page containing the WebMCP server
+ * @param options - Optional configuration (ready timeout, client options)
+ */
+export const connectToWebMCP = async (
+  session: CDPSessionLike,
+  options?: ConnectToWebMCPOptions,
+): Promise<Client> => {
+  try {
+    const transport = new WebMCPTransport(session, options);
+
+    const client = new Client({
+      name: "Stagehand-WebMCP",
+      version: "1.0.0",
+      ...options?.clientOptions,
+    });
+
+    await client.connect(transport);
+
+    try {
+      await client.ping();
+    } catch (pingError) {
+      await client.close();
+      throw new MCPConnectionError("webmcp://page", pingError);
+    }
+
+    return client;
+  } catch (error) {
+    if (error instanceof MCPConnectionError) {
+      throw error;
+    }
+    throw new MCPConnectionError("webmcp://page", error);
   }
 };
