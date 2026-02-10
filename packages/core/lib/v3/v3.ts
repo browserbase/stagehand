@@ -1941,6 +1941,20 @@ export class V3 {
 
           // Streaming mode
           if (isStreaming) {
+            // API streaming path: forward to the server and reconstruct the stream
+            if (this.apiClient && !this.experimental) {
+              const page = await this.ctx!.awaitActivePage();
+              const streamResult = await this.apiClient.agentExecuteStream(
+                options ?? {},
+                instructionOrOptions,
+                page.mainFrameId(),
+              );
+
+              SessionFileLogger.logAgentTaskCompleted();
+              return streamResult;
+            }
+
+            // Local streaming path
             const { handler, resolvedOptions, cacheContext, llmClient } =
               await this.prepareAgentExecution(
                 options,

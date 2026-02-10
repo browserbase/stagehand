@@ -1,3 +1,4 @@
+import type { TextStreamPart, ToolSet } from "ai";
 import makeFetchCookie from "fetch-cookie";
 import { loadApiKeyFromEnv } from "../utils";
 import { STAGEHAND_VERSION } from "../version";
@@ -15,7 +16,9 @@ import type {
   ActResult,
   AgentConfig,
   AgentExecuteOptions,
+  AgentStreamExecuteOptions,
   AgentResult,
+  AgentStreamResult,
   ExtractResult,
   LogLine,
   StagehandMetrics,
@@ -335,18 +338,24 @@ export class StagehandAPIClient {
     });
   }
 
-  async agentExecute(
+  /**
+   * Shared wire-serialization for agentExecute / agentExecuteStream.
+   * Validates config, strips non-serializable fields, and builds the request body.
+   */
+  private buildAgentExecuteRequest(
     agentConfig: AgentConfig,
-    executeOptions: AgentExecuteOptions | string,
+    executeOptions:
+      | AgentExecuteOptions
+      | AgentStreamExecuteOptions
+      | string,
     frameId?: string,
     shouldCache?: boolean,
-  ): Promise<AgentResult> {
-    // Check if integrations are being used in API mode (not supported)
+    stream?: boolean,
+  ): Api.AgentExecuteRequest {
     if (agentConfig.integrations && agentConfig.integrations.length > 0) {
       throw new ExperimentalNotConfiguredError("MCP integrations");
     }
 
-    // Strip non-serializable `page` from executeOptions before wire serialization
     let wireExecuteOptions: Api.AgentExecuteRequest["executeOptions"];
     if (typeof executeOptions === "string") {
       wireExecuteOptions = { instruction: executeOptions };
@@ -358,7 +367,9 @@ export class StagehandAPIClient {
       wireExecuteOptions = executeOptions;
     }
 
-    const wireAgentConfig: Api.AgentExecuteRequest["agentConfig"] = {
+    const wireAgentConfig: Api.AgentExecuteRequest["agentConfig"] & {
+      stream?: boolean;
+    } = {
       systemPrompt: agentConfig.systemPrompt,
       mode: agentConfig.mode ?? (agentConfig.cua === true ? "cua" : undefined),
       cua: agentConfig.mode === undefined ? agentConfig.cua : undefined,
@@ -368,15 +379,29 @@ export class StagehandAPIClient {
       executionModel: agentConfig.executionModel
         ? this.prepareModelConfig(agentConfig.executionModel)
         : undefined,
+      ...(stream ? { stream: true } : {}),
     };
 
-    // Build wire-format request body
-    const requestBody: Api.AgentExecuteRequest = {
+    return {
       agentConfig: wireAgentConfig,
       executeOptions: wireExecuteOptions,
       frameId,
       shouldCache,
     };
+  }
+
+  async agentExecute(
+    agentConfig: AgentConfig,
+    executeOptions: AgentExecuteOptions | string,
+    frameId?: string,
+    shouldCache?: boolean,
+  ): Promise<AgentResult> {
+    const requestBody = this.buildAgentExecuteRequest(
+      agentConfig,
+      executeOptions,
+      frameId,
+      shouldCache,
+    );
 
     const result = await this.execute<AgentResult>({
       method: "agentExecute",
@@ -390,6 +415,171 @@ export class StagehandAPIClient {
         ? (finishedData.cacheEntry as AgentCacheTransferPayload)
         : null;
     return result;
+  }
+
+  async agentExecuteStream(
+    agentConfig: AgentConfig,
+    executeOptions: AgentExecuteOptions | AgentStreamExecuteOptions | string,
+    frameId?: string,
+    shouldCache?: boolean,
+  ): Promise<AgentStreamResult> {
+    const requestBody = this.buildAgentExecuteRequest(
+      agentConfig,
+      executeOptions,
+      frameId,
+      shouldCache,
+      true, // stream
+    );
+
+    const url = `/sessions/${this.sessionId}/agentExecute`;
+    const response = await this.request(url, {
+      method: "POST",
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new StagehandHttpError(
+        `HTTP error! status: ${response.status}, body: ${errorBody}`,
+      );
+    }
+
+    if (!response.body) {
+      throw new StagehandResponseBodyError();
+    }
+
+    // Parse SSE events into a fullStream of TextStreamPart and a result promise
+    let resolveResult: (value: AgentResult) => void;
+    let rejectResult: (reason: unknown) => void;
+    const resultPromise = new Promise<AgentResult>((resolve, reject) => {
+      resolveResult = resolve;
+      rejectResult = reject;
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    const logger = this.logger;
+    let sseBuffer = "";
+
+    const fullStream = new ReadableStream<TextStreamPart<ToolSet>>({
+      pull: async (controller) => {
+        try {
+          // Keep reading from the HTTP stream until we enqueue at least one
+          // stream event or the stream terminates. This avoids dropping events
+          // when multiple SSE messages arrive in a single TCP chunk.
+          while (true) {
+            const { value, done } = await reader.read();
+
+            if (done) {
+              controller.close();
+              rejectResult(
+                new StagehandServerError(
+                  "Stream ended without completion signal",
+                ),
+              );
+              return;
+            }
+
+            sseBuffer += decoder.decode(value, { stream: true });
+            const lines = sseBuffer.split("\n\n");
+            sseBuffer = lines.pop() || "";
+
+            let enqueuedAny = false;
+
+            for (const line of lines) {
+              if (!line.startsWith("data: ")) continue;
+
+              let eventData: {
+                type: string;
+                data: Record<string, unknown>;
+                id: string;
+              };
+              try {
+                eventData = JSON.parse(line.slice(6));
+              } catch {
+                logger({
+                  category: "api",
+                  message: `Failed to parse SSE event: ${line.substring(0, 100)}`,
+                  level: 0,
+                });
+                continue;
+              }
+
+              if (eventData.type === "stream") {
+                controller.enqueue(
+                  eventData.data as TextStreamPart<ToolSet>,
+                );
+                enqueuedAny = true;
+                // Don't return — continue processing remaining events in this chunk
+              } else if (eventData.type === "system") {
+                if (eventData.data.status === "error") {
+                  const errorMsg = eventData.data.error as string;
+                  controller.close();
+                  rejectResult(new Error(errorMsg));
+                  return;
+                }
+                if (eventData.data.status === "finished") {
+                  const finishedData = eventData.data;
+                  const agentResult = finishedData.result as AgentResult;
+
+                  if (finishedData.cacheEntry !== undefined) {
+                    this.latestAgentCacheEntry =
+                      finishedData.cacheEntry as AgentCacheTransferPayload;
+                  }
+
+                  controller.close();
+                  resolveResult(agentResult);
+                  return;
+                }
+              } else if (eventData.type === "log") {
+                const msg = eventData.data.message as
+                  | LogLine
+                  | undefined;
+                if (
+                  msg &&
+                  (msg as LogLine).message !== "Connecting to local browser"
+                ) {
+                  logger(msg as LogLine);
+                }
+              }
+            }
+
+            // If we enqueued stream events, return to let the consumer read them.
+            // Otherwise, loop to read more data from the HTTP stream.
+            if (enqueuedAny) return;
+          }
+        } catch (err) {
+          controller.error(err);
+          rejectResult(
+            err instanceof Error ? err : new Error(String(err)),
+          );
+        }
+      },
+    });
+
+    // StreamTextResult's internal constructor (DefaultStreamTextResult) is not exported
+    // and is tightly coupled to the LLM execution lifecycle (retries, multi-step tool
+    // loops, telemetry). There is no AI SDK utility to reconstruct one from TextStreamPart
+    // events. We provide the properties that AgentStreamResult consumers actually use:
+    // fullStream, textStream, and result.
+    const [fullStreamForConsumer, fullStreamForText] = fullStream.tee();
+
+    const textStream = fullStreamForText
+      .pipeThrough(
+        new TransformStream<TextStreamPart<ToolSet>, string>({
+          transform(event, controller) {
+            if (event.type === "text-delta") {
+              controller.enqueue(event.text);
+            }
+          },
+        }),
+      );
+
+    return {
+      fullStream: fullStreamForConsumer,
+      textStream,
+      result: resultPromise,
+    } as AgentStreamResult;
   }
 
   consumeLatestAgentCacheEntry(): AgentCacheTransferPayload | null {

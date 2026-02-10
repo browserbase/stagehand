@@ -32,7 +32,7 @@ export interface AgentValidationOptions {
 export function validateExperimentalFeatures(
   options: AgentValidationOptions,
 ): void {
-  const { isExperimental, agentConfig, executeOptions, isStreaming } = options;
+  const { isExperimental, agentConfig, executeOptions } = options;
 
   // Check if CUA mode is enabled (via mode: "cua" or deprecated cua: true)
   const isCuaMode =
@@ -84,10 +84,7 @@ export function validateExperimentalFeatures(
     features.push("MCP integrations and custom tools");
   }
 
-  // Check streaming mode (either explicit or derived from config) - only for non-CUA
-  if (!isCuaMode && (isStreaming || agentConfig?.stream)) {
-    features.push("streaming");
-  }
+  // Streaming is supported in both API and local modes — no longer requires experimental.
 
   // Check execute options features - only for non-CUA
   if (executeOptions && !isCuaMode) {
