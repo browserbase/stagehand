@@ -8,11 +8,10 @@ async function main() {
   console.log(`\n${chalk.bold("Stagehand 🤘 Agent Streaming Example")}\n`);
   // Initialize Stagehand
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env: "BROWSERBASE",
     verbose: 0,
     cacheDir: "stagehand-agent-cache",
     logInferenceToFile: false,
-    experimental: true,
   });
 
   await stagehand.init();
@@ -32,8 +31,11 @@ async function main() {
       maxSteps: 20,
     });
     // stream the text
-    for await (const delta of agentRun.textStream) {
-      process.stdout.write(delta);
+    for await (const delta of agentRun.fullStream) {
+     // console.log(delta);
+      if(delta.type === "tool-call") {
+        console.log("Tool call:", delta.toolName);
+      }
     }
     // stream everything ( toolcalls, messages, etc.)
     // for await (const delta of result.fullStream) {
