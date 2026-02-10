@@ -31,6 +31,15 @@ import {
   v3Logger,
   withInstanceLogContext,
 } from "./logger";
+import {
+  shutdownBrowserSession,
+  shutdownLocalBrowser,
+} from "./shutdown/shutdownBrowser";
+import { installShutdownGuards } from "./shutdown/shutdownGuards";
+import {
+  finalizeStagehandShutdown,
+  shutdownStagehandResources,
+} from "./shutdown/shutdownStagehand";
 import { resolveTools } from "./mcp/utils";
 import {
   ActHandlerParams,
@@ -590,93 +599,13 @@ export class V3 {
   private static _installProcessGuards(): void {
     if (V3._processGuardsInstalled) return;
     V3._processGuardsInstalled = true;
-
-    const shutdownAllImmediateRespectKeepAlive = async (reason: string) => {
-      const instances = Array.from(V3._instances);
-      await Promise.all(instances.map((i) => i._immediateShutdown(reason)));
-    };
-    const runShutdownWithKeepAlive = (reason: string) => {
-      const keepAlive = setInterval(() => {}, 250);
-      const hardTimeout = setTimeout(() => {
-        v3Logger({
-          category: "v3",
-          message: "shutdown timeout reached; proceeding without full cleanup",
-          level: 0,
-        });
-        clearInterval(keepAlive);
-      }, 4000);
-      void shutdownAllImmediateRespectKeepAlive(reason)
-        .catch(() => {})
-        .finally(() => {
-          clearTimeout(hardTimeout);
-          clearInterval(keepAlive);
-        });
-    };
-
-    const toError = (value: unknown): Error =>
-      value instanceof Error ? value : new Error(String(value));
-
-    let shuttingDown = false;
-    const startShutdown = (signalLabel: "SIGINT" | "SIGTERM") => {
-      if (shuttingDown) return;
-      shuttingDown = true;
-      v3Logger({
-        category: "v3",
-        message: `${signalLabel}: initiating shutdown`,
-        level: 0,
-      });
-      runShutdownWithKeepAlive(`signal ${signalLabel}`);
-    };
-
-    process.on("SIGINT", () => {
-      startShutdown("SIGINT");
+    installShutdownGuards({
+      logger: v3Logger,
+      shutdownAll: async (reason: string) => {
+        const instances = Array.from(V3._instances);
+        await Promise.all(instances.map((i) => i._immediateShutdown(reason)));
+      },
     });
-    process.on("SIGTERM", () => {
-      startShutdown("SIGTERM");
-    });
-
-    const onUncaughtException = (err: unknown) => {
-      const errToThrow = toError(err);
-      v3Logger({
-        category: "v3",
-        message: "uncaughtException",
-        level: 0,
-        auxiliary: { err: { value: String(err), type: "string" } },
-      });
-      process.off("unhandledRejection", onUnhandledRejection);
-      void shutdownAllImmediateRespectKeepAlive(
-        `uncaughtException: ${String(err)}`,
-      )
-        .catch(() => {})
-        .finally(() => {
-          setImmediate(() => {
-            throw errToThrow;
-          });
-        });
-    };
-
-    const onUnhandledRejection = (reason: unknown) => {
-      const errToThrow = toError(reason);
-      v3Logger({
-        category: "v3",
-        message: "unhandledRejection",
-        level: 0,
-        auxiliary: { reason: { value: String(reason), type: "string" } },
-      });
-      process.off("uncaughtException", onUncaughtException);
-      void shutdownAllImmediateRespectKeepAlive(
-        `unhandledRejection: ${String(reason)}`,
-      )
-        .catch(() => {})
-        .finally(() => {
-          setImmediate(() => {
-            throw errToThrow;
-          });
-        });
-    };
-
-    process.once("uncaughtException", onUncaughtException);
-    process.once("unhandledRejection", onUnhandledRejection);
   }
 
   /**
@@ -1415,86 +1344,85 @@ export class V3 {
 
   /** Best-effort cleanup of context and launched resources. */
   async close(opts?: { force?: boolean }): Promise<void> {
-    if (this.apiClient && !this.keepAlive) {
-      await this.apiClient.end();
-    }
+    const keepAlive = this.keepAlive === true;
+    await shutdownBrowserSession({
+      keepAlive,
+      endApiClient: this.apiClient
+        ? async () => {
+            await this.apiClient.end();
+          }
+        : undefined,
+    });
     // If we're already closing and this isn't a forced close, no-op.
     if (this._isClosing && !opts?.force) return;
     this._isClosing = true;
 
+    let killLocalChrome: (() => Promise<void>) | undefined;
+    let cleanupUserDataDir: (() => void) | undefined;
+    if (this.state.kind === "LOCAL") {
+      const localState = this.state;
+      killLocalChrome = async () => {
+        localState.chrome.kill();
+      };
+      if (
+        localState.createdTempProfile &&
+        !localState.preserveUserDataDir &&
+        localState.userDataDir
+      ) {
+        const dir = localState.userDataDir;
+        cleanupUserDataDir = () => {
+          fs.rmSync(dir, { recursive: true, force: true });
+        };
+      }
+    }
+
     try {
-      // Close session file logger
-      try {
-        await SessionFileLogger.close();
-      } catch {
-        // Fail silently
-      }
-
-      // Unhook CDP transport close handler if context exists
-      try {
-        if (this.ctx?.conn && this._onCdpClosed) {
-          this.ctx.conn.offTransportClosed?.(this._onCdpClosed);
-        }
-      } catch {
-        //
-      }
-
-      // Best-effort CDP/Context close
-      try {
-        await this.ctx?.close();
-      } catch {
-        //
-      }
-
-      // Kill local Chrome if present
-      if (this.state.kind === "LOCAL") {
-        if (!this.keepAlive) {
-          try {
-            await this.state.chrome.kill();
-          } catch {
-            //
+      await shutdownStagehandResources({
+        closeSessionLogger: async () => SessionFileLogger.close(),
+        unhookTransport: () => {
+          if (this.ctx?.conn && this._onCdpClosed) {
+            this.ctx.conn.offTransportClosed?.(this._onCdpClosed);
           }
-          // cleanup temp user data dir if we created it and not preserved
-          try {
-            if (
-              this.state.createdTempProfile &&
-              !this.state.preserveUserDataDir &&
-              this.state.userDataDir
-            ) {
-              fs.rmSync(this.state.userDataDir, {
-                recursive: true,
-                force: true,
-              });
-            }
-          } catch {
-            // ignore cleanup errors
-          }
-        }
-      }
+        },
+        closeContext: async () => this.ctx?.close(),
+      });
+      await shutdownLocalBrowser({
+        keepAlive,
+        killChrome: killLocalChrome,
+        cleanupUserDataDir,
+      });
     } finally {
-      // Reset internal state
-      this.state = { kind: "UNINITIALIZED" };
-      this.ctx = null;
-      this._isClosing = false;
-      this.resetBrowserbaseSessionMetadata();
-      try {
-        unbindInstanceLogger(this.instanceId);
-      } catch {
-        // ignore
-      }
-      // Clear all event bus listeners to prevent memory leaks and hanging handlers
-      try {
-        this.bus.removeAllListeners();
-      } catch {
-        // ignore
-      }
-      // Clear accumulated data to free memory
-      this._history = [];
-      this.actHandler = null;
-      this.extractHandler = null;
-      this.observeHandler = null;
-      // Remove from global registry
-      V3._instances.delete(this);
+      finalizeStagehandShutdown({
+        resetState: () => {
+          this.state = { kind: "UNINITIALIZED" };
+        },
+        clearContext: () => {
+          this.ctx = null;
+        },
+        clearClosing: () => {
+          this._isClosing = false;
+        },
+        resetMetadata: () => {
+          this.resetBrowserbaseSessionMetadata();
+        },
+        unbindLogger: () => {
+          unbindInstanceLogger(this.instanceId);
+        },
+        clearBus: () => {
+          this.bus.removeAllListeners();
+        },
+        clearHistory: () => {
+          this._history = [];
+        },
+        clearHandlers: () => {
+          this.actHandler = null;
+          this.extractHandler = null;
+          this.observeHandler = null;
+        },
+        removeInstance: () => {
+          V3._instances.delete(this);
+        },
+      });
     }
   }
 
