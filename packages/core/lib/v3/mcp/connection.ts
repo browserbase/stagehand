@@ -4,6 +4,8 @@ import {
 } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import type { Page } from "../understudy/page";
+import { CDPTabClientTransport } from "./cdpTabTransport";
 import { MCPConnectionError } from "../types/public/sdkErrors";
 
 export interface ConnectToMCPServerOptions {
@@ -15,6 +17,15 @@ export interface StdioServerConfig {
   command: string;
   args?: string[];
   env?: Record<string, string>;
+}
+
+export interface ConnectToWebMCPOptions {
+  page: Page;
+  channel?: string;
+  timeoutMs?: number;
+  waitForReady?: boolean;
+  enableModelContextShim?: boolean;
+  clientOptions?: ClientOptions;
 }
 
 export const connectToMCPServer = async (
@@ -64,5 +75,40 @@ export const connectToMCPServer = async (
       throw error; // Re-throw our custom error
     }
     throw new MCPConnectionError(serverConfig.toString(), error);
+  }
+};
+
+export const connectToWebMCP = async (
+  options: ConnectToWebMCPOptions,
+): Promise<Client> => {
+  try {
+    const transport = new CDPTabClientTransport(options.page, {
+      channel: options.channel,
+      timeoutMs: options.timeoutMs,
+      waitForReady: options.waitForReady,
+      enableModelContextShim: options.enableModelContextShim,
+    });
+
+    const client = new Client({
+      name: "Stagehand",
+      version: "1.0.0",
+      ...options.clientOptions,
+    });
+
+    await client.connect(transport);
+
+    try {
+      await client.ping();
+    } catch (pingError) {
+      await client.close();
+      throw new MCPConnectionError(options.page.url(), pingError);
+    }
+
+    return client;
+  } catch (error) {
+    if (error instanceof MCPConnectionError) {
+      throw error;
+    }
+    throw new MCPConnectionError(options.page.url(), error);
   }
 };

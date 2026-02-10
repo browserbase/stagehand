@@ -617,6 +617,17 @@ export class Page {
     return this.mainSession.send<T>(method, params);
   }
 
+  public onCDP<P = unknown>(event: string, handler: (params: P) => void): void {
+    this.mainSession.on(event, handler as (params: unknown) => void);
+  }
+
+  public offCDP<P = unknown>(
+    event: string,
+    handler: (params: P) => void,
+  ): void {
+    this.mainSession.off(event, handler as (params: unknown) => void);
+  }
+
   /** Seed the cached URL before navigation events converge. */
   public seedCurrentUrl(url: string | undefined | null): void {
     if (!url) return;

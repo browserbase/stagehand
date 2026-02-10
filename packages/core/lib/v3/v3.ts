@@ -6,6 +6,10 @@ import path from "path";
 import process from "process";
 import { v7 as uuidv7 } from "uuid";
 import { z } from "zod";
+import type {
+  Client as MCPClient,
+  ClientOptions as MCPClientOptions,
+} from "@modelcontextprotocol/sdk/client/index.js";
 import {
   InferStagehandSchema,
   StagehandZodSchema,
@@ -31,6 +35,7 @@ import {
   v3Logger,
   withInstanceLogContext,
 } from "./logger";
+import { connectToWebMCP } from "./mcp/connection";
 import { resolveTools } from "./mcp/utils";
 import {
   ActHandlerParams,
@@ -1354,6 +1359,28 @@ export class V3 {
     return this.state.ws;
   }
 
+  public async connectToWebMCP(options?: {
+    page?: AnyPage;
+    channel?: string;
+    timeoutMs?: number;
+    waitForReady?: boolean;
+    enableModelContextShim?: boolean;
+    clientOptions?: MCPClientOptions;
+  }): Promise<MCPClient> {
+    const resolvedPage = options?.page
+      ? await this.normalizeToV3Page(options.page)
+      : await this.resolvePage();
+
+    return await connectToWebMCP({
+      page: resolvedPage,
+      channel: options?.channel,
+      timeoutMs: options?.timeoutMs,
+      waitForReady: options?.waitForReady,
+      enableModelContextShim: options?.enableModelContextShim,
+      clientOptions: options?.clientOptions,
+    });
+  }
+
   /** Expose the current CDP-backed context. */
   public get context(): V3Context {
     return this.ctx;
@@ -1768,7 +1795,7 @@ export class V3 {
         tools: { value: JSON.stringify(options?.tools ?? {}), type: "object" },
         ...(options?.integrations && {
           integrations: {
-            value: JSON.stringify(options.integrations),
+            value: "",
             type: "object",
           },
         }),

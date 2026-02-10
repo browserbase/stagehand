@@ -1,43 +1,57 @@
 import { Stagehand } from "../lib/v3";
 
+const WEBMCP_CHANNEL = "mcp";
+
 async function example(stagehand: Stagehand) {
-  /**
-   * Add your code here!
-   */
   const page = stagehand.context.pages()[0];
-  await page.goto(
-    "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/",
-  );
+  if (!page) {
+    throw new Error("No page available after Stagehand init.");
+  }
 
-  const { extraction } = await stagehand.extract(
-    "grab the the first title from inside the iframe",
-  );
-  console.log(extraction);
+  // Navigate to a WebMCP-enabled page and connect.
+  const webmcpPage = await stagehand.context.newPage();
+  const webmcpUrl =
+    process.env.WEBMCP_URL ?? "https://travel-demo.bandarra.me/";
+  const webmcpClientPromise = stagehand.connectToWebMCP({
+    page: webmcpPage,
+    channel: WEBMCP_CHANNEL,
+    waitForReady: true,
+    enableModelContextShim: true,
+  });
 
-  const page2 = await stagehand.context.newPage();
-  await page2.goto(
-    "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-same-proc/",
-  );
-  await stagehand.extract(
-    "extract the placeholder text on the your name field",
-    { page: page2 },
-  );
-  await stagehand.act("fill the your name field with the text 'John Doe'", {
-    page: page2,
+  await new Promise((resolve) => setTimeout(resolve, 4000));
+  await webmcpPage.goto(webmcpUrl);
+  const webmcpClient = await webmcpClientPromise;
+
+  let nextCursor: string | undefined = undefined;
+  const toolNames: string[] = [];
+  do {
+    const response = await webmcpClient.listTools({ cursor: nextCursor });
+    toolNames.push(...response.tools.map((tool) => tool.name));
+    nextCursor = response.nextCursor;
+  } while (nextCursor);
+  console.log("WebMCP tools:", toolNames);
+
+  const agent = stagehand.agent({
+    integrations: [webmcpClient],
   });
-  const action2 = await stagehand.observe(
-    "select blue as the favorite color on the dropdown",
-    { page: page2 },
+
+  const result = await agent.execute(
+    "search for flights from YHZ to SFO. use the searchFLights tool",
   );
-  action2.map(async (action) => {
-    await stagehand.act(action);
-  });
+  console.log(result);
 }
 
 (async () => {
   const stagehand = new Stagehand({
-    env: "BROWSERBASE",
-    verbose: 2,
+    env: "LOCAL",
+    verbose: 1,
+    disableAPI: true,
+    experimental: true,
+    localBrowserLaunchOptions: {
+      args: ["--enable-experimental-web-platform-features"],
+    },
+    disablePino: true,
   });
   await stagehand.init();
   await example(stagehand);
