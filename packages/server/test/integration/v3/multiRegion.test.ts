@@ -81,10 +81,17 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
       "Should be a success response",
       ctx,
     );
-    assertFetchOk(ctx.body.data.available, "Session should be available", ctx);
-    assertFetchOk(!!ctx.body.data.sessionId, "Should have sessionId", ctx);
 
-    await endSession(ctx.body.data.sessionId, headers);
+    try {
+      assertFetchOk(
+        ctx.body.data.available,
+        "Session should be available",
+        ctx,
+      );
+      assertFetchOk(!!ctx.body.data.sessionId, "Should have sessionId", ctx);
+    } finally {
+      await endSession(ctx.body.data.sessionId, headers);
+    }
   });
 
   it("should start session with us-east-1 region", async () => {
@@ -114,10 +121,17 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
       "Should be a success response",
       ctx,
     );
-    assertFetchOk(ctx.body.data.available, "Session should be available", ctx);
-    assertFetchOk(!!ctx.body.data.sessionId, "Should have sessionId", ctx);
 
-    await endSession(ctx.body.data.sessionId, headers);
+    try {
+      assertFetchOk(
+        ctx.body.data.available,
+        "Session should be available",
+        ctx,
+      );
+      assertFetchOk(!!ctx.body.data.sessionId, "Should have sessionId", ctx);
+    } finally {
+      await endSession(ctx.body.data.sessionId, headers);
+    }
   });
 
   it("should start session with eu-central-1 region", async () => {
@@ -145,10 +159,17 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
       "Should be a success response",
       ctx,
     );
-    assertFetchOk(ctx.body.data.available, "Session should be available", ctx);
-    assertFetchOk(!!ctx.body.data.sessionId, "Should have sessionId", ctx);
 
-    await endSession(ctx.body.data.sessionId, headers);
+    try {
+      assertFetchOk(
+        ctx.body.data.available,
+        "Session should be available",
+        ctx,
+      );
+      assertFetchOk(!!ctx.body.data.sessionId, "Should have sessionId", ctx);
+    } finally {
+      await endSession(ctx.body.data.sessionId, headers);
+    }
   });
 
   it("should start session with ap-southeast-1 region", async () => {
@@ -176,10 +197,17 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
       "Should be a success response",
       ctx,
     );
-    assertFetchOk(ctx.body.data.available, "Session should be available", ctx);
-    assertFetchOk(!!ctx.body.data.sessionId, "Should have sessionId", ctx);
 
-    await endSession(ctx.body.data.sessionId, headers);
+    try {
+      assertFetchOk(
+        ctx.body.data.available,
+        "Session should be available",
+        ctx,
+      );
+      assertFetchOk(!!ctx.body.data.sessionId, "Should have sessionId", ctx);
+    } finally {
+      await endSession(ctx.body.data.sessionId, headers);
+    }
   });
 
   it("should start session without region (defaults to us-west-2)", async () => {
@@ -205,10 +233,17 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
       "Should be a success response",
       ctx,
     );
-    assertFetchOk(ctx.body.data.available, "Session should be available", ctx);
-    assertFetchOk(!!ctx.body.data.sessionId, "Should have sessionId", ctx);
 
-    await endSession(ctx.body.data.sessionId, headers);
+    try {
+      assertFetchOk(
+        ctx.body.data.available,
+        "Session should be available",
+        ctx,
+      );
+      assertFetchOk(!!ctx.body.data.sessionId, "Should have sessionId", ctx);
+    } finally {
+      await endSession(ctx.body.data.sessionId, headers);
+    }
   });
 
   it("should start session without browserbaseSessionCreateParams", async () => {
@@ -233,9 +268,16 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
       "Should be a success response",
       ctx,
     );
-    assertFetchOk(ctx.body.data.available, "Session should be available", ctx);
-    assertFetchOk(!!ctx.body.data.sessionId, "Should have sessionId", ctx);
 
-    await endSession(ctx.body.data.sessionId, headers);
+    try {
+      assertFetchOk(
+        ctx.body.data.available,
+        "Session should be available",
+        ctx,
+      );
+      assertFetchOk(!!ctx.body.data.sessionId, "Should have sessionId", ctx);
+    } finally {
+      await endSession(ctx.body.data.sessionId, headers);
+    }
   });
 });
