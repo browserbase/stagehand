@@ -302,19 +302,6 @@ export function countXPathMatchesMainWorld(rawXp: string): number {
   const xp = String(rawXp ?? "").trim();
   if (!xp) return 0;
 
-  try {
-    const result = document.evaluate(
-      xp,
-      document,
-      null,
-      XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-      null,
-    );
-    return result.snapshotLength;
-  } catch {
-    // native XPath failed (e.g. shadow DOM); fall through to composed traversal
-  }
-
   const parseSteps = (input: string) => {
     const path = String(input || "")
       .trim()
@@ -451,7 +438,23 @@ export function countXPathMatchesMainWorld(rawXp: string): number {
       }
     }
 
-    if (!next.length) return 0;
+    if (!next.length) {
+      // The custom parser may not support this XPath syntax (e.g. attribute
+      // predicates like [@alt='Stagehand']). Fall back to native XPath which
+      // handles the full spec, though it cannot see into shadow roots.
+      try {
+        const result = document.evaluate(
+          xp,
+          document,
+          null,
+          XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+          null,
+        );
+        return result.snapshotLength;
+      } catch {
+        return 0;
+      }
+    }
     current = next;
   }
 
