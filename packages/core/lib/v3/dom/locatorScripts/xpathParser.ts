@@ -13,12 +13,31 @@ export interface XPathStep {
 /**
  * Parse an XPath expression into a list of traversal steps.
  *
- * Supports:
+ * This is a subset parser designed for composed DOM traversal (including
+ * shadow roots). It intentionally does not implement the full XPath spec.
+ *
+ * Supported:
  *  - Child (`/`) and descendant (`//`) axes
  *  - Tag names and wildcard (`*`)
  *  - Positional indices (`[n]`)
- *  - Attribute predicates (`[@attr='value']`)
+ *  - Attribute equality predicates (`[@attr='value']`, `[@attr="value"]`)
+ *  - Multiple predicates per step (`[@class='foo'][@id='bar']`)
  *  - Optional `xpath=` prefix
+ *
+ * Not supported:
+ *  - Attribute existence without value (`[@attr]`)
+ *  - String functions (`contains()`, `starts-with()`, `normalize-space()`)
+ *  - Text matching (`[text()='value']`)
+ *  - Boolean operators within predicates (`[@a='x' and @b='y']`)
+ *  - Negation (`[not(...)]`)
+ *  - Position functions (`[position() > n]`, `[last()]`)
+ *  - Axes beyond child/descendant (`ancestor::`, `parent::`, `self::`,
+ *    `preceding-sibling::`, `following-sibling::`)
+ *  - Union operator (`|`)
+ *  - Grouped expressions (`(//div)[n]`)
+ *
+ * Unsupported predicates are silently ignored — the step still matches
+ * by tag name, but the unrecognized predicate has no filtering effect.
  */
 export function parseXPathSteps(input: string): XPathStep[] {
   const path = String(input || "")
