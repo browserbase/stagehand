@@ -104,6 +104,16 @@ describe("parseXPathSteps", () => {
       const steps = parseXPathSteps("//input[@value='']");
       expect(steps[0].attrs).toEqual([{ name: "value", value: "" }]);
     });
+
+    it("parses attribute value containing closing bracket", () => {
+      const steps = parseXPathSteps("//div[@title='array[0]']");
+      expect(steps[0].attrs).toEqual([{ name: "title", value: "array[0]" }]);
+    });
+
+    it("parses attribute value containing multiple brackets", () => {
+      const steps = parseXPathSteps("//div[@data-json='[1,2,3]']");
+      expect(steps[0].attrs).toEqual([{ name: "data-json", value: "[1,2,3]" }]);
+    });
   });
 
   describe("multi-step with predicates", () => {

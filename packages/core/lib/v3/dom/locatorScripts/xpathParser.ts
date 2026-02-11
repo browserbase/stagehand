@@ -76,6 +76,38 @@ export function parseXPathSteps(input: string): XPathStep[] {
   return steps;
 }
 
+/**
+ * Extract predicate contents from a string like `[@attr='val'][2]`.
+ * Handles `]` inside quoted attribute values (e.g. `[@title='a[0]']`).
+ */
+function extractPredicates(str: string): string[] {
+  const results: string[] = [];
+  let i = 0;
+  while (i < str.length) {
+    if (str[i] !== "[") {
+      i++;
+      continue;
+    }
+    i++; // skip opening [
+    const start = i;
+    let quote: string | null = null;
+    while (i < str.length) {
+      const ch = str[i];
+      if (quote) {
+        if (ch === quote) quote = null;
+      } else if (ch === "'" || ch === '"') {
+        quote = ch;
+      } else if (ch === "]") {
+        break;
+      }
+      i++;
+    }
+    results.push(str.slice(start, i).trim());
+    i++; // skip closing ]
+  }
+  return results;
+}
+
 function parseStep(raw: string): {
   tag: string;
   index: number | null;
@@ -94,11 +126,7 @@ function parseStep(raw: string): {
   let index: number | null = null;
   const attrs: XPathAttrPredicate[] = [];
 
-  const predicateRe = /\[([^\]]*)\]/g;
-  let m: RegExpExecArray | null;
-  while ((m = predicateRe.exec(predicateStr)) !== null) {
-    const inner = m[1].trim();
-
+  for (const inner of extractPredicates(predicateStr)) {
     // Positional index: [n]
     if (/^\d+$/.test(inner)) {
       index = Math.max(1, Number(inner));
