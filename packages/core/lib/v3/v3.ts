@@ -28,18 +28,17 @@ import { LLMProvider } from "./llm/LLMProvider";
 import {
   bindInstanceLogger,
   unbindInstanceLogger,
-  v3Logger,
   withInstanceLogContext,
 } from "./logger";
 import {
   shutdownBrowserSession,
   shutdownLocalBrowser,
 } from "./shutdown/shutdownBrowser";
-import { installShutdownGuards } from "./shutdown/shutdownGuards";
 import {
   finalizeStagehandShutdown,
   shutdownStagehandResources,
 } from "./shutdown/shutdownStagehand";
+import { startShutdownSupervisor } from "./shutdown/supervisorClient";
 import { resolveTools } from "./mcp/utils";
 import {
   ActHandlerParams,
@@ -49,6 +48,10 @@ import {
   InitState,
   AgentCacheContext,
 } from "./types/private";
+import type {
+  ShutdownSupervisorConfig,
+  ShutdownSupervisorHandle,
+} from "./types/private/shutdown";
 import {
   AgentConfig,
   AgentExecuteCallbacks,
@@ -240,6 +243,7 @@ export class V3 {
   private agentCache: AgentCache;
   private apiClient: StagehandAPIClient | null = null;
   private keepAlive?: boolean;
+  private shutdownSupervisor: ShutdownSupervisorHandle | null = null;
 
   public stagehandMetrics: StagehandMetrics = {
     actPromptTokens: 0,
@@ -270,7 +274,6 @@ export class V3 {
   };
 
   constructor(opts: V3Options) {
-    V3._installProcessGuards();
     this.externalLogger = opts.logger;
     this.verbose = opts.verbose ?? 1;
     this.instanceId = uuidv7();
@@ -596,16 +599,43 @@ export class V3 {
     }
   }
 
-  private static _installProcessGuards(): void {
-    if (V3._processGuardsInstalled) return;
-    V3._processGuardsInstalled = true;
-    installShutdownGuards({
-      logger: v3Logger,
-      shutdownAll: async (reason: string) => {
-        const instances = Array.from(V3._instances);
-        await Promise.all(instances.map((i) => i._immediateShutdown(reason)));
+  /** Spawn a crash-only supervisor that cleans up when this process dies. */
+  private startShutdownSupervisor(
+    config: ShutdownSupervisorConfig,
+  ): ShutdownSupervisorHandle | null {
+    if (this.shutdownSupervisor) return this.shutdownSupervisor;
+    this.shutdownSupervisor = startShutdownSupervisor(config, {
+      onError: (error, context) => {
+        try {
+          this.logger({
+            category: "v3",
+            message:
+              "Shutdown supervisor unavailable; crash cleanup disabled. " +
+              "If this process exits unexpectedly, local Chrome or Browserbase " +
+              "sessions may remain running even with keepAlive=false.",
+            level: 0,
+            auxiliary: {
+              context: { value: context, type: "string" },
+              error: { value: error.message, type: "string" },
+            },
+          });
+        } catch {
+          // ignore logging failures
+        }
       },
     });
+    return this.shutdownSupervisor;
+  }
+
+  /** Stop the supervisor during a normal shutdown. */
+  private stopShutdownSupervisor(): void {
+    if (!this.shutdownSupervisor) return;
+    try {
+      this.shutdownSupervisor.stop();
+    } catch {
+      // best-effort
+    }
+    this.shutdownSupervisor = null;
   }
 
   /**
@@ -834,6 +864,18 @@ export class V3 {
             preserveUserDataDir: !!lbo.preserveUserDataDir,
           };
           this.resetBrowserbaseSessionMetadata();
+          const chromePid = chrome.process?.pid ?? chrome.pid;
+          if (!keepAlive && chromePid) {
+            const supervisor = this.startShutdownSupervisor({
+              kind: "LOCAL",
+              keepAlive: false,
+              pid: chromePid,
+              userDataDir,
+              createdTempProfile: createdTemp,
+              preserveUserDataDir: !!lbo.preserveUserDataDir,
+            });
+            await supervisor?.ready;
+          }
 
           // Post-connect settings (downloads and viewport) if provided
           await this._applyPostConnectLocalOptions(lbo);
@@ -856,6 +898,7 @@ export class V3 {
           const baseSessionParams =
             this.opts.browserbaseSessionCreateParams ?? {};
           const resolvedKeepAlive = this.keepAlive;
+          const keepAlive = this.keepAlive === true;
           const effectiveSessionParams =
             resolvedKeepAlive !== undefined
               ? { ...baseSessionParams, keepAlive: resolvedKeepAlive }
@@ -914,6 +957,16 @@ export class V3 {
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
           this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
           this.browserbaseSessionId = sessionId;
+          if (!keepAlive && !this.disableAPI) {
+            const supervisor = this.startShutdownSupervisor({
+              kind: "STAGEHAND_API",
+              keepAlive: false,
+              sessionId,
+              apiKey,
+              projectId,
+            });
+            await supervisor?.ready;
+          }
 
           await this._ensureBrowserbaseDownloadsEnabled();
 
@@ -1363,7 +1416,7 @@ export class V3 {
     if (this.state.kind === "LOCAL") {
       const localState = this.state;
       killLocalChrome = async () => {
-        localState.chrome.kill();
+        await localState.chrome.kill();
       };
       if (
         localState.createdTempProfile &&
@@ -1393,6 +1446,7 @@ export class V3 {
         cleanupUserDataDir,
       });
     } finally {
+      this.stopShutdownSupervisor();
       finalizeStagehandShutdown({
         resetState: () => {
           this.state = { kind: "UNINITIALIZED" };
