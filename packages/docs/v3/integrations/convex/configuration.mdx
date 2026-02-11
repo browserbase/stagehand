@@ -30,7 +30,7 @@ Add the Stagehand component to your `convex/convex.config.ts`:
 
 ```typescript convex/convex.config.ts
 import { defineApp } from "convex/server";
-import stagehand from "convex-stagehand/convex.config";
+import stagehand from "@browserbasehq/convex-stagehand/convex.config";
 
 const app = defineApp();
 app.use(stagehand, { name: "stagehand" });
@@ -56,12 +56,16 @@ Create a Stagehand instance in your Convex action:
 ```typescript convex/actions.ts
 "use node";
 
-import { Stagehand } from "convex-stagehand";
+import { Stagehand } from "@browserbasehq/convex-stagehand";
 import { components } from "./_generated/api";
 import { action } from "./_generated/server";
-import { z } from "zod/v3";
+import { z } from "zod";
 
-const stagehand = new Stagehand(components.stagehand);
+const stagehand = new Stagehand(components.stagehand, {
+  browserbaseApiKey: process.env.BROWSERBASE_API_KEY!,
+  browserbaseProjectId: process.env.BROWSERBASE_PROJECT_ID!,
+  modelApiKey: process.env.MODEL_API_KEY!,
+});
 ```
 
 ### Extract Data
@@ -183,8 +187,10 @@ The default model is `openai/gpt-4o`. You can configure alternative providers:
 
 ```typescript
 const stagehand = new Stagehand(components.stagehand, {
+  browserbaseApiKey: process.env.BROWSERBASE_API_KEY!,
+  browserbaseProjectId: process.env.BROWSERBASE_PROJECT_ID!,
+  modelApiKey: process.env.ANTHROPIC_API_KEY!,
   modelName: "anthropic/claude-sonnet-4-5-20250929",
-  modelApiKey: process.env.ANTHROPIC_API_KEY!
 });
 ```
 
