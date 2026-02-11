@@ -302,6 +302,19 @@ export function countXPathMatchesMainWorld(rawXp: string): number {
   const xp = String(rawXp ?? "").trim();
   if (!xp) return 0;
 
+  try {
+    const result = document.evaluate(
+      xp,
+      document,
+      null,
+      XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+      null,
+    );
+    return result.snapshotLength;
+  } catch {
+    // native XPath failed (e.g. shadow DOM); fall through to composed traversal
+  }
+
   const parseSteps = (input: string) => {
     const path = String(input || "")
       .trim()
