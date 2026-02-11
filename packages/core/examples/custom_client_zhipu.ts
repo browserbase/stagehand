@@ -3,20 +3,20 @@
  *
  * Z.ai provides an OpenAI-compatible API with models like GLM-4.7.
  * GLM-4.7 has a built-in "thinking" mode for reasoning that is enabled by default.
- * The ZhipuOpenAIClient lets you control this via the `enableThinking` option.
+ * The ZhipuClient lets you control this via the `enableThinking` option.
  *
  * Set your ZHIPU_API_KEY in your .env file before running.
  */
 import { Stagehand } from "../lib/v3";
 import { z } from "zod";
-import { ZhipuOpenAIClient } from "./external_clients/zhipuOpenAI";
+import { ZhipuClient } from "./external_clients/zhipuOpenAI";
 import OpenAI from "openai";
 
 async function example() {
   const stagehand = new Stagehand({
     env: "LOCAL",
     verbose: 1,
-    llmClient: new ZhipuOpenAIClient({
+    llmClient: new ZhipuClient({
       modelName: "glm-4.7",
       client: new OpenAI({
         apiKey: process.env.ZHIPU_API_KEY,

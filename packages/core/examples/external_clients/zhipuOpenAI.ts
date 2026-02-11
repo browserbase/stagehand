@@ -6,12 +6,12 @@
  * via the OpenAI SDK's extra body API.
  *
  * Usage:
- *   import { ZhipuOpenAIClient } from '@browserbasehq/stagehand';
+ *   import { ZhipuClient } from '@browserbasehq/stagehand';
  *   import OpenAI from 'openai';
  *
  *   const stagehand = new Stagehand({
  *     env: 'LOCAL',
- *     llmClient: new ZhipuOpenAIClient({
+ *     llmClient: new ZhipuClient({
  *       modelName: 'glm-4.7',
  *       client: new OpenAI({
  *         apiKey: process.env.ZHIPU_API_KEY,
@@ -24,7 +24,7 @@
 import OpenAI from "openai";
 import { CustomOpenAIClient } from "./customOpenAI";
 
-export class ZhipuOpenAIClient extends CustomOpenAIClient {
+export class ZhipuClient extends CustomOpenAIClient {
   constructor({
     modelName,
     client,

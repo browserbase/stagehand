@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-Add ZhipuOpenAIClient for Z.ai GLM models with thinking control
+Add ZhipuClient for Z.ai GLM models with thinking control

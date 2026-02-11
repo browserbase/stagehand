@@ -13,4 +13,4 @@ export * from "./sdkErrors";
 // Note added for revisiting this scaffold for an improved version based on llm/aisdk.ts
 export { AISdkClient } from "../../../../examples/external_clients/aisdk";
 export { CustomOpenAIClient } from "../../../../examples/external_clients/customOpenAI";
-export { ZhipuOpenAIClient } from "../../../../examples/external_clients/zhipuOpenAI";
+export { ZhipuClient } from "../../../../examples/external_clients/zhipuOpenAI";
