@@ -88,6 +88,7 @@ const cleanupBrowserbase = async (
 const runCleanup = async (): Promise<void> => {
   const cfg = config;
   if (!cfg || !armed) return;
+  armed = false;
   if (cfg.kind === "LOCAL") {
     await cleanupLocal(cfg);
     return;
