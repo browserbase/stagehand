@@ -100,7 +100,12 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gemini-1.5-flash-8b": "google",
   "gemini-2.0-flash-lite": "google",
   "gemini-2.0-flash": "google",
+  "gemini-2.5-flash": "google",
   "gemini-2.5-flash-preview-04-17": "google",
+  "gemini-2.5-flash-preview-09-2025": "google",
+  "gemini-2.5-flash-lite": "google",
+  "gemini-2.5-flash-lite-preview-09-2025": "google",
+  "gemini-2.5-pro": "google",
   "gemini-2.5-pro-preview-03-25": "google",
 };
 
