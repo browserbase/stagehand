@@ -11,6 +11,8 @@ import {
   LLMClient,
 } from "../../lib/v3/llm/LLMClient";
 import OpenAI from "openai";
+import { createOpenAI } from "@ai-sdk/openai";
+import type { LanguageModelV2 } from "@ai-sdk/provider";
 import type {
   ChatCompletion,
   ChatCompletionAssistantMessageParam,
@@ -36,6 +38,14 @@ export class CustomOpenAIClient extends LLMClient {
     super(modelName as AvailableModel);
     this.client = client;
     this.modelName = modelName as AvailableModel;
+  }
+
+  public getLanguageModel(): LanguageModelV2 {
+    const provider = createOpenAI({
+      apiKey: this.client.apiKey,
+      baseURL: this.client.baseURL,
+    });
+    return provider(this.modelName);
   }
 
   async createChatCompletion<T = ChatCompletion>({
