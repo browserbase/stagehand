@@ -196,7 +196,7 @@ export class CustomOpenAIClient extends LLMClient {
         function: {
           name: tool.name,
           description: tool.description,
-          parameters: tool.parameters,
+          inputSchema: tool.parameters,
         },
         type: "function",
       })),
