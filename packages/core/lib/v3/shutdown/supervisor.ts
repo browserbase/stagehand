@@ -108,7 +108,7 @@ const onMessage = (raw: unknown) => {
     config = msg.config ?? null;
     armed = Boolean(config) && config?.keepAlive === false;
     try {
-      process.send?.({ type: "error" });
+      process.send?.({ type: "ready" });
     } catch {
       // ignore IPC failures
     }
