@@ -7,6 +7,8 @@
  * and resilient to exceptions.
  */
 
+import { elementMatchesStep, parseXPathSteps } from "./xpathParser";
+
 type WaitForSelectorState = "attached" | "detached" | "visible" | "hidden";
 
 /**
@@ -110,67 +112,6 @@ const deepQuerySelector = (
   }
 
   return null;
-};
-
-/**
- * Parse XPath into steps for composed tree traversal.
- */
-type XPathStep = {
-  axis: "child" | "desc";
-  tag: string;
-  index: number | null;
-  attrName: string | null;
-  attrValue: string | null;
-};
-
-const parseXPathSteps = (xpath: string): XPathStep[] => {
-  const path = xpath.replace(/^xpath=/i, "");
-  const steps: XPathStep[] = [];
-  let i = 0;
-
-  while (i < path.length) {
-    let axis: "child" | "desc" = "child";
-    if (path.startsWith("//", i)) {
-      axis = "desc";
-      i += 2;
-    } else if (path[i] === "/") {
-      axis = "child";
-      i += 1;
-    }
-
-    const start = i;
-    // Handle brackets to avoid splitting on `/` inside predicates
-    let bracketDepth = 0;
-    while (i < path.length) {
-      if (path[i] === "[") bracketDepth++;
-      else if (path[i] === "]") bracketDepth--;
-      else if (path[i] === "/" && bracketDepth === 0) break;
-      i += 1;
-    }
-    const rawStep = path.slice(start, i).trim();
-    if (!rawStep) continue;
-
-    // Parse step: tagName[@attr='value'][index]
-    // Match tag name (everything before first [)
-    const tagMatch = rawStep.match(/^([^[]+)/);
-    const tagRaw = (tagMatch?.[1] ?? "*").trim();
-    const tag = tagRaw === "" ? "*" : tagRaw.toLowerCase();
-
-    // Match index predicate [N]
-    const indexMatch = rawStep.match(/\[(\d+)\]/);
-    const index = indexMatch ? Math.max(1, Number(indexMatch[1])) : null;
-
-    // Match attribute predicate [@attr='value'] or [@attr="value"]
-    const attrMatch = rawStep.match(
-      /\[@([a-zA-Z_][\w-]*)\s*=\s*['"]([^'"]*)['"]\]/,
-    );
-    const attrName = attrMatch ? attrMatch[1] : null;
-    const attrValue = attrMatch ? attrMatch[2] : null;
-
-    steps.push({ axis, tag, index, attrName, attrValue });
-  }
-
-  return steps;
 };
 
 /**
@@ -287,20 +228,10 @@ const deepXPathQuery = (
           : composedDescendants(root);
       if (!pool.length) continue;
 
-      // Filter by tag name
-      let matches = pool.filter((candidate) => {
-        if (!(candidate instanceof Element)) return false;
-        if (step.tag === "*") return true;
-        return candidate.localName === step.tag;
-      });
-
-      // Filter by attribute predicate if present
-      if (step.attrName != null && step.attrValue != null) {
-        matches = matches.filter((candidate) => {
-          const attrVal = candidate.getAttribute(step.attrName!);
-          return attrVal === step.attrValue;
-        });
-      }
+      const matches = pool.filter(
+        (candidate) =>
+          candidate instanceof Element && elementMatchesStep(candidate, step),
+      );
 
       if (step.index != null) {
         const idx = step.index - 1;

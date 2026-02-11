@@ -59,7 +59,13 @@ export function parseXPathSteps(input: string): XPathStep[] {
     }
 
     const start = i;
-    while (i < path.length && path[i] !== "/") i += 1;
+    let bracketDepth = 0;
+    while (i < path.length) {
+      if (path[i] === "[") bracketDepth++;
+      else if (path[i] === "]") bracketDepth--;
+      else if (path[i] === "/" && bracketDepth === 0) break;
+      i += 1;
+    }
     const rawStep = path.slice(start, i).trim();
     if (!rawStep) continue;
 

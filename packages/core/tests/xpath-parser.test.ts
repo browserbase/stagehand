@@ -145,6 +145,34 @@ describe("parseXPathSteps", () => {
       ]);
     });
 
+    it("handles forward slashes inside attribute values", () => {
+      const steps = parseXPathSteps("//a[@href='/api/endpoint']");
+      expect(steps).toEqual([
+        {
+          axis: "desc",
+          tag: "a",
+          index: null,
+          attrs: [{ name: "href", value: "/api/endpoint" }],
+        },
+      ]);
+    });
+
+    it("handles URL attribute values with multiple slashes", () => {
+      const steps = parseXPathSteps(
+        "//a[@data-url='http://example.com/path/to/page']",
+      );
+      expect(steps).toEqual([
+        {
+          axis: "desc",
+          tag: "a",
+          index: null,
+          attrs: [
+            { name: "data-url", value: "http://example.com/path/to/page" },
+          ],
+        },
+      ]);
+    });
+
     it("handles whitespace", () => {
       const steps = parseXPathSteps("  //div  ");
       expect(steps.length).toBe(1);
