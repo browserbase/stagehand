@@ -9,7 +9,7 @@
  */
 import { Stagehand } from "../lib/v3";
 import { z } from "zod";
-import { ZhipuClient } from "./external_clients/zhipuOpenAI";
+import { ZhipuClient } from "./external_clients/zhipu";
 import OpenAI from "openai";
 
 async function example() {
