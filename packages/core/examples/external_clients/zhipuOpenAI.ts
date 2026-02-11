@@ -163,6 +163,20 @@ export class ZhipuOpenAIClient extends LLMClient {
           }
         }
 
+        if (message.role === "system") {
+          const formattedMessage: ChatCompletionSystemMessageParam = {
+            role: "system",
+            content: message.content,
+          };
+          return formattedMessage;
+        } else if (message.role === "assistant") {
+          const formattedMessage: ChatCompletionAssistantMessageParam = {
+            role: "assistant",
+            content: message.content,
+          };
+          return formattedMessage;
+        }
+
         const formattedMessage: ChatCompletionUserMessageParam = {
           role: "user",
           content: message.content,
@@ -193,7 +207,7 @@ export class ZhipuOpenAIClient extends LLMClient {
         function: {
           name: tool.name,
           description: tool.description,
-          inputSchema: tool.parameters,
+          parameters: tool.parameters,
         },
         type: "function",
       })),
