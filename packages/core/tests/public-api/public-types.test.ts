@@ -97,6 +97,11 @@ type ExpectedExportedTypes = {
   // Types from utils.ts
   JsonSchema: Stagehand.JsonSchema;
   JsonSchemaProperty: Stagehand.JsonSchemaProperty;
+  // Types from cookies.ts
+  Cookie: Stagehand.Cookie;
+  CookieParam: Stagehand.CookieParam;
+  ClearCookieOptions: Stagehand.ClearCookieOptions;
+  StorageState: Stagehand.StorageState;
 };
 
 describe("Stagehand public API types", () => {
@@ -296,6 +301,63 @@ describe("Stagehand public API types", () => {
 
     it("matches expected type shape", () => {
       expectTypeOf<Stagehand.HistoryEntry>().toEqualTypeOf<ExpectedHistoryEntry>();
+    });
+  });
+
+  describe("Cookie", () => {
+    type ExpectedCookie = {
+      name: string;
+      value: string;
+      domain: string;
+      path: string;
+      expires: number;
+      httpOnly: boolean;
+      secure: boolean;
+      sameSite: "Strict" | "Lax" | "None";
+    };
+
+    it("matches expected type shape", () => {
+      expectTypeOf<Stagehand.Cookie>().toEqualTypeOf<ExpectedCookie>();
+    });
+  });
+
+  describe("CookieParam", () => {
+    type ExpectedCookieParam = {
+      name: string;
+      value: string;
+      url?: string;
+      domain?: string;
+      path?: string;
+      expires?: number;
+      httpOnly?: boolean;
+      secure?: boolean;
+      sameSite?: "Strict" | "Lax" | "None";
+    };
+
+    it("matches expected type shape", () => {
+      expectTypeOf<Stagehand.CookieParam>().toEqualTypeOf<ExpectedCookieParam>();
+    });
+  });
+
+  describe("ClearCookieOptions", () => {
+    type ExpectedClearCookieOptions = {
+      name?: string | RegExp;
+      domain?: string | RegExp;
+      path?: string | RegExp;
+    };
+
+    it("matches expected type shape", () => {
+      expectTypeOf<Stagehand.ClearCookieOptions>().toEqualTypeOf<ExpectedClearCookieOptions>();
+    });
+  });
+
+  describe("StorageState", () => {
+    type ExpectedStorageState = {
+      cookies: Stagehand.Cookie[];
+    };
+
+    it("matches expected type shape", () => {
+      expectTypeOf<Stagehand.StorageState>().toEqualTypeOf<ExpectedStorageState>();
     });
   });
 });
