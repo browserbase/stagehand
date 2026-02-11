@@ -120,9 +120,11 @@ export function normalizeCookieParams(cookies: CookieParam[]): CookieParam[] {
 
     // Browsers silently reject SameSite=None cookies that aren't Secure.
     // Catch this early with a clear error instead of a silent CDP failure.
-    if (copy.sameSite === "None" && copy.secure === false) {
+    // Use !copy.secure to catch both explicit false AND undefined (omitted),
+    // since CDP defaults secure to false when omitted.
+    if (copy.sameSite === "None" && !copy.secure) {
       throw new Error(
-        `Cookie "${c.name}" has sameSite: "None" but secure: false. ` +
+        `Cookie "${c.name}" has sameSite: "None" without secure: true. ` +
           `Browsers require secure: true when sameSite is "None".`,
       );
     }

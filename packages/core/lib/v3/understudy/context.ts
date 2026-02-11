@@ -902,25 +902,27 @@ export class V3Context {
   /**
    * Clear cookies from the browser context.
    *
-   * - Called with no arguments: clears **all** cookies.
+   * - Called with no arguments: clears **all** cookies atomically via
+   *   `Network.clearBrowserCookies` (single CDP call, no race condition).
    * - Called with filter options: only cookies matching every supplied criterion
-   *   are removed. Filters accept exact strings or RegExp patterns.
-   *
-   * Improvement over Playwright: we delete only the matching cookies via
-   * `Network.deleteCookies` instead of nuking everything and re-adding the
-   * non-matching ones. This avoids a race condition where cookies set between
-   * the get-all and clear-all calls would be lost.
+   *   are removed via targeted `Network.deleteCookies` calls — non-matching
+   *   cookies are never touched (improvement over Playwright's nuke-and-re-add).
    */
   async clearCookies(options?: ClearCookieOptions): Promise<void> {
-    const current = await this.cookies();
     const hasFilter =
       options?.name !== undefined ||
       options?.domain !== undefined ||
       options?.path !== undefined;
 
-    const toDelete = hasFilter
-      ? current.filter((c) => cookieMatchesFilter(c, options!))
-      : current;
+    if (!hasFilter) {
+      // Atomic single-call wipe — no race condition, no O(N) roundtrips.
+      await this.conn.send("Network.clearBrowserCookies");
+      return;
+    }
+
+    // Selective: fetch all, delete only the matching ones.
+    const current = await this.cookies();
+    const toDelete = current.filter((c) => cookieMatchesFilter(c, options!));
 
     for (const c of toDelete) {
       await this.conn.send("Network.deleteCookies", {

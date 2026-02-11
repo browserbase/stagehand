@@ -304,7 +304,16 @@ describe("normalizeCookieParams", () => {
           secure: false,
         },
       ]),
-    ).toThrow(/sameSite: "None" but secure: false/);
+    ).toThrow(/sameSite: "None" without secure: true/);
+  });
+
+  it("throws when sameSite is None and secure is omitted (undefined)", () => {
+    // CDP defaults secure to false when omitted, so the browser will reject it.
+    expect(() =>
+      normalizeCookieParams([
+        { name: "a", value: "1", domain: "x.com", path: "/", sameSite: "None" },
+      ]),
+    ).toThrow(/sameSite: "None" without secure: true/);
   });
 
   it("does NOT throw when sameSite is None and secure is true", () => {
@@ -320,14 +329,6 @@ describe("normalizeCookieParams", () => {
     ]);
     expect(result[0]!.sameSite).toBe("None");
     expect(result[0]!.secure).toBe(true);
-  });
-
-  it("does NOT throw when sameSite is None and secure is undefined (not explicitly false)", () => {
-    // secure is undefined — the browser will decide, we don't block it
-    const result = normalizeCookieParams([
-      { name: "a", value: "1", domain: "x.com", path: "/", sameSite: "None" },
-    ]);
-    expect(result[0]!.sameSite).toBe("None");
   });
 
   it("derives root path from URL with no trailing path segments", () => {
@@ -785,7 +786,7 @@ describe("V3Context cookie methods", () => {
             secure: false,
           },
         ]),
-      ).rejects.toThrow(/sameSite: "None" but secure: false/);
+      ).rejects.toThrow(/sameSite: "None" without secure: true/);
     });
 
     it("does nothing when passed an empty array", async () => {
@@ -880,16 +881,23 @@ describe("V3Context cookie methods", () => {
       ),
     ];
 
-    it("deletes ALL cookies when called with no options", async () => {
+    it("uses atomic Network.clearBrowserCookies when called with no options", async () => {
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [...cdpCookies] }),
-        "Network.deleteCookies": () => ({}),
+        "Network.clearBrowserCookies": () => ({}),
       });
 
       await ctx.clearCookies();
 
+      const clearCalls = getMockConn(ctx).callsFor(
+        "Network.clearBrowserCookies",
+      );
+      expect(clearCalls).toHaveLength(1);
+
+      // Should NOT have fetched or individually deleted anything
+      const getCalls = getMockConn(ctx).callsFor("Network.getAllCookies");
+      expect(getCalls).toHaveLength(0);
       const deleteCalls = getMockConn(ctx).callsFor("Network.deleteCookies");
-      expect(deleteCalls).toHaveLength(3);
+      expect(deleteCalls).toHaveLength(0);
     });
 
     it("deletes only cookies matching a name filter", async () => {
@@ -969,16 +977,18 @@ describe("V3Context cookie methods", () => {
       expect(deleteCalls).toHaveLength(1);
     });
 
-    it("handles empty cookie jar gracefully", async () => {
+    it("handles empty cookie jar gracefully (atomic clear)", async () => {
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [] }),
-        "Network.deleteCookies": () => ({}),
+        "Network.clearBrowserCookies": () => ({}),
       });
 
       await ctx.clearCookies();
 
-      const deleteCalls = getMockConn(ctx).callsFor("Network.deleteCookies");
-      expect(deleteCalls).toHaveLength(0);
+      // Atomic clear doesn't care whether cookies exist — just fires once
+      const clearCalls = getMockConn(ctx).callsFor(
+        "Network.clearBrowserCookies",
+      );
+      expect(clearCalls).toHaveLength(1);
     });
 
     it("deletes nothing when filter matches no cookies", async () => {
@@ -993,13 +1003,14 @@ describe("V3Context cookie methods", () => {
       expect(deleteCalls).toHaveLength(0);
     });
 
-    it("sends correct domain and path for each deleted cookie", async () => {
+    it("sends correct domain and path for each deleted cookie (selective)", async () => {
       const ctx = makeContext({
         "Network.getAllCookies": () => ({ cookies: [...cdpCookies] }),
         "Network.deleteCookies": () => ({}),
       });
 
-      await ctx.clearCookies(); // delete all
+      // Use a regex that matches all three to exercise the selective path
+      await ctx.clearCookies({ name: /.*/ });
 
       const deleteCalls = getMockConn(ctx).callsFor("Network.deleteCookies");
       expect(deleteCalls).toHaveLength(3);
@@ -1067,16 +1078,17 @@ describe("V3Context cookie methods", () => {
       expect(deleteCalls).toHaveLength(0);
     });
 
-    it("clearCookies with empty options object deletes all (same as no args)", async () => {
+    it("clearCookies with empty options object uses atomic clear (same as no args)", async () => {
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [...cdpCookies] }),
-        "Network.deleteCookies": () => ({}),
+        "Network.clearBrowserCookies": () => ({}),
       });
 
       await ctx.clearCookies({});
 
-      const deleteCalls = getMockConn(ctx).callsFor("Network.deleteCookies");
-      expect(deleteCalls).toHaveLength(3);
+      const clearCalls = getMockConn(ctx).callsFor(
+        "Network.clearBrowserCookies",
+      );
+      expect(clearCalls).toHaveLength(1);
     });
   });
 
@@ -1138,12 +1150,8 @@ describe("V3Context cookie methods", () => {
     it("clears existing cookies then restores from snapshot", async () => {
       const callOrder: string[] = [];
       const ctx = makeContext({
-        "Network.getAllCookies": () => {
-          callOrder.push("getAllCookies");
-          return { cookies: [toCdpCookie(makeCookie({ name: "old" }))] };
-        },
-        "Network.deleteCookies": () => {
-          callOrder.push("deleteCookies");
+        "Network.clearBrowserCookies": () => {
+          callOrder.push("clearBrowserCookies");
           return {};
         },
         "Network.setCookie": () => {
@@ -1158,10 +1166,9 @@ describe("V3Context cookie methods", () => {
         ],
       });
 
-      // Should have cleared first, then set
+      // Should have atomically cleared first, then set
       expect(callOrder).toEqual([
-        "getAllCookies", // from clearCookies
-        "deleteCookies", // delete the "old" cookie
+        "clearBrowserCookies", // from clearCookies (atomic)
         "setCookie", // add the "restored" cookie
       ]);
 
@@ -1171,7 +1178,7 @@ describe("V3Context cookie methods", () => {
 
     it("skips expired cookies from the snapshot", async () => {
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [] }),
+        "Network.clearBrowserCookies": () => ({}),
         "Network.setCookie": () => ({ success: true }),
       });
 
@@ -1196,7 +1203,7 @@ describe("V3Context cookie methods", () => {
 
     it("handles empty snapshot gracefully", async () => {
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [] }),
+        "Network.clearBrowserCookies": () => ({}),
         "Network.setCookie": () => ({ success: true }),
       });
 
@@ -1208,7 +1215,7 @@ describe("V3Context cookie methods", () => {
 
     it("keeps session cookies (expires === -1) from snapshot", async () => {
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [] }),
+        "Network.clearBrowserCookies": () => ({}),
         "Network.setCookie": () => ({ success: true }),
       });
 
@@ -1223,7 +1230,7 @@ describe("V3Context cookie methods", () => {
 
     it("skips all cookies when entire snapshot is expired", async () => {
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [] }),
+        "Network.clearBrowserCookies": () => ({}),
         "Network.setCookie": () => ({ success: true }),
       });
 
@@ -1242,26 +1249,26 @@ describe("V3Context cookie methods", () => {
 
     it("clears existing cookies even when snapshot is empty", async () => {
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({
-          cookies: [toCdpCookie(makeCookie({ name: "existing" }))],
-        }),
-        "Network.deleteCookies": () => ({}),
+        "Network.clearBrowserCookies": () => ({}),
         "Network.setCookie": () => ({ success: true }),
       });
 
       await ctx.setStorageState({ cookies: [] });
 
-      const deleteCalls = getMockConn(ctx).callsFor("Network.deleteCookies");
-      expect(deleteCalls).toHaveLength(1);
-      expect(deleteCalls[0]!.params).toMatchObject({ name: "existing" });
+      // Atomic clear should have fired
+      const clearCalls = getMockConn(ctx).callsFor(
+        "Network.clearBrowserCookies",
+      );
+      expect(clearCalls).toHaveLength(1);
 
+      // No cookies to restore
       const setCalls = getMockConn(ctx).callsFor("Network.setCookie");
       expect(setCalls).toHaveLength(0);
     });
 
     it("cookie right at the expiry boundary (now) is treated as expired", async () => {
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [] }),
+        "Network.clearBrowserCookies": () => ({}),
         "Network.setCookie": () => ({ success: true }),
       });
 
@@ -1312,8 +1319,7 @@ describe("V3Context cookie methods", () => {
       // Phase 2: restore into a "fresh" context
       const setCookieParams: Record<string, unknown>[] = [];
       const ctx2 = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [] }),
-        "Network.deleteCookies": () => ({}),
+        "Network.clearBrowserCookies": () => ({}),
         "Network.setCookie": (params) => {
           setCookieParams.push(params ?? {});
           return { success: true };
