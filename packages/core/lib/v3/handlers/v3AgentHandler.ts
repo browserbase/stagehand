@@ -124,7 +124,11 @@ export class V3AgentHandler {
         : [{ role: "user", content: options.instruction }];
 
       if (!this.llmClient?.getLanguageModel) {
-        throw new MissingLLMConfigurationError();
+        throw new MissingLLMConfigurationError(
+          "agent mode requires an LLM client that implements getLanguageModel(). " +
+            "If using a custom LLM client, implement getLanguageModel() to return a LanguageModelV2 instance " +
+            "(e.g., via createOpenAI() from @ai-sdk/openai).",
+        );
       }
       const baseModel = this.llmClient.getLanguageModel();
       //to do - we likely do not need middleware anymore

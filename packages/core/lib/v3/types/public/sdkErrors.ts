@@ -109,10 +109,11 @@ export class CaptchaTimeoutError extends StagehandError {
 }
 
 export class MissingLLMConfigurationError extends StagehandError {
-  constructor() {
+  constructor(message?: string) {
     super(
-      "No LLM API key or LLM Client configured. An LLM API key or a custom LLM Client " +
-        "is required to use act, extract, or observe.",
+      message ??
+        ("No LLM API key or LLM Client configured. An LLM API key or a custom LLM Client " +
+          "is required to use act, extract, or observe."),
     );
   }
 }
