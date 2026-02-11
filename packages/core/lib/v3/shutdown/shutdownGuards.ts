@@ -36,7 +36,14 @@ export function installShutdownGuards(opts: {
   const runShutdownWithKeepAlive = (
     reason: string,
     signalLabel?: "SIGINT" | "SIGTERM",
+    onAfter?: () => void,
   ) => {
+    let afterCalled = false;
+    const callAfter = () => {
+      if (afterCalled) return;
+      afterCalled = true;
+      onAfter?.();
+    };
     const keepAlive = setInterval(() => {}, 250);
     const hardTimeout = setTimeout(() => {
       opts.logger({
@@ -46,6 +53,7 @@ export function installShutdownGuards(opts: {
       });
       clearInterval(keepAlive);
       finalize(signalLabel);
+      callAfter();
     }, SHUTDOWN_HARD_TIMEOUT_MS);
 
     void opts
@@ -55,6 +63,7 @@ export function installShutdownGuards(opts: {
         clearTimeout(hardTimeout);
         clearInterval(keepAlive);
         finalize(signalLabel);
+        callAfter();
       });
   };
 
@@ -62,22 +71,35 @@ export function installShutdownGuards(opts: {
     value instanceof Error ? value : new Error(String(value));
 
   let shuttingDown = false;
-  const startShutdown = (signalLabel: "SIGINT" | "SIGTERM") => {
+  const startShutdown = (args: {
+    signalLabel?: "SIGINT" | "SIGTERM";
+    reason: string;
+    logLabel: string;
+    onAfter?: () => void;
+  }) => {
     if (shuttingDown) return;
     shuttingDown = true;
     opts.logger({
       category: "v3",
-      message: `${signalLabel}: initiating shutdown`,
+      message: args.logLabel,
       level: 0,
     });
-    runShutdownWithKeepAlive(`signal ${signalLabel}`, signalLabel);
+    runShutdownWithKeepAlive(args.reason, args.signalLabel, args.onAfter);
   };
 
   const onSigint = () => {
-    startShutdown("SIGINT");
+    startShutdown({
+      signalLabel: "SIGINT",
+      reason: "signal SIGINT",
+      logLabel: "SIGINT: initiating shutdown",
+    });
   };
   const onSigterm = () => {
-    startShutdown("SIGTERM");
+    startShutdown({
+      signalLabel: "SIGTERM",
+      reason: "signal SIGTERM",
+      logLabel: "SIGTERM: initiating shutdown",
+    });
   };
 
   process.on("SIGINT", onSigint);
@@ -85,40 +107,42 @@ export function installShutdownGuards(opts: {
 
   const onUncaughtException = (err: unknown) => {
     const errToThrow = toError(err);
+    process.off("unhandledRejection", onUnhandledRejection);
     opts.logger({
       category: "v3",
       message: "uncaughtException",
       level: 0,
       auxiliary: { err: { value: String(err), type: "string" } },
     });
-    process.off("unhandledRejection", onUnhandledRejection);
-    void opts
-      .shutdownAll(`uncaughtException: ${String(err)}`)
-      .catch(() => {})
-      .finally(() => {
+    startShutdown({
+      reason: `uncaughtException: ${String(err)}`,
+      logLabel: "uncaughtException: initiating shutdown",
+      onAfter: () => {
         setImmediate(() => {
           throw errToThrow;
         });
-      });
+      },
+    });
   };
 
   const onUnhandledRejection = (reason: unknown) => {
     const errToThrow = toError(reason);
+    process.off("uncaughtException", onUncaughtException);
     opts.logger({
       category: "v3",
       message: "unhandledRejection",
       level: 0,
       auxiliary: { reason: { value: String(reason), type: "string" } },
     });
-    process.off("uncaughtException", onUncaughtException);
-    void opts
-      .shutdownAll(`unhandledRejection: ${String(reason)}`)
-      .catch(() => {})
-      .finally(() => {
+    startShutdown({
+      reason: `unhandledRejection: ${String(reason)}`,
+      logLabel: "unhandledRejection: initiating shutdown",
+      onAfter: () => {
         setImmediate(() => {
           throw errToThrow;
         });
-      });
+      },
+    });
   };
 
   process.once("uncaughtException", onUncaughtException);
