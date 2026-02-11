@@ -1,0 +1,158 @@
+// lib/v3/understudy/cookies.ts
+
+/**
+ * Cookie types and helpers for browser cookie management.
+ *
+ * Mirrors Playwright's cookie API surface, adapted for direct CDP usage
+ * against a single default browser context.
+ */
+
+/** A cookie as returned by the browser. */
+export interface Cookie {
+  name: string;
+  value: string;
+  domain: string;
+  path: string;
+  /** Unix time in seconds. -1 means session cookie. */
+  expires: number;
+  httpOnly: boolean;
+  secure: boolean;
+  sameSite: "Strict" | "Lax" | "None";
+}
+
+/** Parameters for setting a cookie. Provide `url` OR `domain`+`path`, not both. */
+export interface CookieParam {
+  name: string;
+  value: string;
+  /** Convenience: if provided, domain/path/secure are derived from this URL. */
+  url?: string;
+  domain?: string;
+  path?: string;
+  /** Unix timestamp in seconds. -1 or omitted = session cookie. */
+  expires?: number;
+  httpOnly?: boolean;
+  secure?: boolean;
+  sameSite?: "Strict" | "Lax" | "None";
+}
+
+/** Filter options for clearing cookies selectively. */
+export interface ClearCookieOptions {
+  name?: string | RegExp;
+  domain?: string | RegExp;
+  path?: string | RegExp;
+}
+
+/** Serialisable snapshot of the browser's cookie store. */
+export interface StorageState {
+  cookies: Cookie[];
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Filter cookies by URL matching (domain, path, secure).
+ * If `urls` is empty every cookie passes.
+ */
+export function filterCookies(cookies: Cookie[], urls: string[]): Cookie[] {
+  if (!urls.length) return cookies;
+  const parsed = urls.map((u) => new URL(u));
+  return cookies.filter((c) => {
+    for (const url of parsed) {
+      let domain = c.domain;
+      if (!domain.startsWith(".")) domain = "." + domain;
+      if (!("." + url.hostname).endsWith(domain)) continue;
+      if (!url.pathname.startsWith(c.path)) continue;
+      if (url.protocol !== "https:" && url.hostname !== "localhost" && c.secure)
+        continue;
+      return true;
+    }
+    return false;
+  });
+}
+
+/**
+ * Validate and normalise `CookieParam` values before sending to CDP.
+ *
+ * - Ensures every cookie has either `url` or `domain`+`path`.
+ * - When `url` is provided, derives `domain`, `path`, and `secure` from it.
+ * - Validates that `sameSite: "None"` is paired with `secure: true`
+ *   (browsers silently reject this — we throw early with a clear message).
+ */
+export function normalizeCookieParams(cookies: CookieParam[]): CookieParam[] {
+  return cookies.map((c) => {
+    if (!c.url && !(c.domain && c.path)) {
+      throw new Error(
+        `Cookie "${c.name}" must have a url or a domain/path pair`,
+      );
+    }
+    if (c.url && c.domain) {
+      throw new Error(
+        `Cookie "${c.name}" should have either url or domain, not both`,
+      );
+    }
+    if (c.url && c.path) {
+      throw new Error(
+        `Cookie "${c.name}" should have either url or path, not both`,
+      );
+    }
+    if (c.expires !== undefined && c.expires < 0 && c.expires !== -1) {
+      throw new Error(
+        `Cookie "${c.name}" has an invalid expires value; use -1 for session cookies or a positive unix timestamp`,
+      );
+    }
+
+    const copy = { ...c };
+    if (copy.url) {
+      if (copy.url === "about:blank") {
+        throw new Error(`Blank page cannot have cookie "${c.name}"`);
+      }
+      if (copy.url.startsWith("data:")) {
+        throw new Error(`Data URL page cannot have cookie "${c.name}"`);
+      }
+      const url = new URL(copy.url);
+      copy.domain = url.hostname;
+      copy.path = url.pathname.substring(0, url.pathname.lastIndexOf("/") + 1);
+      copy.secure = url.protocol === "https:";
+      delete copy.url;
+    }
+
+    // Browsers silently reject SameSite=None cookies that aren't Secure.
+    // Catch this early with a clear error instead of a silent CDP failure.
+    if (copy.sameSite === "None" && copy.secure === false) {
+      throw new Error(
+        `Cookie "${c.name}" has sameSite: "None" but secure: false. ` +
+          `Browsers require secure: true when sameSite is "None".`,
+      );
+    }
+
+    return copy;
+  });
+}
+
+/**
+ * Returns true if a cookie matches all supplied filter criteria.
+ * Undefined filters are treated as "match anything".
+ */
+export function cookieMatchesFilter(
+  cookie: Cookie,
+  options: ClearCookieOptions,
+): boolean {
+  const check = (
+    prop: "name" | "domain" | "path",
+    value: string | RegExp | undefined,
+  ): boolean => {
+    if (value === undefined) return true;
+    if (value instanceof RegExp) {
+      value.lastIndex = 0;
+      return value.test(cookie[prop]);
+    }
+    return cookie[prop] === value;
+  };
+  return (
+    check("name", options.name) &&
+    check("domain", options.domain) &&
+    check("path", options.path)
+  );
+}

@@ -12,6 +12,15 @@ import { InitScriptSource } from "../types/private/index.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { TimeoutError, PageNotFoundError } from "../types/public/sdkErrors.js";
 import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig.js";
+import {
+  Cookie,
+  CookieParam,
+  ClearCookieOptions,
+  StorageState,
+  filterCookies,
+  normalizeCookieParams,
+  cookieMatchesFilter,
+} from "./cookies";
 
 type TargetId = string;
 type SessionId = string;
@@ -822,5 +831,134 @@ export class V3Context {
     }
     if (immediate) return immediate;
     throw new PageNotFoundError("awaitActivePage: no page available");
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cookie management (browser-context level)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Get all browser cookies, optionally filtered by URL(s).
+   *
+   * When `urls` is omitted or empty every cookie in the browser context is
+   * returned. When one or more URLs are supplied only cookies whose
+   * domain/path/secure attributes match are included.
+   */
+  async cookies(urls?: string | string[]): Promise<Cookie[]> {
+    const urlList = !urls ? [] : typeof urls === "string" ? [urls] : urls;
+
+    const { cookies } = await this.conn.send<{
+      cookies: Protocol.Network.Cookie[];
+    }>("Network.getAllCookies");
+
+    const mapped: Cookie[] = cookies.map((c) => ({
+      name: c.name,
+      value: c.value,
+      domain: c.domain,
+      path: c.path,
+      expires: c.expires,
+      httpOnly: c.httpOnly,
+      secure: c.secure,
+      sameSite: (c.sameSite as Cookie["sameSite"]) ?? "Lax",
+    }));
+
+    return filterCookies(mapped, urlList);
+  }
+
+  /**
+   * Add one or more cookies to the browser context.
+   *
+   * Each cookie must specify either a `url` (from which domain/path/secure are
+   * derived) or an explicit `domain` + `path` pair.
+   *
+   * Unlike Playwright, we check the CDP success flag for each cookie and throw
+   * if the browser rejects it (Playwright silently ignores failures).
+   */
+  async addCookies(cookies: CookieParam[]): Promise<void> {
+    const normalized = normalizeCookieParams(cookies);
+    for (const c of normalized) {
+      const { success } = await this.conn.send<{ success: boolean }>(
+        "Network.setCookie",
+        {
+          name: c.name,
+          value: c.value,
+          domain: c.domain,
+          path: c.path,
+          expires: c.expires,
+          httpOnly: c.httpOnly,
+          secure: c.secure,
+          sameSite: c.sameSite,
+        },
+      );
+      if (!success) {
+        throw new Error(
+          `Failed to set cookie "${c.name}" for domain "${c.domain ?? "(unknown)"}" — ` +
+            `the browser rejected it. Check that the domain, path, and secure/sameSite values are valid.`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Clear cookies from the browser context.
+   *
+   * - Called with no arguments: clears **all** cookies.
+   * - Called with filter options: only cookies matching every supplied criterion
+   *   are removed. Filters accept exact strings or RegExp patterns.
+   *
+   * Improvement over Playwright: we delete only the matching cookies via
+   * `Network.deleteCookies` instead of nuking everything and re-adding the
+   * non-matching ones. This avoids a race condition where cookies set between
+   * the get-all and clear-all calls would be lost.
+   */
+  async clearCookies(options?: ClearCookieOptions): Promise<void> {
+    const current = await this.cookies();
+    const hasFilter =
+      options?.name !== undefined ||
+      options?.domain !== undefined ||
+      options?.path !== undefined;
+
+    const toDelete = hasFilter
+      ? current.filter((c) => cookieMatchesFilter(c, options!))
+      : current;
+
+    for (const c of toDelete) {
+      await this.conn.send("Network.deleteCookies", {
+        name: c.name,
+        domain: c.domain,
+        path: c.path,
+      });
+    }
+  }
+
+  /**
+   * Snapshot the browser's cookie store for later restoration.
+   */
+  async storageState(): Promise<StorageState> {
+    return { cookies: await this.cookies() };
+  }
+
+  /**
+   * Restore a previously saved cookie snapshot.
+   * Clears all existing cookies first then applies the snapshot.
+   *
+   * Improvement over Playwright: expired cookies in the snapshot are
+   * automatically skipped instead of being blindly re added (where the
+   * browser would reject them anyway).
+   */
+  async setStorageState(state: StorageState): Promise<void> {
+    await this.clearCookies();
+    if (!state.cookies?.length) return;
+
+    const nowSeconds = Date.now() / 1000;
+    const valid = state.cookies.filter((c) => {
+      // Session cookies (expires === -1) are always valid.
+      // Persistent cookies are only valid if they haven't expired.
+      return c.expires === -1 || c.expires > nowSeconds;
+    });
+
+    if (valid.length) {
+      await this.addCookies(valid);
+    }
   }
 }
