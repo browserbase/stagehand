@@ -211,9 +211,9 @@ async function checkLocalAlive(connectURL: string): Promise<CheckResult> {
   try {
     port = new URL(connectURL).port;
   } catch {
-    return { alive: false };
+    return { alive: false, status: "INVALID_URL" };
   }
-  if (!port) return { alive: false };
+  if (!port) return { alive: false, status: "MISSING_PORT" };
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 1500);
@@ -221,9 +221,20 @@ async function checkLocalAlive(connectURL: string): Promise<CheckResult> {
     const resp = await fetch(`http://127.0.0.1:${port}/json/version`, {
       signal: controller.signal,
     });
-    return { alive: resp.ok };
+    if (!resp.ok) {
+      return { alive: false, status: `HTTP_${resp.status}` };
+    }
+    const json = (await resp.json()) as { webSocketDebuggerUrl?: string };
+    const ws = json?.webSocketDebuggerUrl;
+    if (!ws) {
+      return { alive: false, status: "MISSING_WS" };
+    }
+    if (ws !== connectURL) {
+      return { alive: false, status: "WS_MISMATCH" };
+    }
+    return { alive: true, status: "MATCH" };
   } catch {
-    return { alive: false };
+    return { alive: false, status: "FETCH_ERROR" };
   } finally {
     clearTimeout(timer);
   }
@@ -581,5 +592,15 @@ export async function runKeepAliveCase(
       failure,
     );
     await stopChild(child);
+    if (testCase.env === "LOCAL" && info?.connectURL) {
+      await closeLocalBrowser(info.connectURL);
+    }
+    if (testCase.env === "BROWSERBASE" && info?.sessionId) {
+      await endBrowserbaseSession(
+        info.sessionId,
+        envConfig.apiKey,
+        envConfig.projectId,
+      );
+    }
   }
 }
