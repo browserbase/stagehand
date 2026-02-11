@@ -1,0 +1,43 @@
+---
+title: "Convex"
+sidebarTitle: Introduction
+description: "AI-powered browser automation for Convex applications"
+---
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
+
+## Overview
+
+This guide shows you how to use Stagehand with Convex to create AI-powered browser automation within your Convex applications. By the end of this guide, you'll know how to:
+
+- Set up the convex-stagehand component in your Convex app
+- Extract structured data from web pages using natural language
+- Execute browser actions via plain English instructions
+- Build autonomous multi-step workflows with the agent API
+
+## When You'd Use This
+
+The Convex integration is perfect for scenarios where you need browser automation in serverless Convex functions:
+
+- **Data extraction pipelines**: Extract structured data from websites and store it directly in your Convex database
+- **Automated workflows**: Build background jobs that interact with web pages on behalf of users
+- **Form automation**: Automatically fill out and submit forms based on data from your Convex app
+- **Multi-step web processes**: Execute complex browser workflows that require decision-making and adaptation
+
+The integration wraps the Stagehand REST API to provide Convex actions with the ability to control cloud browsers via Browserbase:
+
+1. **Act**: Perform actions like clicking, typing, or navigating using natural language
+2. **Extract**: Extract structured data from web pages with Zod schemas
+3. **Observe**: Identify and analyze interactive elements on the page
+4. **Agent**: Run autonomous multi-step tasks with AI decision-making
+
+<CardGroup cols={2}>
+  <Card title="Source Code" icon="github" href="https://github.com/browserbase/convex-stagehand">
+    Browse the repository on GitHub
+  </Card>
+  <Card title="Convex Configuration" icon="gear" href="/v3/integrations/convex/configuration">
+    Learn how to set up and configure convex-stagehand
+  </Card>
+</CardGroup>
