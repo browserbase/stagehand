@@ -1,3 +1,5 @@
+import { elementMatchesStep, parseXPathSteps } from "./xpathParser";
+
 export interface TextMatchSample {
   tag: string;
   id: string;
@@ -302,46 +304,7 @@ export function countXPathMatchesMainWorld(rawXp: string): number {
   const xp = String(rawXp ?? "").trim();
   if (!xp) return 0;
 
-  const parseSteps = (input: string) => {
-    const path = String(input || "")
-      .trim()
-      .replace(/^xpath=/i, "");
-    if (!path)
-      return [] as Array<{
-        axis: "child" | "desc";
-        tag: string;
-        index: number | null;
-      }>;
-
-    const steps: Array<{
-      axis: "child" | "desc";
-      tag: string;
-      index: number | null;
-    }> = [];
-    let i = 0;
-    while (i < path.length) {
-      let axis: "child" | "desc" = "child";
-      if (path.startsWith("//", i)) {
-        axis = "desc";
-        i += 2;
-      } else if (path[i] === "/") {
-        axis = "child";
-        i += 1;
-      }
-      const start = i;
-      while (i < path.length && path[i] !== "/") i += 1;
-      const rawStep = path.slice(start, i).trim();
-      if (!rawStep) continue;
-      const match = rawStep.match(/^(.*?)(\[(\d+)\])?$/u);
-      const base = (match?.[1] ?? rawStep).trim();
-      const index = match?.[3] ? Math.max(1, Number(match[3])) : null;
-      const tag = base === "" ? "*" : base.toLowerCase();
-      steps.push({ axis, tag, index });
-    }
-    return steps;
-  };
-
-  const steps = parseSteps(xp);
+  const steps = parseXPathSteps(xp);
   if (!steps.length) return 0;
 
   const backdoor = window.__stagehandV3__;
@@ -415,11 +378,10 @@ export function countXPathMatchesMainWorld(rawXp: string): number {
           : composedDescendants(root);
       if (!pool.length) continue;
 
-      const matches = pool.filter((candidate) => {
-        if (!(candidate instanceof Element)) return false;
-        if (step.tag === "*") return true;
-        return candidate.localName === step.tag;
-      });
+      const matches = pool.filter(
+        (candidate) =>
+          candidate instanceof Element && elementMatchesStep(candidate, step),
+      );
 
       if (step.index != null) {
         const idx = step.index - 1;
@@ -438,23 +400,7 @@ export function countXPathMatchesMainWorld(rawXp: string): number {
       }
     }
 
-    if (!next.length) {
-      // The custom parser may not support this XPath syntax (e.g. attribute
-      // predicates like [@alt='Stagehand']). Fall back to native XPath which
-      // handles the full spec, though it cannot see into shadow roots.
-      try {
-        const result = document.evaluate(
-          xp,
-          document,
-          null,
-          XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-          null,
-        );
-        return result.snapshotLength;
-      } catch {
-        return 0;
-      }
-    }
+    if (!next.length) return 0;
     current = next;
   }
 
