@@ -177,7 +177,7 @@ async function runScenario(config: ScenarioConfig): Promise<{
 }
 
 async function stopChild(child: ReturnType<typeof spawn>): Promise<void> {
-  if (child.killed) return;
+  if (child.exitCode !== null) return;
   try {
     child.kill("SIGKILL");
   } catch {
@@ -196,7 +196,7 @@ async function waitForChildExit(
   child: ReturnType<typeof spawn>,
   timeoutMs: number,
 ): Promise<void> {
-  if (child.exitCode !== null || child.killed) return;
+  if (child.exitCode !== null) return;
   await new Promise<void>((resolve) => {
     const timer = setTimeout(() => resolve(), timeoutMs);
     child.once("exit", () => {
