@@ -19,7 +19,7 @@ const PID_POLL_INTERVAL_MS = 500;
 
 let armed = false;
 let config: ShutdownSupervisorConfig | null = null;
-let cleanupStarted = false;
+let cleanupPromise: Promise<void> | null = null;
 
 const exit = (code = 0): void => {
   try {
@@ -107,19 +107,22 @@ const cleanupBrowserbase = async (
   }
 };
 
-const runCleanup = async (): Promise<void> => {
-  if (cleanupStarted) return;
-  cleanupStarted = true;
-  const cfg = config;
-  if (!cfg || !armed) return;
-  armed = false;
-  if (cfg.kind === "LOCAL") {
-    await cleanupLocal(cfg);
-    return;
+const runCleanup = (): Promise<void> => {
+  if (!cleanupPromise) {
+    cleanupPromise = (async () => {
+      const cfg = config;
+      if (!cfg || !armed) return;
+      armed = false;
+      if (cfg.kind === "LOCAL") {
+        await cleanupLocal(cfg);
+        return;
+      }
+      if (cfg.kind === "STAGEHAND_API") {
+        await cleanupBrowserbase(cfg);
+      }
+    })();
   }
-  if (cfg.kind === "STAGEHAND_API") {
-    await cleanupBrowserbase(cfg);
-  }
+  return cleanupPromise;
 };
 
 const onLifelineClosed = () => {
