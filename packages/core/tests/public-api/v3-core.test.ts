@@ -31,10 +31,6 @@ describe("V3 Core public API types", () => {
       logger: (logLine: Stagehand.LogLine) => void;
       isAgentReplayActive: () => boolean;
       recordAgentReplayStep: (step: unknown) => void;
-      // Cookie management methods
-      cookies: (urls?: string | string[]) => Promise<Stagehand.Cookie[]>;
-      addCookies: (cookies: Stagehand.CookieParam[]) => Promise<void>;
-      clearCookies: (options?: Stagehand.ClearCookieOptions) => Promise<void>;
     };
 
     type StagehandInstance = InstanceType<typeof Stagehand.Stagehand>;
@@ -74,36 +70,6 @@ describe("V3 Core public API types", () => {
         instruction: "test",
         page: mockPage,
       } satisfies Stagehand.AgentExecuteOptions);
-    });
-
-    it("cookies accepts optional urls parameter", () => {
-      expectTypeOf<StagehandInstance["cookies"]>().toBeCallableWith();
-      expectTypeOf<StagehandInstance["cookies"]>().toBeCallableWith(
-        "https://example.com",
-      );
-      expectTypeOf<StagehandInstance["cookies"]>().toBeCallableWith([
-        "https://example.com",
-        "https://other.com",
-      ]);
-    });
-
-    it("addCookies accepts array of CookieParam", () => {
-      const mockCookies: Stagehand.CookieParam[] = [
-        { name: "session", value: "abc", url: "https://example.com" },
-      ];
-      expectTypeOf<StagehandInstance["addCookies"]>().toBeCallableWith(
-        mockCookies,
-      );
-    });
-
-    it("clearCookies accepts optional filter options", () => {
-      expectTypeOf<StagehandInstance["clearCookies"]>().toBeCallableWith();
-      expectTypeOf<StagehandInstance["clearCookies"]>().toBeCallableWith({
-        name: "session",
-      });
-      expectTypeOf<StagehandInstance["clearCookies"]>().toBeCallableWith({
-        domain: /\.example\.com/,
-      });
     });
   });
 

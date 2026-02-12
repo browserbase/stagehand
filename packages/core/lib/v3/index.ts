@@ -62,5 +62,4 @@ export type {
   Cookie,
   CookieParam,
   ClearCookieOptions,
-  StorageState,
 } from "./understudy/cookies";

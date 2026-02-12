@@ -42,11 +42,6 @@ export interface ClearCookieOptions {
   path?: string | RegExp;
 }
 
-/** Serialisable snapshot of the browser's cookie store. */
-export interface StorageState {
-  cookies: Cookie[];
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

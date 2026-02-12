@@ -16,7 +16,6 @@ import {
   Cookie,
   CookieParam,
   ClearCookieOptions,
-  StorageState,
   filterCookies,
   normalizeCookieParams,
   cookieMatchesFilter,
@@ -930,37 +929,6 @@ export class V3Context {
         domain: c.domain,
         path: c.path,
       });
-    }
-  }
-
-  /**
-   * Snapshot the browser's cookie store for later restoration.
-   */
-  async storageState(): Promise<StorageState> {
-    return { cookies: await this.cookies() };
-  }
-
-  /**
-   * Restore a previously saved cookie snapshot.
-   * Clears all existing cookies first then applies the snapshot.
-   *
-   * Improvement over Playwright: expired cookies in the snapshot are
-   * automatically skipped instead of being blindly re added (where the
-   * browser would reject them anyway).
-   */
-  async setStorageState(state: StorageState): Promise<void> {
-    await this.clearCookies();
-    if (!state.cookies?.length) return;
-
-    const nowSeconds = Date.now() / 1000;
-    const valid = state.cookies.filter((c) => {
-      // Session cookies (expires === -1) are always valid.
-      // Persistent cookies are only valid if they haven't expired.
-      return c.expires === -1 || c.expires > nowSeconds;
-    });
-
-    if (valid.length) {
-      await this.addCookies(valid);
     }
   }
 }

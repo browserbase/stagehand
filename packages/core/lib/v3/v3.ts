@@ -79,11 +79,6 @@ import {
   AgentStreamResult,
 } from "./types/public/index.js";
 import { V3Context } from "./understudy/context.js";
-import type {
-  Cookie,
-  CookieParam,
-  ClearCookieOptions,
-} from "./understudy/cookies";
 import { Page } from "./understudy/page.js";
 import { resolveModel } from "../modelUtils.js";
 import { StagehandAPIClient } from "./api.js";
@@ -1389,45 +1384,6 @@ export class V3 {
   /** Expose the current CDP-backed context. */
   public get context(): V3Context {
     return this.ctx;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Cookie management
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Get all browser cookies, optionally filtered by URL(s).
-   *
-   * When `urls` is omitted every cookie in the browser context is returned.
-   * When one or more URLs are supplied only cookies whose domain/path/secure
-   * attributes match are included.
-   */
-  async cookies(urls?: string | string[]): Promise<Cookie[]> {
-    if (!this.ctx) throw new StagehandNotInitializedError("cookies()");
-    return this.ctx.cookies(urls);
-  }
-
-  /**
-   * Add one or more cookies to the browser context.
-   *
-   * Each cookie must specify either a `url` (from which domain/path/secure are
-   * derived) or an explicit `domain` + `path` pair.
-   */
-  async addCookies(cookies: CookieParam[]): Promise<void> {
-    if (!this.ctx) throw new StagehandNotInitializedError("addCookies()");
-    return this.ctx.addCookies(cookies);
-  }
-
-  /**
-   * Clear cookies from the browser context.
-   *
-   * - Called with no arguments: clears **all** cookies.
-   * - Called with filter options: only cookies matching every supplied criterion
-   *   are removed.
-   */
-  async clearCookies(options?: ClearCookieOptions): Promise<void> {
-    if (!this.ctx) throw new StagehandNotInitializedError("clearCookies()");
-    return this.ctx.clearCookies(options);
   }
 
   /** Best-effort cleanup of context and launched resources. */

@@ -101,7 +101,6 @@ type ExpectedExportedTypes = {
   Cookie: Stagehand.Cookie;
   CookieParam: Stagehand.CookieParam;
   ClearCookieOptions: Stagehand.ClearCookieOptions;
-  StorageState: Stagehand.StorageState;
 };
 
 describe("Stagehand public API types", () => {
@@ -348,16 +347,6 @@ describe("Stagehand public API types", () => {
 
     it("matches expected type shape", () => {
       expectTypeOf<Stagehand.ClearCookieOptions>().toEqualTypeOf<ExpectedClearCookieOptions>();
-    });
-  });
-
-  describe("StorageState", () => {
-    type ExpectedStorageState = {
-      cookies: Stagehand.Cookie[];
-    };
-
-    it("matches expected type shape", () => {
-      expectTypeOf<Stagehand.StorageState>().toEqualTypeOf<ExpectedStorageState>();
     });
   });
 });
