@@ -363,14 +363,10 @@ export class StagehandAPIClient {
       mode: agentConfig.mode ?? (agentConfig.cua === true ? "cua" : undefined),
       cua: agentConfig.mode === undefined ? agentConfig.cua : undefined,
       model: agentConfig.model
-        ? (this.prepareModelConfig(
-            agentConfig.model as unknown as ModelConfiguration,
-          ) as unknown as Api.ModelConfig)
+        ? this.prepareModelConfig(agentConfig.model)
         : undefined,
       executionModel: agentConfig.executionModel
-        ? (this.prepareModelConfig(
-            agentConfig.executionModel as unknown as ModelConfiguration,
-          ) as unknown as Api.ModelConfig)
+        ? this.prepareModelConfig(agentConfig.executionModel)
         : undefined,
     };
 
