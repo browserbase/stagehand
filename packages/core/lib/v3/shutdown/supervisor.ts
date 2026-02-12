@@ -156,6 +156,7 @@ try {
   process.stdin.resume();
   process.stdin.on("end", onLifelineClosed);
   process.stdin.on("close", onLifelineClosed);
+  process.stdin.on("error", onLifelineClosed);
 } catch {
   // ignore
 }
