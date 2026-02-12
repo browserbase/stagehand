@@ -15,6 +15,7 @@ import type {
 } from "../types/private/shutdown";
 
 const SIGNAL_POLL_MS = 800;
+const PID_POLL_INTERVAL_MS = 500;
 
 let armed = false;
 let config: ShutdownSupervisorConfig | null = null;
@@ -53,12 +54,32 @@ const safeKill = async (pid: number): Promise<void> => {
   }
 };
 
+let pidGone = false;
+let pidPollTimer: NodeJS.Timeout | null = null;
+
+const startPidPolling = (pid: number): void => {
+  if (pidPollTimer) return;
+  pidPollTimer = setInterval(() => {
+    try {
+      process.kill(pid, 0);
+    } catch {
+      pidGone = true;
+      if (pidPollTimer) {
+        clearInterval(pidPollTimer);
+        pidPollTimer = null;
+      }
+    }
+  }, PID_POLL_INTERVAL_MS);
+};
+
 const cleanupLocal = async (
   cfg: Extract<ShutdownSupervisorConfig, { kind: "LOCAL" }>,
 ) => {
   if (cfg.keepAlive) return;
   if (cfg.pid) {
-    await safeKill(cfg.pid);
+    if (!pidGone) {
+      await safeKill(cfg.pid);
+    }
   }
   if (cfg.createdTempProfile && !cfg.preserveUserDataDir && cfg.userDataDir) {
     try {
@@ -108,6 +129,9 @@ const onMessage = (raw: unknown) => {
   if (msg.type === "config") {
     config = msg.config ?? null;
     armed = Boolean(config) && config?.keepAlive === false;
+    if (armed && config?.kind === "LOCAL" && config?.pid) {
+      startPidPolling(config.pid);
+    }
     try {
       process.send?.({ type: "ready" });
     } catch {
