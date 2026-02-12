@@ -121,6 +121,87 @@ test.describe("context.addInitScript", () => {
     expect(observed).toEqual(payload);
   });
 
+  test("applies script to newPage(url) on initial document", async () => {
+    const payload = { marker: "newPageUrl" };
+
+    await ctx.addInitScript((arg) => {
+      function setPayload(): void {
+        const root = document.documentElement;
+        if (!root) return;
+        root.dataset.initPayload = JSON.stringify(arg);
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", setPayload, {
+          once: true,
+        });
+      } else {
+        setPayload();
+      }
+    }, payload);
+
+    const newPage = await ctx.newPage(
+      toDataUrl("<html><body>new page</body></html>"),
+    );
+    await newPage.waitForLoadState("load");
+
+    const observed = await newPage.evaluate(() => {
+      const raw = document.documentElement.dataset.initPayload;
+      return raw ? JSON.parse(raw) : undefined;
+    });
+    expect(observed).toEqual(payload);
+  });
+
+  test("applies script to pages opened via link clicks", async () => {
+    const payload = { marker: "linkClick" };
+
+    await ctx.addInitScript((arg) => {
+      function setPayload(): void {
+        const root = document.documentElement;
+        if (!root) return;
+        root.dataset.initPayload = JSON.stringify(arg);
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", setPayload, {
+          once: true,
+        });
+      } else {
+        setPayload();
+      }
+    }, payload);
+
+    const popupUrl = toDataUrl("<html><body>popup</body></html>");
+    const openerHtml =
+      "<!DOCTYPE html>" +
+      "<html><body>" +
+      '<a id="open" target="_blank" href="' +
+      popupUrl +
+      '">open</a>' +
+      "</body></html>";
+
+    const opener = await ctx.awaitActivePage();
+    await opener.goto(toDataUrl(openerHtml), { waitUntil: "load" });
+    await opener.locator("#open").click();
+
+    const openerId = opener.targetId();
+    const deadline = Date.now() + 2000;
+    let popup = ctx.pages().find((p) => p.targetId() !== openerId);
+    while (!popup && Date.now() < deadline) {
+      await opener.waitForTimeout(25);
+      popup = ctx.pages().find((p) => p.targetId() !== openerId);
+    }
+    if (!popup) {
+      throw new Error("Popup page was not created");
+    }
+
+    await popup.waitForLoadState("load");
+
+    const observed = await popup.evaluate(() => {
+      const raw = document.documentElement.dataset.initPayload;
+      return raw ? JSON.parse(raw) : undefined;
+    });
+    expect(observed).toEqual(payload);
+  });
+
   test("context.addInitScript installs a function callable from page.evaluate", async () => {
     const page = await ctx.awaitActivePage();
 

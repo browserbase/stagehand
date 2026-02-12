@@ -105,6 +105,13 @@
                       "v3/integrations/vercel/configuration"
                     ]
                   },
+                  {
+                    "group": "Convex",
+                    "pages": [
+                      "v3/integrations/convex/introduction",
+                      "v3/integrations/convex/configuration"
+                    ]
+                  },
                   "v3/integrations/playwright",
                   "v3/integrations/puppeteer",
                   "v3/integrations/selenium"
@@ -160,7 +167,8 @@
                   "POST /v1/sessions/{id}/observe",
                   "POST /v1/sessions/{id}/extract",
                   "POST /v1/sessions/{id}/agentExecute",
-                  "POST /v1/sessions/{id}/end"
+                  "POST /v1/sessions/{id}/end",
+                  "GET /v1/sessions/{id}/replay"
                 ]
               }
             ]
@@ -191,7 +199,8 @@
                   "POST /v1/sessions/{id}/observe",
                   "POST /v1/sessions/{id}/extract",
                   "POST /v1/sessions/{id}/agentExecute",
-                  "POST /v1/sessions/{id}/end"
+                  "POST /v1/sessions/{id}/end",
+                  "GET /v1/sessions/{id}/replay"
                 ]
               }
             ]
@@ -222,7 +231,8 @@
                   "POST /v1/sessions/{id}/observe",
                   "POST /v1/sessions/{id}/extract",
                   "POST /v1/sessions/{id}/agentExecute",
-                  "POST /v1/sessions/{id}/end"
+                  "POST /v1/sessions/{id}/end",
+                  "GET /v1/sessions/{id}/replay"
                 ]
               }
             ]
@@ -253,7 +263,8 @@
                   "POST /v1/sessions/{id}/observe",
                   "POST /v1/sessions/{id}/extract",
                   "POST /v1/sessions/{id}/agentExecute",
-                  "POST /v1/sessions/{id}/end"
+                  "POST /v1/sessions/{id}/end",
+                  "GET /v1/sessions/{id}/replay"
                 ]
               }
             ]
@@ -448,6 +459,10 @@
     {
       "source": "/integrations/vercel/:slug*",
       "destination": "/v3/integrations/vercel/:slug*"
+    },
+    {
+      "source": "/integrations/convex/:slug*",
+      "destination": "/v3/integrations/convex/:slug*"
     },
     {
       "source": "/references/:slug*",

@@ -601,8 +601,18 @@ export const AgentConfigSchema = z
       description: "Custom system prompt for the agent",
     }),
     cua: z.boolean().optional().meta({
-      description: "Enable Computer Use Agent mode",
+      description:
+        "Deprecated. Use mode: 'cua' instead. If both are provided, mode takes precedence.",
       example: true,
+    }),
+    mode: z.enum(["dom", "hybrid", "cua"]).optional().meta({
+      description:
+        "Tool mode for the agent (dom, hybrid, cua). If set, overrides cua.",
+      example: "cua",
+    }),
+    executionModel: z.union([ModelConfigSchema, z.string()]).optional().meta({
+      description:
+        "Model configuration object or model name string (e.g., 'openai/gpt-5-nano') for tool execution (observe/act calls within agent tools). If not specified, inherits from the main model configuration.",
     }),
   })
   .meta({ id: "AgentConfig" });

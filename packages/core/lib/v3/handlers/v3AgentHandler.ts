@@ -42,6 +42,28 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Prepends a system message with cache control to the messages array.
+ * The cache control providerOptions are used by Anthropic and ignored by other providers.
+ */
+function prependSystemMessage(
+  systemPrompt: string,
+  messages: ModelMessage[],
+): ModelMessage[] {
+  return [
+    {
+      role: "system",
+      content: systemPrompt,
+      providerOptions: {
+        anthropic: {
+          cacheControl: { type: "ephemeral" },
+        },
+      },
+    },
+    ...messages,
+  ];
+}
+
 export class V3AgentHandler {
   private v3: V3;
   private logger: (message: LogLine) => void;
@@ -112,6 +134,18 @@ export class V3AgentHandler {
           ...SessionFileLogger.createLlmLoggingMiddleware(baseModel.modelId),
         },
       });
+
+      if (
+        this.mode === "hybrid" &&
+        !baseModel.modelId.includes("gemini-3-flash") &&
+        !baseModel.modelId.includes("claude")
+      ) {
+        this.logger({
+          category: "agent",
+          message: `Warning: "${baseModel.modelId}" may not perform well in hybrid mode. See recommended models: https://docs.stagehand.dev/v3/basics/agent#hybrid-mode`,
+          level: 0,
+        });
+      }
 
       return {
         options,
@@ -277,8 +311,7 @@ export class V3AgentHandler {
 
       const result = await this.llmClient.generateText({
         model: wrappedModel,
-        system: systemPrompt,
-        messages,
+        messages: prependSystemMessage(systemPrompt, messages),
         tools: allTools,
         stopWhen: (result) => this.handleStop(result, maxSteps),
         temperature: 1,
@@ -402,8 +435,7 @@ export class V3AgentHandler {
 
     const streamResult = this.llmClient.streamText({
       model: wrappedModel,
-      system: systemPrompt,
-      messages,
+      messages: prependSystemMessage(systemPrompt, messages),
       tools: allTools,
       stopWhen: (result) => this.handleStop(result, maxSteps),
       temperature: 1,

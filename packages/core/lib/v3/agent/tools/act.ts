@@ -37,11 +37,20 @@ export const actTool = (v3: V3, executionModel?: string) =>
           actionDescription: result.actionDescription,
           message: result.message,
         });
-        return {
+        // Only include playwrightArguments when actions exist
+        // (undefined is not valid JSON and breaks AI SDK validation)
+        const response: {
+          success: boolean;
+          action: string;
+          playwrightArguments?: Action;
+        } = {
           success: result.success ?? true,
           action: result?.actionDescription ?? action,
-          playwrightArguments: actions.length > 0 ? actions[0] : undefined,
         };
+        if (actions.length > 0) {
+          response.playwrightArguments = actions[0];
+        }
+        return response;
       } catch (error) {
         return { success: false, error: error?.message ?? String(error) };
       }

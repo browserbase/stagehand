@@ -3,21 +3,24 @@ import { Protocol } from "devtools-protocol";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { locatorScriptSources } from "../dom/build/locatorScripts.generated";
+import {
+  locatorScriptBootstrap,
+  locatorScriptGlobalRefs,
+  locatorScriptSources,
+} from "../dom/build/locatorScripts.generated";
 import type { Frame } from "./frame";
 import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver";
 import {
   StagehandElementNotFoundError,
   StagehandInvalidArgumentError,
+  StagehandLocatorError,
   ElementNotVisibleError,
 } from "../types/public/sdkErrors";
 import { normalizeInputFiles } from "./fileUploadUtils";
-import { SetInputFilesArgument } from "../types/public/locator";
+import { SetInputFilesArgument, MouseButton } from "../types/public/locator";
 import { NormalizedFilePayload } from "../types/private/locator";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
-
-type MouseButton = "left" | "right" | "middle";
 
 /**
  * Locator
@@ -43,20 +46,19 @@ export class Locator {
 
   private readonly selectorQuery: SelectorQuery;
 
+  // -1 means "no explicit nth()"; default locator resolves to first match for actions.
   private readonly nthIndex: number;
 
   constructor(
     private readonly frame: Frame,
     private readonly selector: string,
     private readonly options?: { deep?: boolean; depth?: number },
-    nthIndex: number = 0,
+    nthIndex: number = -1,
   ) {
     this.selectorResolver = new FrameSelectorResolver(this.frame);
     this.selectorQuery = FrameSelectorResolver.parseSelector(selector);
-    this.nthIndex = Math.max(
-      0,
-      Math.floor(Number.isFinite(nthIndex) ? nthIndex : 0),
-    );
+    const normalized = Number.isFinite(nthIndex) ? Math.floor(nthIndex) : -1;
+    this.nthIndex = normalized < 0 ? -1 : normalized;
   }
 
   /** Return the owning Frame for this locator (typed accessor, no private access). */
@@ -519,6 +521,8 @@ export class Locator {
    */
   async fill(value: string): Promise<void> {
     const session = this.frame.session;
+    // Use the bundled locator globals; the raw fill snippet depends on helper symbols.
+    const fillDeclaration = `function(value) { ${locatorScriptBootstrap}; return ${locatorScriptGlobalRefs.fillElementValue}.call(this, value); }`;
     const { objectId } = await this.resolveNode();
 
     let releaseNeeded = true;
@@ -528,11 +532,19 @@ export class Locator {
         "Runtime.callFunctionOn",
         {
           objectId,
-          functionDeclaration: locatorScriptSources.fillElementValue,
+          functionDeclaration: fillDeclaration,
           arguments: [{ value }],
           returnByValue: true,
         },
       );
+      if (res.exceptionDetails) {
+        // prefer exception.description over text (eg "Uncaught")
+        const message =
+          res.exceptionDetails.exception?.description ??
+          res.exceptionDetails.text ??
+          "Unknown exception during locator().fill()";
+        throw new StagehandLocatorError("Filling", this.selector, message);
+      }
 
       const result = res.result.value as
         | { status?: string; reason?: string; value?: string }
@@ -830,10 +842,10 @@ export class Locator {
   }
 
   /**
-   * For API parity, returns the same locator (querySelector already returns the first match).
+   * Return a locator narrowed to the first match.
    */
   first(): Locator {
-    return this;
+    return this.nth(0);
   }
 
   /** Return a locator narrowed to the element at the given zero-based index. */
@@ -868,14 +880,48 @@ export class Locator {
     await session.send("Runtime.enable");
     await session.send("DOM.enable");
 
+    const index = this.nthIndex < 0 ? 0 : this.nthIndex;
     const resolved = await this.selectorResolver.resolveAtIndex(
       this.selectorQuery,
-      this.nthIndex,
+      index,
     );
     if (!resolved) {
       throw new StagehandElementNotFoundError([this.selector]);
     }
 
+    return resolved;
+  }
+
+  /**
+   * Resolve all matching nodes for this locator.
+   * If the locator is narrowed via nth(), only that index is returned.
+   */
+  public async resolveNodesForMask(): Promise<
+    Array<{
+      nodeId: Protocol.DOM.NodeId | null;
+      objectId: Protocol.Runtime.RemoteObjectId;
+    }>
+  > {
+    const session = this.frame.session;
+
+    await session.send("Runtime.enable");
+    await session.send("DOM.enable");
+
+    if (this.nthIndex >= 0) {
+      const resolved = await this.selectorResolver.resolveAtIndex(
+        this.selectorQuery,
+        this.nthIndex,
+      );
+      if (!resolved) {
+        throw new StagehandElementNotFoundError([this.selector]);
+      }
+      return [resolved];
+    }
+
+    const resolved = await this.selectorResolver.resolveAll(this.selectorQuery);
+    if (!resolved.length) {
+      throw new StagehandElementNotFoundError([this.selector]);
+    }
     return resolved;
   }
 

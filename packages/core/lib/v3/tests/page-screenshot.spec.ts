@@ -95,12 +95,13 @@ test.describe("Page.screenshot options", () => {
           <meta charset="utf-8" />
           <style>
             body { background: #aaccee; margin: 0; height: 100vh; display: flex; flex-direction: column; align-items: flex-start; }
-            #mask-target { width: 80px; height: 80px; margin: 40px; background: rgb(0, 180, 60); animation: pulse 1s infinite alternate; }
+            .mask-target { width: 80px; height: 80px; margin: 40px; background: rgb(0, 180, 60); animation: pulse 1s infinite alternate; }
             @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.2); } }
           </style>
         </head>
         <body>
-          <div id="mask-target"></div>
+          <div class="mask-target"></div>
+          <div class="mask-target"></div>
           <input id="focus-me" value="focus" />
           <script>document.getElementById('focus-me').focus();</script>
         </body>
@@ -110,7 +111,7 @@ test.describe("Page.screenshot options", () => {
     await page.goto("data:text/html," + encodeURIComponent(html));
     console.log(`[screenshot-test] page loaded in ${Date.now() - testStart}ms`);
 
-    const maskLocator = page.locator("#mask-target");
+    const maskLocator = page.locator(".mask-target");
     const tempPath = path.join(
       os.tmpdir(),
       `stagehand-screenshot-${Date.now()}-${Math.random().toString(36).slice(2)}.jpeg`,
@@ -258,21 +259,88 @@ test.describe("Page.screenshot options", () => {
         cssArgs.some((css) => css.includes("border: 3px solid black")),
       ).toBeTruthy();
 
-      expect(
-        evaluateCalls.some((entry) => {
-          const arg = entry.arg;
-          return (
-            arg &&
-            typeof arg === "object" &&
-            "rects" in (arg as Record<string, unknown>)
-          );
-        }),
-      ).toBeTruthy();
+      const maskCalls = evaluateCalls.filter((entry) => {
+        const arg = entry.arg;
+        return (
+          arg &&
+          typeof arg === "object" &&
+          "rects" in (arg as Record<string, unknown>)
+        );
+      });
+      expect(maskCalls.length).toBeGreaterThan(0);
+      const rects = (maskCalls[0]?.arg as { rects?: unknown } | undefined)
+        ?.rects;
+      expect(Array.isArray(rects)).toBeTruthy();
+      expect((rects as unknown[]).length).toBe(2);
     } finally {
       Frame.prototype.screenshot = originalScreenshot;
       Frame.prototype.evaluate = originalEvaluate;
       internalPage.mainSession.send = originalSend;
       await fs.unlink(tempPath).catch(() => {});
+    }
+  });
+
+  test("masks elements inside dialog top layer", async () => {
+    const page = v3.context.pages()[0];
+
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <style>
+            dialog { padding: 16px; border: 2px solid #444; }
+            #dialog-input { display: block; width: 160px; height: 32px; }
+          </style>
+        </head>
+        <body>
+          <dialog id="dialog">
+            <label>Secret <input id="dialog-input" value="top-layer" /></label>
+          </dialog>
+          <script>
+            const dialog = document.getElementById("dialog");
+            if (dialog) {
+              if (typeof dialog.showModal === "function") {
+                try {
+                  dialog.showModal();
+                } catch {
+                  dialog.setAttribute("open", "");
+                }
+              } else {
+                dialog.setAttribute("open", "");
+              }
+            }
+          </script>
+        </body>
+      </html>
+    `;
+
+    await page.goto("data:text/html," + encodeURIComponent(html));
+
+    const targetId = page.targetId();
+    const originalScreenshot = Frame.prototype.screenshot;
+    let dialogMaskCount = 0;
+
+    Frame.prototype.screenshot = async function screenshotSpy(options) {
+      const frame = this as Frame;
+      if (frame.pageId === targetId) {
+        dialogMaskCount = await frame.evaluate(() => {
+          const dialog = document.querySelector("dialog[open]");
+          if (!dialog) return 0;
+          return dialog.querySelectorAll("[data-stagehand-mask]").length;
+        });
+        return Buffer.from("stub-image");
+      }
+      return originalScreenshot.call(this, options);
+    };
+
+    try {
+      await page.screenshot({
+        mask: [page.locator("#dialog-input")],
+      });
+      expect(dialogMaskCount).toBeGreaterThan(0);
+    } finally {
+      Frame.prototype.screenshot = originalScreenshot;
     }
   });
 });

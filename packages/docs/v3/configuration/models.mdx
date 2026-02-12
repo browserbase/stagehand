@@ -8,7 +8,7 @@ import { V3Banner } from '/snippets/v3-banner.mdx';
 <V3Banner />
 
 
-Understand web pages, plan actions, and interact with complex interfaces with Google, OpenAI, Anthropic, xAI, DeepSeek, Perplexity, Azure, Ollama, or any other LLM model from [the Vercel AI SDK](https://sdk.vercel.ai/providers).
+Understand web pages, plan actions, and interact with complex interfaces with Google, OpenAI, Anthropic, xAI, DeepSeek, Perplexity, Azure, Ollama, the [Vercel AI Gateway](https://vercel.com/docs/ai-gateway), or any other LLM model from [the Vercel AI SDK](https://sdk.vercel.ai/providers).
 
 ---
 
@@ -629,6 +629,74 @@ const stagehand = new Stagehand({
 
 ---
 
+### AI Gateway
+
+The [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) lets you access models from multiple providers (OpenAI, Anthropic, Google, and more) through a single API key and interface. No extra provider SDKs or per-provider API keys needed.
+
+<Tip>
+  The AI Gateway is built into the `ai` package that Stagehand already uses -- no additional dependencies required.
+</Tip>
+
+**Key benefits:**
+- Access models from all major providers with a single `AI_GATEWAY_API_KEY`
+- Automatic provider fallback and dynamic routing based on uptime and latency
+- Usage tracking and observability through the Vercel dashboard
+- Bring Your Own Key (BYOK) support for existing provider credentials
+
+<Tabs>
+<Tab title="Simple">
+
+Use the `gateway/` prefix followed by the provider and model name:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "gateway/openai/gpt-5"
+  // API key auto-loads from AI_GATEWAY_API_KEY - set in your .env
+});
+
+await stagehand.init();
+```
+
+Works with any model available on the gateway:
+
+```typescript
+// Anthropic via gateway
+model: "gateway/anthropic/claude-sonnet-4.5"
+
+// Google via gateway
+model: "gateway/google/gemini-3-flash-preview"
+```
+
+</Tab>
+<Tab title="Custom Config">
+
+Pass the API key and optional base URL explicitly using the model object format:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: {
+    modelName: "gateway/openai/gpt-5",
+    apiKey: process.env.AI_GATEWAY_API_KEY,
+    baseURL: "https://ai-gateway.vercel.sh/v3/ai" // optional custom endpoint
+  }
+});
+
+await stagehand.init();
+```
+
+</Tab>
+</Tabs>
+
+[View all available AI Gateway models →](https://vercel.com/docs/ai-gateway/models-and-providers)
+
+---
+
 ### Extending the AI SDK Client
 
 For advanced use cases like custom retries or caching logic, you can extend the `AISdkClient`:
@@ -750,6 +818,7 @@ The following models work without the `provider/` prefix in the model parameter 
 | Perplexity | `PERPLEXITY_API_KEY`           |
 | TogetherAI | `TOGETHER_AI_API_KEY`          |
 | xAI        | `XAI_API_KEY`                  |
+| AI Gateway | `AI_GATEWAY_API_KEY`           |
 
 </Accordion>
 

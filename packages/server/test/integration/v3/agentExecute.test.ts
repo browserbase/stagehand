@@ -585,6 +585,206 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - CUA flag compatibility", () 
     assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
     assertFetchOk(!ctx.body.success, "Response should indicate failure", ctx);
   });
+
+  it("should prefer mode over cua when both are provided", async () => {
+    const url = getBaseUrl();
+    const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
+
+    const ctx = await fetchWithContext<{
+      success: boolean;
+      data?: { result: unknown; actionId?: string };
+    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        agentConfig: {
+          cua: true,
+          mode: "dom",
+          model: {
+            modelName: "openai/gpt-4.1-nano",
+            apiKey: openaiApiKey,
+          },
+        },
+        executeOptions: {
+          instruction: "What is the title of this page?",
+        },
+      }),
+    });
+
+    assertFetchStatus(
+      ctx,
+      HTTP_OK,
+      "V3 agent execute with mode: dom and cua: true should succeed",
+    );
+    assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
+    assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+    assertFetchOk(
+      ctx.body.data !== undefined,
+      "Response should have data",
+      ctx,
+    );
+    assertFetchOk(
+      ctx.body.data.result !== undefined,
+      "Response should have result",
+      ctx,
+    );
+  });
+});
+
+// =============================================================================
+// V3 executionModel Tests - Testing agentConfig.executionModel serialization
+// =============================================================================
+
+describe("POST /v1/sessions/:id/agentExecute (V3) - executionModel serialization", () => {
+  let sessionId: string;
+  const headers = getHeaders("3.0.0");
+
+  before(async () => {
+    sessionId = await createSession(headers);
+  });
+
+  beforeEach(async () => {
+    // Navigate to example.com before each test (including first)
+    const navResponse = await navigateSession(
+      sessionId,
+      "https://example.com",
+      headers,
+    );
+    assert.equal(navResponse.status, HTTP_OK, "Navigate should succeed");
+  });
+
+  after(async () => {
+    if (sessionId) {
+      await endSession(sessionId, headers);
+      sessionId = "";
+    }
+  });
+
+  it("should execute agent with string executionModel", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<{
+      success: boolean;
+      data?: { result: unknown; actionId?: string };
+    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        agentConfig: {
+          executionModel: "gpt-4.1-nano",
+        },
+        executeOptions: {
+          instruction: "What is the title of this page?",
+        },
+      }),
+    });
+
+    assertFetchStatus(
+      ctx,
+      HTTP_OK,
+      "V3 agent execute with string executionModel should succeed",
+    );
+    assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
+    assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+    assertFetchOk(
+      ctx.body.data !== undefined,
+      "Response should have data",
+      ctx,
+    );
+    assertFetchOk(
+      ctx.body.data.result !== undefined,
+      "Response should have result",
+      ctx,
+    );
+  });
+
+  it("should execute agent with object executionModel (modelName and apiKey)", async () => {
+    const url = getBaseUrl();
+    const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
+
+    const ctx = await fetchWithContext<{
+      success: boolean;
+      data?: { result: unknown; actionId?: string };
+    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        agentConfig: {
+          executionModel: {
+            modelName: "openai/gpt-4.1-nano",
+            apiKey: openaiApiKey,
+          },
+        },
+        executeOptions: {
+          instruction: "Describe the main content of this page",
+        },
+      }),
+    });
+
+    assertFetchStatus(
+      ctx,
+      HTTP_OK,
+      "V3 agent execute with object executionModel should succeed",
+    );
+    assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
+    assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+    assertFetchOk(
+      ctx.body.data !== undefined,
+      "Response should have data",
+      ctx,
+    );
+    assertFetchOk(
+      ctx.body.data.result !== undefined,
+      "Response should have result",
+      ctx,
+    );
+  });
+
+  it("should execute agent with both model and executionModel", async () => {
+    const url = getBaseUrl();
+    const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
+
+    const ctx = await fetchWithContext<{
+      success: boolean;
+      data?: { result: unknown; actionId?: string };
+    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        agentConfig: {
+          model: {
+            modelName: "openai/gpt-4.1-nano",
+            apiKey: openaiApiKey,
+          },
+          executionModel: {
+            modelName: "openai/gpt-4.1-nano",
+            apiKey: openaiApiKey,
+          },
+        },
+        executeOptions: {
+          instruction: "What is the title of this page?",
+        },
+      }),
+    });
+
+    assertFetchStatus(
+      ctx,
+      HTTP_OK,
+      "V3 agent execute with both model and executionModel should succeed",
+    );
+    assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
+    assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+    assertFetchOk(
+      ctx.body.data !== undefined,
+      "Response should have data",
+      ctx,
+    );
+    assertFetchOk(
+      ctx.body.data.result !== undefined,
+      "Response should have result",
+      ctx,
+    );
+  });
 });
 
 // =============================================================================
@@ -978,6 +1178,34 @@ describe("POST /v1/sessions/:id/agentExecute - validation errors (V3)", () => {
         },
         executeOptions: {
           maxSteps: 5,
+        },
+      }),
+    });
+
+    assertFetchStatus(ctx, HTTP_BAD_REQUEST);
+    assertFetchOk(
+      !ctx.body?.success || ctx.body.error !== undefined,
+      "Response should indicate failure",
+      ctx,
+    );
+  });
+
+  it("should return 400 for invalid agentConfig.mode", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<{
+      success?: boolean;
+      error?: string;
+      message?: string;
+    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        agentConfig: {
+          mode: "invalid-mode",
+        },
+        executeOptions: {
+          instruction: "Do something",
         },
       }),
     });

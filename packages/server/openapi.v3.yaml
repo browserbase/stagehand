@@ -1,7 +1,7 @@
-openapi: 3.1.0
+openapi: "3.1.0"
 info:
   title: Stagehand API
-  version: 3.1.0
+  version: "3.1.0"
   description: >-
     Stagehand SDK for AI browser automation [ALPHA]. This API allows clients to
 
@@ -664,9 +664,27 @@ components:
           description: Custom system prompt for the agent
           type: string
         cua:
-          description: Enable Computer Use Agent mode
+          description:
+            "Deprecated. Use mode: 'cua' instead. If both are provided, mode
+            takes precedence."
           example: true
           type: boolean
+        mode:
+          description: Tool mode for the agent (dom, hybrid, cua). If set, overrides cua.
+          example: cua
+          type: string
+          enum:
+            - dom
+            - hybrid
+            - cua
+        executionModel:
+          description: Model configuration object or model name string (e.g.,
+            'openai/gpt-5-nano') for tool execution (observe/act calls within
+            agent tools). If not specified, inherits from the main model
+            configuration.
+          anyOf:
+            - $ref: "#/components/schemas/ModelConfig"
+            - type: string
     AgentAction:
       type: object
       properties:
@@ -1519,9 +1537,27 @@ components:
           description: Custom system prompt for the agent
           type: string
         cua:
-          description: Enable Computer Use Agent mode
+          description:
+            "Deprecated. Use mode: 'cua' instead. If both are provided, mode
+            takes precedence."
           example: true
           type: boolean
+        mode:
+          description: Tool mode for the agent (dom, hybrid, cua). If set, overrides cua.
+          example: cua
+          type: string
+          enum:
+            - dom
+            - hybrid
+            - cua
+        executionModel:
+          description: Model configuration object or model name string (e.g.,
+            'openai/gpt-5-nano') for tool execution (observe/act calls within
+            agent tools). If not specified, inherits from the main model
+            configuration.
+          anyOf:
+            - $ref: "#/components/schemas/ModelConfigOutput"
+            - type: string
       additionalProperties: false
     AgentUsageOutput:
       type: object

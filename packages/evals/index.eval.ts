@@ -371,10 +371,11 @@ const generateFilteredTestcases = (): Testcase[] => {
           } else {
             let llmClient: LLMClient;
             if (input.modelName.includes("/")) {
+              const firstSlashIndex = input.modelName.indexOf("/");
               llmClient = new AISdkClientWrapped({
                 model: getAISDKLanguageModel(
-                  input.modelName.split("/")[0],
-                  input.modelName.split("/")[1],
+                  input.modelName.substring(0, firstSlashIndex),
+                  input.modelName.substring(firstSlashIndex + 1),
                 ),
               });
             }

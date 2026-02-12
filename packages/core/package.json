@@ -7,7 +7,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "gen-version": "tsx scripts/gen-version.ts",
-    "build-dom-scripts": "tsx lib/v3/dom/genDomScripts.ts && tsx lib/v3/dom/genLocatorScripts.ts && tsx lib/v3/dom/genA11yScripts.ts",
+    "build-dom-scripts": "tsx lib/v3/dom/genDomScripts.ts && tsx lib/v3/dom/genLocatorScripts.ts && tsx lib/v3/dom/genScreenshotScripts.ts && tsx lib/v3/dom/genA11yScripts.ts",
     "build-js": "tsup --entry.index lib/v3/index.ts --dts",
     "typecheck": "tsc --noEmit",
     "build": "pnpm run gen-version && pnpm run build-dom-scripts && pnpm run build-js && pnpm run typecheck",
@@ -59,6 +59,7 @@
     "zod-to-json-schema": "^3.25.0"
   },
   "optionalDependencies": {
+    "@ai-sdk/amazon-bedrock": "^3.0.73",
     "@ai-sdk/anthropic": "^2.0.34",
     "@ai-sdk/azure": "^2.0.54",
     "@ai-sdk/cerebras": "^1.0.25",
