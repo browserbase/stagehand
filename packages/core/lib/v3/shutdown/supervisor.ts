@@ -19,6 +19,7 @@ const PID_POLL_INTERVAL_MS = 500;
 
 let armed = false;
 let config: ShutdownSupervisorConfig | null = null;
+let cleanupStarted = false;
 
 const exit = (code = 0): void => {
   try {
@@ -107,6 +108,8 @@ const cleanupBrowserbase = async (
 };
 
 const runCleanup = async (): Promise<void> => {
+  if (cleanupStarted) return;
+  cleanupStarted = true;
   const cfg = config;
   if (!cfg || !armed) return;
   armed = false;
