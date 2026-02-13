@@ -1,8 +1,3 @@
-import {
-  elementMatchesStep,
-  parseXPathSteps,
-} from "./locatorScripts/xpathParser";
-
 export interface V3ShadowPatchOptions {
   debug?: boolean;
   tagExisting?: boolean;
@@ -19,8 +14,6 @@ export interface StagehandV3Backdoor {
     open: number;
     closed: number;
   };
-  /** Composed-tree XPath resolver (does not cross iframes) */
-  resolveSimpleXPath(xp: string): Element | null;
 }
 
 type V3InternalState = {
@@ -49,109 +42,6 @@ export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
   const bindBackdoor = (state: V3InternalState): void => {
     const { hostToRoot } = state;
 
-    const composedChildren = (node: Node): ReadonlyArray<Element> => {
-      const out: Element[] = [];
-      if (node instanceof Document) {
-        if (node.documentElement) out.push(node.documentElement);
-        return out;
-      }
-      if (node instanceof ShadowRoot || node instanceof DocumentFragment) {
-        out.push(...Array.from(node.children));
-        return out;
-      }
-      if (node instanceof Element) {
-        out.push(...Array.from(node.children)); // light DOM
-        const open = (node as Element).shadowRoot;
-        if (open) out.push(...Array.from(open.children));
-        const closed = hostToRoot.get(node as Element);
-        if (closed) out.push(...Array.from(closed.children));
-        return out;
-      }
-      return out;
-    };
-
-    const composedDescendants = (node: Node): Element[] => {
-      const out: Element[] = [];
-      const q: Element[] = [...composedChildren(node)];
-      while (q.length) {
-        const el = q.shift()!;
-        out.push(el);
-        q.push(...composedChildren(el));
-      }
-      return out;
-    };
-
-    // Simple composed-tree resolver (no iframe hops)
-    const resolveSimpleXPath = (xp: string): Element | null => {
-      const steps = parseXPathSteps(xp);
-      if (!steps.length) return null;
-
-      if (state.debug) {
-        console.info("[v3-piercer][resolve] start", {
-          url: location.href,
-          steps: steps.map((s) => ({
-            axis: s.axis,
-            tag: s.tag,
-            index: s.index,
-          })),
-        });
-      }
-
-      let current: Node[] = [document];
-
-      for (const step of steps) {
-        let chosen: Element | null = null;
-
-        for (const root of current) {
-          const pool =
-            step.axis === "child"
-              ? composedChildren(root)
-              : composedDescendants(root);
-          const matches = pool.filter((el) => elementMatchesStep(el, step));
-
-          if (state.debug) {
-            console.info("[v3-piercer][resolve] step", {
-              axis: step.axis,
-              tag: step.tag,
-              index: step.index,
-              poolCount: pool.length,
-              matchesCount: matches.length,
-            });
-          }
-
-          if (!matches.length) continue;
-
-          if (step.index != null) {
-            const idx0 = step.index - 1;
-            chosen = idx0 >= 0 && idx0 < matches.length ? matches[idx0] : null;
-          } else {
-            chosen = matches[0];
-          }
-
-          if (chosen) break;
-        }
-
-        if (!chosen) {
-          if (state.debug) {
-            console.info("[v3-piercer][resolve] no-match", {
-              tag: step.tag,
-            });
-          }
-          return null;
-        }
-        current = [chosen];
-      }
-
-      const result = current.length ? (current[0] as Element) : null;
-      if (state.debug) {
-        console.info("[v3-piercer][resolve] done", {
-          found: !!result,
-          tag: result?.localName ?? "",
-        });
-      }
-      return result;
-    };
-
     window.__stagehandV3__ = {
       getClosedRoot: (host: Element) => hostToRoot.get(host),
       stats: () => ({
@@ -161,7 +51,6 @@ export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
         open: state.openCount,
         closed: state.closedCount,
       }),
-      resolveSimpleXPath,
     } satisfies StagehandV3Backdoor;
   };
 

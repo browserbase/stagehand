@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  parseXPathSteps,
+  applyPredicates,
   elementMatchesStep,
+  parseXPathSteps,
+  type XPathPredicate,
   type XPathStep,
 } from "../lib/v3/dom/locatorScripts/xpathParser";
 
@@ -9,9 +11,9 @@ describe("parseXPathSteps", () => {
   describe("basic tag parsing", () => {
     it("parses a simple absolute path", () => {
       expect(parseXPathSteps("/html/body/div")).toEqual([
-        { axis: "child", tag: "html", index: null, attrs: [] },
-        { axis: "child", tag: "body", index: null, attrs: [] },
-        { axis: "child", tag: "div", index: null, attrs: [] },
+        { axis: "child", tag: "html", predicates: [] },
+        { axis: "child", tag: "body", predicates: [] },
+        { axis: "child", tag: "div", predicates: [] },
       ]);
     });
 
@@ -23,9 +25,7 @@ describe("parseXPathSteps", () => {
 
     it("treats wildcard correctly", () => {
       const steps = parseXPathSteps("//*");
-      expect(steps).toEqual([
-        { axis: "desc", tag: "*", index: null, attrs: [] },
-      ]);
+      expect(steps).toEqual([{ axis: "desc", tag: "*", predicates: [] }]);
     });
   });
 
@@ -33,9 +33,9 @@ describe("parseXPathSteps", () => {
     it("distinguishes child (/) from descendant (//)", () => {
       const steps = parseXPathSteps("/html//div/span");
       expect(steps).toEqual([
-        { axis: "child", tag: "html", index: null, attrs: [] },
-        { axis: "desc", tag: "div", index: null, attrs: [] },
-        { axis: "child", tag: "span", index: null, attrs: [] },
+        { axis: "child", tag: "html", predicates: [] },
+        { axis: "desc", tag: "div", predicates: [] },
+        { axis: "child", tag: "span", predicates: [] },
       ]);
     });
 
@@ -48,13 +48,30 @@ describe("parseXPathSteps", () => {
   describe("positional indices", () => {
     it("parses positional index", () => {
       const steps = parseXPathSteps("/div[1]/span[3]");
-      expect(steps[0]).toMatchObject({ tag: "div", index: 1 });
-      expect(steps[1]).toMatchObject({ tag: "span", index: 3 });
+      expect(steps[0]).toMatchObject({
+        tag: "div",
+        predicates: [{ type: "index", index: 1 }],
+      });
+      expect(steps[1]).toMatchObject({
+        tag: "span",
+        predicates: [{ type: "index", index: 3 }],
+      });
     });
 
     it("clamps index to minimum 1", () => {
       const steps = parseXPathSteps("/div[0]");
-      expect(steps[0].index).toBe(1);
+      expect(steps[0].predicates[0]).toMatchObject({
+        type: "index",
+        index: 1,
+      });
+    });
+
+    it("keeps multiple positional predicates in order", () => {
+      const steps = parseXPathSteps("//div[2][3]");
+      expect(steps[0].predicates).toEqual([
+        { type: "index", index: 2 },
+        { type: "index", index: 3 },
+      ]);
     });
   });
 
@@ -65,22 +82,23 @@ describe("parseXPathSteps", () => {
         {
           axis: "desc",
           tag: "img",
-          index: null,
-          attrs: [{ name: "alt", value: "Stagehand" }],
+          predicates: [{ type: "attrEquals", name: "alt", value: "Stagehand" }],
         },
       ]);
     });
 
     it("parses single attribute predicate with double quotes", () => {
       const steps = parseXPathSteps('//img[@alt="Stagehand"]');
-      expect(steps[0].attrs).toEqual([{ name: "alt", value: "Stagehand" }]);
+      expect(steps[0].predicates).toEqual([
+        { type: "attrEquals", name: "alt", value: "Stagehand" },
+      ]);
     });
 
     it("parses multiple attribute predicates", () => {
       const steps = parseXPathSteps("//div[@class='foo'][@id='bar']");
-      expect(steps[0].attrs).toEqual([
-        { name: "class", value: "foo" },
-        { name: "id", value: "bar" },
+      expect(steps[0].predicates).toEqual([
+        { type: "attrEquals", name: "class", value: "foo" },
+        { type: "attrEquals", name: "id", value: "bar" },
       ]);
     });
 
@@ -88,31 +106,39 @@ describe("parseXPathSteps", () => {
       const steps = parseXPathSteps("//div[@class='item'][2]");
       expect(steps[0]).toMatchObject({
         tag: "div",
-        index: 2,
-        attrs: [{ name: "class", value: "item" }],
+        predicates: [
+          { type: "attrEquals", name: "class", value: "item" },
+          { type: "index", index: 2 },
+        ],
       });
     });
 
     it("parses attribute with hyphenated name", () => {
       const steps = parseXPathSteps("//div[@data-testid='submit']");
-      expect(steps[0].attrs).toEqual([
-        { name: "data-testid", value: "submit" },
+      expect(steps[0].predicates).toEqual([
+        { type: "attrEquals", name: "data-testid", value: "submit" },
       ]);
     });
 
     it("parses attribute with empty value", () => {
       const steps = parseXPathSteps("//input[@value='']");
-      expect(steps[0].attrs).toEqual([{ name: "value", value: "" }]);
+      expect(steps[0].predicates).toEqual([
+        { type: "attrEquals", name: "value", value: "" },
+      ]);
     });
 
     it("parses attribute value containing closing bracket", () => {
       const steps = parseXPathSteps("//div[@title='array[0]']");
-      expect(steps[0].attrs).toEqual([{ name: "title", value: "array[0]" }]);
+      expect(steps[0].predicates).toEqual([
+        { type: "attrEquals", name: "title", value: "array[0]" },
+      ]);
     });
 
     it("parses attribute value containing multiple brackets", () => {
       const steps = parseXPathSteps("//div[@data-json='[1,2,3]']");
-      expect(steps[0].attrs).toEqual([{ name: "data-json", value: "[1,2,3]" }]);
+      expect(steps[0].predicates).toEqual([
+        { type: "attrEquals", name: "data-json", value: "[1,2,3]" },
+      ]);
     });
 
     it("parses attribute value containing a closing bracket", () => {
@@ -122,10 +148,90 @@ describe("parseXPathSteps", () => {
         {
           axis: "desc",
           tag: "div",
-          index: null,
-          attrs: [{ name: "title", value: "a]b" }],
+          predicates: [{ type: "attrEquals", name: "title", value: "a]b" }],
         },
-        { axis: "child", tag: "span", index: null, attrs: [] },
+        { axis: "child", tag: "span", predicates: [] },
+      ]);
+    });
+
+    it("parses attribute existence predicates", () => {
+      const steps = parseXPathSteps("//iframe[@data-test]");
+      expect(steps[0].predicates).toEqual([
+        { type: "attrExists", name: "data-test" },
+      ]);
+    });
+
+    it("parses attribute contains predicates", () => {
+      const steps = parseXPathSteps("//iframe[contains(@src,'checkout')]");
+      expect(steps[0].predicates).toEqual([
+        { type: "attrContains", name: "src", value: "checkout" },
+      ]);
+    });
+
+    it("parses attribute starts-with predicates", () => {
+      const steps = parseXPathSteps("//button[starts-with(@id,'save-')]");
+      expect(steps[0].predicates).toEqual([
+        { type: "attrStartsWith", name: "id", value: "save-" },
+      ]);
+    });
+  });
+
+  describe("text predicates", () => {
+    it("parses text equality", () => {
+      const steps = parseXPathSteps("//button[text()='Submit']");
+      expect(steps[0].predicates).toEqual([
+        { type: "textEquals", value: "Submit" },
+      ]);
+    });
+
+    it("parses text contains", () => {
+      const steps = parseXPathSteps("//div[contains(text(),'Welcome')]");
+      expect(steps[0].predicates).toEqual([
+        { type: "textContains", value: "Welcome" },
+      ]);
+    });
+
+    it("parses normalize-space on text", () => {
+      const steps = parseXPathSteps(
+        "//div[normalize-space(text())='Hello world']",
+      );
+      expect(steps[0].predicates).toEqual([
+        { type: "textEquals", value: "Hello world", normalize: true },
+      ]);
+    });
+  });
+
+  describe("boolean predicates", () => {
+    it("parses and predicates", () => {
+      const steps = parseXPathSteps("//div[@a='x' and @b='y']");
+      expect(steps[0].predicates).toEqual([
+        {
+          type: "and",
+          predicates: [
+            { type: "attrEquals", name: "a", value: "x" },
+            { type: "attrEquals", name: "b", value: "y" },
+          ],
+        },
+      ]);
+    });
+
+    it("parses or predicates", () => {
+      const steps = parseXPathSteps("//div[@a='x' or @b='y']");
+      expect(steps[0].predicates).toEqual([
+        {
+          type: "or",
+          predicates: [
+            { type: "attrEquals", name: "a", value: "x" },
+            { type: "attrEquals", name: "b", value: "y" },
+          ],
+        },
+      ]);
+    });
+
+    it("parses not predicates", () => {
+      const steps = parseXPathSteps("//button[not(@disabled)]");
+      expect(steps[0].predicates).toEqual([
+        { type: "not", predicate: { type: "attrExists", name: "disabled" } },
       ]);
     });
   });
@@ -136,16 +242,17 @@ describe("parseXPathSteps", () => {
         "/html/body//div[@class='container']/ul/li[3]",
       );
       expect(steps).toEqual([
-        { axis: "child", tag: "html", index: null, attrs: [] },
-        { axis: "child", tag: "body", index: null, attrs: [] },
+        { axis: "child", tag: "html", predicates: [] },
+        { axis: "child", tag: "body", predicates: [] },
         {
           axis: "desc",
           tag: "div",
-          index: null,
-          attrs: [{ name: "class", value: "container" }],
+          predicates: [
+            { type: "attrEquals", name: "class", value: "container" },
+          ],
         },
-        { axis: "child", tag: "ul", index: null, attrs: [] },
-        { axis: "child", tag: "li", index: 3, attrs: [] },
+        { axis: "child", tag: "ul", predicates: [] },
+        { axis: "child", tag: "li", predicates: [{ type: "index", index: 3 }] },
       ]);
     });
   });
@@ -157,16 +264,12 @@ describe("parseXPathSteps", () => {
 
     it("strips xpath= prefix", () => {
       const steps = parseXPathSteps("xpath=//div");
-      expect(steps).toEqual([
-        { axis: "desc", tag: "div", index: null, attrs: [] },
-      ]);
+      expect(steps).toEqual([{ axis: "desc", tag: "div", predicates: [] }]);
     });
 
     it("strips XPATH= prefix (case-insensitive)", () => {
       const steps = parseXPathSteps("XPATH=//div");
-      expect(steps).toEqual([
-        { axis: "desc", tag: "div", index: null, attrs: [] },
-      ]);
+      expect(steps).toEqual([{ axis: "desc", tag: "div", predicates: [] }]);
     });
 
     it("handles forward slashes inside attribute values", () => {
@@ -175,8 +278,9 @@ describe("parseXPathSteps", () => {
         {
           axis: "desc",
           tag: "a",
-          index: null,
-          attrs: [{ name: "href", value: "/api/endpoint" }],
+          predicates: [
+            { type: "attrEquals", name: "href", value: "/api/endpoint" },
+          ],
         },
       ]);
     });
@@ -189,9 +293,12 @@ describe("parseXPathSteps", () => {
         {
           axis: "desc",
           tag: "a",
-          index: null,
-          attrs: [
-            { name: "data-url", value: "http://example.com/path/to/page" },
+          predicates: [
+            {
+              type: "attrEquals",
+              name: "data-url",
+              value: "http://example.com/path/to/page",
+            },
           ],
         },
       ]);
@@ -209,9 +316,11 @@ describe("elementMatchesStep", () => {
   const makeElement = (
     localName: string,
     attributes: Record<string, string> = {},
+    textContent = "",
   ): Element => {
     return {
       localName,
+      textContent,
       getAttribute: (name: string) => attributes[name] ?? null,
     } as unknown as Element;
   };
@@ -220,8 +329,7 @@ describe("elementMatchesStep", () => {
     const step: XPathStep = {
       axis: "desc",
       tag: "div",
-      index: null,
-      attrs: [],
+      predicates: [],
     };
     expect(elementMatchesStep(makeElement("div"), step)).toBe(true);
     expect(elementMatchesStep(makeElement("span"), step)).toBe(false);
@@ -231,8 +339,7 @@ describe("elementMatchesStep", () => {
     const step: XPathStep = {
       axis: "desc",
       tag: "*",
-      index: null,
-      attrs: [],
+      predicates: [],
     };
     expect(elementMatchesStep(makeElement("div"), step)).toBe(true);
     expect(elementMatchesStep(makeElement("span"), step)).toBe(true);
@@ -242,8 +349,7 @@ describe("elementMatchesStep", () => {
     const step: XPathStep = {
       axis: "desc",
       tag: "img",
-      index: null,
-      attrs: [{ name: "alt", value: "Stagehand" }],
+      predicates: [{ type: "attrEquals", name: "alt", value: "Stagehand" }],
     };
     expect(
       elementMatchesStep(makeElement("img", { alt: "Stagehand" }), step),
@@ -254,14 +360,88 @@ describe("elementMatchesStep", () => {
     expect(elementMatchesStep(makeElement("img"), step)).toBe(false);
   });
 
+  it("matches attribute existence predicates", () => {
+    const step: XPathStep = {
+      axis: "desc",
+      tag: "div",
+      predicates: [{ type: "attrExists", name: "data-test" }],
+    };
+    expect(
+      elementMatchesStep(makeElement("div", { "data-test": "y" }), step),
+    ).toBe(true);
+    expect(elementMatchesStep(makeElement("div", {}), step)).toBe(false);
+  });
+
+  it("matches attribute contains predicates", () => {
+    const step: XPathStep = {
+      axis: "desc",
+      tag: "a",
+      predicates: [{ type: "attrContains", name: "href", value: "checkout" }],
+    };
+    expect(
+      elementMatchesStep(makeElement("a", { href: "/shop/checkout" }), step),
+    ).toBe(true);
+    expect(elementMatchesStep(makeElement("a", { href: "/blog" }), step)).toBe(
+      false,
+    );
+  });
+
+  it("matches text predicates", () => {
+    const step: XPathStep = {
+      axis: "desc",
+      tag: "button",
+      predicates: [{ type: "textEquals", value: "Submit" }],
+    };
+    expect(elementMatchesStep(makeElement("button", {}, "Submit"), step)).toBe(
+      true,
+    );
+    expect(
+      elementMatchesStep(makeElement("button", {}, "Submit now"), step),
+    ).toBe(false);
+  });
+
+  it("matches normalize-space text predicates", () => {
+    const step: XPathStep = {
+      axis: "desc",
+      tag: "div",
+      predicates: [
+        { type: "textEquals", value: "Hello world", normalize: true },
+      ],
+    };
+    expect(
+      elementMatchesStep(makeElement("div", {}, "  Hello   world \n"), step),
+    ).toBe(true);
+  });
+
+  it("matches boolean predicates", () => {
+    const step: XPathStep = {
+      axis: "desc",
+      tag: "div",
+      predicates: [
+        {
+          type: "and",
+          predicates: [
+            { type: "attrEquals", name: "a", value: "x" },
+            { type: "attrEquals", name: "b", value: "y" },
+          ],
+        },
+      ],
+    };
+    expect(
+      elementMatchesStep(makeElement("div", { a: "x", b: "y" }), step),
+    ).toBe(true);
+    expect(elementMatchesStep(makeElement("div", { a: "x" }), step)).toBe(
+      false,
+    );
+  });
+
   it("requires all attribute predicates to match", () => {
     const step: XPathStep = {
       axis: "desc",
       tag: "div",
-      index: null,
-      attrs: [
-        { name: "class", value: "foo" },
-        { name: "id", value: "bar" },
+      predicates: [
+        { type: "attrEquals", name: "class", value: "foo" },
+        { type: "attrEquals", name: "id", value: "bar" },
       ],
     };
     expect(
@@ -276,11 +456,28 @@ describe("elementMatchesStep", () => {
     const step: XPathStep = {
       axis: "desc",
       tag: "img",
-      index: null,
-      attrs: [{ name: "alt", value: "Stagehand" }],
+      predicates: [{ type: "attrEquals", name: "alt", value: "Stagehand" }],
     };
     expect(
       elementMatchesStep(makeElement("div", { alt: "Stagehand" }), step),
     ).toBe(false);
+  });
+});
+
+describe("applyPredicates", () => {
+  const makeElement = (id: string): Element => {
+    return {
+      localName: "div",
+      getAttribute: (name: string) => (name === "id" ? id : null),
+    } as unknown as Element;
+  };
+
+  it("applies positional predicates sequentially", () => {
+    const elements = ["a", "b", "c", "d"].map(makeElement);
+    const predicates: XPathPredicate[] = [
+      { type: "index", index: 2 },
+      { type: "index", index: 3 },
+    ];
+    expect(applyPredicates(elements, predicates)).toEqual([]);
   });
 });
