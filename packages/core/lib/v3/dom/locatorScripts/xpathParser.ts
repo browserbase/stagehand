@@ -60,10 +60,20 @@ export function parseXPathSteps(input: string): XPathStep[] {
 
     const start = i;
     let bracketDepth = 0;
+    let quote: string | null = null;
     while (i < path.length) {
-      if (path[i] === "[") bracketDepth++;
-      else if (path[i] === "]") bracketDepth--;
-      else if (path[i] === "/" && bracketDepth === 0) break;
+      const ch = path[i];
+      if (quote) {
+        if (ch === quote) quote = null;
+      } else if (ch === "'" || ch === '"') {
+        quote = ch;
+      } else if (ch === "[") {
+        bracketDepth++;
+      } else if (ch === "]") {
+        bracketDepth--;
+      } else if (ch === "/" && bracketDepth === 0) {
+        break;
+      }
       i += 1;
     }
     const rawStep = path.slice(start, i).trim();

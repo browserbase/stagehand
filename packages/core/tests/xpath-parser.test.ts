@@ -114,6 +114,20 @@ describe("parseXPathSteps", () => {
       const steps = parseXPathSteps("//div[@data-json='[1,2,3]']");
       expect(steps[0].attrs).toEqual([{ name: "data-json", value: "[1,2,3]" }]);
     });
+
+    it("parses attribute value containing a closing bracket", () => {
+      // The step splitter should ignore ] characters inside quotes.
+      const steps = parseXPathSteps("//div[@title='a]b']/span");
+      expect(steps).toEqual([
+        {
+          axis: "desc",
+          tag: "div",
+          index: null,
+          attrs: [{ name: "title", value: "a]b" }],
+        },
+        { axis: "child", tag: "span", index: null, attrs: [] },
+      ]);
+    });
   });
 
   describe("multi-step with predicates", () => {
