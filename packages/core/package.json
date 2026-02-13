@@ -90,6 +90,7 @@
     "chalk": "^5.4.1",
     "esbuild": "^0.21.4",
     "eslint": "^9.16.0",
+    "jsdom": "^24.0.0",
     "playwright": "^1.52.0",
     "playwright-core": "^1.54.1",
     "prettier": "^3.2.5",
