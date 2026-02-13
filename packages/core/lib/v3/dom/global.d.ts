@@ -9,8 +9,6 @@ export interface StagehandV3Backdoor {
     open: number;
     closed: number;
   };
-  /** Composed-tree XPath resolver (does not cross iframes) */
-  resolveSimpleXPath(xp: string): Element | null;
 }
 
 declare global {

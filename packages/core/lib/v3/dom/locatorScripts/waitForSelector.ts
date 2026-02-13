@@ -7,7 +7,7 @@
  * and resilient to exceptions.
  */
 
-import { elementMatchesStep, parseXPathSteps } from "./xpathParser";
+import { resolveXPathFirst } from "./xpathResolver";
 
 type WaitForSelectorState = "attached" | "detached" | "visible" | "hidden";
 
@@ -16,16 +16,6 @@ type WaitForSelectorState = "attached" | "detached" | "visible" | "hidden";
  */
 const isXPath = (selector: string): boolean => {
   return selector.startsWith("xpath=") || selector.startsWith("/");
-};
-
-/**
- * Normalize XPath by removing "xpath=" prefix if present.
- */
-const normalizeXPath = (selector: string): string => {
-  if (selector.startsWith("xpath=")) {
-    return selector.slice(6).trim();
-  }
-  return selector;
 };
 
 /**
@@ -115,146 +105,13 @@ const deepQuerySelector = (
 };
 
 /**
- * Get composed children of a node (including shadow root children).
- */
-const composedChildren = (node: Node | null | undefined): Element[] => {
-  const out: Element[] = [];
-  if (!node) return out;
-
-  if (node instanceof Document) {
-    if (node.documentElement) out.push(node.documentElement);
-    return out;
-  }
-
-  if (node instanceof ShadowRoot || node instanceof DocumentFragment) {
-    out.push(...Array.from(node.children ?? []));
-    return out;
-  }
-
-  if (node instanceof Element) {
-    out.push(...Array.from(node.children ?? []));
-    const open = node.shadowRoot;
-    if (open) out.push(...Array.from(open.children ?? []));
-    const closed = getClosedRoot(node);
-    if (closed) out.push(...Array.from(closed.children ?? []));
-    return out;
-  }
-
-  return out;
-};
-
-/**
- * Get all composed descendants of a node.
- */
-const composedDescendants = (node: Node | null | undefined): Element[] => {
-  const out: Element[] = [];
-  const seen = new Set<Element>();
-  const queue = [...composedChildren(node)];
-
-  while (queue.length) {
-    const next = queue.shift();
-    if (!next || seen.has(next)) continue;
-    seen.add(next);
-    out.push(next);
-    queue.push(...composedChildren(next));
-  }
-
-  return out;
-};
-
-/**
  * Resolve XPath with shadow DOM piercing support.
  */
 const deepXPathQuery = (
   xpath: string,
   pierceShadow: boolean,
 ): Element | null => {
-  const xp = normalizeXPath(xpath);
-  if (!xp) return null;
-
-  const backdoor = window.__stagehandV3__;
-
-  // Try fast path via piercer's resolveSimpleXPath first (handles shadow DOM)
-  if (pierceShadow) {
-    try {
-      if (backdoor && typeof backdoor.resolveSimpleXPath === "function") {
-        const fast = backdoor.resolveSimpleXPath(xp);
-        if (fast) return fast;
-      }
-    } catch {
-      // ignore and continue
-    }
-  }
-
-  // Try native document.evaluate (works for light DOM elements)
-  try {
-    const result = document.evaluate(
-      xp,
-      document,
-      null,
-      XPathResult.FIRST_ORDERED_NODE_TYPE,
-      null,
-    ).singleNodeValue as Element | null;
-    if (result) return result;
-  } catch {
-    // XPath syntax error or evaluation failed, continue to fallback
-  }
-
-  // If not piercing shadow DOM, we're done
-  if (!pierceShadow) {
-    return null;
-  }
-
-  // Parse XPath into steps for composed tree traversal (shadow DOM piercing)
-  const steps = parseXPathSteps(xp);
-  if (!steps.length) {
-    return null;
-  }
-
-  // Traverse composed tree following XPath steps
-  let current: Array<Document | Element | ShadowRoot | DocumentFragment> = [
-    document,
-  ];
-
-  for (const step of steps) {
-    const next: Element[] = [];
-    const seen = new Set<Element>();
-
-    for (const root of current) {
-      if (!root) continue;
-      const pool =
-        step.axis === "child"
-          ? composedChildren(root)
-          : composedDescendants(root);
-      if (!pool.length) continue;
-
-      const matches = pool.filter(
-        (candidate) =>
-          candidate instanceof Element && elementMatchesStep(candidate, step),
-      );
-
-      if (step.index != null) {
-        const idx = step.index - 1;
-        const chosen = idx >= 0 && idx < matches.length ? matches[idx] : null;
-        if (chosen && !seen.has(chosen)) {
-          seen.add(chosen);
-          next.push(chosen);
-        }
-      } else {
-        for (const candidate of matches) {
-          if (!seen.has(candidate)) {
-            seen.add(candidate);
-            next.push(candidate);
-          }
-        }
-      }
-    }
-
-    if (!next.length) return null;
-    current = next;
-  }
-
-  return (current[0] as Element) ?? null;
+  return resolveXPathFirst(xpath, { pierceShadow });
 };
 
 /**
