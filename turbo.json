@@ -17,6 +17,9 @@
         "**/*.ts",
         "**/*.tsx",
         "**/*.js",
+        "!lib/version.ts",
+        "!lib/dom/build/**",
+        "!lib/v3/dom/build/**",
         "package.json",
         "tsconfig.json"
       ]
@@ -35,7 +38,10 @@
       "outputs": ["dist/**"],
       "inputs": [
         "lib/**/*.ts",
-        "lib/**/*.tsx"
+        "lib/**/*.tsx",
+        "!lib/version.ts",
+        "!lib/dom/build/**",
+        "!lib/v3/dom/build/**"
       ]
     },
     "build:cli": {
@@ -89,6 +95,13 @@
       ],
       "cache": false,
       "env": [
+        "BROWSERBASE_API_KEY",
+        "BROWSERBASE_PROJECT_ID",
+        "CHROME_PATH",
+        "CTRF_JUNIT_PATH",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        "LOCAL_SESSION_LIMIT_PER_E2E_TEST",
+        "NODE_V8_COVERAGE",
         "ANTHROPIC_API_KEY",
         "OPENAI_API_KEY"
       ]
@@ -101,6 +114,11 @@
       ],
       "cache": false,
       "env": [
+        "BROWSERBASE_REGION",
+        "BROWSERBASE_SESSION_LIMIT_PER_E2E_TEST",
+        "CHROME_PATH",
+        "CTRF_JUNIT_PATH",
+        "NODE_V8_COVERAGE",
         "BROWSERBASE_API_KEY",
         "BROWSERBASE_PROJECT_ID",
         "OPENAI_API_KEY",

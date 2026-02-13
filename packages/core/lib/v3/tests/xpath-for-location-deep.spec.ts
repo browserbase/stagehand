@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 import { V3 } from "../v3";
 import { v3DynamicTestConfig } from "./v3.dynamic.config";
 import { resolveXpathForLocation } from "../understudy/a11y/snapshot";
+import { executionContexts } from "../understudy/executionContextRegistry";
+import { closeV3 } from "./testUtils";
 
 test.describe("resolveNodeForLocationDeep", () => {
   let v3: V3;
@@ -12,7 +14,7 @@ test.describe("resolveNodeForLocationDeep", () => {
   });
 
   test.afterEach(async () => {
-    await v3?.close?.().catch(() => {});
+    await closeV3(v3);
   });
 
   test("click resolves inside same-process iframe and returns absolute XPath", async () => {
@@ -26,13 +28,23 @@ test.describe("resolveNodeForLocationDeep", () => {
       { waitUntil: "networkidle" },
     );
 
+    await page.waitForSelector("section iframe", {
+      state: "attached",
+      timeout: 10000,
+    });
+    const frame = await page.frameLocator("section iframe").resolveFrame();
+    await executionContexts.waitForMainWorld(
+      frame.session,
+      frame.frameId,
+      5000,
+    );
+
     // scroll to the bottom of the page
     await page.evaluate(() => {
       window.scrollTo(0, document.body.scrollHeight);
     });
 
     // scroll to the bottom of the iframe
-    const frame = page.frames()[0];
     await frame.evaluate(() => {
       window.scrollTo(0, document.body.scrollHeight);
     });
