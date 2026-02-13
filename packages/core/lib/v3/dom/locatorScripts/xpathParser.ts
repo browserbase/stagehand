@@ -458,16 +458,3 @@ export function applyPredicates(
   }
   return current;
 }
-
-/**
- * Test whether an element matches the tag and non-positional predicates of a step.
- * This is separated from the DOM traversal to keep the parser testable.
- */
-export function elementMatchesStep(element: Element, step: XPathStep): boolean {
-  if (step.tag !== "*" && element.localName !== step.tag) return false;
-  for (const predicate of step.predicates) {
-    if (predicate.type === "index") continue;
-    if (!evaluatePredicate(element, predicate)) return false;
-  }
-  return true;
-}
