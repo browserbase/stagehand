@@ -340,13 +340,14 @@ function splitTopLevel(input: string, keyword: string): string[] {
 function isKeywordAt(input: string, index: number, keyword: string): boolean {
   if (!input.startsWith(keyword, index)) return false;
   const before = index > 0 ? input[index - 1] : " ";
+  if (before === "@") return false;
   const after =
     index + keyword.length < input.length ? input[index + keyword.length] : " ";
   return isBoundary(before) && isBoundary(after);
 }
 
 function isBoundary(ch: string): boolean {
-  return /\s/.test(ch);
+  return !/[a-zA-Z0-9_.-]/.test(ch);
 }
 
 function unwrapFunctionCall(input: string, name: string): string | null {

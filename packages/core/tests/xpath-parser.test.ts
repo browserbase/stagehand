@@ -215,6 +215,19 @@ describe("parseXPathSteps", () => {
       ]);
     });
 
+    it("parses operators without surrounding whitespace", () => {
+      const steps = parseXPathSteps("//div[not(@x)and@y='z']");
+      expect(steps[0].predicates).toEqual([
+        {
+          type: "and",
+          predicates: [
+            { type: "not", predicate: { type: "attrExists", name: "x" } },
+            { type: "attrEquals", name: "y", value: "z" },
+          ],
+        },
+      ]);
+    });
+
     it("parses or predicates", () => {
       const steps = parseXPathSteps("//div[@a='x' or @b='y']");
       expect(steps[0].predicates).toEqual([
@@ -232,6 +245,19 @@ describe("parseXPathSteps", () => {
       const steps = parseXPathSteps("//button[not(@disabled)]");
       expect(steps[0].predicates).toEqual([
         { type: "not", predicate: { type: "attrExists", name: "disabled" } },
+      ]);
+    });
+
+    it("does not treat @and as a boolean operator", () => {
+      const steps = parseXPathSteps("//div[@and='x' and @y='z']");
+      expect(steps[0].predicates).toEqual([
+        {
+          type: "and",
+          predicates: [
+            { type: "attrEquals", name: "and", value: "x" },
+            { type: "attrEquals", name: "y", value: "z" },
+          ],
+        },
       ]);
     });
   });
