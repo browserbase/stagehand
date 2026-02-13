@@ -1,3 +1,8 @@
+import {
+  elementMatchesStep,
+  parseXPathSteps,
+} from "./locatorScripts/xpathParser";
+
 export interface V3ShadowPatchOptions {
   debug?: boolean;
   tagExisting?: boolean;
@@ -14,7 +19,7 @@ export interface StagehandV3Backdoor {
     open: number;
     closed: number;
   };
-  /** Simple composed-tree resolver (axis '/', '//' and trailing [n] only; no iframe hops) */
+  /** Composed-tree XPath resolver (does not cross iframes) */
   resolveSimpleXPath(xp: string): Element | null;
 }
 
@@ -76,52 +81,16 @@ export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
       return out;
     };
 
-    // Simple composed-tree resolver with axis '/', '//' and trailing [n]
+    // Simple composed-tree resolver (no iframe hops)
     const resolveSimpleXPath = (xp: string): Element | null => {
-      const s = String(xp || "").trim();
-      if (!s) return null;
-      const path = s.replace(/^xpath=/i, "");
-
-      type Axis = "child" | "desc";
-      type Step = {
-        axis: Axis;
-        raw: string;
-        tag: string;
-        index: number | null;
-      };
-
-      const steps: Step[] = [];
-      {
-        let i = 0;
-        while (i < path.length) {
-          let axis: Axis = "child";
-          if (path.startsWith("//", i)) {
-            axis = "desc";
-            i += 2;
-          } else if (path[i] === "/") {
-            axis = "child";
-            i += 1;
-          }
-
-          const start = i;
-          while (i < path.length && path[i] !== "/") i++;
-          const raw = path.slice(start, i).trim();
-          if (!raw) continue;
-
-          const m = raw.match(/^(.*?)(\[(\d+)\])?$/u);
-          const base = (m?.[1] ?? raw).trim();
-          const index = m?.[3] ? Math.max(1, Number(m[3])) : null;
-          const tag = base === "" ? "*" : base.toLowerCase();
-          steps.push({ axis, raw, tag, index });
-        }
-      }
+      const steps = parseXPathSteps(xp);
+      if (!steps.length) return null;
 
       if (state.debug) {
         console.info("[v3-piercer][resolve] start", {
           url: location.href,
           steps: steps.map((s) => ({
             axis: s.axis,
-            raw: s.raw,
             tag: s.tag,
             index: s.index,
           })),
@@ -131,7 +100,6 @@ export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
       let current: Node[] = [document];
 
       for (const step of steps) {
-        const wantIdx = step.index;
         let chosen: Element | null = null;
 
         for (const root of current) {
@@ -139,16 +107,13 @@ export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
             step.axis === "child"
               ? composedChildren(root)
               : composedDescendants(root);
-          const matches: Element[] = [];
-          for (const el of pool) {
-            if (step.tag === "*" || el.localName === step.tag) matches.push(el);
-          }
+          const matches = pool.filter((el) => elementMatchesStep(el, step));
 
           if (state.debug) {
             console.info("[v3-piercer][resolve] step", {
               axis: step.axis,
               tag: step.tag,
-              index: wantIdx,
+              index: step.index,
               poolCount: pool.length,
               matchesCount: matches.length,
             });
@@ -156,8 +121,8 @@ export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
 
           if (!matches.length) continue;
 
-          if (wantIdx != null) {
-            const idx0 = wantIdx - 1;
+          if (step.index != null) {
+            const idx0 = step.index - 1;
             chosen = idx0 >= 0 && idx0 < matches.length ? matches[idx0] : null;
           } else {
             chosen = matches[0];
@@ -168,7 +133,9 @@ export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
 
         if (!chosen) {
           if (state.debug) {
-            console.info("[v3-piercer][resolve] no-match", { step: step.raw });
+            console.info("[v3-piercer][resolve] no-match", {
+              tag: step.tag,
+            });
           }
           return null;
         }
