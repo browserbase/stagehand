@@ -1,5 +1,22 @@
 # @browserbasehq/stagehand-server
 
+## 3.6.0
+
+### Minor Changes
+
+- [#1611](https://github.com/browserbase/stagehand/pull/1611) [`8a3c066`](https://github.com/browserbase/stagehand/commit/8a3c06600a9ba98485db7e9ed5c3cc43ea180334) Thanks [@monadoid](https://github.com/monadoid)! - Using `mode` enum instead of old `cua` boolean in openapi spec
+
+### Patch Changes
+
+- [#1604](https://github.com/browserbase/stagehand/pull/1604) [`4753078`](https://github.com/browserbase/stagehand/commit/4753078cc9d37cbdb8d1a63dfdb53ccc4b4c2bd2) Thanks [@miguelg719](https://github.com/miguelg719)! - Enable bedrock
+
+- [#1636](https://github.com/browserbase/stagehand/pull/1636) [`ea33052`](https://github.com/browserbase/stagehand/commit/ea330520a325583b71b87d85beb740df4bdb9b2d) Thanks [@miguelg719](https://github.com/miguelg719)! - Include executionModel on the AgentConfigSchema
+
+- [#1602](https://github.com/browserbase/stagehand/pull/1602) [`22a0502`](https://github.com/browserbase/stagehand/commit/22a0502e8b042bef0cfafa32901984a8be9529d8) Thanks [@miguelg719](https://github.com/miguelg719)! - Include vertex as a supported provider
+
+- Updated dependencies [[`7584f3e`](https://github.com/browserbase/stagehand/commit/7584f3e92e60a557d2b3e0e0d2a2af04c3527523), [`1e1c9c1`](https://github.com/browserbase/stagehand/commit/1e1c9c15773e49d5c3cd36021dbc1d23495c1bce), [`ffd4b33`](https://github.com/browserbase/stagehand/commit/ffd4b335a873d0f4dcd76ea22d44f47919bf8e49), [`677bff5`](https://github.com/browserbase/stagehand/commit/677bff5834c879a2d95f7dbff918b8e1510516b3), [`101bcf2`](https://github.com/browserbase/stagehand/commit/101bcf2da8b527fd6ace6aa291ada5d0f2d90344), [`b27c04d`](https://github.com/browserbase/stagehand/commit/b27c04d278c290364347acd0c354a878ea9b7c2d), [`0e8d569`](https://github.com/browserbase/stagehand/commit/0e8d5695f662040f7384e64f46301152802e3c62), [`ff0f979`](https://github.com/browserbase/stagehand/commit/ff0f9795f3b2c1cf4f2610a80ebcb3341a24f987), [`2d89d2b`](https://github.com/browserbase/stagehand/commit/2d89d2b35ce812431956b28e0c8b52d32ddc7a27), [`aa4d981`](https://github.com/browserbase/stagehand/commit/aa4d981e440bdd0e3d3f42ccc310d5958aa25cc6), [`18b1e3b`](https://github.com/browserbase/stagehand/commit/18b1e3bd2b16b721845d52fcf1a45c6158e2403f), [`b65756e`](https://github.com/browserbase/stagehand/commit/b65756e9e85643055446aa4a51956f7d6627c89f), [`22e371a`](https://github.com/browserbase/stagehand/commit/22e371ae4c25deb6350328fe02832bf2b2197b94), [`3f9ca4d`](https://github.com/browserbase/stagehand/commit/3f9ca4d9acc109101357378d29cf969168991608), [`8a3c066`](https://github.com/browserbase/stagehand/commit/8a3c06600a9ba98485db7e9ed5c3cc43ea180334), [`3673369`](https://github.com/browserbase/stagehand/commit/36733691f90c15386cf2a7b47d04ef429b7195ae), [`ea33052`](https://github.com/browserbase/stagehand/commit/ea330520a325583b71b87d85beb740df4bdb9b2d), [`5764ede`](https://github.com/browserbase/stagehand/commit/5764edee7aab00ef1aafafb68fc56eb26c0a70b2), [`f09b184`](https://github.com/browserbase/stagehand/commit/f09b184cc5e774736280ae8c94ba3f4f13adda80), [`a7d29de`](https://github.com/browserbase/stagehand/commit/a7d29decee0f7d12e2437267b9eef1795d3b4e3a), [`d334399`](https://github.com/browserbase/stagehand/commit/d3343990041bf9cd5613569840afb0c17131e33c), [`44416da`](https://github.com/browserbase/stagehand/commit/44416da7ff33301bb32d3811e6c3be8782a7d168), [`bdd8b4e`](https://github.com/browserbase/stagehand/commit/bdd8b4ee3c697a02728375510ab7fae764990576)]:
+  - @browserbasehq/stagehand@3.1.0
+
 ## 3.5.0
 
 ### Minor Changes
