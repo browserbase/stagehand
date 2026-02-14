@@ -69,6 +69,12 @@
         "dist/sea/**",
         "dist/app.mjs"
       ],
+      "env": [
+        "SEA_BUILD_MODE",
+        "SEA_TARGET_PLATFORM",
+        "SEA_TARGET_ARCH",
+        "SEA_BINARY_NAME"
+      ],
       "inputs": [
         "src/**/*.ts",
         "scripts/**/*.ts",
@@ -80,6 +86,12 @@
     "build:sea:cjs": {
       "dependsOn": ["^build:cjs"],
       "outputs": ["dist/sea/**"],
+      "env": [
+        "SEA_BUILD_MODE",
+        "SEA_TARGET_PLATFORM",
+        "SEA_TARGET_ARCH",
+        "SEA_BINARY_NAME"
+      ],
       "inputs": [
         "src/**/*.ts",
         "scripts/**/*.ts",

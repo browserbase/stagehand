@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import Browserbase from "@browserbasehq/sdk";
 import WebSocket from "ws";
 import { v3DynamicTestConfig } from "./v3.dynamic.config";
@@ -50,8 +52,52 @@ type Outcome = {
   lastStatus?: string;
 };
 
-const coreDir = path.resolve(__dirname, "../../..");
-const childScriptPath = path.resolve(__dirname, "keep-alive.child.ts");
+const testsDir = path.dirname(fileURLToPath(import.meta.url));
+const findCoreDir = (startDir: string): string => {
+  let current = path.resolve(startDir);
+  while (true) {
+    const packageJsonPath = path.join(current, "package.json");
+    if (fs.existsSync(packageJsonPath)) {
+      try {
+        const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8")) as {
+          name?: string;
+        };
+        if (pkg.name === "@browserbasehq/stagehand") {
+          return current;
+        }
+      } catch {
+        // keep climbing until we find the core package root
+      }
+    }
+
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return path.resolve(startDir, "../../..");
+    }
+    current = parent;
+  }
+};
+
+const coreDir = findCoreDir(testsDir);
+
+const resolveChildRunner = (): { command: string; args: string[] } | null => {
+  const distJsPath = path.join(
+    coreDir,
+    "dist",
+    "esm",
+    "lib",
+    "v3",
+    "tests",
+    "keep-alive.child.js",
+  );
+  if (fs.existsSync(distJsPath)) {
+    return { command: process.execPath, args: [distJsPath] };
+  }
+
+  return null;
+};
+
+const childRunner = resolveChildRunner();
 
 const DEBUG = process.env.KEEP_ALIVE_DEBUG === "1";
 const VIEW_MS = Number(process.env.KEEP_ALIVE_VIEW_MS ?? "0");
@@ -97,15 +143,17 @@ async function runScenario(config: ScenarioConfig): Promise<{
   };
   const encoded = `cfg:${Buffer.from(JSON.stringify(payload)).toString("base64")}`;
 
-  const child = spawn(
-    process.execPath,
-    ["--import", "tsx", childScriptPath, encoded],
-    {
-      cwd: coreDir,
-      env: { ...process.env },
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
+  if (!childRunner) {
+    throw new Error(
+      "keep-alive child script not found at dist/esm/lib/v3/tests/keep-alive.child.js",
+    );
+  }
+
+  const child = spawn(childRunner.command, [...childRunner.args, encoded], {
+    cwd: coreDir,
+    env: { ...process.env },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
 
   const logs: ChildLogs = { stdout: [], stderr: [] };
   let buffer = "";

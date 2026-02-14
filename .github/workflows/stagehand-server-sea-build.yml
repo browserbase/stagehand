@@ -69,6 +69,11 @@ jobs:
         run: |
           pnpm exec turbo run build:sea:cjs
 
+      - name: Verify SEA binary exists
+        shell: bash
+        run: |
+          test -f "packages/server/dist/sea/${{ matrix.binary_name }}"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:

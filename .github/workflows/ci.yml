@@ -358,6 +358,10 @@ jobs:
         run: |
           pnpm exec turbo run build:sea:esm --filter=@browserbasehq/stagehand-server
 
+      - name: Verify SEA binary exists
+        run: |
+          test -f packages/server/dist/sea/stagehand-server-linux-x64-sourcemap
+
       - name: Upload SEA binary
         uses: actions/upload-artifact@v4
         with:
@@ -436,8 +440,11 @@ jobs:
           name: stagehand-server-linux-x64-sourcemap
           path: .
 
-      - name: Ensure SEA binary is executable
+      - name: Ensure SEA binary is present and executable
+        shell: bash
         run: |
+          set -euo pipefail
+          test -f packages/server/dist/sea/stagehand-server-linux-x64-sourcemap
           chmod +x packages/server/dist/sea/stagehand-server-linux-x64-sourcemap
 
       - name: Run server integration test - ${{ matrix.test.name }}
