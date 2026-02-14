@@ -152,7 +152,8 @@
         "NODE_V8_COVERAGE",
         "OPENAI_API_KEY",
         "STAGEHAND_BROWSER_TARGET",
-        "STAGEHAND_SERVER_TARGET"
+        "STAGEHAND_SERVER_TARGET",
+        "VITEST_CONSOLE_REPORTER"
       ],
       "inputs": [
         "tests/**/*.ts",
@@ -186,6 +187,7 @@
         "NODE_OPTIONS",
         "NODE_V8_COVERAGE",
         "OPENAI_API_KEY",
+        "PLAYWRIGHT_CONSOLE_REPORTER",
         "STAGEHAND_BROWSER_TARGET",
         "STAGEHAND_SERVER_TARGET"
       ],
@@ -241,6 +243,7 @@
         "GEMINI_API_KEY",
         "GOOGLE_GENERATIVE_AI_API_KEY",
         "NODE_OPTIONS",
+        "NODE_TEST_CONSOLE_REPORTER",
         "NODE_TEST_REPORTER",
         "NODE_TEST_REPORTER_DESTINATION",
         "NODE_V8_COVERAGE",

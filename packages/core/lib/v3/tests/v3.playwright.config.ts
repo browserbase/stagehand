@@ -41,6 +41,7 @@ const browserTarget = (
   process.env.STAGEHAND_BROWSER_TARGET ?? "local"
 ).toLowerCase();
 const isBrowserbase = browserTarget === "browserbase";
+const consoleReporter = process.env.PLAYWRIGHT_CONSOLE_REPORTER ?? "list";
 
 const localWorkerOverride = Number(
   process.env.LOCAL_SESSION_LIMIT_PER_E2E_TEST,
@@ -86,11 +87,11 @@ const envReporterPath = (() => {
 })();
 const reporter: ReporterDescription[] = ctrfJunitPath
   ? [
-      ["list"],
+      [consoleReporter],
       [envReporterPath],
       ["junit", { outputFile: ctrfJunitPath, includeProjectInTestName: true }],
     ]
-  : [["list"], [envReporterPath]];
+  : [[consoleReporter], [envReporterPath]];
 
 export default defineConfig({
   testDir,

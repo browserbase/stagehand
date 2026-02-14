@@ -3,7 +3,8 @@
  *
  * Prereqs: pnpm run build (dist/esm present).
  * Args: [test paths...] -- [vitest args...] | --list (prints JSON matrix)
- * Env: NODE_V8_COVERAGE, NODE_OPTIONS; writes CTRF to ctrf/vitest-core.xml by default.
+ * Env: NODE_V8_COVERAGE, NODE_OPTIONS, VITEST_CONSOLE_REPORTER;
+ *      writes CTRF to ctrf/vitest-core.xml by default.
  * Example: pnpm run test:core -- packages/core/tests/foo.test.ts -- --reporter=junit
  */
 import fs from "node:fs";
@@ -20,8 +21,7 @@ import {
   toSafeName,
   normalizeVitestArgs,
   findJunitPath,
-  hasReporter,
-  hasJunitReporter,
+  hasReporterName,
   writeCtrfFromJunit,
 } from "./test-utils";
 
@@ -112,10 +112,11 @@ const defaultJunitPath = (() => {
 })();
 const hasOutput = Boolean(findJunitPath(normalizedExtra));
 const vitestArgs = [...normalizedExtra];
-if (!hasReporter(normalizedExtra)) {
-  vitestArgs.push("--reporter=default");
+const consoleReporter = process.env.VITEST_CONSOLE_REPORTER ?? "default";
+if (!hasReporterName(vitestArgs, consoleReporter)) {
+  vitestArgs.push(`--reporter=${consoleReporter}`);
 }
-if (!hasJunitReporter(normalizedExtra)) {
+if (!hasReporterName(vitestArgs, "junit")) {
   vitestArgs.push("--reporter=junit");
 }
 if (!hasOutput) {

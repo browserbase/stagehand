@@ -3,7 +3,8 @@
  *
  * Prereqs: pnpm run build:cli (packages/evals/dist/cli/cli.js present).
  * Args: [target] [options...] (passed to evals run) | --list (prints JSON matrix).
- * Env: STAGEHAND_BROWSER_TARGET=local|browserbase, NODE_V8_COVERAGE, NODE_OPTIONS; writes CTRF to ctrf/evals/<target>.json.
+ * Env: STAGEHAND_BROWSER_TARGET=local|browserbase, NODE_V8_COVERAGE, NODE_OPTIONS;
+ *      writes JUnit to ctrf/evals/<target>.xml and CTRF to ctrf/evals/<target>.json.
  * Example: STAGEHAND_BROWSER_TARGET=browserbase pnpm run test:evals -- act -t 3 -c 10
  */
 import fs from "node:fs";
@@ -17,17 +18,86 @@ import {
   toSafeName,
 } from "../../core/scripts/test-utils";
 
+type EvalSummaryEntry = {
+  eval: string;
+  model: string;
+  categories?: string[];
+};
+
+type EvalSummary = {
+  passed?: EvalSummaryEntry[];
+  failed?: EvalSummaryEntry[];
+};
+
+const readEvalSummary = (summaryPath: string): EvalSummary | null => {
+  if (!fs.existsSync(summaryPath)) return null;
+  return JSON.parse(fs.readFileSync(summaryPath, "utf8")) as EvalSummary;
+};
+
+const escapeXml = (value: string) =>
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+
+const writeEvalJunit = (
+  summaryPath: string,
+  outputPath: string,
+  category: string,
+) => {
+  const summary = readEvalSummary(summaryPath);
+  const passed = summary?.passed ?? [];
+  const failed = summary?.failed ?? [];
+  const missingSummary = summary === null;
+  const tests = missingSummary ? 1 : passed.length + failed.length;
+  const failures = missingSummary ? 1 : failed.length;
+  const suiteName = `evals-${category}`;
+  const cases: string[] = [];
+
+  if (missingSummary) {
+    cases.push(
+      `    <testcase name="${escapeXml(`evals/${category} summary missing`)}" classname="${escapeXml(suiteName)}" time="0">`,
+      `      <failure message="eval summary missing">Missing eval summary at ${escapeXml(summaryPath)}</failure>`,
+      "    </testcase>",
+    );
+  } else {
+    for (const item of passed) {
+      cases.push(
+        `    <testcase name="${escapeXml(`evals/${item.eval} [${item.model}]`)}" classname="${escapeXml(suiteName)}" time="0" />`,
+      );
+    }
+    for (const item of failed) {
+      cases.push(
+        `    <testcase name="${escapeXml(`evals/${item.eval} [${item.model}]`)}" classname="${escapeXml(suiteName)}" time="0">`,
+        `      <failure message="eval failed">${escapeXml(`categories=${(item.categories ?? []).join(",")}`)}</failure>`,
+        "    </testcase>",
+      );
+    }
+  }
+
+  const xml = [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    "<testsuites>",
+    `  <testsuite name="${escapeXml(suiteName)}" tests="${tests}" failures="${failures}" errors="0" skipped="0" time="0">`,
+    ...cases,
+    "  </testsuite>",
+    "</testsuites>",
+    "",
+  ].join("\n");
+
+  fs.writeFileSync(outputPath, xml);
+};
+
 const writeEvalCtrf = (
   summaryPath: string,
   outputPath: string,
   category: string,
 ) => {
   const timestamp = new Date().toISOString();
-  if (fs.existsSync(summaryPath)) {
-    const summary = JSON.parse(fs.readFileSync(summaryPath, "utf8")) as {
-      passed?: Array<{ eval: string; model: string; categories?: string[] }>;
-      failed?: Array<{ eval: string; model: string; categories?: string[] }>;
-    };
+  const summary = readEvalSummary(summaryPath);
+  if (summary) {
     const passed = summary.passed ?? [];
     const failed = summary.failed ?? [];
     const toTests = (arr: typeof passed, status: "passed" | "failed") =>
@@ -124,6 +194,14 @@ if (!fs.existsSync(cliPath)) {
   process.exit(1);
 }
 
+if (args.includes("--help") || args.includes("-h") || args[0] === "help") {
+  const result = spawnSync(process.execPath, [cliPath, "--help"], {
+    stdio: "inherit",
+    cwd: repoRoot,
+  });
+  process.exit(result.status ?? 0);
+}
+
 const hasRun = args[0] === "run";
 const argsAfterRun = hasRun ? args.slice(1) : args;
 const target =
@@ -156,6 +234,7 @@ fs.mkdirSync(coverageDir, { recursive: true });
 const summaryPath = path.join(repoRoot, "eval-summary.json");
 const ctrfDir = path.join(repoRoot, "ctrf", "evals");
 fs.mkdirSync(ctrfDir, { recursive: true });
+const junitPath = path.join(ctrfDir, `${safeTarget}.xml`);
 const ctrfPath = path.join(ctrfDir, `${safeTarget}.json`);
 
 const env = {
@@ -174,6 +253,7 @@ if (coverageDir) {
   await normalizeV8Coverage(coverageDir);
 }
 
+writeEvalJunit(summaryPath, junitPath, safeTarget);
 writeEvalCtrf(summaryPath, ctrfPath, safeTarget);
 
 process.exit(result.status ?? 1);

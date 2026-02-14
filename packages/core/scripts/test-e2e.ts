@@ -3,7 +3,9 @@
  *
  * Prereqs: pnpm run build (dist/esm present), Playwright deps installed.
  * Args: [test paths...] -- [playwright args...] | --list (prints JSON matrix)
- * Env: STAGEHAND_BROWSER_TARGET=local|browserbase, CHROME_PATH (local), NODE_V8_COVERAGE; writes CTRF to ctrf/playwright-*.xml by default.
+ * Env: STAGEHAND_BROWSER_TARGET=local|browserbase, CHROME_PATH (local),
+ *      NODE_V8_COVERAGE, PLAYWRIGHT_CONSOLE_REPORTER;
+ *      writes CTRF to ctrf/playwright-*.xml by default.
  * Example: STAGEHAND_BROWSER_TARGET=browserbase pnpm run test:e2e -- lib/v3/tests/foo.spec.ts
  */
 import fs from "node:fs";
@@ -24,6 +26,34 @@ import {
 const repoRoot = findRepoRoot(process.cwd());
 const listFlag = parseListFlag(process.argv.slice(2));
 const { paths, extra } = splitArgs(listFlag.args);
+const stripReporterArgs = (argsList: string[]) => {
+  const filtered: string[] = [];
+  let removed = false;
+  for (let i = 0; i < argsList.length; i++) {
+    const arg = argsList[i];
+    if (
+      arg === "--reporter" ||
+      arg === "-r" ||
+      arg.startsWith("--reporter=") ||
+      arg.startsWith("-r=")
+    ) {
+      removed = true;
+      if ((arg === "--reporter" || arg === "-r") && argsList[i + 1]) {
+        i += 1;
+      }
+      continue;
+    }
+    filtered.push(arg);
+  }
+  return { filtered, removed };
+};
+const { filtered: extraArgs, removed: removedReporterOverride } =
+  stripReporterArgs(extra);
+if (removedReporterOverride) {
+  console.warn(
+    "Ignoring Playwright --reporter override to preserve console + JUnit output.",
+  );
+}
 
 if (listFlag.list) {
   const root = path.join(repoRoot, "packages", "core", "lib", "v3", "tests");
@@ -161,7 +191,7 @@ const result = spawnSync(
     "test",
     "--config",
     configPath,
-    ...extra,
+    ...extraArgs,
     ...compiledPaths,
   ],
   { stdio: "inherit", env },

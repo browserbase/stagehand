@@ -4,6 +4,7 @@
  * Prereqs: pnpm run build (core dist/esm + server dist/tests) and pnpm run build:sea:esm for SEA.
  * Args: [test paths...] -- [node --test args...] | --list [unit|integration] (prints JSON matrix)
  * Env: STAGEHAND_SERVER_TARGET=sea|local|remote, STAGEHAND_BASE_URL, SEA_BINARY_NAME,
+ *      NODE_TEST_CONSOLE_REPORTER, NODE_TEST_REPORTER, NODE_TEST_REPORTER_DESTINATION,
  *      NODE_V8_COVERAGE; writes CTRF to ctrf/node-test-*.xml by default.
  * Example: STAGEHAND_SERVER_TARGET=sea pnpm run test:server -- packages/server/test/integration/foo.test.ts
  */
@@ -28,6 +29,37 @@ const distTestsRoot = path.join(serverRoot, "dist", "tests");
 
 const listFlag = parseListFlag(process.argv.slice(2));
 const { paths, extra } = splitArgs(listFlag.args);
+const stripNodeReporterArgs = (argsList: string[]) => {
+  const filtered: string[] = [];
+  let removed = false;
+  for (let i = 0; i < argsList.length; i++) {
+    const arg = argsList[i];
+    if (
+      arg === "--test-reporter" ||
+      arg.startsWith("--test-reporter=") ||
+      arg === "--test-reporter-destination" ||
+      arg.startsWith("--test-reporter-destination=")
+    ) {
+      removed = true;
+      if (
+        (arg === "--test-reporter" || arg === "--test-reporter-destination") &&
+        argsList[i + 1]
+      ) {
+        i += 1;
+      }
+      continue;
+    }
+    filtered.push(arg);
+  }
+  return { filtered, removed };
+};
+const { filtered: extraArgs, removed: removedReporterOverride } =
+  stripNodeReporterArgs(extra);
+if (removedReporterOverride) {
+  console.warn(
+    "Ignoring node --test reporter overrides to preserve console + JUnit output.",
+  );
+}
 
 if (listFlag.list) {
   const unitRoot = path.join(serverRoot, "test", "unit");
@@ -174,6 +206,7 @@ const integrationPaths = allPaths.filter((p) =>
     .includes(path.join(serverRoot, "test", "integration")),
 );
 
+const consoleReporter = process.env.NODE_TEST_CONSOLE_REPORTER ?? "spec";
 const defaultReporter = process.env.NODE_TEST_REPORTER ?? "junit";
 const envDestination = process.env.NODE_TEST_REPORTER_DESTINATION
   ? resolveFromRoot(repoRoot, process.env.NODE_TEST_REPORTER_DESTINATION)
@@ -191,7 +224,9 @@ const reporterArgsFor = (kind: "unit" | "integration", testName?: string) => {
   ensureParentDir(destination);
   return {
     args: [
+      `--test-reporter=${consoleReporter}`,
       `--test-reporter=${defaultReporter}`,
+      "--test-reporter-destination=stdout",
       `--test-reporter-destination=${destination}`,
     ],
     destination,
@@ -201,7 +236,7 @@ const reporterArgsFor = (kind: "unit" | "integration", testName?: string) => {
 const runNodeTests = (files: string[], reporterArgs: string[]) =>
   spawnSync(
     process.execPath,
-    ["--test", ...extra, ...reporterArgs, ...files.map(toDistPath)],
+    ["--test", ...extraArgs, ...reporterArgs, ...files.map(toDistPath)],
     {
       stdio: "inherit",
       env: {

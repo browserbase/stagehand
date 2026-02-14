@@ -115,11 +115,27 @@ export const findJunitPath = (argsList: string[]) => {
   return null;
 };
 
-export const hasReporter = (argsList: string[]) =>
-  argsList.some((arg) => arg === "--reporter" || arg.startsWith("--reporter="));
+const parseReporters = (argsList: string[]) => {
+  const reporters: string[] = [];
+  for (let i = 0; i < argsList.length; i++) {
+    const arg = argsList[i];
+    if (arg.startsWith("--reporter=")) {
+      reporters.push(arg.slice("--reporter=".length));
+      continue;
+    }
+    if (arg === "--reporter" && argsList[i + 1]) {
+      reporters.push(argsList[i + 1]);
+      i += 1;
+    }
+  }
+  return reporters
+    .flatMap((value) => value.split(","))
+    .map((value) => value.trim())
+    .filter(Boolean);
+};
 
-export const hasJunitReporter = (argsList: string[]) =>
-  argsList.some((arg) => arg === "--reporter=junit");
+export const hasReporterName = (argsList: string[], reporter: string) =>
+  parseReporters(argsList).some((value) => value === reporter);
 
 export const writeCtrfFromJunit = (junitPath: string, tool: string) => {
   if (!fs.existsSync(junitPath)) return;
