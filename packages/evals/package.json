@@ -15,7 +15,7 @@
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",
     "@browserbasehq/stagehand": "workspace:*",
-    "ai": "^5.0.0",
+    "ai": "^5.0.133",
     "dotenv": "16.4.5",
     "openai": "^4.87.1",
     "sharp": "^0.34.5",
