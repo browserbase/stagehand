@@ -222,17 +222,6 @@ export class FrameSelectorResolver {
       1000,
     );
 
-    v3Logger({
-      category: "locator",
-      message: "xpath main-world",
-      level: 2,
-      auxiliary: {
-        frameId: { value: String(this.frame.frameId), type: "string" },
-        xp: { value: value, type: "string" },
-        ctxId: { value: String(ctxId), type: "string" },
-      },
-    });
-
     const results: ResolvedNode[] = [];
     for (let index = 0; index < limit; index += 1) {
       const expr = this.buildLocatorInvocation("resolveXPathMainWorld", [
