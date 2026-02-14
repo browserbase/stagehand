@@ -81,7 +81,6 @@ const runOptional = (
 
 const download = (url: string, dest: string): Promise<void> =>
   new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dest);
     https
       .get(url, (res) => {
         if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400) {
@@ -90,6 +89,7 @@ const download = (url: string, dest: string): Promise<void> =>
             reject(new Error(`Redirect without location: ${url}`));
             return;
           }
+          res.resume();
           download(location, dest).then(resolve, reject);
           return;
         }
@@ -98,8 +98,25 @@ const download = (url: string, dest: string): Promise<void> =>
           res.resume();
           return;
         }
+
+        const file = fs.createWriteStream(dest);
+        const fail = (error: Error) => {
+          file.destroy();
+          reject(error);
+        };
+
+        res.on("error", fail);
+        file.on("error", fail);
+        file.on("finish", () => {
+          file.close((closeError) => {
+            if (closeError) {
+              reject(closeError);
+              return;
+            }
+            resolve();
+          });
+        });
         res.pipe(file);
-        file.on("finish", () => file.close(resolve));
       })
       .on("error", reject);
   });

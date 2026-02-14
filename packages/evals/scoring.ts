@@ -8,9 +8,20 @@ function formatTaskOutput(output: unknown): string {
   let value: string | undefined;
   if (typeof output === "string") {
     value = output;
+  } else if (output instanceof Error) {
+    value = output.stack ?? `${output.name}: ${output.message}`;
   } else {
     try {
-      value = JSON.stringify(output);
+      value = JSON.stringify(output, (_key, current) => {
+        if (current instanceof Error) {
+          return {
+            name: current.name,
+            message: current.message,
+            stack: current.stack,
+          };
+        }
+        return current;
+      });
     } catch {
       value = undefined;
     }

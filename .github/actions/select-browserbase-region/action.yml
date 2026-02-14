@@ -26,8 +26,14 @@ runs:
         for entry in "${entries[@]}"; do
           region="${entry%%=*}"
           weight="${entry#*=}"
+          region="$(printf '%s' "$region" | tr -d '[:space:]')"
+          weight="$(printf '%s' "$weight" | tr -d '[:space:]')"
           if [ -z "$region" ] || [ -z "$weight" ]; then
             echo "Invalid region distribution entry: $entry"
+            exit 1
+          fi
+          if ! [[ "$region" =~ ^[A-Za-z0-9-]+$ ]]; then
+            echo "Invalid region value: $region"
             exit 1
           fi
           if ! [[ "$weight" =~ ^[0-9]+$ ]]; then

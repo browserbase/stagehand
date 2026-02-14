@@ -246,7 +246,7 @@ jobs:
       - name: Discover core test files
         id: set-matrix
         run: |
-          core_json=$(pnpm exec turbo run test:core --filter=@browserbasehq/stagehand -- --list)
+          core_json=$(pnpm --filter @browserbasehq/stagehand --silent exec tsx scripts/test-core.ts --list)
           echo "core-tests=$core_json" >> $GITHUB_OUTPUT
 
           if [ "$core_json" = "[]" ]; then
@@ -315,8 +315,8 @@ jobs:
       - name: Discover server test files
         id: set-matrix
         run: |
-          unit_json=$(pnpm exec turbo run test:server --filter=@browserbasehq/stagehand-server -- --list unit)
-          int_json=$(pnpm exec turbo run test:server --filter=@browserbasehq/stagehand-server -- --list integration)
+          unit_json=$(pnpm --filter @browserbasehq/stagehand-server --silent exec tsx scripts/test-server.ts --list unit)
+          int_json=$(pnpm --filter @browserbasehq/stagehand-server --silent exec tsx scripts/test-server.ts --list integration)
           echo "unit-tests=$unit_json" >> $GITHUB_OUTPUT
           echo "integration-tests=$int_json" >> $GITHUB_OUTPUT
 
@@ -472,7 +472,7 @@ jobs:
       - name: Discover e2e test files
         id: set-matrix
         run: |
-          e2e_json=$(pnpm exec turbo run test:e2e --filter=@browserbasehq/stagehand -- --list)
+          e2e_json=$(pnpm --filter @browserbasehq/stagehand --silent exec tsx scripts/test-e2e.ts --list)
           echo "e2e-tests=$e2e_json" >> $GITHUB_OUTPUT
 
           if [ "$e2e_json" = "[]" ]; then

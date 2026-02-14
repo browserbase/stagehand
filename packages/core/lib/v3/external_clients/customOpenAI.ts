@@ -68,12 +68,6 @@ export class CustomOpenAIClient extends LLMClient {
       },
     });
 
-    if (options.image) {
-      console.warn(
-        "Image provided. Vision is not currently supported for openai",
-      );
-    }
-
     let responseFormat:
       | ChatCompletionCreateParamsNonStreaming["response_format"]
       | undefined;
@@ -153,12 +147,10 @@ export class CustomOpenAIClient extends LLMClient {
           }
         }
 
-        const formattedMessage: ChatCompletionUserMessageParam = {
-          role: "user",
+        return {
+          ...message,
           content: message.content,
-        };
-
-        return formattedMessage;
+        } as ChatCompletionMessageParam;
       });
 
     if (options.response_model) {
@@ -183,7 +175,7 @@ export class CustomOpenAIClient extends LLMClient {
         function: {
           name: tool.name,
           description: tool.description,
-          inputSchema: tool.parameters,
+          parameters: tool.parameters,
         },
         type: "function",
       })),

@@ -32,6 +32,8 @@ jobs:
           fetch-tags: true
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
         with:
           use-prebuilt-artifacts: "false"
 

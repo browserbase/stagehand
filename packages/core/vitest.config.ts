@@ -21,7 +21,7 @@ const isFile = (candidate: string): boolean => {
 const resolveDistFile = (candidate: string): string | null => {
   const ext = path.extname(candidate);
   if (ext) {
-    const jsCandidate = candidate.replace(ext, ".js");
+    const jsCandidate = `${candidate.slice(0, -ext.length)}.js`;
     if (isFile(jsCandidate)) return jsCandidate;
   }
   for (const extName of fileExtensions) {

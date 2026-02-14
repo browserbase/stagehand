@@ -97,7 +97,6 @@ runs:
               '--simulate-outdated-no-au="Tue, 31 Dec 2099 23:59:59 GMT"',
               '--suppress-message-center-popups',
               "--disable-background-networking",
-              "--disable-component-update",
               "--disable-default-apps",
               "--disable-dev-shm-usage",
               "--disable-extensions",
