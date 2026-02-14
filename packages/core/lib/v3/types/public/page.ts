@@ -9,6 +9,9 @@ export type AnyPage = PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 export { ConsoleMessage } from "../../understudy/consoleMessage";
 export type { ConsoleListener } from "../../understudy/consoleMessage";
 
+export { NetworkMessage } from "../../understudy/networkMessage";
+export type { NetworkListener } from "../../understudy/networkMessage";
+
 export type LoadState = "load" | "domcontentloaded" | "networkidle";
 export { Response } from "../../understudy/response";
 

@@ -23,6 +23,7 @@ import { LifecycleWatcher } from "./lifecycleWatcher";
 import { NavigationResponseTracker } from "./navigationResponseTracker";
 import { Response, isSerializableResponse } from "./response";
 import { ConsoleMessage, ConsoleListener } from "./consoleMessage";
+import { NetworkMessage, NetworkListener } from "./networkMessage";
 import type { StagehandAPIClient } from "../api";
 import {
   LocalBrowserLaunchOptions,
@@ -76,6 +77,10 @@ const LIFECYCLE_NAME: Record<LoadState, string> = {
   networkidle: "networkIdle",
 };
 
+const EVENTS = ["console", "network"];
+
+type Event = (typeof EVENTS)[number];
+
 export class Page {
   /** Every CDP child session this page owns (top-level + adopted OOPIF sessions). */
   private readonly sessions = new Map<string, CDPSessionLike>(); // sessionId -> session
@@ -109,6 +114,14 @@ export class Page {
   private readonly consoleHandlers = new Map<
     string,
     (evt: Protocol.Runtime.ConsoleAPICalledEvent) => void
+  >();
+  private readonly networkListeners = new Set<NetworkListener>();
+  private readonly networkHandlers = new Map<
+    string,
+    {
+      onRequest: (evt: Protocol.Network.RequestWillBeSentEvent) => void;
+      onResponse: (evt: Protocol.Network.ResponseReceivedEvent) => void;
+    }
   >();
   /** Document-start scripts installed across every session this page owns. */
   private readonly initScripts: string[] = [];
@@ -446,6 +459,10 @@ export class Page {
       this.installConsoleTap(childSession);
     }
 
+    if (this.networkListeners.size > 0) {
+      this.installNetworkTap(childSession);
+    }
+
     // session will start emitting its own page events; mark ownership seed now
     this.registry.adoptChildSession(
       childSession.id ?? "child",
@@ -546,11 +563,49 @@ export class Page {
     this.networkManager.untrackSession(sessionId);
   }
 
-  public on(event: "console", listener: ConsoleListener): Page {
-    if (event !== "console") {
-      throw new StagehandInvalidArgumentError(`Unsupported event: ${event}`);
+  public on(event: "console", listener: ConsoleListener): Page;
+  public on(event: "network", listener: NetworkListener): Page;
+  public on(event: Event, listener: ConsoleListener | NetworkListener): Page {
+    if (EVENTS.includes(event)) {
+      switch (event) {
+        case "console":
+          return this.onConsoleEvent(listener as ConsoleListener);
+        case "network":
+          return this.onNetworkEvent(listener as NetworkListener);
+      }
     }
+    throw new StagehandInvalidArgumentError(`Unsupported event: ${event}`);
+  }
 
+  public once(event: "console", listener: ConsoleListener): Page;
+  public once(event: "network", listener: NetworkListener): Page;
+  public once(event: Event, listener: ConsoleListener | NetworkListener): Page {
+    if (EVENTS.includes(event)) {
+      switch (event) {
+        case "console":
+          return this.onceConsoleEvent(listener as ConsoleListener);
+        case "network":
+          return this.onceNetworkEvent(listener as NetworkListener);
+      }
+    }
+    throw new StagehandInvalidArgumentError(`Unsupported event: ${event}`);
+  }
+
+  public off(event: "console", listener: ConsoleListener): Page;
+  public off(event: "network", listener: NetworkListener): Page;
+  public off(event: Event, listener: ConsoleListener | NetworkListener): Page {
+    if (EVENTS.includes(event)) {
+      switch (event) {
+        case "console":
+          return this.offConsoleEvent(listener as ConsoleListener);
+        case "network":
+          return this.offNetworkEvent(listener as NetworkListener);
+      }
+    }
+    throw new StagehandInvalidArgumentError(`Unsupported event: ${event}`);
+  }
+
+  public onConsoleEvent(listener: ConsoleListener): Page {
     const firstListener = this.consoleListeners.size === 0;
     this.consoleListeners.add(listener);
 
@@ -561,11 +616,7 @@ export class Page {
     return this;
   }
 
-  public once(event: "console", listener: ConsoleListener): Page {
-    if (event !== "console") {
-      throw new StagehandInvalidArgumentError(`Unsupported event: ${event}`);
-    }
-
+  public onceConsoleEvent(listener: ConsoleListener): Page {
     const wrapper: ConsoleListener = (message) => {
       this.off("console", wrapper);
       listener(message);
@@ -574,15 +625,41 @@ export class Page {
     return this.on("console", wrapper);
   }
 
-  public off(event: "console", listener: ConsoleListener): Page {
-    if (event !== "console") {
-      throw new StagehandInvalidArgumentError(`Unsupported event: ${event}`);
-    }
-
+  public offConsoleEvent(listener: ConsoleListener): Page {
     this.consoleListeners.delete(listener);
 
     if (this.consoleListeners.size === 0) {
       this.removeAllConsoleTaps();
+    }
+
+    return this;
+  }
+
+  public onNetworkEvent(listener: NetworkListener): Page {
+    const firstListener = this.networkListeners.size === 0;
+    this.networkListeners.add(listener);
+
+    if (firstListener) {
+      this.ensureNetworkTaps();
+    }
+
+    return this;
+  }
+
+  public onceNetworkEvent(listener: NetworkListener): Page {
+    const wrapper: NetworkListener = (event) => {
+      this.off("network", wrapper);
+      listener(event);
+    };
+
+    return this.on("network", wrapper);
+  }
+
+  public offNetworkEvent(listener: NetworkListener): Page {
+    this.networkListeners.delete(listener);
+
+    if (this.networkListeners.size === 0) {
+      this.removeAllNetworkTaps();
     }
 
     return this;
@@ -663,6 +740,8 @@ export class Page {
     this.networkManager.dispose();
     this.removeAllConsoleTaps();
     this.consoleListeners.clear();
+    this.removeAllNetworkTaps();
+    this.networkListeners.clear();
   }
 
   public getFullFrameTree(): Protocol.Page.FrameTree {
@@ -763,6 +842,143 @@ export class Page {
           auxiliary: {
             error: { value: String(error), type: "string" },
             type: { value: evt.type, type: "string" },
+          },
+        });
+      }
+    }
+  }
+
+  private ensureNetworkTaps(): void {
+    if (this.networkListeners.size === 0) return;
+
+    this.installNetworkTap(this.mainSession);
+    for (const session of this.sessions.values()) {
+      this.installNetworkTap(session);
+    }
+  }
+
+  private installNetworkTap(session: CDPSessionLike): void {
+    const key = this.sessionKey(session);
+    if (this.networkHandlers.has(key)) return;
+
+    void session.send("Network.enable").catch(() => {});
+
+    const onRequest = (evt: Protocol.Network.RequestWillBeSentEvent) => {
+      this.emitNetworkRequest(evt);
+    };
+
+    const onResponse = (evt: Protocol.Network.ResponseReceivedEvent) => {
+      this.emitNetworkResponse(evt);
+    };
+
+    session.on<Protocol.Network.RequestWillBeSentEvent>(
+      "Network.requestWillBeSent",
+      onRequest,
+    );
+
+    session.on<Protocol.Network.ResponseReceivedEvent>(
+      "Network.responseReceived",
+      onResponse,
+    );
+
+    this.networkHandlers.set(key, { onRequest, onResponse });
+  }
+
+  private teardownNetworkTap(key: string): void {
+    const handlers = this.networkHandlers.get(key);
+    if (!handlers) return;
+
+    const session = this.resolveSessionByKey(key);
+    if (session) {
+      session.off("Network.requestWillBeSent", handlers.onRequest);
+      session.off("Network.responseReceived", handlers.onResponse);
+    }
+    this.networkHandlers.delete(key);
+  }
+
+  private removeAllNetworkTaps(): void {
+    for (const key of [...this.networkHandlers.keys()]) {
+      this.teardownNetworkTap(key);
+    }
+  }
+
+  private emitNetworkRequest(
+    evt: Protocol.Network.RequestWillBeSentEvent,
+  ): void {
+    if (this.networkListeners.size === 0) return;
+
+    const networkMessage = new NetworkMessage(
+      {
+        type: "request",
+        requestId: evt.requestId,
+        frameId: evt.frameId,
+        loaderId: evt.loaderId,
+        url: evt.request.url,
+        method: evt.request.method,
+        resourceType: evt.type,
+        timestamp: Date.now(),
+        requestHeaders: evt.request.headers,
+        postData: evt.request.postData,
+      },
+      this,
+    );
+
+    const listeners = [...this.networkListeners];
+
+    for (const listener of listeners) {
+      try {
+        listener(networkMessage);
+      } catch (error) {
+        v3Logger({
+          category: "page",
+          message: "Network listener threw on request",
+          level: 2,
+          auxiliary: {
+            error: { value: String(error), type: "string" },
+            url: { value: evt.request.url, type: "string" },
+          },
+        });
+      }
+    }
+  }
+
+  private emitNetworkResponse(
+    evt: Protocol.Network.ResponseReceivedEvent,
+  ): void {
+    if (this.networkListeners.size === 0) return;
+
+    const networkMessage = new NetworkMessage(
+      {
+        type: "response",
+        requestId: evt.requestId,
+        frameId: evt.frameId,
+        loaderId: evt.loaderId,
+        url: evt.response.url,
+        resourceType: evt.type,
+        timestamp: Date.now(),
+        status: evt.response.status,
+        statusText: evt.response.statusText,
+        responseHeaders: evt.response.headers,
+        mimeType: evt.response.mimeType,
+        fromCache: evt.response.fromDiskCache || evt.response.fromPrefetchCache,
+        fromServiceWorker: evt.response.fromServiceWorker,
+      },
+      this,
+    );
+
+    const listeners = [...this.networkListeners];
+
+    for (const listener of listeners) {
+      try {
+        listener(networkMessage);
+      } catch (error) {
+        v3Logger({
+          category: "page",
+          message: "Network listener threw on response",
+          level: 2,
+          auxiliary: {
+            error: { value: String(error), type: "string" },
+            url: { value: evt.response.url, type: "string" },
           },
         });
       }
