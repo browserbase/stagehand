@@ -50,7 +50,11 @@ describe("GET /v1/sessions/:id/replay (V3)", () => {
     assertFetchStatus(ctx, HTTP_OK, "Replay should return 200");
     assertFetchOk(ctx.body !== null, "Response should have body", ctx);
     assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
-    assertFetchOk(ctx.body.data !== undefined, "Response should include data", ctx);
+    assertFetchOk(
+      ctx.body.data !== undefined,
+      "Response should include data",
+      ctx,
+    );
     assertFetchOk(
       Array.isArray(ctx.body.data.pages),
       "Replay pages should be an array",
