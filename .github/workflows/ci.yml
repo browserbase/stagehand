@@ -215,8 +215,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
+          # package.json is included to anchor artifact paths at repo root.
           path: |
-            package.json # Placeholder to anchor artifact root at repo root. do not remove or artifacts paths will all change to common ancestor packages/
+            package.json
             packages/core/dist/**
             packages/core/lib/version.ts
             packages/core/lib/dom/build/**
@@ -361,7 +362,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: stagehand-server-linux-x64-sourcemap
-          path: packages/server/dist/sea/stagehand-server-linux-x64-sourcemap
+          # package.json is included to anchor artifact paths at repo root.
+          path: |
+            package.json
+            packages/server/dist/sea/stagehand-server-linux-x64-sourcemap
           retention-days: 1
 
   server-unit-tests:
@@ -430,7 +434,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: stagehand-server-linux-x64-sourcemap
-          path: packages/server/dist/sea
+          path: .
 
       - name: Ensure SEA binary is executable
         run: |
@@ -670,7 +674,7 @@ jobs:
         continue-on-error: true
         with:
           pattern: coverage-*
-          path: coverage
+          path: .
           merge-multiple: true
 
       - name: Download CTRF artifacts
@@ -678,7 +682,7 @@ jobs:
         continue-on-error: true
         with:
           pattern: ctrf-*
-          path: ctrf
+          path: .
           merge-multiple: true
 
       - name: Generate merged coverage report
@@ -691,7 +695,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage-merged
-          path: coverage/merged
+          # package.json is included to anchor artifact paths at repo root.
+          path: |
+            package.json
+            coverage/merged
 
       - name: Add coverage summary to job summary
         if: always()

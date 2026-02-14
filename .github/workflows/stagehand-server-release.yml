@@ -134,8 +134,17 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: stagehand-server-*
-          path: release-assets
+          path: .
           merge-multiple: true
+
+      - name: Collect SEA binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for f in packages/server/dist/sea/stagehand-server-*; do
+            cp "$f" release-assets/
+          done
 
       - name: Create checksums
         shell: bash

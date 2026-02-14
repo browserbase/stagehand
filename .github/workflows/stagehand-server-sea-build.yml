@@ -73,5 +73,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.binary_name }}
-          path: packages/server/dist/sea/${{ matrix.binary_name }}
+          # package.json is included to anchor artifact paths at repo root.
+          path: |
+            package.json
+            packages/server/dist/sea/${{ matrix.binary_name }}
           retention-days: 7

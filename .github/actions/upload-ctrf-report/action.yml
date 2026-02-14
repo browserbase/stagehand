@@ -28,4 +28,7 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.normalize.outputs.name }}
-        path: ${{ steps.normalize.outputs.path }}
+        # package.json anchors uploaded paths to the repository root.
+        path: |
+          package.json
+          ${{ steps.normalize.outputs.path }}
