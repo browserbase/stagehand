@@ -8,6 +8,7 @@ interface LaunchLocalOptions {
   userDataDir?: string;
   port?: number;
   connectTimeoutMs?: number;
+  handleSIGINT?: boolean;
 }
 
 export async function launchLocalChrome(
@@ -29,6 +30,7 @@ export async function launchLocalChrome(
     chromeFlags,
     port: opts.port,
     userDataDir: opts.userDataDir,
+    handleSIGINT: opts.handleSIGINT,
   });
 
   const ws = await waitForWebSocketDebuggerUrl(
