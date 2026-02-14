@@ -11,6 +11,14 @@ import { LocalBrowserLaunchOptions } from "../types/public";
 import { InitScriptSource } from "../types/private";
 import { normalizeInitScriptSource } from "./initScripts";
 import { TimeoutError, PageNotFoundError } from "../types/public/sdkErrors";
+import {
+  Cookie,
+  CookieParam,
+  ClearCookieOptions,
+  filterCookies,
+  normalizeCookieParams,
+  cookieMatchesFilter,
+} from "./cookies";
 
 type TargetId = string;
 type SessionId = string;
@@ -793,5 +801,105 @@ export class V3Context {
     }
     if (immediate) return immediate;
     throw new PageNotFoundError("awaitActivePage: no page available");
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cookie management (browser-context level)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Get all browser cookies, optionally filtered by URL(s).
+   *
+   * When `urls` is omitted or empty every cookie in the browser context is
+   * returned. When one or more URLs are supplied only cookies whose
+   * domain/path/secure attributes match are included.
+   */
+  async cookies(urls?: string | string[]): Promise<Cookie[]> {
+    const urlList = !urls ? [] : typeof urls === "string" ? [urls] : urls;
+
+    const { cookies } = await this.conn.send<{
+      cookies: Protocol.Network.Cookie[];
+    }>("Network.getAllCookies");
+
+    const mapped: Cookie[] = cookies.map((c) => ({
+      name: c.name,
+      value: c.value,
+      domain: c.domain,
+      path: c.path,
+      expires: c.expires,
+      httpOnly: c.httpOnly,
+      secure: c.secure,
+      sameSite: (c.sameSite as Cookie["sameSite"]) ?? "Lax",
+    }));
+
+    return filterCookies(mapped, urlList);
+  }
+
+  /**
+   * Add one or more cookies to the browser context.
+   *
+   * Each cookie must specify either a `url` (from which domain/path/secure are
+   * derived) or an explicit `domain` + `path` pair.
+   *
+   * Unlike Playwright, we check the CDP success flag for each cookie and throw
+   * if the browser rejects it (Playwright silently ignores failures).
+   */
+  async addCookies(cookies: CookieParam[]): Promise<void> {
+    const normalized = normalizeCookieParams(cookies);
+    for (const c of normalized) {
+      const { success } = await this.conn.send<{ success: boolean }>(
+        "Network.setCookie",
+        {
+          name: c.name,
+          value: c.value,
+          domain: c.domain,
+          path: c.path,
+          expires: c.expires,
+          httpOnly: c.httpOnly,
+          secure: c.secure,
+          sameSite: c.sameSite,
+        },
+      );
+      if (!success) {
+        throw new Error(
+          `Failed to set cookie "${c.name}" for domain "${c.domain ?? "(unknown)"}" — ` +
+            `the browser rejected it. Check that the domain, path, and secure/sameSite values are valid.`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Clear cookies from the browser context.
+   *
+   * - Called with no arguments: clears **all** cookies atomically via
+   *   `Network.clearBrowserCookies` (single CDP call, no race condition).
+   * - Called with filter options: only cookies matching every supplied criterion
+   *   are removed via targeted `Network.deleteCookies` calls — non-matching
+   *   cookies are never touched (improvement over Playwright's nuke-and-re-add).
+   */
+  async clearCookies(options?: ClearCookieOptions): Promise<void> {
+    const hasFilter =
+      options?.name !== undefined ||
+      options?.domain !== undefined ||
+      options?.path !== undefined;
+
+    if (!hasFilter) {
+      // Atomic single-call wipe — no race condition, no O(N) roundtrips.
+      await this.conn.send("Network.clearBrowserCookies");
+      return;
+    }
+
+    // Selective: fetch all, delete only the matching ones.
+    const current = await this.cookies();
+    const toDelete = current.filter((c) => cookieMatchesFilter(c, options!));
+
+    for (const c of toDelete) {
+      await this.conn.send("Network.deleteCookies", {
+        name: c.name,
+        domain: c.domain,
+        path: c.path,
+      });
+    }
   }
 }

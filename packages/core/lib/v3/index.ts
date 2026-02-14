@@ -53,3 +53,9 @@ export type {
 } from "./zodCompat";
 
 export type { JsonSchema, JsonSchemaProperty } from "../utils";
+
+export type {
+  Cookie,
+  CookieParam,
+  ClearCookieOptions,
+} from "./understudy/cookies";
