@@ -1,5 +1,57 @@
 # @browserbasehq/stagehand
 
+## 3.1.0
+
+### Minor Changes
+
+- [#1672](https://github.com/browserbase/stagehand/pull/1672) [`b65756e`](https://github.com/browserbase/stagehand/commit/b65756e9e85643055446aa4a51956f7d6627c89f) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add boolean keepAlive parameter to allow for configuring whether the browser should be closed when stagehand.close() is called.
+
+- [#1611](https://github.com/browserbase/stagehand/pull/1611) [`8a3c066`](https://github.com/browserbase/stagehand/commit/8a3c06600a9ba98485db7e9ed5c3cc43ea180334) Thanks [@monadoid](https://github.com/monadoid)! - Using `mode` enum instead of old `cua` boolean in openapi spec
+
+### Patch Changes
+
+- [#1683](https://github.com/browserbase/stagehand/pull/1683) [`7584f3e`](https://github.com/browserbase/stagehand/commit/7584f3e92e60a557d2b3e0e0d2a2af04c3527523) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: include shadow DOM in .count() & .nth() & support xpath predicates
+
+- [#1644](https://github.com/browserbase/stagehand/pull/1644) [`1e1c9c1`](https://github.com/browserbase/stagehand/commit/1e1c9c15773e49d5c3cd36021dbc1d23495c1bce) Thanks [@monadoid](https://github.com/monadoid)! - Fix unhandled CDP detaches by returning the original sendCDP promise
+
+- [#1647](https://github.com/browserbase/stagehand/pull/1647) [`ffd4b33`](https://github.com/browserbase/stagehand/commit/ffd4b335a873d0f4dcd76ea22d44f47919bf8e49) Thanks [@tkattkat](https://github.com/tkattkat)! - Fix [Agent] - Address bug causing issues with continuing a conversation from past messages in dom mode
+
+- [#1614](https://github.com/browserbase/stagehand/pull/1614) [`677bff5`](https://github.com/browserbase/stagehand/commit/677bff5834c879a2d95f7dbff918b8e1510516b3) Thanks [@miguelg719](https://github.com/miguelg719)! - Enforce <number>-<number> regex validation on act/observe for elementId
+
+- [#1666](https://github.com/browserbase/stagehand/pull/1666) [`101bcf2`](https://github.com/browserbase/stagehand/commit/101bcf2da8b527fd6ace6aa291ada5d0f2d90344) Thanks [@Kylejeong2](https://github.com/Kylejeong2)! - add support for codex models
+
+- [#1664](https://github.com/browserbase/stagehand/pull/1664) [`b27c04d`](https://github.com/browserbase/stagehand/commit/b27c04d278c290364347acd0c354a878ea9b7c2d) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fixes issue with context.addInitScript() where scripts were not being applied to out of process iframes (OOPIFs), and popup pages with same process iframes (SPIFs)
+
+- [#1624](https://github.com/browserbase/stagehand/pull/1624) [`0e8d569`](https://github.com/browserbase/stagehand/commit/0e8d5695f662040f7384e64f46301152802e3c62) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix issue where screenshot masks were not being applied to dialog elements
+
+- [#1596](https://github.com/browserbase/stagehand/pull/1596) [`ff0f979`](https://github.com/browserbase/stagehand/commit/ff0f9795f3b2c1cf4f2610a80ebcb3341a24f987) Thanks [@tkattkat](https://github.com/tkattkat)! - Update usage/metrics handling in agent
+
+- [#1631](https://github.com/browserbase/stagehand/pull/1631) [`2d89d2b`](https://github.com/browserbase/stagehand/commit/2d89d2b35ce812431956b28e0c8b52d32ddc7a27) Thanks [@miguelg719](https://github.com/miguelg719)! - Add right and middle click support to act and observe
+
+- [#1613](https://github.com/browserbase/stagehand/pull/1613) [`aa4d981`](https://github.com/browserbase/stagehand/commit/aa4d981e440bdd0e3d3f42ccc310d5958aa25cc6) Thanks [@miguelg719](https://github.com/miguelg719)! - SupportedUnderstudyAction Enum validation for 'method' on act/observe inference
+
+- [#1652](https://github.com/browserbase/stagehand/pull/1652) [`18b1e3b`](https://github.com/browserbase/stagehand/commit/18b1e3bd2b16b721845d52fcf1a45c6158e2403f) Thanks [@miguelg719](https://github.com/miguelg719)! - Add support for gemini 3 flash and pro in hybrid/cua agent
+
+- [#1633](https://github.com/browserbase/stagehand/pull/1633) [`22e371a`](https://github.com/browserbase/stagehand/commit/22e371ae4c25deb6350328fe02832bf2b2197b94) Thanks [@tkattkat](https://github.com/tkattkat)! - Add warning when incorrect models are used with agents hybrid mode
+
+- [#1609](https://github.com/browserbase/stagehand/pull/1609) [`3f9ca4d`](https://github.com/browserbase/stagehand/commit/3f9ca4d9acc109101357378d29cf969168991608) Thanks [@miguelg719](https://github.com/miguelg719)! - Add SupportedUnderstudyActions to observe system prompt
+
+- [#1642](https://github.com/browserbase/stagehand/pull/1642) [`3673369`](https://github.com/browserbase/stagehand/commit/36733691f90c15386cf2a7b47d04ef429b7195ae) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix issue where scripts added via context.addInitScripts() were not being injected into new pages that were opened via popups (eg, clicking a link that opens a new page) and/or calling context.newPage(url)
+
+- [#1636](https://github.com/browserbase/stagehand/pull/1636) [`ea33052`](https://github.com/browserbase/stagehand/commit/ea330520a325583b71b87d85beb740df4bdb9b2d) Thanks [@miguelg719](https://github.com/miguelg719)! - Include executionModel on the AgentConfigSchema
+
+- [#1679](https://github.com/browserbase/stagehand/pull/1679) [`5764ede`](https://github.com/browserbase/stagehand/commit/5764edee7aab00ef1aafafb68fc56eb26c0a70b2) Thanks [@shrey150](https://github.com/shrey150)! - fix issue where locator.count() was not working with xpaths that have attribute predicates
+
+- [#1646](https://github.com/browserbase/stagehand/pull/1646) [`f09b184`](https://github.com/browserbase/stagehand/commit/f09b184cc5e774736280ae8c94ba3f4f13adda80) Thanks [@miguelg719](https://github.com/miguelg719)! - Add user-agent to CDP connections
+
+- [#1637](https://github.com/browserbase/stagehand/pull/1637) [`a7d29de`](https://github.com/browserbase/stagehand/commit/a7d29decee0f7d12e2437267b9eef1795d3b4e3a) Thanks [@miguelg719](https://github.com/miguelg719)! - Improve error and warning message for legacy model format
+
+- [#1685](https://github.com/browserbase/stagehand/pull/1685) [`d334399`](https://github.com/browserbase/stagehand/commit/d3343990041bf9cd5613569840afb0c17131e33c) Thanks [@tkattkat](https://github.com/tkattkat)! - Bump ai sdk & google provider version
+
+- [#1662](https://github.com/browserbase/stagehand/pull/1662) [`44416da`](https://github.com/browserbase/stagehand/commit/44416da7ff33301bb32d3811e6c3be8782a7d168) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix issue where locator.fill() was not working on elements that require direct value setting
+
+- [#1612](https://github.com/browserbase/stagehand/pull/1612) [`bdd8b4e`](https://github.com/browserbase/stagehand/commit/bdd8b4ee3c697a02728375510ab7fae764990576) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix issue where screenshot mask was only being applied to the first element that the locator resolved to. masks now apply to all matching elements.
+
 ## 3.0.8
 
 ### Patch Changes
