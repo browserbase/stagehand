@@ -10,6 +10,7 @@ import {
   HTTP_BAD_REQUEST,
   HTTP_OK,
 } from "../utils.js";
+import type { BrowserbaseRegion } from "@browserbasehq/stagehand";
 
 // =============================================================================
 // Response Type Definitions
@@ -255,5 +256,118 @@ describe("POST /v1/sessions/start - V3 format", () => {
 
     // Should fail because browserbase requires x-bb-api-key and x-bb-project-id headers
     assertFetchStatus(ctx, HTTP_BAD_REQUEST, "Request should fail with 400");
+  });
+
+  // =============================================================================
+  // Multi-Region Support Tests
+  // =============================================================================
+
+  it("should accept non-default region in browserbaseSessionCreateParams", async () => {
+    const url = getBaseUrl();
+
+    // Test with us-east-1 region - server should accept this request
+    // Note: Local browser sessions don't actually use the region, but the server
+    // should still accept the parameter without returning { available: false }
+    const ctx = await fetchWithContext<StartResponse>(
+      `${url}/v1/sessions/start`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          modelName: "gpt-4.1-nano",
+          browserbaseSessionCreateParams: {
+            region: "us-east-1" as BrowserbaseRegion,
+          },
+          ...localBrowser,
+        }),
+      },
+    );
+
+    assertFetchStatus(ctx, HTTP_OK, "Request should succeed");
+    assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+    assertFetchOk(
+      isSuccessResponse(ctx.body),
+      "Should be a success response",
+      ctx,
+    );
+    // The key assertion: non-default regions should NOT return available: false
+    assertFetchOk(
+      ctx.body.data.available === true,
+      "Session should be available for non-default regions",
+      ctx,
+    );
+    assertFetchOk(!!ctx.body.data.sessionId, "Should have sessionId", ctx);
+
+    await endSession(ctx.body.data.sessionId, headers);
+  });
+
+  it("should accept eu-central-1 region in browserbaseSessionCreateParams", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<StartResponse>(
+      `${url}/v1/sessions/start`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          modelName: "gpt-4.1-nano",
+          browserbaseSessionCreateParams: {
+            region: "eu-central-1" as BrowserbaseRegion,
+          },
+          ...localBrowser,
+        }),
+      },
+    );
+
+    assertFetchStatus(ctx, HTTP_OK, "Request should succeed");
+    assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+    assertFetchOk(
+      isSuccessResponse(ctx.body),
+      "Should be a success response",
+      ctx,
+    );
+    assertFetchOk(
+      ctx.body.data.available === true,
+      "Session should be available for eu-central-1 region",
+      ctx,
+    );
+    assertFetchOk(!!ctx.body.data.sessionId, "Should have sessionId", ctx);
+
+    await endSession(ctx.body.data.sessionId, headers);
+  });
+
+  it("should accept ap-southeast-1 region in browserbaseSessionCreateParams", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<StartResponse>(
+      `${url}/v1/sessions/start`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          modelName: "gpt-4.1-nano",
+          browserbaseSessionCreateParams: {
+            region: "ap-southeast-1" as BrowserbaseRegion,
+          },
+          ...localBrowser,
+        }),
+      },
+    );
+
+    assertFetchStatus(ctx, HTTP_OK, "Request should succeed");
+    assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+    assertFetchOk(
+      isSuccessResponse(ctx.body),
+      "Should be a success response",
+      ctx,
+    );
+    assertFetchOk(
+      ctx.body.data.available === true,
+      "Session should be available for ap-southeast-1 region",
+      ctx,
+    );
+    assertFetchOk(!!ctx.body.data.sessionId, "Should have sessionId", ctx);
+
+    await endSession(ctx.body.data.sessionId, headers);
   });
 });
