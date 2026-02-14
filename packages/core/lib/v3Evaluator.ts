@@ -18,7 +18,6 @@ import { V3 } from "./v3/v3";
 import { LLMProvider } from "./v3/llm/LLMProvider.js";
 import { StagehandInvalidArgumentError } from "./v3/types/public/sdkErrors";
 
-
 const EvaluationSchema = z.object({
   evaluation: z.enum(["YES", "NO"]),
   reasoning: z.string(),

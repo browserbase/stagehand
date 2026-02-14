@@ -1,7 +1,6 @@
 import { Stagehand } from "../../lib/v3";
 import { v3Logger } from "../../lib/v3/logger";
 
-
 async function runDemo(runNumber: number) {
   const startTime = Date.now();
 

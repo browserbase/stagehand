@@ -3,7 +3,6 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-
 const args: readonly string[] = process.argv.slice(2);
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 

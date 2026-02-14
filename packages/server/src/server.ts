@@ -29,6 +29,7 @@ import endRoute from "./routes/v1/sessions/_id/end.js";
 import extractRoute from "./routes/v1/sessions/_id/extract.js";
 import navigateRoute from "./routes/v1/sessions/_id/navigate.js";
 import observeRoute from "./routes/v1/sessions/_id/observe.js";
+import replayRoute from "./routes/v1/sessions/_id/replay.js";
 import startRoute from "./routes/v1/sessions/start.js";
 
 // Constants for graceful shutdown
@@ -242,6 +243,7 @@ const start = async () => {
         instance.route(extractRoute);
         instance.route(navigateRoute);
         instance.route(observeRoute);
+        instance.route(replayRoute);
         instance.route(startRoute);
         instance.route(agentExecuteRoute);
         done();
