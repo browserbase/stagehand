@@ -35,6 +35,7 @@ import {
   MissingLLMConfigurationError,
   StreamingCallbacksInNonStreamingModeError,
   AgentAbortError,
+  StagehandClosedError,
 } from "../types/public/sdkErrors";
 import { handleDoneToolCall } from "../agent/utils/handleDoneToolCall";
 
@@ -91,6 +92,16 @@ export class V3AgentHandler {
     this.mode = mode ?? "dom";
   }
 
+  /**
+   * Ensures the V3 context is still available (not closed).
+   * Throws StagehandClosedError if stagehand.close() was called.
+   */
+  private ensureNotClosed(): void {
+    if (!this.v3.context) {
+      throw new StagehandClosedError();
+    }
+  }
+
   private async prepareAgent(
     instructionOrOptions: string | AgentExecuteOptionsBase,
   ): Promise<AgentContext> {
@@ -101,6 +112,9 @@ export class V3AgentHandler {
           : instructionOrOptions;
 
       const maxSteps = options.maxSteps || 20;
+
+      // Ensure context is still available before accessing it
+      this.ensureNotClosed();
 
       // Get the initial page URL first (needed for the system prompt)
       const initialPageUrl = (await this.v3.context.awaitActivePage()).url();
@@ -184,6 +198,9 @@ export class V3AgentHandler {
       | StreamTextOnStepFinishCallback<ToolSet>,
   ) {
     return async (event: StepResult<ToolSet>) => {
+      // Check if stagehand was closed during streaming
+      this.ensureNotClosed();
+
       this.logger({
         category: "agent",
         message: `Step finished: ${event.finishReason}`,
@@ -636,6 +653,7 @@ export class V3AgentHandler {
    * Capture a screenshot and emit it via the event bus
    */
   private async captureAndEmitScreenshot(): Promise<void> {
+    this.ensureNotClosed();
     try {
       const page = await this.v3.context.awaitActivePage();
       const screenshot = await page.screenshot({ fullPage: false });
