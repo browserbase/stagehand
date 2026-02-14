@@ -10,7 +10,7 @@ test.describe("Stagehand agent callbacks behavior", () => {
   test.beforeEach(async () => {
     v3 = new V3({
       ...v3TestConfig,
-      experimental: true, // Required for callbacks and streaming
+      experimental: true, // Required for callbacks
     });
     await v3.init();
   });
