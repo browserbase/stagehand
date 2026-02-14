@@ -1778,6 +1778,14 @@ export class V3 {
       );
     }
 
+    // Validate mode parameter
+    const validModes = ["dom", "hybrid", "cua"] as const;
+    if (options?.mode !== undefined && !validModes.includes(options.mode)) {
+      throw new StagehandInvalidArgumentError(
+        `Invalid agent mode "${options.mode}". Must be one of: ${validModes.join(", ")}`,
+      );
+    }
+
     this.logger({
       category: "agent",
       message: "Creating v3 agent instance",
