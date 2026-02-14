@@ -30,6 +30,17 @@ export interface Action {
   arguments?: string[];
 }
 
+export interface ActionEvent {
+  phase: "start" | "complete" | "error";
+  method: string;
+  selector: string;
+  description: string;
+  arguments?: string[];
+  url?: string;
+  timestamp: number;
+  error?: string;
+}
+
 export interface HistoryEntry {
   method: "act" | "extract" | "observe" | "navigate" | "agent";
   parameters: unknown;
