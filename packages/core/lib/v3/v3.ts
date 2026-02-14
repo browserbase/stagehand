@@ -55,6 +55,7 @@ import {
   LogLine,
   StagehandMetrics,
   Action,
+  ActionEvent,
   ActOptions,
   ActResult,
   defaultExtractSchema,
@@ -150,9 +151,38 @@ export class V3 {
 
   /**
    * Event bus for internal communication.
-   * Emits events like 'screenshot' when screenshots are captured during agent execution.
+   * Emits events like 'screenshot' when screenshots are captured during agent execution,
+   * and 'action' when Playwright actions are executed.
    */
   public readonly bus: EventEmitter = new EventEmitter();
+
+  /**
+   * Subscribe to events emitted by Stagehand.
+   *
+   * Available events:
+   * - `"action"` — fired when a Playwright action starts, completes, or errors.
+   *   The listener receives an {@link ActionEvent} object.
+   *
+   * @example
+   * ```ts
+   * stagehand.on("action", (event) => {
+   *   console.log(`[${event.phase}] ${event.method} — ${event.description}`);
+   * });
+   * ```
+   */
+  on(event: string, listener: (...args: unknown[]) => void): this {
+    this.bus.on(event, listener);
+    return this;
+  }
+
+  /**
+   * Unsubscribe a previously registered event listener.
+   */
+  off(event: string, listener: (...args: unknown[]) => void): this {
+    this.bus.off(event, listener);
+    return this;
+  }
+
   private modelName: AvailableModel;
   private modelClientOptions: ClientOptions;
   private llmProvider: LLMProvider;
@@ -663,6 +693,7 @@ export class V3 {
               inferenceTimeMs,
             ),
           this.domSettleTimeoutMs,
+          this.bus,
         );
         this.extractHandler = new ExtractHandler(
           this.llmClient,
