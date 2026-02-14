@@ -90,23 +90,10 @@ if (!fs.existsSync(configPath)) {
   process.exit(1);
 }
 
-const toDistPath = (testPath: string) => {
-  if (
-    testPath.endsWith(".js") &&
-    testPath.includes(`${path.sep}dist${path.sep}esm${path.sep}`)
-  ) {
-    return testPath;
-  }
-  const abs = path.isAbsolute(testPath)
-    ? testPath
-    : path.resolve(repoRoot, testPath);
-  const rel = path.relative(path.join(repoRoot, "packages", "core"), abs);
-  return path
-    .join(repoRoot, "packages", "core", "dist", "esm", rel)
-    .replace(/\.ts$/i, ".js");
-};
+const toPlaywrightPath = (testPath: string) =>
+  path.isAbsolute(testPath) ? testPath : path.resolve(repoRoot, testPath);
 
-const compiledPaths = paths.map(toDistPath);
+const playwrightPaths = paths.map(toPlaywrightPath);
 
 const registerPath = path.join(
   repoRoot,
@@ -192,7 +179,7 @@ const result = spawnSync(
     "--config",
     configPath,
     ...extraArgs,
-    ...compiledPaths,
+    ...playwrightPaths,
   ],
   { stdio: "inherit", env },
 );

@@ -9,6 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import type {
   ShutdownSupervisorConfig,
   ShutdownSupervisorHandle,
@@ -20,16 +21,17 @@ import {
 } from "../types/private/shutdownErrors";
 
 const READY_TIMEOUT_MS = 500;
+const thisDir = path.dirname(fileURLToPath(import.meta.url));
 
 const resolveSupervisorScript = (): {
   command: string;
   args: string[];
 } | null => {
-  const jsPath = path.resolve(__dirname, "supervisor.js");
+  const jsPath = path.resolve(thisDir, "supervisor.js");
   if (fs.existsSync(jsPath)) {
     return { command: process.execPath, args: [jsPath] };
   }
-  const tsPath = path.resolve(__dirname, "supervisor.ts");
+  const tsPath = path.resolve(thisDir, "supervisor.ts");
   if (fs.existsSync(tsPath)) {
     return { command: process.execPath, args: ["--import", "tsx", tsPath] };
   }
