@@ -31,7 +31,14 @@ type EvalSummary = {
 
 const readEvalSummary = (summaryPath: string): EvalSummary | null => {
   if (!fs.existsSync(summaryPath)) return null;
-  return JSON.parse(fs.readFileSync(summaryPath, "utf8")) as EvalSummary;
+  try {
+    return JSON.parse(fs.readFileSync(summaryPath, "utf8")) as EvalSummary;
+  } catch (error) {
+    console.warn(
+      `Failed to parse eval summary at ${summaryPath}: ${String(error)}`,
+    );
+    return null;
+  }
 };
 
 const escapeXml = (value: string) =>

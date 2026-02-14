@@ -19,6 +19,7 @@ import {
   CreateChatCompletionOptions,
   LLMClient,
 } from "@browserbasehq/stagehand/lib/v3/llm/LLMClient";
+import { toJsonSchema } from "@browserbasehq/stagehand/lib/v3/zodCompat";
 
 // Wrap AI SDK functions with Braintrust for tracing
 const { generateObject, generateText } = wrapAISDK(ai);
@@ -133,21 +134,43 @@ export class AISdkClientWrapped extends LLMClient {
 
     let objectResponse: Awaited<ReturnType<typeof generateObject>>;
     const isGPT5 = this.model.modelId.includes("gpt-5");
+    const isCodex = this.model.modelId.includes("codex");
     const usesLowReasoningEffort =
-      this.model.modelId.includes("gpt-5.1") ||
-      this.model.modelId.includes("gpt-5.2");
+      (this.model.modelId.includes("gpt-5.1") ||
+        this.model.modelId.includes("gpt-5.2")) &&
+      !isCodex;
+    const isDeepSeek = this.model.modelId.includes("deepseek");
+    // Kimi models only support temperature=1
+    const isKimi = this.model.modelId.includes("kimi");
+    const temperature = isKimi ? 1 : options.temperature;
     if (options.response_model) {
+      if (isDeepSeek || isKimi) {
+        const parsedSchema = JSON.stringify(
+          toJsonSchema(options.response_model.schema),
+        );
+
+        formattedMessages.push({
+          role: "user",
+          content: `Respond in this zod schema format:\n${parsedSchema}\n
+You must respond in JSON format. respond WITH JSON. Do not include any other text, formatting or markdown in your output. Do not include \`\`\` or \`\`\`json in your response. Only the JSON object itself.`,
+        });
+      }
+
       try {
         objectResponse = await generateObject({
           model: this.model,
           messages: formattedMessages,
           schema: options.response_model.schema,
-          temperature: options.temperature,
+          temperature,
           providerOptions: isGPT5
             ? {
                 openai: {
-                  textVerbosity: "low", // Making these the default for gpt-5 for now
-                  reasoningEffort: usesLowReasoningEffort ? "low" : "minimal",
+                  textVerbosity: isCodex ? "medium" : "low", // codex models only support 'medium'
+                  reasoningEffort: isCodex
+                    ? "medium"
+                    : usesLowReasoningEffort
+                      ? "low"
+                      : "minimal",
                 },
               }
             : undefined,
@@ -248,7 +271,7 @@ export class AISdkClientWrapped extends LLMClient {
               ? "none"
               : "auto"
           : undefined,
-      temperature: options.temperature,
+      temperature,
     });
 
     // Transform AI SDK response to match LLMResponse format expected by operator handler

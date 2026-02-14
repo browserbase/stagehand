@@ -31,6 +31,7 @@ import { mistral, createMistral } from "@ai-sdk/mistral";
 import { deepseek, createDeepSeek } from "@ai-sdk/deepseek";
 import { perplexity, createPerplexity } from "@ai-sdk/perplexity";
 import { ollama, createOllama } from "ollama-ai-provider-v2";
+import { gateway, createGateway } from "ai";
 import { AISDKProvider, AISDKCustomProvider } from "../types/public/model";
 
 const AISDKProviders: Record<string, AISDKProvider> = {
@@ -48,6 +49,7 @@ const AISDKProviders: Record<string, AISDKProvider> = {
   perplexity,
   ollama,
   vertex,
+  gateway,
 };
 const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   openai: createOpenAI,
@@ -64,6 +66,7 @@ const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   deepseek: createDeepSeek,
   perplexity: createPerplexity,
   ollama: createOllama,
+  gateway: createGateway,
 };
 
 const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
@@ -169,10 +172,18 @@ export class LLMProvider {
       });
     }
 
+    // Model name doesn't include "/" - this format is deprecated
     const provider = modelToProviderMap[modelName];
     if (!provider) {
       throw new UnsupportedModelError(Object.keys(modelToProviderMap));
     }
+
+    this.logger({
+      category: "llm",
+      message: `Deprecation warning: Model format "${modelName}" is deprecated. Please use the provider/model format (e.g., "openai/gpt-5" or "anthropic/claude-sonnet-4").`,
+      level: 0,
+    });
+
     const availableModel = modelName as AvailableModel;
     switch (provider) {
       case "openai":
@@ -206,6 +217,8 @@ export class LLMProvider {
           clientOptions,
         });
       default:
+        // This default case handles unknown providers that exist in modelToProviderMap
+        // but aren't implemented in the switch. This is an internal consistency issue.
         throw new UnsupportedModelProviderError([
           ...new Set(Object.values(modelToProviderMap)),
         ]);

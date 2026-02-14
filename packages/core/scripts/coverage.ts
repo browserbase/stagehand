@@ -115,6 +115,11 @@ const result = spawnSync(
   },
 );
 
+if (result.error) {
+  console.error(`Failed to run c8 coverage report: ${result.error.message}`);
+  process.exit(1);
+}
+
 if (result.stdout) {
   process.stdout.write(result.stdout);
   fs.writeFileSync(path.join(outDir, "coverage-summary.txt"), result.stdout);

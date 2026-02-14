@@ -3,21 +3,24 @@ import { Protocol } from "devtools-protocol";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { locatorScriptSources } from "../dom/build/locatorScripts.generated";
+import {
+  locatorScriptBootstrap,
+  locatorScriptGlobalRefs,
+  locatorScriptSources,
+} from "../dom/build/locatorScripts.generated";
 import type { Frame } from "./frame";
 import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver";
 import {
   StagehandElementNotFoundError,
   StagehandInvalidArgumentError,
+  StagehandLocatorError,
   ElementNotVisibleError,
 } from "../types/public/sdkErrors";
 import { normalizeInputFiles } from "./fileUploadUtils";
-import { SetInputFilesArgument } from "../types/public/locator";
+import { SetInputFilesArgument, MouseButton } from "../types/public/locator";
 import { NormalizedFilePayload } from "../types/private/locator";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
-
-type MouseButton = "left" | "right" | "middle";
 
 /**
  * Locator
@@ -518,6 +521,8 @@ export class Locator {
    */
   async fill(value: string): Promise<void> {
     const session = this.frame.session;
+    // Use the bundled locator globals; the raw fill snippet depends on helper symbols.
+    const fillDeclaration = `function(value) { ${locatorScriptBootstrap}; return ${locatorScriptGlobalRefs.fillElementValue}.call(this, value); }`;
     const { objectId } = await this.resolveNode();
 
     let releaseNeeded = true;
@@ -527,11 +532,19 @@ export class Locator {
         "Runtime.callFunctionOn",
         {
           objectId,
-          functionDeclaration: locatorScriptSources.fillElementValue,
+          functionDeclaration: fillDeclaration,
           arguments: [{ value }],
           returnByValue: true,
         },
       );
+      if (res.exceptionDetails) {
+        // prefer exception.description over text (eg "Uncaught")
+        const message =
+          res.exceptionDetails.exception?.description ??
+          res.exceptionDetails.text ??
+          "Unknown exception during locator().fill()";
+        throw new StagehandLocatorError("Filling", this.selector, message);
+      }
 
       const result = res.result.value as
         | { status?: string; reason?: string; value?: string }

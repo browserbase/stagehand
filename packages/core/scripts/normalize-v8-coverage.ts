@@ -360,49 +360,50 @@ const normalizeCoverageDir = async (options: NormalizerOptions) => {
   if (jsonFiles.length === 0) return;
 
   const sourceCache = new Map<string, SourceContext | null>();
+  try {
+    for (const file of jsonFiles) {
+      const data = JSON.parse(fs.readFileSync(file, "utf8")) as CoverageFile;
+      if (!Array.isArray(data.result)) continue;
+      let updated = false;
 
-  for (const file of jsonFiles) {
-    const data = JSON.parse(fs.readFileSync(file, "utf8")) as CoverageFile;
-    if (!Array.isArray(data.result)) continue;
-    let updated = false;
-
-    for (const entry of data.result) {
-      const jsPath = entry.url ? toFilePath(entry.url) : null;
-      if (!jsPath) continue;
-      let ctx = sourceCache.get(jsPath);
-      if (ctx === undefined) {
-        const map = readSourceMap(jsPath);
-        if (!map) {
-          sourceCache.set(jsPath, null);
-          continue;
+      for (const entry of data.result) {
+        const jsPath = entry.url ? toFilePath(entry.url) : null;
+        if (!jsPath) continue;
+        let ctx = sourceCache.get(jsPath);
+        if (ctx === undefined) {
+          const map = readSourceMap(jsPath);
+          if (!map) {
+            sourceCache.set(jsPath, null);
+            continue;
+          }
+          const source = fs.readFileSync(jsPath, "utf8");
+          ctx = {
+            lineStarts: buildLineStarts(source),
+            sourceLength: source.length,
+            consumer: await new SourceMapConsumer(map),
+          };
+          sourceCache.set(jsPath, ctx);
         }
-        const source = fs.readFileSync(jsPath, "utf8");
-        ctx = {
-          lineStarts: buildLineStarts(source),
-          sourceLength: source.length,
-          consumer: await new SourceMapConsumer(map),
-        };
-        sourceCache.set(jsPath, ctx);
-      }
-      if (!ctx) continue;
-      if (!entry?.functions) continue;
-      for (const block of entry.functions) {
-        if (!block?.ranges) continue;
-        for (const range of block.ranges) {
-          if (normalizeRange(range, ctx, options)) {
-            updated = true;
+        if (!ctx) continue;
+        if (!entry?.functions) continue;
+        for (const block of entry.functions) {
+          if (!block?.ranges) continue;
+          for (const range of block.ranges) {
+            if (normalizeRange(range, ctx, options)) {
+              updated = true;
+            }
           }
         }
       }
-    }
 
-    if (updated) {
-      fs.writeFileSync(file, JSON.stringify(data));
+      if (updated) {
+        fs.writeFileSync(file, JSON.stringify(data));
+      }
     }
-  }
-
-  for (const ctx of sourceCache.values()) {
-    ctx?.consumer.destroy();
+  } finally {
+    for (const ctx of sourceCache.values()) {
+      ctx?.consumer.destroy();
+    }
   }
 };
 
@@ -430,5 +431,8 @@ const main = async () => {
 };
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  void main();
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
 }

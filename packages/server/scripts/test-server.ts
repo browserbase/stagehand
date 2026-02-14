@@ -118,7 +118,7 @@ const port =
   parsedBaseUrl.port || (parsedBaseUrl.protocol === "https:" ? "443" : "80");
 
 process.env.PORT = port;
-process.env.STAGEHAND_API_URL = baseUrl ?? process.env.STAGEHAND_API_URL;
+process.env.STAGEHAND_API_URL = baseUrl;
 process.env.BB_ENV = process.env.BB_ENV ?? "local";
 
 const registerPath = path.join(
