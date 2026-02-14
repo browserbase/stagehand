@@ -253,6 +253,7 @@
       "env": [
         "ANTHROPIC_API_KEY",
         "BB_ENV",
+        "CHROME_PATH",
         "GEMINI_API_KEY",
         "GOOGLE_GENERATIVE_AI_API_KEY",
         "NODE_OPTIONS",

@@ -84,12 +84,31 @@ export interface SessionInfo {
 }
 
 function createLocalBrowserBody(userDataDir: string) {
+  const resolveChromePath = (): string => {
+    const explicit = process.env.CHROME_PATH;
+    if (explicit && fs.existsSync(explicit)) {
+      return explicit;
+    }
+    if (explicit) {
+      throw new Error(`CHROME_PATH does not exist: ${explicit}`);
+    }
+
+    const playwrightPath = chromium.executablePath();
+    if (playwrightPath && fs.existsSync(playwrightPath)) {
+      return playwrightPath;
+    }
+
+    throw new Error(
+      "Unable to locate a Chrome executable. Set CHROME_PATH in the test environment.",
+    );
+  };
+
   return {
     browser: {
       type: "local",
       launchOptions: {
         headless: true,
-        executablePath: process.env.CHROME_PATH ?? chromium.executablePath(),
+        executablePath: resolveChromePath(),
         args: process.env.CI ? ["--no-sandbox"] : undefined,
         userDataDir,
       },

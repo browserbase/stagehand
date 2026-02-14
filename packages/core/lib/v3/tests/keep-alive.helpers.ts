@@ -109,6 +109,16 @@ const STAY_OPEN_MS = Number(process.env.KEEP_ALIVE_STAY_OPEN_MS ?? "6000");
 const ACTION_EXIT_TIMEOUT_MS = Number(
   process.env.KEEP_ALIVE_ACTION_EXIT_TIMEOUT_MS ?? "3000",
 );
+const LOCAL_INFO_TIMEOUT_MS = Number(
+  process.env.KEEP_ALIVE_LOCAL_INFO_TIMEOUT_MS ?? "15000",
+);
+const BB_INFO_TIMEOUT_MS = Number(
+  process.env.KEEP_ALIVE_BB_INFO_TIMEOUT_MS ??
+    (process.env.CI ? "45000" : "30000"),
+);
+
+const getInfoTimeoutMs = (env: EnvKind): number =>
+  env === "BROWSERBASE" ? BB_INFO_TIMEOUT_MS : LOCAL_INFO_TIMEOUT_MS;
 
 function debugLog(message: string): void {
   if (DEBUG) {
@@ -159,16 +169,25 @@ async function runScenario(config: ScenarioConfig): Promise<{
   let buffer = "";
   let stderr = "";
   let resolved = false;
+  const infoTimeoutMs = getInfoTimeoutMs(config.env);
 
   const infoPromise = new Promise<ChildInfo>((resolve, reject) => {
     const timeout = setTimeout(() => {
       child.kill("SIGKILL");
+      const stdoutDetails =
+        logs.stdout.length > 0
+          ? `\nChild stdout:\n${logs.stdout.join("\n")}`
+          : "";
       const details = stderr.trim();
       const suffix = details
         ? `\nChild stderr:\n${details}`
         : "\nChild did not emit keepAlive info.";
-      reject(new Error(`Child timed out waiting for info.${suffix}`));
-    }, 15_000);
+      reject(
+        new Error(
+          `Child timed out waiting for info after ${infoTimeoutMs}ms (env=${config.env}, keepAlive=${config.keepAlive}, disableAPI=${config.disableAPI}, scenario=${config.kind}).${suffix}${stdoutDetails}`,
+        ),
+      );
+    }, infoTimeoutMs);
 
     child.stdout.on("data", (chunk) => {
       buffer += chunk.toString();
@@ -192,13 +211,17 @@ async function runScenario(config: ScenarioConfig): Promise<{
     child.on("exit", (code, signal) => {
       if (resolved) return;
       clearTimeout(timeout);
+      const stdoutDetails =
+        logs.stdout.length > 0
+          ? `\nChild stdout:\n${logs.stdout.join("\n")}`
+          : "";
       const details = stderr.trim();
       const suffix = details
         ? `\nChild stderr:\n${details}`
         : "\nChild exited without emitting keepAlive info.";
       reject(
         new Error(
-          `Child exited (code=${code ?? "null"}, signal=${signal ?? "null"})${suffix}`,
+          `Child exited (code=${code ?? "null"}, signal=${signal ?? "null"}) before emitting keepAlive info (env=${config.env}, keepAlive=${config.keepAlive}, disableAPI=${config.disableAPI}, scenario=${config.kind}).${suffix}${stdoutDetails}`,
         ),
       );
     });
@@ -592,16 +615,30 @@ export async function runKeepAliveCase(
     projectId?: string;
   },
 ): Promise<void> {
-  const { info, child, logs } = await runScenario({
-    env: testCase.env,
-    keepAlive: testCase.keepAlive,
-    disableAPI: testCase.disableAPI,
-    kind: testCase.kind,
-    debug: DEBUG,
-    viewMs: VIEW_MS,
-    apiKey: envConfig.apiKey,
-    projectId: envConfig.projectId,
-  });
+  let info: ChildInfo | undefined;
+  let child: ReturnType<typeof spawn> | undefined;
+  let logs: ChildLogs | undefined;
+  try {
+    ({ info, child, logs } = await runScenario({
+      env: testCase.env,
+      keepAlive: testCase.keepAlive,
+      disableAPI: testCase.disableAPI,
+      kind: testCase.kind,
+      debug: DEBUG,
+      viewMs: VIEW_MS,
+      apiKey: envConfig.apiKey,
+      projectId: envConfig.projectId,
+    }));
+  } catch (error) {
+    logCaseResult(
+      testCase.title,
+      testCase.envLabel,
+      testCase.keepAlive,
+      undefined,
+      error as Error,
+    );
+    throw error;
+  }
 
   if (testCase.kind === "sigterm") {
     child.kill("SIGTERM");
@@ -629,7 +666,9 @@ export async function runKeepAliveCase(
     );
   } catch (error) {
     failure = error as Error;
-    dumpLogs(logs);
+    if (logs) {
+      dumpLogs(logs);
+    }
     throw error;
   } finally {
     logCaseResult(
@@ -640,10 +679,10 @@ export async function runKeepAliveCase(
       failure,
     );
     await stopChild(child);
-    if (testCase.env === "LOCAL" && info?.connectURL) {
+    if (testCase.env === "LOCAL" && info.connectURL) {
       await closeLocalBrowser(info.connectURL);
     }
-    if (testCase.env === "BROWSERBASE" && info?.sessionId) {
+    if (testCase.env === "BROWSERBASE" && info.sessionId) {
       await endBrowserbaseSession(
         info.sessionId,
         envConfig.apiKey,

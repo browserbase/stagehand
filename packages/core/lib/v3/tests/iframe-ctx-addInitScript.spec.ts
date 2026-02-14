@@ -4,19 +4,34 @@ import { v3TestConfig } from "./v3.config";
 import { V3Context } from "../understudy/context";
 import type { Page } from "../understudy/page";
 
+const isBrowserbase =
+  (process.env.STAGEHAND_BROWSER_TARGET ?? "local").toLowerCase() ===
+  "browserbase";
+const isCi = process.env.CI === "true";
+const CHILD_FRAME_TIMEOUT_MS = Number(
+  process.env.IFRAME_CHILD_FRAME_TIMEOUT_MS ??
+    (isBrowserbase && isCi ? "20000" : "10000"),
+);
+const POPUP_TIMEOUT_MS = Number(
+  process.env.IFRAME_POPUP_TIMEOUT_MS ??
+    (isBrowserbase && isCi ? "20000" : "10000"),
+);
+
 /**
  * Poll until a child frame (non-main) appears on `page` and its document
  * has finished loading.  Returns the child frame.
  */
 async function waitForChildFrame(
   page: Page,
-  timeoutMs = 10_000,
+  timeoutMs = CHILD_FRAME_TIMEOUT_MS,
 ): Promise<ReturnType<Page["frames"]>[number]> {
   const mainFrameId = page.mainFrame().frameId;
   const deadline = Date.now() + timeoutMs;
+  let observedFrameCount = 0;
 
   while (Date.now() < deadline) {
     const frames = page.frames();
+    observedFrameCount = Math.max(observedFrameCount, frames.length);
     const child = frames.find((f) => f.frameId !== mainFrameId);
     if (child) {
       try {
@@ -28,7 +43,47 @@ async function waitForChildFrame(
     }
     await new Promise((r) => setTimeout(r, 100));
   }
-  throw new Error("Timed out waiting for child frame to load");
+  throw new Error(
+    `Timed out waiting for child frame to load (timeout=${timeoutMs}ms, mainFrameId=${mainFrameId}, maxObservedFrames=${observedFrameCount})`,
+  );
+}
+
+async function waitForPopupPage(
+  ctx: V3Context,
+  opener: Page,
+  timeoutMs = POPUP_TIMEOUT_MS,
+): Promise<Page> {
+  const openerMainFrameId = opener.mainFrame().frameId;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const pages = ctx.pages();
+    const popup = pages.find((candidate) => {
+      return candidate.mainFrame().frameId !== openerMainFrameId;
+    });
+    if (popup) {
+      return popup;
+    }
+
+    try {
+      const active = await ctx.awaitActivePage(500);
+      if (active.mainFrame().frameId !== openerMainFrameId) {
+        return active;
+      }
+    } catch {
+      // keep polling until timeout
+    }
+
+    await new Promise((r) => setTimeout(r, 100));
+  }
+
+  const pageIds = ctx
+    .pages()
+    .map((p) => p.mainFrame().frameId)
+    .join(", ");
+  throw new Error(
+    `Timed out waiting for popup page (timeout=${timeoutMs}ms, openerMainFrameId=${openerMainFrameId}, observedPages=[${pageIds}])`,
+  );
 }
 
 test.describe("context.addInitScript with iframes", () => {
@@ -159,7 +214,7 @@ test.describe("context.addInitScript with iframes", () => {
       await page.locator("a").click();
 
       // Wait for popup to open and become active
-      const popup = await ctx.awaitActivePage();
+      const popup = await waitForPopupPage(ctx, page);
       const iframe = await waitForChildFrame(popup);
 
       // Check popup main page background
@@ -186,7 +241,7 @@ test.describe("context.addInitScript with iframes", () => {
       await page.locator("a").click();
 
       // Wait for popup to open and become active
-      const popup = await ctx.awaitActivePage();
+      const popup = await waitForPopupPage(ctx, page);
       const iframe = await waitForChildFrame(popup);
 
       // Check popup main page background

@@ -26,7 +26,7 @@ runs:
       uses: actions/cache/restore@v4
       with:
         path: .turbo
-        key: ${{ runner.os }}-turbo-${{ hashFiles('turbo.json', '**/pnpm-lock.yaml') }}
+        key: ${{ runner.os }}-turbo-${{ github.sha }}
         restore-keys: |
           ${{ runner.os }}-turbo-
 
