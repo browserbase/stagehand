@@ -30,12 +30,22 @@ import {
 
 export class CustomOpenAIClient extends LLMClient {
   public type = "openai" as const;
-  private client: OpenAI;
+  protected client: OpenAI;
+  protected extraBody?: Record<string, unknown>;
 
-  constructor({ modelName, client }: { modelName: string; client: OpenAI }) {
+  constructor({
+    modelName,
+    client,
+    extraBody,
+  }: {
+    modelName: string;
+    client: OpenAI;
+    extraBody?: Record<string, unknown>;
+  }) {
     super(modelName as AvailableModel);
     this.client = client;
     this.modelName = modelName as AvailableModel;
+    this.extraBody = extraBody;
   }
 
   async createChatCompletion<T = ChatCompletion>({
@@ -156,6 +166,20 @@ export class CustomOpenAIClient extends LLMClient {
           }
         }
 
+        if (message.role === "system") {
+          const formattedMessage: ChatCompletionSystemMessageParam = {
+            role: "system",
+            content: message.content,
+          };
+          return formattedMessage;
+        } else if (message.role === "assistant") {
+          const formattedMessage: ChatCompletionAssistantMessageParam = {
+            role: "assistant",
+            content: message.content,
+          };
+          return formattedMessage;
+        }
+
         const formattedMessage: ChatCompletionUserMessageParam = {
           role: "user",
           content: message.content,
@@ -192,7 +216,10 @@ export class CustomOpenAIClient extends LLMClient {
       })),
     };
 
-    const response = await this.client.chat.completions.create(body);
+    const response = await this.client.chat.completions.create(
+      body,
+      this.extraBody ? { body: this.extraBody } : undefined,
+    );
 
     logger({
       category: "openai",

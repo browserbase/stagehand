@@ -50,6 +50,7 @@ const publicApiShape = {
   transformSchema: Stagehand.transformSchema,
   trimTrailingTextNode: Stagehand.trimTrailingTextNode,
   validateZodSchema: Stagehand.validateZodSchema,
+  ZhipuClient: Stagehand.ZhipuClient,
   ...publicErrorTypes,
 } as const;
 
