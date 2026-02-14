@@ -27,6 +27,11 @@ export interface V3Options {
    */
   browserbaseSessionCreateParams?: BrowserbaseSessionCreateParams;
   browserbaseSessionID?: string;
+  /**
+   * Controls browser keepalive behavior. When set, it overrides any value in
+   * browserbaseSessionCreateParams.keepAlive.
+   */
+  keepAlive?: boolean;
 
   // Local Chromium (optional)
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
