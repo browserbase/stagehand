@@ -299,6 +299,18 @@ export class ActCache {
         return true;
       }
 
+      if (orig.id !== next.id) {
+        return true;
+      }
+
+      if (orig.cssSelector !== next.cssSelector) {
+        return true;
+      }
+
+      if (JSON.stringify(orig.attributes) !== JSON.stringify(next.attributes)) {
+        return true;
+      }
+
       if ((orig.method ?? "") !== (next.method ?? "")) {
         return true;
       }

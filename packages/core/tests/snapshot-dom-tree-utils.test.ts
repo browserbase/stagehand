@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   collectDomTraversalTargets,
   findNodeByBackendId,
+  generateCssSelector,
   mergeDomNodes,
+  parseAttributes,
   shouldExpandNode,
 } from "../lib/v3/understudy/a11y/snapshot/domTree";
 
@@ -124,5 +126,45 @@ describe("findNodeByBackendId", () => {
       shadowRoots: [makeNode()],
     });
     expect(findNodeByBackendId(root, 123456)).toBeUndefined();
+  });
+});
+
+describe("parseAttributes", () => {
+  it("converts CDP attribute array to record", () => {
+    const attrs = ["id", "foo", "class", "bar", "data-testid", "test"];
+    expect(parseAttributes(attrs)).toEqual({
+      id: "foo",
+      class: "bar",
+      "data-testid": "test",
+    });
+  });
+
+  it("handles empty/missing attributes", () => {
+    expect(parseAttributes([])).toEqual({});
+    expect(parseAttributes(undefined)).toEqual({});
+  });
+});
+
+describe("generateCssSelector", () => {
+  it("prioritizes data-testid", () => {
+    const attrs = { "data-testid": "submit-btn", id: "button-1" };
+    expect(generateCssSelector("button", attrs)).toBe(
+      '[data-testid="submit-btn"]',
+    );
+  });
+
+  it("falls back to id if no data-testid", () => {
+    const attrs = { id: "button-1" };
+    expect(generateCssSelector("button", attrs)).toBe("#button-1");
+  });
+
+  it("uses classes as fallback if no id or data-testid", () => {
+    const attrs = { class: "foo bar" };
+    expect(generateCssSelector("div", attrs)).toBe("div.foo.bar");
+  });
+
+  it("returns empty string if no stable attributes and no classes found", () => {
+    const attrs = { type: "button" };
+    expect(generateCssSelector("button", attrs)).toBe("");
   });
 });

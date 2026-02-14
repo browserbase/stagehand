@@ -663,7 +663,9 @@ export class V3 {
               inferenceTimeMs,
             ),
           this.domSettleTimeoutMs,
+          this.opts.preferredSelectorType,
         );
+
         this.extractHandler = new ExtractHandler(
           this.llmClient,
           this.modelName,

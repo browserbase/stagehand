@@ -54,4 +54,5 @@ export interface V3Options {
   cacheDir?: string;
   domSettleTimeout?: number;
   disableAPI?: boolean;
+  preferredSelectorType?: "id" | "css" | "xpath";
 }

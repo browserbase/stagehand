@@ -18,6 +18,7 @@ import {
 import {
   buildSessionDomIndex,
   domMapsForSession,
+  generateCssSelector,
   relativizeXPath,
 } from "./domTree";
 import { injectSubtrees } from "./treeFormatUtils";
@@ -173,7 +174,14 @@ export async function tryScopedSnapshot(
     const sameSessionAsParent =
       !!parentId &&
       ownerSession(page, parentId) === ownerSession(page, targetFrameId);
-    const { tagNameMap, xpathMap, scrollableMap } = await domMapsForSession(
+    const {
+      tagNameMap,
+      xpathMap,
+      scrollableMap,
+      idMap,
+      cssSelectorMap,
+      attributesMap,
+    } = await domMapsForSession(
       owningSess,
       targetFrameId,
       pierce,
@@ -212,12 +220,18 @@ export async function tryScopedSnapshot(
       combinedTree: outline,
       combinedXpathMap: scopedXpathMap,
       combinedUrlMap: scopedUrlMap,
+      combinedIdMap: idMap,
+      combinedCssSelectorMap: cssSelectorMap,
+      combinedAttributesMap: attributesMap,
       perFrame: [
         {
           frameId: targetFrameId,
           outline,
           xpathMap,
           urlMap,
+          idMap,
+          cssSelectorMap,
+          attributesMap,
         },
       ],
     };
@@ -310,6 +324,10 @@ export async function collectPerFrameMaps(
     const tagNameMap: Record<string, string> = {};
     const xpathMap: Record<string, string> = {};
     const scrollableMap: Record<string, boolean> = {};
+    const idMap: Record<string, string> = {};
+    const cssSelectorMap: Record<string, string> = {};
+    const attributesMap: Record<string, Record<string, string>> = {};
+
     const enc = (be: number) => `${page.getOrdinal(frameId)}-${be}`;
     const baseAbs = idx.absByBe.get(docRootBe) ?? "/";
 
@@ -324,6 +342,11 @@ export async function collectPerFrameMaps(
       const tag = idx.tagByBe.get(be);
       if (tag) tagNameMap[key] = tag;
       if (idx.scrollByBe.get(be)) scrollableMap[key] = true;
+
+      const attrs = idx.attributesByBe.get(be) ?? {};
+      attributesMap[key] = attrs;
+      if (attrs.id) idMap[key] = attrs.id;
+      cssSelectorMap[key] = generateCssSelector(tag ?? "", attrs);
     }
 
     const { outline, urlMap } = await a11yForFrame(sess, frameId, {
@@ -334,7 +357,15 @@ export async function collectPerFrameMaps(
     });
 
     perFrameOutlines.push({ frameId, outline });
-    perFrameMaps.set(frameId, { tagNameMap, xpathMap, scrollableMap, urlMap });
+    perFrameMaps.set(frameId, {
+      tagNameMap,
+      xpathMap,
+      scrollableMap,
+      urlMap,
+      idMap,
+      cssSelectorMap,
+      attributesMap,
+    });
   }
 
   return { perFrameMaps, perFrameOutlines };
@@ -424,6 +455,9 @@ export function mergeFramesIntoSnapshot(
 ): HybridSnapshot {
   const combinedXpathMap: Record<string, string> = {};
   const combinedUrlMap: Record<string, string> = {};
+  const combinedIdMap: Record<string, string> = {};
+  const combinedCssSelectorMap: Record<string, string> = {};
+  const combinedAttributesMap: Record<string, Record<string, string>> = {};
 
   for (const frameId of frameIds) {
     const maps = perFrameMaps.get(frameId);
@@ -435,6 +469,9 @@ export function mergeFramesIntoSnapshot(
     if (isRoot) {
       Object.assign(combinedXpathMap, maps.xpathMap);
       Object.assign(combinedUrlMap, maps.urlMap);
+      Object.assign(combinedIdMap, maps.idMap);
+      Object.assign(combinedCssSelectorMap, maps.cssSelectorMap);
+      Object.assign(combinedAttributesMap, maps.attributesMap);
       continue;
     }
 
@@ -442,6 +479,9 @@ export function mergeFramesIntoSnapshot(
       combinedXpathMap[encId] = prefixXPath(abs, xp);
     }
     Object.assign(combinedUrlMap, maps.urlMap);
+    Object.assign(combinedIdMap, maps.idMap);
+    Object.assign(combinedCssSelectorMap, maps.cssSelectorMap);
+    Object.assign(combinedAttributesMap, maps.attributesMap);
   }
 
   const idToTree = new Map<string, string>();
@@ -461,6 +501,9 @@ export function mergeFramesIntoSnapshot(
     combinedTree,
     combinedXpathMap,
     combinedUrlMap,
+    combinedIdMap,
+    combinedCssSelectorMap,
+    combinedAttributesMap,
     perFrame: perFrameOutlines.map(({ frameId, outline }) => {
       const maps = perFrameMaps.get(frameId);
       return {
@@ -468,6 +511,9 @@ export function mergeFramesIntoSnapshot(
         outline,
         xpathMap: maps?.xpathMap ?? {},
         urlMap: maps?.urlMap ?? {},
+        idMap: maps?.idMap ?? {},
+        cssSelectorMap: maps?.cssSelectorMap ?? {},
+        attributesMap: maps?.attributesMap ?? {},
       };
     }),
   };

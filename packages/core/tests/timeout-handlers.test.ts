@@ -54,6 +54,9 @@ describe("ActHandler timeout guard", () => {
       combinedTree: "",
       combinedXpathMap: {},
       combinedUrlMap: {},
+      combinedIdMap: {},
+      combinedCssSelectorMap: {},
+      combinedAttributesMap: {},
     });
 
     // Make createTimeoutGuard return a guard that throws on call #2
@@ -99,6 +102,9 @@ describe("ActHandler timeout guard", () => {
       combinedTree: "tree content",
       combinedXpathMap: {},
       combinedUrlMap: {},
+      combinedIdMap: {},
+      combinedCssSelectorMap: {},
+      combinedAttributesMap: {},
     });
 
     const actInferenceMock = vi.mocked(actInference);
@@ -184,6 +190,9 @@ describe("ActHandler two-step timeout", () => {
       combinedTree: "tree content",
       combinedXpathMap: { "1-0": "/html/body/button" },
       combinedUrlMap: {},
+      combinedIdMap: {},
+      combinedCssSelectorMap: {},
+      combinedAttributesMap: {},
     });
 
     const { performUnderstudyMethod } = await import(
@@ -264,6 +273,9 @@ describe("ActHandler self-heal timeout", () => {
       combinedTree: "tree content",
       combinedXpathMap: { "1-0": "/html/body/button" },
       combinedUrlMap: {},
+      combinedIdMap: {},
+      combinedCssSelectorMap: {},
+      combinedAttributesMap: {},
     });
 
     const { performUnderstudyMethod } = await import(
@@ -335,6 +347,9 @@ describe("ActHandler self-heal timeout", () => {
       combinedTree: "tree content",
       combinedXpathMap: { "1-0": "/html/body/button" },
       combinedUrlMap: {},
+      combinedIdMap: {},
+      combinedCssSelectorMap: {},
+      combinedAttributesMap: {},
     });
 
     const { performUnderstudyMethod } = await import(
@@ -407,6 +422,9 @@ describe("ExtractHandler timeout guard", () => {
       combinedTree: "tree content",
       combinedXpathMap: {},
       combinedUrlMap: {},
+      combinedIdMap: {},
+      combinedCssSelectorMap: {},
+      combinedAttributesMap: {},
     });
 
     const extractInferenceMock = vi.mocked(extractInference);
@@ -447,6 +465,9 @@ describe("ExtractHandler timeout guard", () => {
       combinedTree: "tree content",
       combinedXpathMap: {},
       combinedUrlMap: {},
+      combinedIdMap: {},
+      combinedCssSelectorMap: {},
+      combinedAttributesMap: {},
     });
 
     const extractInferenceMock = vi.mocked(extractInference);
@@ -522,6 +543,9 @@ describe("ExtractHandler timeout guard", () => {
       combinedTree: "tree content",
       combinedXpathMap: {},
       combinedUrlMap: { "1-0": "https://example.com" },
+      combinedIdMap: {},
+      combinedCssSelectorMap: {},
+      combinedAttributesMap: {},
     });
 
     const extractInferenceMock = vi.mocked(extractInference);
@@ -570,6 +594,9 @@ describe("ObserveHandler timeout guard", () => {
       combinedTree: "tree content",
       combinedXpathMap: {},
       combinedUrlMap: {},
+      combinedIdMap: {},
+      combinedCssSelectorMap: {},
+      combinedAttributesMap: {},
     });
 
     const observeInferenceMock = vi.mocked(observeInference);
@@ -610,6 +637,9 @@ describe("ObserveHandler timeout guard", () => {
       combinedTree: "tree content",
       combinedXpathMap: {},
       combinedUrlMap: {},
+      combinedIdMap: {},
+      combinedCssSelectorMap: {},
+      combinedAttributesMap: {},
     });
 
     const observeInferenceMock = vi.mocked(observeInference);
@@ -685,6 +715,9 @@ describe("ObserveHandler timeout guard", () => {
       combinedTree: "tree content",
       combinedXpathMap: { "1-0": "/html/body/button" },
       combinedUrlMap: {},
+      combinedIdMap: {},
+      combinedCssSelectorMap: {},
+      combinedAttributesMap: {},
     });
 
     const observeInferenceMock = vi.mocked(observeInference);
@@ -736,6 +769,9 @@ describe("No-timeout success paths", () => {
       combinedTree: "tree content",
       combinedXpathMap: { "1-0": "/html/body/button" },
       combinedUrlMap: {},
+      combinedIdMap: {},
+      combinedCssSelectorMap: {},
+      combinedAttributesMap: {},
     });
 
     const { performUnderstudyMethod } = await import(
@@ -796,6 +832,9 @@ describe("No-timeout success paths", () => {
       combinedTree: "tree content",
       combinedXpathMap: {},
       combinedUrlMap: {},
+      combinedIdMap: {},
+      combinedCssSelectorMap: {},
+      combinedAttributesMap: {},
     });
 
     const extractInferenceMock = vi.mocked(extractInference);
@@ -847,6 +886,9 @@ describe("No-timeout success paths", () => {
       combinedTree: "tree content",
       combinedXpathMap: { "1-0": "/html/body/button" },
       combinedUrlMap: {},
+      combinedIdMap: {},
+      combinedCssSelectorMap: {},
+      combinedAttributesMap: {},
     });
 
     const observeInferenceMock = vi.mocked(observeInference);
@@ -906,6 +948,9 @@ describe("No-timeout success paths", () => {
       combinedTree: "tree content",
       combinedXpathMap: { "1-0": "/html/body/button" },
       combinedUrlMap: {},
+      combinedIdMap: {},
+      combinedCssSelectorMap: {},
+      combinedAttributesMap: {},
     });
 
     const { performUnderstudyMethod } = await import(
@@ -963,6 +1008,9 @@ describe("No-timeout success paths", () => {
       combinedTree: "tree content",
       combinedXpathMap: { "1-0": "/html/body/button" },
       combinedUrlMap: {},
+      combinedIdMap: {},
+      combinedCssSelectorMap: {},
+      combinedAttributesMap: {},
     });
 
     const { performUnderstudyMethod } = await import(
