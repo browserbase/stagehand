@@ -90,10 +90,30 @@ if (!fs.existsSync(configPath)) {
   process.exit(1);
 }
 
-const toPlaywrightPath = (testPath: string) =>
-  path.isAbsolute(testPath) ? testPath : path.resolve(repoRoot, testPath);
+const coreRoot = path.join(repoRoot, "packages", "core");
+const escapeRegex = (value: string) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-const playwrightPaths = paths.map(toPlaywrightPath);
+const toPlaywrightFilter = (testPath: string) => {
+  const absolute = path.isAbsolute(testPath)
+    ? testPath
+    : path.resolve(repoRoot, testPath);
+  const relFromCore = path.relative(coreRoot, absolute).replace(/\\/g, "/");
+  const relFromDist = path.relative(distRoot, absolute).replace(/\\/g, "/");
+  const candidates = [relFromCore, relFromDist, path.basename(absolute)].filter(
+    (candidate) => candidate && !candidate.startsWith(".."),
+  );
+  const preferred =
+    candidates.find((candidate) => candidate.startsWith("lib/v3/tests/")) ??
+    candidates[0] ??
+    testPath.replace(/\\/g, "/");
+  const sourceMappedPath = preferred.endsWith(".spec.js")
+    ? `${preferred.slice(0, -".spec.js".length)}.spec.ts`
+    : preferred;
+  return `${escapeRegex(sourceMappedPath)}$`;
+};
+
+const playwrightFilters = paths.map(toPlaywrightFilter);
 
 const registerPath = path.join(
   repoRoot,
@@ -179,7 +199,7 @@ const result = spawnSync(
     "--config",
     configPath,
     ...extraArgs,
-    ...playwrightPaths,
+    ...playwrightFilters,
   ],
   { stdio: "inherit", env },
 );
