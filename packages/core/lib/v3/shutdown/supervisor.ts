@@ -14,7 +14,8 @@ import type {
   ShutdownSupervisorMessage,
 } from "../types/private/shutdown";
 
-const SIGNAL_POLL_MS = 800;
+const SIGKILL_POLL_MS = 500;
+const SIGKILL_TIMEOUT_MS = 10_000;
 const PID_POLL_INTERVAL_MS = 500;
 
 let armed = false;
@@ -46,8 +47,11 @@ const safeKill = async (pid: number): Promise<void> => {
     return;
   }
 
-  await new Promise((resolve) => setTimeout(resolve, SIGNAL_POLL_MS));
-  if (!isAlive()) return;
+  const deadline = Date.now() + SIGKILL_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, SIGKILL_POLL_MS));
+    if (!isAlive()) return;
+  }
   try {
     process.kill(pid, "SIGKILL");
   } catch {

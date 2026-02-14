@@ -30,14 +30,6 @@ import {
   unbindInstanceLogger,
   withInstanceLogContext,
 } from "./logger";
-import {
-  shutdownBrowserSession,
-  shutdownLocalBrowser,
-} from "./shutdown/shutdownBrowser";
-import {
-  finalizeStagehandShutdown,
-  shutdownStagehandResources,
-} from "./shutdown/shutdownStagehand";
 import { startShutdownSupervisor } from "./shutdown/supervisorClient";
 import { resolveTools } from "./mcp/utils";
 import {
@@ -1402,82 +1394,85 @@ export class V3 {
     this._isClosing = true;
 
     const keepAlive = this.keepAlive === true;
-    await shutdownBrowserSession({
-      keepAlive,
-      endApiClient: this.apiClient
-        ? async () => {
-            await this.apiClient.end();
-          }
-        : undefined,
-    });
 
-    let killLocalChrome: (() => Promise<void>) | undefined;
-    let cleanupUserDataDir: (() => void) | undefined;
-    if (this.state.kind === "LOCAL") {
-      const localState = this.state;
-      killLocalChrome = async () => {
-        await localState.chrome.kill();
-      };
-      if (
-        localState.createdTempProfile &&
-        !localState.preserveUserDataDir &&
-        localState.userDataDir
-      ) {
-        const dir = localState.userDataDir;
-        cleanupUserDataDir = () => {
-          fs.rmSync(dir, { recursive: true, force: true });
-        };
+    // End Browserbase session via API when keepAlive is not enabled
+    if (!keepAlive && this.apiClient) {
+      try {
+        await this.apiClient.end();
+      } catch {
+        // best-effort cleanup
       }
     }
 
     try {
-      await shutdownStagehandResources({
-        closeSessionLogger: async () => SessionFileLogger.close(),
-        unhookTransport: () => {
-          if (this.ctx?.conn && this._onCdpClosed) {
-            this.ctx.conn.offTransportClosed?.(this._onCdpClosed);
+      // Close session file logger
+      try {
+        await SessionFileLogger.close();
+      } catch {
+        // ignore
+      }
+
+      // Unhook CDP transport close handler
+      try {
+        if (this.ctx?.conn && this._onCdpClosed) {
+          this.ctx.conn.offTransportClosed?.(this._onCdpClosed);
+        }
+      } catch {
+        // ignore
+      }
+
+      // Close CDP context
+      try {
+        await this.ctx?.close();
+      } catch {
+        // ignore
+      }
+
+      // Kill local Chrome and clean up temp profile when keepAlive is not enabled
+      if (!keepAlive && this.state.kind === "LOCAL") {
+        try {
+          await this.state.chrome.kill();
+        } catch {
+          // best-effort cleanup
+        }
+        if (
+          this.state.createdTempProfile &&
+          !this.state.preserveUserDataDir &&
+          this.state.userDataDir
+        ) {
+          try {
+            fs.rmSync(this.state.userDataDir, {
+              recursive: true,
+              force: true,
+            });
+          } catch {
+            // ignore cleanup errors
           }
-        },
-        closeContext: async () => this.ctx?.close(),
-      });
-      await shutdownLocalBrowser({
-        keepAlive,
-        killChrome: killLocalChrome,
-        cleanupUserDataDir,
-      });
+        }
+      }
     } finally {
       this.stopShutdownSupervisor();
-      finalizeStagehandShutdown({
-        resetState: () => {
-          this.state = { kind: "UNINITIALIZED" };
-        },
-        clearContext: () => {
-          this.ctx = null;
-        },
-        clearClosing: () => {
-          this._isClosing = false;
-        },
-        resetMetadata: () => {
-          this.resetBrowserbaseSessionMetadata();
-        },
-        unbindLogger: () => {
-          unbindInstanceLogger(this.instanceId);
-        },
-        clearBus: () => {
-          this.bus.removeAllListeners();
-        },
-        clearHistory: () => {
-          this._history = [];
-        },
-        clearHandlers: () => {
-          this.actHandler = null;
-          this.extractHandler = null;
-          this.observeHandler = null;
-        },
-        removeInstance: () => {
-          V3._instances.delete(this);
-        },
-      });
+
+      // Reset internal state
+      this.state = { kind: "UNINITIALIZED" };
+      this.ctx = null;
+      this._isClosing = false;
+      this.resetBrowserbaseSessionMetadata();
+      try {
+        unbindInstanceLogger(this.instanceId);
+      } catch {
+        // ignore
+      }
+      try {
+        this.bus.removeAllListeners();
+      } catch {
+        // ignore
+      }
+      this._history = [];
+      this.actHandler = null;
+      this.extractHandler = null;
+      this.observeHandler = null;
+      V3._instances.delete(this);
     }
   }
 
