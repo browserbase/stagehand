@@ -111,6 +111,7 @@
       ]
     },
     "lint": {
+      "dependsOn": ["^build:esm"],
       "outputs": [],
       "inputs": [
         "**/*.ts",
