@@ -72,7 +72,15 @@ async function main(): Promise<void> {
     connectURL: v3.connectURL(),
     sessionId: v3.browserbaseSessionId ?? null,
   };
-  process.stdout.write(`__KEEPALIVE__${JSON.stringify(info)}\n`);
+  await new Promise<void>((resolve, reject) => {
+    process.stdout.write(`__KEEPALIVE__${JSON.stringify(info)}\n`, (error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
 
   if (env === "LOCAL" && viewMs > 0) {
     await new Promise((r) => setTimeout(r, viewMs));

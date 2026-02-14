@@ -805,16 +805,19 @@ export const TokenUsageSchema = z
   .object({
     inputTokens: z.number().optional(),
     outputTokens: z.number().optional(),
-    reasoningTokens: z.number().optional(),
-    cachedInputTokens: z.number().optional(),
     timeMs: z.number().optional(),
+    cost: z.number().optional(),
   })
   .meta({ id: "TokenUsage" });
 
 /** Action entry in replay metrics */
 export const ReplayActionSchema = z
   .object({
-    method: z.string().optional(),
+    method: z.string(),
+    parameters: z.record(z.string(), z.unknown()),
+    result: z.record(z.string(), z.unknown()),
+    timestamp: z.number(),
+    endTime: z.number().optional(),
     tokenUsage: TokenUsageSchema.optional(),
   })
   .meta({ id: "ReplayAction" });
@@ -822,14 +825,18 @@ export const ReplayActionSchema = z
 /** Page entry in replay metrics */
 export const ReplayPageSchema = z
   .object({
-    actions: z.array(ReplayActionSchema).optional(),
+    url: z.string(),
+    timestamp: z.number(),
+    duration: z.number(),
+    actions: z.array(ReplayActionSchema),
   })
   .meta({ id: "ReplayPage" });
 
 /** Inner result data for replay */
 export const ReplayResultSchema = z
   .object({
-    pages: z.array(ReplayPageSchema).optional(),
+    pages: z.array(ReplayPageSchema),
+    clientLanguage: z.string().optional(),
   })
   .meta({ id: "ReplayResult" });
 

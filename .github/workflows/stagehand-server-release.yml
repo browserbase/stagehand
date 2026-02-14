@@ -31,19 +31,11 @@ jobs:
           fetch-depth: 1
           fetch-tags: true
 
-      - uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22.x
-          cache: 'pnpm'
-          cache-dependency-path: '**/pnpm-lock.yaml'
-
-      - name: Install dependencies
+      - uses: ./.github/actions/setup-node-pnpm-turbo
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
-        run: pnpm install --frozen-lockfile
+        with:
+          use-prebuilt-artifacts: "false"
 
       - name: Determine release metadata
         id: meta
@@ -104,7 +96,6 @@ jobs:
 
           # Try to fetch the tag if it exists on remote; ignore failure for new tags
           git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}" 2>/dev/null || true
-
           if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
             echo "Tag already exists: ${TAG}"
             exit 0
@@ -143,8 +134,17 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: stagehand-server-*
-          path: release-assets
+          path: .
           merge-multiple: true
+
+      - name: Collect SEA binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for f in packages/server/dist/sea/stagehand-server-*; do
+            cp "$f" release-assets/
+          done
 
       - name: Create checksums
         shell: bash
