@@ -30,6 +30,7 @@ import {
   unbindInstanceLogger,
   withInstanceLogContext,
 } from "./logger";
+import { cleanupLocalBrowser } from "./shutdown/cleanupLocal";
 import { startShutdownSupervisor } from "./shutdown/supervisorClient";
 import { resolveTools } from "./mcp/utils";
 import {
@@ -1430,25 +1431,13 @@ export class V3 {
 
       // Kill local Chrome and clean up temp profile when keepAlive is not enabled
       if (!keepAlive && this.state.kind === "LOCAL") {
-        try {
-          await this.state.chrome.kill();
-        } catch {
-          // best-effort cleanup
-        }
-        if (
-          this.state.createdTempProfile &&
-          !this.state.preserveUserDataDir &&
-          this.state.userDataDir
-        ) {
-          try {
-            fs.rmSync(this.state.userDataDir, {
-              recursive: true,
-              force: true,
-            });
-          } catch {
-            // ignore cleanup errors
-          }
-        }
+        const localState = this.state;
+        await cleanupLocalBrowser({
+          killChrome: () => localState.chrome.kill(),
+          userDataDir: localState.userDataDir,
+          createdTempProfile: localState.createdTempProfile,
+          preserveUserDataDir: localState.preserveUserDataDir,
+        });
       }
     } finally {
       this.stopShutdownSupervisor();

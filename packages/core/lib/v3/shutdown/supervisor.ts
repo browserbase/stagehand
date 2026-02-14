@@ -7,12 +7,12 @@
  * - STAGEHAND_API: request session release (when keepAlive is false)
  */
 
-import fs from "node:fs";
 import Browserbase from "@browserbasehq/sdk";
 import type {
   ShutdownSupervisorConfig,
   ShutdownSupervisorMessage,
 } from "../types/private/shutdown";
+import { cleanupLocalBrowser } from "./cleanupLocal";
 
 const SIGKILL_POLL_MS = 500;
 const SIGKILL_TIMEOUT_MS = 10_000;
@@ -81,18 +81,12 @@ const cleanupLocal = async (
   cfg: Extract<ShutdownSupervisorConfig, { kind: "LOCAL" }>,
 ) => {
   if (cfg.keepAlive) return;
-  if (cfg.pid) {
-    if (!pidGone) {
-      await safeKill(cfg.pid);
-    }
-  }
-  if (cfg.createdTempProfile && !cfg.preserveUserDataDir && cfg.userDataDir) {
-    try {
-      fs.rmSync(cfg.userDataDir, { recursive: true, force: true });
-    } catch {
-      // ignore cleanup errors
-    }
-  }
+  await cleanupLocalBrowser({
+    killChrome: cfg.pid && !pidGone ? () => safeKill(cfg.pid) : undefined,
+    userDataDir: cfg.userDataDir,
+    createdTempProfile: cfg.createdTempProfile,
+    preserveUserDataDir: cfg.preserveUserDataDir,
+  });
 };
 
 const cleanupBrowserbase = async (
