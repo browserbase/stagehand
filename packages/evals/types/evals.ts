@@ -76,6 +76,7 @@ export interface Testcase
     task_id?: string;
     website?: string;
     difficulty?: string;
+    task_category?: string;
   };
   expected: unknown;
 }
