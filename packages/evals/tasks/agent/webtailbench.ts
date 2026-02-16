@@ -84,7 +84,7 @@ export const webtailbench: EvalFunction = async ({
 
     const evaluator = new V3Evaluator(v3);
     const evalResult = await evaluator.ask({
-      question: `Did the agent successfully complete this task: "${params.ques}"?`,
+      question: `Did the agent successfully complete this task: "${params.ques}"? Note that the agent does not have purchasing/booking capabilities; mark as pass if the agent has successfully performed all necessary steps for the task up to the point of purchasing/booking/entering payment/user information`,
       screenshot: screenshots,
       agentReasoning:
         agentResult.message ||
