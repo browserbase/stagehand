@@ -48,7 +48,7 @@ export const webtailbench: EvalFunction = async ({
 
     // Set up event-driven screenshot collection via the V3 event bus
     screenshotCollector = new ScreenshotCollector(v3, {
-      maxScreenshots: 7,
+      maxScreenshots: 8,
     });
 
     // Subscribe to screenshot events from the agent
