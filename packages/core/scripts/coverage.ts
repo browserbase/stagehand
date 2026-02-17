@@ -8,12 +8,39 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { findRepoRoot } from "./test-utils";
 import normalizeV8Coverage from "./normalize-v8-coverage";
 
 const repoRoot = findRepoRoot(process.cwd());
 const command = process.argv[2];
+const terminationSignals: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
+const log = (message: string) => console.log(`[coverage:merge] ${message}`);
+
+let activeChild: ChildProcess | null = null;
+let isCancelling = false;
+
+const exitCodeForSignal = (signal: NodeJS.Signals): number =>
+  signal === "SIGINT" ? 130 : 143;
+
+const handleTermination = (signal: NodeJS.Signals) => {
+  isCancelling = true;
+  log(`received ${signal}, exiting`);
+  if (activeChild && activeChild.pid && !activeChild.killed) {
+    activeChild.kill(signal);
+  }
+  process.exit(exitCodeForSignal(signal));
+};
+
+terminationSignals.forEach((signal) => {
+  process.once(signal, () => handleTermination(signal));
+});
+
+const assertNotCancelling = () => {
+  if (isCancelling) {
+    throw new Error("Coverage merge cancelled");
+  }
+};
 
 if (!command || command !== "merge") {
   console.error("Usage: coverage merge");
@@ -23,13 +50,16 @@ if (!command || command !== "merge") {
 const coverageDir = path.join(repoRoot, "coverage");
 const outDir = path.join(repoRoot, "coverage", "merged");
 fs.rmSync(outDir, { recursive: true, force: true });
+log(`normalizing v8 coverage in ${coverageDir}`);
 await normalizeV8Coverage(coverageDir);
 const collectV8CoverageFiles = (dir: string): string[] => {
   const results: string[] = [];
   if (!fs.existsSync(dir)) return results;
   const walk = (current: string) => {
+    assertNotCancelling();
     const entries = fs.readdirSync(current, { withFileTypes: true });
     for (const entry of entries) {
+      assertNotCancelling();
       const fullPath = path.join(current, entry.name);
       if (entry.isDirectory()) {
         if (entry.name === ".v8-tmp" || entry.name === "merged") {
@@ -58,19 +88,23 @@ if (v8CoverageFiles.length === 0) {
   console.log("No V8 coverage files found.");
   process.exit(0);
 }
+log(`found ${v8CoverageFiles.length} v8 coverage files`);
 
 fs.mkdirSync(outDir, { recursive: true });
 const v8TempDir = path.join(coverageDir, ".v8-tmp");
 fs.rmSync(v8TempDir, { recursive: true, force: true });
 fs.mkdirSync(v8TempDir, { recursive: true });
 v8CoverageFiles.forEach((file, index) => {
+  assertNotCancelling();
   const dest = path.join(v8TempDir, `coverage-${index}.json`);
   fs.copyFileSync(file, dest);
 });
+log(`copied files to ${v8TempDir}`);
 
-const result = spawnSync(
-  "pnpm",
-  [
+const runC8Report = async () => {
+  assertNotCancelling();
+  log("running c8 report merge");
+  const args = [
     "exec",
     "c8",
     "report",
@@ -108,23 +142,49 @@ const result = spawnSync(
     "--exclude-after-remap",
     "--exclude",
     "**/*.d.ts",
-  ],
-  {
-    cwd: repoRoot,
-    encoding: "utf8",
-  },
-);
+  ];
+  let stdout = "";
 
-if (result.error) {
-  console.error(`Failed to run c8 coverage report: ${result.error.message}`);
+  const status = await new Promise<number>((resolve, reject) => {
+    const child = spawn("pnpm", args, {
+      cwd: repoRoot,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    activeChild = child;
+
+    child.stdout?.on("data", (chunk) => {
+      const text = String(chunk);
+      stdout += text;
+      process.stdout.write(text);
+    });
+    child.stderr?.on("data", (chunk) => {
+      process.stderr.write(String(chunk));
+    });
+
+    child.once("error", (error) => {
+      activeChild = null;
+      reject(error);
+    });
+    child.once("close", (code) => {
+      activeChild = null;
+      resolve(code ?? 1);
+    });
+  });
+
+  if (stdout) {
+    fs.writeFileSync(path.join(outDir, "coverage-summary.txt"), stdout);
+  }
+  log(`c8 report completed with status ${status}`);
+  return status;
+};
+
+try {
+  const status = await runC8Report();
+  process.exit(status);
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (!isCancelling) {
+    console.error(`Failed to run c8 coverage report: ${message}`);
+  }
   process.exit(1);
 }
-
-if (result.stdout) {
-  process.stdout.write(result.stdout);
-  fs.writeFileSync(path.join(outDir, "coverage-summary.txt"), result.stdout);
-}
-if (result.stderr) {
-  process.stderr.write(result.stderr);
-}
-process.exit(result.status ?? 1);
