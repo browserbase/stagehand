@@ -33,6 +33,7 @@ const publicApiShape = {
   connectToMCPServer: Stagehand.connectToMCPServer,
   default: StagehandDefaultExport,
   defaultExtractSchema: Stagehand.defaultExtractSchema,
+  getAISDKLanguageModel: Stagehand.getAISDKLanguageModel,
   getZodType: Stagehand.getZodType,
   injectUrls: Stagehand.injectUrls,
   isRunningInBun: Stagehand.isRunningInBun,

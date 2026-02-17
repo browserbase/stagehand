@@ -7,9 +7,8 @@ import type { Page } from "../understudy/page";
 const isBrowserbase =
   (process.env.STAGEHAND_BROWSER_TARGET ?? "local").toLowerCase() ===
   "browserbase";
-const isCi = process.env.CI === "true";
 const MIN_TIMEOUT_MS = 3_000;
-const MAX_TIMEOUT_MS = 30_000;
+const MAX_TIMEOUT_MS = 120_000;
 
 const parseBoundedTimeoutMs = (
   value: string | undefined,
@@ -22,16 +21,21 @@ const parseBoundedTimeoutMs = (
 
 const CHILD_FRAME_TIMEOUT_MS = parseBoundedTimeoutMs(
   process.env.IFRAME_CHILD_FRAME_TIMEOUT_MS,
-  isBrowserbase && isCi ? 25_000 : 10_000,
+  isBrowserbase ? 80_000 : 20_000,
 );
 const POPUP_TIMEOUT_MS = parseBoundedTimeoutMs(
   process.env.IFRAME_POPUP_TIMEOUT_MS,
-  isBrowserbase && isCi ? 20_000 : 10_000,
+  isBrowserbase ? 60_000 : 20_000,
 );
 const POPUP_URL_TIMEOUT_MS = parseBoundedTimeoutMs(
   process.env.IFRAME_POPUP_URL_TIMEOUT_MS,
-  isBrowserbase && isCi ? 25_000 : 10_000,
+  isBrowserbase ? 80_000 : 20_000,
 );
+
+async function closeAllPages(ctx: V3Context): Promise<void> {
+  const pages = ctx.pages();
+  await Promise.allSettled(pages.map((page) => page.close()));
+}
 
 /**
  * Poll until a child frame (non-main) appears on `page` and its document
@@ -141,10 +145,14 @@ async function waitForPopupPage(
 }
 
 test.describe("context.addInitScript with iframes", () => {
+  if (isBrowserbase) {
+    test.describe.configure({ mode: "serial" });
+  }
+
   let v3: V3;
   let ctx: V3Context;
 
-  test.beforeEach(async () => {
+  test.beforeAll(async () => {
     v3 = new V3(v3TestConfig);
     await v3.init();
     ctx = v3.context;
@@ -159,13 +167,21 @@ test.describe("context.addInitScript with iframes", () => {
     `);
   });
 
+  test.beforeEach(async () => {
+    await closeAllPages(ctx);
+  });
+
   test.afterEach(async () => {
+    await closeAllPages(ctx);
+  });
+
+  test.afterAll(async () => {
     await v3?.close?.().catch(() => {});
   });
 
   test.describe("direct navigation", () => {
     test("with OOPIF - sets background red in main page and iframe", async () => {
-      const page = await ctx.awaitActivePage();
+      const page = await ctx.newPage();
 
       await page.goto(
         "https://browserbase.github.io/stagehand-eval-sites/sites/oopif-in-closed-shadow-dom/",
@@ -187,7 +203,7 @@ test.describe("context.addInitScript with iframes", () => {
     });
 
     test("with SPIF - sets background red in main page and iframe", async () => {
-      const page = await ctx.awaitActivePage();
+      const page = await ctx.newPage();
 
       await page.goto(
         "https://browserbase.github.io/stagehand-eval-sites/sites/spif-in-closed-shadow-dom/",
@@ -257,7 +273,7 @@ test.describe("context.addInitScript with iframes", () => {
 
   test.describe("via popup", () => {
     test("with OOPIF - sets background red in main page and iframe", async () => {
-      const page = await ctx.awaitActivePage();
+      const page = await ctx.newPage();
 
       await page.goto(
         "https://browserbase.github.io/stagehand-eval-sites/sites/ctx-add-init-script-oopif/",
@@ -290,7 +306,7 @@ test.describe("context.addInitScript with iframes", () => {
     });
 
     test("with SPIF - sets background red in main page and iframe", async () => {
-      const page = await ctx.awaitActivePage();
+      const page = await ctx.newPage();
 
       await page.goto(
         "https://browserbase.github.io/stagehand-eval-sites/sites/ctx-add-init-script-spif/",

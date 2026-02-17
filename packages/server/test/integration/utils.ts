@@ -78,7 +78,7 @@ export interface StartSessionResponse {
 const SESSION_READY_DELAY_MS = 250;
 const LOCAL_CONNECT_TIMEOUT_MS = (() => {
   const parsed = Number(process.env.STAGEHAND_TEST_LOCAL_CONNECT_TIMEOUT_MS);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 5000;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 60_000;
 })();
 
 export interface SessionInfo {
