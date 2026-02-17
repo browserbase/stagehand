@@ -8,13 +8,29 @@ const isBrowserbase =
   (process.env.STAGEHAND_BROWSER_TARGET ?? "local").toLowerCase() ===
   "browserbase";
 const isCi = process.env.CI === "true";
-const CHILD_FRAME_TIMEOUT_MS = Number(
-  process.env.IFRAME_CHILD_FRAME_TIMEOUT_MS ??
-    (isBrowserbase && isCi ? "20000" : "10000"),
+const MIN_TIMEOUT_MS = 3_000;
+const MAX_TIMEOUT_MS = 30_000;
+
+const parseBoundedTimeoutMs = (
+  value: string | undefined,
+  fallbackMs: number,
+): number => {
+  const parsed = Number(value ?? fallbackMs);
+  if (!Number.isFinite(parsed)) return fallbackMs;
+  return Math.max(MIN_TIMEOUT_MS, Math.min(MAX_TIMEOUT_MS, parsed));
+};
+
+const CHILD_FRAME_TIMEOUT_MS = parseBoundedTimeoutMs(
+  process.env.IFRAME_CHILD_FRAME_TIMEOUT_MS,
+  isBrowserbase && isCi ? 25_000 : 10_000,
 );
-const POPUP_TIMEOUT_MS = Number(
-  process.env.IFRAME_POPUP_TIMEOUT_MS ??
-    (isBrowserbase && isCi ? "20000" : "10000"),
+const POPUP_TIMEOUT_MS = parseBoundedTimeoutMs(
+  process.env.IFRAME_POPUP_TIMEOUT_MS,
+  isBrowserbase && isCi ? 20_000 : 10_000,
+);
+const POPUP_URL_TIMEOUT_MS = parseBoundedTimeoutMs(
+  process.env.IFRAME_POPUP_URL_TIMEOUT_MS,
+  isBrowserbase && isCi ? 25_000 : 10_000,
 );
 
 /**
@@ -28,10 +44,12 @@ async function waitForChildFrame(
   const mainFrameId = page.mainFrame().frameId;
   const deadline = Date.now() + timeoutMs;
   let observedFrameCount = 0;
+  let lastUrl = "";
 
   while (Date.now() < deadline) {
     const frames = page.frames();
     observedFrameCount = Math.max(observedFrameCount, frames.length);
+    lastUrl = page.url();
     const child = frames.find((f) => f.frameId !== mainFrameId);
     if (child) {
       try {
@@ -44,7 +62,26 @@ async function waitForChildFrame(
     await new Promise((r) => setTimeout(r, 100));
   }
   throw new Error(
-    `Timed out waiting for child frame to load (timeout=${timeoutMs}ms, mainFrameId=${mainFrameId}, maxObservedFrames=${observedFrameCount})`,
+    `Timed out waiting for child frame to load (timeout=${timeoutMs}ms, mainFrameId=${mainFrameId}, maxObservedFrames=${observedFrameCount}, url=${lastUrl || "<unknown>"})`,
+  );
+}
+
+async function waitForPageUrl(
+  page: Page,
+  expectedUrlSubstring: string,
+  timeoutMs = POPUP_URL_TIMEOUT_MS,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let lastUrl = "";
+  while (Date.now() < deadline) {
+    lastUrl = page.url();
+    if (lastUrl.includes(expectedUrlSubstring)) {
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error(
+    `Timed out waiting for popup URL to include "${expectedUrlSubstring}" (timeout=${timeoutMs}ms, lastUrl=${lastUrl || "<unknown>"})`,
   );
 }
 
@@ -215,6 +252,11 @@ test.describe("context.addInitScript with iframes", () => {
 
       // Wait for popup to open and become active
       const popup = await waitForPopupPage(ctx, page);
+      ctx.setActivePage(popup);
+      await waitForPageUrl(
+        popup,
+        "/stagehand-eval-sites/sites/oopif-in-closed-shadow-dom/",
+      );
       const iframe = await waitForChildFrame(popup);
 
       // Check popup main page background
@@ -242,6 +284,11 @@ test.describe("context.addInitScript with iframes", () => {
 
       // Wait for popup to open and become active
       const popup = await waitForPopupPage(ctx, page);
+      ctx.setActivePage(popup);
+      await waitForPageUrl(
+        popup,
+        "/stagehand-eval-sites/sites/spif-in-closed-shadow-dom/",
+      );
       const iframe = await waitForChildFrame(popup);
 
       // Check popup main page background
