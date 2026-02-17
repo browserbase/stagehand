@@ -85,8 +85,7 @@ async function waitForPageUrl(
   );
 }
 
-function toExpectedPopupUrlSubstring(href: string | null): string | null {
-  if (!href) return null;
+function toExpectedPopupUrlSubstring(href: string): string {
   try {
     const parsed = new URL(href);
     return parsed.pathname;
@@ -258,7 +257,8 @@ test.describe("context.addInitScript with iframes", () => {
       );
 
       const popupHref = await page.locator("a").getAttribute("href");
-      const popupUrlSubstring = toExpectedPopupUrlSubstring(popupHref);
+      expect(popupHref).toBeTruthy();
+      const popupUrlSubstring = toExpectedPopupUrlSubstring(popupHref!);
 
       // Click link to open popup
       await page.locator("a").click();
@@ -266,9 +266,7 @@ test.describe("context.addInitScript with iframes", () => {
       // Wait for popup to open and become active
       const popup = await waitForPopupPage(ctx, page);
       ctx.setActivePage(popup);
-      if (popupUrlSubstring) {
-        await waitForPageUrl(popup, popupUrlSubstring);
-      }
+      await waitForPageUrl(popup, popupUrlSubstring);
       const iframe = await waitForChildFrame(popup);
 
       // Check popup main page background
@@ -292,7 +290,8 @@ test.describe("context.addInitScript with iframes", () => {
       );
 
       const popupHref = await page.locator("a").getAttribute("href");
-      const popupUrlSubstring = toExpectedPopupUrlSubstring(popupHref);
+      expect(popupHref).toBeTruthy();
+      const popupUrlSubstring = toExpectedPopupUrlSubstring(popupHref!);
 
       // Click link to open popup
       await page.locator("a").click();
@@ -300,9 +299,7 @@ test.describe("context.addInitScript with iframes", () => {
       // Wait for popup to open and become active
       const popup = await waitForPopupPage(ctx, page);
       ctx.setActivePage(popup);
-      if (popupUrlSubstring) {
-        await waitForPageUrl(popup, popupUrlSubstring);
-      }
+      await waitForPageUrl(popup, popupUrlSubstring);
       const iframe = await waitForChildFrame(popup);
 
       // Check popup main page background
