@@ -94,14 +94,13 @@ async function preparePopupForFrameAttach(
   timeoutMs = CHILD_FRAME_TIMEOUT_MS,
 ): Promise<void> {
   await page.waitForLoadState("domcontentloaded", timeoutMs);
-  await page.waitForSelector("shadow-host", {
-    state: "attached",
-    timeout: timeoutMs,
-  });
   await page.mainFrame().evaluate(() => {
     const host = document.querySelector("shadow-host");
     if (host instanceof HTMLElement) {
       host.scrollIntoView({ block: "center", inline: "center" });
+    } else {
+      window.scrollTo(0, document.body.scrollHeight);
+      window.scrollTo(0, 0);
     }
     window.dispatchEvent(new Event("scroll"));
   });
