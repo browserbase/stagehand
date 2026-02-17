@@ -91,9 +91,14 @@ async function waitForPageUrl(
 
 async function preparePopupForFrameAttach(
   page: Page,
+  markerSelector: string,
   timeoutMs = CHILD_FRAME_TIMEOUT_MS,
 ): Promise<void> {
   await page.waitForLoadState("domcontentloaded", timeoutMs);
+  await page.waitForSelector(markerSelector, {
+    state: "attached",
+    timeout: timeoutMs,
+  });
   await page.mainFrame().evaluate(() => {
     const host = document.querySelector("shadow-host");
     if (host instanceof HTMLElement) {
@@ -290,7 +295,7 @@ test.describe("context.addInitScript with iframes", () => {
         popup,
         "/stagehand-eval-sites/sites/oopif-in-closed-shadow-dom/",
       );
-      await preparePopupForFrameAttach(popup);
+      await preparePopupForFrameAttach(popup, "shadow-host");
       const iframe = await waitForChildFrame(popup);
 
       // Check popup main page background
@@ -323,7 +328,7 @@ test.describe("context.addInitScript with iframes", () => {
         popup,
         "/stagehand-eval-sites/sites/closed-shadow-dom-in-spif/",
       );
-      await preparePopupForFrameAttach(popup);
+      await preparePopupForFrameAttach(popup, "iframe");
       const iframe = await waitForChildFrame(popup);
 
       // Check popup main page background
