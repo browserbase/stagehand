@@ -11,28 +11,6 @@ import type {
 
 const DEFAULT_MAX_CAPACITY = 100;
 const DEFAULT_TTL_MS = 0; // 0 = infinite (no TTL-based eviction)
-const LOCAL_STAGEHAND_INIT_RETRY_DELAY_MS = 100;
-
-const getLocalStagehandInitRetryWindowMs = (): number => {
-  const parsed = Number(process.env.STAGEHAND_SERVER_LOCAL_INIT_RETRY_MS);
-  if (Number.isFinite(parsed) && parsed >= 0) {
-    return parsed;
-  }
-  return 20_000;
-};
-
-const isRetriableLocalInitError = (error: unknown): boolean => {
-  const text =
-    error instanceof Error
-      ? `${error.name}: ${error.message}`
-      : String(error ?? "");
-  return /ECONNREFUSED|ECONNRESET|socket hang up|EHOSTUNREACH|ETIMEDOUT/i.test(
-    text,
-  );
-};
-
-const sleep = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Internal node for LRU linked list

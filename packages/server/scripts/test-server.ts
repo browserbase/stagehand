@@ -1,7 +1,8 @@
 /**
  * Server unit + integration tests (node --test) on dist/esm + SEA.
  *
- * Prereqs: pnpm run build (core dist/esm + server dist/tests) and pnpm run build:sea:esm for SEA.
+ * Prereqs: pnpm run build (core dist/esm + server dist/tests + server dist/server.js)
+ *          and pnpm run build:sea:esm for SEA.
  * Args: [test paths...] -- [node --test args...] | --list [unit|integration] (prints JSON matrix)
  * Env: STAGEHAND_SERVER_TARGET=sea|local|remote, STAGEHAND_BASE_URL, SEA_BINARY_NAME,
  *      NODE_TEST_CONSOLE_REPORTER, NODE_TEST_REPORTER, NODE_TEST_REPORTER_DESTINATION,
@@ -26,6 +27,7 @@ import {
 const repoRoot = findRepoRoot(process.cwd());
 const serverRoot = path.join(repoRoot, "packages", "server");
 const distTestsRoot = path.join(serverRoot, "dist", "tests");
+const distServerEntry = path.join(serverRoot, "dist", "server.js");
 
 const listFlag = parseListFlag(process.argv.slice(2));
 const { paths, extra } = splitArgs(listFlag.args);
@@ -101,6 +103,12 @@ if (!fs.existsSync(distTestsRoot)) {
   );
   process.exit(1);
 }
+if (!fs.existsSync(distServerEntry)) {
+  console.error(
+    "Missing packages/server/dist/server.js. Run pnpm run build first.",
+  );
+  process.exit(1);
+}
 
 const serverTarget = (
   process.env.STAGEHAND_SERVER_TARGET ?? "sea"
@@ -121,7 +129,10 @@ process.env.PORT = port;
 process.env.STAGEHAND_API_URL = baseUrl;
 process.env.BB_ENV = process.env.BB_ENV ?? "local";
 
-const baseNodeOptions = "--enable-source-maps";
+// dist/esm currently emits extensionless relative ESM imports (e.g. "./v3"),
+// so Node needs this resolver mode to load built files without custom loaders.
+const baseNodeOptions =
+  "--enable-source-maps --experimental-specifier-resolution=node";
 const nodeOptions = [process.env.NODE_OPTIONS, baseNodeOptions]
   .filter(Boolean)
   .join(" ");
@@ -260,19 +271,15 @@ const waitForServer = async (url: string, timeoutMs = 30_000) => {
 const startServer = async () => {
   if (serverTarget === "remote") return null;
   if (serverTarget === "local") {
-    return spawn(
-      process.execPath,
-      ["--import", "tsx", path.join(serverRoot, "src", "server.ts")],
-      {
-        stdio: "inherit",
-        env: {
-          ...process.env,
-          NODE_ENV: "development",
-          NODE_OPTIONS: nodeOptions,
-          NODE_V8_COVERAGE: serverCoverage,
-        },
+    return spawn(process.execPath, [distServerEntry], {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        NODE_ENV: "development",
+        NODE_OPTIONS: nodeOptions,
+        NODE_V8_COVERAGE: serverCoverage,
       },
-    );
+    });
   }
 
   const seaDir = path.join(serverRoot, "dist", "sea");
