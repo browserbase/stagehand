@@ -21,15 +21,15 @@ const parseBoundedTimeoutMs = (
 
 const CHILD_FRAME_TIMEOUT_MS = parseBoundedTimeoutMs(
   process.env.IFRAME_CHILD_FRAME_TIMEOUT_MS,
-  isBrowserbase ? 80_000 : 20_000,
+  isBrowserbase ? 80_000 : 40_000,
 );
 const POPUP_TIMEOUT_MS = parseBoundedTimeoutMs(
   process.env.IFRAME_POPUP_TIMEOUT_MS,
-  isBrowserbase ? 60_000 : 20_000,
+  isBrowserbase ? 60_000 : 40_000,
 );
 const POPUP_URL_TIMEOUT_MS = parseBoundedTimeoutMs(
   process.env.IFRAME_POPUP_URL_TIMEOUT_MS,
-  isBrowserbase ? 80_000 : 20_000,
+  isBrowserbase ? 80_000 : 40_000,
 );
 
 async function closeAllPages(ctx: V3Context): Promise<void> {
@@ -93,6 +93,7 @@ async function preparePopupForFrameAttach(
   page: Page,
   timeoutMs = CHILD_FRAME_TIMEOUT_MS,
 ): Promise<void> {
+  await page.waitForLoadState("domcontentloaded", timeoutMs);
   await page.waitForSelector("shadow-host", {
     state: "attached",
     timeout: timeoutMs,
