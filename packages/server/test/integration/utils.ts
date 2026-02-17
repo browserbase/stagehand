@@ -113,7 +113,6 @@ function createLocalBrowserBody() {
         headless: true,
         executablePath: resolveChromePath(),
         args: process.env.CI ? ["--no-sandbox"] : undefined,
-        userDataDir: undefined as string | undefined,
         connectTimeoutMs: LOCAL_CONNECT_TIMEOUT_MS,
       },
     },
@@ -122,46 +121,40 @@ function createLocalBrowserBody() {
 
 export const LOCAL_BROWSER_BODY = createLocalBrowserBody();
 
-function readChromeLogs(userDataDir?: string): string {
-  if (!userDataDir) return "";
-  const entries: string[] = [];
-  const outPath = path.join(userDataDir, "chrome-out.log");
-  const errPath = path.join(userDataDir, "chrome-err.log");
-  if (fs.existsSync(outPath)) {
-    entries.push(`--- chrome stdout ---\n${fs.readFileSync(outPath, "utf8")}`);
-  }
-  if (fs.existsSync(errPath)) {
-    entries.push(`--- chrome stderr ---\n${fs.readFileSync(errPath, "utf8")}`);
-  }
-  return entries.join("\n");
-}
-
-function readLaunchDiagnostics(
-  userDataDir: string | undefined,
-  launchOptions?: {
-    executablePath?: string;
-    args?: string[];
-    headless?: boolean;
-    userDataDir?: string;
-    port?: number;
-    connectTimeoutMs?: number;
-  },
-): string {
+function readLaunchDiagnostics(launchOptions?: {
+  executablePath?: string;
+  args?: string[];
+  headless?: boolean;
+  userDataDir?: string;
+  port?: number;
+  connectTimeoutMs?: number;
+}): string {
   const diagnostics: string[] = [];
+  const userDataDir = launchOptions?.userDataDir;
   diagnostics.push("--- launch diagnostics ---");
   diagnostics.push(`CHROME_PATH env: ${process.env.CHROME_PATH ?? "<unset>"}`);
   diagnostics.push(`CI env: ${process.env.CI ?? "<unset>"}`);
   diagnostics.push(`userDataDir: ${userDataDir ?? "<auto>"}`);
   if (!userDataDir) {
-    diagnostics.push("userDataDir exists: <unknown>");
+    diagnostics.push(
+      "chrome stdout/stderr logs unavailable (profile dir auto-managed by server launch)",
+    );
   } else {
     diagnostics.push(`userDataDir exists: ${fs.existsSync(userDataDir)}`);
-  }
-  if (userDataDir && fs.existsSync(userDataDir)) {
-    const files = fs.readdirSync(userDataDir).sort();
-    diagnostics.push(
-      `userDataDir files: ${files.length > 0 ? files.join(", ") : "<empty>"}`,
-    );
+    if (fs.existsSync(userDataDir)) {
+      const outPath = path.join(userDataDir, "chrome-out.log");
+      const errPath = path.join(userDataDir, "chrome-err.log");
+      if (fs.existsSync(outPath)) {
+        diagnostics.push(
+          `--- chrome stdout ---\n${fs.readFileSync(outPath, "utf8")}`,
+        );
+      }
+      if (fs.existsSync(errPath)) {
+        diagnostics.push(
+          `--- chrome stderr ---\n${fs.readFileSync(errPath, "utf8")}`,
+        );
+      }
+    }
   }
   if (launchOptions) {
     diagnostics.push(
@@ -201,7 +194,6 @@ export async function createSessionWithCdp(
     modelName: "gpt-4.1-nano",
     ...createLocalBrowserBody(),
   };
-  const userDataDir = startPayload.browser?.launchOptions?.userDataDir;
 
   const response = await fetch(`${url}/v1/sessions/start`, {
     method: "POST",
@@ -219,22 +211,17 @@ export async function createSessionWithCdp(
   const body = parsedBody as StartSessionResponse;
 
   if (!response.ok || !body?.success) {
-    const chromeLogs = readChromeLogs(userDataDir);
     const launchDiagnostics = readLaunchDiagnostics(
-      userDataDir,
       startPayload.browser?.launchOptions,
     );
     throw new Error(
       `Failed to create session (status=${response.status}): ${JSON.stringify(
         parsedBody,
-      )}\n${launchDiagnostics}${chromeLogs ? `\n${chromeLogs}` : ""}`,
+      )}\n${launchDiagnostics}`,
     );
   }
   if (!body.data?.available) {
-    const chromeLogs = readChromeLogs(userDataDir);
-    throw new Error(
-      `Session not available${chromeLogs ? `\n${chromeLogs}` : ""}`,
-    );
+    throw new Error(`Session not available`);
   }
   if (!body.data.sessionId) {
     throw new Error("No sessionId returned");
