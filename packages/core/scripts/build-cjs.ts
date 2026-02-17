@@ -33,6 +33,7 @@ run([
   "--bundle",
   "--platform=node",
   "--format=cjs",
+  "--target=node20",
   "--outfile=packages/core/dist/cjs/index.js",
   "--sourcemap",
   "--packages=external",

@@ -21,7 +21,10 @@ import {
 } from "../types/private/shutdownErrors";
 
 const READY_TIMEOUT_MS = 500;
-const thisDir = path.dirname(fileURLToPath(import.meta.url));
+const thisDir =
+  typeof __dirname === "string"
+    ? __dirname
+    : path.dirname(fileURLToPath(import.meta.url));
 
 const resolveSupervisorScript = (): {
   command: string;

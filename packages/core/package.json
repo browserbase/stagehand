@@ -14,13 +14,11 @@
     },
     "./*.js": {
       "types": "./dist/esm/*.d.ts",
-      "import": "./dist/esm/*.js",
-      "require": "./dist/cjs/*.js"
+      "import": "./dist/esm/*.js"
     },
     "./*": {
       "types": "./dist/esm/*.d.ts",
-      "import": "./dist/esm/*.js",
-      "require": "./dist/cjs/*.js"
+      "import": "./dist/esm/*.js"
     },
     "./package.json": "./package.json"
   },

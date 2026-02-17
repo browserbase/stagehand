@@ -129,10 +129,7 @@ process.env.PORT = port;
 process.env.STAGEHAND_API_URL = baseUrl;
 process.env.BB_ENV = process.env.BB_ENV ?? "local";
 
-// dist/esm currently emits extensionless relative ESM imports (e.g. "./v3"),
-// so Node needs this resolver mode to load built files without custom loaders.
-const baseNodeOptions =
-  "--enable-source-maps --experimental-specifier-resolution=node";
+const baseNodeOptions = "--enable-source-maps";
 const nodeOptions = [process.env.NODE_OPTIONS, baseNodeOptions]
   .filter(Boolean)
   .join(" ");
