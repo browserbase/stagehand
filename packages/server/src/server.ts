@@ -1,4 +1,6 @@
 import { randomUUID } from "crypto";
+import { appendFile, mkdir } from "fs/promises";
+import path from "path";
 
 import cors from "@fastify/cors";
 import fastify from "fastify";
@@ -16,6 +18,7 @@ import {
 } from "fastify-zod-openapi";
 import { StatusCodes } from "http-status-codes";
 
+import { logTree } from "./lib/bubus.js";
 import { logging } from "./lib/logging/index.js";
 import {
   destroySessionStore,
@@ -23,17 +26,15 @@ import {
 } from "./lib/sessionStoreManager.js";
 import healthcheckRoute from "./routes/healthcheck.js";
 import readinessRoute, { setReady, setUnready } from "./routes/readiness.js";
-import actRoute from "./routes/v1/sessions/_id/act.js";
-import agentExecuteRoute from "./routes/v1/sessions/_id/agentExecute.js";
-import endRoute from "./routes/v1/sessions/_id/end.js";
-import extractRoute from "./routes/v1/sessions/_id/extract.js";
-import navigateRoute from "./routes/v1/sessions/_id/navigate.js";
-import observeRoute from "./routes/v1/sessions/_id/observe.js";
-import startRoute from "./routes/v1/sessions/start.js";
+import v4Routes from "./routes/v4/index.js";
+import { initializeV4Runtime } from "./v4/runtime.js";
 
 // Constants for graceful shutdown
 const READY_WAIT_PERIOD = 10_000; // 10 seconds
 const GRACEFUL_SHUTDOWN_PERIOD = 30_000; // 30 seconds
+const V4_EVENT_TREE_LOG_PATH =
+  process.env.V4_EVENT_TREE_LOG_PATH ??
+  path.join(process.cwd(), ".stagehand", "v4-event-tree.log");
 
 const app = fastify({
   disableRequestLogging: true,
@@ -67,6 +68,47 @@ const app = fastify({
 
 export const logger = app.log;
 
+async function appendV4RequestTreeSnapshot(params: {
+  method: string;
+  url: string;
+  statusCode: number;
+  requestId: string;
+  bus: unknown;
+}): Promise<void> {
+  const sections: string[] = [];
+  sections.push(
+    `\n===== ${new Date().toISOString()} ${params.method} ${params.url} status=${params.statusCode} reqId=${params.requestId} =====`,
+  );
+
+  const label = (() => {
+    if (params.bus && typeof params.bus === "object") {
+      const maybeBus = params.bus as {
+        toString?: () => string;
+        name?: string;
+        id?: string;
+      };
+      if (typeof maybeBus.toString === "function") {
+        return maybeBus.toString();
+      }
+      return maybeBus.name ?? maybeBus.id ?? "unknown";
+    }
+    return "unknown";
+  })();
+
+  sections.push(`\n--- BUS ${label} ---`);
+  try {
+    sections.push(logTree(params.bus as any));
+  } catch (error) {
+    sections.push(
+      `unable to build tree: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  sections.push("\n");
+  await mkdir(path.dirname(V4_EVENT_TREE_LOG_PATH), { recursive: true });
+  await appendFile(V4_EVENT_TREE_LOG_PATH, sections.join("\n"), "utf8");
+}
+
 // Allow requests with `Content-Type: application/json` and an empty body (0 bytes).
 // Some clients always send the header even when there is no request body (e.g. /end).
 const defaultJsonParser = app.getDefaultJsonParser("error", "error");
@@ -82,6 +124,39 @@ app.addContentTypeParser<string>(
     void defaultJsonParser(request, body, done);
   },
 );
+
+app.addHook("onResponse", async (request, reply) => {
+  if (!request.url.startsWith("/v4/")) {
+    return;
+  }
+
+  const requestBus = (
+    request as {
+      __v4RequestRuntime?: {
+        bus?: unknown;
+      };
+    }
+  ).__v4RequestRuntime?.bus;
+
+  if (!requestBus) {
+    return;
+  }
+
+  try {
+    await appendV4RequestTreeSnapshot({
+      method: request.method,
+      url: request.url,
+      statusCode: reply.statusCode,
+      requestId: request.id,
+      bus: requestBus,
+    });
+  } catch (error) {
+    app.log.warn(
+      { error: error instanceof Error ? error.message : String(error) },
+      "unable to append v4 request event log tree snapshot",
+    );
+  }
+});
 
 process.on("uncaughtException", (error) => {
   app.log.error(error, "Uncaught Exception:");
@@ -113,6 +188,7 @@ const gracefulShutdown = async () => {
   timeout.unref();
 
   await app.close();
+
   await destroySessionStore();
   clearTimeout(timeout);
 
@@ -230,22 +306,11 @@ const start = async () => {
     });
 
     initializeSessionStore();
+    initializeV4Runtime();
 
     const appWithTypes = app.withTypeProvider<FastifyZodOpenApiTypeProvider>();
 
-    await appWithTypes.register(
-      (instance, _opts, done) => {
-        instance.route(actRoute);
-        instance.route(endRoute);
-        instance.route(extractRoute);
-        instance.route(navigateRoute);
-        instance.route(observeRoute);
-        instance.route(startRoute);
-        instance.route(agentExecuteRoute);
-        done();
-      },
-      { prefix: "/v1" },
-    );
+    await appWithTypes.register(v4Routes, { prefix: "/v4" });
 
     logging(app);
 

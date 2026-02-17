@@ -1,5 +1,6 @@
 // lib/v3/handlers/handlerUtils/actHandlerUtils.ts
 import { Protocol } from "devtools-protocol";
+import type { EventBus } from "../../bubus";
 import { Frame } from "../../understudy/frame";
 import { Locator } from "../../understudy/locator";
 import { MouseButton } from "../../types/public/locator";
@@ -7,6 +8,22 @@ import { resolveLocatorWithHops } from "../../understudy/deepLocator";
 import type { Page } from "../../understudy/page";
 import { v3Logger } from "../../logger";
 import { SessionFileLogger } from "../../flowLogger";
+import {
+  USClickEvent,
+  USDoubleClickEvent,
+  USDragAndDropEvent,
+  USFillEvent,
+  USHoverEvent,
+  USMouseWheelEvent,
+  USNextChunkEvent,
+  USPressEvent,
+  USPrevChunkEvent,
+  USScrollByPixelOffsetEvent,
+  USScrollEvent,
+  USScrollIntoViewEvent,
+  USSelectOptionFromDropdownEvent,
+  USTypeEvent,
+} from "../../types/public/events";
 import { StagehandClickError } from "../../types/public/sdkErrors";
 
 export class UnderstudyCommandException extends Error {
@@ -35,6 +52,119 @@ function normalizeRootXPath(input: string): string {
   return s;
 }
 
+function emitUnderstudyMethodEvent(
+  bus: EventBus,
+  {
+    targetId,
+    frameId,
+    method,
+    selector,
+    args,
+    domSettleTimeoutMs,
+  }: {
+    targetId: string;
+    frameId: string;
+    method: string;
+    selector: string;
+    args: ReadonlyArray<unknown>;
+    domSettleTimeoutMs?: number;
+  },
+): { done: () => Promise<unknown>; event_result?: unknown } | null {
+  const base = {
+    TargetId: targetId,
+    FrameId: frameId,
+    Selector: selector,
+    DomSettleTimeoutMs: domSettleTimeoutMs,
+  };
+
+  switch (method) {
+    case "click":
+      return bus.emit(
+        USClickEvent({
+          ...base,
+          Button: args[0] as "left" | "right" | "middle" | undefined,
+          ClickCount:
+            typeof args[1] === "number"
+              ? args[1]
+              : Number.isFinite(Number(args[1]))
+                ? Number(args[1])
+                : undefined,
+        } as any),
+      );
+    case "fill":
+      return bus.emit(
+        USFillEvent({
+          ...base,
+          Value: String(args[0] ?? ""),
+        } as any),
+      );
+    case "type":
+      return bus.emit(
+        USTypeEvent({
+          ...base,
+          Text: String(args[0] ?? ""),
+        } as any),
+      );
+    case "press":
+      return bus.emit(
+        USPressEvent({
+          ...base,
+          Key: String(args[0] ?? ""),
+        } as any),
+      );
+    case "scrollTo":
+    case "scroll":
+      return bus.emit(
+        USScrollEvent({
+          ...base,
+          Percent: (args[0] as string | number | undefined) ?? "0%",
+        } as any),
+      );
+    case "scrollIntoView":
+      return bus.emit(USScrollIntoViewEvent(base));
+    case "scrollByPixelOffset":
+      return bus.emit(
+        USScrollByPixelOffsetEvent({
+          ...base,
+          DeltaX: Number(args[0] ?? 0),
+          DeltaY: Number(args[1] ?? 0),
+        } as any),
+      );
+    case "mouse.wheel":
+      return bus.emit(
+        USMouseWheelEvent({
+          ...base,
+          DeltaY: Number(args[0] ?? 200),
+        } as any),
+      );
+    case "nextChunk":
+      return bus.emit(USNextChunkEvent(base));
+    case "prevChunk":
+      return bus.emit(USPrevChunkEvent(base));
+    case "selectOptionFromDropdown":
+    case "selectOption":
+      return bus.emit(
+        USSelectOptionFromDropdownEvent({
+          ...base,
+          OptionText: String(args[0] ?? ""),
+        } as any),
+      );
+    case "hover":
+      return bus.emit(USHoverEvent(base));
+    case "doubleClick":
+      return bus.emit(USDoubleClickEvent(base));
+    case "dragAndDrop":
+      return bus.emit(
+        USDragAndDropEvent({
+          ...base,
+          ToSelector: String(args[0] ?? ""),
+        } as any),
+      );
+    default:
+      return null;
+  }
+}
+
 export async function performUnderstudyMethod(
   page: Page,
   frame: Frame,
@@ -42,8 +172,29 @@ export async function performUnderstudyMethod(
   rawXPath: string,
   args: ReadonlyArray<unknown>,
   domSettleTimeoutMs?: number,
-): Promise<void> {
+  useEventBus: boolean = true,
+): Promise<unknown> {
   const selectorRaw = normalizeRootXPath(rawXPath);
+
+  if (useEventBus) {
+    const bus = page.getUnderstudyEventBus();
+    if (bus) {
+      const event = emitUnderstudyMethodEvent(bus, {
+        targetId: page.targetId(),
+        frameId: frame.frameId,
+        method,
+        selector: selectorRaw,
+        args,
+        domSettleTimeoutMs,
+      });
+
+      if (event) {
+        await event.done();
+        return event.event_result;
+      }
+    }
+  }
+
   // Unified resolver: supports '>>' hops and XPath across iframes
   const locator: Locator = await resolveLocatorWithHops(
     page,
@@ -83,20 +234,21 @@ export async function performUnderstudyMethod(
 
   try {
     const handler = METHOD_HANDLER_MAP[method] ?? null;
+    let result: unknown;
 
     if (handler) {
-      await handler(ctx);
+      result = await handler(ctx);
     } else {
       // Accept a few common locator method aliases
       switch (method) {
         case "click":
-          await clickElement(ctx);
+          result = await clickElement(ctx);
           break;
         case "fill":
-          await fillOrType(ctx);
+          result = await fillOrType(ctx);
           break;
         case "type":
-          await typeText(ctx);
+          result = await typeText(ctx);
           break;
         default:
           v3Logger({
@@ -112,6 +264,7 @@ export async function performUnderstudyMethod(
     }
 
     await handlePossibleNavigation("action", selectorRaw, initialUrl, frame);
+    return result;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : undefined;
@@ -137,7 +290,7 @@ export async function performUnderstudyMethod(
 
 const METHOD_HANDLER_MAP: Record<
   string,
-  (ctx: UnderstudyMethodHandlerContext) => Promise<void>
+  (ctx: UnderstudyMethodHandlerContext) => Promise<unknown>
 > = {
   scrollIntoView,
   scrollByPixelOffset,
@@ -161,7 +314,7 @@ export async function selectOption(ctx: UnderstudyMethodHandlerContext) {
   const { locator, xpath, args } = ctx;
   try {
     const text = args[0]?.toString() || "";
-    await locator.selectOption(text);
+    return await locator.selectOption(text);
   } catch (e) {
     v3Logger({
       category: "action",
@@ -216,14 +369,14 @@ async function scrollElementToPercentage(
 /** Scroll the page by pixel offset, starting from the element's center. */
 async function scrollByPixelOffset(
   ctx: UnderstudyMethodHandlerContext,
-): Promise<void> {
+): Promise<string> {
   const { locator, page, args } = ctx;
   const dx = Number(args[0] ?? 0);
   const dy = Number(args[1] ?? 0);
 
   try {
     const { x, y } = await locator.centroid();
-    await page.scroll(x, y, dx, dy);
+    return await page.scroll(x, y, dx, dy);
   } catch (e) {
     throw new UnderstudyCommandException(e.message);
   }
@@ -321,7 +474,17 @@ async function clickElement(
 ): Promise<void> {
   const { locator, xpath, args } = ctx;
   try {
-    await locator.click({ button: (args[0] as MouseButton) || undefined });
+    const rawClickCount =
+      args.length > 1 ? Number(args[1]) : Number.NaN;
+    const clickCount =
+      Number.isFinite(rawClickCount) && rawClickCount > 0
+        ? Math.floor(rawClickCount)
+        : undefined;
+
+    await locator.click({
+      button: (args[0] as MouseButton) || undefined,
+      clickCount,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     v3Logger({
@@ -356,7 +519,9 @@ async function doubleClick(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   }
 }
 
-async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
+async function dragAndDrop(
+  ctx: UnderstudyMethodHandlerContext,
+): Promise<[string, string]> {
   const { page, frame, locator, args, xpath } = ctx;
   const toXPath = String(args[0] ?? "").trim();
   if (!toXPath)
@@ -413,7 +578,7 @@ async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
       );
 
     // 3) Perform drag in main session
-    await page.dragAndDrop(fromAbs.x, fromAbs.y, toAbs.x, toAbs.y, {
+    return await page.dragAndDrop(fromAbs.x, fromAbs.y, toAbs.x, toAbs.y, {
       steps: 10,
       delay: 5,
     });

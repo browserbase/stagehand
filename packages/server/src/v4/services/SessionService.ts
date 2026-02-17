@@ -1,0 +1,180 @@
+import { randomUUID } from "crypto";
+
+import { StatusCodes } from "http-status-codes";
+
+import { AppError } from "../../lib/errorHandler.js";
+import {
+  BrowserLaunchOrConnectEvent,
+  LLMConnectEvent,
+  SessionCreateEvent,
+  SessionGetEvent,
+  SessionListEvent,
+} from "../events.js";
+import type { V4BrowserRecord, V4LLMRecord, V4SessionRecord } from "../types.js";
+import { nowIso, type ServiceDeps } from "./base.js";
+
+export class SessionService {
+  constructor(private readonly deps: ServiceDeps) {
+    this.deps.bus.on(SessionCreateEvent, this.onSessionCreateEvent.bind(this));
+    this.deps.bus.on(SessionGetEvent, this.onSessionGetEvent.bind(this));
+    this.deps.bus.on(SessionListEvent, this.onSessionListEvent.bind(this));
+  }
+
+  private async onSessionCreateEvent(
+    event: ReturnType<typeof SessionCreateEvent>,
+  ): Promise<{ session: V4SessionRecord; browser: V4BrowserRecord }> {
+    const payload = event as unknown as {
+      sessionId?: string;
+      llmId?: string;
+      browserId?: string;
+      modelName?: string;
+      modelApiKey?: string;
+      browserType: "local" | "remote" | "browserbase";
+      cdpUrl?: string;
+      region: string;
+      browserLaunchOptions?: Record<string, unknown>;
+      browserbaseSessionId?: string;
+      browserbaseSessionCreateParams?: Record<string, unknown>;
+      browserbaseApiKey?: string;
+      browserbaseProjectId?: string;
+    };
+
+    const sessionId = payload.sessionId ?? randomUUID();
+
+    if (this.deps.state.getSession(sessionId)) {
+      throw new AppError(
+        `Session already exists: ${sessionId}`,
+        StatusCodes.CONFLICT,
+      );
+    }
+
+    const timestamp = nowIso();
+    const existingBrowser = payload.browserId
+      ? this.deps.state.getBrowser(payload.browserId)
+      : undefined;
+
+    if (payload.browserId && !existingBrowser) {
+      throw new AppError(
+        `Browser not found: ${payload.browserId}`,
+        StatusCodes.NOT_FOUND,
+      );
+    }
+
+    if (existingBrowser && existingBrowser.status !== "running") {
+      throw new AppError(
+        `Browser is not running: ${existingBrowser.id}`,
+        StatusCodes.BAD_REQUEST,
+      );
+    }
+
+    const preconfiguredLLM = payload.llmId
+      ? this.deps.state.getLLM(payload.llmId)
+      : undefined;
+    const effectiveModelName =
+      payload.modelName ??
+      preconfiguredLLM?.modelName ??
+      existingBrowser?.modelName ??
+      "openai/gpt-4o-mini";
+
+    this.deps.state.putSession({
+      id: sessionId,
+      browserId: existingBrowser?.id ?? sessionId,
+      modelName: effectiveModelName,
+      llmId: payload.llmId ?? existingBrowser?.llmId,
+      status: "initializing",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+
+    try {
+      let browser: V4BrowserRecord;
+      if (existingBrowser) {
+        browser = existingBrowser;
+      } else {
+        const launch = this.deps.bus.emit(
+          BrowserLaunchOrConnectEvent({
+            browserType: payload.browserType,
+            browserId: sessionId,
+            apiSessionId: sessionId,
+            modelName: effectiveModelName,
+            llmId: payload.llmId,
+            modelApiKey: payload.modelApiKey,
+            cdpUrl: payload.cdpUrl,
+            region: payload.region,
+            browserLaunchOptions: payload.browserLaunchOptions,
+            browserbaseSessionId: payload.browserbaseSessionId,
+            browserbaseSessionCreateParams:
+              payload.browserbaseSessionCreateParams,
+            browserbaseApiKey: payload.browserbaseApiKey,
+            browserbaseProjectId: payload.browserbaseProjectId,
+          }),
+        );
+
+        await launch.done();
+        browser = (launch.event_result as { browser: V4BrowserRecord }).browser;
+      }
+
+      const llmConnect = this.deps.bus.emit(
+        LLMConnectEvent({
+          llmId: payload.llmId ?? browser.llmId,
+          sessionId,
+          browserId: browser.id,
+          modelName: effectiveModelName,
+          modelApiKey: payload.modelApiKey,
+        }),
+      );
+      await llmConnect.done();
+      const llm = (llmConnect.event_result as { llm: V4LLMRecord }).llm;
+
+      const session: V4SessionRecord = {
+        id: sessionId,
+        browserId: browser.id,
+        modelName: llm.modelName,
+        llmId: llm.id,
+        status: "running",
+        createdAt: timestamp,
+        updatedAt: nowIso(),
+      };
+      this.deps.state.putSession(session);
+
+      return {
+        session,
+        browser,
+      };
+    } catch (error) {
+      const failed: V4SessionRecord = {
+        id: sessionId,
+        browserId: existingBrowser?.id ?? sessionId,
+        modelName: effectiveModelName,
+        llmId: payload.llmId ?? existingBrowser?.llmId,
+        status: "failed",
+        createdAt: timestamp,
+        updatedAt: nowIso(),
+      };
+      this.deps.state.putSession(failed);
+      throw error;
+    }
+  }
+
+  private async onSessionGetEvent(
+    event: ReturnType<typeof SessionGetEvent>,
+  ): Promise<{ session: V4SessionRecord }> {
+    const payload = event as unknown as { sessionId: string };
+    const session = this.deps.state.getSession(payload.sessionId);
+
+    if (!session) {
+      throw new AppError(
+        `Session not found: ${payload.sessionId}`,
+        StatusCodes.NOT_FOUND,
+      );
+    }
+
+    return { session };
+  }
+
+  private async onSessionListEvent(): Promise<{ sessions: V4SessionRecord[] }> {
+    return {
+      sessions: this.deps.state.listSessions(),
+    };
+  }
+}

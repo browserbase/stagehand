@@ -1,12 +1,11 @@
 import Browserbase from "@browserbasehq/sdk";
-import { LaunchedChrome } from "chrome-launcher";
 
 export type InitState =
   | { kind: "UNINITIALIZED" }
   | {
       kind: "LOCAL";
-      chrome: LaunchedChrome;
       ws: string;
+      pid?: number | null;
       userDataDir?: string;
       createdTempProfile?: boolean;
       preserveUserDataDir?: boolean;

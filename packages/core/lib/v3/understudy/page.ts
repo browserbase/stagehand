@@ -55,6 +55,7 @@ import {
   type ScreenshotCleanup,
 } from "./screenshotUtils";
 import { InitScriptSource } from "../types/private";
+import type { EventBus as BubusEventBus } from "../bubus";
 
 /**
  * Page
@@ -112,6 +113,7 @@ export class Page {
   >();
   /** Document-start scripts installed across every session this page owns. */
   private readonly initScripts: string[] = [];
+  private understudyEventBus: BubusEventBus | null = null;
 
   private constructor(
     private readonly conn: CdpConnection,
@@ -544,6 +546,14 @@ export class Page {
 
   public unregisterSessionForNetwork(sessionId: string | undefined): void {
     this.networkManager.untrackSession(sessionId);
+  }
+
+  public setUnderstudyEventBus(bus: BubusEventBus | null): void {
+    this.understudyEventBus = bus;
+  }
+
+  public getUnderstudyEventBus(): BubusEventBus | null {
+    return this.understudyEventBus;
   }
 
   public on(event: "console", listener: ConsoleListener): Page {

@@ -52,6 +52,7 @@
     "@langchain/openai": "^0.4.4",
     "@modelcontextprotocol/sdk": "^1.17.2",
     "ai": "^5.0.133",
+    "bubus": "^2.3.2",
     "devtools-protocol": "^0.0.1464554",
     "fetch-cookie": "^3.1.0",
     "openai": "^4.87.1",

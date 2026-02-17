@@ -11,6 +11,7 @@ import { LocalBrowserLaunchOptions } from "../types/public";
 import { InitScriptSource } from "../types/private";
 import { normalizeInitScriptSource } from "./initScripts";
 import { TimeoutError, PageNotFoundError } from "../types/public/sdkErrors";
+import type { EventBus as BubusEventBus } from "../bubus";
 
 type TargetId = string;
 type SessionId = string;
@@ -57,6 +58,7 @@ export class V3Context {
   private _pageOrder: TargetId[] = [];
   private pendingCreatedTargetUrl = new Map<TargetId, string>();
   private readonly initScripts: string[] = [];
+  private understudyEventBus: BubusEventBus | null = null;
 
   private installTargetSessionListeners(session: CDPSessionLike): void {
     const sessionId = session.id;
@@ -257,6 +259,17 @@ export class V3Context {
     }
     rows.sort((a, b) => a.created - b.created);
     return rows.map((r) => r.page);
+  }
+
+  public setUnderstudyEventBus(bus: BubusEventBus | null): void {
+    this.understudyEventBus = bus;
+    for (const page of this.pagesByTarget.values()) {
+      page.setUnderstudyEventBus(bus);
+    }
+  }
+
+  public resolvePageByTargetId(targetId: string): Page | undefined {
+    return this.pagesByTarget.get(targetId);
   }
 
   private async applyInitScriptsToPage(
@@ -536,6 +549,9 @@ export class V3Context {
           this.localBrowserLaunchOptions,
           this.env === "BROWSERBASE",
         );
+        if (this.understudyEventBus) {
+          page.setUnderstudyEventBus(this.understudyEventBus);
+        }
         this.wireSessionToOwnerPage(sessionId, page);
         this.pagesByTarget.set(info.targetId, page);
         this.mainFrameToTarget.set(page.mainFrameId(), info.targetId);

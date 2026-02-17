@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import { EventBus as BubusEventBus } from "./bubus";
 import { EventEmitter } from "events";
 import fs from "fs";
 import os from "os";
@@ -22,7 +23,6 @@ import { ObserveHandler } from "./handlers/observeHandler";
 import { V3AgentHandler } from "./handlers/v3AgentHandler";
 import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler";
 import { createBrowserbaseSession } from "./launch/browserbase";
-import { launchLocalChrome } from "./launch/local";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
 import {
@@ -80,13 +80,20 @@ import {
   AgentStreamResult,
 } from "./types/public";
 import { V3Context } from "./understudy/context";
+import { UnderstudyBrowserLifecycleService } from "./understudy/UnderstudyBrowserLifecycleService";
 import { Page } from "./understudy/page";
+import { UnderstudyToolsService } from "./understudy/UnderstudyToolsService";
 import { resolveModel } from "../modelUtils";
 import { StagehandAPIClient } from "./api";
 import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures";
 import { SessionFileLogger, logStagehandStep } from "./flowLogger";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard";
 import { ActTimeoutError } from "./types/public/sdkErrors";
+import {
+  USDisconnectOrCloseBrowserEvent,
+  USLaunchOrConnectBrowserEvent,
+  type USLaunchOrConnectBrowserResult,
+} from "./types/public/events";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
@@ -146,6 +153,9 @@ export class V3 {
   private extractHandler: ExtractHandler | null = null;
   private observeHandler: ObserveHandler | null = null;
   private ctx: V3Context | null = null;
+  private readonly understudyActionBus: BubusEventBus;
+  private readonly understudyToolsService: UnderstudyToolsService;
+  private readonly understudyBrowserLifecycleService: UnderstudyBrowserLifecycleService;
   public llmClient!: LLMClient;
 
   /**
@@ -372,6 +382,16 @@ export class V3 {
     });
 
     this.opts = opts;
+    this.understudyActionBus = new BubusEventBus(
+      `UnderstudyActionBus#${this.instanceId.slice(-4)}`,
+      { event_handler_completion: "first" },
+    );
+    this.understudyToolsService = new UnderstudyToolsService(
+      this.understudyActionBus,
+      () => this.ctx,
+    );
+    this.understudyBrowserLifecycleService =
+      new UnderstudyBrowserLifecycleService(this.understudyActionBus);
 
     // Initialize session file logger
     SessionFileLogger.init(this.instanceId, opts);
@@ -399,6 +419,10 @@ export class V3 {
     }
     // Return local metrics wrapped in a Promise for consistency
     return Promise.resolve(this.stagehandMetrics);
+  }
+
+  private attachUnderstudyEventBusToContext(): void {
+    this.ctx?.setUnderstudyEventBus(this.understudyActionBus);
   }
 
   private resolveLlmClient(model?: ModelConfiguration): LLMClient {
@@ -735,9 +759,18 @@ export class V3 {
               message: "Connecting to local browser",
               level: 1,
             });
-            this.ctx = await V3Context.create(lbo.cdpUrl, {
+            const launchEvent = this.understudyActionBus.emit(
+              USLaunchOrConnectBrowserEvent({ CdpUrl: lbo.cdpUrl } as any),
+            );
+            await launchEvent.done();
+            const launchResult =
+              launchEvent.event_result as USLaunchOrConnectBrowserResult;
+            const ws = launchResult?.Ws ?? lbo.cdpUrl;
+
+            this.ctx = await V3Context.create(ws, {
               env: "LOCAL",
             });
+            this.attachUnderstudyEventBusToContext();
             const logCtx = SessionFileLogger.getContext();
             this.ctx.conn.cdpLogger = (info) =>
               SessionFileLogger.logCdpCallEvent(info, logCtx);
@@ -746,11 +779,8 @@ export class V3 {
             this.ctx.conn.onTransportClosed(this._onCdpClosed);
             this.state = {
               kind: "LOCAL",
-              // no LaunchedChrome when attaching externally; create a stub kill
-              chrome: {
-                kill: async () => {},
-              } as unknown as import("chrome-launcher").LaunchedChrome,
-              ws: lbo.cdpUrl,
+              ws,
+              pid: launchResult?.Pid ?? null,
             };
             this.resetBrowserbaseSessionMetadata();
             // Post-connect settings (downloads and viewport) if provided
@@ -822,26 +852,35 @@ export class V3 {
           if (Array.isArray(lbo.args)) chromeFlags.push(...lbo.args);
 
           const keepAlive = this.keepAlive === true;
-          const { ws, chrome } = await launchLocalChrome({
-            chromePath: lbo.executablePath,
-            chromeFlags,
-            port: lbo.port,
-            headless: lbo.headless,
-            userDataDir,
-            connectTimeoutMs: lbo.connectTimeoutMs,
-            handleSIGINT: !keepAlive,
-          });
-          if (keepAlive) {
-            try {
-              chrome.process?.unref?.();
-            } catch {
-              // best-effort: avoid keeping the event loop alive
-            }
+          const launchEvent = this.understudyActionBus.emit(
+            USLaunchOrConnectBrowserEvent({
+              LaunchOptions: {
+                ChromePath: lbo.executablePath,
+                ChromeFlags: chromeFlags,
+                Port: lbo.port,
+                Headless: lbo.headless,
+                UserDataDir: userDataDir,
+                ConnectTimeoutMs: lbo.connectTimeoutMs,
+                HandleSIGINT: !keepAlive,
+                UnrefProcess: keepAlive,
+              },
+            } as any),
+          );
+          await launchEvent.done();
+          const launchResult =
+            launchEvent.event_result as USLaunchOrConnectBrowserResult;
+          const ws = launchResult?.Ws;
+          if (!ws) {
+            throw new StagehandInitError(
+              "USLaunchOrConnectBrowserEvent did not return a WebSocket URL.",
+            );
           }
+
           this.ctx = await V3Context.create(ws, {
             env: "LOCAL",
             localBrowserLaunchOptions: lbo,
           });
+          this.attachUnderstudyEventBusToContext();
           const logCtx = SessionFileLogger.getContext();
           this.ctx.conn.cdpLogger = (info) =>
             SessionFileLogger.logCdpCallEvent(info, logCtx);
@@ -850,14 +889,14 @@ export class V3 {
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
           this.state = {
             kind: "LOCAL",
-            chrome,
             ws,
+            pid: launchResult?.Pid ?? null,
             userDataDir,
             createdTempProfile: createdTemp,
             preserveUserDataDir: !!lbo.preserveUserDataDir,
           };
           this.resetBrowserbaseSessionMetadata();
-          const chromePid = chrome.process?.pid ?? chrome.pid;
+          const chromePid = launchResult?.Pid ?? undefined;
           if (!keepAlive && chromePid) {
             const supervisor = this.startShutdownSupervisor({
               kind: "LOCAL",
@@ -942,6 +981,7 @@ export class V3 {
             env: "BROWSERBASE",
             apiClient: this.apiClient,
           });
+          this.attachUnderstudyEventBusToContext();
           const logCtx = SessionFileLogger.getContext();
           this.ctx.conn.cdpLogger = (info) =>
             SessionFileLogger.logCdpCallEvent(info, logCtx);
@@ -1432,8 +1472,16 @@ export class V3 {
       // Kill local Chrome and clean up temp profile when keepAlive is not enabled
       if (!keepAlive && this.state.kind === "LOCAL") {
         const localState = this.state;
+        try {
+          const closeEvent = this.understudyActionBus.emit(
+            USDisconnectOrCloseBrowserEvent({}),
+          );
+          await closeEvent.done();
+        } catch {
+          // best-effort cleanup
+        }
+
         await cleanupLocalBrowser({
-          killChrome: () => localState.chrome.kill(),
           userDataDir: localState.userDataDir,
           createdTempProfile: localState.createdTempProfile,
           preserveUserDataDir: localState.preserveUserDataDir,
