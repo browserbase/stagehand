@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
 
@@ -87,7 +86,7 @@ export interface SessionInfo {
   cdpUrl: string;
 }
 
-function createLocalBrowserBody(userDataDir: string) {
+function createLocalBrowserBody() {
   const resolveChromePath = (): string => {
     const explicit = process.env.CHROME_PATH;
     if (explicit && fs.existsSync(explicit)) {
@@ -114,20 +113,16 @@ function createLocalBrowserBody(userDataDir: string) {
         headless: true,
         executablePath: resolveChromePath(),
         args: process.env.CI ? ["--no-sandbox"] : undefined,
-        userDataDir,
         connectTimeoutMs: LOCAL_CONNECT_TIMEOUT_MS,
       },
     },
   };
 }
 
-function createUserDataDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "stagehand-int-"));
-}
+export const LOCAL_BROWSER_BODY = createLocalBrowserBody();
 
-export const LOCAL_BROWSER_BODY = createLocalBrowserBody(createUserDataDir());
-
-function readChromeLogs(userDataDir: string): string {
+function readChromeLogs(userDataDir?: string): string {
+  if (!userDataDir) return "";
   const entries: string[] = [];
   const outPath = path.join(userDataDir, "chrome-out.log");
   const errPath = path.join(userDataDir, "chrome-err.log");
@@ -141,7 +136,7 @@ function readChromeLogs(userDataDir: string): string {
 }
 
 function readLaunchDiagnostics(
-  userDataDir: string,
+  userDataDir: string | undefined,
   launchOptions?: {
     executablePath?: string;
     args?: string[];
@@ -155,9 +150,13 @@ function readLaunchDiagnostics(
   diagnostics.push("--- launch diagnostics ---");
   diagnostics.push(`CHROME_PATH env: ${process.env.CHROME_PATH ?? "<unset>"}`);
   diagnostics.push(`CI env: ${process.env.CI ?? "<unset>"}`);
-  diagnostics.push(`userDataDir: ${userDataDir}`);
-  diagnostics.push(`userDataDir exists: ${fs.existsSync(userDataDir)}`);
-  if (fs.existsSync(userDataDir)) {
+  diagnostics.push(`userDataDir: ${userDataDir ?? "<auto>"}`);
+  if (!userDataDir) {
+    diagnostics.push("userDataDir exists: <unknown>");
+  } else {
+    diagnostics.push(`userDataDir exists: ${fs.existsSync(userDataDir)}`);
+  }
+  if (userDataDir && fs.existsSync(userDataDir)) {
     const files = fs.readdirSync(userDataDir).sort();
     diagnostics.push(
       `userDataDir files: ${files.length > 0 ? files.join(", ") : "<empty>"}`,
@@ -197,11 +196,11 @@ export async function createSessionWithCdp(
   headers: Record<string, string>,
 ): Promise<SessionInfo> {
   const url = getBaseUrl();
-  const userDataDir = createUserDataDir();
   const startPayload = {
     modelName: "gpt-4.1-nano",
-    ...createLocalBrowserBody(userDataDir),
+    ...createLocalBrowserBody(),
   };
+  const userDataDir = startPayload.browser?.launchOptions?.userDataDir;
 
   const response = await fetch(`${url}/v1/sessions/start`, {
     method: "POST",

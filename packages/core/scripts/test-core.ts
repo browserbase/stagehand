@@ -68,14 +68,7 @@ const toDistPath = (testPath: string) => {
 
 const compiledPaths = paths.map(toDistPath);
 
-const registerPath = path.join(
-  repoRoot,
-  "packages",
-  "core",
-  "scripts",
-  "register-stagehand-dist.js",
-);
-const baseNodeOptions = `--enable-source-maps --experimental-specifier-resolution=node --import ${registerPath}`;
+const baseNodeOptions = "--enable-source-maps";
 const nodeOptions = [process.env.NODE_OPTIONS, baseNodeOptions]
   .filter(Boolean)
   .join(" ");

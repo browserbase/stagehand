@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const resolveRepoRoot = (startDir: string): string => {
-  let current = startDir;
+  let current = path.resolve(startDir);
   while (true) {
     if (fs.existsSync(path.join(current, "pnpm-workspace.yaml"))) {
       return current;

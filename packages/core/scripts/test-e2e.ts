@@ -115,18 +115,7 @@ const toPlaywrightFilter = (testPath: string) => {
 
 const playwrightFilters = paths.map(toPlaywrightFilter);
 
-const registerPath = path.join(
-  repoRoot,
-  "packages",
-  "core",
-  "scripts",
-  "register-stagehand-dist.js",
-);
-const baseNodeOptions = [
-  "--enable-source-maps",
-  "--experimental-specifier-resolution=node",
-  `--import ${registerPath}`,
-].join(" ");
+const baseNodeOptions = "--enable-source-maps";
 const nodeOptions = [process.env.NODE_OPTIONS, baseNodeOptions]
   .filter(Boolean)
   .join(" ");
