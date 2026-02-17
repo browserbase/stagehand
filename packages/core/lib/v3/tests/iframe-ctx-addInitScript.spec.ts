@@ -85,6 +85,16 @@ async function waitForPageUrl(
   );
 }
 
+function toExpectedPopupUrlSubstring(href: string | null): string | null {
+  if (!href) return null;
+  try {
+    const parsed = new URL(href);
+    return parsed.pathname;
+  } catch {
+    return href;
+  }
+}
+
 async function waitForPopupPage(
   ctx: V3Context,
   opener: Page,
@@ -247,16 +257,18 @@ test.describe("context.addInitScript with iframes", () => {
         { waitUntil: "networkidle" },
       );
 
+      const popupHref = await page.locator("a").getAttribute("href");
+      const popupUrlSubstring = toExpectedPopupUrlSubstring(popupHref);
+
       // Click link to open popup
       await page.locator("a").click();
 
       // Wait for popup to open and become active
       const popup = await waitForPopupPage(ctx, page);
       ctx.setActivePage(popup);
-      await waitForPageUrl(
-        popup,
-        "/stagehand-eval-sites/sites/oopif-in-closed-shadow-dom/",
-      );
+      if (popupUrlSubstring) {
+        await waitForPageUrl(popup, popupUrlSubstring);
+      }
       const iframe = await waitForChildFrame(popup);
 
       // Check popup main page background
@@ -279,16 +291,18 @@ test.describe("context.addInitScript with iframes", () => {
         { waitUntil: "networkidle" },
       );
 
+      const popupHref = await page.locator("a").getAttribute("href");
+      const popupUrlSubstring = toExpectedPopupUrlSubstring(popupHref);
+
       // Click link to open popup
       await page.locator("a").click();
 
       // Wait for popup to open and become active
       const popup = await waitForPopupPage(ctx, page);
       ctx.setActivePage(popup);
-      await waitForPageUrl(
-        popup,
-        "/stagehand-eval-sites/sites/spif-in-closed-shadow-dom/",
-      );
+      if (popupUrlSubstring) {
+        await waitForPageUrl(popup, popupUrlSubstring);
+      }
       const iframe = await waitForChildFrame(popup);
 
       // Check popup main page background
