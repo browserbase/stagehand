@@ -39,9 +39,9 @@ import {
   AgentProvider,
   loadApiKeyFromEnv,
   LogLine,
+  getAISDKLanguageModel,
 } from "@browserbasehq/stagehand";
 import { AISdkClientWrapped } from "./lib/AISdkClientWrapped";
-import { getAISDKLanguageModel } from "@browserbasehq/stagehand/lib/v3/llm/LLMProvider";
 import { env } from "./env";
 import { initV3 } from "./initV3";
 import { generateSummary } from "./summary";

@@ -4,7 +4,10 @@
     "baseUrl": ".",
     "rootDir": ".",
     "outDir": "dist/esm",
-    "noEmit": false
+    "noEmit": false,
+    "paths": {
+      "@browserbasehq/stagehand": ["../core/dist/esm/index.d.ts"]
+    }
   },
   "include": ["**/*.ts"],
   "exclude": ["node_modules", "dist", "scripts"]
