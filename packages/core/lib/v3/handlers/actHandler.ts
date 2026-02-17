@@ -1,10 +1,16 @@
 // lib/v3/handlers/actHandler.ts
+import { EventEmitter } from "events";
 import { act as actInference } from "../../inference";
 import { buildActPrompt, buildStepTwoPrompt } from "../../prompt";
 import { trimTrailingTextNode } from "../../utils";
 import { v3Logger } from "../logger";
 import { ActHandlerParams } from "../types/private/handlers";
-import { ActResult, Action, V3FunctionName } from "../types/public/methods";
+import {
+  ActResult,
+  Action,
+  ActionEvent,
+  V3FunctionName,
+} from "../types/public/methods";
 import { ActTimeoutError } from "../types/public/sdkErrors";
 import {
   captureHybridSnapshot,
@@ -51,6 +57,7 @@ export class ActHandler {
     inferenceTimeMs: number,
   ) => void;
   private readonly defaultDomSettleTimeoutMs?: number;
+  private readonly bus?: EventEmitter;
 
   constructor(
     llmClient: LLMClient,
@@ -69,6 +76,7 @@ export class ActHandler {
       inferenceTimeMs: number,
     ) => void,
     defaultDomSettleTimeoutMs?: number,
+    bus?: EventEmitter,
   ) {
     this.llmClient = llmClient;
     this.defaultModelName = defaultModelName;
@@ -79,6 +87,11 @@ export class ActHandler {
     this.selfHeal = !!selfHeal;
     this.onMetrics = onMetrics;
     this.defaultDomSettleTimeoutMs = defaultDomSettleTimeoutMs;
+    this.bus = bus;
+  }
+
+  private emitActionEvent(event: ActionEvent): void {
+    this.bus?.emit("action", event);
   }
 
   private recordActMetrics(response: ActInferenceResponse): void {
@@ -302,8 +315,21 @@ export class ActHandler {
     const resolvedArgs =
       substituteVariablesInArguments(action.arguments, variables) ?? [];
 
+    const actionDescription = action.description || `action (${method})`;
+    const baseEvent = {
+      method,
+      selector: action.selector,
+      description: actionDescription,
+      arguments: placeholderArgs.length > 0 ? placeholderArgs : undefined,
+    };
+
     try {
       ensureTimeRemaining?.();
+      this.emitActionEvent({
+        ...baseEvent,
+        phase: "start",
+        timestamp: Date.now(),
+      });
       await performUnderstudyMethod(
         page,
         page.mainFrame(),
@@ -312,14 +338,19 @@ export class ActHandler {
         resolvedArgs,
         settleTimeout,
       );
+      this.emitActionEvent({
+        ...baseEvent,
+        phase: "complete",
+        timestamp: Date.now(),
+      });
       return {
         success: true,
         message: `Action [${method}] performed successfully on selector: ${action.selector}`,
-        actionDescription: action.description || `action (${method})`,
+        actionDescription,
         actions: [
           {
             selector: action.selector,
-            description: action.description || `action (${method})`,
+            description: actionDescription,
             method,
             arguments: placeholderArgs,
           },
@@ -330,6 +361,12 @@ export class ActHandler {
         throw err;
       }
       const msg = err instanceof Error ? err.message : String(err);
+      this.emitActionEvent({
+        ...baseEvent,
+        phase: "error",
+        timestamp: Date.now(),
+        error: msg,
+      });
 
       // Attempt self-heal: rerun actInference and retry with updated selector
       if (this.selfHeal) {
@@ -395,7 +432,16 @@ export class ActHandler {
             newSelector = fallbackAction.selector;
           }
 
+          const retryEvent = {
+            ...baseEvent,
+            selector: newSelector,
+          };
           ensureTimeRemaining?.();
+          this.emitActionEvent({
+            ...retryEvent,
+            phase: "start",
+            timestamp: Date.now(),
+          });
           await performUnderstudyMethod(
             page,
             page.mainFrame(),
@@ -404,15 +450,20 @@ export class ActHandler {
             resolvedArgs,
             settleTimeout,
           );
+          this.emitActionEvent({
+            ...retryEvent,
+            phase: "complete",
+            timestamp: Date.now(),
+          });
 
           return {
             success: true,
             message: `Action [${method}] performed successfully on selector: ${newSelector}`,
-            actionDescription: action.description || `action (${method})`,
+            actionDescription,
             actions: [
               {
                 selector: newSelector,
-                description: action.description || `action (${method})`,
+                description: actionDescription,
                 method,
                 arguments: placeholderArgs,
               },
@@ -427,7 +478,7 @@ export class ActHandler {
           return {
             success: false,
             message: `Failed to perform act after self-heal: ${retryMsg}`,
-            actionDescription: action.description || `action (${method})`,
+            actionDescription,
             actions: [],
           };
         }
@@ -436,7 +487,7 @@ export class ActHandler {
       return {
         success: false,
         message: `Failed to perform act: ${msg}`,
-        actionDescription: action.description || `action (${method})`,
+        actionDescription,
         actions: [],
       };
     }
