@@ -706,8 +706,8 @@ export class StagehandAPIClient {
   }
 
   /**
-   * Determine if caching should be enabled for a request.
-   * Method-level setting takes precedence over instance-level setting.
+   * Resolves the final cache status from the response header or SSE event data,
+   * logs it, and attaches it to act/extract results before returning.
    */
   private attachCacheStatus<T>(
     result: T,
@@ -744,6 +744,10 @@ export class StagehandAPIClient {
     return result;
   }
 
+  /**
+   * Determine if caching should be enabled for a request.
+   * Method-level setting takes precedence over instance-level setting.
+   */
   private shouldUseCache(methodServerCache?: boolean): boolean {
     // If method-level setting is explicitly provided, use it
     if (methodServerCache !== undefined) {
