@@ -14,6 +14,12 @@ interface LaunchLocalOptions {
 export async function launchLocalChrome(
   opts: LaunchLocalOptions,
 ): Promise<{ ws: string; chrome: LaunchedChrome }> {
+  const connectTimeoutMs = opts.connectTimeoutMs ?? 15_000;
+  const connectionPollInterval = 250;
+  const maxConnectionRetries = Math.max(
+    1,
+    Math.ceil(connectTimeoutMs / connectionPollInterval),
+  );
   const headless = opts.headless ?? false;
   const chromeFlags = [
     headless ? "--headless=new" : undefined,
@@ -31,12 +37,11 @@ export async function launchLocalChrome(
     port: opts.port,
     userDataDir: opts.userDataDir,
     handleSIGINT: opts.handleSIGINT,
+    connectionPollInterval,
+    maxConnectionRetries,
   });
 
-  const ws = await waitForWebSocketDebuggerUrl(
-    chrome.port,
-    opts.connectTimeoutMs ?? 15_000,
-  );
+  const ws = await waitForWebSocketDebuggerUrl(chrome.port, connectTimeoutMs);
 
   return { ws, chrome };
 }

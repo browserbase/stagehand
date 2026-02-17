@@ -77,6 +77,10 @@ export interface StartSessionResponse {
 }
 
 const SESSION_READY_DELAY_MS = 250;
+const LOCAL_CONNECT_TIMEOUT_MS = (() => {
+  const parsed = Number(process.env.STAGEHAND_TEST_LOCAL_CONNECT_TIMEOUT_MS);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 5000;
+})();
 
 export interface SessionInfo {
   sessionId: string;
@@ -111,6 +115,7 @@ function createLocalBrowserBody(userDataDir: string) {
         executablePath: resolveChromePath(),
         args: process.env.CI ? ["--no-sandbox"] : undefined,
         userDataDir,
+        connectTimeoutMs: LOCAL_CONNECT_TIMEOUT_MS,
       },
     },
   };
