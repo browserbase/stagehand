@@ -1,15 +1,12 @@
 import {
-  CoreAssistantMessage,
   ModelMessage,
-  CoreSystemMessage,
   Tool,
-  CoreUserMessage,
-  generateObject,
   generateText,
   ImagePart,
+  Output,
   TextPart,
 } from "ai";
-import type { LanguageModelV2 } from "@ai-sdk/provider";
+import type { LanguageModelV3 } from "@ai-sdk/provider";
 import {
   CreateChatCompletionOptions,
   LLMClient,
@@ -19,9 +16,9 @@ import { ChatCompletion } from "openai/resources";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
-  private model: LanguageModelV2;
+  private model: LanguageModelV3;
 
-  constructor({ model }: { model: LanguageModelV2 }) {
+  constructor({ model }: { model: LanguageModelV3 }) {
     super(model.modelId as AvailableModel);
     this.model = model;
   }
@@ -33,7 +30,7 @@ export class AISdkClient extends LLMClient {
       (message) => {
         if (Array.isArray(message.content)) {
           if (message.role === "system") {
-            const systemMessage: CoreSystemMessage = {
+            const systemMessage: ModelMessage = {
               role: "system",
               content: message.content
                 .map((c) => ("text" in c ? c.text : ""))
@@ -59,7 +56,7 @@ export class AISdkClient extends LLMClient {
           });
 
           if (message.role === "user") {
-            const userMessage: CoreUserMessage = {
+            const userMessage: ModelMessage = {
               role: "user",
               content: contentParts,
             };
@@ -69,7 +66,7 @@ export class AISdkClient extends LLMClient {
               type: "text" as const,
               text: part.type === "image" ? "[Image]" : part.text,
             }));
-            const assistantMessage: CoreAssistantMessage = {
+            const assistantMessage: ModelMessage = {
               role: "assistant",
               content: textOnlyParts,
             };
@@ -85,20 +82,29 @@ export class AISdkClient extends LLMClient {
     );
 
     if (options.response_model) {
-      const response = await generateObject({
+      const response = await generateText({
         model: this.model,
         messages: formattedMessages,
-        schema: options.response_model.schema,
+        output: Output.object({
+          schema: options.response_model.schema,
+        }),
       });
 
+      const usage = response.usage;
       return {
-        data: response.object,
+        data: response.output,
         usage: {
-          prompt_tokens: response.usage.inputTokens ?? 0,
-          completion_tokens: response.usage.outputTokens ?? 0,
-          reasoning_tokens: response.usage.reasoningTokens ?? 0,
-          cached_input_tokens: response.usage.cachedInputTokens ?? 0,
-          total_tokens: response.usage.totalTokens ?? 0,
+          prompt_tokens: usage.inputTokens ?? 0,
+          completion_tokens: usage.outputTokens ?? 0,
+          reasoning_tokens:
+            usage.outputTokenDetails?.reasoningTokens ??
+            usage.reasoningTokens ??
+            0,
+          cached_input_tokens:
+            usage.inputTokenDetails?.cacheReadTokens ??
+            usage.cachedInputTokens ??
+            0,
+          total_tokens: usage.totalTokens ?? 0,
         },
       } as T;
     }
@@ -118,14 +124,21 @@ export class AISdkClient extends LLMClient {
       tools,
     });
 
+    const usage = response.usage;
     return {
       data: response.text,
       usage: {
-        prompt_tokens: response.usage.inputTokens ?? 0,
-        completion_tokens: response.usage.outputTokens ?? 0,
-        reasoning_tokens: response.usage.reasoningTokens ?? 0,
-        cached_input_tokens: response.usage.cachedInputTokens ?? 0,
-        total_tokens: response.usage.totalTokens ?? 0,
+        prompt_tokens: usage.inputTokens ?? 0,
+        completion_tokens: usage.outputTokens ?? 0,
+        reasoning_tokens:
+          usage.outputTokenDetails?.reasoningTokens ??
+          usage.reasoningTokens ??
+          0,
+        cached_input_tokens:
+          usage.inputTokenDetails?.cacheReadTokens ??
+          usage.cachedInputTokens ??
+          0,
+        total_tokens: usage.totalTokens ?? 0,
       },
     } as T;
   }

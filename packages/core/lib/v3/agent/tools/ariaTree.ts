@@ -29,8 +29,8 @@ export const ariaTreeTool = (v3: V3) =>
 
       return { content, pageUrl };
     },
-    toModelOutput: (result) => ({
+    toModelOutput: ({ output }) => ({
       type: "content",
-      value: [{ type: "text", text: `Accessibility Tree:\n${result.content}` }],
+      value: [{ type: "text", text: `Accessibility Tree:\n${output.content}` }],
     }),
   });
