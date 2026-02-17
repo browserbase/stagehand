@@ -12,6 +12,25 @@ test.describe("Page.waitForSelector tests", () => {
     await v3.init();
   });
 
+  test.beforeEach(async () => {
+    const pages = v3.context.pages();
+    if (pages.length === 0) {
+      await v3.context.newPage("about:blank");
+      return;
+    }
+
+    const [primary, ...extras] = pages;
+    for (const page of extras) {
+      await page.close().catch(() => {});
+    }
+
+    v3.context.setActivePage(primary);
+    await primary.goto("about:blank", {
+      waitUntil: "load",
+      timeoutMs: 15_000,
+    });
+  });
+
   test.afterAll(async () => {
     await closeV3(v3);
   });
