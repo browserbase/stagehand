@@ -12,6 +12,7 @@ import {
   BrowserSetViewportEvent,
   BrowserSetWindowSizeEvent,
   BrowserTriggerExtensionActionEvent,
+  SessionUpdateBrowserEvent,
 } from "../../events.js";
 import type { V4BrowserRecord } from "../../types.js";
 import {
@@ -45,7 +46,7 @@ export abstract class BaseBrowserService {
   protected abstract readonly browserMode: V4BrowserRecord["browserMode"];
 
   constructor(protected readonly deps: ServiceDeps) {
-    this.deps.bus.on(BrowserListEvent, this.onBrowserListEvent.bind(this));
+    this.deps.bus.on(BrowserListEvent, this.on_BrowserListEvent.bind(this));
     this.deps.bus.on(
       BrowserLaunchOrConnectEvent,
       retry({
@@ -55,26 +56,26 @@ export abstract class BaseBrowserService {
         semaphore_scope: "global",
         semaphore_name: "local-browser-launching",
         semaphore_timeout: 30,
-      })(this.onBrowserLaunchOrConnectEvent.bind(this)),
+      })(this.on_BrowserLaunchOrConnectEvent.bind(this)),
     );
-    this.deps.bus.on(BrowserGetEvent, this.onBrowserGetEvent.bind(this));
+    this.deps.bus.on(BrowserGetEvent, this.on_BrowserGetEvent.bind(this));
     this.deps.bus.on(
       BrowserKillEvent,
       retry({ timeout: 10, max_attempts: 2 })(
-        this.onBrowserKillEvent.bind(this),
+        this.on_BrowserKillEvent.bind(this),
       ),
     );
     this.deps.bus.on(
       BrowserSetViewportEvent,
-      this.onBrowserSetViewportEvent.bind(this),
+      this.on_BrowserSetViewportEvent.bind(this),
     );
     this.deps.bus.on(
       BrowserSetWindowSizeEvent,
-      this.onBrowserSetWindowSizeEvent.bind(this),
+      this.on_BrowserSetWindowSizeEvent.bind(this),
     );
     this.deps.bus.on(
       BrowserTriggerExtensionActionEvent,
-      this.onBrowserTriggerExtensionActionEvent.bind(this),
+      this.on_BrowserTriggerExtensionActionEvent.bind(this),
     );
   }
 
@@ -151,11 +152,11 @@ export abstract class BaseBrowserService {
     return updated;
   }
 
-  private async onBrowserListEvent(): Promise<{ browsers: V4BrowserRecord[] }> {
+  private async on_BrowserListEvent(): Promise<{ browsers: V4BrowserRecord[] }> {
     return { browsers: this.deps.state.listBrowsers() };
   }
 
-  private async onBrowserLaunchOrConnectEvent(
+  private async on_BrowserLaunchOrConnectEvent(
     event: ReturnType<typeof BrowserLaunchOrConnectEvent>,
   ): Promise<{ browser: V4BrowserRecord }> {
     const payload = event as unknown as BrowserLaunchPayload;
@@ -171,10 +172,24 @@ export abstract class BaseBrowserService {
       );
     }
 
-    return this.launchOrConnect(payload);
+    const launched = await this.launchOrConnect(payload);
+
+    if (payload.apiSessionId) {
+      const sessionUpdate = this.deps.bus.emit(
+        SessionUpdateBrowserEvent({
+          sessionId: payload.apiSessionId,
+          browserId: launched.browser.id,
+          modelName: launched.browser.modelName,
+          llmId: launched.browser.llmId,
+        }),
+      );
+      await sessionUpdate.done();
+    }
+
+    return launched;
   }
 
-  private async onBrowserGetEvent(
+  private async on_BrowserGetEvent(
     event: ReturnType<typeof BrowserGetEvent>,
   ): Promise<{ browser: V4BrowserRecord }> {
     const payload = event as unknown as { browserId: string };
@@ -190,7 +205,7 @@ export abstract class BaseBrowserService {
     return { browser };
   }
 
-  private async onBrowserKillEvent(
+  private async on_BrowserKillEvent(
     event: ReturnType<typeof BrowserKillEvent>,
   ): Promise<{ browser: V4BrowserRecord }> {
     const payload = event as unknown as { browserId: string };
@@ -209,7 +224,7 @@ export abstract class BaseBrowserService {
     return { browser: updated };
   }
 
-  private async onBrowserSetViewportEvent(
+  private async on_BrowserSetViewportEvent(
     event: ReturnType<typeof BrowserSetViewportEvent>,
   ): Promise<{ browser: V4BrowserRecord; applied: boolean }> {
     const payload = event as unknown as {
@@ -242,7 +257,7 @@ export abstract class BaseBrowserService {
     return { browser: updated, applied: true };
   }
 
-  private async onBrowserSetWindowSizeEvent(
+  private async on_BrowserSetWindowSizeEvent(
     event: ReturnType<typeof BrowserSetWindowSizeEvent>,
   ): Promise<{ browser: V4BrowserRecord; applied: boolean }> {
     const payload = event as unknown as {
@@ -272,7 +287,7 @@ export abstract class BaseBrowserService {
     return { browser: updated, applied: true };
   }
 
-  private async onBrowserTriggerExtensionActionEvent(
+  private async on_BrowserTriggerExtensionActionEvent(
     event: ReturnType<typeof BrowserTriggerExtensionActionEvent>,
   ): Promise<{ browser: V4BrowserRecord; applied: boolean; note: string }> {
     const payload = event as unknown as {

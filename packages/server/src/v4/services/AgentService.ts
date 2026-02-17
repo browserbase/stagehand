@@ -19,16 +19,16 @@ import {
 
 export class AgentService {
   constructor(private readonly deps: ServiceDeps) {
-    this.deps.bus.on(AgentListEvent, this.onAgentListEvent.bind(this));
-    this.deps.bus.on(AgentCreateEvent, this.onAgentCreateEvent.bind(this));
-    this.deps.bus.on(AgentGetEvent, this.onAgentGetEvent.bind(this));
+    this.deps.bus.on(AgentListEvent, this.on_AgentListEvent.bind(this));
+    this.deps.bus.on(AgentCreateEvent, this.on_AgentCreateEvent.bind(this));
+    this.deps.bus.on(AgentGetEvent, this.on_AgentGetEvent.bind(this));
     this.deps.bus.on(
       AgentTaskCreateEvent,
-      this.onAgentTaskCreateEvent.bind(this),
+      this.on_AgentTaskCreateEvent.bind(this),
     );
     this.deps.bus.on(
       AgentTaskModifyEvent,
-      this.onAgentTaskModifyEvent.bind(this),
+      this.on_AgentTaskModifyEvent.bind(this),
     );
   }
 
@@ -173,13 +173,13 @@ export class AgentService {
     }
   }
 
-  private async onAgentListEvent(): Promise<{ agents: V4AgentRecord[] }> {
+  private async on_AgentListEvent(): Promise<{ agents: V4AgentRecord[] }> {
     return {
       agents: this.deps.state.listAgents(),
     };
   }
 
-  private async onAgentCreateEvent(
+  private async on_AgentCreateEvent(
     event: ReturnType<typeof AgentCreateEvent>,
   ): Promise<{
     agent: V4AgentRecord;
@@ -231,7 +231,7 @@ export class AgentService {
     });
   }
 
-  private async onAgentGetEvent(
+  private async on_AgentGetEvent(
     event: ReturnType<typeof AgentGetEvent>,
   ): Promise<{ agent: V4AgentRecord }> {
     const payload = event as unknown as { agentId: string };
@@ -242,7 +242,7 @@ export class AgentService {
     return { agent };
   }
 
-  private async onAgentTaskCreateEvent(
+  private async on_AgentTaskCreateEvent(
     event: ReturnType<typeof AgentTaskCreateEvent>,
   ): Promise<{
     agent: V4AgentRecord;
@@ -285,7 +285,7 @@ export class AgentService {
     });
   }
 
-  private async onAgentTaskModifyEvent(
+  private async on_AgentTaskModifyEvent(
     event: ReturnType<typeof AgentTaskModifyEvent>,
   ): Promise<{ agent: V4AgentRecord; task: V4AgentTaskRecord }> {
     const payload = event as unknown as {

@@ -9,16 +9,14 @@ import {
   LLMGetEvent,
   LLMListEvent,
   LLMRequestEvent,
+  SessionUpdateLLMClientsEvent,
 } from "../../events.js";
 import type {
-  V4BrowserRecord,
   V4LLMRecord,
   V4SessionRecord,
 } from "../../types.js";
 import {
-  getStagehandForBrowser,
   nowIso,
-  resolveBrowserOrThrow,
   type ServiceDeps,
 } from "../base.js";
 
@@ -49,25 +47,35 @@ export type LLMRequestPayload = {
   options?: Record<string, unknown>;
 };
 
+export type ResolvedLLMRequest = {
+  payload: LLMRequestPayload & {
+    messages: NonNullable<LLMRequestPayload["messages"]>;
+  };
+  llm: V4LLMRecord;
+  mode: "dom" | "hybrid" | "cua";
+};
+
 export abstract class BaseLLMService {
   protected abstract readonly clientType: V4LLMRecord["clientType"];
+  protected abstract on_LLMRequestEvent(
+    event: ReturnType<typeof LLMRequestEvent>,
+  ): Promise<{
+    llmId: string;
+    mode: "dom" | "hybrid" | "cua";
+    modelName: string;
+    result: unknown;
+  }>;
 
   constructor(protected readonly deps: ServiceDeps) {
-    this.deps.bus.on(LLMListEvent, this.onLLMListEvent.bind(this));
-    this.deps.bus.on(LLMGetEvent, this.onLLMGetEvent.bind(this));
-    this.deps.bus.on(LLMConnectEvent, this.onLLMConnectEvent.bind(this));
-    this.deps.bus.on(LLMRequestEvent, this.onLLMRequestEvent.bind(this));
+    this.deps.bus.on(LLMListEvent, this.on_LLMListEvent.bind(this));
+    this.deps.bus.on(LLMGetEvent, this.on_LLMGetEvent.bind(this));
+    this.deps.bus.on(LLMConnectEvent, this.on_LLMConnectEvent.bind(this));
+    this.deps.bus.on(LLMRequestEvent, this.on_LLMRequestEvent.bind(this));
     this.deps.bus.on(
       LLMConnectCheckEvent,
-      this.onLLMConnectCheckEvent.bind(this),
+      this.on_LLMConnectCheckEvent.bind(this),
     );
   }
-
-  protected abstract requestModel(
-    payload: LLMRequestPayload,
-    llm: V4LLMRecord,
-    browser: V4BrowserRecord,
-  ): Promise<unknown>;
 
   private getSessionOrThrow(sessionId: string): V4SessionRecord {
     const session = this.deps.state.getSession(sessionId);
@@ -83,21 +91,6 @@ export abstract class BaseLLMService {
       throw new AppError(`LLM not found: ${llmId}`, StatusCodes.NOT_FOUND);
     }
     return llm;
-  }
-
-  private getBrowserForConnect(
-    payload: LLMConnectPayload,
-  ): V4BrowserRecord | undefined {
-    if (payload.browserId) {
-      return resolveBrowserOrThrow(this.deps.state, payload.browserId);
-    }
-
-    if (!payload.sessionId) {
-      return undefined;
-    }
-
-    const session = this.getSessionOrThrow(payload.sessionId);
-    return this.deps.state.getBrowser(session.browserId);
   }
 
   private resolveLLMForRequest(payload: LLMRequestPayload): V4LLMRecord {
@@ -118,18 +111,52 @@ export abstract class BaseLLMService {
     );
   }
 
-  private async onLLMListEvent(): Promise<{ llms: V4LLMRecord[] }> {
+  protected resolveLLMRequest(
+    event: ReturnType<typeof LLMRequestEvent>,
+  ): ResolvedLLMRequest {
+    const payload = event as unknown as LLMRequestPayload;
+    const llm = this.resolveLLMForRequest(payload);
+
+    const messages =
+      payload.messages ??
+      (payload.prompt
+        ? [
+            {
+              role: "user" as const,
+              content: payload.prompt,
+            },
+          ]
+        : undefined);
+
+    if (!messages || messages.length === 0) {
+      throw new AppError(
+        "LLM request requires params.prompt or params.messages",
+        StatusCodes.BAD_REQUEST,
+      );
+    }
+
+    return {
+      payload: {
+        ...payload,
+        messages,
+      },
+      llm,
+      mode: payload.mode ?? llm.mode,
+    };
+  }
+
+  private async on_LLMListEvent(): Promise<{ llms: V4LLMRecord[] }> {
     return { llms: this.deps.state.listLLMs() };
   }
 
-  private async onLLMGetEvent(
+  private async on_LLMGetEvent(
     event: ReturnType<typeof LLMGetEvent>,
   ): Promise<{ llm: V4LLMRecord }> {
     const payload = event as unknown as { llmId: string };
     return { llm: this.getLLMOrThrow(payload.llmId) };
   }
 
-  private async onLLMConnectEvent(
+  protected async on_LLMConnectEvent(
     event: ReturnType<typeof LLMConnectEvent>,
   ): Promise<{ ok: boolean; llm: V4LLMRecord }> {
     const payload = event as unknown as LLMConnectPayload;
@@ -137,7 +164,6 @@ export abstract class BaseLLMService {
     const session = payload.sessionId
       ? this.getSessionOrThrow(payload.sessionId)
       : undefined;
-    const browser = this.getBrowserForConnect(payload);
 
     const llmId = payload.llmId ?? session?.llmId ?? randomUUID();
     const existing = this.deps.state.getLLM(llmId);
@@ -145,12 +171,11 @@ export abstract class BaseLLMService {
     const modelName =
       payload.modelName ??
       existing?.modelName ??
-      session?.modelName ??
-      browser?.modelName;
+      session?.modelName;
 
     if (!modelName) {
       throw new AppError(
-        "LLM connect requires params.modelName (or a session/browser with modelName)",
+        "LLM connect requires params.modelName (or a session with modelName)",
         StatusCodes.BAD_REQUEST,
       );
     }
@@ -175,39 +200,14 @@ export abstract class BaseLLMService {
     this.deps.state.putLLM(llmRecord);
 
     if (session) {
-      this.deps.state.putSession({
-        ...session,
-        llmId: llmRecord.id,
-        modelName: llmRecord.modelName,
-        updatedAt: nowIso(),
-      });
-    }
-
-    if (browser) {
-      this.deps.state.putBrowser({
-        ...browser,
-        llmId: llmRecord.id,
-        modelName: llmRecord.modelName,
-        updatedAt: nowIso(),
-      });
-    }
-
-    try {
-      if (browser) {
-        const stagehand = await getStagehandForBrowser(
-          this.deps,
-          browser,
-          payload.modelApiKey ?? llmRecord.modelApiKey,
-        );
-        await stagehand.context.awaitActivePage();
-      }
-    } catch (error) {
-      this.deps.state.putLLM({
-        ...llmRecord,
-        status: "failed",
-        updatedAt: nowIso(),
-      });
-      throw error;
+      const sessionUpdate = this.deps.bus.emit(
+        SessionUpdateLLMClientsEvent({
+          sessionId: session.id,
+          llmId: llmRecord.id,
+          modelName: llmRecord.modelName,
+        }),
+      );
+      await sessionUpdate.done();
     }
 
     return {
@@ -216,66 +216,17 @@ export abstract class BaseLLMService {
     };
   }
 
-  private async onLLMRequestEvent(
-    event: ReturnType<typeof LLMRequestEvent>,
-  ): Promise<{ llmId: string; mode: "dom" | "hybrid" | "cua"; modelName: string; result: unknown }> {
-    const payload = event as unknown as LLMRequestPayload;
-    const llm = this.resolveLLMForRequest(payload);
-
-    const messages =
-      payload.messages ??
-      (payload.prompt
-        ? [
-            {
-              role: "user" as const,
-              content: payload.prompt,
-            },
-          ]
-        : undefined);
-
-    if (!messages || messages.length === 0) {
-      throw new AppError(
-        "LLM request requires params.prompt or params.messages",
-        StatusCodes.BAD_REQUEST,
-      );
-    }
-
-    const browser = resolveBrowserOrThrow(
-      this.deps.state,
-      payload.browserId,
-      payload.sessionId,
-    );
-
-    const result = await this.requestModel(
-      {
-        ...payload,
-        messages,
-      },
-      llm,
-      browser,
-    );
-
-    return {
-      llmId: llm.id,
-      mode: payload.mode ?? llm.mode,
-      modelName: llm.modelName,
-      result,
-    };
-  }
-
-  private async onLLMConnectCheckEvent(
+  private async on_LLMConnectCheckEvent(
     event: ReturnType<typeof LLMConnectCheckEvent>,
   ): Promise<{ ok: boolean; modelName: string }> {
     const payload = event as unknown as {
       sessionId: string;
-      browserId?: string;
       modelApiKey?: string;
     };
 
     const connect = this.deps.bus.emit(
       LLMConnectEvent({
         sessionId: payload.sessionId,
-        browserId: payload.browserId,
         modelApiKey: payload.modelApiKey,
       }),
     );

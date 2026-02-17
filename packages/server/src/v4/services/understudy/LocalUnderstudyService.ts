@@ -96,52 +96,52 @@ interface UnderstudyPayload {
 
 export class LocalUnderstudyService {
   constructor(private readonly deps: ServiceDeps) {
-    this.deps.bus.on(UnderstudyClickEvent, this.onUnderstudyClickEvent.bind(this));
-    this.deps.bus.on(UnderstudyFillEvent, this.onUnderstudyFillEvent.bind(this));
-    this.deps.bus.on(UnderstudyTypeEvent, this.onUnderstudyTypeEvent.bind(this));
-    this.deps.bus.on(UnderstudyPressEvent, this.onUnderstudyPressEvent.bind(this));
-    this.deps.bus.on(UnderstudyScrollEvent, this.onUnderstudyScrollEvent.bind(this));
+    this.deps.bus.on(UnderstudyClickEvent, this.on_UnderstudyClickEvent.bind(this));
+    this.deps.bus.on(UnderstudyFillEvent, this.on_UnderstudyFillEvent.bind(this));
+    this.deps.bus.on(UnderstudyTypeEvent, this.on_UnderstudyTypeEvent.bind(this));
+    this.deps.bus.on(UnderstudyPressEvent, this.on_UnderstudyPressEvent.bind(this));
+    this.deps.bus.on(UnderstudyScrollEvent, this.on_UnderstudyScrollEvent.bind(this));
     this.deps.bus.on(
       UnderstudyScrollIntoViewEvent,
-      this.onUnderstudyScrollIntoViewEvent.bind(this),
+      this.on_UnderstudyScrollIntoViewEvent.bind(this),
     );
     this.deps.bus.on(
       UnderstudyScrollByPixelOffsetEvent,
-      this.onUnderstudyScrollByPixelOffsetEvent.bind(this),
+      this.on_UnderstudyScrollByPixelOffsetEvent.bind(this),
     );
     this.deps.bus.on(
       UnderstudyMouseWheelEvent,
-      this.onUnderstudyMouseWheelEvent.bind(this),
+      this.on_UnderstudyMouseWheelEvent.bind(this),
     );
     this.deps.bus.on(
       UnderstudyNextChunkEvent,
-      this.onUnderstudyNextChunkEvent.bind(this),
+      this.on_UnderstudyNextChunkEvent.bind(this),
     );
     this.deps.bus.on(
       UnderstudyPrevChunkEvent,
-      this.onUnderstudyPrevChunkEvent.bind(this),
+      this.on_UnderstudyPrevChunkEvent.bind(this),
     );
     this.deps.bus.on(
       UnderstudySelectOptionFromDropdownEvent,
-      this.onUnderstudySelectOptionFromDropdownEvent.bind(this),
+      this.on_UnderstudySelectOptionFromDropdownEvent.bind(this),
     );
-    this.deps.bus.on(UnderstudyHoverEvent, this.onUnderstudyHoverEvent.bind(this));
+    this.deps.bus.on(UnderstudyHoverEvent, this.on_UnderstudyHoverEvent.bind(this));
     this.deps.bus.on(
       UnderstudyDoubleClickEvent,
-      this.onUnderstudyDoubleClickEvent.bind(this),
+      this.on_UnderstudyDoubleClickEvent.bind(this),
     );
     this.deps.bus.on(
       UnderstudyDragAndDropEvent,
-      this.onUnderstudyDragAndDropEvent.bind(this),
+      this.on_UnderstudyDragAndDropEvent.bind(this),
     );
     this.deps.bus.on(
       UnderstudyScreenshotEvent,
-      this.onUnderstudyScreenshotEvent.bind(this),
+      this.on_UnderstudyScreenshotEvent.bind(this),
     );
-    this.deps.bus.on(UnderstudyActEvent, this.onUnderstudyActEvent.bind(this));
+    this.deps.bus.on(UnderstudyActEvent, this.on_UnderstudyActEvent.bind(this));
     this.deps.bus.on(
       UnderstudyStepGetEvent,
-      this.onUnderstudyStepGetEvent.bind(this),
+      this.on_UnderstudyStepGetEvent.bind(this),
     );
   }
 
@@ -386,37 +386,37 @@ export class LocalUnderstudyService {
     }
   }
 
-  private async onUnderstudyClickEvent(
+  private async on_UnderstudyClickEvent(
     event: ReturnType<typeof UnderstudyClickEvent>,
   ): Promise<{ step: V4UnderstudyStepRecord }> {
     return this.runUnderstudyMethod("click", event as unknown as UnderstudyPayload);
   }
 
-  private async onUnderstudyFillEvent(
+  private async on_UnderstudyFillEvent(
     event: ReturnType<typeof UnderstudyFillEvent>,
   ): Promise<{ step: V4UnderstudyStepRecord }> {
     return this.runUnderstudyMethod("fill", event as unknown as UnderstudyPayload);
   }
 
-  private async onUnderstudyTypeEvent(
+  private async on_UnderstudyTypeEvent(
     event: ReturnType<typeof UnderstudyTypeEvent>,
   ): Promise<{ step: V4UnderstudyStepRecord }> {
     return this.runUnderstudyMethod("type", event as unknown as UnderstudyPayload);
   }
 
-  private async onUnderstudyPressEvent(
+  private async on_UnderstudyPressEvent(
     event: ReturnType<typeof UnderstudyPressEvent>,
   ): Promise<{ step: V4UnderstudyStepRecord }> {
     return this.runUnderstudyMethod("press", event as unknown as UnderstudyPayload);
   }
 
-  private async onUnderstudyScrollEvent(
+  private async on_UnderstudyScrollEvent(
     event: ReturnType<typeof UnderstudyScrollEvent>,
   ): Promise<{ step: V4UnderstudyStepRecord }> {
     return this.runUnderstudyMethod("scroll", event as unknown as UnderstudyPayload);
   }
 
-  private async onUnderstudyScrollIntoViewEvent(
+  private async on_UnderstudyScrollIntoViewEvent(
     event: ReturnType<typeof UnderstudyScrollIntoViewEvent>,
   ): Promise<{ step: V4UnderstudyStepRecord }> {
     return this.runUnderstudyMethod(
@@ -425,7 +425,7 @@ export class LocalUnderstudyService {
     );
   }
 
-  private async onUnderstudyScrollByPixelOffsetEvent(
+  private async on_UnderstudyScrollByPixelOffsetEvent(
     event: ReturnType<typeof UnderstudyScrollByPixelOffsetEvent>,
   ): Promise<{ step: V4UnderstudyStepRecord }> {
     return this.runUnderstudyMethod(
@@ -434,7 +434,7 @@ export class LocalUnderstudyService {
     );
   }
 
-  private async onUnderstudyMouseWheelEvent(
+  private async on_UnderstudyMouseWheelEvent(
     event: ReturnType<typeof UnderstudyMouseWheelEvent>,
   ): Promise<{ step: V4UnderstudyStepRecord }> {
     return this.runUnderstudyMethod(
@@ -443,19 +443,19 @@ export class LocalUnderstudyService {
     );
   }
 
-  private async onUnderstudyNextChunkEvent(
+  private async on_UnderstudyNextChunkEvent(
     event: ReturnType<typeof UnderstudyNextChunkEvent>,
   ): Promise<{ step: V4UnderstudyStepRecord }> {
     return this.runUnderstudyMethod("nextChunk", event as unknown as UnderstudyPayload);
   }
 
-  private async onUnderstudyPrevChunkEvent(
+  private async on_UnderstudyPrevChunkEvent(
     event: ReturnType<typeof UnderstudyPrevChunkEvent>,
   ): Promise<{ step: V4UnderstudyStepRecord }> {
     return this.runUnderstudyMethod("prevChunk", event as unknown as UnderstudyPayload);
   }
 
-  private async onUnderstudySelectOptionFromDropdownEvent(
+  private async on_UnderstudySelectOptionFromDropdownEvent(
     event: ReturnType<typeof UnderstudySelectOptionFromDropdownEvent>,
   ): Promise<{ step: V4UnderstudyStepRecord }> {
     return this.runUnderstudyMethod(
@@ -464,13 +464,13 @@ export class LocalUnderstudyService {
     );
   }
 
-  private async onUnderstudyHoverEvent(
+  private async on_UnderstudyHoverEvent(
     event: ReturnType<typeof UnderstudyHoverEvent>,
   ): Promise<{ step: V4UnderstudyStepRecord }> {
     return this.runUnderstudyMethod("hover", event as unknown as UnderstudyPayload);
   }
 
-  private async onUnderstudyDoubleClickEvent(
+  private async on_UnderstudyDoubleClickEvent(
     event: ReturnType<typeof UnderstudyDoubleClickEvent>,
   ): Promise<{ step: V4UnderstudyStepRecord }> {
     return this.runUnderstudyMethod(
@@ -479,7 +479,7 @@ export class LocalUnderstudyService {
     );
   }
 
-  private async onUnderstudyDragAndDropEvent(
+  private async on_UnderstudyDragAndDropEvent(
     event: ReturnType<typeof UnderstudyDragAndDropEvent>,
   ): Promise<{ step: V4UnderstudyStepRecord }> {
     return this.runUnderstudyMethod(
@@ -488,7 +488,7 @@ export class LocalUnderstudyService {
     );
   }
 
-  private async onUnderstudyScreenshotEvent(
+  private async on_UnderstudyScreenshotEvent(
     event: ReturnType<typeof UnderstudyScreenshotEvent>,
   ): Promise<{ step: V4UnderstudyStepRecord }> {
     const payload = event as unknown as {
@@ -551,7 +551,7 @@ export class LocalUnderstudyService {
     }
   }
 
-  private async onUnderstudyActEvent(
+  private async on_UnderstudyActEvent(
     event: ReturnType<typeof UnderstudyActEvent>,
   ): Promise<{ step: V4UnderstudyStepRecord }> {
     const payload = event as unknown as {
@@ -625,7 +625,7 @@ export class LocalUnderstudyService {
     }
   }
 
-  private async onUnderstudyStepGetEvent(
+  private async on_UnderstudyStepGetEvent(
     event: ReturnType<typeof UnderstudyStepGetEvent>,
   ): Promise<{ step: V4UnderstudyStepRecord }> {
     const payload = event as unknown as { stepId: string };

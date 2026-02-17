@@ -9,18 +9,28 @@ import {
   SessionCreateEvent,
   SessionGetEvent,
   SessionListEvent,
+  SessionUpdateBrowserEvent,
+  SessionUpdateLLMClientsEvent,
 } from "../events.js";
-import type { V4BrowserRecord, V4LLMRecord, V4SessionRecord } from "../types.js";
+import type { V4BrowserRecord, V4SessionRecord } from "../types.js";
 import { nowIso, type ServiceDeps } from "./base.js";
 
 export class SessionService {
   constructor(private readonly deps: ServiceDeps) {
-    this.deps.bus.on(SessionCreateEvent, this.onSessionCreateEvent.bind(this));
-    this.deps.bus.on(SessionGetEvent, this.onSessionGetEvent.bind(this));
-    this.deps.bus.on(SessionListEvent, this.onSessionListEvent.bind(this));
+    this.deps.bus.on(SessionCreateEvent, this.on_SessionCreateEvent.bind(this));
+    this.deps.bus.on(SessionGetEvent, this.on_SessionGetEvent.bind(this));
+    this.deps.bus.on(SessionListEvent, this.on_SessionListEvent.bind(this));
+    this.deps.bus.on(
+      SessionUpdateBrowserEvent,
+      this.on_SessionUpdateBrowserEvent.bind(this),
+    );
+    this.deps.bus.on(
+      SessionUpdateLLMClientsEvent,
+      this.on_SessionUpdateLLMClientsEvent.bind(this),
+    );
   }
 
-  private async onSessionCreateEvent(
+  private async on_SessionCreateEvent(
     event: ReturnType<typeof SessionCreateEvent>,
   ): Promise<{ session: V4SessionRecord; browser: V4BrowserRecord }> {
     const payload = event as unknown as {
@@ -114,6 +124,19 @@ export class SessionService {
         browser = (launch.event_result as { browser: V4BrowserRecord }).browser;
       }
 
+      if (existingBrowser) {
+        const browserLink = this.deps.bus.emit(
+          SessionUpdateBrowserEvent({
+            sessionId,
+            browserId: browser.id,
+            modelName: browser.modelName,
+            llmId: browser.llmId,
+            status: "initializing",
+          }),
+        );
+        await browserLink.done();
+      }
+
       const llmConnect = this.deps.bus.emit(
         LLMConnectEvent({
           llmId: payload.llmId ?? browser.llmId,
@@ -124,18 +147,11 @@ export class SessionService {
         }),
       );
       await llmConnect.done();
-      const llm = (llmConnect.event_result as { llm: V4LLMRecord }).llm;
 
-      const session: V4SessionRecord = {
-        id: sessionId,
-        browserId: browser.id,
-        modelName: llm.modelName,
-        llmId: llm.id,
-        status: "running",
-        createdAt: timestamp,
-        updatedAt: nowIso(),
-      };
-      this.deps.state.putSession(session);
+      const session = this.deps.state.getSession(sessionId);
+      if (!session) {
+        throw new AppError(`Session not found: ${sessionId}`, StatusCodes.NOT_FOUND);
+      }
 
       return {
         session,
@@ -156,7 +172,7 @@ export class SessionService {
     }
   }
 
-  private async onSessionGetEvent(
+  private async on_SessionGetEvent(
     event: ReturnType<typeof SessionGetEvent>,
   ): Promise<{ session: V4SessionRecord }> {
     const payload = event as unknown as { sessionId: string };
@@ -172,9 +188,86 @@ export class SessionService {
     return { session };
   }
 
-  private async onSessionListEvent(): Promise<{ sessions: V4SessionRecord[] }> {
+  private async on_SessionListEvent(): Promise<{ sessions: V4SessionRecord[] }> {
     return {
       sessions: this.deps.state.listSessions(),
     };
+  }
+
+  private async on_SessionUpdateBrowserEvent(
+    event: ReturnType<typeof SessionUpdateBrowserEvent>,
+  ): Promise<{ session: V4SessionRecord }> {
+    const payload = event as unknown as {
+      sessionId: string;
+      browserId: string;
+      modelName?: string;
+      llmId?: string;
+      status?: V4SessionRecord["status"];
+    };
+
+    const session = this.deps.state.getSession(payload.sessionId);
+    if (!session) {
+      throw new AppError(
+        `Session not found: ${payload.sessionId}`,
+        StatusCodes.NOT_FOUND,
+      );
+    }
+
+    const browser = this.deps.state.getBrowser(payload.browserId);
+    if (!browser) {
+      throw new AppError(
+        `Browser not found: ${payload.browserId}`,
+        StatusCodes.NOT_FOUND,
+      );
+    }
+
+    const updated: V4SessionRecord = {
+      ...session,
+      browserId: payload.browserId,
+      modelName: payload.modelName ?? browser.modelName ?? session.modelName,
+      llmId: payload.llmId ?? session.llmId,
+      status: payload.status ?? session.status,
+      updatedAt: nowIso(),
+    };
+    this.deps.state.putSession(updated);
+
+    return { session: updated };
+  }
+
+  private async on_SessionUpdateLLMClientsEvent(
+    event: ReturnType<typeof SessionUpdateLLMClientsEvent>,
+  ): Promise<{ session: V4SessionRecord }> {
+    const payload = event as unknown as {
+      sessionId: string;
+      llmId: string;
+      modelName?: string;
+      status?: V4SessionRecord["status"];
+    };
+
+    const session = this.deps.state.getSession(payload.sessionId);
+    if (!session) {
+      throw new AppError(
+        `Session not found: ${payload.sessionId}`,
+        StatusCodes.NOT_FOUND,
+      );
+    }
+
+    const llm = this.deps.state.getLLM(payload.llmId);
+    if (!llm) {
+      throw new AppError(`LLM not found: ${payload.llmId}`, StatusCodes.NOT_FOUND);
+    }
+
+    const updated: V4SessionRecord = {
+      ...session,
+      llmId: payload.llmId,
+      modelName: payload.modelName ?? llm.modelName ?? session.modelName,
+      status:
+        payload.status ??
+        (session.status === "initializing" ? "running" : session.status),
+      updatedAt: nowIso(),
+    };
+    this.deps.state.putSession(updated);
+
+    return { session: updated };
   }
 }

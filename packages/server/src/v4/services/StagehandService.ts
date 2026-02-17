@@ -23,22 +23,22 @@ import {
 
 export class StagehandService {
   constructor(private readonly deps: ServiceDeps) {
-    this.deps.bus.on(StagehandActEvent, this.onStagehandActEvent.bind(this));
+    this.deps.bus.on(StagehandActEvent, this.on_StagehandActEvent.bind(this));
     this.deps.bus.on(
       StagehandObserveEvent,
-      this.onStagehandObserveEvent.bind(this),
+      this.on_StagehandObserveEvent.bind(this),
     );
     this.deps.bus.on(
       StagehandExtractEvent,
-      this.onStagehandExtractEvent.bind(this),
+      this.on_StagehandExtractEvent.bind(this),
     );
     this.deps.bus.on(
       StagehandStepGetEvent,
-      this.onStagehandStepGetEvent.bind(this),
+      this.on_StagehandStepGetEvent.bind(this),
     );
     this.deps.bus.on(
       StagehandStepCancelEvent,
-      this.onStagehandStepCancelEvent.bind(this),
+      this.on_StagehandStepCancelEvent.bind(this),
     );
   }
 
@@ -97,7 +97,7 @@ export class StagehandService {
     };
   }
 
-  private async onStagehandActEvent(
+  private async on_StagehandActEvent(
     event: ReturnType<typeof StagehandActEvent>,
   ): Promise<{ step: V4StagehandStepRecord }> {
     const payload = event as unknown as {
@@ -172,7 +172,7 @@ export class StagehandService {
     }
   }
 
-  private async onStagehandObserveEvent(
+  private async on_StagehandObserveEvent(
     event: ReturnType<typeof StagehandObserveEvent>,
   ): Promise<{ step: V4StagehandStepRecord }> {
     const payload = event as unknown as {
@@ -235,7 +235,7 @@ export class StagehandService {
     }
   }
 
-  private async onStagehandExtractEvent(
+  private async on_StagehandExtractEvent(
     event: ReturnType<typeof StagehandExtractEvent>,
   ): Promise<{ step: V4StagehandStepRecord }> {
     const payload = event as unknown as {
@@ -309,7 +309,7 @@ export class StagehandService {
     }
   }
 
-  private async onStagehandStepGetEvent(
+  private async on_StagehandStepGetEvent(
     event: ReturnType<typeof StagehandStepGetEvent>,
   ): Promise<{ step: V4StagehandStepRecord }> {
     const payload = event as unknown as { stepId: string };
@@ -325,7 +325,7 @@ export class StagehandService {
     return { step };
   }
 
-  private async onStagehandStepCancelEvent(
+  private async on_StagehandStepCancelEvent(
     event: ReturnType<typeof StagehandStepCancelEvent>,
   ): Promise<{ step: V4StagehandStepRecord }> {
     const payload = event as unknown as {

@@ -22,7 +22,9 @@ import { ExtractHandler } from "./handlers/extractHandler";
 import { ObserveHandler } from "./handlers/observeHandler";
 import { V3AgentHandler } from "./handlers/v3AgentHandler";
 import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler";
-import { createBrowserbaseSession } from "./launch/browserbase";
+import { BrowserbaseBrowserService } from "./browser/BrowserbaseBrowserService";
+import { LocalBrowserService } from "./browser/LocalBrowserService";
+import { RemoteCdpBrowserService } from "./browser/RemoteCdpBrowserService";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
 import {
@@ -80,7 +82,6 @@ import {
   AgentStreamResult,
 } from "./types/public";
 import { V3Context } from "./understudy/context";
-import { UnderstudyBrowserLifecycleService } from "./understudy/UnderstudyBrowserLifecycleService";
 import { Page } from "./understudy/page";
 import { UnderstudyToolsService } from "./understudy/UnderstudyToolsService";
 import { resolveModel } from "../modelUtils";

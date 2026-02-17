@@ -16,9 +16,18 @@ import {
   StagehandLocatorError,
   ElementNotVisibleError,
 } from "../types/public/sdkErrors";
+import {
+  USClickEvent,
+  USFillEvent,
+  USHoverEvent,
+  USScrollEvent,
+  USSelectOptionFromDropdownEvent,
+  USTypeEvent,
+} from "../types/public/events";
 import { normalizeInputFiles } from "./fileUploadUtils";
 import { SetInputFilesArgument, MouseButton } from "../types/public/locator";
 import { NormalizedFilePayload } from "../types/private/locator";
+import type { EventBus as BubusEventBus } from "../bubus";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
 
@@ -54,6 +63,8 @@ export class Locator {
     private readonly selector: string,
     private readonly options?: { deep?: boolean; depth?: number },
     nthIndex: number = -1,
+    private readonly getUnderstudyBus?: () => BubusEventBus | null,
+    private readonly eventsEnabled: boolean = true,
   ) {
     this.selectorResolver = new FrameSelectorResolver(this.frame);
     this.selectorQuery = FrameSelectorResolver.parseSelector(selector);
@@ -64,6 +75,43 @@ export class Locator {
   /** Return the owning Frame for this locator (typed accessor, no private access). */
   public getFrame(): Frame {
     return this.frame;
+  }
+
+  private async emitUnderstudyEvent<T>(
+    factory: (data: Record<string, unknown>) => unknown,
+    eventPayload: Record<string, unknown>,
+  ): Promise<{ emitted: boolean; result: T | undefined }> {
+    if (!this.eventsEnabled) {
+      return { emitted: false, result: undefined };
+    }
+
+    // Keep nth() semantics stable by using direct node resolution path.
+    if (this.nthIndex >= 0) {
+      return { emitted: false, result: undefined };
+    }
+
+    const bus = this.getUnderstudyBus?.() ?? this.frame.getUnderstudyEventBus();
+    if (!bus) {
+      return { emitted: false, result: undefined };
+    }
+
+    const emitted = bus.emit(
+      factory({
+        TargetId: this.frame.pageId,
+        FrameId: this.frame.frameId,
+        Selector: this.selector,
+        ...eventPayload,
+      }) as any,
+    );
+    await emitted.done();
+    const results = await emitted.eventResultsList({
+      raise_if_any: true,
+      raise_if_none: true,
+    });
+    return {
+      emitted: true,
+      result: results[0] as T,
+    };
   }
 
   /**
@@ -344,6 +392,11 @@ export class Locator {
    * - Scrolls into view best-effort, resolves geometry, then dispatches a mouse move.
    */
   async hover(): Promise<void> {
+    const eventResult = await this.emitUnderstudyEvent<void>(USHoverEvent, {});
+    if (eventResult.emitted) {
+      return;
+    }
+
     const session = this.frame.session;
     const { objectId } = await this.resolveNode();
     try {
@@ -383,6 +436,14 @@ export class Locator {
     button?: MouseButton;
     clickCount?: number;
   }): Promise<void> {
+    const eventResult = await this.emitUnderstudyEvent<void>(USClickEvent, {
+      Button: options?.button,
+      ClickCount: options?.clickCount,
+    });
+    if (eventResult.emitted) {
+      return;
+    }
+
     const session = this.frame.session;
     const { objectId } = await this.resolveNode();
 
@@ -485,6 +546,13 @@ export class Locator {
    * - Otherwise, scrolls the element itself via element.scrollTo.
    */
   async scrollTo(percent: number | string): Promise<void> {
+    const eventResult = await this.emitUnderstudyEvent<void>(USScrollEvent, {
+      Percent: percent,
+    });
+    if (eventResult.emitted) {
+      return;
+    }
+
     const session = this.frame.session;
     const { objectId } = await this.resolveNode();
     try {
@@ -511,6 +579,13 @@ export class Locator {
    * Input domain after focusing/selecting.
    */
   async fill(value: string): Promise<void> {
+    const eventResult = await this.emitUnderstudyEvent<void>(USFillEvent, {
+      Value: value,
+    });
+    if (eventResult.emitted) {
+      return;
+    }
+
     const session = this.frame.session;
     // Use the bundled locator globals; the raw fill snippet depends on helper symbols.
     const fillDeclaration = `function(value) { ${locatorScriptBootstrap}; return ${locatorScriptGlobalRefs.fillElementValue}.call(this, value); }`;
@@ -640,6 +715,14 @@ export class Locator {
    * - With delay, synthesizes `keyDown`/`keyUp` per character.
    */
   async type(text: string, options?: { delay?: number }): Promise<void> {
+    const eventResult = await this.emitUnderstudyEvent<void>(USTypeEvent, {
+      Text: text,
+      DelayMs: options?.delay,
+    });
+    if (eventResult.emitted) {
+      return;
+    }
+
     const session = this.frame.session;
     const { objectId } = await this.resolveNode();
 
@@ -684,6 +767,18 @@ export class Locator {
    * Returns the values actually selected after the operation.
    */
   async selectOption(values: string | string[]): Promise<string[]> {
+    const optionTexts = Array.isArray(values) ? values : [values];
+    const eventResult = await this.emitUnderstudyEvent<string[]>(
+      USSelectOptionFromDropdownEvent,
+      {
+        OptionText: optionTexts[0] ?? "",
+        OptionTexts: optionTexts,
+      },
+    );
+    if (eventResult.emitted) {
+      return eventResult.result ?? [];
+    }
+
     const session = this.frame.session;
     const desired = Array.isArray(values) ? values : [values];
     const { objectId } = await this.resolveNode();
@@ -853,7 +948,14 @@ export class Locator {
       return this;
     }
 
-    return new Locator(this.frame, this.selector, this.options, nextIndex);
+    return new Locator(
+      this.frame,
+      this.selector,
+      this.options,
+      nextIndex,
+      this.getUnderstudyBus,
+      this.eventsEnabled,
+    );
   }
 
   // ---------- helpers ----------

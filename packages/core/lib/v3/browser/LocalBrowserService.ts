@@ -1,48 +1,24 @@
-import { EventBus, retry } from "../bubus";
 import type { LaunchedChrome } from "chrome-launcher";
+
 import { launchLocalChrome } from "../launch/local";
-import {
-  USDisconnectOrCloseBrowserEvent,
-  USLaunchOrConnectBrowserEvent,
-  type USLaunchOrConnectBrowserPayload,
-  type USLaunchOrConnectBrowserResult,
-} from "../types/public/events";
 import { StagehandInvalidArgumentError } from "../types/public/sdkErrors";
+import {
+  BrowserDisconnectOrClose,
+  BrowserLaunchOrConnect,
+  type BrowserLaunchOrConnectPayload,
+  type BrowserLaunchOrConnectResult,
+} from "../types/public/events";
+import { BaseBrowserService } from "./BaseBrowserService";
 
-const LOCAL_BROWSER_LAUNCH_TIMEOUT = 90;
-const LOCAL_BROWSER_LAUNCH_MAX_ATTEMPTS = 3;
-
-export class UnderstudyBrowserLifecycleService {
-  private readonly bus: EventBus;
+export class LocalBrowserService extends BaseBrowserService {
   private chrome: LaunchedChrome | null = null;
   private pid: number | null = null;
   private ws: string | null = null;
 
-  constructor(bus: EventBus) {
-    this.bus = bus;
-    this.bus.on(
-      USLaunchOrConnectBrowserEvent,
-      retry({
-        timeout: LOCAL_BROWSER_LAUNCH_TIMEOUT,
-        max_attempts: LOCAL_BROWSER_LAUNCH_MAX_ATTEMPTS,
-        semaphore_limit: 5,
-        semaphore_scope: "global",
-        semaphore_name: "local-browser-launching",
-        semaphore_timeout: 30,
-      })(this.on_USLaunchOrConnectBrowserEvent.bind(this)),
-    );
-    this.bus.on(
-      USDisconnectOrCloseBrowserEvent,
-      retry({ timeout: 10, max_attempts: 2 })(
-        this.on_USDisconnectOrCloseBrowserEvent.bind(this),
-      ),
-    );
-  }
-
-  private async on_USLaunchOrConnectBrowserEvent(
-    event: ReturnType<typeof USLaunchOrConnectBrowserEvent>,
-  ): Promise<USLaunchOrConnectBrowserResult> {
-    const payload = event as unknown as USLaunchOrConnectBrowserPayload;
+  protected async on_BrowserLaunchOrConnect(
+    event: ReturnType<typeof BrowserLaunchOrConnect>,
+  ): Promise<BrowserLaunchOrConnectResult> {
+    const payload = event as unknown as BrowserLaunchOrConnectPayload;
 
     if (payload.CdpUrl) {
       this.ws = payload.CdpUrl;
@@ -57,7 +33,7 @@ export class UnderstudyBrowserLifecycleService {
 
     if (!payload.LaunchOptions) {
       throw new StagehandInvalidArgumentError(
-        "USLaunchOrConnectBrowserEvent requires either CdpUrl or LaunchOptions",
+        "BrowserLaunchOrConnect requires either CdpUrl or LaunchOptions",
       );
     }
 
@@ -86,8 +62,8 @@ export class UnderstudyBrowserLifecycleService {
     return { Ws: launch.ws, Launched: true, Pid: this.pid };
   }
 
-  private async on_USDisconnectOrCloseBrowserEvent(
-    _event: ReturnType<typeof USDisconnectOrCloseBrowserEvent>,
+  protected async on_BrowserDisconnectOrClose(
+    _event: ReturnType<typeof BrowserDisconnectOrClose>,
   ): Promise<void> {
     if (this.chrome) {
       try {

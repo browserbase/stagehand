@@ -139,6 +139,7 @@ export class Page {
       mainFrameId,
       this.pageId,
       this.browserIsRemote,
+      () => this.understudyEventBus,
     );
 
     this.networkManager = new NetworkManager();
@@ -392,6 +393,7 @@ export class Page {
         newRoot,
         this.pageId,
         this.browserIsRemote,
+        () => this.understudyEventBus,
       );
     }
 
@@ -530,7 +532,13 @@ export class Page {
     if (hit) return hit;
 
     const sess = this.getSessionForFrame(frameId);
-    const f = new Frame(sess, frameId, this.pageId, this.browserIsRemote);
+    const f = new Frame(
+      sess,
+      frameId,
+      this.pageId,
+      this.browserIsRemote,
+      () => this.understudyEventBus,
+    );
     this.frameCache.set(frameId, f);
     return f;
   }

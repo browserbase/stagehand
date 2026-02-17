@@ -100,9 +100,17 @@ export async function resolveLocatorWithHops(
   page: Page,
   root: Frame,
   selectorRaw: string,
+  options?: { eventsEnabled?: boolean },
 ): Promise<Locator> {
   const target = await resolveLocatorTarget(page, root, selectorRaw);
-  return new Locator(target.frame, target.selector);
+  return new Locator(
+    target.frame,
+    target.selector,
+    undefined,
+    -1,
+    undefined,
+    options?.eventsEnabled ?? true,
+  );
 }
 
 /**

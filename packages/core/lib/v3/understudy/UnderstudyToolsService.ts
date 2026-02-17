@@ -43,26 +43,26 @@ export class UnderstudyToolsService {
   }
 
   private registerHandlers(): void {
-    this.bus.on(USClickEvent, this.onClickEvent.bind(this));
-    this.bus.on(USFillEvent, this.onFillEvent.bind(this));
-    this.bus.on(USTypeEvent, this.onTypeEvent.bind(this));
-    this.bus.on(USPressEvent, this.onPressEvent.bind(this));
-    this.bus.on(USScrollEvent, this.onScrollEvent.bind(this));
-    this.bus.on(USScrollIntoViewEvent, this.onScrollIntoViewEvent.bind(this));
+    this.bus.on(USClickEvent, this.on_USClickEvent.bind(this));
+    this.bus.on(USFillEvent, this.on_USFillEvent.bind(this));
+    this.bus.on(USTypeEvent, this.on_USTypeEvent.bind(this));
+    this.bus.on(USPressEvent, this.on_USPressEvent.bind(this));
+    this.bus.on(USScrollEvent, this.on_USScrollEvent.bind(this));
+    this.bus.on(USScrollIntoViewEvent, this.on_USScrollIntoViewEvent.bind(this));
     this.bus.on(
       USScrollByPixelOffsetEvent,
-      this.onScrollByPixelOffsetEvent.bind(this),
+      this.on_USScrollByPixelOffsetEvent.bind(this),
     );
-    this.bus.on(USMouseWheelEvent, this.onMouseWheelEvent.bind(this));
-    this.bus.on(USNextChunkEvent, this.onNextChunkEvent.bind(this));
-    this.bus.on(USPrevChunkEvent, this.onPrevChunkEvent.bind(this));
+    this.bus.on(USMouseWheelEvent, this.on_USMouseWheelEvent.bind(this));
+    this.bus.on(USNextChunkEvent, this.on_USNextChunkEvent.bind(this));
+    this.bus.on(USPrevChunkEvent, this.on_USPrevChunkEvent.bind(this));
     this.bus.on(
       USSelectOptionFromDropdownEvent,
-      this.onSelectOptionFromDropdownEvent.bind(this),
+      this.on_USSelectOptionFromDropdownEvent.bind(this),
     );
-    this.bus.on(USHoverEvent, this.onHoverEvent.bind(this));
-    this.bus.on(USDoubleClickEvent, this.onDoubleClickEvent.bind(this));
-    this.bus.on(USDragAndDropEvent, this.onDragAndDropEvent.bind(this));
+    this.bus.on(USHoverEvent, this.on_USHoverEvent.bind(this));
+    this.bus.on(USDoubleClickEvent, this.on_USDoubleClickEvent.bind(this));
+    this.bus.on(USDragAndDropEvent, this.on_USDragAndDropEvent.bind(this));
   }
 
   private requirePage(targetId: string): Page {
@@ -91,7 +91,7 @@ export class UnderstudyToolsService {
     );
   }
 
-  private async onClickEvent(
+  private async on_USClickEvent(
     event: ReturnType<typeof USClickEvent>,
   ): Promise<void> {
     const payload = event as unknown as USClickEventPayload;
@@ -101,37 +101,37 @@ export class UnderstudyToolsService {
     await this.execute(payload, "click", args);
   }
 
-  private async onFillEvent(event: ReturnType<typeof USFillEvent>): Promise<void> {
+  private async on_USFillEvent(event: ReturnType<typeof USFillEvent>): Promise<void> {
     const payload = event as unknown as USFillEventPayload;
     await this.execute(payload, "fill", [payload.Value]);
   }
 
-  private async onTypeEvent(event: ReturnType<typeof USTypeEvent>): Promise<void> {
+  private async on_USTypeEvent(event: ReturnType<typeof USTypeEvent>): Promise<void> {
     const payload = event as unknown as USTypeEventPayload;
-    await this.execute(payload, "type", [payload.Text]);
+    await this.execute(payload, "type", [payload.Text, payload.DelayMs]);
   }
 
-  private async onPressEvent(
+  private async on_USPressEvent(
     event: ReturnType<typeof USPressEvent>,
   ): Promise<void> {
     const payload = event as unknown as USPressEventPayload;
     await this.execute(payload, "press", [payload.Key]);
   }
 
-  private async onScrollEvent(
+  private async on_USScrollEvent(
     event: ReturnType<typeof USScrollEvent>,
   ): Promise<void> {
     const payload = event as unknown as USScrollEventPayload;
     await this.execute(payload, "scrollTo", [payload.Percent]);
   }
 
-  private async onScrollIntoViewEvent(
+  private async on_USScrollIntoViewEvent(
     event: ReturnType<typeof USScrollIntoViewEvent>,
   ): Promise<void> {
     await this.execute(event as unknown as SelectorEventLike, "scrollIntoView", []);
   }
 
-  private async onScrollByPixelOffsetEvent(
+  private async on_USScrollByPixelOffsetEvent(
     event: ReturnType<typeof USScrollByPixelOffsetEvent>,
   ): Promise<string> {
     const payload = event as unknown as USScrollByPixelOffsetEventPayload;
@@ -142,46 +142,50 @@ export class UnderstudyToolsService {
     return String(result ?? "");
   }
 
-  private async onMouseWheelEvent(
+  private async on_USMouseWheelEvent(
     event: ReturnType<typeof USMouseWheelEvent>,
   ): Promise<void> {
     const payload = event as unknown as USMouseWheelEventPayload;
     await this.execute(payload, "mouse.wheel", [payload.DeltaY ?? 200]);
   }
 
-  private async onNextChunkEvent(
+  private async on_USNextChunkEvent(
     event: ReturnType<typeof USNextChunkEvent>,
   ): Promise<void> {
     await this.execute(event as unknown as SelectorEventLike, "nextChunk", []);
   }
 
-  private async onPrevChunkEvent(
+  private async on_USPrevChunkEvent(
     event: ReturnType<typeof USPrevChunkEvent>,
   ): Promise<void> {
     await this.execute(event as unknown as SelectorEventLike, "prevChunk", []);
   }
 
-  private async onSelectOptionFromDropdownEvent(
+  private async on_USSelectOptionFromDropdownEvent(
     event: ReturnType<typeof USSelectOptionFromDropdownEvent>,
   ): Promise<string[]> {
     const payload = event as unknown as USSelectOptionFromDropdownEventPayload;
+    const optionValues =
+      Array.isArray(payload.OptionTexts) && payload.OptionTexts.length > 0
+        ? payload.OptionTexts
+        : [payload.OptionText];
     const result = await this.execute(payload, "selectOptionFromDropdown", [
-      payload.OptionText,
+      optionValues,
     ]);
     return Array.isArray(result) ? result.map((item) => String(item)) : [];
   }
 
-  private async onHoverEvent(event: ReturnType<typeof USHoverEvent>): Promise<void> {
+  private async on_USHoverEvent(event: ReturnType<typeof USHoverEvent>): Promise<void> {
     await this.execute(event as unknown as SelectorEventLike, "hover", []);
   }
 
-  private async onDoubleClickEvent(
+  private async on_USDoubleClickEvent(
     event: ReturnType<typeof USDoubleClickEvent>,
   ): Promise<void> {
     await this.execute(event as unknown as SelectorEventLike, "doubleClick", []);
   }
 
-  private async onDragAndDropEvent(
+  private async on_USDragAndDropEvent(
     event: ReturnType<typeof USDragAndDropEvent>,
   ): Promise<[string, string]> {
     const payload = event as unknown as USDragAndDropEventPayload;

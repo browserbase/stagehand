@@ -4,6 +4,7 @@ import type { CDPSessionLike } from "./cdp";
 import { Locator } from "./locator";
 import { StagehandEvalError } from "../types/public/sdkErrors";
 import { executionContexts } from "./executionContextRegistry";
+import type { EventBus as BubusEventBus } from "../bubus";
 
 interface FrameManager {
   session: CDPSessionLike;
@@ -28,6 +29,7 @@ export class Frame implements FrameManager {
     public frameId: string,
     public pageId: string,
     private readonly remoteBrowser: boolean,
+    private readonly getUnderstudyBus?: () => BubusEventBus | null,
   ) {
     this.sessionId = this.session.id ?? null;
   }
@@ -291,7 +293,11 @@ export class Frame implements FrameManager {
     selector: string,
     options?: { deep?: boolean; depth?: number },
   ): Locator {
-    return new Locator(this, selector, options);
+    return new Locator(this, selector, options, -1, this.getUnderstudyBus);
+  }
+
+  public getUnderstudyEventBus(): BubusEventBus | null {
+    return this.getUnderstudyBus?.() ?? null;
   }
 
   /** Resolve the main-world execution context id for this frame. */

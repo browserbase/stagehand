@@ -37,11 +37,12 @@ export interface UnderstudyMethodHandlerContext {
   method: string;
   locator: Locator;
   xpath: string;
-  args: ReadonlyArray<string>;
+  args: ReadonlyArray<unknown>;
   frame: Frame;
   page: Page;
   initialUrl: string;
   domSettleTimeoutMs?: number;
+  eventsEnabled: boolean;
 }
 
 // Normalize cases where the XPath is the root "/" to point to the HTML element.
@@ -69,7 +70,7 @@ function emitUnderstudyMethodEvent(
     args: ReadonlyArray<unknown>;
     domSettleTimeoutMs?: number;
   },
-): { done: () => Promise<unknown>; event_result?: unknown } | null {
+): ReturnType<EventBus["emit"]> | null {
   const base = {
     TargetId: targetId,
     FrameId: frameId,
@@ -103,6 +104,12 @@ function emitUnderstudyMethodEvent(
         USTypeEvent({
           ...base,
           Text: String(args[0] ?? ""),
+          DelayMs:
+            typeof args[1] === "number"
+              ? args[1]
+              : Number.isFinite(Number(args[1]))
+                ? Number(args[1])
+                : undefined,
         } as any),
       );
     case "press":
@@ -143,12 +150,19 @@ function emitUnderstudyMethodEvent(
       return bus.emit(USPrevChunkEvent(base));
     case "selectOptionFromDropdown":
     case "selectOption":
+      {
+        const raw = args[0];
+        const optionTexts = Array.isArray(raw)
+          ? raw.map((value) => String(value))
+          : [String(raw ?? "")];
       return bus.emit(
         USSelectOptionFromDropdownEvent({
           ...base,
-          OptionText: String(args[0] ?? ""),
+            OptionText: optionTexts[0] ?? "",
+            OptionTexts: optionTexts,
         } as any),
       );
+      }
     case "hover":
       return bus.emit(USHoverEvent(base));
     case "doubleClick":
@@ -189,8 +203,11 @@ export async function performUnderstudyMethod(
       });
 
       if (event) {
-        await event.done();
-        return event.event_result;
+        const results = await event.eventResultsList({
+          raise_if_any: true,
+          raise_if_none: true,
+        });
+        return results[0];
       }
     }
   }
@@ -200,6 +217,7 @@ export async function performUnderstudyMethod(
     page,
     frame,
     selectorRaw,
+    { eventsEnabled: useEventBus },
   );
 
   const initialUrl = await getFrameUrl(frame);
@@ -219,11 +237,12 @@ export async function performUnderstudyMethod(
     method,
     locator,
     xpath: selectorRaw,
-    args: args.map((a) => (a == null ? "" : String(a))),
+    args: args.map((a) => (a == null ? "" : a)),
     frame,
     page,
     initialUrl,
     domSettleTimeoutMs,
+    eventsEnabled: useEventBus,
   };
 
   SessionFileLogger.logUnderstudyActionEvent({
@@ -313,8 +332,11 @@ const METHOD_HANDLER_MAP: Record<
 export async function selectOption(ctx: UnderstudyMethodHandlerContext) {
   const { locator, xpath, args } = ctx;
   try {
-    const text = args[0]?.toString() || "";
-    return await locator.selectOption(text);
+    let values: string | string[] = args[0]?.toString() || "";
+    if (Array.isArray(args[0])) {
+      values = args[0].map((value) => value.toString());
+    }
+    return await locator.selectOption(values);
   } catch (e) {
     v3Logger({
       category: "action",
@@ -362,7 +384,9 @@ async function scrollElementToPercentage(
     },
   });
 
-  const [yArg = "0%"] = args;
+  const raw = args[0];
+  const yArg =
+    typeof raw === "number" || typeof raw === "string" ? raw : String(raw ?? "0%");
   await locator.scrollTo(yArg);
 }
 
@@ -404,7 +428,7 @@ async function fillOrType(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   const { locator, xpath, args } = ctx;
   try {
     await locator.fill(""); // clear
-    await locator.fill(args[0] ?? "");
+    await locator.fill(String(args[0] ?? ""));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     v3Logger({
@@ -423,7 +447,11 @@ async function fillOrType(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 async function typeText(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   const { locator, xpath, args } = ctx;
   try {
-    await locator.type(args[0] ?? "");
+    const text = String(args[0] ?? "");
+    const rawDelay = Number(args[1]);
+    const delay =
+      Number.isFinite(rawDelay) && rawDelay >= 0 ? rawDelay : undefined;
+    await locator.type(text, delay === undefined ? undefined : { delay });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     v3Logger({
@@ -441,7 +469,7 @@ async function typeText(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 
 async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   const { args, xpath, page } = ctx;
-  const key = args[0] ?? "";
+  const key = String(args[0] ?? "");
   try {
     v3Logger({
       category: "action",
@@ -522,14 +550,16 @@ async function doubleClick(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 async function dragAndDrop(
   ctx: UnderstudyMethodHandlerContext,
 ): Promise<[string, string]> {
-  const { page, frame, locator, args, xpath } = ctx;
+  const { page, frame, locator, args, xpath, eventsEnabled } = ctx;
   const toXPath = String(args[0] ?? "").trim();
   if (!toXPath)
     throw new UnderstudyCommandException(
       "dragAndDrop requires a target XPath arg",
     );
 
-  const targetLocator = await resolveLocatorWithHops(page, frame, toXPath);
+  const targetLocator = await resolveLocatorWithHops(page, frame, toXPath, {
+    eventsEnabled,
+  });
 
   try {
     // 1) Centers in local (owning-frame) viewport
