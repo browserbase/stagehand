@@ -17,6 +17,14 @@ type SessionId = string;
 
 type TargetType = "page" | "iframe" | string;
 
+function isNonWebTarget(info: Protocol.Target.TargetInfo): boolean {
+  return (
+    (info.type !== "page" && info.type !== "iframe") ||
+    info.url?.startsWith("chrome-extension://") ||
+    info.url?.startsWith("chrome://")
+  );
+}
+
 function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
   const ti = info as unknown as { subtype?: string };
   return info.type === "page" && ti.subtype !== "iframe";
@@ -418,13 +426,11 @@ export class V3Context {
     info: Protocol.Target.TargetInfo,
     sessionId: SessionId,
   ): Promise<void> {
-    // Workers are ignored by Stagehand, but with waitForDebuggerOnStart enabled
-    // they still need to be resumed so we don't leave them paused.
-    if (
-      info.type === "worker" ||
-      info.type === "service_worker" ||
-      info.type === "shared_worker"
-    ) {
+    // Skip non-web targets (workers, chrome extensions, background pages, etc.).
+    // They still need to be resumed so we don't leave them paused by
+    // waitForDebuggerOnStart, but injecting the piercer into these targets
+    // can throw or corrupt their internal state (e.g. Chrome's PDF viewer).
+    if (isNonWebTarget(info)) {
       const session = this.conn.getSession(sessionId);
       if (session) {
         await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
