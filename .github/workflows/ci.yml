@@ -640,13 +640,44 @@ jobs:
           distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
 
       - name: Run Evals - ${{ matrix.category }}
+        id: run-evals
         env:
           NODE_V8_COVERAGE: coverage/evals/${{ matrix.category }}
         run: |
-          pnpm exec turbo run test:evals --filter=@browserbasehq/stagehand-evals -- "${{ matrix.category }}" -t "${EVAL_TRIAL_COUNT}" -c "${EVAL_MAX_CONCURRENCY}"
+          log_file="$(mktemp)"
+          set +e
+          pnpm exec turbo run test:evals --filter=@browserbasehq/stagehand-evals -- "${{ matrix.category }}" -t "${EVAL_TRIAL_COUNT}" -c "${EVAL_MAX_CONCURRENCY}" 2>&1 | tee "$log_file"
+          eval_status=${PIPESTATUS[0]}
+          set -e
+
+          summary_block="$(
+            awk '
+              /^=========================SUMMARY=========================$/ { capture=1 }
+              capture { print }
+              /^Evaluation summary written to / { capture=0 }
+            ' "$log_file"
+          )"
+
+          if [ -n "$summary_block" ]; then
+            {
+              echo "summary_text<<EOF"
+              echo "$summary_block"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+          exit "$eval_status"
 
       - name: Log Evals Performance - ${{ matrix.category }}
+        env:
+          EVAL_STDOUT_SUMMARY: ${{ steps.run-evals.outputs.summary_text }}
         run: |
+          if [ -n "${EVAL_STDOUT_SUMMARY:-}" ]; then
+            echo "### Evals Summary (${{ matrix.category }})" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            printf '%s\n' "$EVAL_STDOUT_SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
           experimentName=$(jq -r '.experimentName' eval-summary.json)
           echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
           if [ -f eval-summary.json ]; then

@@ -135,6 +135,52 @@ function readChromeLogs(userDataDir: string): string {
   return entries.join("\n");
 }
 
+function readLaunchDiagnostics(
+  userDataDir: string,
+  launchOptions?: {
+    executablePath?: string;
+    args?: string[];
+    headless?: boolean;
+    userDataDir?: string;
+    port?: number;
+    connectTimeoutMs?: number;
+  },
+): string {
+  const diagnostics: string[] = [];
+  diagnostics.push("--- launch diagnostics ---");
+  diagnostics.push(`CHROME_PATH env: ${process.env.CHROME_PATH ?? "<unset>"}`);
+  diagnostics.push(`CI env: ${process.env.CI ?? "<unset>"}`);
+  diagnostics.push(`userDataDir: ${userDataDir}`);
+  diagnostics.push(`userDataDir exists: ${fs.existsSync(userDataDir)}`);
+  if (fs.existsSync(userDataDir)) {
+    const files = fs.readdirSync(userDataDir).sort();
+    diagnostics.push(
+      `userDataDir files: ${files.length > 0 ? files.join(", ") : "<empty>"}`,
+    );
+  }
+  if (launchOptions) {
+    diagnostics.push(
+      `launch.executablePath: ${launchOptions.executablePath ?? "<unset>"}`,
+    );
+    diagnostics.push(
+      `launch.executablePath exists: ${
+        launchOptions.executablePath
+          ? fs.existsSync(launchOptions.executablePath)
+          : false
+      }`,
+    );
+    diagnostics.push(`launch.headless: ${String(launchOptions.headless)}`);
+    diagnostics.push(
+      `launch.args: ${JSON.stringify(launchOptions.args ?? [])}`,
+    );
+    diagnostics.push(`launch.port: ${launchOptions.port ?? "<auto>"}`);
+    diagnostics.push(
+      `launch.connectTimeoutMs: ${launchOptions.connectTimeoutMs ?? "<default>"}`,
+    );
+  }
+  return diagnostics.join("\n");
+}
+
 export async function createSession(
   headers: Record<string, string>,
 ): Promise<string> {
@@ -147,24 +193,36 @@ export async function createSessionWithCdp(
 ): Promise<SessionInfo> {
   const url = getBaseUrl();
   const userDataDir = createUserDataDir();
+  const startPayload = {
+    modelName: "gpt-4.1-nano",
+    ...createLocalBrowserBody(userDataDir),
+  };
 
   const response = await fetch(`${url}/v1/sessions/start`, {
     method: "POST",
     headers,
-    body: JSON.stringify({
-      modelName: "gpt-4.1-nano",
-      ...createLocalBrowserBody(userDataDir),
-    }),
+    body: JSON.stringify(startPayload),
   });
 
-  const body = (await response.json()) as StartSessionResponse;
+  const responseText = await response.text();
+  let parsedBody: unknown = null;
+  try {
+    parsedBody = responseText ? JSON.parse(responseText) : null;
+  } catch {
+    parsedBody = responseText;
+  }
+  const body = parsedBody as StartSessionResponse;
 
-  if (!body.success) {
+  if (!response.ok || !body?.success) {
     const chromeLogs = readChromeLogs(userDataDir);
+    const launchDiagnostics = readLaunchDiagnostics(
+      userDataDir,
+      startPayload.browser?.launchOptions,
+    );
     throw new Error(
-      `Failed to create session: ${JSON.stringify(body)}${
-        chromeLogs ? `\n${chromeLogs}` : ""
-      }`,
+      `Failed to create session (status=${response.status}): ${JSON.stringify(
+        parsedBody,
+      )}\n${launchDiagnostics}${chromeLogs ? `\n${chromeLogs}` : ""}`,
     );
   }
   if (!body.data?.available) {
