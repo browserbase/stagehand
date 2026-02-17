@@ -80,24 +80,20 @@ test.describe("page.addInitScript", () => {
     const page = await ctx.awaitActivePage();
     const payload = { greeting: "hi", nested: { count: 1 } };
 
-    // eslint-disable-next-line no-new-func, no-restricted-syntax
-    const initPayload = new Function(
-      "arg",
-      `
-        function setPayload() {
-          var root = document.documentElement;
-          if (!root) return;
-          root.dataset.pageInitPayload = JSON.stringify(arg);
-        }
-        if (document.readyState === "loading") {
-          document.addEventListener("DOMContentLoaded", setPayload, {
-            once: true,
-          });
-        } else {
-          setPayload();
-        }
-      `,
-    ) as (arg: typeof payload) => void;
+    const initPayload = ((arg) => {
+      function setPayload() {
+        const root = document.documentElement;
+        if (!root) return;
+        root.dataset.pageInitPayload = JSON.stringify(arg);
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", setPayload, {
+          once: true,
+        });
+      } else {
+        setPayload();
+      }
+    }) as (arg: typeof payload) => void;
     await page.addInitScript(initPayload, payload);
 
     await page.goto(`${EXAMPLE_URL}/?page=payload`, {

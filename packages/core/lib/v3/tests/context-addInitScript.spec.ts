@@ -89,24 +89,20 @@ test.describe("context.addInitScript", () => {
   test("applies script (with args) to newly created pages", async () => {
     const payload = { greeting: "hi", nested: { count: 2 } };
 
-    // eslint-disable-next-line no-new-func, no-restricted-syntax
-    const initPayload = new Function(
-      "arg",
-      `
-        function setPayload() {
-          var root = document.documentElement;
-          if (!root) return;
-          root.dataset.initPayload = JSON.stringify(arg);
-        }
-        if (document.readyState === "loading") {
-          document.addEventListener("DOMContentLoaded", setPayload, {
-            once: true,
-          });
-        } else {
-          setPayload();
-        }
-      `,
-    ) as (arg: typeof payload) => void;
+    const initPayload = ((arg) => {
+      function setPayload() {
+        const root = document.documentElement;
+        if (!root) return;
+        root.dataset.initPayload = JSON.stringify(arg);
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", setPayload, {
+          once: true,
+        });
+      } else {
+        setPayload();
+      }
+    }) as (arg: typeof payload) => void;
     await ctx.addInitScript(initPayload, payload);
 
     const newPage = await ctx.newPage();
