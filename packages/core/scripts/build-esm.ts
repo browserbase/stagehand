@@ -73,35 +73,23 @@ const rewriteFileRuntimeSpecifiers = (filePath: string) => {
   };
 
   const rewritten = source
-    .replace(
-      /(\bimport\s*\(\s*")([^"]+)(")/g,
-      (full, prefix, spec, suffix) =>
-        replaceSpecifier(full, prefix, spec, suffix),
+    .replace(/(\bimport\s*\(\s*")([^"]+)(")/g, (full, prefix, spec, suffix) =>
+      replaceSpecifier(full, prefix, spec, suffix),
     )
-    .replace(
-      /(\bimport\s*\(\s*')([^']+)(')/g,
-      (full, prefix, spec, suffix) =>
-        replaceSpecifier(full, prefix, spec, suffix),
+    .replace(/(\bimport\s*\(\s*')([^']+)(')/g, (full, prefix, spec, suffix) =>
+      replaceSpecifier(full, prefix, spec, suffix),
     )
-    .replace(
-      /(\bfrom\s*")([^"]+)(")/g,
-      (full, prefix, spec, suffix) =>
-        replaceSpecifier(full, prefix, spec, suffix),
+    .replace(/(\bfrom\s*")([^"]+)(")/g, (full, prefix, spec, suffix) =>
+      replaceSpecifier(full, prefix, spec, suffix),
     )
-    .replace(
-      /(\bfrom\s*')([^']+)(')/g,
-      (full, prefix, spec, suffix) =>
-        replaceSpecifier(full, prefix, spec, suffix),
+    .replace(/(\bfrom\s*')([^']+)(')/g, (full, prefix, spec, suffix) =>
+      replaceSpecifier(full, prefix, spec, suffix),
     )
-    .replace(
-      /(\bimport\s*")([^"]+)(")/g,
-      (full, prefix, spec, suffix) =>
-        replaceSpecifier(full, prefix, spec, suffix),
+    .replace(/(\bimport\s*")([^"]+)(")/g, (full, prefix, spec, suffix) =>
+      replaceSpecifier(full, prefix, spec, suffix),
     )
-    .replace(
-      /(\bimport\s*')([^']+)(')/g,
-      (full, prefix, spec, suffix) =>
-        replaceSpecifier(full, prefix, spec, suffix),
+    .replace(/(\bimport\s*')([^']+)(')/g, (full, prefix, spec, suffix) =>
+      replaceSpecifier(full, prefix, spec, suffix),
     );
 
   if (rewritten !== source) {
