@@ -203,35 +203,10 @@ export class InMemorySessionStore implements SessionStore {
 
     // Create V3 instance (lazy initialization)
     const options = this.buildV3Options(node.params, ctx, node.loggerRef);
-    const shouldRetryInit = node.params.browserType === "local";
-    const retryWindowMs = getLocalStagehandInitRetryWindowMs();
-    const startedAt = Date.now();
-
-    for (;;) {
-      const stagehand = new V3(options);
-      try {
-        await stagehand.init();
-        node.stagehand = stagehand;
-        return stagehand;
-      } catch (error) {
-        try {
-          await stagehand.close();
-        } catch {
-          // best-effort cleanup for failed init attempts
-        }
-
-        if (!shouldRetryInit) {
-          throw error;
-        }
-
-        const elapsedMs = Date.now() - startedAt;
-        if (!isRetriableLocalInitError(error) || elapsedMs >= retryWindowMs) {
-          throw error;
-        }
-
-        await sleep(LOCAL_STAGEHAND_INIT_RETRY_DELAY_MS);
-      }
-    }
+    const stagehand = new V3(options);
+    await stagehand.init();
+    node.stagehand = stagehand;
+    return stagehand;
   }
 
   /**

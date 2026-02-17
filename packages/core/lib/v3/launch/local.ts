@@ -1,4 +1,5 @@
 import { launch, LaunchedChrome } from "chrome-launcher";
+import WebSocket from "ws";
 import { ConnectionTimeoutError } from "../types/public/sdkErrors";
 
 interface LaunchLocalOptions {
@@ -15,6 +16,7 @@ export async function launchLocalChrome(
   opts: LaunchLocalOptions,
 ): Promise<{ ws: string; chrome: LaunchedChrome }> {
   const connectTimeoutMs = opts.connectTimeoutMs ?? 15_000;
+  const deadlineMs = Date.now() + connectTimeoutMs;
   const connectionPollInterval = 250;
   const maxConnectionRetries = Math.max(
     1,
@@ -41,19 +43,19 @@ export async function launchLocalChrome(
     maxConnectionRetries,
   });
 
-  const ws = await waitForWebSocketDebuggerUrl(chrome.port, connectTimeoutMs);
+  const ws = await waitForWebSocketDebuggerUrl(chrome.port, deadlineMs);
+  await waitForWebSocketReady(ws, deadlineMs);
 
   return { ws, chrome };
 }
 
 async function waitForWebSocketDebuggerUrl(
   port: number,
-  timeoutMs: number,
+  deadlineMs: number,
 ): Promise<string> {
-  const deadline = Date.now() + timeoutMs;
   let lastErrMsg = "";
 
-  while (Date.now() < deadline) {
+  while (Date.now() < deadlineMs) {
     try {
       const resp = await fetch(`http://127.0.0.1:${port}/json/version`);
       if (resp.ok) {
@@ -71,8 +73,58 @@ async function waitForWebSocketDebuggerUrl(
   }
 
   throw new ConnectionTimeoutError(
-    `Timed out waiting for /json/version on port ${port}${
+    `Timed out waiting for /json/version on port ${port} ${
       lastErrMsg ? ` (last error: ${lastErrMsg})` : ""
     }`,
   );
+}
+
+async function waitForWebSocketReady(
+  wsUrl: string,
+  deadlineMs: number,
+): Promise<void> {
+  let lastErrMsg = "";
+  while (Date.now() < deadlineMs) {
+    const remainingMs = Math.max(200, deadlineMs - Date.now());
+    try {
+      await probeWebSocket(wsUrl, Math.min(2_000, remainingMs));
+      return;
+    } catch (error) {
+      lastErrMsg = error instanceof Error ? error.message : String(error);
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+  throw new ConnectionTimeoutError(
+    `Timed out waiting for CDP websocket to accept connections at ${wsUrl}${
+      lastErrMsg ? ` (last error: ${lastErrMsg})` : ""
+    }`,
+  );
+}
+
+function probeWebSocket(wsUrl: string, timeoutMs: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(wsUrl);
+    let settled = false;
+    const finish = (error?: unknown) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        ws.terminate();
+      } catch {
+        // best-effort cleanup
+      }
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    };
+    const timer = setTimeout(() => {
+      finish(new Error(`websocket probe timeout after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    ws.once("open", () => finish());
+    ws.once("error", (error) => finish(error));
+  });
 }

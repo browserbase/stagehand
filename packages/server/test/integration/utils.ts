@@ -113,6 +113,7 @@ function createLocalBrowserBody() {
         headless: true,
         executablePath: resolveChromePath(),
         args: process.env.CI ? ["--no-sandbox"] : undefined,
+        userDataDir: undefined,
         connectTimeoutMs: LOCAL_CONNECT_TIMEOUT_MS,
       },
     },
