@@ -122,6 +122,19 @@ export function getAISDKLanguageModel(
       );
     }
     const provider = creator(clientOptions);
+    // Use .chat() to ensure Chat Completions API is used instead of Responses API.
+    // This is needed for Azure/custom endpoints that don't support the Responses API.
+    if (
+      clientOptions?.baseURL &&
+      "chat" in provider &&
+      typeof (provider as Record<string, unknown>).chat === "function"
+    ) {
+      return (
+        (provider as Record<string, unknown>).chat as (
+          id: string,
+        ) => ReturnType<typeof provider>
+      )(subModelName);
+    }
     // Get the specific model from the provider
     return provider(subModelName);
   } else {

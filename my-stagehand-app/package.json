@@ -1,0 +1,27 @@
+{
+  "name": "my-stagehand-app",
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx index.ts",
+    "start-proxy": "node oauth-proxy-server.js",
+    "test-stagehand": "node test-stagehand-oauth.js",
+    "dev": "npx ts-node index.ts"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "file:../packages/core",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.7",
+    "express": "^4.22.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.0",
+    "@types/express": "^4.17.0",
+    "@types/node": "^20.0.0",
+    "azure-identity": "^0.0.1-security",
+    "openai": "^6.22.0",
+    "ts-node": "^10.9.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.0.0"
+  }
+}
