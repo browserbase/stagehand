@@ -57,6 +57,8 @@ async function main(): Promise<void> {
     localBrowserLaunchOptions:
       env === "LOCAL"
         ? {
+            executablePath: process.env.CHROME_PATH,
+            args: process.env.CI ? ["--no-sandbox"] : undefined,
             headless: !showBrowser,
             viewport: { width: 1288, height: 711 },
           }
