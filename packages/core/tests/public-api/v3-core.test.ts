@@ -156,7 +156,7 @@ describe("V3 Core public API types", () => {
       | string
       | URL
       | { command: string; args?: string[]; env?: Record<string, string> }
-      | { serverUrl: string | URL; clientOptions?: unknown };
+      | { serverUrl: string | URL; clientOptions?: unknown; requestOptions?: unknown };
 
     it("has correct parameter types", () => {
       expectTypeOf(

@@ -58,6 +58,18 @@ const supabaseClient = await connectToMCPServer(
   `https://server.smithery.ai/@supabase-community/supabase-mcp/mcp?api_key=${process.env.SMITHERY_API_KEY}`
 );
 
+// When setting the API key required for authentication in the request header
+const deepWikiClient = await connectToMCPServer({
+  serverUrl: "https://mcp.devin.ai/mcp",
+  requestOptions: {
+    requestInit: {
+      headers: {
+        Authorization: `Bearer ${process.env.DEEP_WIKI_API_KEY}`,
+      },
+    },
+  },
+});
+
 // You can also pass the config to start a local MCP server
 const notionClient = await connectToMCPServer({
   command: "npx",
@@ -71,7 +83,7 @@ const notionClient = await connectToMCPServer({
 const agent = stagehand.agent({
   provider: "openai", 
   model: "computer-use-preview",
-  integrations: [supabaseClient, notionClient],
+  integrations: [supabaseClient, deepWikiClient, notionClient],
   systemPrompt: `You can interact with Supabase databases and Notion. Use these tools to store and retrieve data.`,
   options: {
     apiKey: process.env.OPENAI_API_KEY,
