@@ -24,10 +24,13 @@ export interface ActResult {
   message: string;
   actionDescription: string;
   actions: Action[];
+  cacheStatus?: "HIT" | "MISS";
 }
 
 export type ExtractResult<T extends StagehandZodSchema> =
-  InferStagehandSchema<T>;
+  InferStagehandSchema<T> & {
+    cacheStatus?: "HIT" | "MISS";
+  };
 
 export interface Action {
   selector: string;

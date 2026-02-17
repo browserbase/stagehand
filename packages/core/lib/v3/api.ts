@@ -11,8 +11,8 @@ import {
   ExperimentalNotConfiguredError,
 } from "./types/public";
 import type {
-  Action,
   ActResult,
+  Action,
   AgentConfig,
   AgentExecuteOptions,
   AgentResult,
@@ -593,6 +593,12 @@ export class StagehandAPIClient {
       serverCache,
     );
 
+    // Capture cache status from response header
+    const cacheStatus = response.headers.get("browserbase-cache-status") as
+      | "HIT"
+      | "MISS"
+      | null;
+
     if (!response.ok) {
       const errorBody = await response.text();
       throw new StagehandHttpError(
@@ -634,7 +640,36 @@ export class StagehandAPIClient {
               throw new Error(errorMsg);
             }
             if (eventData.data.status === "finished") {
-              return eventData.data.result as T;
+              const result = eventData.data.result as T;
+              // Attach cache status from header or event data
+              const finalCacheStatus =
+                cacheStatus ||
+                (typeof eventData.data.cacheHit === "boolean"
+                  ? eventData.data.cacheHit
+                    ? "HIT"
+                    : "MISS"
+                  : undefined);
+              if (
+                finalCacheStatus &&
+                (method === "act" || method === "extract" || method === "observe")
+              ) {
+                this.logger({
+                  category: "cache",
+                  message: `${method} server cache ${finalCacheStatus.toLowerCase()}`,
+                  level: 1,
+                });
+              }
+              if (
+                finalCacheStatus &&
+                result &&
+                typeof result === "object" &&
+                (method === "act" || method === "extract")
+              ) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (result as ActResult | ExtractResult<any>).cacheStatus =
+                  finalCacheStatus;
+              }
+              return result;
             }
           } else if (eventData.type === "log") {
             const msg = eventData.data.message;
@@ -672,7 +707,36 @@ export class StagehandAPIClient {
               eventData.type === "system" &&
               eventData.data.status === "finished"
             ) {
-              return eventData.data.result as T;
+              const result = eventData.data.result as T;
+              // Attach cache status from header or event data
+              const finalCacheStatus =
+                cacheStatus ||
+                (typeof eventData.data.cacheHit === "boolean"
+                  ? eventData.data.cacheHit
+                    ? "HIT"
+                    : "MISS"
+                  : undefined);
+              if (
+                finalCacheStatus &&
+                (method === "act" || method === "extract" || method === "observe")
+              ) {
+                this.logger({
+                  category: "cache",
+                  message: `${method} server cache ${finalCacheStatus.toLowerCase()}`,
+                  level: 1,
+                });
+              }
+              if (
+                finalCacheStatus &&
+                result &&
+                typeof result === "object" &&
+                (method === "act" || method === "extract")
+              ) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (result as ActResult | ExtractResult<any>).cacheStatus =
+                  finalCacheStatus;
+              }
+              return result;
             }
           } catch {
             this.logger({
@@ -718,9 +782,9 @@ export class StagehandAPIClient {
       "x-sdk-version": STAGEHAND_VERSION,
     };
 
-    // Add cache skip header if caching is disabled
+    // Add cache bypass header if caching is disabled
     if (!this.shouldUseCache(serverCache)) {
-      defaultHeaders["x-bb-skip-cache"] = "true";
+      defaultHeaders["browserbase-cache-bypass"] = "true";
     }
 
     if (options.method === "POST" && options.body) {
@@ -737,6 +801,19 @@ export class StagehandAPIClient {
         },
       },
     );
+
+    // Log cache status if present in response headers
+    const cacheStatus = response.headers.get("browserbase-cache-status");
+    if (cacheStatus) {
+      this.logger({
+        category: "api",
+        message: `server cache ${cacheStatus.toLowerCase()}`,
+        level: 2,
+        auxiliary: {
+          "cache-status": { value: cacheStatus, type: "string" },
+        },
+      });
+    }
 
     return response;
   }

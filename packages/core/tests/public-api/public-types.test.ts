@@ -132,6 +132,7 @@ describe("Stagehand public API types", () => {
       message: string;
       actionDescription: string;
       actions: Stagehand.Action[];
+      cacheStatus?: "HIT" | "MISS";
     };
 
     it("matches expected type shape", () => {
