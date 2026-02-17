@@ -350,6 +350,9 @@ const normalizeCoverageDir = async (options: NormalizerOptions) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
+        if (entry.name === ".v8-tmp" || entry.name === "merged") {
+          continue;
+        }
         walk(full);
       } else if (entry.isFile() && entry.name.endsWith(".json")) {
         jsonFiles.push(full);

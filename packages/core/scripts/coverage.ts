@@ -49,9 +49,17 @@ if (!command || command !== "merge") {
 
 const coverageDir = path.join(repoRoot, "coverage");
 const outDir = path.join(repoRoot, "coverage", "merged");
+const v8TempDir = path.join(coverageDir, ".v8-tmp");
+if (!process.env.V8_COVERAGE_SCAN_LIMIT) {
+  process.env.V8_COVERAGE_SCAN_LIMIT = "2000";
+}
 fs.rmSync(outDir, { recursive: true, force: true });
+fs.rmSync(v8TempDir, { recursive: true, force: true });
 log(`normalizing v8 coverage in ${coverageDir}`);
+log(`using V8_COVERAGE_SCAN_LIMIT=${process.env.V8_COVERAGE_SCAN_LIMIT}`);
+const normalizeStart = Date.now();
 await normalizeV8Coverage(coverageDir);
+log(`normalize completed in ${Date.now() - normalizeStart}ms`);
 const collectV8CoverageFiles = (dir: string): string[] => {
   const results: string[] = [];
   if (!fs.existsSync(dir)) return results;
@@ -91,7 +99,6 @@ if (v8CoverageFiles.length === 0) {
 log(`found ${v8CoverageFiles.length} v8 coverage files`);
 
 fs.mkdirSync(outDir, { recursive: true });
-const v8TempDir = path.join(coverageDir, ".v8-tmp");
 fs.rmSync(v8TempDir, { recursive: true, force: true });
 fs.mkdirSync(v8TempDir, { recursive: true });
 v8CoverageFiles.forEach((file, index) => {
