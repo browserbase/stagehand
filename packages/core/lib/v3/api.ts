@@ -640,36 +640,12 @@ export class StagehandAPIClient {
               throw new Error(errorMsg);
             }
             if (eventData.data.status === "finished") {
-              const result = eventData.data.result as T;
-              // Attach cache status from header or event data
-              const finalCacheStatus =
-                cacheStatus ||
-                (typeof eventData.data.cacheHit === "boolean"
-                  ? eventData.data.cacheHit
-                    ? "HIT"
-                    : "MISS"
-                  : undefined);
-              if (
-                finalCacheStatus &&
-                (method === "act" || method === "extract" || method === "observe")
-              ) {
-                this.logger({
-                  category: "cache",
-                  message: `${method} server cache ${finalCacheStatus.toLowerCase()}`,
-                  level: 1,
-                });
-              }
-              if (
-                finalCacheStatus &&
-                result &&
-                typeof result === "object" &&
-                (method === "act" || method === "extract")
-              ) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (result as ActResult | ExtractResult<any>).cacheStatus =
-                  finalCacheStatus;
-              }
-              return result;
+              return this.attachCacheStatus(
+                eventData.data.result as T,
+                method,
+                cacheStatus,
+                eventData,
+              );
             }
           } else if (eventData.type === "log") {
             const msg = eventData.data.message;
@@ -707,36 +683,12 @@ export class StagehandAPIClient {
               eventData.type === "system" &&
               eventData.data.status === "finished"
             ) {
-              const result = eventData.data.result as T;
-              // Attach cache status from header or event data
-              const finalCacheStatus =
-                cacheStatus ||
-                (typeof eventData.data.cacheHit === "boolean"
-                  ? eventData.data.cacheHit
-                    ? "HIT"
-                    : "MISS"
-                  : undefined);
-              if (
-                finalCacheStatus &&
-                (method === "act" || method === "extract" || method === "observe")
-              ) {
-                this.logger({
-                  category: "cache",
-                  message: `${method} server cache ${finalCacheStatus.toLowerCase()}`,
-                  level: 1,
-                });
-              }
-              if (
-                finalCacheStatus &&
-                result &&
-                typeof result === "object" &&
-                (method === "act" || method === "extract")
-              ) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (result as ActResult | ExtractResult<any>).cacheStatus =
-                  finalCacheStatus;
-              }
-              return result;
+              return this.attachCacheStatus(
+                eventData.data.result as T,
+                method,
+                cacheStatus,
+                eventData,
+              );
             }
           } catch {
             this.logger({
@@ -757,6 +709,41 @@ export class StagehandAPIClient {
    * Determine if caching should be enabled for a request.
    * Method-level setting takes precedence over instance-level setting.
    */
+  private attachCacheStatus<T>(
+    result: T,
+    method: string,
+    cacheStatus: "HIT" | "MISS" | null,
+    eventData: { data: { cacheHit?: boolean } },
+  ): T {
+    const finalCacheStatus =
+      cacheStatus ||
+      (typeof eventData.data.cacheHit === "boolean"
+        ? eventData.data.cacheHit
+          ? "HIT"
+          : "MISS"
+        : undefined);
+    if (
+      finalCacheStatus &&
+      (method === "act" || method === "extract" || method === "observe")
+    ) {
+      this.logger({
+        category: "cache",
+        message: `${method} server cache ${finalCacheStatus.toLowerCase()}`,
+        level: 1,
+      });
+    }
+    if (
+      finalCacheStatus &&
+      result &&
+      typeof result === "object" &&
+      (method === "act" || method === "extract")
+    ) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (result as ActResult | ExtractResult<any>).cacheStatus = finalCacheStatus;
+    }
+    return result;
+  }
+
   private shouldUseCache(methodServerCache?: boolean): boolean {
     // If method-level setting is explicitly provided, use it
     if (methodServerCache !== undefined) {
