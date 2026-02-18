@@ -78,7 +78,7 @@ const stagehand = new Stagehand({
   env: "BROWSERBASE",
   experimental: true, // required for Vertex
   model: {
-    modelName: "vertex/gemini-2.5-flash",
+    modelName: "vertex/gemini-3-flash-preview",
     project: "your-gcp-project-id",
     location: "us-central1",
     googleAuthOptions: {
@@ -96,7 +96,7 @@ await stagehand.init();
 </CodeGroup>
 
 The `model` object accepts:
-- `modelName` — The Vertex model, prefixed with `vertex/` (e.g. `vertex/gemini-2.5-flash`)
+- `modelName` — The Vertex model, prefixed with `vertex/` (e.g. `vertex/gemini-3-flash-preview`)
 - `project` — Your GCP project ID
 - `location` — Your Vertex AI region (e.g. `us-central1`)
 - `googleAuthOptions.credentials` — Service account credentials with `client_email` and `private_key`
