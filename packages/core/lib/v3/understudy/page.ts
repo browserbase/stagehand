@@ -2163,6 +2163,30 @@ export class Page {
     );
   }
 
+  private async isMainLoadStateReady(
+    state: "domcontentloaded" | "load",
+  ): Promise<boolean> {
+    try {
+      const ctxId = await this.mainWorldExecutionContextId();
+      const { result } =
+        await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
+          "Runtime.evaluate",
+          {
+            expression: "document.readyState",
+            contextId: ctxId,
+            returnByValue: true,
+          },
+        );
+      const readyState = String(result?.value ?? "");
+      if (state === "domcontentloaded") {
+        return readyState === "interactive" || readyState === "complete";
+      }
+      return readyState === "complete";
+    } catch {
+      return false;
+    }
+  }
+
   /**
    * Wait until the **current** main frame reaches a lifecycle state.
    * - Fast path via `document.readyState`.
@@ -2178,33 +2202,18 @@ export class Page {
       .catch(() => {});
 
     // Fast path: check the *current* main frame's readyState.
-    try {
-      const ctxId = await this.mainWorldExecutionContextId();
-      const { result } =
-        await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
-          "Runtime.evaluate",
-          {
-            expression: "document.readyState",
-            contextId: ctxId,
-            returnByValue: true,
-          },
-        );
-      const rs = String(result?.value ?? "");
-      if (
-        (state === "domcontentloaded" &&
-          (rs === "interactive" || rs === "complete")) ||
-        (state === "load" && rs === "complete")
-      ) {
-        return;
-      }
-    } catch {
-      // ignore fast-path failures
+    if (
+      (state === "domcontentloaded" || state === "load") &&
+      (await this.isMainLoadStateReady(state))
+    ) {
+      return;
     }
 
     const wanted = LIFECYCLE_NAME[state];
     return new Promise<void>((resolve, reject) => {
       let done = false;
       let timer: ReturnType<typeof setTimeout> | null = null;
+      let pollTimer: ReturnType<typeof setTimeout> | null = null;
 
       const off = () => {
         this.mainSession.off("Page.lifecycleEvent", onLifecycle);
@@ -2218,6 +2227,10 @@ export class Page {
         if (timer) {
           clearTimeout(timer);
           timer = null;
+        }
+        if (pollTimer) {
+          clearTimeout(pollTimer);
+          pollTimer = null;
         }
         off();
         resolve();
@@ -2242,9 +2255,30 @@ export class Page {
       this.mainSession.on("Page.domContentEventFired", onDomContent);
       this.mainSession.on("Page.loadEventFired", onLoad);
 
+      // Fallback polling closes lifecycle-event races in remote environments
+      // where readyState has advanced but the corresponding event was missed.
+      const pollReadyState = async () => {
+        if (done) return;
+        if (
+          (state === "domcontentloaded" || state === "load") &&
+          (await this.isMainLoadStateReady(state))
+        ) {
+          finish();
+          return;
+        }
+        pollTimer = setTimeout(() => {
+          void pollReadyState();
+        }, 100);
+      };
+      void pollReadyState();
+
       timer = setTimeout(() => {
         if (done) return;
         done = true;
+        if (pollTimer) {
+          clearTimeout(pollTimer);
+          pollTimer = null;
+        }
         off();
         reject(
           new Error(
