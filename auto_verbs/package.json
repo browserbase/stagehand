@@ -1,0 +1,12 @@
+{
+  "name": "auto-verbs",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "directions": "node google_maps_directions.js"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "file:../packages/core",
+    "zod": "^4.3.6"
+  }
+}

@@ -1,0 +1,530 @@
+[
+  {
+    "timestamp": 1339,
+    "type": "goto",
+    "url": "https://www.google.com/maps",
+    "description": "Navigate to https://www.google.com/maps"
+  },
+  {
+    "timestamp": 3254,
+    "type": "wait",
+    "ms": 2000,
+    "description": "Wait for Google Maps to fully render"
+  },
+  {
+    "timestamp": 6194,
+    "type": "act",
+    "instruction": "click the Directions button",
+    "description": "Click the Directions button on Google Maps",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/div[9]/div[3]/div[1]/div[1]/div[1]/div[1]/div[2]/button[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "The 'Directions' button in the Google Maps interface.",
+    "aria": {
+      "tagName": "button",
+      "type": null,
+      "role": null,
+      "implicitRole": "button",
+      "ariaLabel": "Directions",
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": null,
+      "id": null,
+      "className": "hArJGc vF7Cdb",
+      "bestLabel": "Directions",
+      "matchCount": 1,
+      "nearestAncestorId": null,
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "search",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": "Google Maps",
+          "role": null,
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 6251,
+    "type": "wait",
+    "ms": 1500,
+    "description": "Wait after: Click the Directions button on Google Maps"
+  },
+  {
+    "timestamp": 8462,
+    "type": "act",
+    "instruction": "click on the starting point input field",
+    "description": "Click the starting point input field",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/div[9]/div[3]/div[1]/div[2]/div[1]/div[2]/div[1]/div[1]/div[2]/div[1]/div[1]/input[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "The input field for choosing the starting point.",
+    "aria": {
+      "tagName": "input",
+      "type": null,
+      "role": null,
+      "implicitRole": "textbox",
+      "ariaLabel": "Choose starting point, or click on the map...",
+      "placeholder": "Choose starting point, or click on the map...",
+      "title": null,
+      "tooltip": "Choose starting point, or click on the map...",
+      "textContent": "",
+      "name": null,
+      "id": null,
+      "className": "ZBTq6e",
+      "bestLabel": "Choose starting point, or click on the map...",
+      "matchCount": 1,
+      "nearestAncestorId": "sb_ifc50",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "combobox",
+          "id": "sb_ifc50",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "directions-searchbox-0",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "listitem",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "list",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": "Google Maps",
+          "role": null,
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 8517,
+    "type": "wait",
+    "ms": 500,
+    "description": "Wait after: Click the starting point input field"
+  },
+  {
+    "timestamp": 9654,
+    "type": "act",
+    "instruction": "type 'Bellevue Square, Bellevue, WA' into the starting point input field",
+    "description": "Type starting location: Bellevue Square, Bellevue, WA",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/div[9]/div[3]/div[1]/div[2]/div[1]/div[2]/div[1]/div[1]/div[2]/div[1]/div[1]/input[1]",
+    "method": "type",
+    "arguments": [
+      "Bellevue Square, Bellevue, WA"
+    ],
+    "observedDescription": "Textbox for entering the starting point",
+    "aria": {
+      "tagName": "input",
+      "type": null,
+      "role": null,
+      "implicitRole": "textbox",
+      "ariaLabel": "Choose starting point, or click on the map...",
+      "placeholder": "Choose starting point, or click on the map...",
+      "title": null,
+      "tooltip": "Choose starting point, or click on the map...",
+      "textContent": "",
+      "name": null,
+      "id": null,
+      "className": "ZBTq6e",
+      "bestLabel": "Choose starting point, or click on the map...",
+      "matchCount": 1,
+      "nearestAncestorId": "sb_ifc50",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "combobox",
+          "id": "sb_ifc50",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "directions-searchbox-0",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "listitem",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "list",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": "Google Maps",
+          "role": null,
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 9672,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Type starting location: Bellevue Square, Bellevue, WA"
+  },
+  {
+    "timestamp": 11354,
+    "type": "act",
+    "instruction": "click on the destination input field",
+    "description": "Click the destination input field",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/div[9]/div[3]/div[1]/div[2]/div[1]/div[2]/div[1]/div[2]/div[2]/div[1]/div[1]/input[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "The destination input field labeled 'Choose destination, or click on the map...'.",
+    "aria": {
+      "tagName": "input",
+      "type": null,
+      "role": null,
+      "implicitRole": "textbox",
+      "ariaLabel": "Choose destination, or click on the map...",
+      "placeholder": "Choose destination, or click on the map...",
+      "title": null,
+      "tooltip": "Choose destination, or click on the map...",
+      "textContent": "",
+      "name": null,
+      "id": null,
+      "className": "ZBTq6e",
+      "bestLabel": "Choose destination, or click on the map...",
+      "matchCount": 1,
+      "nearestAncestorId": "sb_ifc51",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "combobox",
+          "id": "sb_ifc51",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "directions-searchbox-1",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "listitem",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "list",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": "Google Maps",
+          "role": null,
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 11378,
+    "type": "wait",
+    "ms": 500,
+    "description": "Wait after: Click the destination input field"
+  },
+  {
+    "timestamp": 12549,
+    "type": "act",
+    "instruction": "type 'Redmond Town Center, Redmond, WA' into the destination input field",
+    "description": "Type destination: Redmond Town Center, Redmond, WA",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/div[9]/div[3]/div[1]/div[2]/div[1]/div[2]/div[1]/div[2]/div[2]/div[1]/div[1]/input[1]",
+    "method": "type",
+    "arguments": [
+      "Redmond Town Center, Redmond, WA"
+    ],
+    "observedDescription": "Destination input field for entering the location.",
+    "aria": {
+      "tagName": "input",
+      "type": null,
+      "role": null,
+      "implicitRole": "textbox",
+      "ariaLabel": "Choose destination, or click on the map...",
+      "placeholder": "Choose destination, or click on the map...",
+      "title": null,
+      "tooltip": "Choose destination, or click on the map...",
+      "textContent": "",
+      "name": null,
+      "id": null,
+      "className": "ZBTq6e",
+      "bestLabel": "Choose destination, or click on the map...",
+      "matchCount": 1,
+      "nearestAncestorId": "sb_ifc51",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "combobox",
+          "id": "sb_ifc51",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "directions-searchbox-1",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "listitem",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "list",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": "Google Maps",
+          "role": null,
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 12565,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Type destination: Redmond Town Center, Redmond, WA"
+  },
+  {
+    "timestamp": 14218,
+    "type": "act",
+    "instruction": "press Enter to search for directions",
+    "description": "Press Enter to search for directions",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/div[9]/div[3]/div[1]/div[2]/div[1]/div[2]/div[1]/div[1]/div[2]/button[1]",
+    "method": "press",
+    "arguments": [
+      "Enter"
+    ],
+    "observedDescription": "The 'Search' button to initiate the search for directions.",
+    "aria": {
+      "tagName": "button",
+      "type": null,
+      "role": null,
+      "implicitRole": "button",
+      "ariaLabel": "Search",
+      "placeholder": null,
+      "title": null,
+      "tooltip": "Search",
+      "textContent": "",
+      "name": null,
+      "id": null,
+      "className": "mL3xi",
+      "bestLabel": "Search",
+      "matchCount": 3,
+      "nearestAncestorId": "directions-searchbox-0",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "directions-searchbox-0",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "listitem",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "list",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": "Google Maps",
+          "role": null,
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 14239,
+    "type": "wait",
+    "ms": 5000,
+    "description": "Wait after: Press Enter to search for directions"
+  },
+  {
+    "timestamp": 20170,
+    "type": "act",
+    "instruction": "click the driving mode button to select driving directions (the car icon)",
+    "description": "Select driving mode",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/div[9]/div[3]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/button[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "The radio button for selecting driving directions, represented by a car icon.",
+    "aria": {
+      "tagName": "button",
+      "type": null,
+      "role": "radio",
+      "implicitRole": "button",
+      "ariaLabel": null,
+      "placeholder": null,
+      "title": null,
+      "tooltip": "Driving",
+      "textContent": "15 min",
+      "name": null,
+      "id": null,
+      "className": "m6Uuef",
+      "bestLabel": "Driving",
+      "matchCount": 0,
+      "nearestAncestorId": null,
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "radiogroup",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": "Google Maps",
+          "role": null,
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 20220,
+    "type": "wait",
+    "ms": 3000,
+    "description": "Wait after: Select driving mode"
+  },
+  {
+    "timestamp": 23223,
+    "type": "screenshot",
+    "name": "directions_result",
+    "description": "Take screenshot: directions_result"
+  },
+  {
+    "timestamp": 24621,
+    "type": "extract_text",
+    "selector": null,
+    "variableName": "directions_info",
+    "description": "Extracted: distance=7.9 miles, duration=15 min, route=WA-520 E"
+  }
+]
