@@ -1,6 +1,7 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "globalDependencies": [
+    ".github/workflows/ci.yml",
     "package.json",
     "packages/*/package.json",
     "tsconfig.json",

@@ -22,6 +22,9 @@
     },
     "./package.json": "./package.json"
   },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "scripts": {
     "gen-version": "tsx scripts/gen-version.ts",
     "build:cjs": "tsx scripts/build-cjs.ts",
