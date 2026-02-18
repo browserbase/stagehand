@@ -535,8 +535,12 @@ export class V3AgentHandler {
         V3FunctionName.AGENT,
         result.totalUsage.inputTokens || 0,
         result.totalUsage.outputTokens || 0,
-        result.totalUsage.reasoningTokens || 0,
-        result.totalUsage.cachedInputTokens || 0,
+        result.totalUsage.outputTokenDetails?.reasoningTokens ??
+          result.totalUsage.reasoningTokens ??
+          0,
+        result.totalUsage.inputTokenDetails?.cacheReadTokens ??
+          result.totalUsage.cachedInputTokens ??
+          0,
         inferenceTimeMs,
       );
     }
@@ -551,8 +555,14 @@ export class V3AgentHandler {
         ? {
             input_tokens: result.totalUsage.inputTokens || 0,
             output_tokens: result.totalUsage.outputTokens || 0,
-            reasoning_tokens: result.totalUsage.reasoningTokens || 0,
-            cached_input_tokens: result.totalUsage.cachedInputTokens || 0,
+            reasoning_tokens:
+              result.totalUsage.outputTokenDetails?.reasoningTokens ??
+              result.totalUsage.reasoningTokens ??
+              0,
+            cached_input_tokens:
+              result.totalUsage.inputTokenDetails?.cacheReadTokens ??
+              result.totalUsage.cachedInputTokens ??
+              0,
             inference_time_ms: inferenceTimeMs,
           }
         : undefined,

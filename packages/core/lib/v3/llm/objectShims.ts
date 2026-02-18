@@ -51,12 +51,10 @@ export async function generateObjectShim<SCHEMA extends StagehandZodSchema>(
     ...(schemaDescription != null && { description: schemaDescription }),
   });
 
-  if ("prompt" in rest && rest.prompt !== undefined) {
-    const result = await generateText({ ...rest, output });
-    return { ...result, object: result.output };
-  }
-
-  if ("messages" in rest && rest.messages !== undefined) {
+  if (
+    ("prompt" in rest && rest.prompt !== undefined) ||
+    ("messages" in rest && rest.messages !== undefined)
+  ) {
     const result = await generateText({ ...rest, output });
     return { ...result, object: result.output };
   }
@@ -84,12 +82,10 @@ export function streamObjectShim<SCHEMA extends StagehandZodSchema>(
     ...(schemaDescription != null && { description: schemaDescription }),
   });
 
-  if ("prompt" in rest && rest.prompt !== undefined) {
-    const result = streamText({ ...rest, output });
-    return { ...result, partialObjectStream: result.partialOutputStream };
-  }
-
-  if ("messages" in rest && rest.messages !== undefined) {
+  if (
+    ("prompt" in rest && rest.prompt !== undefined) ||
+    ("messages" in rest && rest.messages !== undefined)
+  ) {
     const result = streamText({ ...rest, output });
     return { ...result, partialObjectStream: result.partialOutputStream };
   }
