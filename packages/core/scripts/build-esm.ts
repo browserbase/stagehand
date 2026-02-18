@@ -9,7 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { findRepoRoot } from "./test-utils";
+import { findRepoRoot } from "./test-utils.js";
 
 const repoRoot = findRepoRoot(process.cwd());
 
@@ -23,94 +23,6 @@ const run = (args: string[]) => {
 const coreRoot = path.join(repoRoot, "packages", "core");
 const coreDist = path.join(coreRoot, "dist", "esm");
 fs.rmSync(coreDist, { recursive: true, force: true });
-
-const RELATIVE_SPECIFIER_RE = /^\.{1,2}\//;
-const HAS_FILE_EXTENSION_RE = /\/[^/]+\.[^/]+$/;
-const RUNTIME_EXTENSIONS = new Set([
-  ".js",
-  ".mjs",
-  ".cjs",
-  ".json",
-  ".node",
-  ".wasm",
-]);
-
-const resolveRuntimeSpecifier = (
-  importerPath: string,
-  specifier: string,
-): string | null => {
-  if (!RELATIVE_SPECIFIER_RE.test(specifier)) return null;
-  if (specifier.includes("?") || specifier.includes("#")) return null;
-  if (HAS_FILE_EXTENSION_RE.test(specifier)) {
-    const ext = path.extname(specifier);
-    if (RUNTIME_EXTENSIONS.has(ext)) return null;
-  }
-
-  const importerDir = path.dirname(importerPath);
-  const resolved = path.resolve(importerDir, specifier);
-  if (fs.existsSync(`${resolved}.js`)) {
-    return `${specifier}.js`;
-  }
-  if (fs.existsSync(path.join(resolved, "index.js"))) {
-    return specifier.endsWith("/")
-      ? `${specifier}index.js`
-      : `${specifier}/index.js`;
-  }
-  return null;
-};
-
-const rewriteFileRuntimeSpecifiers = (filePath: string) => {
-  const source = fs.readFileSync(filePath, "utf8");
-  const replaceSpecifier = (
-    full: string,
-    prefix: string,
-    spec: string,
-    suffix: string,
-  ) => {
-    const resolved = resolveRuntimeSpecifier(filePath, spec);
-    if (!resolved) return full;
-    return `${prefix}${resolved}${suffix}`;
-  };
-
-  const rewritten = source
-    .replace(/(\bimport\s*\(\s*")([^"]+)(")/g, (full, prefix, spec, suffix) =>
-      replaceSpecifier(full, prefix, spec, suffix),
-    )
-    .replace(/(\bimport\s*\(\s*')([^']+)(')/g, (full, prefix, spec, suffix) =>
-      replaceSpecifier(full, prefix, spec, suffix),
-    )
-    .replace(/(\bfrom\s*")([^"]+)(")/g, (full, prefix, spec, suffix) =>
-      replaceSpecifier(full, prefix, spec, suffix),
-    )
-    .replace(/(\bfrom\s*')([^']+)(')/g, (full, prefix, spec, suffix) =>
-      replaceSpecifier(full, prefix, spec, suffix),
-    )
-    .replace(/(\bimport\s*")([^"]+)(")/g, (full, prefix, spec, suffix) =>
-      replaceSpecifier(full, prefix, spec, suffix),
-    )
-    .replace(/(\bimport\s*')([^']+)(')/g, (full, prefix, spec, suffix) =>
-      replaceSpecifier(full, prefix, spec, suffix),
-    );
-
-  if (rewritten !== source) {
-    fs.writeFileSync(filePath, rewritten);
-  }
-};
-
-const rewriteDistRuntimeSpecifiers = (dir: string) => {
-  if (!fs.existsSync(dir)) return;
-  const walk = (current: string) => {
-    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-      const fullPath = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        walk(fullPath);
-      } else if (entry.isFile() && fullPath.endsWith(".js")) {
-        rewriteFileRuntimeSpecifiers(fullPath);
-      }
-    }
-  };
-  walk(dir);
-};
 
 // Core ESM emit includes generated lib/version.ts from gen-version (run in core build).
 run(["exec", "tsc", "-p", "packages/core/tsconfig.json"]);
@@ -166,9 +78,5 @@ if (fs.existsSync(coreBuildSrc)) {
     }
   }
 }
-
-// Node ESM does not resolve extensionless relative imports by default.
-// Rewrite dist specifiers to explicit ".js" (or "/index.js") for runtime safety.
-rewriteDistRuntimeSpecifiers(coreDist);
 
 // Note: evals + server test outputs are built by their respective packages.

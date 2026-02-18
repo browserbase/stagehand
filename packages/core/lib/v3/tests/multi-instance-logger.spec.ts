@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "../v3";
-import { getV3DynamicTestConfig } from "./v3.dynamic.config";
-import type { LogLine } from "../types/public/logs";
-import { closeV3 } from "./testUtils";
+import { V3 } from "../v3.js";
+import { getV3DynamicTestConfig } from "./v3.dynamic.config.js";
+import type { LogLine } from "../types/public/logs.js";
+import { closeV3 } from "./testUtils.js";
 
 test.describe("V3 Multi-Instance Logger Isolation", () => {
   // Run tests serially to avoid resource exhaustion from creating many Chrome instances

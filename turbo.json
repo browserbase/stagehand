@@ -1,6 +1,8 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "globalDependencies": [
+    "package.json",
+    "packages/*/package.json",
     "tsconfig.json",
     "tsconfig.base.json"
   ],

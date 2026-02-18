@@ -1,15 +1,15 @@
 import type { Protocol } from "devtools-protocol";
-import type { LoadState } from "../types/public/page";
-import type { CDPSessionLike } from "./cdp";
-import type { NetworkManager } from "./networkManager";
-import type { Page } from "./page";
-import { TimeoutError } from "../types/public/sdkErrors";
+import type { LoadState } from "../types/public/page.js";
+import type { CDPSessionLike } from "./cdp.js";
+import type { NetworkManager } from "./networkManager.js";
+import type { Page } from "./page.js";
+import { TimeoutError } from "../types/public/sdkErrors.js";
 import {
   DEFAULT_IDLE_WAIT,
   IGNORED_RESOURCE_TYPES,
   type NetworkRequestInfo,
   WaitForIdleHandle,
-} from "../types/private/network";
+} from "../types/private/network.js";
 
 /**
  * Coordinates page lifecycle waits (load/domcontentloaded/networkidle) while

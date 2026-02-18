@@ -18,7 +18,7 @@ import os from "node:os";
 import path from "node:path";
 import https from "node:https";
 import { pathToFileURL } from "node:url";
-import { findRepoRoot } from "../../core/scripts/test-utils";
+import { findRepoRoot } from "../../core/scripts/test-utils.js";
 
 const repoDir = findRepoRoot(process.cwd());
 const pkgDir = path.join(repoDir, "packages", "server");

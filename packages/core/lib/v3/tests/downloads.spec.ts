@@ -1,9 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "../v3";
+import { V3 } from "../v3.js";
 import Browserbase from "@browserbasehq/sdk";
 import AdmZip from "adm-zip";
-import { v3DynamicTestConfig } from "./v3.dynamic.config";
-import { closeV3 } from "./testUtils";
+import { v3DynamicTestConfig } from "./v3.dynamic.config.js";
+import { closeV3 } from "./testUtils.js";
 
 const pdfRe = /sample-(\d{13})+\.pdf/;
 test.describe("downloads on browserbase", () => {

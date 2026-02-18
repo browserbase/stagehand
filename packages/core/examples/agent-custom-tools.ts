@@ -3,7 +3,7 @@
  */
 import { z } from "zod";
 import { tool } from "ai";
-import { Stagehand } from "../lib/v3";
+import { Stagehand } from "../lib/v3/index.js";
 import chalk from "chalk";
 
 // Mock weather API, replace with your own API/tool logic

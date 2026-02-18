@@ -1,46 +1,46 @@
 import { Protocol } from "devtools-protocol";
 import { promises as fs } from "fs";
-import { v3Logger } from "../logger";
-import { logAction } from "../flowLogger";
-import type { CDPSessionLike } from "./cdp";
-import { CdpConnection } from "./cdp";
-import { Frame } from "./frame";
-import { FrameLocator } from "./frameLocator";
-import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator";
+import { v3Logger } from "../logger.js";
+import { logAction } from "../flowLogger.js";
+import type { CDPSessionLike } from "./cdp.js";
+import { CdpConnection } from "./cdp.js";
+import { Frame } from "./frame.js";
+import { FrameLocator } from "./frameLocator.js";
+import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator.js";
 import {
   captureHybridSnapshot,
   resolveXpathForLocation,
-} from "./a11y/snapshot";
-import { FrameRegistry } from "./frameRegistry";
-import { executionContexts } from "./executionContextRegistry";
+} from "./a11y/snapshot/index.js";
+import { FrameRegistry } from "./frameRegistry.js";
+import { executionContexts } from "./executionContextRegistry.js";
 import {
   LoadState,
   SnapshotResult,
   PageSnapshotOptions,
-} from "../types/public/page";
-import { NetworkManager } from "./networkManager";
-import { LifecycleWatcher } from "./lifecycleWatcher";
-import { NavigationResponseTracker } from "./navigationResponseTracker";
-import { Response, isSerializableResponse } from "./response";
-import { ConsoleMessage, ConsoleListener } from "./consoleMessage";
-import type { StagehandAPIClient } from "../api";
+} from "../types/public/page.js";
+import { NetworkManager } from "./networkManager.js";
+import { LifecycleWatcher } from "./lifecycleWatcher.js";
+import { NavigationResponseTracker } from "./navigationResponseTracker.js";
+import { Response, isSerializableResponse } from "./response.js";
+import { ConsoleMessage, ConsoleListener } from "./consoleMessage.js";
+import type { StagehandAPIClient } from "../api.js";
 import {
   LocalBrowserLaunchOptions,
   StagehandSnapshotError,
-} from "../types/public";
-import type { Locator } from "./locator";
+} from "../types/public/index.js";
+import type { Locator } from "./locator.js";
 import {
   StagehandInvalidArgumentError,
   StagehandEvalError,
-} from "../types/public/sdkErrors";
-import { normalizeInitScriptSource } from "./initScripts";
-import { buildLocatorInvocation } from "./locatorInvocation";
+} from "../types/public/sdkErrors.js";
+import { normalizeInitScriptSource } from "./initScripts.js";
+import { buildLocatorInvocation } from "./locatorInvocation.js";
 import type {
   ScreenshotAnimationsOption,
   ScreenshotCaretOption,
   ScreenshotOptions,
   ScreenshotScaleOption,
-} from "../types/public/screenshotTypes";
+} from "../types/public/screenshotTypes.js";
 import {
   applyMaskOverlays,
   applyStyleToFrames,
@@ -53,8 +53,8 @@ import {
   setTransparentBackground,
   withScreenshotTimeout,
   type ScreenshotCleanup,
-} from "./screenshotUtils";
-import { InitScriptSource } from "../types/private";
+} from "./screenshotUtils.js";
+import { InitScriptSource } from "../types/private/index.js";
 
 /**
  * Page

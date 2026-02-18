@@ -1,4 +1,4 @@
-import { EvalFunction } from "../types/evals";
+import { EvalFunction } from "../types/evals.js";
 
 export const oopif_in_osr: EvalFunction = async ({
   debugUrl,

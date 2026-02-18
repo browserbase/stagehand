@@ -5,7 +5,7 @@ import { v7 as uuidv7 } from "uuid";
 import path from "node:path";
 import pino from "pino";
 import type { LanguageModelMiddleware } from "ai";
-import type { V3Options } from "./types/public";
+import type { V3Options } from "./types/public/index.js";
 
 // =============================================================================
 // Constants

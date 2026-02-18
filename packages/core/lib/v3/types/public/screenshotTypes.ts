@@ -1,4 +1,4 @@
-import type { Locator } from "../../understudy/locator";
+import type { Locator } from "../../understudy/locator.js";
 
 export type ScreenshotAnimationsOption = "disabled" | "allow";
 export type ScreenshotCaretOption = "hide" | "initial";

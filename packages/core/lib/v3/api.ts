@@ -1,6 +1,6 @@
 import makeFetchCookie from "fetch-cookie";
-import { loadApiKeyFromEnv } from "../utils";
-import { STAGEHAND_VERSION } from "../version";
+import { loadApiKeyFromEnv } from "../utils.js";
+import { STAGEHAND_VERSION } from "../version.js";
 import {
   StagehandAPIError,
   StagehandAPIUnauthorizedError,
@@ -9,7 +9,7 @@ import {
   StagehandResponseParseError,
   StagehandServerError,
   ExperimentalNotConfiguredError,
-} from "./types/public";
+} from "./types/public/index.js";
 import type {
   Action,
   ActResult,
@@ -23,14 +23,14 @@ import type {
   ExtractOptions,
   ObserveOptions,
   Api,
-} from "./types/public";
+} from "./types/public/index.js";
 import type {
   SerializableResponse,
   AgentCacheTransferPayload,
-} from "./types/private";
-import type { ModelConfiguration } from "./types/public/model";
-import { toJsonSchema } from "./zodCompat";
-import type { StagehandZodSchema } from "./zodCompat";
+} from "./types/private/index.js";
+import type { ModelConfiguration } from "./types/public/model.js";
+import { toJsonSchema } from "./zodCompat.js";
+import type { StagehandZodSchema } from "./zodCompat.js";
 
 // =============================================================================
 // Client-specific types (can't be Zod schemas due to functions/Page objects)

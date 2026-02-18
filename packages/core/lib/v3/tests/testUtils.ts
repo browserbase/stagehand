@@ -1,4 +1,4 @@
-import type { V3 } from "../v3";
+import type { V3 } from "../v3.js";
 
 const CLOSE_TIMEOUT_MS = 5_000;
 

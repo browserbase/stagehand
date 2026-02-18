@@ -1,5 +1,5 @@
 import type { Reporter, TestCase } from "@playwright/test/reporter";
-import { getV3DynamicTestConfig } from "./v3.dynamic.config";
+import { getV3DynamicTestConfig } from "./v3.dynamic.config.js";
 
 type ConfigSummary = {
   env?: string;

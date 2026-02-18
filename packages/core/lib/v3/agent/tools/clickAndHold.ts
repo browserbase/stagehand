@@ -1,9 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
-import type { V3 } from "../../v3";
-import type { Action } from "../../types/public/methods";
-import { processCoordinates } from "../utils/coordinateNormalization";
-import { ensureXPath } from "../utils/xpath";
+import type { V3 } from "../../v3.js";
+import type { Action } from "../../types/public/methods.js";
+import { processCoordinates } from "../utils/coordinateNormalization.js";
+import { ensureXPath } from "../utils/xpath.js";
 
 export const clickAndHoldTool = (v3: V3, provider?: string) =>
   tool({

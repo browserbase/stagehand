@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as z3 from "zod/v3";
 import { z as z4 } from "zod";
-import { SupportedUnderstudyAction } from "../lib/v3/types/private/handlers";
+import { SupportedUnderstudyAction } from "../lib/v3/types/private/handlers.js";
 
 /**
  * Tests for Zod v3/v4 compatibility with the SupportedUnderstudyAction enum.

@@ -1,4 +1,4 @@
-import { resolveXPathAtIndex } from "./xpathResolver";
+import { resolveXPathAtIndex } from "./xpathResolver.js";
 
 const parseTargetIndex = (value: unknown): number => {
   const num = Number(value ?? 0);

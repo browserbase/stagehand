@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Browserbase from "@browserbasehq/sdk";
 import WebSocket from "ws";
-import { v3DynamicTestConfig } from "./v3.dynamic.config";
+import { v3DynamicTestConfig } from "./v3.dynamic.config.js";
 
 export type EnvKind = "LOCAL" | "BROWSERBASE";
 export type ScenarioKind = "unhandled" | "close" | "sigterm" | "sigint";

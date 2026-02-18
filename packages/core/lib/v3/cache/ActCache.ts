@@ -1,16 +1,16 @@
 import { createHash } from "crypto";
-import type { ActHandler } from "../handlers/actHandler";
-import type { LLMClient } from "../llm/LLMClient";
-import type { Action, ActResult, Logger } from "../types/public";
-import type { Page } from "../understudy/page";
-import { CacheStorage } from "./CacheStorage";
-import { safeGetPageUrl, waitForCachedSelector } from "./utils";
+import type { ActHandler } from "../handlers/actHandler.js";
+import type { LLMClient } from "../llm/LLMClient.js";
+import type { Action, ActResult, Logger } from "../types/public/index.js";
+import type { Page } from "../understudy/page.js";
+import { CacheStorage } from "./CacheStorage.js";
+import { safeGetPageUrl, waitForCachedSelector } from "./utils.js";
 import {
   ActCacheContext,
   ActCacheDeps,
   CachedActEntry,
-} from "../types/private";
-import { StagehandNotInitializedError } from "../types/public/sdkErrors";
+} from "../types/private/index.js";
+import { StagehandNotInitializedError } from "../types/public/sdkErrors.js";
 
 export class ActCache {
   private readonly storage: CacheStorage;

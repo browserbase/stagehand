@@ -1,4 +1,4 @@
-import { Stagehand } from "../../lib/v3";
+import { Stagehand } from "../../lib/v3/index.js";
 import { z } from "zod";
 
 async function example(stagehand: Stagehand) {

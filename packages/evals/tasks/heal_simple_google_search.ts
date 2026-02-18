@@ -1,4 +1,4 @@
-import { EvalFunction } from "../types/evals";
+import { EvalFunction } from "../types/evals.js";
 
 export const heal_simple_google_search: EvalFunction = async ({
   debugUrl,
