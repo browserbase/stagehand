@@ -370,13 +370,19 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
         },
       ],
       usage: (() => {
-        const u = textResponse.usage;
+        const usage = textResponse.usage;
         return {
-          prompt_tokens: u.inputTokens ?? 0,
-          completion_tokens: u.outputTokens ?? 0,
-          reasoning_tokens: u.outputTokenDetails.reasoningTokens ?? 0,
-          cached_input_tokens: u.inputTokenDetails.cacheReadTokens ?? 0,
-          total_tokens: u.totalTokens ?? 0,
+          prompt_tokens: usage.inputTokens ?? 0,
+          completion_tokens: usage.outputTokens ?? 0,
+          reasoning_tokens:
+            usage.outputTokenDetails?.reasoningTokens ??
+            usage.reasoningTokens ??
+            0,
+          cached_input_tokens:
+            usage.inputTokenDetails?.cacheReadTokens ??
+            usage.cachedInputTokens ??
+            0,
+          total_tokens: usage.totalTokens ?? 0,
         };
       })(),
     } as T;

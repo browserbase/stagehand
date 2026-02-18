@@ -14,7 +14,7 @@ describe("LLM and Agents public API types", () => {
     });
 
     it("constructor accepts model parameter", () => {
-      // AISdkClient constructor takes { model: LanguageModelV2 }
+      // AISdkClient constructor takes { model: LanguageModelV3 }
       type CtorParams = ConstructorParameters<typeof Stagehand.AISdkClient>;
       expectTypeOf<CtorParams["length"]>().toEqualTypeOf<1>();
     });
