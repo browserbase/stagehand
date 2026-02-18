@@ -2214,11 +2214,18 @@ export class Page {
       let done = false;
       let timer: ReturnType<typeof setTimeout> | null = null;
       let pollTimer: ReturnType<typeof setTimeout> | null = null;
+      let pollInFlight = false;
 
       const off = () => {
         this.mainSession.off("Page.lifecycleEvent", onLifecycle);
         this.mainSession.off("Page.domContentEventFired", onDomContent);
         this.mainSession.off("Page.loadEventFired", onLoad);
+      };
+      const clearPollTimer = () => {
+        if (pollTimer) {
+          clearTimeout(pollTimer);
+          pollTimer = null;
+        }
       };
 
       const finish = () => {
@@ -2228,10 +2235,7 @@ export class Page {
           clearTimeout(timer);
           timer = null;
         }
-        if (pollTimer) {
-          clearTimeout(pollTimer);
-          pollTimer = null;
-        }
+        clearPollTimer();
         off();
         resolve();
       };
@@ -2258,27 +2262,33 @@ export class Page {
       // Fallback polling closes lifecycle-event races in remote environments
       // where readyState has advanced but the corresponding event was missed.
       const pollReadyState = async () => {
-        if (done) return;
-        if (
-          (state === "domcontentloaded" || state === "load") &&
-          (await this.isMainLoadStateReady(state))
-        ) {
-          finish();
-          return;
+        if (done || pollInFlight) return;
+        pollInFlight = true;
+        try {
+          if (done) return;
+          if (
+            (state === "domcontentloaded" || state === "load") &&
+            (await this.isMainLoadStateReady(state))
+          ) {
+            finish();
+            return;
+          }
+        } finally {
+          pollInFlight = false;
         }
-        pollTimer = setTimeout(() => {
-          void pollReadyState();
-        }, 100);
+        if (!done) {
+          clearPollTimer();
+          pollTimer = setTimeout(() => {
+            void pollReadyState();
+          }, 100);
+        }
       };
       void pollReadyState();
 
       timer = setTimeout(() => {
         if (done) return;
         done = true;
-        if (pollTimer) {
-          clearTimeout(pollTimer);
-          pollTimer = null;
-        }
+        clearPollTimer();
         off();
         reject(
           new Error(
