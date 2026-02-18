@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { Protocol } from "devtools-protocol";
 import { V3 } from "../v3";
 import { v3DynamicTestConfig } from "./v3.dynamic.config";
+import { closeV3 } from "./testUtils";
 
 test.describe("Text selector innermost element matching", () => {
   let v3: V3;
@@ -12,7 +13,7 @@ test.describe("Text selector innermost element matching", () => {
   });
 
   test.afterEach(async () => {
-    await v3?.close?.().catch(() => {});
+    await closeV3(v3);
   });
 
   test("text selector matches only innermost elements", async () => {

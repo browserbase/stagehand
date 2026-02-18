@@ -1,7 +1,6 @@
-import dotenv from "dotenv";
+import fs from "node:fs";
+import path from "node:path";
 import { chromium } from "playwright";
-
-dotenv.config();
 
 // =============================================================================
 // HTTP Status Codes
@@ -77,20 +76,108 @@ export interface StartSessionResponse {
 }
 
 const SESSION_READY_DELAY_MS = 250;
+const LOCAL_CONNECT_TIMEOUT_MS = (() => {
+  const parsed = Number(process.env.STAGEHAND_TEST_LOCAL_CONNECT_TIMEOUT_MS);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 60_000;
+})();
 
 export interface SessionInfo {
   sessionId: string;
   cdpUrl: string;
 }
 
-const LOCAL_BROWSER_BODY = {
-  browser: {
-    type: "local",
-    launchOptions: {
-      headless: true,
+function createLocalBrowserBody() {
+  const resolveChromePath = (): string => {
+    const explicit = process.env.CHROME_PATH;
+    if (explicit && fs.existsSync(explicit)) {
+      return explicit;
+    }
+    if (explicit) {
+      throw new Error(`CHROME_PATH does not exist: ${explicit}`);
+    }
+
+    const playwrightPath = chromium.executablePath();
+    if (playwrightPath && fs.existsSync(playwrightPath)) {
+      return playwrightPath;
+    }
+
+    throw new Error(
+      "Unable to locate a Chrome executable. Set CHROME_PATH in the test environment.",
+    );
+  };
+
+  return {
+    browser: {
+      type: "local",
+      launchOptions: {
+        headless: true,
+        executablePath: resolveChromePath(),
+        args: process.env.CI ? ["--no-sandbox"] : undefined,
+        connectTimeoutMs: LOCAL_CONNECT_TIMEOUT_MS,
+      },
     },
-  },
-};
+  };
+}
+
+export const LOCAL_BROWSER_BODY = createLocalBrowserBody();
+
+function readLaunchDiagnostics(launchOptions?: {
+  executablePath?: string;
+  args?: string[];
+  headless?: boolean;
+  userDataDir?: string;
+  port?: number;
+  connectTimeoutMs?: number;
+}): string {
+  const diagnostics: string[] = [];
+  const userDataDir = launchOptions?.userDataDir;
+  diagnostics.push("--- launch diagnostics ---");
+  diagnostics.push(`CHROME_PATH env: ${process.env.CHROME_PATH ?? "<unset>"}`);
+  diagnostics.push(`CI env: ${process.env.CI ?? "<unset>"}`);
+  diagnostics.push(`userDataDir: ${userDataDir ?? "<auto>"}`);
+  if (!userDataDir) {
+    diagnostics.push(
+      "chrome stdout/stderr logs unavailable (profile dir auto-managed by server launch)",
+    );
+  } else {
+    diagnostics.push(`userDataDir exists: ${fs.existsSync(userDataDir)}`);
+    if (fs.existsSync(userDataDir)) {
+      const outPath = path.join(userDataDir, "chrome-out.log");
+      const errPath = path.join(userDataDir, "chrome-err.log");
+      if (fs.existsSync(outPath)) {
+        diagnostics.push(
+          `--- chrome stdout ---\n${fs.readFileSync(outPath, "utf8")}`,
+        );
+      }
+      if (fs.existsSync(errPath)) {
+        diagnostics.push(
+          `--- chrome stderr ---\n${fs.readFileSync(errPath, "utf8")}`,
+        );
+      }
+    }
+  }
+  if (launchOptions) {
+    diagnostics.push(
+      `launch.executablePath: ${launchOptions.executablePath ?? "<unset>"}`,
+    );
+    diagnostics.push(
+      `launch.executablePath exists: ${
+        launchOptions.executablePath
+          ? fs.existsSync(launchOptions.executablePath)
+          : false
+      }`,
+    );
+    diagnostics.push(`launch.headless: ${String(launchOptions.headless)}`);
+    diagnostics.push(
+      `launch.args: ${JSON.stringify(launchOptions.args ?? [])}`,
+    );
+    diagnostics.push(`launch.port: ${launchOptions.port ?? "<auto>"}`);
+    diagnostics.push(
+      `launch.connectTimeoutMs: ${launchOptions.connectTimeoutMs ?? "<default>"}`,
+    );
+  }
+  return diagnostics.join("\n");
+}
 
 export async function createSession(
   headers: Record<string, string>,
@@ -103,23 +190,38 @@ export async function createSessionWithCdp(
   headers: Record<string, string>,
 ): Promise<SessionInfo> {
   const url = getBaseUrl();
+  const startPayload = {
+    modelName: "gpt-4.1-nano",
+    ...createLocalBrowserBody(),
+  };
 
   const response = await fetch(`${url}/v1/sessions/start`, {
     method: "POST",
     headers,
-    body: JSON.stringify({
-      modelName: "gpt-4.1-nano",
-      ...LOCAL_BROWSER_BODY,
-    }),
+    body: JSON.stringify(startPayload),
   });
 
-  const body = (await response.json()) as StartSessionResponse;
+  const responseText = await response.text();
+  let parsedBody: unknown = null;
+  try {
+    parsedBody = responseText ? JSON.parse(responseText) : null;
+  } catch {
+    parsedBody = responseText;
+  }
+  const body = parsedBody as StartSessionResponse;
 
-  if (!body.success) {
-    throw new Error(`Failed to create session: ${JSON.stringify(body)}`);
+  if (!response.ok || !body?.success) {
+    const launchDiagnostics = readLaunchDiagnostics(
+      startPayload.browser?.launchOptions,
+    );
+    throw new Error(
+      `Failed to create session (status=${response.status}): ${JSON.stringify(
+        parsedBody,
+      )}\n${launchDiagnostics}`,
+    );
   }
   if (!body.data?.available) {
-    throw new Error("Session not available");
+    throw new Error(`Session not available`);
   }
   if (!body.data.sessionId) {
     throw new Error("No sessionId returned");

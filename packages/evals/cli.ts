@@ -1,11 +1,12 @@
-#!/usr/bin/env node
 import process from "process";
 import chalk from "chalk";
 import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
+import { fileURLToPath } from "node:url";
 
-const CONFIG_PATH = path.join(__dirname, "evals.config.json");
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const CONFIG_PATH = path.join(moduleDir, "evals.config.json");
 
 interface Config {
   defaults: {
@@ -325,6 +326,15 @@ function handleRun(args: string[]): void {
   const { options, target, filters } = parseArgs(args);
 
   // Merge with defaults
+  const stagehandTarget = (process.env.STAGEHAND_BROWSER_TARGET ?? "")
+    .toLowerCase()
+    .trim();
+  if (
+    !options.env &&
+    (stagehandTarget === "local" || stagehandTarget === "browserbase")
+  ) {
+    options.env = stagehandTarget;
+  }
   const finalOptions = { ...config.defaults, ...options };
 
   // Build environment variables
@@ -451,11 +461,16 @@ function handleRun(args: string[]): void {
       process.exit(buildCode || 1);
     }
 
-    const compiledEvalPath = path.join(__dirname, "index.eval.js");
-    // When built to dist/evals/cli.js, __dirname is dist/evals/
+    const compiledEvalPath = path.resolve(
+      moduleDir,
+      "..",
+      "esm",
+      "index.eval.js",
+    );
+    // When built to packages/evals/dist/cli/cli.js, moduleDir is packages/evals/dist/cli/
     // Source is at packages/evals/index.eval.ts from repo root
     const sourceEvalPath = path.resolve(
-      __dirname,
+      moduleDir,
       "..",
       "..",
       "packages",

@@ -203,11 +203,32 @@ const startRouteHandler: RouteHandler = withErrorHandling(
     let finalCdpUrl = connectUrl ?? session.cdpUrl ?? "";
     if (browserType === "local" && browser?.launchOptions && !browser?.cdpUrl) {
       const modelApiKey = getModelApiKey(request);
-      const stagehand = await sessionStore.getOrCreateStagehand(
-        session.sessionId,
-        { modelApiKey },
-      );
-      finalCdpUrl = stagehand.connectURL();
+      try {
+        const stagehand = await sessionStore.getOrCreateStagehand(
+          session.sessionId,
+          { modelApiKey },
+        );
+        finalCdpUrl = stagehand.connectURL();
+      } catch (err) {
+        request.log.error(
+          {
+            err,
+            sessionId: session.sessionId,
+            browserType,
+            chromePathEnv: process.env.CHROME_PATH,
+            launchOptions: {
+              executablePath: browser.launchOptions.executablePath,
+              argsCount: browser.launchOptions.args?.length ?? 0,
+              headless: browser.launchOptions.headless,
+              hasUserDataDir: Boolean(browser.launchOptions.userDataDir),
+              port: browser.launchOptions.port,
+              connectTimeoutMs: browser.launchOptions.connectTimeoutMs,
+            },
+          },
+          "Failed to initialize local browser session in /v1/sessions/start",
+        );
+        throw err;
+      }
     }
 
     return success(reply, {

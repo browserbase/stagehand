@@ -11,6 +11,7 @@ import { LocalBrowserLaunchOptions } from "../types/public";
 import { InitScriptSource } from "../types/private";
 import { normalizeInitScriptSource } from "./initScripts";
 import { TimeoutError, PageNotFoundError } from "../types/public/sdkErrors";
+import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig";
 
 type TargetId = string;
 type SessionId = string;
@@ -95,16 +96,44 @@ export class V3Context {
       localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null;
     },
   ): Promise<V3Context> {
-    const conn = await CdpConnection.connect(wsUrl);
-    const ctx = new V3Context(
-      conn,
-      opts?.env ?? "LOCAL",
-      opts?.apiClient ?? null,
-      opts?.localBrowserLaunchOptions ?? null,
-    );
-    await ctx.bootstrap();
-    await ctx.waitForFirstTopLevelPage(5000);
-    return ctx;
+    const connectTask = async () => {
+      const conn = await CdpConnection.connect(wsUrl);
+      const ctx = new V3Context(
+        conn,
+        opts?.env ?? "LOCAL",
+        opts?.apiClient ?? null,
+        opts?.localBrowserLaunchOptions ?? null,
+      );
+      await ctx.bootstrap();
+      await ctx.waitForFirstTopLevelPage(5000);
+      return ctx;
+    };
+
+    const cdpTimeoutMs =
+      opts?.env === "BROWSERBASE"
+        ? getEnvTimeoutMs("BROWSERBASE_CDP_CONNECT_MAX_MS")
+        : undefined;
+
+    if (cdpTimeoutMs) {
+      let timedOut = false;
+      const connectPromise = connectTask();
+      const guarded = withTimeout(
+        connectPromise,
+        cdpTimeoutMs,
+        "Browserbase CDP connect",
+      ).catch((err) => {
+        timedOut = true;
+        throw err;
+      });
+      connectPromise
+        .then((ctx) => {
+          if (timedOut) void ctx.close();
+        })
+        .catch(() => {});
+      return await guarded;
+    }
+
+    return await connectTask();
   }
 
   /**

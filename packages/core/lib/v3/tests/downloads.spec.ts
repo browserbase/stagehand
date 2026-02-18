@@ -3,6 +3,7 @@ import { V3 } from "../v3";
 import Browserbase from "@browserbasehq/sdk";
 import AdmZip from "adm-zip";
 import { v3DynamicTestConfig } from "./v3.dynamic.config";
+import { closeV3 } from "./testUtils";
 
 const pdfRe = /sample-(\d{13})+\.pdf/;
 test.describe("downloads on browserbase", () => {
@@ -14,13 +15,17 @@ test.describe("downloads on browserbase", () => {
   });
 
   test.afterEach(async () => {
-    await v3?.close?.().catch(() => {});
+    await closeV3(v3);
   });
 
   test("downloaded pdf is available via downloads api", async () => {
+    const browserTarget = (
+      process.env.STAGEHAND_BROWSER_TARGET ?? "local"
+    ).toLowerCase();
+    const isBrowserbase = browserTarget === "browserbase";
     // Skip this test in LOCAL mode as it requires Browserbase session
     test.skip(
-      process.env.TEST_ENV === "LOCAL" || !process.env.TEST_ENV,
+      !isBrowserbase,
       "Skipping Browserbase-only downloads test in LOCAL mode",
     );
 

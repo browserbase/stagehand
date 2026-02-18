@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { V3 } from "../v3";
 import { v3DynamicTestConfig } from "./v3.dynamic.config";
+import { closeV3 } from "./testUtils";
 
 function dataUrl(html: string): string {
   return "data:text/html;charset=utf-8," + encodeURIComponent(html);
@@ -15,7 +16,7 @@ test.describe("V3 keyboard shortcuts and typing", () => {
   });
 
   test.afterEach(async () => {
-    await v3?.close?.().catch(() => {});
+    await closeV3(v3);
   });
 
   test("typing, select-all + delete clears input (Cmd maps cross-OS)", async () => {

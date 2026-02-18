@@ -13,13 +13,13 @@ import * as ai from "ai";
 import { wrapAISDK } from "braintrust";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { ChatCompletion } from "openai/resources";
-import { LogLine } from "@browserbasehq/stagehand/lib/v3/types/public/logs";
-import { AvailableModel } from "@browserbasehq/stagehand/lib/v3/types/public/model";
 import {
+  AvailableModel,
   CreateChatCompletionOptions,
   LLMClient,
-} from "@browserbasehq/stagehand/lib/v3/llm/LLMClient";
-import { toJsonSchema } from "@browserbasehq/stagehand/lib/v3/zodCompat";
+  LogLine,
+  toJsonSchema,
+} from "@browserbasehq/stagehand";
 
 // Wrap AI SDK functions with Braintrust for tracing
 const { generateObject, generateText } = wrapAISDK(ai);

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { V3 } from "../v3";
 import { v3DynamicTestConfig } from "./v3.dynamic.config";
+import { closeV3 } from "./testUtils";
 
 test.describe("Page.waitForTimeout tests", () => {
   let v3: V3;
@@ -11,7 +12,7 @@ test.describe("Page.waitForTimeout tests", () => {
   });
 
   test.afterEach(async () => {
-    await v3?.close?.().catch(() => {});
+    await closeV3(v3);
   });
 
   test("waitForTimeout resolves after specified duration", async () => {

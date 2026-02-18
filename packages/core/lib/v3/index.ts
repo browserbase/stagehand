@@ -30,6 +30,7 @@ export { isZod4Schema, isZod3Schema, toJsonSchema } from "./zodCompat";
 export { connectToMCPServer } from "./mcp/connection";
 export { V3Evaluator } from "../v3Evaluator";
 export { tool } from "ai";
+export { getAISDKLanguageModel } from "./llm/LLMProvider";
 export { __internalCreateInMemoryAgentCacheHandle } from "./cache/serverAgentCache";
 export type { ServerAgentCacheHandle } from "./cache/serverAgentCache";
 

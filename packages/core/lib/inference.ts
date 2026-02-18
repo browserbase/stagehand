@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { LogLine } from "./v3/types/public/logs";
 import { ChatMessage, LLMClient } from "./v3/llm/LLMClient";
+import { getEnvTimeoutMs, withTimeout } from "./v3/timeoutConfig";
 import {
   buildActSystemPrompt,
   buildExtractSystemPrompt,
@@ -16,6 +17,12 @@ import { SupportedUnderstudyAction } from "./v3/types/private/handlers";
 
 // Re-export for backward compatibility
 export type { LLMParsedResponse, LLMUsage } from "./v3/llm/LLMClient";
+
+function withLlmTimeout<T>(promise: Promise<T>, operation: string): Promise<T> {
+  const timeoutMs = getEnvTimeoutMs("LLM_MAX_MS");
+  if (!timeoutMs) return promise;
+  return withTimeout(promise, timeoutMs, `LLM ${operation}`);
+}
 
 export async function extract<T extends StagehandZodObject>({
   instruction,
@@ -74,8 +81,8 @@ export async function extract<T extends StagehandZodObject>({
   }
 
   const extractStartTime = Date.now();
-  const extractionResponse =
-    await llmClient.createChatCompletion<ExtractionResponse>({
+  const extractionResponse = await withLlmTimeout(
+    llmClient.createChatCompletion<ExtractionResponse>({
       options: {
         messages: extractCallMessages,
         response_model: {
@@ -88,7 +95,9 @@ export async function extract<T extends StagehandZodObject>({
         presence_penalty: 0,
       },
       logger,
-    });
+    }),
+    "extract",
+  );
   const extractEndTime = Date.now();
 
   const { data: extractedData, usage: extractUsage } = extractionResponse;
@@ -139,8 +148,8 @@ export async function extract<T extends StagehandZodObject>({
   }
 
   const metadataStartTime = Date.now();
-  const metadataResponse =
-    await llmClient.createChatCompletion<MetadataResponse>({
+  const metadataResponse = await withLlmTimeout(
+    llmClient.createChatCompletion<MetadataResponse>({
       options: {
         messages: metadataCallMessages,
         response_model: {
@@ -153,7 +162,9 @@ export async function extract<T extends StagehandZodObject>({
         presence_penalty: 0,
       },
       logger,
-    });
+    }),
+    "extract metadata",
+  );
   const metadataEndTime = Date.now();
 
   const {

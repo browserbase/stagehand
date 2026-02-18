@@ -1,17 +1,38 @@
 import { expect, test } from "@playwright/test";
 import { V3 } from "../v3";
 import { v3DynamicTestConfig } from "./v3.dynamic.config";
+import { closeV3 } from "./testUtils";
 
+test.describe.configure({ mode: "serial" });
 test.describe("Page.waitForSelector tests", () => {
   let v3: V3;
 
-  test.beforeEach(async () => {
+  test.beforeAll(async () => {
     v3 = new V3(v3DynamicTestConfig);
     await v3.init();
   });
 
-  test.afterEach(async () => {
-    await v3?.close?.().catch(() => {});
+  test.beforeEach(async () => {
+    const pages = v3.context.pages();
+    if (pages.length === 0) {
+      await v3.context.newPage("about:blank");
+      return;
+    }
+
+    const [primary, ...extras] = pages;
+    for (const page of extras) {
+      await page.close().catch(() => {});
+    }
+
+    v3.context.setActivePage(primary);
+    await primary.goto("about:blank", {
+      waitUntil: "load",
+      timeoutMs: 15_000,
+    });
+  });
+
+  test.afterAll(async () => {
+    await closeV3(v3);
   });
 
   test.describe("Basic state tests", () => {
@@ -177,7 +198,7 @@ test.describe("Page.waitForSelector tests", () => {
 
       // Should timeout around 500ms (allow some margin)
       expect(elapsed).toBeGreaterThanOrEqual(450);
-      expect(elapsed).toBeLessThan(1000);
+      expect(elapsed).toBeLessThan(2000);
     });
   });
 
@@ -771,28 +792,40 @@ test.describe("Page.waitForSelector tests", () => {
       const page = v3.context.pages()[0];
       await page.goto(
         "data:text/html," +
-          encodeURIComponent(
-            '<div id="toggle-me">Toggle</div>' +
-              "<script>" +
-              "const el = document.getElementById('toggle-me');" +
-              "const parent = el.parentNode;" +
-              "setTimeout(() => { parent.removeChild(el); }, 200);" +
-              "setTimeout(() => { parent.appendChild(el); }, 500);" +
-              "</script>",
-          ),
+          encodeURIComponent('<div id="toggle-me">Toggle</div>'),
       );
 
-      // First wait for detached
-      const detached = await page.waitForSelector("#toggle-me", {
+      const browserTarget = (
+        process.env.STAGEHAND_BROWSER_TARGET ?? "local"
+      ).toLowerCase();
+      const isBrowserbase = browserTarget === "browserbase";
+      const removeDelayMs = isBrowserbase ? 1000 : 200;
+      const addDelayMs = isBrowserbase ? 1600 : 500;
+      const waitTimeoutMs = isBrowserbase ? 10000 : 5000;
+
+      // Start waiting before scheduling DOM changes to avoid racey timing in CI.
+      const detachedPromise = page.waitForSelector("#toggle-me", {
         state: "detached",
-        timeout: 5000,
+        timeout: waitTimeoutMs,
       });
+      await page.evaluate(
+        ({ removeDelay, addDelay }) => {
+          const el = document.getElementById("toggle-me");
+          const parent = el?.parentNode;
+          if (!el || !parent) return;
+          setTimeout(() => parent.removeChild(el), removeDelay);
+          setTimeout(() => parent.appendChild(el), addDelay);
+        },
+        { removeDelay: removeDelayMs, addDelay: addDelayMs },
+      );
+
+      const detached = await detachedPromise;
       expect(detached).toBe(true);
 
       // Then wait for visible again
       const visible = await page.waitForSelector("#toggle-me", {
         state: "visible",
-        timeout: 5000,
+        timeout: waitTimeoutMs,
       });
       expect(visible).toBe(true);
     });

@@ -29,11 +29,14 @@ import endRoute from "./routes/v1/sessions/_id/end.js";
 import extractRoute from "./routes/v1/sessions/_id/extract.js";
 import navigateRoute from "./routes/v1/sessions/_id/navigate.js";
 import observeRoute from "./routes/v1/sessions/_id/observe.js";
+import replayRoute from "./routes/v1/sessions/_id/replay.js";
 import startRoute from "./routes/v1/sessions/start.js";
 
 // Constants for graceful shutdown
 const READY_WAIT_PERIOD = 10_000; // 10 seconds
 const GRACEFUL_SHUTDOWN_PERIOD = 30_000; // 30 seconds
+
+const usePrettyLogs = process.env.NODE_ENV === "development" && !process.env.CI;
 
 const app = fastify({
   disableRequestLogging: true,
@@ -51,7 +54,7 @@ const app = fastify({
 
     level: process.env.NODE_ENV === "production" ? "info" : "trace",
 
-    ...(process.env.NODE_ENV === "development" && {
+    ...(usePrettyLogs && {
       transport: {
         options: {
           colorize: true,
@@ -240,6 +243,7 @@ const start = async () => {
         instance.route(extractRoute);
         instance.route(navigateRoute);
         instance.route(observeRoute);
+        instance.route(replayRoute);
         instance.route(startRoute);
         instance.route(agentExecuteRoute);
         done();

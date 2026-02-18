@@ -1389,33 +1389,42 @@ export class Page {
       }
     }
 
-    // Synthesize a simple mouse move + press + release sequence
+    // Synthesize a simple mouse move + press + release sequence.
+    // Fire events without waiting between them to keep multi-clicks tight.
     await this.updateCursor(x, y);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseMoved",
-      x,
-      y,
-      button: "none",
-    } as Protocol.Input.DispatchMouseEventRequest);
+    const dispatches: Array<Promise<unknown>> = [];
+    dispatches.push(
+      this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x,
+        y,
+        button: "none",
+      } as Protocol.Input.DispatchMouseEventRequest),
+    );
 
-    // Dispatch mouse pressed and released events for the given click count
     for (let i = 1; i <= clickCount; i++) {
-      await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-        type: "mousePressed",
-        x,
-        y,
-        button,
-        clickCount: i,
-      } as Protocol.Input.DispatchMouseEventRequest);
+      dispatches.push(
+        this.mainSession.send<never>("Input.dispatchMouseEvent", {
+          type: "mousePressed",
+          x,
+          y,
+          button,
+          clickCount: i,
+        } as Protocol.Input.DispatchMouseEventRequest),
+      );
 
-      await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-        type: "mouseReleased",
-        x,
-        y,
-        button,
-        clickCount: i,
-      } as Protocol.Input.DispatchMouseEventRequest);
+      dispatches.push(
+        this.mainSession.send<never>("Input.dispatchMouseEvent", {
+          type: "mouseReleased",
+          x,
+          y,
+          button,
+          clickCount: i,
+        } as Protocol.Input.DispatchMouseEventRequest),
+      );
     }
+
+    await Promise.all(dispatches);
 
     return xpathResult ?? "";
   }
@@ -2154,6 +2163,30 @@ export class Page {
     );
   }
 
+  private async isMainLoadStateReady(
+    state: "domcontentloaded" | "load",
+  ): Promise<boolean> {
+    try {
+      const ctxId = await this.mainWorldExecutionContextId();
+      const { result } =
+        await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
+          "Runtime.evaluate",
+          {
+            expression: "document.readyState",
+            contextId: ctxId,
+            returnByValue: true,
+          },
+        );
+      const readyState = String(result?.value ?? "");
+      if (state === "domcontentloaded") {
+        return readyState === "interactive" || readyState === "complete";
+      }
+      return readyState === "complete";
+    } catch {
+      return false;
+    }
+  }
+
   /**
    * Wait until the **current** main frame reaches a lifecycle state.
    * - Fast path via `document.readyState`.
@@ -2169,38 +2202,30 @@ export class Page {
       .catch(() => {});
 
     // Fast path: check the *current* main frame's readyState.
-    try {
-      const ctxId = await this.mainWorldExecutionContextId();
-      const { result } =
-        await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
-          "Runtime.evaluate",
-          {
-            expression: "document.readyState",
-            contextId: ctxId,
-            returnByValue: true,
-          },
-        );
-      const rs = String(result?.value ?? "");
-      if (
-        (state === "domcontentloaded" &&
-          (rs === "interactive" || rs === "complete")) ||
-        (state === "load" && rs === "complete")
-      ) {
-        return;
-      }
-    } catch {
-      // ignore fast-path failures
+    if (
+      (state === "domcontentloaded" || state === "load") &&
+      (await this.isMainLoadStateReady(state))
+    ) {
+      return;
     }
 
     const wanted = LIFECYCLE_NAME[state];
     return new Promise<void>((resolve, reject) => {
       let done = false;
       let timer: ReturnType<typeof setTimeout> | null = null;
+      let pollTimer: ReturnType<typeof setTimeout> | null = null;
+      let pollInFlight = false;
 
       const off = () => {
         this.mainSession.off("Page.lifecycleEvent", onLifecycle);
         this.mainSession.off("Page.domContentEventFired", onDomContent);
         this.mainSession.off("Page.loadEventFired", onLoad);
+      };
+      const clearPollTimer = () => {
+        if (pollTimer) {
+          clearTimeout(pollTimer);
+          pollTimer = null;
+        }
       };
 
       const finish = () => {
@@ -2210,6 +2235,7 @@ export class Page {
           clearTimeout(timer);
           timer = null;
         }
+        clearPollTimer();
         off();
         resolve();
       };
@@ -2233,9 +2259,36 @@ export class Page {
       this.mainSession.on("Page.domContentEventFired", onDomContent);
       this.mainSession.on("Page.loadEventFired", onLoad);
 
+      // Fallback polling closes lifecycle-event races in remote environments
+      // where readyState has advanced but the corresponding event was missed.
+      const pollReadyState = async () => {
+        if (done || pollInFlight) return;
+        pollInFlight = true;
+        try {
+          if (done) return;
+          if (
+            (state === "domcontentloaded" || state === "load") &&
+            (await this.isMainLoadStateReady(state))
+          ) {
+            finish();
+            return;
+          }
+        } finally {
+          pollInFlight = false;
+        }
+        if (!done) {
+          clearPollTimer();
+          pollTimer = setTimeout(() => {
+            void pollReadyState();
+          }, 100);
+        }
+      };
+      void pollReadyState();
+
       timer = setTimeout(() => {
         if (done) return;
         done = true;
+        clearPollTimer();
         off();
         reject(
           new Error(

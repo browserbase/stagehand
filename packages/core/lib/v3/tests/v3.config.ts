@@ -1,20 +1,13 @@
 import type { V3Options } from "../types/public/options";
-import type { LogLine } from "../types/public/logs";
+import {
+  v3DynamicTestConfig,
+  getV3DynamicTestConfig,
+} from "./v3.dynamic.config";
 
-export const v3TestConfig: V3Options = {
-  env: "LOCAL",
-  localBrowserLaunchOptions: {
-    headless: true,
-    viewport: { width: 1288, height: 711 },
-  },
-  selfHeal: false,
-  verbose: 0,
-  disablePino: true,
-  logger: (line: LogLine) => console.log(line),
-};
+export const v3TestConfig: V3Options = v3DynamicTestConfig;
 
 export function getV3TestConfig(overrides: Partial<V3Options> = {}): V3Options {
-  return { ...v3TestConfig, ...overrides };
+  return getV3DynamicTestConfig(overrides);
 }
 
 export default getV3TestConfig;

@@ -63,7 +63,14 @@ describe("POST /v1/sessions/:id/navigate (V3)", () => {
     assert.ok(contexts.length > 0, "Should have at least one browser context");
     const pages = contexts[0]!.pages();
     assert.ok(pages.length > 0, "Should have at least one page");
-    const pageUrl = pages[0]!.url();
+    const page = pages[0]!;
+    await page
+      .waitForLoadState("domcontentloaded", { timeout: 15_000 })
+      .catch(() => {});
+    await page
+      .waitForURL("**example.com**", { timeout: 15_000 })
+      .catch(() => {});
+    const pageUrl = page.url();
     assert.ok(
       pageUrl.includes("example.com"),
       `Page URL should be example.com, got: ${pageUrl}`,

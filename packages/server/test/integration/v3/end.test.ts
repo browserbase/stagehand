@@ -169,5 +169,14 @@ describe("POST /v1/sessions/:id/end (V3)", () => {
       [HTTP_NOT_FOUND, HTTP_INTERNAL_SERVER_ERROR].includes(ctx.status),
       `Expected 404 or 500, got ${ctx.status}`,
     );
+
+    if (ctx.status === HTTP_INTERNAL_SERVER_ERROR) {
+      assertFetchOk(ctx.body !== null, "Response should have body", ctx);
+      assertFetchOk(
+        ctx.body.message === "An internal server error occurred",
+        "500 responses should return a generic internal error message",
+        ctx,
+      );
+    }
   });
 });

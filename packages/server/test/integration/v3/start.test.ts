@@ -7,6 +7,7 @@ import {
   fetchWithContext,
   getBaseUrl,
   getHeaders,
+  LOCAL_BROWSER_BODY,
   HTTP_BAD_REQUEST,
   HTTP_OK,
 } from "../utils.js";
@@ -54,14 +55,7 @@ function isSuccessResponse(
 
 describe("POST /v1/sessions/start - V3 format", () => {
   const headers = getHeaders("3.0.0");
-  const localBrowser = {
-    browser: {
-      type: "local",
-      launchOptions: {
-        headless: true,
-      },
-    },
-  };
+  const localBrowser = LOCAL_BROWSER_BODY;
 
   it("should start session with modelName string and V3 header", async () => {
     const url = getBaseUrl();

@@ -1,5 +1,5 @@
 import { describe, expectTypeOf, it } from "vitest";
-import * as Stagehand from "../../dist/index.js";
+import * as Stagehand from "@browserbasehq/stagehand";
 
 // Type-level manifest of all expected exported types
 // Since these types don't exist at runtime, we currently need to manually add new publicly exported types

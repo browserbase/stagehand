@@ -9,9 +9,12 @@
  * and generates MDX files for the docs.
  */
 
-const fs = require('fs');
-const path = require('path');
-const https = require('https');
+import fs from "node:fs";
+import path from "node:path";
+import https from "node:https";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // SDK repos configuration
 const SDK_REPOS = {
