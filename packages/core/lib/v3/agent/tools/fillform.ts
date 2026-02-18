@@ -4,7 +4,10 @@ import type { V3 } from "../../v3";
 import type { Action } from "../../types/public/methods";
 import type { AgentModelConfig } from "../../types/public/agent";
 
-export const fillFormTool = (v3: V3, executionModel?: string | AgentModelConfig) =>
+export const fillFormTool = (
+  v3: V3,
+  executionModel?: string | AgentModelConfig,
+) =>
   tool({
     description: `📝 FORM FILL - MULTI-FIELD INPUT TOOL\nFor any form with 2+ inputs/textareas. Faster than individual typing.`,
     inputSchema: z.object({
