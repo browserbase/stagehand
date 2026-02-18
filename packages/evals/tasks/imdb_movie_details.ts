@@ -1,4 +1,4 @@
-import { EvalFunction } from "../types/evals";
+import { EvalFunction } from "../types/evals.js";
 import { z } from "zod";
 
 export const imdb_movie_details: EvalFunction = async ({

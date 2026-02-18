@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
-import { InitScriptSource } from "../types/private";
-import { StagehandInvalidArgumentError } from "../types/public/sdkErrors";
+import { InitScriptSource } from "../types/private/index.js";
+import { StagehandInvalidArgumentError } from "../types/public/sdkErrors.js";
 
 const DEFAULT_CALLER = "context.addInitScript";
 

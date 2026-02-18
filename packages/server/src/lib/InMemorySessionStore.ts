@@ -7,7 +7,7 @@ import type {
   RequestContext,
   SessionCacheConfig,
   SessionStartResult,
-} from "./SessionStore";
+} from "./SessionStore.js";
 
 const DEFAULT_MAX_CAPACITY = 100;
 const DEFAULT_TTL_MS = 0; // 0 = infinite (no TTL-based eviction)

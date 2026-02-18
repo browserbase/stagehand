@@ -1,17 +1,17 @@
 // lib/v3/understudy/context.ts
 import type { Protocol } from "devtools-protocol";
-import { v3Logger } from "../logger";
-import { CdpConnection, CDPSessionLike } from "./cdp";
-import { Page } from "./page";
-import { installV3PiercerIntoSession } from "./piercer";
-import { v3ScriptContent } from "../dom/build/scriptV3Content";
-import { executionContexts } from "./executionContextRegistry";
-import type { StagehandAPIClient } from "../api";
-import { LocalBrowserLaunchOptions } from "../types/public";
-import { InitScriptSource } from "../types/private";
-import { normalizeInitScriptSource } from "./initScripts";
-import { TimeoutError, PageNotFoundError } from "../types/public/sdkErrors";
-import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig";
+import { v3Logger } from "../logger.js";
+import { CdpConnection, CDPSessionLike } from "./cdp.js";
+import { Page } from "./page.js";
+import { installV3PiercerIntoSession } from "./piercer.js";
+import { v3ScriptContent } from "../dom/build/scriptV3Content.js";
+import { executionContexts } from "./executionContextRegistry.js";
+import type { StagehandAPIClient } from "../api.js";
+import { LocalBrowserLaunchOptions } from "../types/public/index.js";
+import { InitScriptSource } from "../types/private/index.js";
+import { normalizeInitScriptSource } from "./initScripts.js";
+import { TimeoutError, PageNotFoundError } from "../types/public/sdkErrors.js";
+import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig.js";
 
 type TargetId = string;
 type SessionId = string;

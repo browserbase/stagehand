@@ -1,4 +1,4 @@
-import { V3 } from "../lib/v3";
+import { V3 } from "../lib/v3/index.js";
 import { z } from "zod";
 
 async function example(v3: V3) {

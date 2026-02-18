@@ -1,4 +1,4 @@
-import type { A11yNode } from "../../../types/private/snapshot";
+import type { A11yNode } from "../../../types/private/snapshot.js";
 
 /**
  * Render a formatted outline (with encoded ids) for the accessibility tree.

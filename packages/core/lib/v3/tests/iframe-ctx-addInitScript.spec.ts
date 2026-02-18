@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "../v3";
-import { v3TestConfig } from "./v3.config";
-import { V3Context } from "../understudy/context";
-import type { Page } from "../understudy/page";
+import { V3 } from "../v3.js";
+import { v3TestConfig } from "./v3.config.js";
+import { V3Context } from "../understudy/context.js";
+import type { Page } from "../understudy/page.js";
 
 const isBrowserbase =
   (process.env.STAGEHAND_BROWSER_TARGET ?? "local").toLowerCase() ===

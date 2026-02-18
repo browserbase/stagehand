@@ -3,7 +3,7 @@ import {
   applyPredicates,
   parseXPathSteps,
   type XPathPredicate,
-} from "../lib/v3/dom/locatorScripts/xpathParser";
+} from "../lib/v3/dom/locatorScripts/xpathParser.js";
 
 describe("parseXPathSteps", () => {
   describe("basic tag parsing", () => {

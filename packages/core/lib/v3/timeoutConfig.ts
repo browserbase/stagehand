@@ -1,4 +1,4 @@
-import { TimeoutError } from "./types/public/sdkErrors";
+import { TimeoutError } from "./types/public/sdkErrors.js";
 
 export function getEnvTimeoutMs(name: string): number | undefined {
   const raw = process.env[name];

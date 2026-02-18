@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { V3 } from "../v3";
-import { v3DynamicTestConfig } from "./v3.dynamic.config";
-import { resolveXpathForLocation } from "../understudy/a11y/snapshot";
-import { executionContexts } from "../understudy/executionContextRegistry";
-import { closeV3 } from "./testUtils";
+import { V3 } from "../v3.js";
+import { v3DynamicTestConfig } from "./v3.dynamic.config.js";
+import { resolveXpathForLocation } from "../understudy/a11y/snapshot/index.js";
+import { executionContexts } from "../understudy/executionContextRegistry.js";
+import { closeV3 } from "./testUtils.js";
 
 test.describe("resolveNodeForLocationDeep", () => {
   let v3: V3;

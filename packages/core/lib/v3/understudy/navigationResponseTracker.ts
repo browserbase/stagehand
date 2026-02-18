@@ -13,9 +13,9 @@
  */
 
 import type { Protocol } from "devtools-protocol";
-import type { CDPSessionLike } from "./cdp";
-import type { Page } from "./page";
-import { Response } from "./response";
+import type { CDPSessionLike } from "./cdp.js";
+import type { Page } from "./page.js";
+import { Response } from "./response.js";
 
 /**
  * Watches CDP events on a given session and resolves with the navigation's

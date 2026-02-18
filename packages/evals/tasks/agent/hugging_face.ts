@@ -1,4 +1,4 @@
-import { EvalFunction } from "../../types/evals";
+import { EvalFunction } from "../../types/evals.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 
 export const hugging_face: EvalFunction = async ({

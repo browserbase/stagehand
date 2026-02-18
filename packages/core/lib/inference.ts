@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { LogLine } from "./v3/types/public/logs";
-import { ChatMessage, LLMClient } from "./v3/llm/LLMClient";
-import { getEnvTimeoutMs, withTimeout } from "./v3/timeoutConfig";
+import { LogLine } from "./v3/types/public/logs.js";
+import { ChatMessage, LLMClient } from "./v3/llm/LLMClient.js";
+import { getEnvTimeoutMs, withTimeout } from "./v3/timeoutConfig.js";
 import {
   buildActSystemPrompt,
   buildExtractSystemPrompt,
@@ -10,13 +10,13 @@ import {
   buildMetadataSystemPrompt,
   buildObserveSystemPrompt,
   buildObserveUserMessage,
-} from "./prompt";
-import { appendSummary, writeTimestampedTxtFile } from "./inferenceLogUtils";
-import type { InferStagehandSchema, StagehandZodObject } from "./v3/zodCompat";
-import { SupportedUnderstudyAction } from "./v3/types/private/handlers";
+} from "./prompt.js";
+import { appendSummary, writeTimestampedTxtFile } from "./inferenceLogUtils.js";
+import type { InferStagehandSchema, StagehandZodObject } from "./v3/zodCompat.js";
+import { SupportedUnderstudyAction } from "./v3/types/private/handlers.js";
 
 // Re-export for backward compatibility
-export type { LLMParsedResponse, LLMUsage } from "./v3/llm/LLMClient";
+export type { LLMParsedResponse, LLMUsage } from "./v3/llm/LLMClient.js";
 
 function withLlmTimeout<T>(promise: Promise<T>, operation: string): Promise<T> {
   const timeoutMs = getEnvTimeoutMs("LLM_MAX_MS");

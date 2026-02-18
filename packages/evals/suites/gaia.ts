@@ -1,9 +1,9 @@
 import path from "path";
 import { fileURLToPath } from "node:url";
-import type { Testcase, EvalInput } from "../types/evals";
+import type { Testcase, EvalInput } from "../types/evals.js";
 import type { AvailableModel } from "@browserbasehq/stagehand";
-import { tasksConfig } from "../taskConfig";
-import { readJsonlFile, parseJsonlRows, applySampling } from "../utils";
+import { tasksConfig } from "../taskConfig.js";
+import { readJsonlFile, parseJsonlRows, applySampling } from "../utils.js";
 
 export const buildGAIATestcases = (models: string[]): Testcase[] => {
   const moduleDir = path.dirname(fileURLToPath(import.meta.url));

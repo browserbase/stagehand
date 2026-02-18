@@ -14,11 +14,11 @@ import type {
   ShutdownSupervisorConfig,
   ShutdownSupervisorHandle,
   ShutdownSupervisorMessage,
-} from "../types/private/shutdown";
+} from "../types/private/shutdown.js";
 import {
   ShutdownSupervisorResolveError,
   ShutdownSupervisorSpawnError,
-} from "../types/private/shutdownErrors";
+} from "../types/private/shutdownErrors.js";
 
 const READY_TIMEOUT_MS = 500;
 const thisDir =

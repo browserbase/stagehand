@@ -1,34 +1,34 @@
 // lib/v3/handlers/extractHandler.ts
-import { extract as runExtract } from "../../inference";
+import { extract as runExtract } from "../../inference.js";
 import {
   getZFactory,
   getZodType,
   injectUrls,
   transformSchema,
-} from "../../utils";
-import { v3Logger } from "../logger";
-import { V3FunctionName } from "../types/public/methods";
-import { captureHybridSnapshot } from "../understudy/a11y/snapshot";
+} from "../../utils.js";
+import { v3Logger } from "../logger.js";
+import { V3FunctionName } from "../types/public/methods.js";
+import { captureHybridSnapshot } from "../understudy/a11y/snapshot/index.js";
 import type { ZodTypeAny } from "zod";
-import { LLMClient } from "../llm/LLMClient";
-import { ExtractHandlerParams } from "../types/private/handlers";
-import { EncodedId, ZodPathSegments } from "../types/private/internal";
-import { defaultExtractSchema, pageTextSchema } from "../types/public/methods";
+import { LLMClient } from "../llm/LLMClient.js";
+import { ExtractHandlerParams } from "../types/private/handlers.js";
+import { EncodedId, ZodPathSegments } from "../types/private/internal.js";
+import { defaultExtractSchema, pageTextSchema } from "../types/public/methods.js";
 import {
   AvailableModel,
   ClientOptions,
   ModelConfiguration,
-} from "../types/public/model";
+} from "../types/public/model.js";
 import {
   StagehandInvalidArgumentError,
   ExtractTimeoutError,
-} from "../types/public/sdkErrors";
-import { createTimeoutGuard } from "./handlerUtils/timeoutGuard";
+} from "../types/public/sdkErrors.js";
+import { createTimeoutGuard } from "./handlerUtils/timeoutGuard.js";
 import type {
   InferStagehandSchema,
   StagehandZodObject,
   StagehandZodSchema,
-} from "../zodCompat";
+} from "../zodCompat.js";
 
 /**
  * Scans the provided Zod schema for any `z.string().url()` fields and

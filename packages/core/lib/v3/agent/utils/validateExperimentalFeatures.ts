@@ -1,8 +1,8 @@
 import {
   ExperimentalNotConfiguredError,
   StagehandInvalidArgumentError,
-} from "../../types/public/sdkErrors";
-import type { AgentConfig, AgentExecuteOptionsBase } from "../../types/public";
+} from "../../types/public/sdkErrors.js";
+import type { AgentConfig, AgentExecuteOptionsBase } from "../../types/public/index.js";
 
 export interface AgentValidationOptions {
   /** Whether experimental mode is enabled */

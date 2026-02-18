@@ -1,16 +1,16 @@
 import type { Protocol } from "devtools-protocol";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { a11yForFrame } from "../lib/v3/understudy/a11y/snapshot/a11yTree";
-import type { AccessibilityTreeResult } from "../lib/v3/types/private";
-import * as focusSelectors from "../lib/v3/understudy/a11y/snapshot/focusSelectors";
-import { MockCDPSession } from "./helpers/mockCDPSession";
-import { executionContexts } from "../lib/v3/understudy/executionContextRegistry";
-import { tryScopedSnapshot } from "../lib/v3/understudy/a11y/snapshot/capture";
-import type { FrameContext, A11yOptions } from "../lib/v3/types/private";
-import type { Page } from "../lib/v3/understudy/page";
-import * as domTree from "../lib/v3/understudy/a11y/snapshot/domTree";
-import * as a11yTree from "../lib/v3/understudy/a11y/snapshot/a11yTree";
-import * as logger from "../lib/v3/logger";
+import { a11yForFrame } from "../lib/v3/understudy/a11y/snapshot/a11yTree.js";
+import type { AccessibilityTreeResult } from "../lib/v3/types/private/index.js";
+import * as focusSelectors from "../lib/v3/understudy/a11y/snapshot/focusSelectors.js";
+import { MockCDPSession } from "./helpers/mockCDPSession.js";
+import { executionContexts } from "../lib/v3/understudy/executionContextRegistry.js";
+import { tryScopedSnapshot } from "../lib/v3/understudy/a11y/snapshot/capture.js";
+import type { FrameContext, A11yOptions } from "../lib/v3/types/private/index.js";
+import type { Page } from "../lib/v3/understudy/page.js";
+import * as domTree from "../lib/v3/understudy/a11y/snapshot/domTree.js";
+import * as a11yTree from "../lib/v3/understudy/a11y/snapshot/a11yTree.js";
+import * as logger from "../lib/v3/logger.js";
 
 const stringType = "string" as Protocol.Accessibility.AXValueType;
 

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "../v3";
-import { v3TestConfig } from "./v3.config";
+import { V3 } from "../v3.js";
+import { v3TestConfig } from "./v3.config.js";
 
 test.describe("Locator.backendNodeId() - CDP DOM node ID", () => {
   let v3: V3;

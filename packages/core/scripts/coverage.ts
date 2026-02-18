@@ -9,8 +9,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn, type ChildProcess } from "node:child_process";
-import { findRepoRoot } from "./test-utils";
-import normalizeV8Coverage from "./normalize-v8-coverage";
+import { findRepoRoot } from "./test-utils.js";
+import normalizeV8Coverage from "./normalize-v8-coverage.js";
 
 const repoRoot = findRepoRoot(process.cwd());
 const command = process.argv[2];

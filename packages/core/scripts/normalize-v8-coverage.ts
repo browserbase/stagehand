@@ -10,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { SourceMapConsumer } from "source-map";
-import { findRepoRoot } from "./test-utils";
+import { findRepoRoot } from "./test-utils.js";
 
 type CoverageRange = {
   startOffset: number;

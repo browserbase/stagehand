@@ -1,13 +1,13 @@
 // lib/v3/handlers/handlerUtils/actHandlerUtils.ts
 import { Protocol } from "devtools-protocol";
-import { Frame } from "../../understudy/frame";
-import { Locator } from "../../understudy/locator";
-import { MouseButton } from "../../types/public/locator";
-import { resolveLocatorWithHops } from "../../understudy/deepLocator";
-import type { Page } from "../../understudy/page";
-import { v3Logger } from "../../logger";
-import { SessionFileLogger } from "../../flowLogger";
-import { StagehandClickError } from "../../types/public/sdkErrors";
+import { Frame } from "../../understudy/frame.js";
+import { Locator } from "../../understudy/locator.js";
+import { MouseButton } from "../../types/public/locator.js";
+import { resolveLocatorWithHops } from "../../understudy/deepLocator.js";
+import type { Page } from "../../understudy/page.js";
+import { v3Logger } from "../../logger.js";
+import { SessionFileLogger } from "../../flowLogger.js";
+import { StagehandClickError } from "../../types/public/sdkErrors.js";
 
 export class UnderstudyCommandException extends Error {
   constructor(message: string) {
