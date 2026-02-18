@@ -3,11 +3,10 @@ import {
   filterCookies,
   normalizeCookieParams,
   cookieMatchesFilter,
-  type Cookie,
-  type CookieParam,
 } from "../lib/v3/understudy/cookies";
 import { MockCDPSession } from "./helpers/mockCDPSession";
 import type { V3Context } from "../lib/v3/understudy/context";
+import { Cookie, CookieParam } from "../lib/v3/types/public/context";
 
 // ---------------------------------------------------------------------------
 // Helpers: mock cookie factory

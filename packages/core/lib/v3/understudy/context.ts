@@ -13,13 +13,15 @@ import { normalizeInitScriptSource } from "./initScripts.js";
 import { TimeoutError, PageNotFoundError } from "../types/public/sdkErrors.js";
 import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig.js";
 import {
-  Cookie,
-  CookieParam,
-  ClearCookieOptions,
   filterCookies,
   normalizeCookieParams,
   cookieMatchesFilter,
 } from "./cookies";
+import {
+  Cookie,
+  ClearCookieOptions,
+  CookieParam,
+} from "../types/public/context";
 
 type TargetId = string;
 type SessionId = string;
