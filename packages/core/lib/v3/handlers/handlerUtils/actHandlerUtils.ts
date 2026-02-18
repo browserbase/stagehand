@@ -123,6 +123,9 @@ export async function performUnderstudyMethod(
         args: { value: JSON.stringify(args), type: "object" },
       },
     });
+    if (e instanceof UnderstudyCommandException) {
+      throw e;
+    }
     throw new UnderstudyCommandException(msg, e);
   } finally {
     SessionFileLogger.logUnderstudyActionCompleted();
