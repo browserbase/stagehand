@@ -158,9 +158,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
         objectResponse = await generateText({
           model: this.model,
           messages: formattedMessages,
-          output: Output.object({
-            schema: options.response_model.schema,
-          }),
+          output: Output.object({ schema: options.response_model.schema }),
           temperature,
           providerOptions: isGPT5
             ? {
