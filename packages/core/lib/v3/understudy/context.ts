@@ -17,11 +17,35 @@ type SessionId = string;
 
 type TargetType = "page" | "iframe" | string;
 
+/**
+ * Returns true when the target's URL points to a document with a real,
+ * pierceable HTML DOM.  We allowlist the small set of schemes that carry
+ * web content rather than trying to blacklist every internal browser scheme
+ * (chrome://, chrome-extension://, devtools://, brave://, edge://, …).
+ */
+function hasInjectableDOM(url: string | undefined): boolean {
+  if (!url || url === "") return true;
+  if (
+    url === "about:blank" ||
+    url === "about:srcdoc" ||
+    url.startsWith("about:blank#")
+  )
+    return true;
+  if (url.startsWith("http://") || url.startsWith("https://")) return true;
+  if (
+    url.startsWith("data:") ||
+    url.startsWith("blob:") ||
+    url.startsWith("file://") ||
+    url.startsWith("filesystem:")
+  )
+    return true;
+  return false;
+}
+
 function isNonWebTarget(info: Protocol.Target.TargetInfo): boolean {
   return (
     (info.type !== "page" && info.type !== "iframe") ||
-    info.url?.startsWith("chrome-extension://") ||
-    info.url?.startsWith("chrome://")
+    !hasInjectableDOM(info.url)
   );
 }
 
