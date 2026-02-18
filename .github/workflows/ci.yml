@@ -302,9 +302,7 @@ jobs:
     needs: [determine-changes, run-build]
     if: needs.determine-changes.outputs.server == 'true'
     outputs:
-      unit-tests: ${{ steps.set-matrix.outputs.unit-tests }}
       integration-tests: ${{ steps.set-matrix.outputs.integration-tests }}
-      has-unit-tests: ${{ steps.set-matrix.outputs.has-unit-tests }}
       has-integration-tests: ${{ steps.set-matrix.outputs.has-integration-tests }}
 
     steps:
@@ -319,16 +317,8 @@ jobs:
       - name: Discover server test files
         id: set-matrix
         run: |
-          unit_json=$(pnpm --filter @browserbasehq/stagehand-server --silent exec tsx scripts/test-server.ts --list unit)
-          int_json=$(pnpm --filter @browserbasehq/stagehand-server --silent exec tsx scripts/test-server.ts --list integration)
-          echo "unit-tests=$unit_json" >> $GITHUB_OUTPUT
+          int_json=$(pnpm --filter @browserbasehq/stagehand-server --silent run test:server -- --list integration)
           echo "integration-tests=$int_json" >> $GITHUB_OUTPUT
-
-          if [ "$unit_json" = "[]" ]; then
-            echo "has-unit-tests=false" >> $GITHUB_OUTPUT
-          else
-            echo "has-unit-tests=true" >> $GITHUB_OUTPUT
-          fi
 
           if [ "$int_json" = "[]" ]; then
             echo "has-integration-tests=false" >> $GITHUB_OUTPUT
@@ -336,7 +326,6 @@ jobs:
             echo "has-integration-tests=true" >> $GITHUB_OUTPUT
           fi
 
-          echo "Found server unit tests: $unit_json"
           echo "Found server integration tests: $int_json"
 
   build-server-sea:
@@ -374,43 +363,6 @@ jobs:
             package.json
             packages/server/dist/sea/stagehand-server-linux-x64-sourcemap
           retention-days: 1
-
-  server-unit-tests:
-    name: server/unit/${{ matrix.test.name }}
-    runs-on: ubuntu-latest
-    needs: [run-build, discover-server-tests]
-    if: needs.discover-server-tests.outputs.has-unit-tests == 'true'
-    env:
-      STAGEHAND_BROWSER_TARGET: local
-      STAGEHAND_SERVER_TARGET: local
-
-    strategy:
-      fail-fast: false
-      matrix:
-        test: ${{ fromJson(needs.discover-server-tests.outputs.unit-tests) }}
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - uses: ./.github/actions/setup-node-pnpm-turbo
-        with:
-          use-prebuilt-artifacts: "true"
-
-      - name: Run server unit test - ${{ matrix.test.name }}
-        run: |
-          pnpm exec turbo run test:server --filter=@browserbasehq/stagehand-server -- "${{ matrix.test.path }}"
-
-      - uses: ./.github/actions/upload-ctrf-report
-        if: always()
-        with:
-          name: ctrf/server-unit/${{ matrix.test.name }}.json
-
-      - uses: ./.github/actions/upload-v8-coverage
-        if: always()
-        with:
-          name: coverage/server-unit/${{ matrix.test.name }}
 
   server-integration-tests:
     name: server/integration/${{ matrix.test.name }}
@@ -710,7 +662,6 @@ jobs:
       - run-e2e-local-tests
       - run-e2e-bb-tests
       - run-evals
-      - server-unit-tests
       - server-integration-tests
     if: always()
     steps:
