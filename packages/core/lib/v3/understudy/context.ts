@@ -10,7 +10,11 @@ import type { StagehandAPIClient } from "../api.js";
 import { LocalBrowserLaunchOptions } from "../types/public/index.js";
 import { InitScriptSource } from "../types/private/index.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
-import { TimeoutError, CookieSetError, PageNotFoundError } from "../types/public/sdkErrors.js";
+import {
+  TimeoutError,
+  CookieSetError,
+  PageNotFoundError,
+} from "../types/public/sdkErrors.js";
 import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig.js";
 import {
   filterCookies,
@@ -872,8 +876,7 @@ export class V3Context {
    * Each cookie must specify either a `url` (from which domain/path/secure are
    * derived) or an explicit `domain` + `path` pair.
    *
-   * Unlike Playwright, we check the CDP success flag for each cookie and throw
-   * if the browser rejects it (Playwright silently ignores failures).
+   * We surface CDP errors if the browser rejects a cookie.
    */
   async addCookies(cookies: CookieParam[]): Promise<void> {
     const normalized = normalizeCookieParams(cookies);
@@ -886,7 +889,7 @@ export class V3Context {
               value: c.value,
               domain: c.domain,
               path: c.path,
-              expires: c.expires,
+              expires: c.expires === -1 ? undefined : c.expires,
               httpOnly: c.httpOnly,
               secure: c.secure,
               sameSite: c.sameSite,
@@ -941,7 +944,7 @@ export class V3Context {
           value: c.value,
           domain: c.domain,
           path: c.path,
-          expires: c.expires,
+          expires: c.expires === -1 ? undefined : c.expires,
           httpOnly: c.httpOnly,
           secure: c.secure,
           sameSite: c.sameSite,
