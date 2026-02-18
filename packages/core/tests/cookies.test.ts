@@ -26,7 +26,7 @@ function makeCookie(overrides: Partial<Cookie> = {}): Cookie {
   };
 }
 
-/** Convert our Cookie type into the shape CDP's Network.getAllCookies returns. */
+/** Convert our Cookie type into the shape CDP's Storage.getCookies returns. */
 function toCdpCookie(c: Cookie) {
   return {
     name: c.name,
@@ -594,13 +594,13 @@ describe("V3Context cookie methods", () => {
   // ---------- cookies() ----------
 
   describe("cookies()", () => {
-    it("returns all cookies from Network.getAllCookies", async () => {
+    it("returns all cookies from Storage.getCookies", async () => {
       const cdpCookies = [
         toCdpCookie(makeCookie({ name: "a", domain: "example.com" })),
         toCdpCookie(makeCookie({ name: "b", domain: "other.com" })),
       ];
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: cdpCookies }),
+        "Storage.getCookies": () => ({ cookies: cdpCookies }),
       });
 
       const result = await ctx.cookies();
@@ -614,7 +614,7 @@ describe("V3Context cookie methods", () => {
         toCdpCookie(makeCookie({ name: "b", domain: "other.com" })),
       ];
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: cdpCookies }),
+        "Storage.getCookies": () => ({ cookies: cdpCookies }),
       });
 
       const result = await ctx.cookies("http://example.com/");
@@ -628,7 +628,7 @@ describe("V3Context cookie methods", () => {
         toCdpCookie(makeCookie({ name: "b", domain: "other.com" })),
       ];
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: cdpCookies }),
+        "Storage.getCookies": () => ({ cookies: cdpCookies }),
       });
 
       const result = await ctx.cookies(["http://other.com/"]);
@@ -642,7 +642,7 @@ describe("V3Context cookie methods", () => {
         sameSite: undefined as string | undefined,
       };
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [cdpCookie] }),
+        "Storage.getCookies": () => ({ cookies: [cdpCookie] }),
       });
 
       const result = await ctx.cookies();
@@ -651,7 +651,7 @@ describe("V3Context cookie methods", () => {
 
     it("returns empty array when browser has no cookies", async () => {
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [] }),
+        "Storage.getCookies": () => ({ cookies: [] }),
       });
       const result = await ctx.cookies();
       expect(result).toEqual([]);
@@ -671,7 +671,7 @@ describe("V3Context cookie methods", () => {
         }),
       );
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [cdpCookie] }),
+        "Storage.getCookies": () => ({ cookies: [cdpCookie] }),
       });
 
       const result = await ctx.cookies();
@@ -690,7 +690,7 @@ describe("V3Context cookie methods", () => {
     it("strips extra CDP fields (size, priority, etc.) from result", async () => {
       const cdpCookie = toCdpCookie(makeCookie({ name: "stripped" }));
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [cdpCookie] }),
+        "Storage.getCookies": () => ({ cookies: [cdpCookie] }),
       });
 
       const result = await ctx.cookies();
@@ -701,15 +701,15 @@ describe("V3Context cookie methods", () => {
       expect(keys).not.toContain("sourcePort");
     });
 
-    it("calls Network.getAllCookies exactly once per invocation", async () => {
+    it("calls Storage.getCookies exactly once per invocation", async () => {
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [] }),
+        "Storage.getCookies": () => ({ cookies: [] }),
       });
 
       await ctx.cookies();
       await ctx.cookies("http://example.com");
 
-      const calls = getMockConn(ctx).callsFor("Network.getAllCookies");
+      const calls = getMockConn(ctx).callsFor("Storage.getCookies");
       expect(calls).toHaveLength(2);
     });
   });
@@ -717,9 +717,9 @@ describe("V3Context cookie methods", () => {
   // ---------- addCookies() ----------
 
   describe("addCookies()", () => {
-    it("sends Network.setCookie for each cookie", async () => {
+    it("sends Storage.setCookies for each cookie", async () => {
       const ctx = makeContext({
-        "Network.setCookie": () => ({ success: true }),
+        "Storage.setCookies": () => ({}),
       });
 
       await ctx.addCookies([
@@ -727,39 +727,38 @@ describe("V3Context cookie methods", () => {
         { name: "b", value: "2", domain: "other.com", path: "/" },
       ]);
 
-      const calls = getMockConn(ctx).callsFor("Network.setCookie");
+      const calls = getMockConn(ctx).callsFor("Storage.setCookies");
       expect(calls).toHaveLength(2);
       expect(calls[0]!.params).toMatchObject({
-        name: "a",
-        domain: "example.com",
+        cookies: [{ name: "a", domain: "example.com" }],
       });
       expect(calls[1]!.params).toMatchObject({
-        name: "b",
-        domain: "other.com",
+        cookies: [{ name: "b", domain: "other.com" }],
       });
     });
 
     it("derives domain/path/secure from url", async () => {
       const ctx = makeContext({
-        "Network.setCookie": () => ({ success: true }),
+        "Storage.setCookies": () => ({}),
       });
 
       await ctx.addCookies([
         { name: "a", value: "1", url: "https://example.com/app/page" },
       ]);
 
-      const calls = getMockConn(ctx).callsFor("Network.setCookie");
+      const calls = getMockConn(ctx).callsFor("Storage.setCookies");
       expect(calls[0]!.params).toMatchObject({
-        name: "a",
-        domain: "example.com",
-        path: "/app/",
-        secure: true,
+        cookies: [
+          { name: "a", domain: "example.com", path: "/app/", secure: true },
+        ],
       });
     });
 
-    it("throws when Network.setCookie returns success: false", async () => {
+    it("throws when Storage.setCookies fails", async () => {
       const ctx = makeContext({
-        "Network.setCookie": () => ({ success: false }),
+        "Storage.setCookies": () => {
+          throw new Error("CDP failure");
+        },
       });
 
       await expect(
@@ -771,7 +770,7 @@ describe("V3Context cookie methods", () => {
 
     it("throws for sameSite None without secure", async () => {
       const ctx = makeContext({
-        "Network.setCookie": () => ({ success: true }),
+        "Storage.setCookies": () => ({}),
       });
 
       await expect(
@@ -790,18 +789,18 @@ describe("V3Context cookie methods", () => {
 
     it("does nothing when passed an empty array", async () => {
       const ctx = makeContext({
-        "Network.setCookie": () => ({ success: true }),
+        "Storage.setCookies": () => ({}),
       });
 
       await ctx.addCookies([]);
 
-      const calls = getMockConn(ctx).callsFor("Network.setCookie");
+      const calls = getMockConn(ctx).callsFor("Storage.setCookies");
       expect(calls).toHaveLength(0);
     });
 
     it("sends all cookie fields to CDP (including optional ones)", async () => {
       const ctx = makeContext({
-        "Network.setCookie": () => ({ success: true }),
+        "Storage.setCookies": () => ({}),
       });
 
       await ctx.addCookies([
@@ -817,26 +816,31 @@ describe("V3Context cookie methods", () => {
         },
       ]);
 
-      const calls = getMockConn(ctx).callsFor("Network.setCookie");
+      const calls = getMockConn(ctx).callsFor("Storage.setCookies");
       expect(calls[0]!.params).toEqual({
-        name: "full",
-        value: "val",
-        domain: "x.com",
-        path: "/p",
-        expires: 9999999999,
-        httpOnly: true,
-        secure: true,
-        sameSite: "Strict",
+        cookies: [
+          {
+            name: "full",
+            value: "val",
+            domain: "x.com",
+            path: "/p",
+            expires: 9999999999,
+            httpOnly: true,
+            secure: true,
+            sameSite: "Strict",
+          },
+        ],
       });
     });
 
     it("stops on first failure and does not continue to remaining cookies", async () => {
       let callCount = 0;
       const ctx = makeContext({
-        "Network.setCookie": () => {
+        "Storage.setCookies": () => {
           callCount++;
           // First succeeds, second fails
-          return { success: callCount <= 1 };
+          if (callCount > 1) throw new Error("CDP failure");
+          return {};
         },
       });
 
@@ -852,9 +856,11 @@ describe("V3Context cookie methods", () => {
       expect(callCount).toBe(2);
     });
 
-    it("error message includes the domain when setCookie fails", async () => {
+    it("error message includes the domain when setCookies fails", async () => {
       const ctx = makeContext({
-        "Network.setCookie": () => ({ success: false }),
+        "Storage.setCookies": () => {
+          throw new Error("CDP failure");
+        },
       });
 
       await expect(
@@ -880,159 +886,124 @@ describe("V3Context cookie methods", () => {
       ),
     ];
 
-    it("uses atomic Network.clearBrowserCookies when called with no options", async () => {
+    it("uses atomic Storage.clearCookies when called with no options", async () => {
       const ctx = makeContext({
-        "Network.clearBrowserCookies": () => ({}),
+        "Storage.clearCookies": () => ({}),
       });
 
       await ctx.clearCookies();
 
-      const clearCalls = getMockConn(ctx).callsFor(
-        "Network.clearBrowserCookies",
-      );
+      const clearCalls = getMockConn(ctx).callsFor("Storage.clearCookies");
       expect(clearCalls).toHaveLength(1);
 
-      // Should NOT have fetched or individually deleted anything
-      const getCalls = getMockConn(ctx).callsFor("Network.getAllCookies");
+      // Should NOT have fetched or re-set anything
+      const getCalls = getMockConn(ctx).callsFor("Storage.getCookies");
       expect(getCalls).toHaveLength(0);
-      const deleteCalls = getMockConn(ctx).callsFor("Network.deleteCookies");
-      expect(deleteCalls).toHaveLength(0);
+      const setCalls = getMockConn(ctx).callsFor("Storage.setCookies");
+      expect(setCalls).toHaveLength(0);
     });
 
-    it("deletes only cookies matching a name filter", async () => {
+    it("clears and re-adds only non-matching cookies (name filter)", async () => {
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [...cdpCookies] }),
-        "Network.deleteCookies": () => ({}),
+        "Storage.getCookies": () => ({ cookies: [...cdpCookies] }),
+        "Storage.clearCookies": () => ({}),
+        "Storage.setCookies": () => ({}),
       });
 
       await ctx.clearCookies({ name: "_ga" });
 
-      const deleteCalls = getMockConn(ctx).callsFor("Network.deleteCookies");
-      expect(deleteCalls).toHaveLength(1);
-      expect(deleteCalls[0]!.params).toMatchObject({ name: "_ga" });
+      const clearCalls = getMockConn(ctx).callsFor("Storage.clearCookies");
+      expect(clearCalls).toHaveLength(1);
+
+      const setCalls = getMockConn(ctx).callsFor("Storage.setCookies");
+      expect(setCalls).toHaveLength(1);
+      const kept = (
+        setCalls[0]!.params?.cookies as Array<{ name: string }>
+      ).map((c) => c.name);
+      expect(kept).toEqual(["session", "pref"]);
     });
 
-    it("deletes only cookies matching a domain filter", async () => {
+    it("clears and re-adds only non-matching cookies (domain filter)", async () => {
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [...cdpCookies] }),
-        "Network.deleteCookies": () => ({}),
+        "Storage.getCookies": () => ({ cookies: [...cdpCookies] }),
+        "Storage.clearCookies": () => ({}),
+        "Storage.setCookies": () => ({}),
       });
 
       await ctx.clearCookies({ domain: "other.com" });
 
-      const deleteCalls = getMockConn(ctx).callsFor("Network.deleteCookies");
-      expect(deleteCalls).toHaveLength(1);
-      expect(deleteCalls[0]!.params).toMatchObject({
-        name: "pref",
-        domain: "other.com",
-      });
+      const setCalls = getMockConn(ctx).callsFor("Storage.setCookies");
+      const kept = (
+        setCalls[0]!.params?.cookies as Array<{ name: string }>
+      ).map((c) => c.name);
+      expect(kept).toEqual(["session", "_ga"]);
     });
 
-    it("deletes cookies matching a regex pattern", async () => {
+    it("clears and re-adds only non-matching cookies (regex name)", async () => {
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [...cdpCookies] }),
-        "Network.deleteCookies": () => ({}),
+        "Storage.getCookies": () => ({ cookies: [...cdpCookies] }),
+        "Storage.clearCookies": () => ({}),
+        "Storage.setCookies": () => ({}),
       });
 
       await ctx.clearCookies({ name: /^_ga/ });
 
-      const deleteCalls = getMockConn(ctx).callsFor("Network.deleteCookies");
-      expect(deleteCalls).toHaveLength(1);
-      expect(deleteCalls[0]!.params).toMatchObject({ name: "_ga" });
+      const setCalls = getMockConn(ctx).callsFor("Storage.setCookies");
+      const kept = (
+        setCalls[0]!.params?.cookies as Array<{ name: string }>
+      ).map((c) => c.name);
+      expect(kept).toEqual(["session", "pref"]);
     });
 
     it("applies AND logic across multiple filters", async () => {
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [...cdpCookies] }),
-        "Network.deleteCookies": () => ({}),
+        "Storage.getCookies": () => ({ cookies: [...cdpCookies] }),
+        "Storage.clearCookies": () => ({}),
+        "Storage.setCookies": () => ({}),
       });
 
-      // name matches "session" AND domain matches "example.com"
       await ctx.clearCookies({ name: "session", domain: "example.com" });
 
-      const deleteCalls = getMockConn(ctx).callsFor("Network.deleteCookies");
-      expect(deleteCalls).toHaveLength(1);
-      expect(deleteCalls[0]!.params).toMatchObject({
-        name: "session",
-        domain: "example.com",
-      });
+      const setCalls = getMockConn(ctx).callsFor("Storage.setCookies");
+      const kept = (
+        setCalls[0]!.params?.cookies as Array<{ name: string }>
+      ).map((c) => c.name);
+      expect(kept).toEqual(["_ga", "pref"]);
     });
 
-    it("does not delete non-matching cookies (no nuke-and-re-add)", async () => {
+    it("does nothing when filter matches no cookies", async () => {
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [...cdpCookies] }),
-        "Network.deleteCookies": () => ({}),
-        "Network.setCookie": () => ({ success: true }),
-      });
-
-      await ctx.clearCookies({ name: "session" });
-
-      // Should NOT have called setCookie (no re-add needed)
-      const setCalls = getMockConn(ctx).callsFor("Network.setCookie");
-      expect(setCalls).toHaveLength(0);
-
-      // Should only have deleted the one matching cookie
-      const deleteCalls = getMockConn(ctx).callsFor("Network.deleteCookies");
-      expect(deleteCalls).toHaveLength(1);
-    });
-
-    it("handles empty cookie jar gracefully (atomic clear)", async () => {
-      const ctx = makeContext({
-        "Network.clearBrowserCookies": () => ({}),
-      });
-
-      await ctx.clearCookies();
-
-      // Atomic clear doesn't care whether cookies exist — just fires once
-      const clearCalls = getMockConn(ctx).callsFor(
-        "Network.clearBrowserCookies",
-      );
-      expect(clearCalls).toHaveLength(1);
-    });
-
-    it("deletes nothing when filter matches no cookies", async () => {
-      const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [...cdpCookies] }),
-        "Network.deleteCookies": () => ({}),
+        "Storage.getCookies": () => ({ cookies: [...cdpCookies] }),
+        "Storage.clearCookies": () => ({}),
+        "Storage.setCookies": () => ({}),
       });
 
       await ctx.clearCookies({ name: "nonexistent" });
 
-      const deleteCalls = getMockConn(ctx).callsFor("Network.deleteCookies");
-      expect(deleteCalls).toHaveLength(0);
+      const clearCalls = getMockConn(ctx).callsFor("Storage.clearCookies");
+      expect(clearCalls).toHaveLength(0);
+      const setCalls = getMockConn(ctx).callsFor("Storage.setCookies");
+      expect(setCalls).toHaveLength(0);
     });
 
-    it("sends correct domain and path for each deleted cookie (selective)", async () => {
+    it("clears without re-adding when filter matches all cookies", async () => {
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [...cdpCookies] }),
-        "Network.deleteCookies": () => ({}),
+        "Storage.getCookies": () => ({ cookies: [...cdpCookies] }),
+        "Storage.clearCookies": () => ({}),
+        "Storage.setCookies": () => ({}),
       });
 
-      // Use a regex that matches all three to exercise the selective path
       await ctx.clearCookies({ name: /.*/ });
 
-      const deleteCalls = getMockConn(ctx).callsFor("Network.deleteCookies");
-      expect(deleteCalls).toHaveLength(3);
-      expect(deleteCalls[0]!.params).toMatchObject({
-        name: "session",
-        domain: "example.com",
-        path: "/",
-      });
-      expect(deleteCalls[1]!.params).toMatchObject({
-        name: "_ga",
-        domain: ".example.com",
-        path: "/",
-      });
-      expect(deleteCalls[2]!.params).toMatchObject({
-        name: "pref",
-        domain: "other.com",
-        path: "/settings",
-      });
+      const clearCalls = getMockConn(ctx).callsFor("Storage.clearCookies");
+      expect(clearCalls).toHaveLength(1);
+      const setCalls = getMockConn(ctx).callsFor("Storage.setCookies");
+      expect(setCalls).toHaveLength(0);
     });
 
     it("handles regex that matches multiple cookies", async () => {
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({
+        "Storage.getCookies": () => ({
           cookies: [
             toCdpCookie(
               makeCookie({ name: "_ga_ABC", domain: "example.com", path: "/" }),
@@ -1048,45 +1019,45 @@ describe("V3Context cookie methods", () => {
             ),
           ],
         }),
-        "Network.deleteCookies": () => ({}),
+        "Storage.clearCookies": () => ({}),
+        "Storage.setCookies": () => ({}),
       });
 
       await ctx.clearCookies({ name: /^_ga/ });
 
-      const deleteCalls = getMockConn(ctx).callsFor("Network.deleteCookies");
-      expect(deleteCalls).toHaveLength(2);
-      const deletedNames = deleteCalls.map((c) => c.params?.name);
-      expect(deletedNames).toContain("_ga_ABC");
-      expect(deletedNames).toContain("_ga_DEF");
-      expect(deletedNames).not.toContain("_gid");
-      expect(deletedNames).not.toContain("session");
+      const setCalls = getMockConn(ctx).callsFor("Storage.setCookies");
+      const kept = (
+        setCalls[0]!.params?.cookies as Array<{ name: string }>
+      ).map((c) => c.name);
+      expect(kept).toContain("_gid");
+      expect(kept).toContain("session");
+      expect(kept).not.toContain("_ga_ABC");
+      expect(kept).not.toContain("_ga_DEF");
     });
 
     it("regex domain filter combined with path filter", async () => {
       const ctx = makeContext({
-        "Network.getAllCookies": () => ({ cookies: [...cdpCookies] }),
-        "Network.deleteCookies": () => ({}),
+        "Storage.getCookies": () => ({ cookies: [...cdpCookies] }),
+        "Storage.clearCookies": () => ({}),
+        "Storage.setCookies": () => ({}),
       });
 
-      // Match domain containing "example" AND path "/settings"
-      // Only "pref" has path "/settings" but domain is "other.com" — no match
-      // No cookie has both domain matching /example/ AND path "/settings"
       await ctx.clearCookies({ domain: /example/, path: "/settings" });
 
-      const deleteCalls = getMockConn(ctx).callsFor("Network.deleteCookies");
-      expect(deleteCalls).toHaveLength(0);
+      const clearCalls = getMockConn(ctx).callsFor("Storage.clearCookies");
+      expect(clearCalls).toHaveLength(0);
+      const setCalls = getMockConn(ctx).callsFor("Storage.setCookies");
+      expect(setCalls).toHaveLength(0);
     });
 
     it("clearCookies with empty options object uses atomic clear (same as no args)", async () => {
       const ctx = makeContext({
-        "Network.clearBrowserCookies": () => ({}),
+        "Storage.clearCookies": () => ({}),
       });
 
       await ctx.clearCookies({});
 
-      const clearCalls = getMockConn(ctx).callsFor(
-        "Network.clearBrowserCookies",
-      );
+      const clearCalls = getMockConn(ctx).callsFor("Storage.clearCookies");
       expect(clearCalls).toHaveLength(1);
     });
   });

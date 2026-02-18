@@ -850,7 +850,7 @@ export class V3Context {
 
     const { cookies } = await this.conn.send<{
       cookies: Protocol.Network.Cookie[];
-    }>("Network.getAllCookies");
+    }>("Storage.getCookies");
 
     const mapped: Cookie[] = cookies.map((c) => ({
       name: c.name,
@@ -878,23 +878,27 @@ export class V3Context {
   async addCookies(cookies: CookieParam[]): Promise<void> {
     const normalized = normalizeCookieParams(cookies);
     for (const c of normalized) {
-      const { success } = await this.conn.send<{ success: boolean }>(
-        "Network.setCookie",
-        {
-          name: c.name,
-          value: c.value,
-          domain: c.domain,
-          path: c.path,
-          expires: c.expires,
-          httpOnly: c.httpOnly,
-          secure: c.secure,
-          sameSite: c.sameSite,
-        },
-      );
-      if (!success) {
+      try {
+        await this.conn.send("Storage.setCookies", {
+          cookies: [
+            {
+              name: c.name,
+              value: c.value,
+              domain: c.domain,
+              path: c.path,
+              expires: c.expires,
+              httpOnly: c.httpOnly,
+              secure: c.secure,
+              sameSite: c.sameSite,
+            },
+          ],
+        });
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
         throw new CookieSetError(
           `Failed to set cookie "${c.name}" for domain "${c.domain ?? "(unknown)"}" — ` +
-            `the browser rejected it. Check that the domain, path, and secure/sameSite values are valid.`,
+            `the browser rejected it. Check that the domain, path, and secure/sameSite values are valid.` +
+            (detail ? ` (CDP error: ${detail})` : ""),
         );
       }
     }
@@ -904,10 +908,11 @@ export class V3Context {
    * Clear cookies from the browser context.
    *
    * - Called with no arguments: clears **all** cookies atomically via
-   *   `Network.clearBrowserCookies` (single CDP call, no race condition).
-   * - Called with filter options: only cookies matching every supplied criterion
-   *   are removed via targeted `Network.deleteCookies` calls — non-matching
-   *   cookies are never touched (improvement over Playwright's nuke-and-re-add).
+   *   `Storage.clearCookies`.
+   * - Called with filter options: fetches all cookies, clears everything,
+   *   then re-adds only the cookies that do NOT match the filter via
+   *   `Storage.setCookies`. This is necessary on the browser endpoint because
+   *   the Storage domain does not support targeted deletes.
    */
   async clearCookies(options?: ClearCookieOptions): Promise<void> {
     const hasFilter =
@@ -917,19 +922,30 @@ export class V3Context {
 
     if (!hasFilter) {
       // Atomic single-call wipe — no race condition, no O(N) roundtrips.
-      await this.conn.send("Network.clearBrowserCookies");
+      await this.conn.send("Storage.clearCookies");
       return;
     }
 
-    // Selective: fetch all, delete only the matching ones.
     const current = await this.cookies();
-    const toDelete = current.filter((c) => cookieMatchesFilter(c, options!));
+    const toKeep = current.filter((c) => !cookieMatchesFilter(c, options!));
 
-    for (const c of toDelete) {
-      await this.conn.send("Network.deleteCookies", {
-        name: c.name,
-        domain: c.domain,
-        path: c.path,
+    if (toKeep.length === current.length) return;
+
+    // Storage domain doesn't support targeted deletes on the browser endpoint.
+    // Clear everything, then re-add only the cookies we're keeping.
+    await this.conn.send("Storage.clearCookies");
+    if (toKeep.length) {
+      await this.conn.send("Storage.setCookies", {
+        cookies: toKeep.map((c) => ({
+          name: c.name,
+          value: c.value,
+          domain: c.domain,
+          path: c.path,
+          expires: c.expires,
+          httpOnly: c.httpOnly,
+          secure: c.secure,
+          sameSite: c.sameSite,
+        })),
       });
     }
   }
