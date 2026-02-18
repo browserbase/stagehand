@@ -60,6 +60,7 @@ export const publicErrorTypes = {
   ActTimeoutError: Stagehand.ActTimeoutError,
   ObserveTimeoutError: Stagehand.ObserveTimeoutError,
   ExtractTimeoutError: Stagehand.ExtractTimeoutError,
+  UnderstudyCommandException: Stagehand.UnderstudyCommandException,
 } as const;
 
 const errorTypes = Object.keys(publicErrorTypes) as Array<
