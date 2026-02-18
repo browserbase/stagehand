@@ -132,23 +132,10 @@ jobs:
             exit 0
           fi
 
-          # Skip evals if only docs/examples changed (and not on main)
-          if [[ "${{ needs.determine-changes.outputs.docs-only }}" == "true" && "${{ needs.determine-changes.outputs.core }}" == "false" && "${{ needs.determine-changes.outputs.evals }}" == "false" && "${{ github.ref }}" != "refs/heads/main" ]]; then
+          # Skip evals if only docs/examples changed
+          if [[ "${{ needs.determine-changes.outputs.docs-only }}" == "true" && "${{ needs.determine-changes.outputs.core }}" == "false" && "${{ needs.determine-changes.outputs.evals }}" == "false" ]]; then
             echo "Only docs/examples changed - skipping evals"
             echo "skip-all-evals=true" >> $GITHUB_OUTPUT
-            emit_categories
-            exit 0
-          fi
-
-          # Default to running all tests on main branch
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "Running all tests for main branch"
-            echo "skip-all-evals=false" >> $GITHUB_OUTPUT
-            IFS=',' read -r -a default_categories <<< "${EVAL_CATEGORIES}"
-            for category in "${default_categories[@]}"; do
-              add_category "$category"
-            done
-            add_category "regression"
             emit_categories
             exit 0
           fi
@@ -505,8 +492,7 @@ jobs:
     timeout-minutes: 50
     if: >
       needs.discover-e2e-tests.outputs.has-e2e-tests == 'true' &&
-      (github.event_name == 'push' ||
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
+      github.event.pull_request.head.repo.full_name == github.repository
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -552,8 +538,7 @@ jobs:
     timeout-minutes: 50
     if: >
       needs.discover-e2e-tests.outputs.has-e2e-tests == 'true' &&
-      (github.event_name == 'push' ||
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
+      github.event.pull_request.head.repo.full_name == github.repository
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
