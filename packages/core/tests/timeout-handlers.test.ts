@@ -208,7 +208,8 @@ describe("ActHandler two-step timeout", () => {
     } as ReturnType<typeof actInference> extends Promise<infer T> ? T : never);
 
     const diffCombinedTreesMock = vi.mocked(
-      (await import("../lib/v3/understudy/a11y/snapshot/index.js")).diffCombinedTrees,
+      (await import("../lib/v3/understudy/a11y/snapshot/index.js"))
+        .diffCombinedTrees,
     );
     diffCombinedTreesMock.mockReturnValue("diff tree");
 

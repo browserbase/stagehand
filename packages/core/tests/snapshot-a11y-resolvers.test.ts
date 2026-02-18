@@ -6,7 +6,10 @@ import * as focusSelectors from "../lib/v3/understudy/a11y/snapshot/focusSelecto
 import { MockCDPSession } from "./helpers/mockCDPSession.js";
 import { executionContexts } from "../lib/v3/understudy/executionContextRegistry.js";
 import { tryScopedSnapshot } from "../lib/v3/understudy/a11y/snapshot/capture.js";
-import type { FrameContext, A11yOptions } from "../lib/v3/types/private/index.js";
+import type {
+  FrameContext,
+  A11yOptions,
+} from "../lib/v3/types/private/index.js";
 import type { Page } from "../lib/v3/understudy/page.js";
 import * as domTree from "../lib/v3/understudy/a11y/snapshot/domTree.js";
 import * as a11yTree from "../lib/v3/understudy/a11y/snapshot/a11yTree.js";

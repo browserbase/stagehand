@@ -12,7 +12,10 @@ import {
   buildObserveUserMessage,
 } from "./prompt.js";
 import { appendSummary, writeTimestampedTxtFile } from "./inferenceLogUtils.js";
-import type { InferStagehandSchema, StagehandZodObject } from "./v3/zodCompat.js";
+import type {
+  InferStagehandSchema,
+  StagehandZodObject,
+} from "./v3/zodCompat.js";
 import { SupportedUnderstudyAction } from "./v3/types/private/handlers.js";
 
 // Re-export for backward compatibility

@@ -29,7 +29,11 @@ import type {
 import type { Page } from "../understudy/page.js";
 import type { V3Context } from "../understudy/context.js";
 import { CacheStorage } from "./CacheStorage.js";
-import { cloneForCache, safeGetPageUrl, waitForCachedSelector } from "./utils.js";
+import {
+  cloneForCache,
+  safeGetPageUrl,
+  waitForCachedSelector,
+} from "./utils.js";
 
 const SENSITIVE_CONFIG_KEYS = new Set(["apikey", "api_key", "api-key"]);
 

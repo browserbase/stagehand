@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { FrameContext, FrameDomMaps } from "../lib/v3/types/private/index.js";
+import type {
+  FrameContext,
+  FrameDomMaps,
+} from "../lib/v3/types/private/index.js";
 import type { Page } from "../lib/v3/understudy/page.js";
 import { MockCDPSession } from "./helpers/mockCDPSession.js";
 import {

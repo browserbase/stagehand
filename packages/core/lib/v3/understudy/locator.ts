@@ -9,7 +9,10 @@ import {
   locatorScriptSources,
 } from "../dom/build/locatorScripts.generated.js";
 import type { Frame } from "./frame.js";
-import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver.js";
+import {
+  FrameSelectorResolver,
+  type SelectorQuery,
+} from "./selectorResolver.js";
 import {
   StagehandElementNotFoundError,
   StagehandInvalidArgumentError,

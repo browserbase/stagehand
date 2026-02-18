@@ -4,7 +4,10 @@ export { V3 as Stagehand } from "./v3.js";
 export * from "./types/public/index.js";
 export { AnnotatedScreenshotText, LLMClient } from "./llm/LLMClient.js";
 
-export { AgentProvider, modelToAgentProviderMap } from "./agent/AgentProvider.js";
+export {
+  AgentProvider,
+  modelToAgentProviderMap,
+} from "./agent/AgentProvider.js";
 export type {
   AgentTools,
   AgentToolTypesMap,

@@ -13,7 +13,10 @@ import type { ZodTypeAny } from "zod";
 import { LLMClient } from "../llm/LLMClient.js";
 import { ExtractHandlerParams } from "../types/private/handlers.js";
 import { EncodedId, ZodPathSegments } from "../types/private/internal.js";
-import { defaultExtractSchema, pageTextSchema } from "../types/public/methods.js";
+import {
+  defaultExtractSchema,
+  pageTextSchema,
+} from "../types/public/methods.js";
 import {
   AvailableModel,
   ClientOptions,

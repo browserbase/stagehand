@@ -2,7 +2,10 @@ import type { Protocol } from "devtools-protocol";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CDPSessionLike } from "../lib/v3/understudy/cdp.js";
 import type { Page } from "../lib/v3/understudy/page.js";
-import type { FrameContext, SessionDomIndex } from "../lib/v3/types/private/index.js";
+import type {
+  FrameContext,
+  SessionDomIndex,
+} from "../lib/v3/types/private/index.js";
 import * as capture from "../lib/v3/understudy/a11y/snapshot/capture.js";
 import * as a11yTree from "../lib/v3/understudy/a11y/snapshot/a11yTree.js";
 import * as domTree from "../lib/v3/understudy/a11y/snapshot/domTree.js";
