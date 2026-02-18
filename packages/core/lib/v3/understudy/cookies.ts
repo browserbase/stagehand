@@ -3,6 +3,7 @@ import {
   CookieParam,
   ClearCookieOptions,
 } from "../types/public/context";
+import { CookieValidationError } from "../types/public/sdkErrors";
 
 /**
  * helpers for browser cookie management.
@@ -43,22 +44,22 @@ export function filterCookies(cookies: Cookie[], urls: string[]): Cookie[] {
 export function normalizeCookieParams(cookies: CookieParam[]): CookieParam[] {
   return cookies.map((c) => {
     if (!c.url && !(c.domain && c.path)) {
-      throw new Error(
+      throw new CookieValidationError(
         `Cookie "${c.name}" must have a url or a domain/path pair`,
       );
     }
     if (c.url && c.domain) {
-      throw new Error(
+      throw new CookieValidationError(
         `Cookie "${c.name}" should have either url or domain, not both`,
       );
     }
     if (c.url && c.path) {
-      throw new Error(
+      throw new CookieValidationError(
         `Cookie "${c.name}" should have either url or path, not both`,
       );
     }
     if (c.expires !== undefined && c.expires < 0 && c.expires !== -1) {
-      throw new Error(
+      throw new CookieValidationError(
         `Cookie "${c.name}" has an invalid expires value; use -1 for session cookies or a positive unix timestamp`,
       );
     }
@@ -66,10 +67,14 @@ export function normalizeCookieParams(cookies: CookieParam[]): CookieParam[] {
     const copy = { ...c };
     if (copy.url) {
       if (copy.url === "about:blank") {
-        throw new Error(`Blank page cannot have cookie "${c.name}"`);
+        throw new CookieValidationError(
+          `Blank page cannot have cookie "${c.name}"`,
+        );
       }
       if (copy.url.startsWith("data:")) {
-        throw new Error(`Data URL page cannot have cookie "${c.name}"`);
+        throw new CookieValidationError(
+          `Data URL page cannot have cookie "${c.name}"`,
+        );
       }
       const url = new URL(copy.url);
       copy.domain = url.hostname;
@@ -83,7 +88,7 @@ export function normalizeCookieParams(cookies: CookieParam[]): CookieParam[] {
     // Use !copy.secure to catch both explicit false AND undefined (omitted),
     // since CDP defaults secure to false when omitted.
     if (copy.sameSite === "None" && !copy.secure) {
-      throw new Error(
+      throw new CookieValidationError(
         `Cookie "${c.name}" has sameSite: "None" without secure: true. ` +
           `Browsers require secure: true when sameSite is "None".`,
       );

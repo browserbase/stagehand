@@ -10,7 +10,7 @@ import type { StagehandAPIClient } from "../api.js";
 import { LocalBrowserLaunchOptions } from "../types/public/index.js";
 import { InitScriptSource } from "../types/private/index.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
-import { TimeoutError, PageNotFoundError } from "../types/public/sdkErrors.js";
+import { TimeoutError, CookieSetError, PageNotFoundError } from "../types/public/sdkErrors.js";
 import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig.js";
 import {
   filterCookies,
@@ -892,7 +892,7 @@ export class V3Context {
         },
       );
       if (!success) {
-        throw new Error(
+        throw new CookieSetError(
           `Failed to set cookie "${c.name}" for domain "${c.domain ?? "(unknown)"}" — ` +
             `the browser rejected it. Check that the domain, path, and secure/sameSite values are valid.`,
         );
