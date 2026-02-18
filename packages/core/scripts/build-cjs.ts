@@ -40,6 +40,22 @@ run([
   "--log-level=warning",
 ]);
 
+// Runtime crash-cleanup supervisor is spawned as a separate Node process
+// from supervisorClient, so it must exist as a standalone CJS file.
+run([
+  "exec",
+  "esbuild",
+  "packages/core/lib/v3/shutdown/supervisor.ts",
+  "--bundle",
+  "--platform=node",
+  "--format=cjs",
+  "--target=node20",
+  "--outfile=packages/core/dist/cjs/supervisor.js",
+  "--sourcemap",
+  "--packages=external",
+  "--log-level=warning",
+]);
+
 run([
   "exec",
   "tsc",
