@@ -4,6 +4,14 @@ import {
   AvailableCuaModel,
 } from "./v3/types/public/agent";
 
+//useful when resolving a model from string or object formats we accept
+export function extractModelName(
+  model?: string | { modelName: string },
+): string | undefined {
+  if (!model) return undefined;
+  return typeof model === "string" ? model : model.modelName;
+}
+
 export function splitModelName(model: string): {
   provider: string;
   modelName: string;
@@ -20,8 +28,7 @@ export function resolveModel(model: string | ModelConfiguration): {
   clientOptions: ClientOptions;
   isCua: boolean;
 } {
-  // Extract the model string and client options
-  const modelString = typeof model === "string" ? model : model.modelName;
+  const modelString = extractModelName(model)!;
   const clientOptions =
     typeof model === "string"
       ? {}
