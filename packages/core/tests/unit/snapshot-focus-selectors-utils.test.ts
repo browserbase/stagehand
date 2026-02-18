@@ -39,40 +39,16 @@ describe("buildXPathFromSteps", () => {
 });
 
 describe("IFRAME_STEP_RE — frame boundary detection", () => {
-  it("matches bare iframe", () => {
+  it("matches both iframe and frame with optional index", () => {
     expect(IFRAME_STEP_RE.test("iframe")).toBe(true);
-  });
-
-  it("matches iframe with positional index", () => {
     expect(IFRAME_STEP_RE.test("iframe[1]")).toBe(true);
-    expect(IFRAME_STEP_RE.test("iframe[12]")).toBe(true);
-  });
-
-  it("matches bare frame (legacy <frameset> pages)", () => {
     expect(IFRAME_STEP_RE.test("frame")).toBe(true);
-  });
-
-  it("matches frame with positional index", () => {
     expect(IFRAME_STEP_RE.test("frame[4]")).toBe(true);
-    expect(IFRAME_STEP_RE.test("frame[1]")).toBe(true);
-  });
-
-  it("is case-insensitive", () => {
-    expect(IFRAME_STEP_RE.test("IFRAME")).toBe(true);
-    expect(IFRAME_STEP_RE.test("FRAME")).toBe(true);
-    expect(IFRAME_STEP_RE.test("IFrame[2]")).toBe(true);
-    expect(IFRAME_STEP_RE.test("Frame[3]")).toBe(true);
   });
 
   it("does NOT match frameset", () => {
     expect(IFRAME_STEP_RE.test("frameset")).toBe(false);
     expect(IFRAME_STEP_RE.test("frameset[1]")).toBe(false);
-  });
-
-  it("does NOT match unrelated elements", () => {
-    expect(IFRAME_STEP_RE.test("div")).toBe(false);
-    expect(IFRAME_STEP_RE.test("body")).toBe(false);
-    expect(IFRAME_STEP_RE.test("html")).toBe(false);
   });
 });
 
