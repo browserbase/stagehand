@@ -109,6 +109,54 @@ const rewriteDistRuntimeSpecifiers = (dir: string) => {
   walk(dir);
 };
 
+const assertNoExtensionlessRuntimeSpecifiers = (dir: string) => {
+  if (!fs.existsSync(dir)) return;
+  const violations: Array<{ file: string; specifier: string }> = [];
+  const collectSpecifierViolations = (filePath: string) => {
+    const source = fs.readFileSync(filePath, "utf8");
+    const patterns = [
+      /\bfrom\s*["']([^"']+)["']/g,
+      /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
+      /\bimport\s*["']([^"']+)["']/g,
+    ];
+    for (const pattern of patterns) {
+      let match: RegExpExecArray | null;
+      while ((match = pattern.exec(source)) !== null) {
+        const specifier = match[1];
+        if (!RELATIVE_SPECIFIER_RE.test(specifier)) continue;
+        if (specifier.includes("?") || specifier.includes("#")) continue;
+        if (HAS_FILE_EXTENSION_RE.test(specifier)) continue;
+        violations.push({
+          file: path.relative(dir, filePath),
+          specifier,
+        });
+      }
+    }
+  };
+
+  const walk = (current: string) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        walk(fullPath);
+      } else if (entry.isFile() && fullPath.endsWith(".js")) {
+        collectSpecifierViolations(fullPath);
+      }
+    }
+  };
+  walk(dir);
+
+  if (violations.length > 0) {
+    const sample = violations
+      .slice(0, 10)
+      .map((item) => `- ${item.file}: ${item.specifier}`)
+      .join("\n");
+    throw new Error(
+      `Found extensionless relative imports in evals dist/esm after rewrite:\n${sample}`,
+    );
+  }
+};
+
 fs.rmSync(evalsDist, { recursive: true, force: true });
 // Evals run from dist/esm JS, but still need config/assets/datasets on disk.
 run(["exec", "tsc", "-p", "packages/evals/tsconfig.json"]);
@@ -140,3 +188,4 @@ copyDir("assets");
 // Node ESM does not resolve extensionless relative imports by default.
 // Rewrite dist specifiers to explicit ".js" (or "/index.js") for runtime safety.
 rewriteDistRuntimeSpecifiers(evalsDist);
+assertNoExtensionlessRuntimeSpecifiers(evalsDist);
