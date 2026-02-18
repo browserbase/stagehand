@@ -233,8 +233,8 @@ importers:
         specifier: ^5.0.133
         version: 5.0.133(zod@4.2.1)
       dotenv:
-        specifier: 16.4.5
-        version: 16.4.5
+        specifier: ^17.3.1
+        version: 17.3.1
       openai:
         specifier: ^4.87.1
         version: 4.96.2(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1)
