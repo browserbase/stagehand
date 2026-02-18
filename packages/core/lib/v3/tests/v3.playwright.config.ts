@@ -1,41 +1,7 @@
 import { defineConfig, type ReporterDescription } from "@playwright/test";
-import fs from "node:fs";
-import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const resolveRepoRoot = (startDir: string): string => {
-  let current = path.resolve(startDir);
-  while (true) {
-    if (fs.existsSync(path.join(current, "pnpm-workspace.yaml"))) {
-      return current;
-    }
-    const parent = path.dirname(current);
-    if (parent === current) {
-      return startDir;
-    }
-    current = parent;
-  }
-};
-
-const repoRoot = resolveRepoRoot(process.cwd());
-const distTestDir = path.join(
-  repoRoot,
-  "packages",
-  "core",
-  "dist",
-  "esm",
-  "lib",
-  "v3",
-  "tests",
-);
-const srcTestDir = path.join(
-  repoRoot,
-  "packages",
-  "core",
-  "lib",
-  "v3",
-  "tests",
-);
-const testDir = fs.existsSync(distTestDir) ? distTestDir : srcTestDir;
+const testDir = fileURLToPath(new URL(".", import.meta.url));
 
 const browserTarget = (
   process.env.STAGEHAND_BROWSER_TARGET ?? "local"
@@ -62,29 +28,9 @@ const bbWorkers =
     : 3;
 
 const ctrfJunitPath = process.env.CTRF_JUNIT_PATH;
-const envReporterPath = (() => {
-  const distPath = path.join(
-    repoRoot,
-    "packages",
-    "core",
-    "dist",
-    "esm",
-    "lib",
-    "v3",
-    "tests",
-    "envReporter.js",
-  );
-  if (fs.existsSync(distPath)) return distPath;
-  return path.join(
-    repoRoot,
-    "packages",
-    "core",
-    "lib",
-    "v3",
-    "tests",
-    "envReporter.ts",
-  );
-})();
+const envReporterPath = fileURLToPath(
+  new URL("./envReporter.ts", import.meta.url),
+);
 const reporter: ReporterDescription[] = ctrfJunitPath
   ? [
       [consoleReporter],

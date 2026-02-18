@@ -31,8 +31,8 @@
     "build": "pnpm run build:esm && pnpm run typecheck",
     "example": "node --import tsx -e \"const args=process.argv.slice(1).filter(a=>a!=='--'); const [p]=args; const n=(p||'example').replace(/^\\.\\//,'').replace(/\\.ts$/i,''); import('node:path').then(path=>import(new URL(path.resolve('examples', n + '.ts'), 'file:')));\" --",
     "test": "pnpm run test:core --",
-    "test:core": "tsx scripts/test-core.ts",
-    "test:e2e": "tsx scripts/test-e2e.ts",
+    "test:core": "tsx scripts/test-core.ts --config packages/core/vitest.esm.config.mjs",
+    "test:e2e": "tsx scripts/test-e2e.ts --config packages/core/dist/esm/lib/v3/tests/v3.playwright.config.js",
     "lint": "cd ../.. && prettier --check packages/core && cd packages/core && eslint . && pnpm run typecheck",
     "format": "prettier --write ."
   },

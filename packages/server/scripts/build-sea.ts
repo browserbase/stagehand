@@ -17,22 +17,16 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import https from "node:https";
-import { pathToFileURL } from "node:url";
-import { findRepoRoot } from "../../core/scripts/test-utils.js";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const repoDir = findRepoRoot(process.cwd());
-const pkgDir = path.join(repoDir, "packages", "server");
-const distDir = path.join(pkgDir, "dist");
-const seaDir = path.join(distDir, "sea");
-const blobPath = path.join(seaDir, "sea-prep.blob");
-const coreEsmEntry = path.join(
-  repoDir,
-  "packages",
-  "core",
-  "dist",
-  "esm",
-  "index.js",
-);
+const repoDir = (() => {
+  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
+  const root = value.split("/packages/server/")[0];
+  if (root === value) {
+    throw new Error(`Unable to determine repo root from ${value}`);
+  }
+  return root;
+})();
 
 const argValue = (name: string) => {
   const prefix = `--${name}=`;
@@ -135,13 +129,13 @@ const resolveNodeBinary = async (): Promise<string> => {
   const distPlatform = targetPlatform === "win32" ? "win" : targetPlatform;
   const archiveBase = `node-${version}-${distPlatform}-${targetArch}`;
   const archiveExt = distPlatform === "win" ? "zip" : "tar.xz";
-  const tmpRoot = path.join(os.tmpdir(), "stagehand-sea", archiveBase);
-  const archivePath = path.join(tmpRoot, `${archiveBase}.${archiveExt}`);
-  const extractRoot = path.join(tmpRoot, archiveBase);
+  const tmpRoot = `${os.tmpdir()}/stagehand-sea/${archiveBase}`;
+  const archivePath = `${tmpRoot}/${archiveBase}.${archiveExt}`;
+  const extractRoot = `${tmpRoot}/${archiveBase}`;
   const binaryPath =
     distPlatform === "win"
-      ? path.join(extractRoot, "node.exe")
-      : path.join(extractRoot, "bin", "node");
+      ? `${extractRoot}/node.exe`
+      : `${extractRoot}/bin/node`;
 
   if (fs.existsSync(binaryPath)) {
     return binaryPath;
@@ -176,10 +170,14 @@ const writeSeaConfig = (
   outputPath: string,
   execArgvExtension?: string,
 ) => {
-  const configPath = path.join(seaDir, `sea-config-${mode}.json`);
+  const configPath = `${repoDir}/packages/server/dist/sea/sea-config-${mode}.json`;
   const config = {
-    main: path.relative(pkgDir, mainPath).split(path.sep).join("/"),
-    output: path.relative(pkgDir, outputPath).split(path.sep).join("/"),
+    main: path
+      .relative(`${repoDir}/packages/server`, mainPath)
+      .replaceAll("\\", "/"),
+    output: path
+      .relative(`${repoDir}/packages/server`, outputPath)
+      .replaceAll("\\", "/"),
     ...(execArgvExtension ? { execArgvExtension } : {}),
   };
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
@@ -199,8 +197,8 @@ const buildCjsBundle = () => {
     ],
     { cwd: repoDir },
   );
-  fs.mkdirSync(seaDir, { recursive: true });
-  const bundlePath = path.join(seaDir, "bundle.cjs");
+  fs.mkdirSync(`${repoDir}/packages/server/dist/sea`, { recursive: true });
+  const bundlePath = `${repoDir}/packages/server/dist/sea/bundle.cjs`;
   run(
     "pnpm",
     [
@@ -219,12 +217,14 @@ const buildCjsBundle = () => {
 };
 
 const buildEsmBundle = () => {
-  if (!fs.existsSync(coreEsmEntry)) {
-    throw new Error(`Missing ${coreEsmEntry}. Run pnpm run build:esm first.`);
+  if (!fs.existsSync(`${repoDir}/packages/core/dist/esm/index.js`)) {
+    throw new Error(
+      `Missing ${repoDir}/packages/core/dist/esm/index.js. Run pnpm run build:esm first.`,
+    );
   }
 
-  fs.mkdirSync(seaDir, { recursive: true });
-  const appBundlePath = path.join(distDir, "app.mjs");
+  fs.mkdirSync(`${repoDir}/packages/server/dist/sea`, { recursive: true });
+  const appBundlePath = `${repoDir}/packages/server/dist/app.mjs`;
   const esbuildArgs = [
     "exec",
     "esbuild",
@@ -234,7 +234,7 @@ const buildEsmBundle = () => {
     "--format=esm",
     "--tree-shaking=false",
     `--outfile=${appBundlePath}`,
-    `--alias:@browserbasehq/stagehand=${coreEsmEntry}`,
+    `--alias:@browserbasehq/stagehand=${repoDir}/packages/core/dist/esm/index.js`,
     "--sourcemap=inline",
     "--sources-content",
     `--source-root=${repoDir}`,
@@ -256,7 +256,7 @@ const buildEsmBundle = () => {
     sources: string[];
     sourcesContent?: string[];
   };
-  const toPosix = (value: string) => value.split(path.sep).join("/");
+  const toPosix = (value: string) => value.replaceAll("\\", "/");
   const fileUrlToPathSafe = (value: string) => {
     const parsed = new URL(value);
     let pathname = decodeURIComponent(parsed.pathname);
@@ -272,40 +272,39 @@ const buildEsmBundle = () => {
     }
 
     if (path.isAbsolute(sourcePath)) {
-      if (sourcePath.startsWith(repoDir + path.sep)) {
-        return toPosix(path.relative(repoDir, sourcePath));
+      const normalizedSourcePath = toPosix(sourcePath);
+      if (normalizedSourcePath.startsWith(`${repoDir}/`)) {
+        return toPosix(path.relative(repoDir, normalizedSourcePath));
       }
-      return toPosix(sourcePath);
+      return normalizedSourcePath;
     }
 
     if (sourcePath.startsWith("../src/")) {
       const rel = sourcePath.slice("../src/".length);
-      return toPosix(path.join("packages", "server", "src", rel));
+      return `packages/server/src/${rel}`;
     }
     if (sourcePath.startsWith("../../core/")) {
       const rel = sourcePath.slice("../../core/".length);
-      return toPosix(path.join("packages", "core", rel));
+      return `packages/core/${rel}`;
     }
     if (sourcePath.startsWith("../../../node_modules/")) {
       const rel = sourcePath.slice("../../../node_modules/".length);
-      return toPosix(path.join("node_modules", rel));
+      return `node_modules/${rel}`;
     }
     if (sourcePath.startsWith("src/")) {
       const rel = sourcePath.slice("src/".length);
-      return toPosix(path.join("packages", "server", "src", rel));
+      return `packages/server/src/${rel}`;
     }
     if (sourcePath.startsWith("../node_modules/")) {
       const rel = sourcePath.slice("../node_modules/".length);
-      return toPosix(path.join("node_modules", rel));
+      return `node_modules/${rel}`;
     }
     if (sourcePath.startsWith("../core/")) {
       const rel = sourcePath.slice("../core/".length);
-      return toPosix(path.join("packages", "core", rel));
+      return `packages/core/${rel}`;
     }
     if (sourcePath.startsWith("core/")) {
-      return toPosix(
-        path.join("packages", "core", sourcePath.slice("core/".length)),
-      );
+      return `packages/core/${sourcePath.slice("core/".length)}`;
     }
     if (
       sourcePath.startsWith("packages/") ||
@@ -314,15 +313,17 @@ const buildEsmBundle = () => {
       return toPosix(sourcePath);
     }
 
-    const resolved = path.resolve(pkgDir, sourcePath);
-    if (resolved.startsWith(repoDir + path.sep)) {
+    const resolved = toPosix(
+      path.resolve(`${repoDir}/packages/server`, sourcePath),
+    );
+    if (resolved.startsWith(`${repoDir}/`)) {
       return toPosix(path.relative(repoDir, resolved));
     }
 
     return toPosix(sourcePath);
   };
 
-  map.sourceRoot = pathToFileURL(`${repoDir}${path.sep}`).href;
+  map.sourceRoot = pathToFileURL(`${repoDir}/`).href;
   map.sources = map.sources.map(toRepoRelative);
   const updatedMap = Buffer.from(JSON.stringify(map)).toString("base64");
   const appSourceUpdated = appSource.replace(mapMatch[1], updatedMap);
@@ -333,11 +334,10 @@ const buildEsmBundle = () => {
     .update(appBytes)
     .digest("hex")
     .slice(0, 12);
-  const bootstrapPath = path.join(seaDir, "sea-bootstrap.cjs");
+  const bootstrapPath = `${repoDir}/packages/server/dist/sea/sea-bootstrap.cjs`;
   const bootstrap = `/* eslint-disable */
 const fs = require("node:fs");
 const os = require("node:os");
-const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 
 const bundleBase64 = ${JSON.stringify(appBytes.toString("base64"))};
@@ -346,9 +346,9 @@ const bundleHash = ${JSON.stringify(bundleHash)};
 
 const cacheRoot =
   process.env.STAGEHAND_SEA_CACHE_DIR ||
-  path.join(os.tmpdir(), "stagehand-server-sea");
-const cacheDir = path.join(cacheRoot, bundleHash);
-const appPath = path.join(cacheDir, "app.mjs");
+  \`\${os.tmpdir()}/stagehand-server-sea\`;
+const cacheDir = \`\${cacheRoot}/\${bundleHash}\`;
+const appPath = \`\${cacheDir}/app.mjs\`;
 
 fs.mkdirSync(cacheDir, { recursive: true });
 let needsWrite = true;
@@ -358,10 +358,8 @@ try {
 } catch {}
 
 if (needsWrite) {
-  const tmpPath = path.join(
-    cacheDir,
-    "app.mjs.tmp-" + process.pid + "-" + Date.now().toString(16),
-  );
+  const tmpPath =
+    \`\${cacheDir}/app.mjs.tmp-\${process.pid}-\${Date.now().toString(16)}\`;
   fs.writeFileSync(tmpPath, Buffer.from(bundleBase64, "base64"));
   try {
     fs.renameSync(tmpPath, appPath);
@@ -385,7 +383,7 @@ if (needsWrite) {
 };
 
 const main = async () => {
-  fs.mkdirSync(seaDir, { recursive: true });
+  fs.mkdirSync(`${repoDir}/packages/server/dist/sea`, { recursive: true });
 
   let mainPath: string;
   let execArgvExtension: string | undefined;
@@ -399,15 +397,23 @@ const main = async () => {
     throw new Error(`Unknown SEA build mode: ${mode}`);
   }
 
-  const seaConfigPath = writeSeaConfig(mainPath, blobPath, execArgvExtension);
+  const seaConfigPath = writeSeaConfig(
+    mainPath,
+    `${repoDir}/packages/server/dist/sea/sea-prep.blob`,
+    execArgvExtension,
+  );
 
-  run("node", ["--experimental-sea-config", seaConfigPath], { cwd: pkgDir });
-  if (!fs.existsSync(blobPath)) {
-    throw new Error(`Missing ${blobPath}; SEA blob generation failed.`);
+  run("node", ["--experimental-sea-config", seaConfigPath], {
+    cwd: `${repoDir}/packages/server`,
+  });
+  if (!fs.existsSync(`${repoDir}/packages/server/dist/sea/sea-prep.blob`)) {
+    throw new Error(
+      `Missing ${repoDir}/packages/server/dist/sea/sea-prep.blob; SEA blob generation failed.`,
+    );
   }
 
   const nodeBinary = await resolveNodeBinary();
-  const outPath = path.join(seaDir, binaryName);
+  const outPath = `${repoDir}/packages/server/dist/sea/${binaryName}`;
   fs.copyFileSync(nodeBinary, outPath);
   if (targetPlatform !== "win32") {
     fs.chmodSync(outPath, 0o755);
@@ -422,14 +428,14 @@ const main = async () => {
     "postject",
     outPath,
     "NODE_SEA_BLOB",
-    blobPath,
+    `${repoDir}/packages/server/dist/sea/sea-prep.blob`,
     "--sentinel-fuse",
     "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2",
   ];
   if (targetPlatform === "darwin") {
     postjectArgs.push("--macho-segment-name", "NODE_SEA");
   }
-  run("pnpm", postjectArgs, { cwd: pkgDir });
+  run("pnpm", postjectArgs, { cwd: `${repoDir}/packages/server` });
 
   if (targetPlatform === "darwin") {
     runOptional("codesign", ["--sign", "-", outPath]);

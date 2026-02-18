@@ -230,7 +230,7 @@ jobs:
 
   discover-core-tests:
     runs-on: ubuntu-latest
-    needs: [determine-changes]
+    needs: [determine-changes, run-build]
     if: needs.determine-changes.outputs.core == 'true'
     outputs:
       core-tests: ${{ steps.set-matrix.outputs.core-tests }}
@@ -243,12 +243,12 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
-          use-prebuilt-artifacts: "false"
+          use-prebuilt-artifacts: "true"
 
       - name: Discover core test files
         id: set-matrix
         run: |
-          core_json=$(pnpm --filter @browserbasehq/stagehand --silent exec tsx scripts/test-core.ts --list)
+          core_json=$(pnpm --filter @browserbasehq/stagehand --silent run test:core -- --list)
           echo "core-tests=$core_json" >> $GITHUB_OUTPUT
 
           if [ "$core_json" = "[]" ]; then
@@ -285,7 +285,7 @@ jobs:
 
       - name: Run Vitest - ${{ matrix.test.name }}
         run: |
-          pnpm exec turbo run test:core --filter=@browserbasehq/stagehand -- "${{ matrix.test.path }}"
+          pnpm --filter @browserbasehq/stagehand --silent run test:core -- "${{ matrix.test.path }}"
 
       - uses: ./.github/actions/upload-ctrf-report
         if: always()
@@ -299,7 +299,7 @@ jobs:
 
   discover-server-tests:
     runs-on: ubuntu-latest
-    needs: [determine-changes]
+    needs: [determine-changes, run-build]
     if: needs.determine-changes.outputs.server == 'true'
     outputs:
       unit-tests: ${{ steps.set-matrix.outputs.unit-tests }}
@@ -314,7 +314,7 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
-          use-prebuilt-artifacts: "false"
+          use-prebuilt-artifacts: "true"
 
       - name: Discover server test files
         id: set-matrix
@@ -458,7 +458,7 @@ jobs:
         env:
           SEA_BINARY_NAME: stagehand-server-linux-x64-sourcemap
         run: |
-          pnpm exec turbo run test:server --filter=@browserbasehq/stagehand-server -- "${{ matrix.test.path }}"
+          pnpm --filter @browserbasehq/stagehand-server --silent run test:server -- "${{ matrix.test.path }}"
 
       - uses: ./.github/actions/upload-ctrf-report
         if: always()
@@ -472,7 +472,7 @@ jobs:
 
   discover-e2e-tests:
     runs-on: ubuntu-latest
-    needs: [determine-changes]
+    needs: [determine-changes, run-build]
     if: needs.determine-changes.outputs.core == 'true'
     outputs:
       e2e-tests: ${{ steps.set-matrix.outputs.e2e-tests }}
@@ -485,12 +485,12 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
-          use-prebuilt-artifacts: "false"
+          use-prebuilt-artifacts: "true"
 
       - name: Discover e2e test files
         id: set-matrix
         run: |
-          e2e_json=$(pnpm --filter @browserbasehq/stagehand --silent exec tsx scripts/test-e2e.ts --list)
+          e2e_json=$(pnpm --filter @browserbasehq/stagehand --silent run test:e2e -- --list)
           echo "e2e-tests=$e2e_json" >> $GITHUB_OUTPUT
 
           if [ "$e2e_json" = "[]" ]; then
@@ -536,7 +536,7 @@ jobs:
 
       - name: Run local E2E Tests - ${{ matrix.test.name }}
         run: |
-          pnpm exec turbo run test:e2e --filter=@browserbasehq/stagehand -- "${{ matrix.test.path }}"
+          pnpm --filter @browserbasehq/stagehand --silent run test:e2e -- "${{ matrix.test.path }}"
 
       - uses: ./.github/actions/upload-ctrf-report
         if: always()
@@ -586,7 +586,7 @@ jobs:
 
       - name: Run E2E Tests (browserbase) - ${{ matrix.test.name }}
         run: |
-          pnpm exec turbo run test:e2e --filter=@browserbasehq/stagehand -- "${{ matrix.test.path }}"
+          pnpm --filter @browserbasehq/stagehand --silent run test:e2e -- "${{ matrix.test.path }}"
 
       - uses: ./.github/actions/upload-ctrf-report
         if: always()
@@ -646,7 +646,7 @@ jobs:
         run: |
           log_file="$(mktemp)"
           set +e
-          pnpm exec turbo run test:evals --filter=@browserbasehq/stagehand-evals -- "${{ matrix.category }}" -t "${EVAL_TRIAL_COUNT}" -c "${EVAL_MAX_CONCURRENCY}" 2>&1 | tee "$log_file"
+          pnpm --filter @browserbasehq/stagehand-evals --silent run test:evals -- "${{ matrix.category }}" -t "${EVAL_TRIAL_COUNT}" -c "${EVAL_MAX_CONCURRENCY}" 2>&1 | tee "$log_file"
           eval_status=${PIPESTATUS[0]}
           set -e
 

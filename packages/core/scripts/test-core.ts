@@ -1,19 +1,18 @@
 /**
- * Core unit tests (Vitest) on dist/esm.
+ * Core unit tests (Vitest) on dist/esm tests.
  *
- * Prereqs: pnpm run build (dist/esm present).
+ * Prereqs: pnpm run build:esm (packages/core/dist/esm/tests present).
  * Args: [test paths...] -- [vitest args...] | --list (prints JSON matrix)
  * Env: NODE_V8_COVERAGE, NODE_OPTIONS, VITEST_CONSOLE_REPORTER;
  *      writes CTRF to ctrf/vitest-core.xml by default.
- * Example: pnpm run test:core -- packages/core/tests/foo.test.ts -- --reporter=junit
+ * Example: pnpm run test:core -- packages/core/dist/esm/tests/foo.test.js -- --reporter=junit
  */
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import normalizeV8Coverage from "./normalize-v8-coverage.js";
 import {
-  findRepoRoot,
-  resolveFromRoot,
   ensureParentDir,
   parseListFlag,
   splitArgs,
@@ -25,15 +24,50 @@ import {
   writeCtrfFromJunit,
 } from "./test-utils.js";
 
-const repoRoot = findRepoRoot(process.cwd());
+const repoRoot = (() => {
+  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
+  const root = value.split("/packages/core/")[0];
+  if (root === value) {
+    throw new Error(`Unable to determine repo root from ${value}`);
+  }
+  return root;
+})();
+
+const testsDir = `${repoRoot}/packages/core/dist/esm/tests`;
+const defaultConfigPath = `${repoRoot}/packages/core/vitest.esm.config.mjs`;
+
+const resolveRepoRelative = (value: string) =>
+  path.isAbsolute(value) ? value : path.resolve(repoRoot, value);
+
+const hasConfigArg = (argsList: string[]) =>
+  argsList.some((arg, i) => {
+    if (arg.startsWith("--config=")) return true;
+    return arg === "--config" && Boolean(argsList[i + 1]);
+  });
+
+const toTestName = (testPath: string) => {
+  const abs = resolveRepoRelative(testPath);
+  const rel = path.relative(testsDir, abs).replaceAll("\\", "/");
+  if (!rel.startsWith("..")) {
+    return rel.replace(/\.test\.(ts|js)$/i, "");
+  }
+  return path.basename(abs).replace(/\.test\.(ts|js)$/i, "");
+};
+
+if (!fs.existsSync(testsDir)) {
+  console.error(
+    "Missing packages/core/dist/esm/tests. Run pnpm run build:esm first.",
+  );
+  process.exit(1);
+}
+
 const listFlag = parseListFlag(process.argv.slice(2));
 const { paths, extra } = splitArgs(listFlag.args);
 
 if (listFlag.list) {
-  const root = path.join(repoRoot, "packages", "core", "tests");
-  const tests = collectFiles(root, ".test.ts");
+  const tests = collectFiles(testsDir, ".test.js");
   const entries = tests.map((file) => {
-    const rel = path.relative(root, file).replace(/\.test\.ts$/, "");
+    const rel = path.relative(testsDir, file).replace(/\.test\.js$/, "");
     return {
       path: path.relative(repoRoot, file),
       name: rel,
@@ -44,64 +78,30 @@ if (listFlag.list) {
   process.exit(0);
 }
 
-const distRoot = path.join(repoRoot, "packages", "core", "dist", "esm");
-if (!fs.existsSync(distRoot)) {
-  console.error("Missing packages/core/dist/esm. Run pnpm run build first.");
-  process.exit(1);
-}
-
-const toDistPath = (testPath: string) => {
-  if (
-    testPath.endsWith(".js") &&
-    testPath.includes(`${path.sep}dist${path.sep}esm${path.sep}`)
-  ) {
-    return testPath;
-  }
-  const abs = path.isAbsolute(testPath)
-    ? testPath
-    : path.resolve(repoRoot, testPath);
-  const rel = path.relative(path.join(repoRoot, "packages", "core"), abs);
-  return path
-    .join(repoRoot, "packages", "core", "dist", "esm", rel)
-    .replace(/\.ts$/i, ".js");
-};
-
-const compiledPaths = paths.map(toDistPath);
+const runtimePaths = paths.map(resolveRepoRelative);
+const hasUserConfig = hasConfigArg(extra);
 
 const baseNodeOptions = "--enable-source-maps";
 const nodeOptions = [process.env.NODE_OPTIONS, baseNodeOptions]
   .filter(Boolean)
   .join(" ");
 
-const testRoot = path.join(repoRoot, "packages", "core", "tests");
-const relTestName =
-  paths.length === 1
-    ? (() => {
-        const abs = path.isAbsolute(paths[0])
-          ? paths[0]
-          : path.resolve(repoRoot, paths[0]);
-        const rel = path
-          .relative(testRoot, abs)
-          .replace(/\.test\.ts$/, "")
-          .replace(/\.js$/, "");
-        return rel && !rel.startsWith("..") ? rel : null;
-      })()
-    : null;
+const relTestName = paths.length === 1 ? toTestName(paths[0]) : null;
 
-const coverageDir = resolveFromRoot(
-  repoRoot,
+const coverageDir = resolveRepoRelative(
   process.env.NODE_V8_COVERAGE ??
     (relTestName
-      ? path.join(repoRoot, "coverage", "core-unit", relTestName)
-      : path.join(repoRoot, "coverage", "core-unit")),
+      ? `${repoRoot}/coverage/core-unit/${relTestName}`
+      : `${repoRoot}/coverage/core-unit`),
 );
 fs.mkdirSync(coverageDir, { recursive: true });
+
 const normalizedExtra = normalizeVitestArgs(repoRoot, extra);
 const defaultJunitPath = (() => {
   if (!relTestName) {
-    return path.join(repoRoot, "ctrf", "core-unit", "all.xml");
+    return `${repoRoot}/ctrf/core-unit/all.xml`;
   }
-  return path.join(repoRoot, "ctrf", "core-unit", `${relTestName}.xml`);
+  return `${repoRoot}/ctrf/core-unit/${relTestName}.xml`;
 })();
 const hasOutput = Boolean(findJunitPath(normalizedExtra));
 const vitestArgs = [...normalizedExtra];
@@ -132,18 +132,14 @@ const result = spawnSync(
     "exec",
     "vitest",
     "run",
-    "--config",
-    path.join(repoRoot, "packages", "core", "vitest.esm.config.mjs"),
+    ...(hasUserConfig ? [] : ["--config", defaultConfigPath]),
     ...vitestArgs,
-    ...compiledPaths,
+    ...runtimePaths,
   ],
   { stdio: "inherit", env },
 );
 
-if (coverageDir) {
-  await normalizeV8Coverage(coverageDir);
-}
-
+await normalizeV8Coverage(coverageDir);
 writeCtrfFromJunit(junitPath, "vitest");
 
 process.exit(result.status ?? 1);

@@ -10,7 +10,7 @@
     "build": "pnpm run build:esm && pnpm run build:cli && pnpm run typecheck",
     "build:esm": "tsx scripts/build-esm.ts",
     "build:cli": "tsx scripts/build-cli.ts",
-    "test:evals": "tsx scripts/test-evals.ts",
+    "test:evals": "tsx scripts/test-evals.ts --cli packages/evals/dist/cli/cli.js",
     "lint": "pnpm -w --dir ../.. exec prettier --check packages/evals && pnpm -w --dir ../.. exec eslint packages/evals && pnpm run typecheck",
     "format": "prettier --write ."
   },

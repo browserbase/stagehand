@@ -1,21 +1,22 @@
 /**
- * Server unit + integration tests (node --test) on dist/esm + SEA.
+ * Server unit + integration tests on dist/esm + SEA/local server targets.
  *
- * Prereqs: pnpm run build (core dist/esm + server dist/tests + server dist/server.js)
- *          and pnpm run build:sea:esm for SEA.
+ * Prereqs:
+ * - pnpm run build (packages/server/dist/tests + packages/server/dist/server.js).
+ * - SEA integration still requires build:sea when STAGEHAND_SERVER_TARGET=sea.
+ *
  * Args: [test paths...] -- [node --test args...] | --list [unit|integration] (prints JSON matrix)
  * Env: STAGEHAND_SERVER_TARGET=sea|local|remote, STAGEHAND_BASE_URL, SEA_BINARY_NAME,
  *      NODE_TEST_CONSOLE_REPORTER, NODE_TEST_REPORTER, NODE_TEST_REPORTER_DESTINATION,
  *      NODE_V8_COVERAGE; writes CTRF to ctrf/node-test-*.xml by default.
- * Example: STAGEHAND_SERVER_TARGET=sea pnpm run test:server -- packages/server/test/integration/foo.test.ts
+ * Example: STAGEHAND_SERVER_TARGET=sea pnpm run test:server -- packages/server/dist/tests/integration/v3/start.test.js
  */
 import fs from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import normalizeV8Coverage from "../../core/scripts/normalize-v8-coverage.js";
 import {
-  findRepoRoot,
-  resolveFromRoot,
   ensureParentDir,
   parseListFlag,
   splitArgs,
@@ -24,13 +25,22 @@ import {
   writeCtrfFromJunit,
 } from "../../core/scripts/test-utils.js";
 
-const repoRoot = findRepoRoot(process.cwd());
-const serverRoot = path.join(repoRoot, "packages", "server");
-const distTestsRoot = path.join(serverRoot, "dist", "tests");
-const distServerEntry = path.join(serverRoot, "dist", "server.js");
+const repoRoot = (() => {
+  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
+  const root = value.split("/packages/server/")[0];
+  if (root === value) {
+    throw new Error(`Unable to determine repo root from ${value}`);
+  }
+  return root;
+})();
 
-const listFlag = parseListFlag(process.argv.slice(2));
-const { paths, extra } = splitArgs(listFlag.args);
+const unitDir = `${repoRoot}/packages/server/dist/tests/unit`;
+const integrationDir = `${repoRoot}/packages/server/dist/tests/integration`;
+const allTestsDir = `${repoRoot}/packages/server/dist/tests`;
+
+const resolveRepoRelative = (value: string) =>
+  path.isAbsolute(value) ? value : path.resolve(repoRoot, value);
+
 const stripNodeReporterArgs = (argsList: string[]) => {
   const filtered: string[] = [];
   let removed = false;
@@ -55,6 +65,25 @@ const stripNodeReporterArgs = (argsList: string[]) => {
   }
   return { filtered, removed };
 };
+
+const toTestName = (testPath: string, root: string) => {
+  const abs = resolveRepoRelative(testPath);
+  const rel = path.relative(root, abs).replaceAll("\\", "/");
+  if (!rel.startsWith("..")) {
+    return rel.replace(/\.test\.js$/i, "");
+  }
+  return path.basename(abs).replace(/\.test\.js$/i, "");
+};
+
+if (!fs.existsSync(allTestsDir)) {
+  console.error(
+    "Missing packages/server/dist/tests. Run pnpm run build first.",
+  );
+  process.exit(1);
+}
+
+const listFlag = parseListFlag(process.argv.slice(2));
+const { paths, extra } = splitArgs(listFlag.args);
 const { filtered: extraArgs, removed: removedReporterOverride } =
   stripNodeReporterArgs(extra);
 if (removedReporterOverride) {
@@ -64,21 +93,19 @@ if (removedReporterOverride) {
 }
 
 if (listFlag.list) {
-  const unitRoot = path.join(serverRoot, "test", "unit");
-  const integrationRoot = path.join(serverRoot, "test", "integration");
-  const unitTests = collectFiles(unitRoot, ".test.ts").map((file) => {
-    const name = path.basename(file, ".test.ts");
+  const unitTests = collectFiles(unitDir, ".test.js").map((file) => {
+    const name = path.basename(file, ".test.js");
     return {
       path: path.relative(repoRoot, file),
       name,
       safe_name: toSafeName(name),
     };
   });
-  const integrationTests = collectFiles(integrationRoot, ".test.ts").map(
+  const integrationTests = collectFiles(integrationDir, ".test.js").map(
     (file) => {
       const rel = path
-        .relative(integrationRoot, file)
-        .replace(/\.test\.ts$/, "");
+        .relative(integrationDir, file)
+        .replace(/\.test\.js$/, "");
       return {
         path: path.relative(repoRoot, file),
         name: rel,
@@ -97,19 +124,6 @@ if (listFlag.list) {
   process.exit(0);
 }
 
-if (!fs.existsSync(distTestsRoot)) {
-  console.error(
-    "Missing packages/server/dist/tests. Run pnpm run build first.",
-  );
-  process.exit(1);
-}
-if (!fs.existsSync(distServerEntry)) {
-  console.error(
-    "Missing packages/server/dist/server.js. Run pnpm run build first.",
-  );
-  process.exit(1);
-}
-
 const serverTarget = (
   process.env.STAGEHAND_SERVER_TARGET ?? "sea"
 ).toLowerCase();
@@ -118,6 +132,16 @@ const baseUrl = explicitBaseUrl ?? "http://stagehand-api.localhost:3107";
 
 if (serverTarget === "remote" && !explicitBaseUrl) {
   console.error("Missing STAGEHAND_BASE_URL for remote server target.");
+  process.exit(1);
+}
+
+if (
+  serverTarget === "local" &&
+  !fs.existsSync(`${repoRoot}/packages/server/dist/server.js`)
+) {
+  console.error(
+    "Missing packages/server/dist/server.js. Run pnpm run build first.",
+  );
   process.exit(1);
 }
 
@@ -134,94 +158,54 @@ const nodeOptions = [process.env.NODE_OPTIONS, baseNodeOptions]
   .filter(Boolean)
   .join(" ");
 
-const unitRoot = path.join(serverRoot, "test", "unit");
-const integrationRoot = path.join(serverRoot, "test", "integration");
-const singlePath = paths.length === 1 ? path.resolve(repoRoot, paths[0]) : null;
-const coverageSuffix =
-  singlePath && singlePath.startsWith(unitRoot + path.sep)
-    ? path.join(
-        "server-unit",
-        path.basename(singlePath).replace(/\.test\.ts$/, ""),
-      )
-    : singlePath && singlePath.startsWith(integrationRoot + path.sep)
-      ? path.join(
-          "server-integration",
-          path.relative(integrationRoot, singlePath).replace(/\.test\.ts$/, ""),
-        )
-      : "server";
-
-const coverageRoot = resolveFromRoot(
-  repoRoot,
-  process.env.NODE_V8_COVERAGE ??
-    path.join(repoRoot, "coverage", coverageSuffix),
-);
-const testsCoverage = path.join(coverageRoot, "tests");
-const serverCoverage = path.join(coverageRoot, "server");
-fs.mkdirSync(testsCoverage, { recursive: true });
-fs.mkdirSync(serverCoverage, { recursive: true });
-
-const collectTests = (dir: string): string[] => {
-  const results: string[] = [];
-  const walk = (current: string) => {
-    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-      const fullPath = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        walk(fullPath);
-      } else if (entry.isFile() && entry.name.endsWith(".test.ts")) {
-        results.push(fullPath);
-      }
-    }
-  };
-  if (fs.existsSync(dir)) walk(dir);
-  return results.sort();
-};
-
-const toDistPath = (testPath: string) => {
-  if (
-    testPath.endsWith(".js") &&
-    testPath.includes(`${path.sep}dist${path.sep}tests${path.sep}`)
-  ) {
-    return testPath;
-  }
-  const abs = path.isAbsolute(testPath)
-    ? testPath
-    : path.resolve(repoRoot, testPath);
-  const rel = path.relative(path.join(serverRoot, "test"), abs);
-  return path.join(distTestsRoot, rel).replace(/\.ts$/i, ".js");
-};
-
 const allPaths =
   paths.length > 0
-    ? paths
+    ? paths.map(resolveRepoRelative)
     : [
-        ...collectTests(path.join(serverRoot, "test", "unit")),
-        ...collectTests(path.join(serverRoot, "test", "integration")),
+        ...collectFiles(unitDir, ".test.js"),
+        ...collectFiles(integrationDir, ".test.js"),
       ];
 
 const unitPaths = allPaths.filter((p) =>
-  path.resolve(repoRoot, p).includes(path.join(serverRoot, "test", "unit")),
+  p.replaceAll("\\", "/").includes("/packages/server/dist/tests/unit/"),
 );
 const integrationPaths = allPaths.filter((p) =>
-  path
-    .resolve(repoRoot, p)
-    .includes(path.join(serverRoot, "test", "integration")),
+  p.replaceAll("\\", "/").includes("/packages/server/dist/tests/integration/"),
 );
+
+const singlePath = allPaths.length === 1 ? allPaths[0] : null;
+const coverageSuffix =
+  singlePath &&
+  singlePath.startsWith(`${repoRoot}/packages/server/dist/tests/unit/`)
+    ? `server-unit/${path.basename(singlePath).replace(/\.test\.js$/, "")}`
+    : singlePath &&
+        singlePath.startsWith(
+          `${repoRoot}/packages/server/dist/tests/integration/`,
+        )
+      ? `server-integration/${path
+          .relative(integrationDir, singlePath)
+          .replace(/\.test\.js$/, "")
+          .replaceAll("\\", "/")}`
+      : "server";
+
+const coverageRoot = resolveRepoRelative(
+  process.env.NODE_V8_COVERAGE ?? `${repoRoot}/coverage/${coverageSuffix}`,
+);
+const testsCoverage = `${coverageRoot}/tests`;
+const serverCoverage = `${coverageRoot}/server`;
+fs.mkdirSync(testsCoverage, { recursive: true });
+fs.mkdirSync(serverCoverage, { recursive: true });
 
 const consoleReporter = process.env.NODE_TEST_CONSOLE_REPORTER ?? "spec";
 const defaultReporter = process.env.NODE_TEST_REPORTER ?? "junit";
 const envDestination = process.env.NODE_TEST_REPORTER_DESTINATION
-  ? resolveFromRoot(repoRoot, process.env.NODE_TEST_REPORTER_DESTINATION)
+  ? resolveRepoRelative(process.env.NODE_TEST_REPORTER_DESTINATION)
   : null;
 
 const reporterArgsFor = (kind: "unit" | "integration", testName?: string) => {
-  const baseDir = path.join(
-    repoRoot,
-    "ctrf",
-    kind === "unit" ? "server-unit" : "server-integration",
-  );
   const destination =
     envDestination ??
-    path.join(baseDir, testName ? `${testName}.xml` : "all.xml");
+    `${repoRoot}/ctrf/${kind === "unit" ? "server-unit" : "server-integration"}/${testName ? `${testName}.xml` : "all.xml"}`;
   ensureParentDir(destination);
   return {
     args: [
@@ -237,7 +221,7 @@ const reporterArgsFor = (kind: "unit" | "integration", testName?: string) => {
 const runNodeTests = (files: string[], reporterArgs: string[]) =>
   spawnSync(
     process.execPath,
-    ["--test", ...extraArgs, ...reporterArgs, ...files.map(toDistPath)],
+    ["--test", ...extraArgs, ...reporterArgs, ...files],
     {
       stdio: "inherit",
       env: {
@@ -268,23 +252,23 @@ const waitForServer = async (url: string, timeoutMs = 30_000) => {
 const startServer = async () => {
   if (serverTarget === "remote") return null;
   if (serverTarget === "local") {
-    return spawn(process.execPath, [distServerEntry], {
-      stdio: "inherit",
-      env: {
-        ...process.env,
-        NODE_ENV: "development",
-        NODE_OPTIONS: nodeOptions,
-        NODE_V8_COVERAGE: serverCoverage,
+    return spawn(
+      process.execPath,
+      [`${repoRoot}/packages/server/dist/server.js`],
+      {
+        stdio: "inherit",
+        env: {
+          ...process.env,
+          NODE_ENV: "development",
+          NODE_OPTIONS: nodeOptions,
+          NODE_V8_COVERAGE: serverCoverage,
+        },
       },
-    });
+    );
   }
 
-  const seaDir = path.join(serverRoot, "dist", "sea");
   const defaultName = `stagehand-server-${process.platform}-${process.arch}${process.platform === "win32" ? ".exe" : ""}`;
-  const seaBinary = path.join(
-    seaDir,
-    process.env.SEA_BINARY_NAME ?? defaultName,
-  );
+  const seaBinary = `${repoRoot}/packages/server/dist/sea/${process.env.SEA_BINARY_NAME ?? defaultName}`;
 
   if (!fs.existsSync(seaBinary)) {
     console.error(`SEA binary not found at ${seaBinary}`);
@@ -298,8 +282,7 @@ const startServer = async () => {
       NODE_ENV: "production",
       NODE_V8_COVERAGE: serverCoverage,
       STAGEHAND_SEA_CACHE_DIR:
-        process.env.STAGEHAND_SEA_CACHE_DIR ??
-        path.join(repoRoot, ".stagehand-sea"),
+        process.env.STAGEHAND_SEA_CACHE_DIR ?? `${repoRoot}/.stagehand-sea`,
     },
   });
 };
@@ -309,9 +292,7 @@ let status = 0;
 
 if (unitPaths.length > 0) {
   const unitName =
-    unitPaths.length === 1
-      ? path.basename(unitPaths[0]).replace(/\.test\.ts$/, "")
-      : undefined;
+    unitPaths.length === 1 ? toTestName(unitPaths[0], unitDir) : undefined;
   const reporter = reporterArgsFor("unit", unitName);
   const result = runNodeTests(unitPaths, reporter.args);
   status = result.status ?? 1;
@@ -327,12 +308,7 @@ if (status === 0 && integrationPaths.length > 0) {
   } else {
     const integrationName =
       integrationPaths.length === 1
-        ? path
-            .relative(
-              path.join(serverRoot, "test", "integration"),
-              path.resolve(repoRoot, integrationPaths[0]),
-            )
-            .replace(/\.test\.ts$/, "")
+        ? toTestName(integrationPaths[0], integrationDir)
         : undefined;
     const reporter = reporterArgsFor("integration", integrationName);
     const result = runNodeTests(integrationPaths, reporter.args);
