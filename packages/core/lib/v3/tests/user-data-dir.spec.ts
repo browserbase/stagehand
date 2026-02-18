@@ -23,10 +23,16 @@ test.describe("userDataDir persistence", () => {
   });
 
   test("Chrome uses the specified userDataDir", async () => {
+    const browserTarget = (
+      process.env.STAGEHAND_BROWSER_TARGET ?? "local"
+    ).toLowerCase();
+    const isBrowserbase = browserTarget === "browserbase";
+    test.skip(isBrowserbase, "Requires local Chromium for userDataDir checks");
+
     v3 = new V3({
       ...v3TestConfig,
       localBrowserLaunchOptions: {
-        ...v3TestConfig.localBrowserLaunchOptions,
+        ...(v3TestConfig.localBrowserLaunchOptions ?? {}),
         userDataDir: testDir,
         preserveUserDataDir: true,
       },

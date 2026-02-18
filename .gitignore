@@ -26,3 +26,6 @@ packages/core/test-results/
 /inference_summary
 .turbo
 .idea
+coverage/
+ctrf/
+.stagehand-sea/

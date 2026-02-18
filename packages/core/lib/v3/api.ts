@@ -439,7 +439,7 @@ export class StagehandAPIClient {
     }
 
     // Parse the API data into StagehandMetrics format
-    const apiData = data.data || {};
+    const apiData = (data as Api.ReplayResponse).data;
     const metrics: StagehandMetrics = {
       actPromptTokens: 0,
       actCompletionTokens: 0,
@@ -469,7 +469,7 @@ export class StagehandAPIClient {
     };
 
     // Parse pages and their actions
-    const pages = apiData.pages || [];
+    const pages = apiData?.pages || [];
     for (const page of pages) {
       const actions = page.actions || [];
       for (const action of actions) {
@@ -480,8 +480,20 @@ export class StagehandAPIClient {
         if (tokenUsage) {
           const inputTokens = tokenUsage.inputTokens || 0;
           const outputTokens = tokenUsage.outputTokens || 0;
-          const reasoningTokens = tokenUsage.reasoningTokens || 0;
-          const cachedInputTokens = tokenUsage.cachedInputTokens || 0;
+          const reasoningTokens =
+            "reasoningTokens" in tokenUsage
+              ? Number(
+                  (tokenUsage as { reasoningTokens?: number })
+                    .reasoningTokens ?? 0,
+                )
+              : 0;
+          const cachedInputTokens =
+            "cachedInputTokens" in tokenUsage
+              ? Number(
+                  (tokenUsage as { cachedInputTokens?: number })
+                    .cachedInputTokens ?? 0,
+                )
+              : 0;
           const timeMs = tokenUsage.timeMs || 0;
 
           // Map method to metrics fields

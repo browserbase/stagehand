@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { V3 } from "../v3";
 import { v3DynamicTestConfig } from "./v3.dynamic.config";
 import { performUnderstudyMethod } from "../handlers/handlerUtils/actHandlerUtils";
+import { closeV3 } from "./testUtils";
 
 test.describe("tests performUnderstudyMethod", () => {
   let v3: V3;
@@ -12,7 +13,7 @@ test.describe("tests performUnderstudyMethod", () => {
   });
 
   test.afterEach(async () => {
-    await v3?.close?.().catch(() => {});
+    await closeV3(v3);
   });
 
   test("tests that clicking works", async () => {

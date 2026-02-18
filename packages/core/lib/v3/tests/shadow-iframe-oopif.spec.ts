@@ -6,6 +6,7 @@ import { chromium as patchrightChromium } from "patchright-core";
 import { Action } from "../types/public/methods";
 import { AnyPage } from "../types/public/page";
 import { v3DynamicTestConfig } from "./v3.dynamic.config";
+import { closeV3 } from "./testUtils";
 
 /**
  * IMPORTANT:
@@ -113,51 +114,6 @@ const cases: Case[] = [
     expectedSubstrings: ["button successfully clicked"],
   },
   {
-    title: "Open shadow root inside SPIF",
-    url: "https://browserbase.github.io/stagehand-eval-sites/sites/open-shadow-root-in-spif/",
-    action: {
-      selector:
-        "xpath=/html/body/main/section/iframe/html/body/shadow-demo//div/button",
-      method: "click",
-      arguments: [""],
-      description: "",
-    },
-    expectedSubstrings: ["button successfully clicked"],
-  },
-  {
-    title: "Closed shadow root inside SPIF",
-    url: "https://browserbase.github.io/stagehand-eval-sites/sites/closed-shadow-dom-in-spif/",
-    action: {
-      selector: "xpath=/html/body/div/iframe/html/body/shadow-demo//div/button",
-      method: "click",
-      arguments: [""],
-      description: "",
-    },
-    expectedSubstrings: ["button successfully clicked"],
-  },
-  {
-    title: "SPIF inside closed shadow root",
-    url: "https://browserbase.github.io/stagehand-eval-sites/sites/spif-in-closed-shadow-dom/",
-    action: {
-      selector: "xpath=/html/body/shadow-host//div/iframe/html/body/button",
-      method: "click",
-      arguments: [""],
-      description: "",
-    },
-    expectedSubstrings: ["button successfully clicked"],
-  },
-  {
-    title: "SPIF inside open shadow root",
-    url: "https://browserbase.github.io/stagehand-eval-sites/sites/spif-in-open-shadow-dom/",
-    action: {
-      selector: "xpath=/html/body/shadow-host//div/iframe/html/body/button",
-      method: "click",
-      arguments: [""],
-      description: "click button inside SPIF under open shadow",
-    },
-    expectedSubstrings: ["button successfully clicked"],
-  },
-  {
     title: "OOPIF inside open shadow root",
     url: "https://browserbase.github.io/stagehand-eval-sites/sites/oopif-in-open-shadow-dom/",
     action: {
@@ -183,7 +139,8 @@ const cases: Case[] = [
   },
 ];
 
-test.describe.parallel("Stagehand v3: shadow <-> iframe scenarios", () => {
+test.describe
+  .parallel("Stagehand v3: shadow <-> iframe OOPIF scenarios", () => {
   let v3: V3;
 
   test.beforeEach(async () => {
@@ -192,7 +149,7 @@ test.describe.parallel("Stagehand v3: shadow <-> iframe scenarios", () => {
   });
 
   test.afterEach(async () => {
-    await v3?.close?.().catch(() => {});
+    await closeV3(v3);
   });
 
   const frameworks: Framework[] = [
