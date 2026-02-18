@@ -399,3 +399,10 @@ export class StagehandSnapshotError extends StagehandError {
     super(`error taking snapshot${suffix}`, cause);
   }
 }
+
+export class UnderstudyCommandException extends StagehandError {
+  constructor(message: string, cause?: unknown) {
+    super(message, cause);
+    this.name = "UnderstudyCommandException";
+  }
+}
