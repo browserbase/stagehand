@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import { OpenAICUAClient } from "../lib/v3/agent/OpenAICUAClient";
-import { GoogleCUAClient } from "../lib/v3/agent/GoogleCUAClient";
+import { OpenAICUAClient } from "../lib/v3/agent/OpenAICUAClient.js";
+import { GoogleCUAClient } from "../lib/v3/agent/GoogleCUAClient.js";
 import type {
   SafetyCheck,
   SafetyConfirmationHandler,
-} from "../lib/v3/types/public/agent";
-import type { LogLine } from "../lib/v3/types/public/logs";
+} from "../lib/v3/types/public/agent.js";
+import type { LogLine } from "../lib/v3/types/public/logs.js";
 
 type LoggerMock = (message: LogLine) => void;
 

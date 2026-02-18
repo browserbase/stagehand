@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "../v3";
-import { v3DynamicTestConfig } from "./v3.dynamic.config";
-import { closeV3 } from "./testUtils";
+import { V3 } from "../v3.js";
+import { v3DynamicTestConfig } from "./v3.dynamic.config.js";
+import { closeV3 } from "./testUtils.js";
 
 test.describe.configure({ mode: "parallel" });
 test.describe("V3 default page tracking", () => {

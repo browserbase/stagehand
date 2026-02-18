@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "../v3";
-import { v3TestConfig } from "./v3.config";
+import { V3 } from "../v3.js";
+import { v3TestConfig } from "./v3.config.js";
 import type { StepResult, ToolSet } from "ai";
-import { StreamingCallbacksInNonStreamingModeError } from "../types/public/sdkErrors";
+import { StreamingCallbacksInNonStreamingModeError } from "../types/public/sdkErrors.js";
 
 test.describe("Stagehand agent callbacks behavior", () => {
   let v3: V3;

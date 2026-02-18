@@ -3,7 +3,7 @@ import {
   buildKeepAliveCases,
   getKeepAliveEnvConfig,
   runKeepAliveCase,
-} from "./keep-alive.helpers";
+} from "./keep-alive.helpers.js";
 
 test.describe.parallel("keepAlive behavior", () => {
   const { testEnv, apiKey, projectId, hasBrowserbaseCreds } =

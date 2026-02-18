@@ -1,10 +1,10 @@
 import { generateText, ModelMessage, LanguageModel, ToolSet } from "ai";
 import { z } from "zod";
 import { tool } from "ai";
-import { LogLine } from "../../types/public/logs";
-import { StagehandZodObject } from "../../zodCompat";
-import { getZFactory } from "../../../utils";
-import type { StagehandZodSchema } from "../../zodCompat";
+import { LogLine } from "../../types/public/logs.js";
+import { StagehandZodObject } from "../../zodCompat.js";
+import { getZFactory } from "../../../utils.js";
+import type { StagehandZodSchema } from "../../zodCompat.js";
 
 interface DoneResult {
   reasoning: string;

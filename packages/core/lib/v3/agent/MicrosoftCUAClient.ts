@@ -1,15 +1,15 @@
 import OpenAI from "openai";
-import { LogLine } from "../types/public/logs";
+import { LogLine } from "../types/public/logs.js";
 import {
   AgentAction,
   AgentResult,
   AgentType,
   AgentExecutionOptions,
-} from "../types/public/agent";
-import { ClientOptions } from "../types/public/model";
-import { AgentClient } from "./AgentClient";
-import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
-import { mapKeyToPlaywright } from "./utils/cuaKeyMapping";
+} from "../types/public/agent.js";
+import { ClientOptions } from "../types/public/model.js";
+import { AgentClient } from "./AgentClient.js";
+import { AgentScreenshotProviderError } from "../types/public/sdkErrors.js";
+import { mapKeyToPlaywright } from "./utils/cuaKeyMapping.js";
 import { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
 /**

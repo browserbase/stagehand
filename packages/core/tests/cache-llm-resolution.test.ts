@@ -1,23 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
-import { ActCache } from "../lib/v3/cache/ActCache";
-import { AgentCache } from "../lib/v3/cache/AgentCache";
-import type { CacheStorage } from "../lib/v3/cache/CacheStorage";
-import type { ActHandler } from "../lib/v3/handlers/actHandler";
-import type { LLMClient } from "../lib/v3/llm/LLMClient";
-import type { Page } from "../lib/v3/understudy/page";
-import type { V3Context } from "../lib/v3/understudy/context";
+import { ActCache } from "../lib/v3/cache/ActCache.js";
+import { AgentCache } from "../lib/v3/cache/AgentCache.js";
+import type { CacheStorage } from "../lib/v3/cache/CacheStorage.js";
+import type { ActHandler } from "../lib/v3/handlers/actHandler.js";
+import type { LLMClient } from "../lib/v3/llm/LLMClient.js";
+import type { Page } from "../lib/v3/understudy/page.js";
+import type { V3Context } from "../lib/v3/understudy/context.js";
 import type {
   ActCacheContext,
   CachedActEntry,
   CachedAgentEntry,
   AgentCacheContext,
   AgentReplayActStep,
-} from "../lib/v3/types/private";
+} from "../lib/v3/types/private/index.js";
 import type {
   Action,
   AgentResult,
   AvailableModel,
-} from "../lib/v3/types/public";
+} from "../lib/v3/types/public/index.js";
 
 function createFakeStorage<T>(entry: T): CacheStorage {
   return {

@@ -1,13 +1,16 @@
 import type { Protocol } from "devtools-protocol";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CDPSessionLike } from "../lib/v3/understudy/cdp";
-import type { Page } from "../lib/v3/understudy/page";
-import type { FrameContext, SessionDomIndex } from "../lib/v3/types/private";
-import * as capture from "../lib/v3/understudy/a11y/snapshot/capture";
-import * as a11yTree from "../lib/v3/understudy/a11y/snapshot/a11yTree";
-import * as domTree from "../lib/v3/understudy/a11y/snapshot/domTree";
-import * as focusSelectors from "../lib/v3/understudy/a11y/snapshot/focusSelectors";
-import { MockCDPSession } from "./helpers/mockCDPSession";
+import type { CDPSessionLike } from "../lib/v3/understudy/cdp.js";
+import type { Page } from "../lib/v3/understudy/page.js";
+import type {
+  FrameContext,
+  SessionDomIndex,
+} from "../lib/v3/types/private/index.js";
+import * as capture from "../lib/v3/understudy/a11y/snapshot/capture.js";
+import * as a11yTree from "../lib/v3/understudy/a11y/snapshot/a11yTree.js";
+import * as domTree from "../lib/v3/understudy/a11y/snapshot/domTree.js";
+import * as focusSelectors from "../lib/v3/understudy/a11y/snapshot/focusSelectors.js";
+import { MockCDPSession } from "./helpers/mockCDPSession.js";
 
 const makeProtocolFrame = (id: string): Protocol.Page.Frame =>
   ({

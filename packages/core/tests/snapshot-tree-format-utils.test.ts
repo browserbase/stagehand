@@ -6,7 +6,7 @@ import {
   indentBlock,
   injectSubtrees,
   normaliseSpaces,
-} from "../lib/v3/understudy/a11y/snapshot/treeFormatUtils";
+} from "../lib/v3/understudy/a11y/snapshot/treeFormatUtils.js";
 
 describe("formatTreeLine", () => {
   it("includes encoded ids and indents children", () => {

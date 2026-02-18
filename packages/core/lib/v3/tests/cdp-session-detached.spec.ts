@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { chromium as playwrightChromium } from "playwright";
-import { V3 } from "../v3";
-import { v3TestConfig } from "./v3.config";
+import { V3 } from "../v3.js";
+import { v3TestConfig } from "./v3.config.js";
 
 test.describe("CDP session detach handling", () => {
   let v3: V3;

@@ -14,8 +14,8 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "node:url";
 import { AvailableModel } from "@browserbasehq/stagehand";
-import { filterByEvalName } from "./args";
-import { AgentModelEntry } from "./types/evals";
+import { filterByEvalName } from "./args.js";
+import { AgentModelEntry } from "./types/evals.js";
 
 const ALL_EVAL_MODELS = [
   // GOOGLE

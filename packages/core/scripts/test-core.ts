@@ -10,7 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import normalizeV8Coverage from "./normalize-v8-coverage";
+import normalizeV8Coverage from "./normalize-v8-coverage.js";
 import {
   findRepoRoot,
   resolveFromRoot,
@@ -23,7 +23,7 @@ import {
   findJunitPath,
   hasReporterName,
   writeCtrfFromJunit,
-} from "./test-utils";
+} from "./test-utils.js";
 
 const repoRoot = findRepoRoot(process.cwd());
 const listFlag = parseListFlag(process.argv.slice(2));

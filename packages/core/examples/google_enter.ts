@@ -4,7 +4,7 @@
  * It's mainly meant to sanity check using page.act() to press enter, since some LLMs have issues with it.
  */
 
-import { Stagehand } from "../lib/v3";
+import { Stagehand } from "../lib/v3/index.js";
 
 async function example() {
   const stagehand = new Stagehand({

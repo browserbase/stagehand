@@ -12,7 +12,7 @@
  * Also check out the form_filling_sensible.ts example for a more complex example of using observe() to fill out a form.
  */
 
-import { Action, Stagehand } from "../lib/v3";
+import { Action, Stagehand } from "../lib/v3/index.js";
 
 async function example() {
   const stagehand = new Stagehand({

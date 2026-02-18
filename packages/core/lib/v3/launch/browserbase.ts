@@ -2,9 +2,9 @@ import Browserbase from "@browserbasehq/sdk";
 import {
   BrowserbaseSessionNotFoundError,
   StagehandInitError,
-} from "../types/public/sdkErrors";
-import type { BrowserbaseSessionCreateParams } from "../types/public/api";
-import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig";
+} from "../types/public/sdkErrors.js";
+import type { BrowserbaseSessionCreateParams } from "../types/public/api.js";
+import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig.js";
 
 export async function createBrowserbaseSession(
   apiKey: string,

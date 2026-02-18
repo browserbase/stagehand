@@ -10,8 +10,8 @@
  * all logs emitted during the evaluation process can be captured, persisted, and
  * reviewed after the tasks complete.
  */
-import { logLineToString } from "./utils";
-import { LogLineEval } from "./types/evals";
+import { logLineToString } from "./utils.js";
+import { LogLineEval } from "./types/evals.js";
 import { LogLine } from "@browserbasehq/stagehand";
 import type { V3 } from "@browserbasehq/stagehand";
 

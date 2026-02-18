@@ -1,6 +1,6 @@
 import type { Protocol } from "devtools-protocol";
-import type { CDPSessionLike } from "../../cdp";
-import { a11yScriptSources } from "../../../dom/build/a11yScripts.generated";
+import type { CDPSessionLike } from "../../cdp.js";
+import { a11yScriptSources } from "../../../dom/build/a11yScripts.generated.js";
 
 /**
  * Build the absolute XPath for a node by walking through every iframe host

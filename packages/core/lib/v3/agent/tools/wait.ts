@@ -1,12 +1,12 @@
 import { tool } from "ai";
 import { z } from "zod";
-import type { V3 } from "../../v3";
+import type { V3 } from "../../v3.js";
 import type {
   AgentToolMode,
   WaitToolResult,
   ModelOutputContentItem,
-} from "../../types/public/agent";
-import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
+} from "../../types/public/agent.js";
+import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
 
 export const waitTool = (v3: V3, mode?: AgentToolMode) =>
   tool({

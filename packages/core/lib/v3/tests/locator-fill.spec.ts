@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
-import { V3 } from "../v3";
-import { StagehandLocatorError } from "../types/public/sdkErrors";
-import { v3TestConfig } from "./v3.config";
+import { V3 } from "../v3.js";
+import { StagehandLocatorError } from "../types/public/sdkErrors.js";
+import { v3TestConfig } from "./v3.config.js";
 
 test.describe("Locator.fill()", () => {
   let v3: V3;

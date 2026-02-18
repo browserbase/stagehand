@@ -1,12 +1,12 @@
-import { AgentCache } from "./AgentCache";
-import { CacheStorage } from "./CacheStorage";
-import type { V3 } from "../v3";
-import type { AgentCacheTransferPayload } from "../types/private";
-import type { ActHandler } from "../handlers/actHandler";
-import type { V3Context } from "../understudy/context";
-import type { AvailableModel, V3Options } from "../types/public";
-import type { ModelConfiguration } from "../types/public/model";
-import type { LLMClient } from "../llm/LLMClient";
+import { AgentCache } from "./AgentCache.js";
+import { CacheStorage } from "./CacheStorage.js";
+import type { V3 } from "../v3.js";
+import type { AgentCacheTransferPayload } from "../types/private/index.js";
+import type { ActHandler } from "../handlers/actHandler.js";
+import type { V3Context } from "../understudy/context.js";
+import type { AvailableModel, V3Options } from "../types/public/index.js";
+import type { ModelConfiguration } from "../types/public/model.js";
+import type { LLMClient } from "../llm/LLMClient.js";
 
 export interface ServerAgentCacheHandle {
   complete(): AgentCacheTransferPayload | null;

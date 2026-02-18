@@ -1,12 +1,12 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "../v3";
+import { V3 } from "../v3.js";
 import puppeteer from "puppeteer-core";
 import { chromium as playwrightChromium } from "playwright";
 import { chromium as patchrightChromium } from "patchright-core";
-import { Action } from "../types/public/methods";
-import { AnyPage } from "../types/public/page";
-import { v3DynamicTestConfig } from "./v3.dynamic.config";
-import { closeV3 } from "./testUtils";
+import { Action } from "../types/public/methods.js";
+import { AnyPage } from "../types/public/page.js";
+import { v3DynamicTestConfig } from "./v3.dynamic.config.js";
+import { closeV3 } from "./testUtils.js";
 
 /**
  * IMPORTANT:

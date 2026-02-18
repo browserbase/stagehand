@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
-import { tasksByName } from "./taskConfig";
-import type { SummaryResult } from "./types/evals";
+import { tasksByName } from "./taskConfig.js";
+import type { SummaryResult } from "./types/evals.js";
 
 const findRepoRoot = (startDir: string): string => {
   let current = path.resolve(startDir);

@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { V3 } from "../v3";
-import { v3DynamicTestConfig } from "./v3.dynamic.config";
-import { performUnderstudyMethod } from "../handlers/handlerUtils/actHandlerUtils";
-import { closeV3 } from "./testUtils";
+import { V3 } from "../v3.js";
+import { v3DynamicTestConfig } from "./v3.dynamic.config.js";
+import { performUnderstudyMethod } from "../handlers/handlerUtils/actHandlerUtils.js";
+import { closeV3 } from "./testUtils.js";
 
 test.describe("tests performUnderstudyMethod", () => {
   let v3: V3;

@@ -1,6 +1,6 @@
 import { launch, LaunchedChrome } from "chrome-launcher";
 import WebSocket from "ws";
-import { ConnectionTimeoutError } from "../types/public/sdkErrors";
+import { ConnectionTimeoutError } from "../types/public/sdkErrors.js";
 
 interface LaunchLocalOptions {
   chromePath?: string;

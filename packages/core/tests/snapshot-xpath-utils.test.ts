@@ -5,8 +5,8 @@ import {
   joinXPath,
   normalizeXPath,
   prefixXPath,
-} from "../lib/v3/understudy/a11y/snapshot/xpathUtils";
-import { relativizeXPath } from "../lib/v3/understudy/a11y/snapshot/domTree";
+} from "../lib/v3/understudy/a11y/snapshot/xpathUtils.js";
+import { relativizeXPath } from "../lib/v3/understudy/a11y/snapshot/domTree.js";
 
 describe("prefixXPath", () => {
   it("treats root prefixes as no-op", () => {

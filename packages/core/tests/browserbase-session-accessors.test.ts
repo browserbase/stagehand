@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { V3 } from "../lib/v3/v3";
+import { V3 } from "../lib/v3/v3.js";
 
 const MOCK_SESSION_ID = "session-123";
 const MOCK_SESSION_URL = `https://www.browserbase.com/sessions/${MOCK_SESSION_ID}`;

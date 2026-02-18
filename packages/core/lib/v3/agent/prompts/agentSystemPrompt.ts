@@ -1,4 +1,4 @@
-import type { AgentToolMode } from "../../types/public/agent";
+import type { AgentToolMode } from "../../types/public/agent.js";
 
 export interface AgentSystemPromptOptions {
   url: string;

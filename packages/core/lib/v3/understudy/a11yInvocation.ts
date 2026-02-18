@@ -2,7 +2,7 @@ import {
   a11yScriptBootstrap,
   a11yScriptGlobalRefs,
   type A11yScriptName,
-} from "../dom/build/a11yScripts.generated";
+} from "../dom/build/a11yScripts.generated.js";
 
 /**
  * Wrap a generated a11y script in a self-invoking expression that first ensures

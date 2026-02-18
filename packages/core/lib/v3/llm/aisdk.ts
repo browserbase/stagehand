@@ -14,11 +14,11 @@ import {
 import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { ChatCompletion } from "openai/resources";
 import { v7 as uuidv7 } from "uuid";
-import { LogLine } from "../types/public/logs";
-import { AvailableModel } from "../types/public/model";
-import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
-import { SessionFileLogger, formatLlmPromptPreview } from "../flowLogger";
-import { toJsonSchema } from "../zodCompat";
+import { LogLine } from "../types/public/logs.js";
+import { AvailableModel } from "../types/public/model.js";
+import { CreateChatCompletionOptions, LLMClient } from "./LLMClient.js";
+import { SessionFileLogger, formatLlmPromptPreview } from "../flowLogger.js";
+import { toJsonSchema } from "../zodCompat.js";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;

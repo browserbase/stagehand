@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   countXPathMatches,
   resolveXPathAtIndex,
-} from "../lib/v3/dom/locatorScripts/xpathResolver";
+} from "../lib/v3/dom/locatorScripts/xpathResolver.js";
 
 type DomGlobals = {
   window: Window;

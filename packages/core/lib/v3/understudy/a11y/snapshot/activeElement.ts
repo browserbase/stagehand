@@ -1,13 +1,13 @@
 import type { Protocol } from "devtools-protocol";
-import { Page } from "../../page";
-import { executionContexts } from "../../executionContextRegistry";
-import { buildA11yInvocation } from "../../a11yInvocation";
-import { a11yScriptSources } from "../../../dom/build/a11yScripts.generated";
+import { Page } from "../../page.js";
+import { executionContexts } from "../../executionContextRegistry.js";
+import { buildA11yInvocation } from "../../a11yInvocation.js";
+import { a11yScriptSources } from "../../../dom/build/a11yScripts.generated.js";
 import {
   absoluteXPathForBackendNode,
   normalizeXPath,
   prefixXPath,
-} from "./xpathUtils";
+} from "./xpathUtils.js";
 
 /**
  * Compute the absolute XPath for the currently focused element.

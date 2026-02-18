@@ -1,4 +1,4 @@
-import { Stagehand } from "../lib/v3";
+import { Stagehand } from "../lib/v3/index.js";
 
 async function example(stagehand: Stagehand) {
   /**
@@ -37,6 +37,12 @@ async function example(stagehand: Stagehand) {
 (async () => {
   const stagehand = new Stagehand({
     env: "BROWSERBASE",
+    apiKey: process.env.BROWSERBASE_API_KEY,
+    projectId: process.env.BROWSERBASE_PROJECT_ID,
+    model: {
+      modelName: "openai/gpt-5",
+      apiKey: process.env.MODEL_API_KEY,
+    },
     verbose: 2,
   });
   await stagehand.init();

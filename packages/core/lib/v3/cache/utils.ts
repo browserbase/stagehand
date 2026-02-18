@@ -1,5 +1,5 @@
-import type { Logger } from "../types/public";
-import { Page } from "../understudy/page";
+import type { Logger } from "../types/public/index.js";
+import { Page } from "../understudy/page.js";
 
 const DEFAULT_WAIT_TIMEOUT_MS = 15000;
 

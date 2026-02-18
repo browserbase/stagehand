@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "../v3";
-import { captureHybridSnapshot } from "../understudy/a11y/snapshot";
-import { v3TestConfig } from "./v3.config";
+import { V3 } from "../v3.js";
+import { captureHybridSnapshot } from "../understudy/a11y/snapshot/index.js";
+import { v3TestConfig } from "./v3.config.js";
 
 test.describe("tests captureHybridSnapshot() does not break due to -32000 Failed to convert response to JSON: CBOR: stack limit exceeded", () => {
   let v3: V3;

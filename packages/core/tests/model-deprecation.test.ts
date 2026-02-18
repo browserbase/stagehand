@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { LLMProvider } from "../lib/v3/llm/LLMProvider";
+import { LLMProvider } from "../lib/v3/llm/LLMProvider.js";
 import {
   UnsupportedModelError,
   UnsupportedAISDKModelProviderError,
-} from "../lib/v3/types/public/sdkErrors";
-import type { LogLine } from "../lib/v3/types/public/logs";
+} from "../lib/v3/types/public/sdkErrors.js";
+import type { LogLine } from "../lib/v3/types/public/logs.js";
 
 // Mock client options with fake API keys for testing
 const mockClientOptions = { apiKey: "test-api-key-for-testing" };

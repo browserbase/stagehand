@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z, ZodTypeAny } from "zod";
-import type { V3 } from "../../v3";
+import type { V3 } from "../../v3.js";
 
 interface JsonSchema {
   type?: string;

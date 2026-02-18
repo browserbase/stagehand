@@ -1,12 +1,12 @@
-import { ZodSchemaValidationError } from "./v3/types/public/sdkErrors";
+import { ZodSchemaValidationError } from "./v3/types/public/sdkErrors.js";
 import { Schema, Type } from "@google/genai";
 import { z, ZodTypeAny } from "zod";
 import z3 from "zod/v3";
-import { LogLine } from "./v3/types/public/logs";
-import { ModelProvider } from "./v3/types/public/model";
-import { ZodPathSegments } from "./v3/types/private/internal";
-import type { StagehandZodSchema } from "./v3/zodCompat";
-import { isZod4Schema } from "./v3/zodCompat";
+import { LogLine } from "./v3/types/public/logs.js";
+import { ModelProvider } from "./v3/types/public/model.js";
+import { ZodPathSegments } from "./v3/types/private/internal.js";
+import type { StagehandZodSchema } from "./v3/zodCompat.js";
+import { isZod4Schema } from "./v3/zodCompat.js";
 
 const ID_PATTERN = /^\d+-\d+$/;
 

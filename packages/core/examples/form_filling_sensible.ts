@@ -3,7 +3,7 @@
  *
  * In this specific example, we use observe() to get multiple actions, then iterate through each action to fill the form with sensitive data at lightning speed.
  */
-import { Stagehand } from "../lib/v3";
+import { Stagehand } from "../lib/v3/index.js";
 import chalk from "chalk";
 
 async function formFillingSensible() {

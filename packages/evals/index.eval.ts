@@ -20,18 +20,18 @@ import {
   DEFAULT_EVAL_CATEGORIES,
   filterByCategory,
   filterByEvalName,
-} from "./args";
-import { generateExperimentName } from "./utils";
-import { exactMatch, errorMatch } from "./scoring";
+} from "./args.js";
+import { generateExperimentName } from "./utils.js";
+import { exactMatch, errorMatch } from "./scoring.js";
 import {
   tasksByName,
   tasksConfig,
   getModelList,
   getAgentModelEntries,
-} from "./taskConfig";
+} from "./taskConfig.js";
 import { Eval } from "braintrust";
-import { SummaryResult, Testcase, EvalInput } from "./types/evals";
-import { EvalLogger } from "./logger";
+import { SummaryResult, Testcase, EvalInput } from "./types/evals.js";
+import { EvalLogger } from "./logger.js";
 import {
   AvailableModel,
   LLMClient,
@@ -41,14 +41,14 @@ import {
   LogLine,
   getAISDKLanguageModel,
 } from "@browserbasehq/stagehand";
-import { AISdkClientWrapped } from "./lib/AISdkClientWrapped";
-import { env } from "./env";
-import { initV3 } from "./initV3";
-import { generateSummary } from "./summary";
-import { buildGAIATestcases } from "./suites/gaia";
-import { buildWebVoyagerTestcases } from "./suites/webvoyager";
-import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web";
-import { endBrowserbaseSession } from "./browserbaseCleanup";
+import { AISdkClientWrapped } from "./lib/AISdkClientWrapped.js";
+import { env } from "./env.js";
+import { initV3 } from "./initV3.js";
+import { generateSummary } from "./summary.js";
+import { buildGAIATestcases } from "./suites/gaia.js";
+import { buildWebVoyagerTestcases } from "./suites/webvoyager.js";
+import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web.js";
+import { endBrowserbaseSession } from "./browserbaseCleanup.js";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 

@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "../v3";
-import { v3TestConfig } from "./v3.config";
-import { createAgentTools } from "../agent/tools";
-import { buildAgentSystemPrompt } from "../agent/prompts/agentSystemPrompt";
+import { V3 } from "../v3.js";
+import { v3TestConfig } from "./v3.config.js";
+import { createAgentTools } from "../agent/tools/index.js";
+import { buildAgentSystemPrompt } from "../agent/prompts/agentSystemPrompt.js";
 import type { StepResult, ToolSet } from "ai";
 
 test.describe("Stagehand agent hybrid mode", () => {

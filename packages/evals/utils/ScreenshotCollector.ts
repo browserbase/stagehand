@@ -1,6 +1,6 @@
 import { V3 } from "@browserbasehq/stagehand";
 import sharp from "sharp";
-import { ScreenshotCollectorOptions } from "../types/screenshotCollector";
+import { ScreenshotCollectorOptions } from "../types/screenshotCollector.js";
 
 export class ScreenshotCollector {
   private screenshots: Buffer[] = [];

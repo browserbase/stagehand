@@ -1,5 +1,5 @@
 import { V3Evaluator } from "@browserbasehq/stagehand";
-import { EvalFunction } from "../../types/evals";
+import { EvalFunction } from "../../types/evals.js";
 
 export const all_recipes: EvalFunction = async ({
   debugUrl,

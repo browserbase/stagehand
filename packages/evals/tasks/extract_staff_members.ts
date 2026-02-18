@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EvalFunction } from "../types/evals";
+import { EvalFunction } from "../types/evals.js";
 
 export const extract_staff_members: EvalFunction = async ({
   debugUrl,

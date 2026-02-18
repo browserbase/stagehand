@@ -1,6 +1,6 @@
-import { Page } from "../../understudy/page";
-import { ModelConfiguration } from "../public/model";
-import type { StagehandZodSchema } from "../../zodCompat";
+import { Page } from "../../understudy/page.js";
+import { ModelConfiguration } from "../public/model.js";
+import type { StagehandZodSchema } from "../../zodCompat.js";
 
 export interface ActHandlerParams {
   instruction: string;

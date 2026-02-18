@@ -3,20 +3,20 @@ import {
   UnsupportedAISDKModelProviderError,
   UnsupportedModelError,
   UnsupportedModelProviderError,
-} from "../types/public/sdkErrors";
-import { LogLine } from "../types/public/logs";
+} from "../types/public/sdkErrors.js";
+import { LogLine } from "../types/public/logs.js";
 import {
   AvailableModel,
   ClientOptions,
   ModelProvider,
-} from "../types/public/model";
-import { AISdkClient } from "./aisdk";
-import { AnthropicClient } from "./AnthropicClient";
-import { CerebrasClient } from "./CerebrasClient";
-import { GoogleClient } from "./GoogleClient";
-import { GroqClient } from "./GroqClient";
-import { LLMClient } from "./LLMClient";
-import { OpenAIClient } from "./OpenAIClient";
+} from "../types/public/model.js";
+import { AISdkClient } from "./aisdk.js";
+import { AnthropicClient } from "./AnthropicClient.js";
+import { CerebrasClient } from "./CerebrasClient.js";
+import { GoogleClient } from "./GoogleClient.js";
+import { GroqClient } from "./GroqClient.js";
+import { LLMClient } from "./LLMClient.js";
+import { OpenAIClient } from "./OpenAIClient.js";
 import { openai, createOpenAI } from "@ai-sdk/openai";
 import { bedrock, createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { vertex, createVertex } from "@ai-sdk/google-vertex";
@@ -32,7 +32,7 @@ import { deepseek, createDeepSeek } from "@ai-sdk/deepseek";
 import { perplexity, createPerplexity } from "@ai-sdk/perplexity";
 import { ollama, createOllama } from "ollama-ai-provider-v2";
 import { gateway, createGateway } from "ai";
-import { AISDKProvider, AISDKCustomProvider } from "../types/public/model";
+import { AISDKProvider, AISDKCustomProvider } from "../types/public/model.js";
 
 const AISDKProviders: Record<string, AISDKProvider> = {
   openai,

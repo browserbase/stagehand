@@ -1,4 +1,4 @@
-import { TimeoutError } from "../../types/public/sdkErrors";
+import { TimeoutError } from "../../types/public/sdkErrors.js";
 
 export type TimeoutGuard = () => void;
 

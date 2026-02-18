@@ -1,6 +1,6 @@
-import type { V3Options } from "../types/public/options";
-import type { BrowserbaseSessionCreateParams } from "../types/public/api";
-import type { LogLine } from "../types/public/logs";
+import type { V3Options } from "../types/public/options.js";
+import type { BrowserbaseSessionCreateParams } from "../types/public/api.js";
+import type { LogLine } from "../types/public/logs.js";
 
 const browserTarget = (
   process.env.STAGEHAND_BROWSER_TARGET ?? "local"

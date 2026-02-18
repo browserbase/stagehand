@@ -1,4 +1,4 @@
-import { EvalFunction } from "../types/evals";
+import { EvalFunction } from "../types/evals.js";
 
 export const observe_amazon_add_to_cart: EvalFunction = async ({
   debugUrl,

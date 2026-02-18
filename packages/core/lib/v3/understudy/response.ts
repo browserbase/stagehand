@@ -14,14 +14,14 @@
  */
 
 import type { Protocol } from "devtools-protocol";
-import type { SerializableResponse } from "../types/private";
+import type { SerializableResponse } from "../types/private/index.js";
 import {
   ResponseBodyError,
   ResponseParseError,
-} from "../types/public/sdkErrors";
-import type { CDPSessionLike } from "./cdp";
-import type { Frame } from "./frame";
-import type { Page } from "./page";
+} from "../types/public/sdkErrors.js";
+import type { CDPSessionLike } from "./cdp.js";
+import type { Frame } from "./frame.js";
+import type { Page } from "./page.js";
 
 type ServerAddr = { ipAddress: string; port: number };
 

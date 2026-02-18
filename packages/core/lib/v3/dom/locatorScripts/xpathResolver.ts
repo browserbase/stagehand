@@ -2,7 +2,7 @@ import {
   applyPredicates,
   parseXPathSteps,
   type XPathStep,
-} from "./xpathParser";
+} from "./xpathParser.js";
 
 type ClosedRootGetter = (host: Element) => ShadowRoot | null;
 

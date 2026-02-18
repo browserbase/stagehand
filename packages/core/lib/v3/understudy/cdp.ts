@@ -1,7 +1,7 @@
 // lib/v3/understudy/cdp.ts
 import WebSocket from "ws";
 import type { Protocol } from "devtools-protocol";
-import { STAGEHAND_VERSION } from "../../version";
+import { STAGEHAND_VERSION } from "../../version.js";
 
 /**
  * CDP transport & session multiplexer

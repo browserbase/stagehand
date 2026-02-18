@@ -1,8 +1,8 @@
-import type { V3Options } from "../types/public/options";
+import type { V3Options } from "../types/public/options.js";
 import {
   v3DynamicTestConfig,
   getV3DynamicTestConfig,
-} from "./v3.dynamic.config";
+} from "./v3.dynamic.config.js";
 
 export const v3TestConfig: V3Options = v3DynamicTestConfig;
 

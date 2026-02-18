@@ -1,6 +1,6 @@
 import { ZodError } from "zod";
 // Avoid .js extension so bundlers resolve TS source
-import { STAGEHAND_VERSION } from "../../../version";
+import { STAGEHAND_VERSION } from "../../../version.js";
 
 export class StagehandError extends Error {
   public readonly cause?: unknown;

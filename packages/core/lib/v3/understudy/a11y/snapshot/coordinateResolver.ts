@@ -1,12 +1,12 @@
 import type { Protocol } from "devtools-protocol";
-import type { CDPSessionLike } from "../../cdp";
-import { Page } from "../../page";
-import { executionContexts } from "../../executionContextRegistry";
-import { a11yScriptSources } from "../../../dom/build/a11yScripts.generated";
-import { buildA11yInvocation } from "../../a11yInvocation";
-import type { ResolvedLocation } from "../../../types/private/snapshot";
-import { listChildrenOf } from "./focusSelectors";
-import { buildAbsoluteXPathFromChain } from "./xpathUtils";
+import type { CDPSessionLike } from "../../cdp.js";
+import { Page } from "../../page.js";
+import { executionContexts } from "../../executionContextRegistry.js";
+import { a11yScriptSources } from "../../../dom/build/a11yScripts.generated.js";
+import { buildA11yInvocation } from "../../a11yInvocation.js";
+import type { ResolvedLocation } from "../../../types/private/snapshot.js";
+import { listChildrenOf } from "./focusSelectors.js";
+import { buildAbsoluteXPathFromChain } from "./xpathUtils.js";
 
 /**
  * Resolve deepest node for a page coordinate and compute its absolute XPath across frames.

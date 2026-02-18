@@ -7,18 +7,21 @@ import {
   locatorScriptBootstrap,
   locatorScriptGlobalRefs,
   locatorScriptSources,
-} from "../dom/build/locatorScripts.generated";
-import type { Frame } from "./frame";
-import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver";
+} from "../dom/build/locatorScripts.generated.js";
+import type { Frame } from "./frame.js";
+import {
+  FrameSelectorResolver,
+  type SelectorQuery,
+} from "./selectorResolver.js";
 import {
   StagehandElementNotFoundError,
   StagehandInvalidArgumentError,
   StagehandLocatorError,
   ElementNotVisibleError,
-} from "../types/public/sdkErrors";
-import { normalizeInputFiles } from "./fileUploadUtils";
-import { SetInputFilesArgument, MouseButton } from "../types/public/locator";
-import { NormalizedFilePayload } from "../types/private/locator";
+} from "../types/public/sdkErrors.js";
+import { normalizeInputFiles } from "./fileUploadUtils.js";
+import { SetInputFilesArgument, MouseButton } from "../types/public/locator.js";
+import { NormalizedFilePayload } from "../types/private/locator.js";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
 

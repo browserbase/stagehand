@@ -3,9 +3,9 @@ import { Buffer } from "buffer";
 import { promises as fs } from "fs";
 import path from "path";
 import crypto from "crypto";
-import type { Page as V3Page } from "../understudy/page";
-import { V3 } from "../v3";
-import { v3TestConfig } from "./v3.config";
+import type { Page as V3Page } from "../understudy/page.js";
+import { V3 } from "../v3.js";
+import { v3TestConfig } from "./v3.config.js";
 
 const FILE_UPLOAD_IFRAME_URL =
   "https://browserbase.github.io/stagehand-eval-sites/sites/file-uploads-iframe/";

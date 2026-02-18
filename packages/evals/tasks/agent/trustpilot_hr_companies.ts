@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../types/evals";
+import { EvalFunction } from "../../types/evals.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
-import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector.js";
 
 export const trustpilot_hr_companies: EvalFunction = async ({
   debugUrl,

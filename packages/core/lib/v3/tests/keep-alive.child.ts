@@ -1,4 +1,4 @@
-import { V3 } from "../v3";
+import { V3 } from "../v3.js";
 
 async function main(): Promise<void> {
   const encoded = process.argv.find((arg) => arg.startsWith("cfg:"));

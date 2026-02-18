@@ -2,7 +2,7 @@
  * This file implements scoring functions needed by braintrust.
  */
 
-import { EvalArgs, EvalInput, EvalResult } from "./types/evals";
+import { EvalArgs, EvalInput, EvalResult } from "./types/evals.js";
 
 function formatTaskOutput(output: unknown): string {
   let value: string | undefined;

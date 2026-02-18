@@ -2,9 +2,9 @@ import { test, expect } from "@playwright/test";
 import { promises as fs } from "fs";
 import * as os from "os";
 import * as path from "path";
-import { V3 } from "../v3";
-import { v3TestConfig } from "./v3.config";
-import { Frame } from "../understudy/frame";
+import { V3 } from "../v3.js";
+import { v3TestConfig } from "./v3.config.js";
+import { Frame } from "../understudy/frame.js";
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

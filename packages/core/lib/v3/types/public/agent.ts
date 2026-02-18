@@ -12,9 +12,9 @@ import {
   StreamTextOnChunkCallback,
   StreamTextOnFinishCallback,
 } from "ai";
-import { LogLine } from "./logs";
-import { ClientOptions } from "./model";
-import { StagehandZodObject } from "../../zodCompat";
+import { LogLine } from "./logs.js";
+import { ClientOptions } from "./model.js";
+import { StagehandZodObject } from "../../zodCompat.js";
 
 // Re-export ModelMessage for consumers who want to use it for conversation continuation
 export type { ModelMessage } from "ai";
@@ -24,7 +24,7 @@ export type { Tool } from "ai";
 import { Page as PlaywrightPage } from "playwright-core";
 import { Page as PuppeteerPage } from "puppeteer-core";
 import { Page as PatchrightPage } from "patchright-core";
-import { Page } from "../../understudy/page";
+import { Page } from "../../understudy/page.js";
 
 export interface AgentContext {
   options: AgentExecuteOptionsBase;

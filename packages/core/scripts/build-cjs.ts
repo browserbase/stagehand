@@ -9,7 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { findRepoRoot } from "./test-utils";
+import { findRepoRoot } from "./test-utils.js";
 
 const repoRoot = findRepoRoot(process.cwd());
 const coreRoot = path.join(repoRoot, "packages", "core");

@@ -10,13 +10,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import normalizeV8Coverage from "../../core/scripts/normalize-v8-coverage";
+import normalizeV8Coverage from "../../core/scripts/normalize-v8-coverage.js";
 import {
   findRepoRoot,
   resolveFromRoot,
   parseListFlag,
   toSafeName,
-} from "../../core/scripts/test-utils";
+} from "../../core/scripts/test-utils.js";
 
 type EvalSummaryEntry = {
   eval: string;

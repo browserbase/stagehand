@@ -1,10 +1,10 @@
-import type { Step } from "../lib/v3/types/private/snapshot";
+import type { Step } from "../lib/v3/types/private/snapshot.js";
 import { describe, expect, it } from "vitest";
 import {
   buildXPathFromSteps,
   listChildrenOf,
   parseXPathToSteps,
-} from "../lib/v3/understudy/a11y/snapshot/focusSelectors";
+} from "../lib/v3/understudy/a11y/snapshot/focusSelectors.js";
 
 describe("parseXPathToSteps", () => {
   it("records axis direction and normalized names", () => {
