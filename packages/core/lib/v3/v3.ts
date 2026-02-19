@@ -11,6 +11,7 @@ import {
   toJsonSchema,
 } from "./zodCompat.js";
 import { loadApiKeyFromEnv } from "../utils.js";
+import { extractModelName } from "../modelUtils.js";
 import { StagehandLogger, LoggerOptions } from "../logger.js";
 import { ActCache } from "./cache/ActCache.js";
 import { AgentCache } from "./cache/AgentCache.js";
@@ -1678,13 +1679,13 @@ export class V3 {
       ? this.resolveLlmClient(options.model)
       : this.llmClient;
 
+    const resolvedExecutionModel = options?.executionModel ?? options?.model;
+
     const handler = new V3AgentHandler(
       this,
       this.logger,
       agentLlmClient,
-      typeof options?.executionModel === "string"
-        ? options.executionModel
-        : options?.executionModel?.modelName,
+      resolvedExecutionModel,
       options?.systemPrompt,
       tools,
       options?.mode,
@@ -1782,11 +1783,10 @@ export class V3 {
       auxiliary: {
         cua: { value: isCuaMode ? "true" : "false", type: "boolean" },
         mode: { value: options?.mode ?? "dom", type: "string" },
-        model: options?.model
-          ? typeof options?.model === "string"
-            ? { value: options.model, type: "string" }
-            : { value: options.model.modelName, type: "string" }
-          : { value: this.llmClient.modelName, type: "string" },
+        model: {
+          value: extractModelName(options?.model) ?? this.llmClient.modelName,
+          type: "string",
+        },
         systemPrompt: { value: options?.systemPrompt ?? "", type: "string" },
         tools: { value: JSON.stringify(options?.tools ?? {}), type: "object" },
         ...(options?.integrations && {

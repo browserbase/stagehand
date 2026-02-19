@@ -2,8 +2,12 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
+import type { AgentModelConfig } from "../../types/public/agent.js";
 
-export const fillFormTool = (v3: V3, executionModel?: string) =>
+export const fillFormTool = (
+  v3: V3,
+  executionModel?: string | AgentModelConfig,
+) =>
   tool({
     description: `📝 FORM FILL - MULTI-FIELD INPUT TOOL\nFor any form with 2+ inputs/textareas. Faster than individual typing.`,
     inputSchema: z.object({
