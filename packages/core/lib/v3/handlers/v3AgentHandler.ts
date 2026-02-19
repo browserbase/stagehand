@@ -28,6 +28,7 @@ import {
   AgentStreamResult,
   AgentStreamCallbacks,
   AgentToolMode,
+  AgentModelConfig,
 } from "../types/public/agent.js";
 import { V3FunctionName } from "../types/public/methods.js";
 import { mapToolResultToActions } from "../agent/utils/actionMapping.js";
@@ -68,7 +69,7 @@ export class V3AgentHandler {
   private v3: V3;
   private logger: (message: LogLine) => void;
   private llmClient: LLMClient;
-  private executionModel?: string;
+  private executionModel?: string | AgentModelConfig;
   private systemInstructions?: string;
   private mcpTools?: ToolSet;
   private mode: AgentToolMode;
@@ -77,7 +78,7 @@ export class V3AgentHandler {
     v3: V3,
     logger: (message: LogLine) => void,
     llmClient: LLMClient,
-    executionModel?: string,
+    executionModel?: string | AgentModelConfig,
     systemInstructions?: string,
     mcpTools?: ToolSet,
     mode?: AgentToolMode,
