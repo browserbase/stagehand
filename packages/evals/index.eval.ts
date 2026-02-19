@@ -49,6 +49,10 @@ import { buildGAIATestcases } from "./suites/gaia.js";
 import { buildWebVoyagerTestcases } from "./suites/webvoyager.js";
 import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web.js";
 import { endBrowserbaseSession } from "./browserbaseCleanup.js";
+import { buildWebTailBenchTestcases } from "./suites/webtailbench.js";
+
+import dotenv from "dotenv";
+dotenv.config();
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -175,6 +179,24 @@ const generateFilteredTestcases = (): Testcase[] => {
   ) {
     // Remove Mind2Web from tasks to run if dataset filter excludes it
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/onlineMind2Web");
+  }
+
+  // Special handling: fan out WebTailBench dataset for agent/webtailbench
+  const isWebTailBenchTaskIncluded =
+    taskNamesToRun.includes("agent/webtailbench");
+
+  if (
+    isWebTailBenchTaskIncluded &&
+    (!datasetFilter || datasetFilter === "webtailbench")
+  ) {
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webtailbench");
+    allTestcases.push(...buildWebTailBenchTestcases(currentModels));
+  } else if (
+    isWebTailBenchTaskIncluded &&
+    datasetFilter &&
+    datasetFilter !== "webtailbench"
+  ) {
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webtailbench");
   }
 
   // Create a list of all remaining testcases using the determined task names and models
