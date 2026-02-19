@@ -876,30 +876,29 @@ export class V3Context {
    */
   async addCookies(cookies: CookieParam[]): Promise<void> {
     const normalized = normalizeCookieParams(cookies);
-    for (const c of normalized) {
-      try {
-        await this.conn.send("Storage.setCookies", {
-          cookies: [
-            {
-              name: c.name,
-              value: c.value,
-              domain: c.domain,
-              path: c.path,
-              expires: c.expires === -1 ? undefined : c.expires,
-              httpOnly: c.httpOnly,
-              secure: c.secure,
-              sameSite: c.sameSite,
-            },
-          ],
-        });
-      } catch (err) {
-        const detail = err instanceof Error ? err.message : String(err);
-        throw new CookieSetError(
-          `Failed to set cookie "${c.name}" for domain "${c.domain ?? "(unknown)"}" — ` +
-            `the browser rejected it. Check that the domain, path, and secure/sameSite values are valid.` +
-            (detail ? ` (CDP error: ${detail})` : ""),
-        );
-      }
+    if (!normalized.length) return;
+
+    const cdpCookies = normalized.map((c) => ({
+      name: c.name,
+      value: c.value,
+      domain: c.domain,
+      path: c.path,
+      expires: c.expires === -1 ? undefined : c.expires,
+      httpOnly: c.httpOnly,
+      secure: c.secure,
+      sameSite: c.sameSite,
+    }));
+
+    try {
+      await this.conn.send("Storage.setCookies", { cookies: cdpCookies });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      const names = normalized.map((c) => `"${c.name}"`).join(", ");
+      throw new CookieSetError(
+        `Failed to set cookies [${names}] — ` +
+          `the browser rejected the batch. Check that the domain, path, and secure/sameSite values are valid.` +
+          (detail ? ` (CDP error: ${detail})` : ""),
+      );
     }
   }
 

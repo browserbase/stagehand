@@ -693,7 +693,7 @@ describe("V3Context cookie methods", () => {
   });
 
   describe("addCookies()", () => {
-    it("sends Storage.setCookies for each cookie", async () => {
+    it("sends all cookies in a single Storage.setCookies call", async () => {
       const ctx = makeContext({
         "Storage.setCookies": () => ({}),
       });
@@ -704,12 +704,12 @@ describe("V3Context cookie methods", () => {
       ]);
 
       const calls = getMockConn(ctx).callsFor("Storage.setCookies");
-      expect(calls).toHaveLength(2);
+      expect(calls).toHaveLength(1);
       expect(calls[0]!.params).toMatchObject({
-        cookies: [{ name: "a", domain: "example.com" }],
-      });
-      expect(calls[1]!.params).toMatchObject({
-        cookies: [{ name: "b", domain: "other.com" }],
+        cookies: [
+          { name: "a", domain: "example.com" },
+          { name: "b", domain: "other.com" },
+        ],
       });
     });
 
@@ -741,7 +741,7 @@ describe("V3Context cookie methods", () => {
         ctx.addCookies([
           { name: "bad", value: "x", domain: "example.com", path: "/" },
         ]),
-      ).rejects.toThrow(/Failed to set cookie "bad"/);
+      ).rejects.toThrow(/Failed to set cookies \["bad"\]/);
     });
 
     it("throws for sameSite None without secure", async () => {
@@ -809,30 +809,7 @@ describe("V3Context cookie methods", () => {
       });
     });
 
-    it("stops on first failure and does not continue to remaining cookies", async () => {
-      let callCount = 0;
-      const ctx = makeContext({
-        "Storage.setCookies": () => {
-          callCount++;
-          // First succeeds, second fails
-          if (callCount > 1) throw new Error("CDP failure");
-          return {};
-        },
-      });
-
-      await expect(
-        ctx.addCookies([
-          { name: "ok", value: "1", domain: "a.com", path: "/" },
-          { name: "fail", value: "2", domain: "b.com", path: "/" },
-          { name: "never", value: "3", domain: "c.com", path: "/" },
-        ]),
-      ).rejects.toThrow(/Failed to set cookie "fail"/);
-
-      // "never" should not have been attempted
-      expect(callCount).toBe(2);
-    });
-
-    it("error message includes the domain when setCookies fails", async () => {
+    it("error message includes all cookie names when batch fails", async () => {
       const ctx = makeContext({
         "Storage.setCookies": () => {
           throw new Error("CDP failure");
@@ -841,9 +818,10 @@ describe("V3Context cookie methods", () => {
 
       await expect(
         ctx.addCookies([
-          { name: "x", value: "1", domain: "specific.com", path: "/" },
+          { name: "alpha", value: "1", domain: "a.com", path: "/" },
+          { name: "beta", value: "2", domain: "b.com", path: "/" },
         ]),
-      ).rejects.toThrow(/specific\.com/);
+      ).rejects.toThrow(/Failed to set cookies \["alpha", "beta"\]/);
     });
   });
 
