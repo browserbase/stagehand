@@ -250,7 +250,7 @@ async function waitForProcessExit(
   proc: ChildProcessWithoutNullStreams,
   timeoutMs: number,
 ): Promise<boolean> {
-  if (proc.exitCode !== null || proc.killed) {
+  if (proc.exitCode !== null) {
     return true;
   }
   return await new Promise((resolve) => {
