@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { Protocol } from "devtools-protocol";
 import { V3 } from "../v3.js";
 import { v3TestConfig } from "./v3.config.js";
+import { closeV3 } from "./testUtils.js";
 
 const TEST_URL =
   "https://browserbase.github.io/stagehand-eval-sites/sites/example/";
@@ -15,7 +16,7 @@ test.describe("context.setExtraHTTPHeaders", () => {
   });
 
   test.afterEach(async () => {
-    await v3?.close?.().catch(() => {});
+    await closeV3(v3);
   });
 
   test("applies headers to navigation requests", async () => {
