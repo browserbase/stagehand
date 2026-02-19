@@ -34,7 +34,7 @@
     "build": "pnpm run build:esm && pnpm run build:cjs && pnpm run typecheck",
     "example": "node --import tsx -e \"const args=process.argv.slice(1).filter(a=>a!=='--'); const [p]=args; const n=(p||'example').replace(/^\\.\\//,'').replace(/\\.ts$/i,''); import('node:path').then(path=>import(new URL(path.resolve('examples', n + '.ts'), 'file:')));\" --",
     "test": "pnpm run test:core --",
-    "test:core": "tsx scripts/test-core.ts --config packages/core/vitest.esm.config.mjs",
+    "test:core": "tsx scripts/test-core.ts",
     "test:e2e": "tsx scripts/test-e2e.ts",
     "format": "prettier --write .",
     "typecheck": "pnpm -w --dir ../.. exec tsc -p packages/core/tsconfig.json --noEmit",
