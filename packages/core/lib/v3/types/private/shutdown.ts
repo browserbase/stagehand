@@ -5,7 +5,6 @@
 export type ShutdownSupervisorConfig =
   | {
       kind: "LOCAL";
-      keepAlive: boolean;
       pid: number;
       userDataDir?: string;
       createdTempProfile?: boolean;
@@ -13,20 +12,12 @@ export type ShutdownSupervisorConfig =
     }
   | {
       kind: "STAGEHAND_API";
-      keepAlive: boolean;
       sessionId: string;
       apiKey: string;
       projectId: string;
     };
 
-export type ShutdownSupervisorMessage =
-  | { type: "config"; config: ShutdownSupervisorConfig }
-  | { type: "exit" }
-  | { type: "ready" };
-
 export interface ShutdownSupervisorHandle {
-  /** Best-effort signal to stop the supervisor without running cleanup. */
+  /** Best-effort signal to stop the supervisor process. */
   stop: () => void;
-  /** Resolves once the supervisor acknowledges config or times out. */
-  ready: Promise<void>;
 }

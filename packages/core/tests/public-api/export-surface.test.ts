@@ -14,6 +14,8 @@ import { publicErrorTypes } from "./public-error-types.test.js";
 //   e.g. expectTypeOf<User>().toExtend<BaseUser>()
 
 const publicApiShape = {
+  __internalMaybeRunShutdownSupervisorFromArgv:
+    Stagehand.__internalMaybeRunShutdownSupervisorFromArgv,
   __internalCreateInMemoryAgentCacheHandle:
     Stagehand.__internalCreateInMemoryAgentCacheHandle,
   AISdkClient: Stagehand.AISdkClient,
