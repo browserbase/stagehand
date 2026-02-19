@@ -10,7 +10,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { SourceMapConsumer } from "source-map";
-import { findRepoRoot } from "./test-utils.js";
 
 type CoverageRange = {
   startOffset: number;
@@ -348,7 +347,7 @@ const normalizeCoverageDir = async (options: NormalizerOptions) => {
   const jsonFiles: string[] = [];
   const walk = (dir: string) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
+      const full = `${dir}/${entry.name}`;
       if (entry.isDirectory()) {
         if (entry.name === ".v8-tmp" || entry.name === "merged") {
           continue;
@@ -411,8 +410,14 @@ const normalizeCoverageDir = async (options: NormalizerOptions) => {
 };
 
 export const normalizeV8Coverage = async (coverageDir: string) => {
-  const repoRoot = findRepoRoot(process.cwd());
-  const resolvedDir = path.resolve(repoRoot, coverageDir);
+  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
+  const repoRoot = value.split("/packages/core/")[0];
+  if (repoRoot === value) {
+    throw new Error(`Unable to determine repo root from ${value}`);
+  }
+  const resolvedDir = path.isAbsolute(coverageDir)
+    ? coverageDir
+    : path.resolve(repoRoot, coverageDir);
   const maxScan = Number(process.env.V8_COVERAGE_SCAN_LIMIT ?? 20000);
   await normalizeCoverageDir({ coverageDir: resolvedDir, maxScan });
 };

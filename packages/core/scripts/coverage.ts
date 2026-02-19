@@ -7,12 +7,18 @@
  * Example: pnpm run coverage:merge
  */
 import fs from "node:fs";
-import path from "node:path";
 import { spawn, type ChildProcess } from "node:child_process";
-import { findRepoRoot } from "./test-utils.js";
+import { fileURLToPath } from "node:url";
 import normalizeV8Coverage from "./normalize-v8-coverage.js";
 
-const repoRoot = findRepoRoot(process.cwd());
+const repoRoot = (() => {
+  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
+  const root = value.split("/packages/core/")[0];
+  if (root === value) {
+    throw new Error(`Unable to determine repo root from ${value}`);
+  }
+  return root;
+})();
 const command = process.argv[2];
 const terminationSignals: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
 const log = (message: string) => console.log(`[coverage:merge] ${message}`);
@@ -47,18 +53,15 @@ if (!command || command !== "merge") {
   process.exit(1);
 }
 
-const coverageDir = path.join(repoRoot, "coverage");
-const outDir = path.join(repoRoot, "coverage", "merged");
-const v8TempDir = path.join(coverageDir, ".v8-tmp");
 if (!process.env.V8_COVERAGE_SCAN_LIMIT) {
   process.env.V8_COVERAGE_SCAN_LIMIT = "2000";
 }
-fs.rmSync(outDir, { recursive: true, force: true });
-fs.rmSync(v8TempDir, { recursive: true, force: true });
-log(`normalizing v8 coverage in ${coverageDir}`);
+fs.rmSync(`${repoRoot}/coverage/merged`, { recursive: true, force: true });
+fs.rmSync(`${repoRoot}/coverage/.v8-tmp`, { recursive: true, force: true });
+log(`normalizing v8 coverage in ${repoRoot}/coverage`);
 log(`using V8_COVERAGE_SCAN_LIMIT=${process.env.V8_COVERAGE_SCAN_LIMIT}`);
 const normalizeStart = Date.now();
-await normalizeV8Coverage(coverageDir);
+await normalizeV8Coverage(`${repoRoot}/coverage`);
 log(`normalize completed in ${Date.now() - normalizeStart}ms`);
 const collectV8CoverageFiles = (dir: string): string[] => {
   const results: string[] = [];
@@ -68,7 +71,7 @@ const collectV8CoverageFiles = (dir: string): string[] => {
     const entries = fs.readdirSync(current, { withFileTypes: true });
     for (const entry of entries) {
       assertNotCancelling();
-      const fullPath = path.join(current, entry.name);
+      const fullPath = `${current}/${entry.name}`;
       if (entry.isDirectory()) {
         if (entry.name === ".v8-tmp" || entry.name === "merged") {
           continue;
@@ -91,22 +94,21 @@ const collectV8CoverageFiles = (dir: string): string[] => {
   return results;
 };
 
-const v8CoverageFiles = collectV8CoverageFiles(coverageDir);
+const v8CoverageFiles = collectV8CoverageFiles(`${repoRoot}/coverage`);
 if (v8CoverageFiles.length === 0) {
   console.log("No V8 coverage files found.");
   process.exit(0);
 }
 log(`found ${v8CoverageFiles.length} v8 coverage files`);
 
-fs.mkdirSync(outDir, { recursive: true });
-fs.rmSync(v8TempDir, { recursive: true, force: true });
-fs.mkdirSync(v8TempDir, { recursive: true });
+fs.mkdirSync(`${repoRoot}/coverage/merged`, { recursive: true });
+fs.rmSync(`${repoRoot}/coverage/.v8-tmp`, { recursive: true, force: true });
+fs.mkdirSync(`${repoRoot}/coverage/.v8-tmp`, { recursive: true });
 v8CoverageFiles.forEach((file, index) => {
   assertNotCancelling();
-  const dest = path.join(v8TempDir, `coverage-${index}.json`);
-  fs.copyFileSync(file, dest);
+  fs.copyFileSync(file, `${repoRoot}/coverage/.v8-tmp/coverage-${index}.json`);
 });
-log(`copied files to ${v8TempDir}`);
+log(`copied files to ${repoRoot}/coverage/.v8-tmp`);
 
 const runC8Report = async () => {
   assertNotCancelling();
@@ -116,14 +118,14 @@ const runC8Report = async () => {
     "c8",
     "report",
     "--temp-directory",
-    v8TempDir,
+    `${repoRoot}/coverage/.v8-tmp`,
     "--merge-async",
     "--reporter=html",
     "--reporter=lcov",
     "--reporter=json",
     "--reporter=text-summary",
     "--reports-dir",
-    outDir,
+    `${repoRoot}/coverage/merged`,
     "--cwd",
     repoRoot,
     "--include",
@@ -179,7 +181,10 @@ const runC8Report = async () => {
   });
 
   if (stdout) {
-    fs.writeFileSync(path.join(outDir, "coverage-summary.txt"), stdout);
+    fs.writeFileSync(
+      `${repoRoot}/coverage/merged/coverage-summary.txt`,
+      stdout,
+    );
   }
   log(`c8 report completed with status ${status}`);
   return status;
