@@ -42,10 +42,6 @@ function toCdpCookie(c: Cookie) {
   };
 }
 
-// ============================================================================
-// filterCookies
-// ============================================================================
-
 describe("filterCookies", () => {
   const cookies: Cookie[] = [
     makeCookie({ name: "a", domain: "example.com", path: "/", secure: false }),
