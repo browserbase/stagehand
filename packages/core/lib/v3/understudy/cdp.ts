@@ -222,6 +222,12 @@ export class CdpConnection implements CDPSessionLike {
         }
         this.sessions.delete(p.sessionId);
         this.sessionToTarget.delete(p.sessionId);
+        // Clean up event handlers for this session to prevent memory leak
+        for (const key of this.eventHandlers.keys()) {
+          if (key.startsWith(`${p.sessionId}:`)) {
+            this.eventHandlers.delete(key);
+          }
+        }
       } else if (msg.method === "Target.targetDestroyed") {
         const p = (msg as { params: { targetId: string } }).params;
         // Remove any session mapping for this target
