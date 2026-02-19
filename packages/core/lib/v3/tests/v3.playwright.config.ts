@@ -1,4 +1,4 @@
-import { defineConfig, type ReporterDescription } from "@playwright/test";
+import { defineConfig } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 
 const testDir = fileURLToPath(new URL(".", import.meta.url));
@@ -28,16 +28,12 @@ const bbWorkers =
     : 3;
 
 const ctrfJunitPath = process.env.CTRF_JUNIT_PATH;
-const envReporterPath = fileURLToPath(
-  new URL("./envReporter.ts", import.meta.url),
-);
-const reporter: ReporterDescription[] = ctrfJunitPath
+const reporter = ctrfJunitPath
   ? [
       [consoleReporter],
-      [envReporterPath],
       ["junit", { outputFile: ctrfJunitPath, includeProjectInTestName: true }],
     ]
-  : [[consoleReporter], [envReporterPath]];
+  : [[consoleReporter]];
 
 export default defineConfig({
   testDir,
