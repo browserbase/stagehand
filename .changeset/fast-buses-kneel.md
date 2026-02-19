@@ -1,5 +1,5 @@
 ---
-"@browserbasehq/stagehand": patch
+"@browserbasehq/stagehand": minor
 ---
 
-Add native support for setting and getting cookies
+Add cookie management APIs: `context.addCookies()`, `context.clearCookies()`, & `context.cookies()`
