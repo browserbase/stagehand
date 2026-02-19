@@ -25,7 +25,7 @@ env:
   BROWSERBASE_REGION_DISTRIBUTION: "us-west-2=30,us-east-1=30,eu-central-1=20,ap-southeast-1=20"  # percentage of load for each region when running e2e tests against prod
   CHROME_PATH: /usr/bin/chromium # GitHub Actions runners ship with stable Chromium by default
   BROWSERBASE_CDP_CONNECT_MAX_MS: "10000"
-  BROWSERBASE_SESSION_CREATE_MAX_MS: "30000"
+  BROWSERBASE_SESSION_CREATE_MAX_MS: "60000"
   PUPPETEER_SKIP_DOWNLOAD: "1"
   PLAYWRIGHT_SKIP_DOWNLOAD: "1"
   TURBO_TELEMETRY_DISABLED: "1"
