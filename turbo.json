@@ -1,5 +1,5 @@
 {
-  "$schema": "https://turborepo.com/schema.json",
+  "$schema": "https://v2-8-10.turborepo.dev/schema.json",
   "globalEnv": [
     "ANTHROPIC_API_KEY",
     "BROWSERBASE_API_KEY",
