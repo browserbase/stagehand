@@ -6,8 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "turbo run build",
-    "build:cjs": "turbo run build:cjs",
     "build:full": "turbo run build",
+    "build:cjs": "turbo run build:cjs",
     "build:cli": "turbo run build:cli",
     "build:esm": "turbo run build:esm",
     "build:sea": "turbo run build:sea:esm",
@@ -17,7 +17,7 @@
     "format": "prettier --write .",
     "prettier": "prettier --write .",
     "eslint": "eslint .",
-    "test": "turbo run test",
+    "test": "turbo run test:core test:e2e test:server test:evals",
     "test:core": "turbo run test:core --",
     "test:core:local": "STAGEHAND_BROWSER_TARGET=local pnpm run test:core --",
     "test:core:bb": "STAGEHAND_BROWSER_TARGET=browserbase pnpm run test:core --",
@@ -54,7 +54,7 @@
     "prettier": "^3.2.5",
     "source-map": "^0.7.4",
     "tsx": "^4.19.4",
-    "turbo": "^2.5.8",
+    "turbo": "^2.8.10",
     "typescript": "5.8.3",
     "typescript-eslint": "^8.17.0"
   },
@@ -71,6 +71,9 @@
     "jwa": "^2.0.1",
     "zod": "4.2.1",
     "tsx": "4.19.4"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
   },
   "packageManager": "pnpm@9.15.0+sha512.76e2379760a4328ec4415815bcd6628dee727af3779aaa4c914e3944156c4299921a89f976381ee107d41f12cfa4b66681ca9c718f0668fa0831ed4c6d8ba56c"
 }

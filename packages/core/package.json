@@ -12,6 +12,7 @@
       "import": "./dist/esm/index.js",
       "require": "./dist/cjs/index.js"
     },
+    "./cli": "./dist/esm/lib/v3/cli.js",
     "./*.js": {
       "types": "./dist/esm/*.d.ts",
       "import": "./dist/esm/*.js"
@@ -22,24 +23,27 @@
     },
     "./package.json": "./package.json"
   },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "scripts": {
     "gen-version": "tsx scripts/gen-version.ts",
+    "build-dom-scripts": "tsx lib/v3/dom/genDomScripts.ts && tsx lib/v3/dom/genLocatorScripts.ts && tsx lib/v3/dom/genScreenshotScripts.ts && tsx lib/v3/dom/genA11yScripts.ts",
     "build:cjs": "tsx scripts/build-cjs.ts",
     "build:esm": "tsx scripts/build-esm.ts",
-    "build-dom-scripts": "tsx lib/v3/dom/genDomScripts.ts && tsx lib/v3/dom/genLocatorScripts.ts && tsx lib/v3/dom/genScreenshotScripts.ts && tsx lib/v3/dom/genA11yScripts.ts",
-    "typecheck": "pnpm -w --dir ../.. exec tsc -p packages/core/tsconfig.json --noEmit",
-    "build": "pnpm run build:esm && pnpm run typecheck",
+    "build": "pnpm run build:esm && pnpm run build:cjs",
     "example": "node --import tsx -e \"const args=process.argv.slice(1).filter(a=>a!=='--'); const [p]=args; const n=(p||'example').replace(/^\\.\\//,'').replace(/\\.ts$/i,''); import('node:path').then(path=>import(new URL(path.resolve('examples', n + '.ts'), 'file:')));\" --",
-    "test": "pnpm run test:core --",
+    "test": "pnpm -w --dir ../.. exec turbo run test:core test:e2e --filter=@browserbasehq/stagehand --",
     "test:core": "tsx scripts/test-core.ts",
     "test:e2e": "tsx scripts/test-e2e.ts",
-    "lint": "cd ../.. && prettier --check packages/core && cd packages/core && eslint . && pnpm run typecheck",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "typecheck": "pnpm -w --dir ../.. exec tsc -p packages/core/tsconfig.json --noEmit",
+    "eslint": "eslint .",
+    "lint": "cd ../.. && prettier --check packages/core && cd packages/core && pnpm run eslint && pnpm run typecheck"
   },
   "files": [
     "dist/esm",
-    "dist/cjs",
-    "dist/stagehand.config.d.ts"
+    "dist/cjs"
   ],
   "keywords": [
     "ai",
