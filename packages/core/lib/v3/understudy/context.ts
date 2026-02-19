@@ -18,6 +18,20 @@ type SessionId = string;
 
 type TargetType = "page" | "iframe" | string;
 
+const DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS = 5000;
+const CI_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS = 30000;
+const FIRST_TOP_LEVEL_PAGE_TIMEOUT_ENV =
+  "STAGEHAND_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS";
+
+function getFirstTopLevelPageTimeoutMs(): number {
+  return (
+    getEnvTimeoutMs(FIRST_TOP_LEVEL_PAGE_TIMEOUT_ENV) ??
+    (process.env.CI
+      ? CI_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS
+      : DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS)
+  );
+}
+
 function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
   const ti = info as unknown as { subtype?: string };
   return info.type === "page" && ti.subtype !== "iframe";
@@ -105,7 +119,7 @@ export class V3Context {
         opts?.localBrowserLaunchOptions ?? null,
       );
       await ctx.bootstrap();
-      await ctx.waitForFirstTopLevelPage(5000);
+      await ctx.waitForFirstTopLevelPage(getFirstTopLevelPageTimeoutMs());
       return ctx;
     };
 
