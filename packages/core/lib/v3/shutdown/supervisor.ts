@@ -71,13 +71,18 @@ const startPidPolling = (pid: number): void => {
   pidPollTimer = setInterval(() => {
     try {
       process.kill(pid, 0);
-    } catch {
-      if (pidPollTimer) {
-        clearInterval(pidPollTimer);
-        pidPollTimer = null;
-      }
-      void runCleanup().finally(() => exit(0));
+      return;
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      // Only ESRCH means the process is definitely gone.
+      if (err.code !== "ESRCH") return;
     }
+
+    if (pidPollTimer) {
+      clearInterval(pidPollTimer);
+      pidPollTimer = null;
+    }
+    void runCleanup().finally(() => exit(0));
   }, PID_POLL_INTERVAL_MS);
 };
 
