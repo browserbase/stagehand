@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "ae5a5f3aea65",
+  "session_id": "f68754b7-490d-466c-a48f-34d9c0d48ccc",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-19T08:00:56.228648Z",
+  "branch": "update-model-handling-on-agent",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "packages/core/tests/agent-execution-model.test.ts",
+    "packages/core/tests/model-utils.test.ts"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "39f64dfd5049",
+  "transcript_identifier_at_start": "d9604f33-5c7a-4151-82ec-9210fdf82a94",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 40656,
+    "cache_read_tokens": 227561,
+    "output_tokens": 54,
+    "api_call_count": 8
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-19T08:00:56.179662Z",
+    "agent_lines": 0,
+    "human_added": 11499,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 11499,
+    "agent_percentage": 0
+  },
+  "transcript_path": ".claude/projects/-Users-miguel-browserbase-Documents-Browserbase-stagehand/f68754b7-490d-466c-a48f-34d9c0d48ccc.jsonl"
+}
