@@ -1,5 +1,12 @@
 # @browserbasehq/stagehand-examples
 
+## 1.0.17
+
+### Patch Changes
+
+- Updated dependencies [[`df76207`](https://github.com/browserbase/stagehand/commit/df7620708a3c2a1142f0eec2664caf86be170b0c)]:
+  - @browserbasehq/stagehand@2.5.8
+
 ## 1.0.16
 
 ### Patch Changes

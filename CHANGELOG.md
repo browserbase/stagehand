@@ -1,5 +1,11 @@
 # @browserbasehq/stagehand
 
+## 2.5.8
+
+### Patch Changes
+
+- [#1710](https://github.com/browserbase/stagehand/pull/1710) [`df76207`](https://github.com/browserbase/stagehand/commit/df7620708a3c2a1142f0eec2664caf86be170b0c) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - handle target closed errors on rapidly opening/closing popups
+
 ## 2.5.7
 
 ### Patch Changes
