@@ -50,8 +50,8 @@ import { buildWebVoyagerTestcases } from "./suites/webvoyager.js";
 import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web.js";
 import { endBrowserbaseSession } from "./browserbaseCleanup.js";
 import { buildWebTailBenchTestcases } from "./suites/webtailbench.js";
-import dotenv from "dotenv";
 
+import dotenv from "dotenv";
 dotenv.config();
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
