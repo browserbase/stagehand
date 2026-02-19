@@ -184,6 +184,7 @@ async function waitForChildFrame(
   const mainFrameId = page.mainFrame().frameId;
   const deadline = Date.now() + timeoutMs;
   let observedFrameCount = 0;
+  const observedChildFrameIds = new Set<string>();
   let lastUrl = "";
   let lastLogAt = Date.now();
 
@@ -203,26 +204,70 @@ async function waitForChildFrame(
       });
       lastLogAt = Date.now();
     }
-    const child = frames.find((f) => f.frameId !== mainFrameId);
-    if (child) {
-      try {
-        const ready = await child.evaluate(() => document.readyState);
-        if (ready === "complete") {
-          debugLog("waitForChildFrame:ready", {
-            childFrameId: child.frameId,
-            url: lastUrl,
-          });
-          return child;
-        }
-      } catch {
-        // frame not ready yet
+    for (const childId of childIds) observedChildFrameIds.add(childId);
+
+    const childFrames = frames
+      .filter((f) => f.frameId !== mainFrameId)
+      // Prefer recently-discovered frames first; stale swapped frame ids
+      // can remain visible in the registry while the live OOPIF is ready.
+      .reverse();
+
+    if (childFrames.length) {
+      const probes = await Promise.all(
+        childFrames.map(async (child) => {
+          try {
+            const state = await child.evaluate(() => ({
+              href: location.href,
+              readyState: document.readyState,
+            }));
+            return {
+              child,
+              href: state.href,
+              readyState: state.readyState,
+              error: undefined,
+            };
+          } catch (error) {
+            return {
+              child,
+              href: undefined,
+              readyState: undefined,
+              error: formatError(error),
+            };
+          }
+        }),
+      );
+
+      const ready = probes.find((probe) => probe.readyState === "complete");
+      if (ready) {
+        debugLog("waitForChildFrame:ready", {
+          childFrameId: ready.child.frameId,
+          childSessionId: ready.child.sessionId ?? "root",
+          childUrl: ready.href ?? "<unknown>",
+          url: lastUrl,
+        });
+        return ready.child;
+      }
+
+      if (iframeDebugEnabled && Date.now() - lastLogAt >= DEBUG_INTERVAL_MS) {
+        debugLog("waitForChildFrame:not-ready", {
+          url: lastUrl,
+          mainFrameId,
+          probes: probes.map((probe) => ({
+            frameId: probe.child.frameId,
+            sessionId: probe.child.sessionId ?? "root",
+            readyState: probe.readyState ?? "<unknown>",
+            href: probe.href ?? "<unknown>",
+            error: probe.error ?? "<none>",
+          })),
+        });
+        lastLogAt = Date.now();
       }
     }
     await new Promise((r) => setTimeout(r, 100));
   }
   await logPageDiagnostics(page, "waitForChildFrame timeout");
   throw new Error(
-    `Timed out waiting for child frame to load (timeout=${timeoutMs}ms, mainFrameId=${mainFrameId}, maxObservedFrames=${observedFrameCount}, url=${lastUrl || "<unknown>"})`,
+    `Timed out waiting for child frame to load (timeout=${timeoutMs}ms, mainFrameId=${mainFrameId}, maxObservedFrames=${observedFrameCount}, observedChildFrameIds=[${[...observedChildFrameIds].join(",")}], url=${lastUrl || "<unknown>"})`,
   );
 }
 
