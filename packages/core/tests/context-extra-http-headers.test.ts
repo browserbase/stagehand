@@ -8,6 +8,8 @@ type ContextStub = {
   conn: {
     getSession: (id: string) => MockCDPSession | undefined;
   };
+  extraHttpHeaders: Record<string, string> | null;
+  extraHttpHeadersVersion: number;
 };
 
 const makeContext = (sessions: MockCDPSession[]): ContextStub => {
@@ -19,16 +21,23 @@ const makeContext = (sessions: MockCDPSession[]): ContextStub => {
     conn: {
       getSession: (id: string) => sessionsById.get(id),
     },
+    extraHttpHeaders: null,
+    extraHttpHeadersVersion: 0,
   };
 };
 
 describe("V3Context.setExtraHTTPHeaders", () => {
+  const setExtraHTTPHeaders = V3Context.prototype.setExtraHTTPHeaders as (
+    this: ContextStub,
+    headers: Record<string, string>,
+  ) => Promise<void>;
+
   it("sends headers to all sessions", async () => {
     const sessionA = new MockCDPSession({}, "session-a");
     const sessionB = new MockCDPSession({}, "session-b");
     const ctx = makeContext([sessionA, sessionB]);
 
-    await V3Context.prototype.setExtraHTTPHeaders.call(ctx, {
+    await setExtraHTTPHeaders.call(ctx, {
       "x-stagehand-test": "yes",
     });
 
@@ -54,7 +63,7 @@ describe("V3Context.setExtraHTTPHeaders", () => {
     const sessionB = new MockCDPSession({}, "session-b");
     const ctx = makeContext([sessionA, sessionB]);
 
-    const promise = V3Context.prototype.setExtraHTTPHeaders.call(ctx, {
+    const promise = setExtraHTTPHeaders.call(ctx, {
       "x-stagehand-test": "yes",
     });
 
@@ -70,5 +79,48 @@ describe("V3Context.setExtraHTTPHeaders", () => {
       expect(err.failures[0]).toContain("session=session-a");
       expect(err.failures[0]).toContain("boom");
     }
+
+    expect(sessionA.callsFor("Network.setExtraHTTPHeaders").length).toBe(2);
+    expect(sessionB.callsFor("Network.setExtraHTTPHeaders").length).toBe(2);
+  });
+
+  it("does not roll back newer updates when an earlier call fails", async () => {
+    const pending: Array<{
+      resolve: () => void;
+      reject: (error: Error) => void;
+      params: Record<string, unknown>;
+    }> = [];
+
+    const sessionA = new MockCDPSession(
+      {
+        "Network.setExtraHTTPHeaders": (params) => {
+          const headers = (params?.headers ?? {}) as Record<string, string>;
+          if (headers["x-test"] === "two") return;
+          return new Promise<void>((resolve, reject) => {
+            pending.push({
+              resolve,
+              reject,
+              params: params ?? {},
+            });
+          });
+        },
+      },
+      "session-a",
+    );
+    const ctx = makeContext([sessionA]);
+
+    const call1 = setExtraHTTPHeaders.call(ctx, { "x-test": "one" });
+    const call2 = setExtraHTTPHeaders.call(ctx, { "x-test": "two" });
+
+    await call2;
+
+    pending[0]?.reject(new Error("boom"));
+    await expect(call1).rejects.toBeInstanceOf(
+      StagehandSetExtraHTTPHeadersError,
+    );
+
+    const applied = sessionA.callsFor("Network.setExtraHTTPHeaders");
+    expect(applied.length).toBe(2);
+    expect(applied[1]?.params).toEqual({ headers: { "x-test": "two" } });
   });
 });
