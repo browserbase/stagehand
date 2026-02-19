@@ -50,7 +50,7 @@ const resolveSupervisorCommand = (
   command: string;
   args: string[];
 } | null => {
-  const baseArgs = ["--supervisor", ...serializeConfigArgs(config)];
+  const baseArgs = ["--supervisor", serializeConfigArg(config)];
 
   if (isSeaRuntime()) {
     return { command: process.execPath, args: baseArgs };
@@ -71,32 +71,12 @@ const resolveSupervisorCommand = (
   };
 };
 
-const serializeConfigArgs = (config: ShutdownSupervisorConfig): string[] => {
-  if (config.kind === "LOCAL") {
-    return [
-      "--kind=LOCAL",
-      `--parent-pid=${process.pid}`,
-      "--keep-alive=false",
-      `--chrome-pid=${config.pid}`,
-      ...(config.userDataDir ? [`--user-data-dir=${config.userDataDir}`] : []),
-      ...(config.createdTempProfile !== undefined
-        ? [`--created-temp-profile=${config.createdTempProfile}`]
-        : []),
-      ...(config.preserveUserDataDir !== undefined
-        ? [`--preserve-user-data-dir=${config.preserveUserDataDir}`]
-        : []),
-    ];
-  }
-
-  return [
-    "--kind=STAGEHAND_API",
-    `--parent-pid=${process.pid}`,
-    "--keep-alive=false",
-    `--session-id=${config.sessionId}`,
-    `--api-key=${config.apiKey}`,
-    `--project-id=${config.projectId}`,
-  ];
-};
+const serializeConfigArg = (config: ShutdownSupervisorConfig): string =>
+  `--supervisor-config=${JSON.stringify({
+    ...config,
+    keepAlive: false,
+    parentPid: process.pid,
+  })}`;
 
 /**
  * Start a supervisor process for crash cleanup. Returns a handle that can

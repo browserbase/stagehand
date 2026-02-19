@@ -14,8 +14,8 @@ import type {
 } from "../types/private/shutdown.js";
 import { cleanupLocalBrowser } from "./cleanupLocal.js";
 
-const SIGKILL_POLL_MS = 500;
-const SIGKILL_TIMEOUT_MS = 10_000;
+const SIGKILL_POLL_MS = 250;
+const SIGKILL_TIMEOUT_MS = 7_000;
 const PID_POLL_INTERVAL_MS = 500;
 
 let armed = false;
@@ -60,37 +60,7 @@ const safeKill = async (pid: number): Promise<void> => {
   }
 };
 
-let pidGone = false;
 let pidPollTimer: NodeJS.Timeout | null = null;
-
-const parseBoolean = (value: string | undefined): boolean | undefined => {
-  if (value === undefined) return undefined;
-  if (value === "true" || value === "1") return true;
-  if (value === "false" || value === "0") return false;
-  return undefined;
-};
-
-const parseNumber = (value: string | undefined): number | undefined => {
-  if (!value) return undefined;
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
-  return parsed;
-};
-
-const getArgValue = (
-  argv: readonly string[],
-  name: string,
-): string | undefined => {
-  const prefix = `--${name}=`;
-  for (const arg of argv) {
-    if (arg.startsWith(prefix)) return arg.slice(prefix.length);
-    if (arg === `--${name}`) return "true";
-  }
-  return undefined;
-};
-
-const hasArg = (argv: readonly string[], name: string): boolean =>
-  argv.some((arg) => arg === `--${name}` || arg.startsWith(`--${name}=`));
 
 const startPidPolling = (pid: number): void => {
   if (pidPollTimer) return;
@@ -98,11 +68,11 @@ const startPidPolling = (pid: number): void => {
     try {
       process.kill(pid, 0);
     } catch {
-      pidGone = true;
       if (pidPollTimer) {
         clearInterval(pidPollTimer);
         pidPollTimer = null;
       }
+      void runCleanup().finally(() => exit(0));
     }
   }, PID_POLL_INTERVAL_MS);
 };
@@ -112,7 +82,7 @@ const cleanupLocal = async (
 ) => {
   if (cfg.keepAlive) return;
   await cleanupLocalBrowser({
-    killChrome: cfg.pid && !pidGone ? () => safeKill(cfg.pid) : undefined,
+    killChrome: cfg.pid ? () => safeKill(cfg.pid) : undefined,
     userDataDir: cfg.userDataDir,
     createdTempProfile: cfg.createdTempProfile,
     preserveUserDataDir: cfg.preserveUserDataDir,
@@ -183,48 +153,17 @@ const onMessage = (raw: unknown) => {
   }
 };
 
-export const parseShutdownSupervisorConfigFromArgv = (
+const parseConfigFromArgv = (
   argv: readonly string[] = process.argv.slice(2),
 ): ShutdownSupervisorConfig | null => {
-  if (!hasArg(argv, "supervisor")) return null;
-  const kind = getArgValue(argv, "kind");
-  const keepAlive = parseBoolean(getArgValue(argv, "keep-alive")) ?? false;
-
-  if (kind === "LOCAL") {
-    const pid = parseNumber(getArgValue(argv, "chrome-pid"));
-    if (!pid) return null;
-    const userDataDir = getArgValue(argv, "user-data-dir");
-    const createdTempProfile = parseBoolean(
-      getArgValue(argv, "created-temp-profile"),
-    );
-    const preserveUserDataDir = parseBoolean(
-      getArgValue(argv, "preserve-user-data-dir"),
-    );
-    return {
-      kind: "LOCAL",
-      keepAlive,
-      pid,
-      ...(userDataDir ? { userDataDir } : {}),
-      ...(createdTempProfile !== undefined ? { createdTempProfile } : {}),
-      ...(preserveUserDataDir !== undefined ? { preserveUserDataDir } : {}),
-    };
+  const prefix = "--supervisor-config=";
+  const raw = argv.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
+  if (!argv.includes("--supervisor") || !raw) return null;
+  try {
+    return JSON.parse(raw) as ShutdownSupervisorConfig;
+  } catch {
+    return null;
   }
-
-  if (kind === "STAGEHAND_API") {
-    const sessionId = getArgValue(argv, "session-id");
-    const apiKey = getArgValue(argv, "api-key");
-    const projectId = getArgValue(argv, "project-id");
-    if (!sessionId || !apiKey || !projectId) return null;
-    return {
-      kind: "STAGEHAND_API",
-      keepAlive,
-      sessionId,
-      apiKey,
-      projectId,
-    };
-  }
-
-  return null;
 };
 
 export const runShutdownSupervisor = (
@@ -255,7 +194,7 @@ export const runShutdownSupervisor = (
 export const maybeRunShutdownSupervisorFromArgv = (
   argv: readonly string[] = process.argv.slice(2),
 ): boolean => {
-  const parsed = parseShutdownSupervisorConfigFromArgv(argv);
+  const parsed = parseConfigFromArgv(argv);
   if (!parsed) return false;
   runShutdownSupervisor(parsed);
   return true;
