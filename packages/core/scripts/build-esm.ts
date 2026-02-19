@@ -64,8 +64,8 @@ fs.writeFileSync(
 fs.writeFileSync(
   `${repoRoot}/packages/core/dist/esm/index.d.ts`,
   [
-    'import * as Stagehand from "./lib/v3/index";',
-    'export * from "./lib/v3/index";',
+'import * as Stagehand from "./lib/v3/index.js";',
+'export * from "./lib/v3/index.js";',
     "export default Stagehand;",
     "",
   ].join("\n"),
