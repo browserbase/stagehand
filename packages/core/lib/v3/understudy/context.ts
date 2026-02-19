@@ -20,12 +20,12 @@ import {
   filterCookies,
   normalizeCookieParams,
   cookieMatchesFilter,
-} from "./cookies";
+} from "./cookies.js";
 import {
   Cookie,
   ClearCookieOptions,
   CookieParam,
-} from "../types/public/context";
+} from "../types/public/context.js";
 
 type TargetId = string;
 type SessionId = string;
