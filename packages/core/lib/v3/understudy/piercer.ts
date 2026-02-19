@@ -1,8 +1,8 @@
 import type { Protocol } from "devtools-protocol";
-import { v3Logger } from "../logger";
-import type { CDPSessionLike } from "./cdp";
-import { v3ScriptContent } from "../dom/build/scriptV3Content";
-import { reRenderScriptContent } from "../dom/build/reRenderScriptContent";
+import { v3Logger } from "../logger.js";
+import type { CDPSessionLike } from "./cdp.js";
+import { v3ScriptContent } from "../dom/build/scriptV3Content.js";
+import { reRenderScriptContent } from "../dom/build/reRenderScriptContent.js";
 
 export async function installV3PiercerIntoSession(
   session: CDPSessionLike,

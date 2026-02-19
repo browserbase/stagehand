@@ -3,10 +3,10 @@ import {
   locatorScriptBootstrap,
   locatorScriptGlobalRefs,
   type LocatorScriptName,
-} from "../dom/build/locatorScripts.generated";
-import { v3Logger } from "../logger";
-import type { Frame } from "./frame";
-import { executionContexts } from "./executionContextRegistry";
+} from "../dom/build/locatorScripts.generated.js";
+import { v3Logger } from "../logger.js";
+import type { Frame } from "./frame.js";
+import { executionContexts } from "./executionContextRegistry.js";
 
 export type SelectorQuery =
   | { kind: "css"; value: string }

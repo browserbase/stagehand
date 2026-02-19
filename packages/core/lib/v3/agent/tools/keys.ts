@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import type { V3 } from "../../v3";
+import type { V3 } from "../../v3.js";
 
 export const keysTool = (v3: V3) =>
   tool({

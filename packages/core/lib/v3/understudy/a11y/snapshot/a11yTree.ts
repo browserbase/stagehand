@@ -1,15 +1,15 @@
 import type { Protocol } from "devtools-protocol";
-import type { CDPSessionLike } from "../../cdp";
+import type { CDPSessionLike } from "../../cdp.js";
 import type {
   A11yNode,
   A11yOptions,
   AccessibilityTreeResult,
-} from "../../../types/private/snapshot";
+} from "../../../types/private/snapshot.js";
 import {
   resolveObjectIdForCss,
   resolveObjectIdForXPath,
-} from "./focusSelectors";
-import { formatTreeLine, normaliseSpaces } from "./treeFormatUtils";
+} from "./focusSelectors.js";
+import { formatTreeLine, normaliseSpaces } from "./treeFormatUtils.js";
 
 /**
  * Fetch and prune the accessibility tree for a frame, optionally scoping the

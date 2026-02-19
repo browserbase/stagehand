@@ -1,25 +1,25 @@
-import { gotoTool } from "./goto";
-import { actTool } from "./act";
-import { screenshotTool } from "./screenshot";
-import { waitTool } from "./wait";
-import { navBackTool } from "./navback";
-import { ariaTreeTool } from "./ariaTree";
-import { fillFormTool } from "./fillform";
-import { scrollTool, scrollVisionTool } from "./scroll";
-import { extractTool } from "./extract";
-import { clickTool } from "./click";
-import { typeTool } from "./type";
-import { dragAndDropTool } from "./dragAndDrop";
-import { clickAndHoldTool } from "./clickAndHold";
-import { keysTool } from "./keys";
-import { fillFormVisionTool } from "./fillFormVision";
-import { thinkTool } from "./think";
-import { searchTool } from "./search";
+import { gotoTool } from "./goto.js";
+import { actTool } from "./act.js";
+import { screenshotTool } from "./screenshot.js";
+import { waitTool } from "./wait.js";
+import { navBackTool } from "./navback.js";
+import { ariaTreeTool } from "./ariaTree.js";
+import { fillFormTool } from "./fillform.js";
+import { scrollTool, scrollVisionTool } from "./scroll.js";
+import { extractTool } from "./extract.js";
+import { clickTool } from "./click.js";
+import { typeTool } from "./type.js";
+import { dragAndDropTool } from "./dragAndDrop.js";
+import { clickAndHoldTool } from "./clickAndHold.js";
+import { keysTool } from "./keys.js";
+import { fillFormVisionTool } from "./fillFormVision.js";
+import { thinkTool } from "./think.js";
+import { searchTool } from "./search.js";
 
 import type { ToolSet, InferUITools } from "ai";
-import type { V3 } from "../../v3";
-import type { LogLine } from "../../types/public/logs";
-import type { AgentToolMode, AgentModelConfig } from "../../types/public/agent";
+import type { V3 } from "../../v3.js";
+import type { LogLine } from "../../types/public/logs.js";
+import type { AgentToolMode, AgentModelConfig } from "../../types/public/agent.js";
 
 export interface V3AgentToolOptions {
   executionModel?: string | AgentModelConfig;

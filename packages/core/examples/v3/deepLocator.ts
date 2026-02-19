@@ -1,4 +1,4 @@
-import { Stagehand } from "../../lib/v3";
+import { Stagehand } from "../../lib/v3/index.js";
 
 async function example(stagehand: Stagehand) {
   const page = stagehand.context.pages()[0];

@@ -1,4 +1,4 @@
-import type { Page } from "../../understudy/page";
+import type { Page } from "../../understudy/page.js";
 
 /**
  * Default delay in milliseconds to wait after vision actions before capturing screenshot.

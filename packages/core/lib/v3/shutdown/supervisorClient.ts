@@ -14,17 +14,16 @@ import type {
   ShutdownSupervisorConfig,
   ShutdownSupervisorHandle,
   ShutdownSupervisorMessage,
-} from "../types/private/shutdown";
+} from "../types/private/shutdown.js";
 import {
   ShutdownSupervisorResolveError,
   ShutdownSupervisorSpawnError,
-} from "../types/private/shutdownErrors";
+} from "../types/private/shutdownErrors.js";
 
 const READY_TIMEOUT_MS = 500;
-const thisDir =
-  typeof __dirname === "string"
-    ? __dirname
-    : path.dirname(fileURLToPath(import.meta.url));
+// Prefer import.meta.url — always correct per-module in ESM.
+// __dirname may be an incorrect polyfill in some tsx / loader configurations.
+const thisDir = path.dirname(fileURLToPath(import.meta.url));
 
 const resolveSupervisorScript = (): {
   command: string;
@@ -53,7 +52,7 @@ export function startShutdownSupervisor(
   if (!resolved) {
     opts?.onError?.(
       new ShutdownSupervisorResolveError(
-        "Shutdown supervisor script missing (expected supervisor.js or supervisor.ts next to shutdown/supervisorClient).",
+        `Shutdown supervisor script missing (searched ${thisDir} for supervisor.js or supervisor.ts).`,
       ),
       "resolve",
     );

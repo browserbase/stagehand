@@ -1,4 +1,4 @@
-import { Stagehand } from "../../lib/v3";
+import { Stagehand } from "../../lib/v3/index.js";
 import { chromium } from "patchright-core";
 import { z } from "zod";
 

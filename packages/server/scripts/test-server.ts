@@ -12,7 +12,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
-import normalizeV8Coverage from "../../core/scripts/normalize-v8-coverage";
+import normalizeV8Coverage from "../../core/scripts/normalize-v8-coverage.js";
 import {
   findRepoRoot,
   resolveFromRoot,
@@ -22,7 +22,7 @@ import {
   collectFiles,
   toSafeName,
   writeCtrfFromJunit,
-} from "../../core/scripts/test-utils";
+} from "../../core/scripts/test-utils.js";
 
 const repoRoot = findRepoRoot(process.cwd());
 const serverRoot = path.join(repoRoot, "packages", "server");

@@ -9,30 +9,30 @@ import {
   InferStagehandSchema,
   StagehandZodSchema,
   toJsonSchema,
-} from "./zodCompat";
-import { loadApiKeyFromEnv } from "../utils";
-import { extractModelName } from "../modelUtils";
-import { StagehandLogger, LoggerOptions } from "../logger";
-import { ActCache } from "./cache/ActCache";
-import { AgentCache } from "./cache/AgentCache";
-import { CacheStorage } from "./cache/CacheStorage";
-import { ActHandler } from "./handlers/actHandler";
-import { ExtractHandler } from "./handlers/extractHandler";
-import { ObserveHandler } from "./handlers/observeHandler";
-import { V3AgentHandler } from "./handlers/v3AgentHandler";
-import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler";
-import { createBrowserbaseSession } from "./launch/browserbase";
-import { launchLocalChrome } from "./launch/local";
-import { LLMClient } from "./llm/LLMClient";
-import { LLMProvider } from "./llm/LLMProvider";
+} from "./zodCompat.js";
+import { loadApiKeyFromEnv } from "../utils.js";
+import { extractModelName } from "../modelUtils.js";
+import { StagehandLogger, LoggerOptions } from "../logger.js";
+import { ActCache } from "./cache/ActCache.js";
+import { AgentCache } from "./cache/AgentCache.js";
+import { CacheStorage } from "./cache/CacheStorage.js";
+import { ActHandler } from "./handlers/actHandler.js";
+import { ExtractHandler } from "./handlers/extractHandler.js";
+import { ObserveHandler } from "./handlers/observeHandler.js";
+import { V3AgentHandler } from "./handlers/v3AgentHandler.js";
+import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler.js";
+import { createBrowserbaseSession } from "./launch/browserbase.js";
+import { launchLocalChrome } from "./launch/local.js";
+import { LLMClient } from "./llm/LLMClient.js";
+import { LLMProvider } from "./llm/LLMProvider.js";
 import {
   bindInstanceLogger,
   unbindInstanceLogger,
   withInstanceLogContext,
-} from "./logger";
-import { cleanupLocalBrowser } from "./shutdown/cleanupLocal";
-import { startShutdownSupervisor } from "./shutdown/supervisorClient";
-import { resolveTools } from "./mcp/utils";
+} from "./logger.js";
+import { cleanupLocalBrowser } from "./shutdown/cleanupLocal.js";
+import { startShutdownSupervisor } from "./shutdown/supervisorClient.js";
+import { resolveTools } from "./mcp/utils.js";
 import {
   ActHandlerParams,
   ExtractHandlerParams,
@@ -40,11 +40,11 @@ import {
   AgentReplayStep,
   InitState,
   AgentCacheContext,
-} from "./types/private";
+} from "./types/private/index.js";
 import type {
   ShutdownSupervisorConfig,
   ShutdownSupervisorHandle,
-} from "./types/private/shutdown";
+} from "./types/private/shutdown.js";
 import {
   AgentConfig,
   AgentExecuteCallbacks,
@@ -78,15 +78,15 @@ import {
   MissingEnvironmentVariableError,
   StagehandInitError,
   AgentStreamResult,
-} from "./types/public";
-import { V3Context } from "./understudy/context";
-import { Page } from "./understudy/page";
-import { resolveModel } from "../modelUtils";
-import { StagehandAPIClient } from "./api";
-import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures";
-import { SessionFileLogger, logStagehandStep } from "./flowLogger";
-import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard";
-import { ActTimeoutError } from "./types/public/sdkErrors";
+} from "./types/public/index.js";
+import { V3Context } from "./understudy/context.js";
+import { Page } from "./understudy/page.js";
+import { resolveModel } from "../modelUtils.js";
+import { StagehandAPIClient } from "./api.js";
+import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures.js";
+import { SessionFileLogger, logStagehandStep } from "./flowLogger.js";
+import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard.js";
+import { ActTimeoutError } from "./types/public/sdkErrors.js";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
@@ -1582,7 +1582,7 @@ export class V3 {
   }
 
   private async normalizeToV3Page(input: AnyPage): Promise<Page> {
-    if (input instanceof (await import("./understudy/page")).Page) {
+    if (input instanceof (await import("./understudy/page.js")).Page) {
       return input as Page;
     }
     if (this.isPlaywrightPage(input)) {

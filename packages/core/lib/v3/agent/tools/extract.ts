@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z, ZodTypeAny } from "zod";
-import type { V3 } from "../../v3";
-import type { AgentModelConfig } from "../../types/public/agent";
+import type { V3 } from "../../v3.js";
+import type { AgentModelConfig } from "../../types/public/agent.js";
 
 interface JsonSchema {
   type?: string;

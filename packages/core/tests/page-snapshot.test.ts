@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { promises as fs } from "fs";
-import { Page } from "../lib/v3/understudy/page";
-import * as snapshotModule from "../lib/v3/understudy/a11y/snapshot";
-import type { HybridSnapshot } from "../lib/v3/types/private";
+import { Page } from "../lib/v3/understudy/page.js";
+import * as snapshotModule from "../lib/v3/understudy/a11y/snapshot/index.js";
+import type { HybridSnapshot } from "../lib/v3/types/private/index.js";
 
 const baseSnapshot: HybridSnapshot = {
   combinedTree: "tree",

@@ -1,14 +1,14 @@
 import { Protocol } from "devtools-protocol";
-import type { CDPSessionLike } from "./cdp";
-import type { Frame } from "./frame";
-import type { Locator } from "./locator";
-import type { Page } from "./page";
+import type { CDPSessionLike } from "./cdp.js";
+import type { Frame } from "./frame.js";
+import type { Locator } from "./locator.js";
+import type { Page } from "./page.js";
 import type {
   ScreenshotClip,
   ScreenshotScaleOption,
-} from "../types/public/screenshotTypes";
-import { StagehandInvalidArgumentError } from "../types/public/sdkErrors";
-import { screenshotScriptSources } from "../dom/build/screenshotScripts.generated";
+} from "../types/public/screenshotTypes.js";
+import { StagehandInvalidArgumentError } from "../types/public/sdkErrors.js";
+import { screenshotScriptSources } from "../dom/build/screenshotScripts.generated.js";
 
 export type ScreenshotCleanup = () => Promise<void> | void;
 

@@ -1,12 +1,12 @@
-import { computeActiveElementXpath } from "../understudy/a11y/snapshot";
-import { V3 } from "../v3";
+import { computeActiveElementXpath } from "../understudy/a11y/snapshot/index.js";
+import { V3 } from "../v3.js";
 import { ToolSet } from "ai";
-import { AgentClient } from "../agent/AgentClient";
-import { AgentProvider } from "../agent/AgentProvider";
-import { GoogleCUAClient } from "../agent/GoogleCUAClient";
-import { OpenAICUAClient } from "../agent/OpenAICUAClient";
-import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping";
-import { ensureXPath } from "../agent/utils/xpath";
+import { AgentClient } from "../agent/AgentClient.js";
+import { AgentProvider } from "../agent/AgentProvider.js";
+import { GoogleCUAClient } from "../agent/GoogleCUAClient.js";
+import { OpenAICUAClient } from "../agent/OpenAICUAClient.js";
+import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping.js";
+import { ensureXPath } from "../agent/utils/xpath.js";
 import {
   ActionExecutionResult,
   AgentAction,
@@ -14,11 +14,11 @@ import {
   AgentHandlerOptions,
   AgentResult,
   SafetyConfirmationHandler,
-} from "../types/public/agent";
-import { LogLine } from "../types/public/logs";
-import { type Action, V3FunctionName } from "../types/public/methods";
-import { SessionFileLogger } from "../flowLogger";
-import { StagehandClosedError } from "../types/public/sdkErrors";
+} from "../types/public/agent.js";
+import { LogLine } from "../types/public/logs.js";
+import { type Action, V3FunctionName } from "../types/public/methods.js";
+import { SessionFileLogger } from "../flowLogger.js";
+import { StagehandClosedError } from "../types/public/sdkErrors.js";
 
 export class V3CuaAgentHandler {
   private v3: V3;

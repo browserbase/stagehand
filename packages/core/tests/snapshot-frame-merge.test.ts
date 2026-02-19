@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { FrameContext, FrameDomMaps } from "../lib/v3/types/private";
-import type { Page } from "../lib/v3/understudy/page";
-import { MockCDPSession } from "./helpers/mockCDPSession";
+import type {
+  FrameContext,
+  FrameDomMaps,
+} from "../lib/v3/types/private/index.js";
+import type { Page } from "../lib/v3/understudy/page.js";
+import { MockCDPSession } from "./helpers/mockCDPSession.js";
 import {
   computeFramePrefixes,
   mergeFramesIntoSnapshot,
-} from "../lib/v3/understudy/a11y/snapshot/capture";
+} from "../lib/v3/understudy/a11y/snapshot/capture.js";
 
 const makePage = (sessions: Record<string, MockCDPSession>): Page =>
   ({
