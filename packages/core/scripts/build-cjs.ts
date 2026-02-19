@@ -71,6 +71,7 @@ run([
   "--outbase=packages/core",
   "--format=cjs",
   "--platform=node",
+  "--target=node20",
   "--sourcemap",
   "--log-override:empty-import-meta=silent",
   "--log-level=warning",
