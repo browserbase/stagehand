@@ -19,7 +19,10 @@ import { searchTool } from "./search.js";
 import type { ToolSet, InferUITools } from "ai";
 import type { V3 } from "../../v3.js";
 import type { LogLine } from "../../types/public/logs.js";
-import type { AgentToolMode, AgentModelConfig } from "../../types/public/agent.js";
+import type {
+  AgentToolMode,
+  AgentModelConfig,
+} from "../../types/public/agent.js";
 
 export interface V3AgentToolOptions {
   executionModel?: string | AgentModelConfig;
