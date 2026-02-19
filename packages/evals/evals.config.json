@@ -26,6 +26,9 @@
     },
     "onlineMind2Web": {
       "limit": 25
+    },
+    "webtailbench": {
+      "limit": 25
     }
   },
   "tasks": [
@@ -543,6 +546,10 @@
     },
     {
       "name": "agent/onlineMind2Web",
+      "categories": ["external_agent_benchmarks"]
+    },
+    {
+      "name": "agent/webtailbench",
       "categories": ["external_agent_benchmarks"]
     },
     {
