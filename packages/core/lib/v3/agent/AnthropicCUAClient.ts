@@ -448,21 +448,6 @@ export class AnthropicCUAClient extends AgentClient {
             display_height_px: this.currentViewport.height,
             display_number: 1,
           },
-          {
-            name: "navigate",
-            description:
-              "Navigate to a URL in the browser. Use this to go to a specific web page.",
-            input_schema: {
-              type: "object",
-              properties: {
-                url: {
-                  type: "string",
-                  description: "The URL to navigate to",
-                },
-              },
-              required: ["url"],
-            },
-          },
         ],
         betas: ["computer-use-2025-01-24"],
       };
@@ -631,51 +616,6 @@ export class AnthropicCUAClient extends AgentClient {
           logger({
             category: "agent",
             message: `Added computer tool result for tool_use_id: ${item.id}`,
-            level: 2,
-          });
-        } else if (item.name === "navigate") {
-          // For navigate tool, capture screenshot after navigation and return image
-          const screenshot = await this.captureScreenshot();
-          logger({
-            category: "agent",
-            message: `Screenshot captured after navigate, length: ${screenshot.length}`,
-            level: 2,
-          });
-
-          const imageContent = [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: "image/png",
-                data: screenshot.replace(/^data:image\/png;base64,/, ""),
-              },
-            },
-          ];
-
-          if (this.currentUrl) {
-            toolResults.push({
-              type: "tool_result",
-              tool_use_id: item.id,
-              content: [
-                ...imageContent,
-                {
-                  type: "text",
-                  text: `Navigated to: ${this.currentUrl}`,
-                },
-              ],
-            });
-          } else {
-            toolResults.push({
-              type: "tool_result",
-              tool_use_id: item.id,
-              content: imageContent,
-            });
-          }
-
-          logger({
-            category: "agent",
-            message: `Added navigate tool result for tool_use_id: ${item.id}`,
             level: 2,
           });
         } else {
@@ -979,11 +919,6 @@ export class AnthropicCUAClient extends AgentClient {
             ...input,
           };
         }
-      } else if (name === "navigate") {
-        return {
-          type: "goto",
-          url: input.url as string,
-        };
       } else if (name === "str_replace_editor" || name === "bash") {
         // For editor or bash tools
         return {
