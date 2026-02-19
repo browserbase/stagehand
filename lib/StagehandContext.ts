@@ -7,6 +7,8 @@ import { Stagehand } from "./index";
 import { StagehandPage } from "./StagehandPage";
 import { Page } from "../types/page";
 import { EnhancedContext } from "../types/context";
+import { StagehandTargetClosedError } from "../types/stagehandErrors";
+import { isTargetGoneError } from "./utils";
 import { Protocol } from "devtools-protocol";
 import { scriptContent } from "./dom/build/scriptContent";
 
@@ -74,6 +76,9 @@ export class StagehandContext {
   private async createStagehandPage(
     page: PlaywrightPage,
   ): Promise<StagehandPage> {
+    if (page.isClosed()) {
+      throw new StagehandTargetClosedError();
+    }
     const stagehandPage = await new StagehandPage(
       page,
       this.stagehand,
@@ -121,10 +126,23 @@ export class StagehandContext {
     // Initialize existing pages
     const existingPages = context.pages();
     for (const page of existingPages) {
-      const stagehandPage = await instance.createStagehandPage(page);
+      if (page.isClosed()) continue;
+      let stagehandPage: StagehandPage | undefined;
+      try {
+        stagehandPage = await instance.createStagehandPage(page);
+      } catch (err) {
+        if (
+          err instanceof StagehandTargetClosedError ||
+          isTargetGoneError(err) ||
+          page.isClosed()
+        ) {
+          continue;
+        }
+        throw err;
+      }
       await instance.attachFrameNavigatedListener(page);
       // Set the first page as active
-      if (!instance.activeStagehandPage) {
+      if (!instance.activeStagehandPage && stagehandPage) {
         instance.setActivePage(stagehandPage);
       }
     }
@@ -179,9 +197,21 @@ export class StagehandContext {
   }
 
   private async handleNewPlaywrightPage(pwPage: PlaywrightPage): Promise<void> {
+    if (pwPage.isClosed()) return;
     let stagehandPage = this.pageMap.get(pwPage);
     if (!stagehandPage) {
-      stagehandPage = await this.createStagehandPage(pwPage);
+      try {
+        stagehandPage = await this.createStagehandPage(pwPage);
+      } catch (err) {
+        if (
+          err instanceof StagehandTargetClosedError ||
+          isTargetGoneError(err) ||
+          pwPage.isClosed()
+        ) {
+          return;
+        }
+        throw err;
+      }
     }
     this.setActivePage(stagehandPage);
   }
@@ -191,7 +221,14 @@ export class StagehandContext {
   ): Promise<void> {
     const shPage = this.pageMap.get(pwPage);
     if (!shPage) return;
-    const session: CDPSession = await this.intContext.newCDPSession(pwPage);
+    if (pwPage.isClosed()) return;
+    let session: CDPSession;
+    try {
+      session = await this.intContext.newCDPSession(pwPage);
+    } catch (err) {
+      if (pwPage.isClosed() || isTargetGoneError(err)) return;
+      throw err;
+    }
     await session.send("Page.enable");
 
     pwPage.once("close", () => {

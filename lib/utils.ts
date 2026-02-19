@@ -6,6 +6,24 @@ import { LogLine } from "../types/log";
 import { ModelProvider } from "../types/model";
 import { ZodPathSegments } from "../types/stagehand";
 
+export const TARGET_GONE_ERROR_SNIPPETS = [
+  "No target with given id found",
+  "Target closed",
+];
+
+export function isTargetGoneError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return TARGET_GONE_ERROR_SNIPPETS.some((snippet) => msg.includes(snippet));
+}
+
+export function isTargetGone(target: {
+  isClosed?: () => boolean;
+  isDetached?: () => boolean;
+}): boolean {
+  if (typeof target.isClosed === "function" && target.isClosed()) return true;
+  return typeof target.isDetached === "function" && target.isDetached();
+}
+
 export function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
   const result = schema.safeParse(data);
 

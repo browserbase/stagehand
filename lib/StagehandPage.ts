@@ -20,6 +20,7 @@ import { ActOptions, ActResult, GotoOptions, Stagehand } from "./index";
 import { LLMClient } from "./llm/LLMClient";
 import { StagehandContext } from "./StagehandContext";
 import { EncodedId, EnhancedContext } from "../types/context";
+import { isTargetGone, isTargetGoneError } from "./utils";
 import {
   StagehandError,
   StagehandNotInitializedError,
@@ -29,6 +30,7 @@ import {
   HandlerNotInitializedError,
   StagehandDefaultError,
   ExperimentalApiConflictError,
+  StagehandTargetClosedError,
 } from "../types/stagehandErrors";
 import { StagehandAPIError } from "@/types/stagehandApiErrors";
 import type { Protocol } from "devtools-protocol";
@@ -1049,13 +1051,26 @@ export class StagehandPage {
     target: PlaywrightPage | Frame = this.page,
   ): Promise<CDPSession> {
     const cached = this.cdpClients.get(target);
-    if (cached) return cached;
+    if (cached) {
+      if (isTargetGone(target)) {
+        this.cdpClients.delete(target);
+        throw new StagehandTargetClosedError();
+      }
+      return cached;
+    }
+
+    if (isTargetGone(target)) {
+      throw new StagehandTargetClosedError();
+    }
 
     try {
       const session = await this.context.newCDPSession(target);
       this.cdpClients.set(target, session);
       return session;
     } catch (err) {
+      if (isTargetGone(target) || isTargetGoneError(err)) {
+        throw new StagehandTargetClosedError(err);
+      }
       // Fallback for same-process iframes
       const msg = (err as Error).message ?? "";
       if (msg.includes("does not have a separate CDP session")) {
