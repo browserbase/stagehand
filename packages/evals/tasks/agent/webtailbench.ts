@@ -1,7 +1,7 @@
-import { EvalFunction } from "../../types/evals";
+import { EvalFunction } from "../../types/evals.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
-import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
-import { imageResize } from "../../utils/imageResize";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector.js";
+import { imageResize } from "../../utils/imageResize.js";
 
 export const webtailbench: EvalFunction = async ({
   v3,
