@@ -209,7 +209,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .turbo
-          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          key: ${{ runner.os }}-turbo-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', 'turbo.json') }}-${{ github.sha }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -219,7 +219,6 @@ jobs:
           # package.json is included to anchor artifact paths at repo root.
           path: |
             package.json
-            .turbo/**
             packages/core/dist/**
             packages/core/lib/version.ts
             packages/core/lib/dom/build/**
