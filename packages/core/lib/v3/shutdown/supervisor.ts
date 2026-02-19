@@ -19,6 +19,7 @@ const PID_POLL_INTERVAL_MS = 500;
 let config: ShutdownSupervisorConfig | null = null;
 let cleanupPromise: Promise<void> | null = null;
 let started = false;
+let localPidKnownGone = false;
 
 const exit = (code = 0): void => {
   try {
@@ -78,6 +79,7 @@ const startPidPolling = (pid: number): void => {
       if (err.code !== "ESRCH") return;
     }
 
+    localPidKnownGone = true;
     if (pidPollTimer) {
       clearInterval(pidPollTimer);
       pidPollTimer = null;
@@ -90,7 +92,10 @@ const cleanupLocal = async (
   cfg: Extract<ShutdownSupervisorConfig, { kind: "LOCAL" }>,
 ) => {
   await cleanupLocalBrowser({
-    killChrome: cfg.pid ? () => politeKill(cfg.pid) : undefined,
+    // If polling already observed ESRCH, avoid a follow-up PID kill.
+    // The PID could be reused by a different process before cleanup runs.
+    killChrome:
+      cfg.pid && !localPidKnownGone ? () => politeKill(cfg.pid) : undefined,
     userDataDir: cfg.userDataDir,
     createdTempProfile: cfg.createdTempProfile,
     preserveUserDataDir: cfg.preserveUserDataDir,
@@ -132,6 +137,7 @@ const runCleanup = (): Promise<void> => {
 
 const applyConfig = (nextConfig: ShutdownSupervisorConfig): void => {
   config = nextConfig;
+  localPidKnownGone = false;
   if (config.kind === "LOCAL" && config.pid) {
     startPidPolling(config.pid);
   }
