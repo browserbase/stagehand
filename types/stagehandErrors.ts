@@ -89,6 +89,21 @@ export class StagehandNotInitializedError extends StagehandError {
   }
 }
 
+export class StagehandTargetClosedError extends StagehandError {
+  public causedBy?: Error | StagehandError;
+
+  constructor(error?: unknown) {
+    const message =
+      error instanceof Error || error instanceof StagehandError
+        ? `Target closed before CDP session could attach: ${error.message}`
+        : "Target closed before CDP session could attach";
+    super(message);
+    if (error instanceof Error || error instanceof StagehandError) {
+      this.causedBy = error;
+    }
+  }
+}
+
 export class BrowserbaseSessionNotFoundError extends StagehandError {
   constructor() {
     super("No Browserbase session ID found");
