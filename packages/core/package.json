@@ -31,7 +31,7 @@
     "build-dom-scripts": "tsx lib/v3/dom/genDomScripts.ts && tsx lib/v3/dom/genLocatorScripts.ts && tsx lib/v3/dom/genScreenshotScripts.ts && tsx lib/v3/dom/genA11yScripts.ts",
     "build:cjs": "tsx scripts/build-cjs.ts",
     "build:esm": "tsx scripts/build-esm.ts",
-    "build": "pnpm -w --dir ../.. exec turbo run build:esm build:cjs --filter=@browserbasehq/stagehand",
+    "build": "pnpm run build:esm && pnpm run build:cjs",
     "example": "node --import tsx -e \"const args=process.argv.slice(1).filter(a=>a!=='--'); const [p]=args; const n=(p||'example').replace(/^\\.\\//,'').replace(/\\.ts$/i,''); import('node:path').then(path=>import(new URL(path.resolve('examples', n + '.ts'), 'file:')));\" --",
     "test": "pnpm run test:core --",
     "test:core": "tsx scripts/test-core.ts",
