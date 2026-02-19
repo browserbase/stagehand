@@ -18,7 +18,15 @@ import { CookieValidationError } from "../types/public/sdkErrors.js";
  */
 export function filterCookies(cookies: Cookie[], urls: string[]): Cookie[] {
   if (!urls.length) return cookies;
-  const parsed = urls.map((u) => new URL(u));
+  const parsed = urls.map((u) => {
+    try {
+      return new URL(u);
+    } catch {
+      throw new CookieValidationError(
+        `Invalid URL passed to cookies(): "${u}"`,
+      );
+    }
+  });
   return cookies.filter((c) => {
     for (const url of parsed) {
       let domain = c.domain;
@@ -76,7 +84,14 @@ export function normalizeCookieParams(cookies: CookieParam[]): CookieParam[] {
           `Data URL page cannot have cookie "${c.name}"`,
         );
       }
-      const url = new URL(copy.url);
+      let url: URL;
+      try {
+        url = new URL(copy.url);
+      } catch {
+        throw new CookieValidationError(
+          `Cookie "${c.name}" has an invalid url: "${copy.url}"`,
+        );
+      }
       copy.domain = url.hostname;
       copy.path = url.pathname.substring(0, url.pathname.lastIndexOf("/") + 1);
       copy.secure = url.protocol === "https:";

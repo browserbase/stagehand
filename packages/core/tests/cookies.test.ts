@@ -3,10 +3,10 @@ import {
   filterCookies,
   normalizeCookieParams,
   cookieMatchesFilter,
-} from "../lib/v3/understudy/cookies";
-import { MockCDPSession } from "./helpers/mockCDPSession";
-import type { V3Context } from "../lib/v3/understudy/context";
-import { Cookie, CookieParam } from "../lib/v3/types/public/context";
+} from "../lib/v3/understudy/cookies.js";
+import { MockCDPSession } from "./helpers/mockCDPSession.js";
+import type { V3Context } from "../lib/v3/understudy/context.js";
+import { Cookie, CookieParam } from "../lib/v3/types/public/context.js";
 
 function makeCookie(overrides: Partial<Cookie> = {}): Cookie {
   return {
@@ -188,6 +188,13 @@ describe("filterCookies", () => {
     );
     expect(result).toHaveLength(1);
   });
+
+  it("throws CookieValidationError for malformed URL", () => {
+    const c = makeCookie({ name: "a", domain: "example.com" });
+    expect(() => filterCookies([c], ["not-a-valid-url"])).toThrow(
+      /Invalid URL passed to cookies\(\)/,
+    );
+  });
 });
 
 describe("normalizeCookieParams", () => {
@@ -277,6 +284,12 @@ describe("normalizeCookieParams", () => {
         { name: "a", value: "1", url: "data:text/html,hi" },
       ]),
     ).toThrow(/Data URL/);
+  });
+
+  it("throws CookieValidationError for malformed url", () => {
+    expect(() =>
+      normalizeCookieParams([{ name: "a", value: "1", url: "not-a-url" }]),
+    ).toThrow(/Cookie "a" has an invalid url/);
   });
 
   it("throws when sameSite is None but secure is false", () => {
