@@ -15,7 +15,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import normalizeV8Coverage from "../../core/scripts/normalize-v8-coverage.js";
 import {
   ensureParentDir,
   parseListFlag,
@@ -329,7 +328,5 @@ if (serverProc) {
   });
   await new Promise((resolve) => setTimeout(resolve, 5_000));
 }
-
-await normalizeV8Coverage(coverageRoot);
 
 process.exit(status);

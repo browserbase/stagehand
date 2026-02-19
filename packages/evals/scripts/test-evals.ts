@@ -11,7 +11,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import normalizeV8Coverage from "../../core/scripts/normalize-v8-coverage.js";
 import { parseListFlag, toSafeName } from "../../core/scripts/test-utils.js";
 
 type Runtime = "source" | "dist-esm";
@@ -305,10 +304,6 @@ const result = spawnSync(
     cwd: repoRoot,
   },
 );
-
-if (coverageDir) {
-  await normalizeV8Coverage(coverageDir);
-}
 
 writeEvalJunit(summaryPath, junitPath, safeTarget);
 writeEvalCtrf(summaryPath, ctrfPath, safeTarget);

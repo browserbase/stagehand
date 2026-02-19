@@ -13,7 +13,6 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import normalizeV8Coverage from "./normalize-v8-coverage.js";
 import {
   ensureParentDir,
   parseListFlag,
@@ -168,7 +167,6 @@ const result = spawnSync(
   { stdio: "inherit", env, cwd: repoRoot },
 );
 
-await normalizeV8Coverage(coverageDir);
 writeCtrfFromJunit(ctrfPath, "playwright");
 
 process.exit(result.status ?? 1);

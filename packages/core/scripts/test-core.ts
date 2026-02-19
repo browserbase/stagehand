@@ -11,7 +11,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import normalizeV8Coverage from "./normalize-v8-coverage.js";
 import {
   ensureParentDir,
   parseListFlag,
@@ -139,7 +138,6 @@ const result = spawnSync(
   { stdio: "inherit", env },
 );
 
-await normalizeV8Coverage(coverageDir);
 writeCtrfFromJunit(junitPath, "vitest");
 
 process.exit(result.status ?? 1);
