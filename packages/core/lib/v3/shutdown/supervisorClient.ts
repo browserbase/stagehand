@@ -13,14 +13,12 @@ import { fileURLToPath } from "node:url";
 import type {
   ShutdownSupervisorConfig,
   ShutdownSupervisorHandle,
-  ShutdownSupervisorMessage,
 } from "../types/private/shutdown.js";
 import {
   ShutdownSupervisorResolveError,
   ShutdownSupervisorSpawnError,
 } from "../types/private/shutdownErrors.js";
-
-const READY_TIMEOUT_MS = 500;
+// Resolve module path for both CJS and ESM builds.
 const normalizedFilename =
   typeof __filename === "string" ? __filename.replaceAll("\\", "/") : "";
 const hasAbsoluteFilename =
@@ -44,6 +42,8 @@ const isSeaRuntime = (): boolean => {
   }
 };
 
+// SEA: re-exec current binary with supervisor args.
+// Non-SEA: execute Stagehand CLI entrypoint with supervisor args.
 const resolveSupervisorCommand = (
   config: ShutdownSupervisorConfig,
 ): {
@@ -71,10 +71,10 @@ const resolveSupervisorCommand = (
   };
 };
 
+// Single JSON arg keeps supervisor bootstrap parsing tiny and versionable.
 const serializeConfigArg = (config: ShutdownSupervisorConfig): string =>
   `--supervisor-config=${JSON.stringify({
     ...config,
-    keepAlive: false,
     parentPid: process.pid,
   })}`;
 
@@ -98,7 +98,8 @@ export function startShutdownSupervisor(
   }
 
   const child = spawn(resolved.command, resolved.args, {
-    stdio: ["pipe", "pipe", "ignore", "ipc"],
+    // stdin is the parent lifeline.
+    stdio: ["pipe", "ignore", "ignore"],
     detached: true,
   });
   child.on("error", (error) => {
@@ -114,52 +115,18 @@ export function startShutdownSupervisor(
     child.unref();
     const stdin = child.stdin as unknown as { unref?: () => void } | null;
     stdin?.unref?.();
-    const stdout = child.stdout as unknown as { unref?: () => void } | null;
-    stdout?.unref?.();
   } catch {
     // best-effort: avoid keeping the event loop alive
   }
 
-  const ready = new Promise<void>((resolve) => {
-    let resolved = false;
-    const done = () => {
-      if (resolved) return;
-      resolved = true;
-      clearTimeout(timer);
-      child.off("message", onMessage);
-      child.stdout?.off("data", onStdout);
-      resolve();
-    };
-    const timer = setTimeout(done, READY_TIMEOUT_MS);
-    const onMessage = (msg: unknown) => {
-      const payload = msg as ShutdownSupervisorMessage;
-      if (payload?.type === "ready") {
-        done();
-      }
-    };
-    const onStdout = (chunk: Buffer) => {
-      if (chunk.toString().includes("ready")) {
-        done();
-      }
-    };
-    child.on("message", onMessage);
-    child.stdout?.on("data", onStdout);
-    child.on("exit", done);
-  });
-
   const stop = () => {
+    // Normal close path: terminate supervisor directly.
     try {
-      const message: ShutdownSupervisorMessage = { type: "exit" };
-      child.send?.(message);
-    } catch {
-      // ignore
-    }
-    try {
-      child.disconnect?.();
+      child.kill("SIGTERM");
     } catch {
       // ignore
     }
   };
 
-  return { stop, ready };
+  return { stop };
 }
