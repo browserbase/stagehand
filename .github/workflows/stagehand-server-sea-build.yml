@@ -47,27 +47,22 @@ jobs:
           fetch-depth: 1
           fetch-tags: false
 
-      - uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22.x
-          cache: 'pnpm'
-          cache-dependency-path: '**/pnpm-lock.yaml'
-
-      - name: Install dependencies
+      - uses: ./.github/actions/setup-node-pnpm-turbo
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
-        run: pnpm install --frozen-lockfile
+          PLAYWRIGHT_SKIP_DOWNLOAD: "1"
+          PUPPETEER_SKIP_DOWNLOAD: "1"
+        with:
+          use-prebuilt-artifacts: "false"
+          node-version: 20.x
 
-      - name: Build SEA binary (CJS)
+      - name: Build SEA binary (ESM)
         env:
           SEA_TARGET_PLATFORM: ${{ matrix.platform }}
           SEA_TARGET_ARCH: ${{ matrix.arch }}
           SEA_BINARY_NAME: ${{ matrix.binary_name }}
         run: |
-          pnpm exec turbo run build:sea:cjs
+          pnpm exec turbo run build:sea:esm --filter=@browserbasehq/stagehand-server
 
       - name: Verify SEA binary exists
         shell: bash

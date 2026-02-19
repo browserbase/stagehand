@@ -4,6 +4,7 @@
     "baseUrl": "../../",
     "rootDir": ".",
     "outDir": "./dist/esm",
+    "allowJs": true,
     "paths": {
       "@browserbasehq/stagehand": ["packages/core/lib/v3/index.ts"],
       "@browserbasehq/stagehand/*": ["packages/core/lib/*"],

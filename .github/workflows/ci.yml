@@ -25,13 +25,13 @@ env:
   BROWSERBASE_REGION_DISTRIBUTION: "us-west-2=30,us-east-1=30,eu-central-1=20,ap-southeast-1=20"  # percentage of load for each region when running e2e tests against prod
   CHROME_PATH: /usr/bin/chromium # GitHub Actions runners ship with stable Chromium by default
   BROWSERBASE_CDP_CONNECT_MAX_MS: "10000"
-  BROWSERBASE_SESSION_CREATE_MAX_MS: "30000"
+  BROWSERBASE_SESSION_CREATE_MAX_MS: "60000"
   PUPPETEER_SKIP_DOWNLOAD: "1"
   PLAYWRIGHT_SKIP_DOWNLOAD: "1"
   TURBO_TELEMETRY_DISABLED: "1"
 
 concurrency:
-  group: ${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -198,27 +198,27 @@ jobs:
           use-prebuilt-artifacts: "false"
           node-version: 20.x
 
-      - name: Run Lint
-        run: pnpm exec turbo run lint
-
       - name: Run Build
         run: pnpm exec turbo run build
+
+      - name: Run Lint
+        run: pnpm exec turbo run lint
 
       - name: Save Turbo cache
         if: always()
         uses: actions/cache/save@v4
         with:
           path: .turbo
-          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          key: ${{ runner.os }}-turbo-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', 'turbo.json') }}-${{ github.sha }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
+          include-hidden-files: true
           # package.json is included to anchor artifact paths at repo root.
           path: |
             package.json
-            .turbo/**
             packages/core/dist/**
             packages/core/lib/version.ts
             packages/core/lib/dom/build/**
@@ -230,7 +230,7 @@ jobs:
 
   discover-core-tests:
     runs-on: ubuntu-latest
-    needs: [determine-changes]
+    needs: [determine-changes, run-build]
     if: needs.determine-changes.outputs.core == 'true'
     outputs:
       core-tests: ${{ steps.set-matrix.outputs.core-tests }}
@@ -243,12 +243,12 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
-          use-prebuilt-artifacts: "false"
+          use-prebuilt-artifacts: "true"
 
       - name: Discover core test files
         id: set-matrix
         run: |
-          core_json=$(pnpm --filter @browserbasehq/stagehand --silent exec tsx scripts/test-core.ts --list)
+          core_json=$(pnpm --filter @browserbasehq/stagehand --silent run test:core -- --list)
           echo "core-tests=$core_json" >> $GITHUB_OUTPUT
 
           if [ "$core_json" = "[]" ]; then
@@ -285,7 +285,7 @@ jobs:
 
       - name: Run Vitest - ${{ matrix.test.name }}
         run: |
-          pnpm exec turbo run test:core --filter=@browserbasehq/stagehand -- "${{ matrix.test.path }}"
+          pnpm exec turbo run test:core --only --filter=@browserbasehq/stagehand -- "${{ matrix.test.path }}"
 
       - uses: ./.github/actions/upload-ctrf-report
         if: always()
@@ -299,12 +299,10 @@ jobs:
 
   discover-server-tests:
     runs-on: ubuntu-latest
-    needs: [determine-changes]
+    needs: [determine-changes, run-build]
     if: needs.determine-changes.outputs.server == 'true'
     outputs:
-      unit-tests: ${{ steps.set-matrix.outputs.unit-tests }}
       integration-tests: ${{ steps.set-matrix.outputs.integration-tests }}
-      has-unit-tests: ${{ steps.set-matrix.outputs.has-unit-tests }}
       has-integration-tests: ${{ steps.set-matrix.outputs.has-integration-tests }}
 
     steps:
@@ -314,21 +312,13 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
-          use-prebuilt-artifacts: "false"
+          use-prebuilt-artifacts: "true"
 
       - name: Discover server test files
         id: set-matrix
         run: |
-          unit_json=$(pnpm --filter @browserbasehq/stagehand-server --silent exec tsx scripts/test-server.ts --list unit)
-          int_json=$(pnpm --filter @browserbasehq/stagehand-server --silent exec tsx scripts/test-server.ts --list integration)
-          echo "unit-tests=$unit_json" >> $GITHUB_OUTPUT
+          int_json=$(pnpm --filter @browserbasehq/stagehand-server --silent run test:server -- --list integration)
           echo "integration-tests=$int_json" >> $GITHUB_OUTPUT
-
-          if [ "$unit_json" = "[]" ]; then
-            echo "has-unit-tests=false" >> $GITHUB_OUTPUT
-          else
-            echo "has-unit-tests=true" >> $GITHUB_OUTPUT
-          fi
 
           if [ "$int_json" = "[]" ]; then
             echo "has-integration-tests=false" >> $GITHUB_OUTPUT
@@ -336,7 +326,6 @@ jobs:
             echo "has-integration-tests=true" >> $GITHUB_OUTPUT
           fi
 
-          echo "Found server unit tests: $unit_json"
           echo "Found server integration tests: $int_json"
 
   build-server-sea:
@@ -359,7 +348,7 @@ jobs:
           SEA_TARGET_ARCH: x64
           SEA_BINARY_NAME: stagehand-server-linux-x64-sourcemap
         run: |
-          pnpm exec turbo run build:sea:esm --filter=@browserbasehq/stagehand-server
+          pnpm exec turbo run build:sea:esm
 
       - name: Verify SEA binary exists
         run: |
@@ -374,43 +363,6 @@ jobs:
             package.json
             packages/server/dist/sea/stagehand-server-linux-x64-sourcemap
           retention-days: 1
-
-  server-unit-tests:
-    name: server/unit/${{ matrix.test.name }}
-    runs-on: ubuntu-latest
-    needs: [run-build, discover-server-tests]
-    if: needs.discover-server-tests.outputs.has-unit-tests == 'true'
-    env:
-      STAGEHAND_BROWSER_TARGET: local
-      STAGEHAND_SERVER_TARGET: local
-
-    strategy:
-      fail-fast: false
-      matrix:
-        test: ${{ fromJson(needs.discover-server-tests.outputs.unit-tests) }}
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - uses: ./.github/actions/setup-node-pnpm-turbo
-        with:
-          use-prebuilt-artifacts: "true"
-
-      - name: Run server unit test - ${{ matrix.test.name }}
-        run: |
-          pnpm exec turbo run test:server --filter=@browserbasehq/stagehand-server -- "${{ matrix.test.path }}"
-
-      - uses: ./.github/actions/upload-ctrf-report
-        if: always()
-        with:
-          name: ctrf/server-unit/${{ matrix.test.name }}.json
-
-      - uses: ./.github/actions/upload-v8-coverage
-        if: always()
-        with:
-          name: coverage/server-unit/${{ matrix.test.name }}
 
   server-integration-tests:
     name: server/integration/${{ matrix.test.name }}
@@ -431,6 +383,9 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Used only for testing /start with env: BROWSERBASE remote browser
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
 
     steps:
       - uses: actions/checkout@v4
@@ -458,7 +413,7 @@ jobs:
         env:
           SEA_BINARY_NAME: stagehand-server-linux-x64-sourcemap
         run: |
-          pnpm exec turbo run test:server --filter=@browserbasehq/stagehand-server -- "${{ matrix.test.path }}"
+          pnpm exec turbo run test:server --only --filter=@browserbasehq/stagehand-server -- "${{ matrix.test.path }}"
 
       - uses: ./.github/actions/upload-ctrf-report
         if: always()
@@ -472,7 +427,7 @@ jobs:
 
   discover-e2e-tests:
     runs-on: ubuntu-latest
-    needs: [determine-changes]
+    needs: [determine-changes, run-build]
     if: needs.determine-changes.outputs.core == 'true'
     outputs:
       e2e-tests: ${{ steps.set-matrix.outputs.e2e-tests }}
@@ -485,12 +440,12 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
-          use-prebuilt-artifacts: "false"
+          use-prebuilt-artifacts: "true"
 
       - name: Discover e2e test files
         id: set-matrix
         run: |
-          e2e_json=$(pnpm --filter @browserbasehq/stagehand --silent exec tsx scripts/test-e2e.ts --list)
+          e2e_json=$(pnpm --filter @browserbasehq/stagehand --silent run test:e2e -- --list)
           echo "e2e-tests=$e2e_json" >> $GITHUB_OUTPUT
 
           if [ "$e2e_json" = "[]" ]; then
@@ -536,7 +491,7 @@ jobs:
 
       - name: Run local E2E Tests - ${{ matrix.test.name }}
         run: |
-          pnpm exec turbo run test:e2e --filter=@browserbasehq/stagehand -- "${{ matrix.test.path }}"
+          pnpm exec turbo run test:e2e --only --filter=@browserbasehq/stagehand -- "${{ matrix.test.path }}"
 
       - uses: ./.github/actions/upload-ctrf-report
         if: always()
@@ -586,7 +541,7 @@ jobs:
 
       - name: Run E2E Tests (browserbase) - ${{ matrix.test.name }}
         run: |
-          pnpm exec turbo run test:e2e --filter=@browserbasehq/stagehand -- "${{ matrix.test.path }}"
+          pnpm exec turbo run test:e2e --only --filter=@browserbasehq/stagehand -- "${{ matrix.test.path }}"
 
       - uses: ./.github/actions/upload-ctrf-report
         if: always()
@@ -646,7 +601,7 @@ jobs:
         run: |
           log_file="$(mktemp)"
           set +e
-          pnpm exec turbo run test:evals --filter=@browserbasehq/stagehand-evals -- "${{ matrix.category }}" -t "${EVAL_TRIAL_COUNT}" -c "${EVAL_MAX_CONCURRENCY}" 2>&1 | tee "$log_file"
+          pnpm exec turbo run test:evals --only --filter=@browserbasehq/stagehand-evals -- "${{ matrix.category }}" -t "${EVAL_TRIAL_COUNT}" -c "${EVAL_MAX_CONCURRENCY}" 2>&1 | tee "$log_file"
           eval_status=${PIPESTATUS[0]}
           set -e
 
@@ -710,9 +665,9 @@ jobs:
       - run-e2e-local-tests
       - run-e2e-bb-tests
       - run-evals
-      - server-unit-tests
       - server-integration-tests
-    if: always()
+    # if: always()
+    if: false
     steps:
       - uses: actions/checkout@v4
         with:

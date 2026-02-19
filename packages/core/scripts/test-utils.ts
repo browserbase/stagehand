@@ -4,53 +4,58 @@
  * Prereqs: none.
  * Args: n/a.
  * Env: n/a.
- * Example: import { findRepoRoot } from "./test-utils";
  */
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
-export const findRepoRoot = (startDir: string): string => {
-  let current = path.resolve(startDir);
-  while (true) {
-    if (fs.existsSync(path.join(current, "pnpm-workspace.yaml"))) {
-      return current;
-    }
-    const parent = path.dirname(current);
-    if (parent === current) return startDir;
-    current = parent;
+const workspaceRoot = (() => {
+  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
+  const root = value.split("/packages/core/")[0];
+  if (root === value) {
+    throw new Error(`Unable to determine repo root from ${value}`);
   }
-};
-
-export const resolveFromRoot = (repoRoot: string, value: string) =>
-  path.isAbsolute(value) ? value : path.resolve(repoRoot, value);
+  return root;
+})();
 
 export const ensureParentDir = (filePath: string) => {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 };
 
 export const splitArgs = (args: string[]) => {
-  const separatorIndex = args.indexOf("--");
-  if (separatorIndex === 0) {
-    const remaining = args.slice(1);
-    const secondSeparatorIndex = remaining.indexOf("--");
-    if (secondSeparatorIndex !== -1) {
-      return {
-        paths: remaining.slice(0, secondSeparatorIndex),
-        extra: remaining.slice(secondSeparatorIndex + 1),
-      };
-    }
-
-    if (remaining.length > 0 && remaining[0].startsWith("-")) {
-      return { paths: [], extra: remaining };
-    }
-
-    return { paths: remaining, extra: [] };
+  const tokens = [...args];
+  while (tokens[0] === "--") {
+    tokens.shift();
   }
 
+  const leadingExtra: string[] = [];
+  while (tokens.length > 0 && tokens[0].startsWith("-")) {
+    const arg = tokens.shift();
+    if (!arg) break;
+    if (arg === "--") break;
+    leadingExtra.push(arg);
+    if (
+      !arg.includes("=") &&
+      tokens[0] &&
+      tokens[0] !== "--" &&
+      !tokens[0].startsWith("-")
+    ) {
+      leadingExtra.push(tokens.shift() as string);
+    }
+  }
+
+  while (tokens[0] === "--") {
+    tokens.shift();
+  }
+
+  const separatorIndex = tokens.indexOf("--");
   return {
-    paths: separatorIndex === -1 ? args : args.slice(0, separatorIndex),
-    extra: separatorIndex === -1 ? [] : args.slice(separatorIndex + 1),
+    paths: separatorIndex === -1 ? tokens : tokens.slice(0, separatorIndex),
+    extra: [
+      ...leadingExtra,
+      ...(separatorIndex === -1 ? [] : tokens.slice(separatorIndex + 1)),
+    ],
   };
 };
 
@@ -84,7 +89,7 @@ export const collectFiles = (dir: string, suffix: string) => {
   const results: string[] = [];
   const walk = (current: string) => {
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-      const full = path.join(current, entry.name);
+      const full = `${current}/${entry.name}`;
       if (entry.isDirectory()) {
         walk(full);
       } else if (entry.isFile() && entry.name.endsWith(suffix)) {
@@ -103,13 +108,17 @@ export const normalizeVitestArgs = (repoRoot: string, argsList: string[]) => {
     const arg = normalized[i];
     if (arg.startsWith(prefix)) {
       const value = arg.slice(prefix.length);
-      const resolved = resolveFromRoot(repoRoot, value);
+      const resolved = path.isAbsolute(value)
+        ? value
+        : path.resolve(repoRoot, value);
       ensureParentDir(resolved);
       normalized[i] = `${prefix}${resolved}`;
       continue;
     }
     if (arg === "--outputFile.junit" && normalized[i + 1]) {
-      const resolved = resolveFromRoot(repoRoot, normalized[i + 1]);
+      const resolved = path.isAbsolute(normalized[i + 1])
+        ? normalized[i + 1]
+        : path.resolve(repoRoot, normalized[i + 1]);
       ensureParentDir(resolved);
       normalized[i + 1] = resolved;
       i += 1;
@@ -158,14 +167,13 @@ export const writeCtrfFromJunit = (junitPath: string, tool: string) => {
   if (!fs.existsSync(junitPath)) return;
   const stat = fs.statSync(junitPath);
   if (stat.size === 0) return;
-  const repoRoot = findRepoRoot(process.cwd());
   const ctrfPath = junitPath.match(/\.xml$/i)
     ? junitPath.replace(/\.xml$/i, ".json")
     : `${junitPath}.json`;
   const result = spawnSync(
     "pnpm",
     ["exec", "junit-to-ctrf", junitPath, "-o", ctrfPath, "-t", tool],
-    { stdio: "inherit", cwd: repoRoot },
+    { stdio: "inherit", cwd: workspaceRoot },
   );
   if (result.status !== 0) {
     console.warn(`CTRF conversion failed for ${junitPath}.`);

@@ -7,10 +7,11 @@
   "main": "./",
   "scripts": {
     "typecheck": "pnpm -w --dir ../.. exec tsc -p packages/evals/tsconfig.json --noEmit",
-    "build": "pnpm run build:esm && pnpm run build:cli && pnpm run typecheck",
+    "build": "pnpm run build:esm && pnpm run build:cli",
     "build:esm": "tsx scripts/build-esm.ts",
     "build:cli": "tsx scripts/build-cli.ts",
-    "test:evals": "tsx scripts/test-evals.ts",
+    "test": "pnpm -w --dir ../.. exec turbo run test:evals --filter=@browserbasehq/stagehand-evals --",
+    "test:evals": "tsx scripts/test-evals.ts --cli packages/evals/dist/cli/cli.js",
     "lint": "pnpm -w --dir ../.. exec prettier --check packages/evals && pnpm -w --dir ../.. exec eslint packages/evals && pnpm run typecheck",
     "format": "prettier --write ."
   },
