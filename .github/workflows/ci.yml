@@ -215,6 +215,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
+          include-hidden-files: true
           # package.json is included to anchor artifact paths at repo root.
           path: |
             package.json

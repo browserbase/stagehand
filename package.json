@@ -6,8 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "turbo run build",
-    "build:cjs": "turbo run build:cjs",
     "build:full": "turbo run build",
+    "build:cjs": "turbo run build:cjs",
     "build:cli": "turbo run build:cli",
     "build:esm": "turbo run build:esm",
     "build:sea": "turbo run build:sea:esm",
