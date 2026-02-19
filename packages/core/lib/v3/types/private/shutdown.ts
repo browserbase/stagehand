@@ -19,9 +19,7 @@ export type ShutdownSupervisorConfig =
       projectId: string;
     };
 
-export type ShutdownSupervisorMessage =
-  | { type: "exit" }
-  | { type: "ready" };
+export type ShutdownSupervisorMessage = { type: "exit" } | { type: "ready" };
 
 export interface ShutdownSupervisorHandle {
   /** Best-effort signal to stop the supervisor without running cleanup. */

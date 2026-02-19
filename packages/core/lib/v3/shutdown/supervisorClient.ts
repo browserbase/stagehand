@@ -24,11 +24,15 @@ const READY_TIMEOUT_MS = 500;
 const normalizedFilename =
   typeof __filename === "string" ? __filename.replaceAll("\\", "/") : "";
 const hasAbsoluteFilename =
-  normalizedFilename.startsWith("/") ||
-  /^[A-Za-z]:\//.test(normalizedFilename);
-const modulePath = hasAbsoluteFilename ? __filename : fileURLToPath(import.meta.url);
+  normalizedFilename.startsWith("/") || /^[A-Za-z]:\//.test(normalizedFilename);
+const modulePath = hasAbsoluteFilename
+  ? __filename
+  : fileURLToPath(import.meta.url);
 const normalizedModulePath = modulePath.replaceAll("\\", "/");
-const moduleDir = normalizedModulePath.slice(0, normalizedModulePath.lastIndexOf("/"));
+const moduleDir = normalizedModulePath.slice(
+  0,
+  normalizedModulePath.lastIndexOf("/"),
+);
 const require = createRequire(modulePath);
 
 const isSeaRuntime = (): boolean => {
@@ -52,10 +56,7 @@ const resolveSupervisorCommand = (
     return { command: process.execPath, args: baseArgs };
   }
 
-  const cliPathCandidates = [
-    `${moduleDir}/../cli.js`,
-    `${moduleDir}/cli.js`,
-  ];
+  const cliPathCandidates = [`${moduleDir}/../cli.js`, `${moduleDir}/cli.js`];
   const cliPath =
     cliPathCandidates.find((candidate) => fs.existsSync(candidate)) ?? null;
   if (!cliPath) return null;
