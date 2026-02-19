@@ -857,15 +857,13 @@ export class V3 {
           this.resetBrowserbaseSessionMetadata();
           const chromePid = chrome.process?.pid ?? chrome.pid;
           if (!keepAlive && chromePid) {
-            const supervisor = this.startShutdownSupervisor({
+            this.startShutdownSupervisor({
               kind: "LOCAL",
-              keepAlive: false,
               pid: chromePid,
               userDataDir,
               createdTempProfile: createdTemp,
               preserveUserDataDir: !!lbo.preserveUserDataDir,
             });
-            await supervisor?.ready;
           }
 
           // Post-connect settings (downloads and viewport) if provided
@@ -949,14 +947,12 @@ export class V3 {
           this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
           this.browserbaseSessionId = sessionId;
           if (!keepAlive && !this.disableAPI) {
-            const supervisor = this.startShutdownSupervisor({
+            this.startShutdownSupervisor({
               kind: "STAGEHAND_API",
-              keepAlive: false,
               sessionId,
               apiKey,
               projectId,
             });
-            await supervisor?.ready;
           }
 
           await this._ensureBrowserbaseDownloadsEnabled();
