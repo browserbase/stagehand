@@ -56,10 +56,30 @@
       ]
     },
     "@browserbasehq/stagehand#build:esm": {
-      "dependsOn": ["^build:esm", "gen-version", "build-dom-scripts"]
+      "dependsOn": ["^build:esm", "gen-version", "build-dom-scripts"],
+      "outputs": [
+        "dist/esm/**"
+      ],
+      "inputs": [
+        "**/*.ts",
+        "**/*.js",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
     },
     "@browserbasehq/stagehand#build:cjs": {
-      "dependsOn": ["^build:cjs", "gen-version", "build-dom-scripts"]
+      "dependsOn": ["^build:cjs", "gen-version", "build-dom-scripts"],
+      "outputs": [
+        "dist/cjs/**"
+      ],
+      "inputs": [
+        "**/*.ts",
+        "**/*.js",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
     },
     "gen-version": {
       "outputs": ["lib/version.ts"],
