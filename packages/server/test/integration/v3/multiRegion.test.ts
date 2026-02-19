@@ -8,6 +8,7 @@ import {
   getBaseUrl,
   getHeaders,
   HTTP_OK,
+  LOCAL_BROWSER_BODY,
 } from "../utils.js";
 
 // =============================================================================
@@ -47,14 +48,7 @@ function isSuccessResponse(
 
 describe("POST /v1/sessions/start - Multi-region support", () => {
   const headers = getHeaders("3.0.0");
-  const localBrowser = {
-    browser: {
-      type: "local",
-      launchOptions: {
-        headless: true,
-      },
-    },
-  };
+  const localBrowser = LOCAL_BROWSER_BODY;
 
   it("should start session with us-west-2 region (default)", async () => {
     const url = getBaseUrl();
