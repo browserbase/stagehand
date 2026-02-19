@@ -631,11 +631,13 @@ export class V3Context {
           .catch(() => {}),
       );
       if (this.extraHttpHeaders) {
-        installPromises.push(send("Network.enable"));
+        const headers = { ...this.extraHttpHeaders };
         installPromises.push(
-          send("Network.setExtraHTTPHeaders", {
-            headers: this.extraHttpHeaders,
-          }),
+          (async () => {
+            // Ensure Network domain is enabled before setting headers.
+            await send("Network.enable");
+            await send("Network.setExtraHTTPHeaders", { headers });
+          })(),
         );
       }
       // Send init scripts only after auto-attach has been issued.
