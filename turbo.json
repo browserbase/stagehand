@@ -1,23 +1,7 @@
 {
   "$schema": "https://v2-8-10.turborepo.dev/schema.json",
   "globalEnv": [
-    "ANTHROPIC_API_KEY",
-    "BROWSERBASE_API_KEY",
-    "BROWSERBASE_CDP_CONNECT_MAX_MS",
-    "BROWSERBASE_PROJECT_ID",
-    "BROWSERBASE_SESSION_CREATE_MAX_MS",
-    "CHROME_PATH",
-    "CI",
-    "CTRF_JUNIT_PATH",
-    "GEMINI_API_KEY",
-    "GOOGLE_GENERATIVE_AI_API_KEY",
-    "HEADLESS",
-    "LLM_MAX_MS",
-    "NODE_OPTIONS",
-    "NODE_V8_COVERAGE",
-    "OPENAI_API_KEY",
-    "STAGEHAND_BROWSER_TARGET",
-    "STAGEHAND_SERVER_TARGET"
+    "CI"
   ],
   "globalDependencies": [
     ".github/workflows/ci.yml",
@@ -275,7 +259,25 @@
         "KEEP_ALIVE_VIEW_MS",
         "LOCAL_SESSION_LIMIT_PER_E2E_TEST",
         "PLAYWRIGHT_CONSOLE_REPORTER",
+        "STAGEHAND_BROWSER_TARGET",
         "STAGEHAND_API_URL"
+      ],
+      "passThroughEnv": [
+        "ANTHROPIC_API_KEY",
+        "BROWSERBASE_API_KEY",
+        "BROWSERBASE_CDP_CONNECT_MAX_MS",
+        "BROWSERBASE_PROJECT_ID",
+        "BROWSERBASE_SESSION_CREATE_MAX_MS",
+        "CHROME_PATH",
+        "CTRF_JUNIT_PATH",
+        "GEMINI_API_KEY",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        "HEADLESS",
+        "LLM_MAX_MS",
+        "NODE_OPTIONS",
+        "NODE_V8_COVERAGE",
+        "OPENAI_API_KEY",
+        "STAGEHAND_SERVER_TARGET"
       ],
       "inputs": [
         "lib/v3/tests/**/*.ts",
@@ -311,7 +313,25 @@
         "EVAL_WEBVOYAGER_SAMPLE",
         "OP_AUTO_ENV_DISABLE",
         "OP_ENV_FILE",
+        "STAGEHAND_BROWSER_TARGET",
         "USE_API"
+      ],
+      "passThroughEnv": [
+        "ANTHROPIC_API_KEY",
+        "BROWSERBASE_API_KEY",
+        "BROWSERBASE_CDP_CONNECT_MAX_MS",
+        "BROWSERBASE_PROJECT_ID",
+        "BROWSERBASE_SESSION_CREATE_MAX_MS",
+        "CHROME_PATH",
+        "CTRF_JUNIT_PATH",
+        "GEMINI_API_KEY",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        "HEADLESS",
+        "LLM_MAX_MS",
+        "NODE_OPTIONS",
+        "NODE_V8_COVERAGE",
+        "OPENAI_API_KEY",
+        "STAGEHAND_SERVER_TARGET"
       ],
       "inputs": [
         "scripts/**",
@@ -336,6 +356,24 @@
         "STAGEHAND_BASE_URL",
         "STAGEHAND_SEA_CACHE_DIR",
         "STAGEHAND_TEST_LOCAL_CONNECT_TIMEOUT_MS"
+      ],
+      "passThroughEnv": [
+        "ANTHROPIC_API_KEY",
+        "BROWSERBASE_API_KEY",
+        "BROWSERBASE_CDP_CONNECT_MAX_MS",
+        "BROWSERBASE_PROJECT_ID",
+        "BROWSERBASE_SESSION_CREATE_MAX_MS",
+        "CHROME_PATH",
+        "CTRF_JUNIT_PATH",
+        "GEMINI_API_KEY",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        "HEADLESS",
+        "LLM_MAX_MS",
+        "NODE_OPTIONS",
+        "NODE_V8_COVERAGE",
+        "OPENAI_API_KEY",
+        "STAGEHAND_BROWSER_TARGET",
+        "STAGEHAND_SERVER_TARGET"
       ],
       "inputs": [
         "test/**/*.ts",
