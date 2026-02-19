@@ -29,9 +29,9 @@ async function example(stagehand: Stagehand) {
     "select blue as the favorite color on the dropdown",
     { page: page2 },
   );
-  action2.map(async (action) => {
-    await stagehand.act(action);
-  });
+  for (const action of action2) {
+    await stagehand.act(action, { page: page2, timeout: 30_000 });
+  }
 }
 
 (async () => {
@@ -45,6 +45,10 @@ async function example(stagehand: Stagehand) {
     },
     verbose: 2,
   });
-  await stagehand.init();
-  await example(stagehand);
+  try {
+    await stagehand.init();
+    await example(stagehand);
+  } finally {
+    await stagehand.close();
+  }
 })();
