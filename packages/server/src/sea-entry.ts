@@ -8,12 +8,14 @@ const maybeRunShutdownSupervisorFromArgv = (
     ) => boolean;
   }
 ).__internalMaybeRunShutdownSupervisorFromArgv;
+const argv = process.argv.slice(1);
+const normalizedArgv = argv[0]?.startsWith("--") ? argv : argv.slice(1);
 
 // otherwise, start the stagehand/server
 if (
   !(
     typeof maybeRunShutdownSupervisorFromArgv === "function" &&
-    maybeRunShutdownSupervisorFromArgv(process.argv.slice(2))
+    maybeRunShutdownSupervisorFromArgv(normalizedArgv)
   )
 ) {
   void import("./server.js").catch((err) => {

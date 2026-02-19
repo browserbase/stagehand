@@ -7,6 +7,7 @@
  * - STAGEHAND_API: request session release (when keepAlive is false)
  */
 
+import { execFileSync } from "node:child_process";
 import Browserbase from "@browserbasehq/sdk";
 import type {
   ShutdownSupervisorConfig,
@@ -36,16 +37,18 @@ const safeKill = async (pid: number): Promise<void> => {
     try {
       process.kill(pid, 0);
       return true;
-    } catch {
-      return false;
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      return err.code !== "ESRCH";
     }
   };
 
   if (!isAlive()) return;
   try {
     process.kill(pid, "SIGTERM");
-  } catch {
-    return;
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err.code === "ESRCH") return;
   }
 
   const deadline = Date.now() + SIGKILL_TIMEOUT_MS;
@@ -57,6 +60,36 @@ const safeKill = async (pid: number): Promise<void> => {
     process.kill(pid, "SIGKILL");
   } catch {
     // best-effort
+  }
+};
+
+const findPidsByUserDataDir = (userDataDir: string): number[] => {
+  if (!userDataDir || process.platform === "win32") return [];
+  try {
+    const output = execFileSync("ps", ["-axo", "pid=,args="], {
+      encoding: "utf8",
+    });
+    return output
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const firstSpace = line.indexOf(" ");
+        if (firstSpace === -1) return { pid: Number(line), args: "" };
+        return {
+          pid: Number(line.slice(0, firstSpace)),
+          args: line.slice(firstSpace + 1),
+        };
+      })
+      .filter(
+        (entry) =>
+          Number.isFinite(entry.pid) &&
+          entry.pid > 0 &&
+          entry.args.includes(`--user-data-dir=${userDataDir}`),
+      )
+      .map((entry) => entry.pid);
+  } catch {
+    return [];
   }
 };
 
@@ -82,7 +115,18 @@ const cleanupLocal = async (
 ) => {
   if (cfg.keepAlive) return;
   await cleanupLocalBrowser({
-    killChrome: cfg.pid ? () => safeKill(cfg.pid) : undefined,
+    killChrome: async () => {
+      const pids = new Set<number>();
+      if (cfg.pid) pids.add(cfg.pid);
+      if (cfg.userDataDir) {
+        for (const pid of findPidsByUserDataDir(cfg.userDataDir)) {
+          pids.add(pid);
+        }
+      }
+      for (const pid of pids) {
+        await safeKill(pid);
+      }
+    },
     userDataDir: cfg.userDataDir,
     createdTempProfile: cfg.createdTempProfile,
     preserveUserDataDir: cfg.preserveUserDataDir,
@@ -123,6 +167,25 @@ const runCleanup = (): Promise<void> => {
   return cleanupPromise;
 };
 
+const killLocalOnProcessExit = (): void => {
+  const cfg = config;
+  if (!cfg || !armed || cfg.kind !== "LOCAL") return;
+  const pids = new Set<number>();
+  if (cfg.pid) pids.add(cfg.pid);
+  if (cfg.userDataDir) {
+    for (const pid of findPidsByUserDataDir(cfg.userDataDir)) {
+      pids.add(pid);
+    }
+  }
+  for (const pid of pids) {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // best-effort
+    }
+  }
+};
+
 const applyConfig = (nextConfig: ShutdownSupervisorConfig | null): void => {
   config = nextConfig;
   armed = Boolean(config) && config.keepAlive === false;
@@ -137,6 +200,11 @@ const notifyReady = (): void => {
     process.send?.(message);
   } catch {
     // ignore IPC failures
+  }
+  try {
+    process.stdout.write("ready\n");
+  } catch {
+    // ignore stdout failures
   }
 };
 
@@ -185,6 +253,7 @@ export const runShutdownSupervisor = (
 
   process.on("disconnect", onLifelineClosed);
   process.on("message", onMessage);
+  process.on("exit", killLocalOnProcessExit);
 
   if (initialConfig) {
     notifyReady();

@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import { execFileSync } from "node:child_process";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
-import fs from "node:fs";
 import net from "node:net";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
@@ -81,13 +80,8 @@ const repoRoot = (() => {
 
 const defaultSeaBinaryName = `stagehand-server-${process.platform}-${process.arch}${process.platform === "win32" ? ".exe" : ""}`;
 const seaBinaryPath = `${repoRoot}/packages/server/dist/sea/${process.env.SEA_BINARY_NAME ?? defaultSeaBinaryName}`;
-const skipSeaKeepAliveTests =
-  process.platform === "win32" || !fs.existsSync(seaBinaryPath);
 const bbApiKey = process.env.BROWSERBASE_API_KEY;
 const bbProjectId = process.env.BROWSERBASE_PROJECT_ID;
-const hasBrowserbaseCreds = Boolean(bbApiKey && bbProjectId);
-const canRunBrowserbaseKeepAlive =
-  hasBrowserbaseCreds && process.env.BB_ENV !== "local";
 const activeSea = new Set<SeaHandle>();
 
 afterEach(async () => {
@@ -229,8 +223,10 @@ async function waitForPidState(
     if (isPidAlive(pid) === shouldBeAlive) return;
     await sleep(200);
   }
+  const entry = listProcesses().find((candidate) => candidate.pid === pid);
+  const details = entry ? ` args=${entry.args}` : "";
   throw new Error(
-    `PID ${pid} did not become ${shouldBeAlive ? "alive" : "dead"} within ${timeoutMs}ms`,
+    `PID ${pid} did not become ${shouldBeAlive ? "alive" : "dead"} within ${timeoutMs}ms${details}`,
   );
 }
 
@@ -266,7 +262,9 @@ async function waitForProcessExit(
   });
 }
 
-async function startSeaServer(): Promise<SeaHandle> {
+async function startSeaServer(
+  envOverrides: Record<string, string> = {},
+): Promise<SeaHandle> {
   const port = await getFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
   const logs: string[] = [];
@@ -276,6 +274,7 @@ async function startSeaServer(): Promise<SeaHandle> {
     {
       env: {
         ...process.env,
+        ...envOverrides,
         NODE_ENV: "production",
         PORT: String(port),
         STAGEHAND_SEA_CACHE_DIR:
@@ -693,9 +692,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
 });
 
 describe("POST /v1/sessions/start - keepAlive=false supervision in SEA", () => {
-  const seaIt = skipSeaKeepAliveTests ? it.skip : it;
-
-  seaIt("spawns a supervisor and exits it when chrome dies", async () => {
+  it("spawns a supervisor and exits it when chrome dies", async () => {
     const handle = await startSeaServer();
     const seaPid = handle.proc.pid;
     assert.ok(seaPid, "SEA server must have a PID");
@@ -729,64 +726,52 @@ describe("POST /v1/sessions/start - keepAlive=false supervision in SEA", () => {
     );
   });
 
-  seaIt(
-    "force-killing SEA kills local chrome and exits supervisor within 10s",
-    async () => {
-      const handle = await startSeaServer();
-      const seaPid = handle.proc.pid;
-      assert.ok(seaPid, "SEA server must have a PID");
+  it("force-killing SEA kills local chrome and exits supervisor within 10s", async () => {
+    const handle = await startSeaServer();
+    const seaPid = handle.proc.pid;
+    assert.ok(seaPid, "SEA server must have a PID");
 
-      await startKeepAliveFalseLocalSession(handle.baseUrl);
-      const supervisor = await waitForValue(
-        () => findLocalSupervisorByParentPid(seaPid),
-        10_000,
-      );
+    await startKeepAliveFalseLocalSession(handle.baseUrl);
+    const supervisor = await waitForValue(
+      () => findLocalSupervisorByParentPid(seaPid),
+      10_000,
+    );
 
-      assert.ok(
-        supervisor.chromePid,
-        `Expected local supervisor to include --chrome-pid. args=${supervisor.args}`,
-      );
-      assert.ok(
-        isPidAlive(supervisor.pid),
-        `Supervisor PID ${supervisor.pid} should be alive`,
-      );
-      assert.ok(
-        isPidAlive(supervisor.chromePid),
-        `Chrome PID ${supervisor.chromePid} should be alive`,
-      );
+    assert.ok(
+      supervisor.chromePid,
+      `Expected local supervisor to include --chrome-pid. args=${supervisor.args}`,
+    );
+    assert.ok(
+      isPidAlive(supervisor.pid),
+      `Supervisor PID ${supervisor.pid} should be alive`,
+    );
+    assert.ok(
+      isPidAlive(supervisor.chromePid),
+      `Chrome PID ${supervisor.chromePid} should be alive`,
+    );
 
+    await forceKillSeaServer(handle);
+
+    await waitForPidState(supervisor.pid, false, 10_000);
+    await waitForPidState(supervisor.chromePid, false, 10_000);
+  });
+
+  it("force-killing SEA ends Browserbase session when keepAlive=false", async () => {
+    const handle = await startSeaServer({ BB_ENV: "prod" });
+    const sessionId = await startKeepAliveFalseBrowserbaseSession(
+      handle.baseUrl,
+    );
+
+    try {
       await forceKillSeaServer(handle);
-
-      await waitForPidState(supervisor.chromePid, false, 10_000);
-      await waitForPidState(supervisor.pid, false, 10_000);
-    },
-  );
-
-  const browserbaseIt =
-    skipSeaKeepAliveTests || !canRunBrowserbaseKeepAlive ? it.skip : it;
-
-  browserbaseIt(
-    "force-killing SEA ends Browserbase session when keepAlive=false",
-    async () => {
-      const handle = await startSeaServer();
-      const sessionId = await startKeepAliveFalseBrowserbaseSession(
-        handle.baseUrl,
+      const finalStatus = await waitForBrowserbaseNotRunning(sessionId, 30_000);
+      assert.notEqual(
+        finalStatus,
+        "RUNNING",
+        "Browserbase session should not remain RUNNING after SEA kill",
       );
-
-      try {
-        await forceKillSeaServer(handle);
-        const finalStatus = await waitForBrowserbaseNotRunning(
-          sessionId,
-          30_000,
-        );
-        assert.notEqual(
-          finalStatus,
-          "RUNNING",
-          "Browserbase session should not remain RUNNING after SEA kill",
-        );
-      } finally {
-        await requestBrowserbaseReleaseBestEffort(sessionId);
-      }
-    },
-  );
+    } finally {
+      await requestBrowserbaseReleaseBestEffort(sessionId);
+    }
+  });
 });

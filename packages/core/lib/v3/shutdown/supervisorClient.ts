@@ -98,7 +98,7 @@ export function startShutdownSupervisor(
   }
 
   const child = spawn(resolved.command, resolved.args, {
-    stdio: ["pipe", "ignore", "ignore", "ipc"],
+    stdio: ["pipe", "pipe", "ignore", "ipc"],
     detached: true,
   });
   child.on("error", (error) => {
@@ -114,6 +114,8 @@ export function startShutdownSupervisor(
     child.unref();
     const stdin = child.stdin as unknown as { unref?: () => void } | null;
     stdin?.unref?.();
+    const stdout = child.stdout as unknown as { unref?: () => void } | null;
+    stdout?.unref?.();
   } catch {
     // best-effort: avoid keeping the event loop alive
   }
@@ -125,6 +127,7 @@ export function startShutdownSupervisor(
       resolved = true;
       clearTimeout(timer);
       child.off("message", onMessage);
+      child.stdout?.off("data", onStdout);
       resolve();
     };
     const timer = setTimeout(done, READY_TIMEOUT_MS);
@@ -134,7 +137,13 @@ export function startShutdownSupervisor(
         done();
       }
     };
+    const onStdout = (chunk: Buffer) => {
+      if (chunk.toString().includes("ready")) {
+        done();
+      }
+    };
     child.on("message", onMessage);
+    child.stdout?.on("data", onStdout);
     child.on("exit", done);
   });
 
