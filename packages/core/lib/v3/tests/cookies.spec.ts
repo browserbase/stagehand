@@ -150,9 +150,7 @@ test.describe("cookies", () => {
     ]);
 
     // Navigate to a different path on the same domain
-    await page.goto(
-      "https://browserbase.github.io/stagehand-eval-sites/sites/example/",
-    );
+    await page.goto("https://browserbase.github.io/stagehand-eval-sites/");
 
     const cookieString = await page.evaluate(() => document.cookie);
     expect(cookieString).toContain(`${name}=persisted`);
