@@ -44,9 +44,6 @@
     "dist/esm",
     "dist/cjs"
   ],
-  "bin": {
-    "stagehand": "./dist/esm/lib/v3/cli.js"
-  },
   "keywords": [
     "ai",
     "browser",
