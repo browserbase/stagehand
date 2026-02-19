@@ -285,7 +285,7 @@ jobs:
 
       - name: Run Vitest - ${{ matrix.test.name }}
         run: |
-          pnpm --filter @browserbasehq/stagehand --silent run test:core -- "${{ matrix.test.path }}"
+          pnpm exec turbo run test:core -- "${{ matrix.test.path }}"
 
       - uses: ./.github/actions/upload-ctrf-report
         if: always()
@@ -348,7 +348,7 @@ jobs:
           SEA_TARGET_ARCH: x64
           SEA_BINARY_NAME: stagehand-server-linux-x64-sourcemap
         run: |
-          pnpm exec turbo run build:sea:esm --filter=@browserbasehq/stagehand-server
+          pnpm exec turbo run build:sea:esm
 
       - name: Verify SEA binary exists
         run: |
@@ -413,7 +413,7 @@ jobs:
         env:
           SEA_BINARY_NAME: stagehand-server-linux-x64-sourcemap
         run: |
-          pnpm --filter @browserbasehq/stagehand-server --silent run test:server -- "${{ matrix.test.path }}"
+          pnpm exec turbo run test:server -- "${{ matrix.test.path }}"
 
       - uses: ./.github/actions/upload-ctrf-report
         if: always()
@@ -491,7 +491,7 @@ jobs:
 
       - name: Run local E2E Tests - ${{ matrix.test.name }}
         run: |
-          pnpm --filter @browserbasehq/stagehand --silent run test:e2e -- "${{ matrix.test.path }}"
+          pnpm exec turbo run test:e2e -- "${{ matrix.test.path }}"
 
       - uses: ./.github/actions/upload-ctrf-report
         if: always()
@@ -541,7 +541,7 @@ jobs:
 
       - name: Run E2E Tests (browserbase) - ${{ matrix.test.name }}
         run: |
-          pnpm --filter @browserbasehq/stagehand --silent run test:e2e -- "${{ matrix.test.path }}"
+          pnpm exec turbo run test:e2e -- "${{ matrix.test.path }}"
 
       - uses: ./.github/actions/upload-ctrf-report
         if: always()
@@ -601,7 +601,7 @@ jobs:
         run: |
           log_file="$(mktemp)"
           set +e
-          pnpm --filter @browserbasehq/stagehand-evals --silent run test:evals -- "${{ matrix.category }}" -t "${EVAL_TRIAL_COUNT}" -c "${EVAL_MAX_CONCURRENCY}" 2>&1 | tee "$log_file"
+          pnpm exec turbo run test:evals -- "${{ matrix.category }}" -t "${EVAL_TRIAL_COUNT}" -c "${EVAL_MAX_CONCURRENCY}" 2>&1 | tee "$log_file"
           eval_status=${PIPESTATUS[0]}
           set -e
 
