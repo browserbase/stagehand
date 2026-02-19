@@ -99,6 +99,26 @@ export function normalizeCookieParams(cookies: CookieParam[]): CookieParam[] {
 }
 
 /**
+ * Map a Cookie or CookieParam to the shape CDP's Storage.setCookies expects.
+ * Session cookies (expires === -1) omit the expires field so CDP treats them
+ * as session-scoped.
+ */
+export function toCdpCookieParam(
+  c: Cookie | CookieParam,
+): Record<string, unknown> {
+  return {
+    name: c.name,
+    value: c.value,
+    domain: c.domain,
+    path: c.path,
+    expires: c.expires === -1 ? undefined : c.expires,
+    httpOnly: c.httpOnly,
+    secure: c.secure,
+    sameSite: c.sameSite,
+  };
+}
+
+/**
  * Returns true if a cookie matches all supplied filter criteria.
  * Undefined filters are treated as "match anything".
  */

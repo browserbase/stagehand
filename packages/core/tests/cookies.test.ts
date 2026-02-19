@@ -1082,7 +1082,7 @@ describe("V3Context cookie methods", () => {
       });
 
       await expect(ctx.clearCookies({ name: "session" })).rejects.toThrow(
-        /CDP setCookies failure/,
+        /cookie jar is now empty/,
       );
 
       // clearCookies WAS called — cookies are gone

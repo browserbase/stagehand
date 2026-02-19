@@ -20,6 +20,7 @@ import {
   filterCookies,
   normalizeCookieParams,
   cookieMatchesFilter,
+  toCdpCookieParam,
 } from "./cookies.js";
 import {
   Cookie,
@@ -878,16 +879,7 @@ export class V3Context {
     const normalized = normalizeCookieParams(cookies);
     if (!normalized.length) return;
 
-    const cdpCookies = normalized.map((c) => ({
-      name: c.name,
-      value: c.value,
-      domain: c.domain,
-      path: c.path,
-      expires: c.expires === -1 ? undefined : c.expires,
-      httpOnly: c.httpOnly,
-      secure: c.secure,
-      sameSite: c.sameSite,
-    }));
+    const cdpCookies = normalized.map(toCdpCookieParam);
 
     try {
       await this.conn.send("Storage.setCookies", { cookies: cdpCookies });
@@ -933,18 +925,19 @@ export class V3Context {
     // Clear everything, then re-add only the cookies we're keeping.
     await this.conn.send("Storage.clearCookies");
     if (toKeep.length) {
-      await this.conn.send("Storage.setCookies", {
-        cookies: toKeep.map((c) => ({
-          name: c.name,
-          value: c.value,
-          domain: c.domain,
-          path: c.path,
-          expires: c.expires === -1 ? undefined : c.expires,
-          httpOnly: c.httpOnly,
-          secure: c.secure,
-          sameSite: c.sameSite,
-        })),
-      });
+      try {
+        await this.conn.send("Storage.setCookies", {
+          cookies: toKeep.map(toCdpCookieParam),
+        });
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        const names = toKeep.map((c) => `"${c.name}"`).join(", ");
+        throw new CookieSetError(
+          `clearCookies: cookies were cleared but failed to re-add the ${toKeep.length} ` +
+            `non-matching cookie(s) [${names}]. The browser cookie jar is now empty. ` +
+            (detail ? `(CDP error: ${detail})` : ""),
+        );
+      }
     }
   }
 }
