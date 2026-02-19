@@ -8,10 +8,6 @@ import { MockCDPSession } from "./helpers/mockCDPSession";
 import type { V3Context } from "../lib/v3/understudy/context";
 import { Cookie, CookieParam } from "../lib/v3/types/public/context";
 
-// ---------------------------------------------------------------------------
-// Helpers: mock cookie factory
-// ---------------------------------------------------------------------------
-
 function makeCookie(overrides: Partial<Cookie> = {}): Cookie {
   return {
     name: "sid",
@@ -197,10 +193,6 @@ describe("filterCookies", () => {
     expect(result).toHaveLength(1);
   });
 });
-
-// ============================================================================
-// normalizeCookieParams
-// ============================================================================
 
 describe("normalizeCookieParams", () => {
   it("passes through cookies with domain+path", () => {
@@ -443,10 +435,6 @@ describe("normalizeCookieParams", () => {
   });
 });
 
-// ============================================================================
-// cookieMatchesFilter
-// ============================================================================
-
 describe("cookieMatchesFilter", () => {
   const cookie = makeCookie({
     name: "session",
@@ -556,10 +544,6 @@ describe("cookieMatchesFilter", () => {
   });
 });
 
-// ============================================================================
-// V3Context cookie methods (integration with MockCDPSession)
-// ============================================================================
-
 describe("V3Context cookie methods", () => {
   // We test V3Context methods by constructing a minimal instance with a mock
   // CDP connection. V3Context.create() requires a real WebSocket, so we build
@@ -590,8 +574,6 @@ describe("V3Context cookie methods", () => {
   function getMockConn(ctx: V3Context): MockCDPSession {
     return (ctx as unknown as { conn: MockCDPSession }).conn;
   }
-
-  // ---------- cookies() ----------
 
   describe("cookies()", () => {
     it("returns all cookies from Storage.getCookies", async () => {
@@ -713,8 +695,6 @@ describe("V3Context cookie methods", () => {
       expect(calls).toHaveLength(2);
     });
   });
-
-  // ---------- addCookies() ----------
 
   describe("addCookies()", () => {
     it("sends Storage.setCookies for each cookie", async () => {
@@ -870,8 +850,6 @@ describe("V3Context cookie methods", () => {
       ).rejects.toThrow(/specific\.com/);
     });
   });
-
-  // ---------- clearCookies() ----------
 
   describe("clearCookies()", () => {
     const cdpCookies = [
@@ -1138,8 +1116,6 @@ describe("V3Context cookie methods", () => {
       expect(clearCalls).toHaveLength(1);
     });
   });
-
-  // ---------- cookies() sameSite edge cases ----------
 
   describe("cookies() sameSite mapping", () => {
     it("passes through valid sameSite values as-is", async () => {

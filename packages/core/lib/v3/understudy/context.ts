@@ -838,10 +838,6 @@ export class V3Context {
     throw new PageNotFoundError("awaitActivePage: no page available");
   }
 
-  // ---------------------------------------------------------------------------
-  // Cookie management (browser-context level)
-  // ---------------------------------------------------------------------------
-
   /**
    * Get all browser cookies, optionally filtered by URL(s).
    *
