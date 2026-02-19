@@ -632,13 +632,8 @@ export class V3Context {
       );
       if (this.extraHttpHeaders) {
         const headers = { ...this.extraHttpHeaders };
-        installPromises.push(
-          (async () => {
-            // Ensure Network domain is enabled before setting headers.
-            await send("Network.enable");
-            await send("Network.setExtraHTTPHeaders", { headers });
-          })(),
-        );
+        installPromises.push(send("Network.enable"));
+        installPromises.push(send("Network.setExtraHTTPHeaders", { headers }));
       }
       // Send init scripts only after auto-attach has been issued.
       if (this.initScripts.length) {
