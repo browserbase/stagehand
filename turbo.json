@@ -208,7 +208,7 @@
       "cache": false
     },
     "test": {
-      "dependsOn": ["build"],
+      "dependsOn": [],
       "outputs": [],
       "inputs": [
         "**/*.spec.ts",

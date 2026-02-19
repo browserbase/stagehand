@@ -33,7 +33,7 @@
     "build:esm": "tsx scripts/build-esm.ts",
     "build": "pnpm run build:esm && pnpm run build:cjs",
     "example": "node --import tsx -e \"const args=process.argv.slice(1).filter(a=>a!=='--'); const [p]=args; const n=(p||'example').replace(/^\\.\\//,'').replace(/\\.ts$/i,''); import('node:path').then(path=>import(new URL(path.resolve('examples', n + '.ts'), 'file:')));\" --",
-    "test": "pnpm run test:core --",
+    "test": "pnpm -w --dir ../.. exec turbo run test:core test:e2e --filter=@browserbasehq/stagehand --",
     "test:core": "tsx scripts/test-core.ts",
     "test:e2e": "tsx scripts/test-e2e.ts",
     "format": "prettier --write .",
