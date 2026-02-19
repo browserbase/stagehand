@@ -106,15 +106,18 @@ describe("filterCookies", () => {
     expect(names).not.toContain("b"); // secure cookie, http URL
   });
 
-  it("allows secure cookies on localhost regardless of protocol", () => {
-    const localCookie = makeCookie({
-      name: "local",
-      domain: "localhost",
-      secure: true,
-    });
-    const result = filterCookies([localCookie], ["http://localhost/"]);
-    expect(result).toHaveLength(1);
-    expect(result[0]!.name).toBe("local");
+  it("allows secure cookies on loopback addresses regardless of protocol", () => {
+    const cases = [
+      { domain: "localhost", url: "http://localhost/" },
+      { domain: "127.0.0.1", url: "http://127.0.0.1/" },
+      { domain: "[::1]", url: "http://[::1]/" },
+    ];
+    for (const { domain, url } of cases) {
+      const cookie = makeCookie({ name: "loop", domain, secure: true });
+      const result = filterCookies([cookie], [url]);
+      expect(result).toHaveLength(1);
+      expect(result[0]!.name).toBe("loop");
+    }
   });
 
   it("matches against multiple URLs (union)", () => {

@@ -42,8 +42,11 @@ export function filterCookies(cookies: Cookie[], urls: string[]): Cookie[] {
           p[c.path.length] !== "/")
       )
         continue;
-      if (url.protocol !== "https:" && url.hostname !== "localhost" && c.secure)
-        continue;
+      const isLoopback =
+        url.hostname === "localhost" ||
+        url.hostname === "127.0.0.1" ||
+        url.hostname === "[::1]";
+      if (url.protocol !== "https:" && !isLoopback && c.secure) continue;
       return true;
     }
     return false;
