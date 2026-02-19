@@ -179,11 +179,13 @@ async function closeAllPages(ctx: V3Context): Promise<void> {
  */
 async function waitForChildFrame(
   page: Page,
+  expectedChildUrl: string,
   timeoutMs = CHILD_FRAME_TIMEOUT_MS,
 ): Promise<ReturnType<Page["frames"]>[number]> {
   const mainFrameId = page.mainFrame().frameId;
   const deadline = Date.now() + timeoutMs;
   let observedFrameCount = 0;
+  const observedChildFrameIds = new Set<string>();
   let lastUrl = "";
   let lastLogAt = Date.now();
 
@@ -200,29 +202,79 @@ async function waitForChildFrame(
         mainFrameId,
         observedFrameCount,
         childIds,
+        expectedChildUrl,
       });
       lastLogAt = Date.now();
     }
-    const child = frames.find((f) => f.frameId !== mainFrameId);
-    if (child) {
-      try {
-        const ready = await child.evaluate(() => document.readyState);
-        if (ready === "complete") {
-          debugLog("waitForChildFrame:ready", {
-            childFrameId: child.frameId,
-            url: lastUrl,
-          });
-          return child;
-        }
-      } catch {
-        // frame not ready yet
+    for (const childId of childIds) observedChildFrameIds.add(childId);
+
+    const childFrames = frames
+      .filter((f) => f.frameId !== mainFrameId)
+      // Prefer recently-discovered frames first; stale swapped frame ids
+      // can remain visible in the registry while the live OOPIF is ready.
+      .reverse();
+
+    if (childFrames.length) {
+      const probes = await Promise.all(
+        childFrames.map(async (child) => {
+          try {
+            const state = await child.evaluate(() => ({
+              href: location.href,
+              readyState: document.readyState,
+            }));
+            return {
+              child,
+              href: state.href,
+              readyState: state.readyState,
+              error: undefined,
+            };
+          } catch (error) {
+            return {
+              child,
+              href: undefined,
+              readyState: undefined,
+              error: formatError(error),
+            };
+          }
+        }),
+      );
+
+      const ready = probes.find(
+        (probe) =>
+          probe.readyState === "complete" && probe.href === expectedChildUrl,
+      );
+      if (ready) {
+        debugLog("waitForChildFrame:ready", {
+          childFrameId: ready.child.frameId,
+          childSessionId: ready.child.sessionId ?? "root",
+          childUrl: ready.href ?? "<unknown>",
+          expectedChildUrl,
+          url: lastUrl,
+        });
+        return ready.child;
+      }
+
+      if (iframeDebugEnabled && Date.now() - lastLogAt >= DEBUG_INTERVAL_MS) {
+        debugLog("waitForChildFrame:not-ready", {
+          url: lastUrl,
+          mainFrameId,
+          expectedChildUrl,
+          probes: probes.map((probe) => ({
+            frameId: probe.child.frameId,
+            sessionId: probe.child.sessionId ?? "root",
+            readyState: probe.readyState ?? "<unknown>",
+            href: probe.href ?? "<unknown>",
+            error: probe.error ?? "<none>",
+          })),
+        });
+        lastLogAt = Date.now();
       }
     }
     await new Promise((r) => setTimeout(r, 100));
   }
   await logPageDiagnostics(page, "waitForChildFrame timeout");
   throw new Error(
-    `Timed out waiting for child frame to load (timeout=${timeoutMs}ms, mainFrameId=${mainFrameId}, maxObservedFrames=${observedFrameCount}, url=${lastUrl || "<unknown>"})`,
+    `Timed out waiting for child frame to load (timeout=${timeoutMs}ms, mainFrameId=${mainFrameId}, expectedChildUrl=${expectedChildUrl}, maxObservedFrames=${observedFrameCount}, observedChildFrameIds=[${[...observedChildFrameIds].join(",")}], url=${lastUrl || "<unknown>"})`,
   );
 }
 
@@ -356,6 +408,13 @@ async function waitForPopupPage(
 }
 
 test.describe("context.addInitScript with iframes", () => {
+  const OOPIF_CHILD_URL =
+    "https://seanmcguire12.github.io/stagehand-oopif-sites/sites/form-filling/";
+  const SPIF_CHILD_URL =
+    "https://browserbase.github.io/stagehand-eval-sites/sites/spif-in-closed-shadow-dom/iframe.html";
+  const POPUP_SPIF_CHILD_URL =
+    "https://browserbase.github.io/stagehand-eval-sites/sites/closed-shadow-dom-in-spif/embedded.html";
+
   if (isBrowserbase) {
     test.describe.configure({ mode: "serial" });
   }
@@ -405,7 +464,7 @@ test.describe("context.addInitScript with iframes", () => {
         { waitUntil: "networkidle" },
       );
 
-      const iframe = await waitForChildFrame(page);
+      const iframe = await waitForChildFrame(page, OOPIF_CHILD_URL);
 
       // Check main page background
       const mainBgColor = await page.mainFrame().evaluate(() => {
@@ -427,7 +486,7 @@ test.describe("context.addInitScript with iframes", () => {
         { waitUntil: "networkidle" },
       );
 
-      const iframe = await waitForChildFrame(page);
+      const iframe = await waitForChildFrame(page, SPIF_CHILD_URL);
 
       // Check main page background
       const mainBgColor = await page.mainFrame().evaluate(() => {
@@ -451,7 +510,7 @@ test.describe("context.addInitScript with iframes", () => {
         { waitUntil: "networkidle" },
       );
 
-      const iframe = await waitForChildFrame(page);
+      const iframe = await waitForChildFrame(page, OOPIF_CHILD_URL);
 
       // Check main page background
       const mainBgColor = await page.mainFrame().evaluate(() => {
@@ -473,7 +532,7 @@ test.describe("context.addInitScript with iframes", () => {
         { waitUntil: "networkidle" },
       );
 
-      const iframe = await waitForChildFrame(page);
+      const iframe = await waitForChildFrame(page, SPIF_CHILD_URL);
 
       // Check main page background
       const mainBgColor = await page.mainFrame().evaluate(() => {
@@ -520,7 +579,7 @@ test.describe("context.addInitScript with iframes", () => {
         "shadow-host",
       );
       await preparePopupForFrameAttach(popup, "shadow-host");
-      const iframe = await waitForChildFrame(popup);
+      const iframe = await waitForChildFrame(popup, OOPIF_CHILD_URL);
 
       // Check popup main page background
       const mainBgColor = await popup.mainFrame().evaluate(() => {
@@ -555,7 +614,7 @@ test.describe("context.addInitScript with iframes", () => {
         "/stagehand-eval-sites/sites/closed-shadow-dom-in-spif/",
       );
       await preparePopupForFrameAttach(popup, "iframe");
-      const iframe = await waitForChildFrame(popup);
+      const iframe = await waitForChildFrame(popup, POPUP_SPIF_CHILD_URL);
 
       // Check popup main page background
       const mainBgColor = await popup.mainFrame().evaluate(() => {

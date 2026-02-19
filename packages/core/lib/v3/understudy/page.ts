@@ -1390,8 +1390,9 @@ export class Page {
     }
 
     // Synthesize a simple mouse move + press + release sequence.
-    // Fire events without waiting between them to keep multi-clicks tight.
     await this.updateCursor(x, y);
+    // Dispatch click events in a pipelined burst to reduce inter-click delay
+    // from network/CPU jitter between round trips.
     const dispatches: Array<Promise<unknown>> = [];
     dispatches.push(
       this.mainSession.send<never>("Input.dispatchMouseEvent", {
@@ -1412,7 +1413,6 @@ export class Page {
           clickCount: i,
         } as Protocol.Input.DispatchMouseEventRequest),
       );
-
       dispatches.push(
         this.mainSession.send<never>("Input.dispatchMouseEvent", {
           type: "mouseReleased",
@@ -1423,7 +1423,6 @@ export class Page {
         } as Protocol.Input.DispatchMouseEventRequest),
       );
     }
-
     await Promise.all(dispatches);
 
     return xpathResult ?? "";
