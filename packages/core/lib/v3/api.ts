@@ -19,6 +19,7 @@ import type {
   ExtractResult,
   LogLine,
   StagehandMetrics,
+  BrowserbaseRegion,
   ActOptions,
   ExtractOptions,
   ObserveOptions,
@@ -31,6 +32,38 @@ import type {
 import type { ModelConfiguration } from "./types/public/model.js";
 import { toJsonSchema } from "./zodCompat.js";
 import type { StagehandZodSchema } from "./zodCompat.js";
+
+// =============================================================================
+// Multi-region API URL mapping
+// =============================================================================
+
+/**
+ * Mapping of Browserbase regions to their corresponding Stagehand API base URLs.
+ * Users should configure their client to hit the API endpoint that matches
+ * the region where their browser session is running.
+ */
+export const REGION_API_URLS: Record<BrowserbaseRegion, string> = {
+  "us-west-2": "https://api.stagehand.browserbase.com",
+  "us-east-1": "https://api.use1.stagehand.browserbase.com",
+  "eu-central-1": "https://api.euc1.stagehand.browserbase.com",
+  "ap-southeast-1": "https://api.apse1.stagehand.browserbase.com",
+};
+
+/**
+ * Returns the full API URL (with /v1 suffix) for a given Browserbase region.
+ * If no region is specified or the region is unknown, defaults to us-west-2.
+ *
+ * @param region - The Browserbase region (e.g., "us-west-2", "eu-central-1")
+ * @returns The full API URL including /v1 suffix
+ */
+export function getApiUrlForRegion(
+  region: BrowserbaseRegion | undefined,
+): string {
+  const baseUrl =
+    REGION_API_URLS[region as BrowserbaseRegion] ??
+    REGION_API_URLS["us-west-2"];
+  return `${baseUrl}/v1`;
+}
 
 // =============================================================================
 // Client-specific types (can't be Zod schemas due to functions/Page objects)
@@ -132,6 +165,7 @@ export class StagehandAPIClient {
   private sessionId?: string;
   private modelApiKey: string;
   private modelProvider?: string;
+  private region?: BrowserbaseRegion;
   private logger: (message: LogLine) => void;
   private fetchWithCookies;
   private lastFinishedEventData: Record<string, unknown> | null = null;
@@ -165,10 +199,8 @@ export class StagehandAPIClient {
       ? modelName.split("/")[0]
       : undefined;
 
-    const region = browserbaseSessionCreateParams?.region;
-    if (region && region !== "us-west-2") {
-      return { sessionId: browserbaseSessionID ?? null, available: false };
-    }
+    // Store the region for multi-region API URL resolution
+    this.region = browserbaseSessionCreateParams?.region;
 
     this.logger({
       category: "init",
@@ -713,16 +745,24 @@ export class StagehandAPIClient {
       defaultHeaders["Content-Type"] = "application/json";
     }
 
-    const response = await this.fetchWithCookies(
-      `${process.env.STAGEHAND_API_URL ?? "https://api.stagehand.browserbase.com/v1"}${path}`,
-      {
-        ...options,
-        headers: {
-          ...defaultHeaders,
-          ...options.headers,
-        },
+    // Use STAGEHAND_API_URL env var if set, otherwise use region-based URL
+    // Ensure /v1 suffix is present for consistency
+    let baseUrl: string;
+    if (process.env.STAGEHAND_API_URL) {
+      const envUrl = process.env.STAGEHAND_API_URL.replace(/\/+$/, "");
+      // Append /v1 if not already present
+      baseUrl = envUrl.endsWith("/v1") ? envUrl : `${envUrl}/v1`;
+    } else {
+      baseUrl = getApiUrlForRegion(this.region);
+    }
+
+    const response = await this.fetchWithCookies(`${baseUrl}${path}`, {
+      ...options,
+      headers: {
+        ...defaultHeaders,
+        ...options.headers,
       },
-    );
+    });
 
     return response;
   }
