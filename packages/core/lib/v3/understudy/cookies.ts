@@ -32,7 +32,16 @@ export function filterCookies(cookies: Cookie[], urls: string[]): Cookie[] {
       let domain = c.domain;
       if (!domain.startsWith(".")) domain = "." + domain;
       if (!("." + url.hostname).endsWith(domain)) continue;
-      if (!url.pathname.startsWith(c.path)) continue;
+      // Path must match on a "/" boundary: cookie path "/foo" should match
+      // "/foo" and "/foo/bar" but NOT "/foobar".
+      const p = url.pathname;
+      if (
+        !p.startsWith(c.path) ||
+        (c.path.length < p.length &&
+          !c.path.endsWith("/") &&
+          p[c.path.length] !== "/")
+      )
+        continue;
       if (url.protocol !== "https:" && url.hostname !== "localhost" && c.secure)
         continue;
       return true;

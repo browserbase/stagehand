@@ -161,6 +161,22 @@ describe("filterCookies", () => {
     expect(result).toHaveLength(0);
   });
 
+  it("does not match when cookie path is a string prefix but not a path boundary", () => {
+    // "/foo" should NOT match "/foobar" — only "/foo", "/foo/", "/foo/bar"
+    const cookie = makeCookie({
+      name: "boundary",
+      domain: "example.com",
+      path: "/foo",
+    });
+    expect(filterCookies([cookie], ["http://example.com/foobar"])).toHaveLength(
+      0,
+    );
+    expect(filterCookies([cookie], ["http://example.com/foo"])).toHaveLength(1);
+    expect(
+      filterCookies([cookie], ["http://example.com/foo/bar"]),
+    ).toHaveLength(1);
+  });
+
   it("matches root path against any URL path", () => {
     const rootCookie = makeCookie({
       name: "root",
