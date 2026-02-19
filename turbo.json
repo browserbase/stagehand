@@ -36,6 +36,9 @@
         "package.json",
         "tsconfig.json",
         "tsconfig.*.json",
+        "!lib/version.ts",
+        "!lib/dom/build/**",
+        "!lib/v3/dom/build/**",
         "!dist/**"
       ]
     },
@@ -66,6 +69,9 @@
         "package.json",
         "tsconfig.json",
         "tsconfig.*.json",
+        "!lib/version.ts",
+        "!lib/dom/build/**",
+        "!lib/v3/dom/build/**",
         "!dist/**"
       ]
     },
@@ -80,6 +86,9 @@
         "package.json",
         "tsconfig.json",
         "tsconfig.*.json",
+        "!lib/version.ts",
+        "!lib/dom/build/**",
+        "!lib/v3/dom/build/**",
         "!dist/**"
       ]
     },
