@@ -9,7 +9,7 @@
   ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build", "gen-version", "build-dom-scripts"],
+      "dependsOn": ["^build"],
       "outputs": [
         "dist/**",
         "openapi.v3.yaml"
@@ -21,6 +21,12 @@
         "tsconfig.json",
         "tsconfig.*.json"
       ]
+    },
+    "@browserbasehq/stagehand#build:esm": {
+      "dependsOn": ["^build:esm", "gen-version", "build-dom-scripts"]
+    },
+    "@browserbasehq/stagehand#build:cjs": {
+      "dependsOn": ["^build:cjs", "gen-version", "build-dom-scripts"]
     },
     "gen-version": {
       "outputs": ["lib/version.ts"],
@@ -44,7 +50,7 @@
       ]
     },
     "build:esm": {
-      "dependsOn": ["^build:esm", "gen-version", "build-dom-scripts"],
+      "dependsOn": ["^build:esm"],
       "outputs": [
         "dist/esm/**"
       ],
@@ -61,6 +67,34 @@
       "outputs": ["dist/tests/**"],
       "inputs": [
         "test/**/*.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "build:server:dist": {
+      "dependsOn": ["^build:esm"],
+      "outputs": [
+        "dist/lib/**",
+        "dist/routes/**",
+        "dist/types/**",
+        "dist/*.js",
+        "dist/*.js.map",
+        "dist/*.d.ts"
+      ],
+      "inputs": [
+        "src/**/*.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "gen:openapi": {
+      "dependsOn": ["^build:esm"],
+      "outputs": ["openapi.v3.yaml"],
+      "inputs": [
+        "src/**/*.ts",
+        "scripts/gen-openapi.ts",
         "package.json",
         "tsconfig.json",
         "tsconfig.*.json"
@@ -104,7 +138,7 @@
       ]
     },
     "build:cjs": {
-      "dependsOn": ["^build:cjs", "gen-version", "build-dom-scripts"],
+      "dependsOn": ["^build:cjs"],
       "outputs": [
         "dist/cjs/**"
       ],
@@ -117,7 +151,7 @@
       ]
     },
     "build:cli": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build:esm"],
       "outputs": ["dist/cli/**"],
       "inputs": [
         "cli.ts",

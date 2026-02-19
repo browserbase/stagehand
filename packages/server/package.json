@@ -5,9 +5,10 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "pnpm run build:esm-tests && pnpm -w --dir ../.. exec tsc -p packages/server/tsconfig.json && pnpm -w --dir ../.. exec tsc-alias -p packages/server/tsconfig.json && pnpm run gen:openapi && pnpm run build:sea:esm",
+    "build": "pnpm -w --dir ../.. exec turbo run build:esm-tests build:server:dist gen:openapi build:sea:esm --filter=@browserbasehq/stagehand-server",
     "dev": "tsx watch src/server.ts",
     "build:esm-tests": "pnpm -w --dir ../.. exec tsc -p packages/server/tsconfig.tests.json",
+    "build:server:dist": "pnpm -w --dir ../.. exec tsc -p packages/server/tsconfig.json && pnpm -w --dir ../.. exec tsc-alias -p packages/server/tsconfig.json",
     "build:sea:esm": "tsx scripts/build-sea.ts --mode=esm",
     "build:sea:cjs": "tsx scripts/build-sea.ts --mode=cjs",
     "lint": "cd ../.. && prettier --check packages/server && cd packages/server && eslint . && pnpm run typecheck",

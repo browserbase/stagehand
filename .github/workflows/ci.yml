@@ -198,11 +198,11 @@ jobs:
           use-prebuilt-artifacts: "false"
           node-version: 20.x
 
-      - name: Run Lint
-        run: pnpm exec turbo run lint
-
       - name: Run Build
         run: pnpm exec turbo run build
+
+      - name: Run Lint
+        run: pnpm exec turbo run lint
 
       - name: Save Turbo cache
         if: always()
