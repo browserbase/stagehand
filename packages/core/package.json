@@ -38,7 +38,8 @@
     "test:e2e": "tsx scripts/test-e2e.ts",
     "format": "prettier --write .",
     "typecheck": "pnpm -w --dir ../.. exec tsc -p packages/core/tsconfig.json --noEmit",
-    "lint": "cd ../.. && prettier --check packages/core && cd packages/core && eslint . && pnpm run typecheck"
+    "eslint": "eslint .",
+    "lint": "cd ../.. && prettier --check packages/core && cd packages/core && pnpm run eslint && pnpm run typecheck"
   },
   "files": [
     "dist/esm",
