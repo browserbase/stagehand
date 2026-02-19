@@ -275,6 +275,11 @@ export const ProxyConfigSchema = z
   ])
   .meta({ id: "ProxyConfig" });
 
+/** Browserbase region identifier for multi-region support */
+export const BrowserbaseRegionSchema = z
+  .enum(["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"])
+  .meta({ id: "BrowserbaseRegion" });
+
 /** Browserbase session creation parameters */
 export const BrowserbaseSessionCreateParamsSchema = z
   .object({
@@ -283,9 +288,7 @@ export const BrowserbaseSessionCreateParamsSchema = z
     extensionId: z.string().optional(),
     keepAlive: z.boolean().optional(),
     proxies: z.union([z.boolean(), z.array(ProxyConfigSchema)]).optional(),
-    region: z
-      .enum(["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"])
-      .optional(),
+    region: BrowserbaseRegionSchema.optional(),
     timeout: z.number().optional(),
     userMetadata: z.record(z.string(), z.unknown()).optional(),
   })
@@ -1066,6 +1069,7 @@ export type BrowserbaseProxyConfig = z.infer<
   typeof BrowserbaseProxyConfigSchema
 >;
 export type ExternalProxyConfig = z.infer<typeof ExternalProxyConfigSchema>;
+export type BrowserbaseRegion = z.infer<typeof BrowserbaseRegionSchema>;
 export type BrowserbaseSessionCreateParams = z.infer<
   typeof BrowserbaseSessionCreateParamsSchema
 >;
