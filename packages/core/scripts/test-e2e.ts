@@ -11,6 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import normalizeV8Coverage from "./normalize-v8-coverage.js";
 import {
@@ -36,6 +37,8 @@ const defaultConfigPath = `${repoRoot}/packages/core/dist/esm/lib/v3/tests/v3.pl
 
 const resolveRepoRelative = (value: string) =>
   path.isAbsolute(value) ? value : path.resolve(repoRoot, value);
+const require = createRequire(import.meta.url);
+const playwrightCliPath = require.resolve("@playwright/test/cli");
 
 const hasConfigArg = (argsList: string[]) =>
   argsList.some((arg, i) => {
@@ -72,6 +75,13 @@ const toTestName = (testPath: string) => {
     return rel.replace(/\.spec\.(ts|js)$/i, "");
   }
   return path.basename(abs).replace(/\.spec\.(ts|js)$/i, "");
+};
+
+const toPlaywrightPath = (testPath: string) => {
+  const abs = resolveRepoRelative(testPath);
+  const rel = path.relative(testsDir, abs).replaceAll("\\", "/");
+  const value = rel.startsWith("..") ? abs : rel;
+  return value.replace(/(\.spec|\.test)\.(ts|js)$/i, "$1");
 };
 
 if (!fs.existsSync(testsDir)) {
@@ -112,7 +122,7 @@ if (!hasUserConfig && !fs.existsSync(defaultConfigPath)) {
   process.exit(1);
 }
 
-const playwrightPaths = paths.map(resolveRepoRelative);
+const playwrightPaths = paths.map(toPlaywrightPath);
 
 const target = (process.env.STAGEHAND_BROWSER_TARGET ?? "local").toLowerCase();
 const useBrowserbase = target === "browserbase";
@@ -147,18 +157,15 @@ const env = {
 };
 
 const result = spawnSync(
-  "pnpm",
+  process.execPath,
   [
-    "--filter",
-    "@browserbasehq/stagehand",
-    "exec",
-    "playwright",
+    playwrightCliPath,
     "test",
     ...(hasUserConfig ? [] : ["--config", defaultConfigPath]),
     ...extraArgs,
     ...playwrightPaths,
   ],
-  { stdio: "inherit", env },
+  { stdio: "inherit", env, cwd: repoRoot },
 );
 
 await normalizeV8Coverage(coverageDir);

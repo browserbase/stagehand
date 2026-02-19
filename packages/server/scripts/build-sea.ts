@@ -204,7 +204,7 @@ const buildCjsBundle = () => {
     [
       "exec",
       "esbuild",
-      "packages/server/src/server.ts",
+      "packages/server/src/sea-entry.ts",
       "--bundle",
       "--platform=node",
       "--format=cjs",
@@ -228,7 +228,7 @@ const buildEsmBundle = () => {
   const esbuildArgs = [
     "exec",
     "esbuild",
-    "packages/server/src/server.ts",
+    "packages/server/src/sea-entry.ts",
     "--bundle",
     "--platform=node",
     "--format=esm",

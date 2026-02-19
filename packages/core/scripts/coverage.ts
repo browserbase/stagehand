@@ -181,7 +181,10 @@ const runC8Report = async () => {
   });
 
   if (stdout) {
-    fs.writeFileSync(`${repoRoot}/coverage/merged/coverage-summary.txt`, stdout);
+    fs.writeFileSync(
+      `${repoRoot}/coverage/merged/coverage-summary.txt`,
+      stdout,
+    );
   }
   log(`c8 report completed with status ${status}`);
   return status;

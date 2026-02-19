@@ -24,27 +24,38 @@ export const ensureParentDir = (filePath: string) => {
 };
 
 export const splitArgs = (args: string[]) => {
-  const separatorIndex = args.indexOf("--");
-  if (separatorIndex === 0) {
-    const remaining = args.slice(1);
-    const secondSeparatorIndex = remaining.indexOf("--");
-    if (secondSeparatorIndex !== -1) {
-      return {
-        paths: remaining.slice(0, secondSeparatorIndex),
-        extra: remaining.slice(secondSeparatorIndex + 1),
-      };
-    }
-
-    if (remaining.length > 0 && remaining[0].startsWith("-")) {
-      return { paths: [], extra: remaining };
-    }
-
-    return { paths: remaining, extra: [] };
+  const tokens = [...args];
+  while (tokens[0] === "--") {
+    tokens.shift();
   }
 
+  const leadingExtra: string[] = [];
+  while (tokens.length > 0 && tokens[0].startsWith("-")) {
+    const arg = tokens.shift();
+    if (!arg) break;
+    if (arg === "--") break;
+    leadingExtra.push(arg);
+    if (
+      !arg.includes("=") &&
+      tokens[0] &&
+      tokens[0] !== "--" &&
+      !tokens[0].startsWith("-")
+    ) {
+      leadingExtra.push(tokens.shift() as string);
+    }
+  }
+
+  while (tokens[0] === "--") {
+    tokens.shift();
+  }
+
+  const separatorIndex = tokens.indexOf("--");
   return {
-    paths: separatorIndex === -1 ? args : args.slice(0, separatorIndex),
-    extra: separatorIndex === -1 ? [] : args.slice(separatorIndex + 1),
+    paths: separatorIndex === -1 ? tokens : tokens.slice(0, separatorIndex),
+    extra: [
+      ...leadingExtra,
+      ...(separatorIndex === -1 ? [] : tokens.slice(separatorIndex + 1)),
+    ],
   };
 };
 

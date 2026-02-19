@@ -7,8 +7,8 @@
  */
 
 import fs from "node:fs";
-import path from "node:path";
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import type {
   ShutdownSupervisorConfig,
@@ -21,23 +21,80 @@ import {
 } from "../types/private/shutdownErrors.js";
 
 const READY_TIMEOUT_MS = 500;
-// Prefer import.meta.url — always correct per-module in ESM.
-// __dirname may be an incorrect polyfill in some tsx / loader configurations.
-const thisDir = path.dirname(fileURLToPath(import.meta.url));
+const normalizedFilename =
+  typeof __filename === "string" ? __filename.replaceAll("\\", "/") : "";
+const hasAbsoluteFilename =
+  normalizedFilename.startsWith("/") ||
+  /^[A-Za-z]:\//.test(normalizedFilename);
+const modulePath = hasAbsoluteFilename ? __filename : fileURLToPath(import.meta.url);
+const normalizedModulePath = modulePath.replaceAll("\\", "/");
+const moduleDir = normalizedModulePath.slice(0, normalizedModulePath.lastIndexOf("/"));
+const require = createRequire(modulePath);
 
-const resolveSupervisorScript = (): {
+const isSeaRuntime = (): boolean => {
+  try {
+    const sea = require("node:sea") as { isSea?: () => boolean };
+    return Boolean(sea.isSea?.());
+  } catch {
+    return false;
+  }
+};
+
+const resolveSupervisorCommand = (
+  config: ShutdownSupervisorConfig,
+): {
   command: string;
   args: string[];
 } | null => {
-  const jsPath = path.resolve(thisDir, "supervisor.js");
-  if (fs.existsSync(jsPath)) {
-    return { command: process.execPath, args: [jsPath] };
+  const baseArgs = ["--supervisor", ...serializeConfigArgs(config)];
+
+  if (isSeaRuntime()) {
+    return { command: process.execPath, args: baseArgs };
   }
-  const tsPath = path.resolve(thisDir, "supervisor.ts");
-  if (fs.existsSync(tsPath)) {
-    return { command: process.execPath, args: ["--import", "tsx", tsPath] };
+
+  const cliPathCandidates = [
+    `${moduleDir}/../cli.js`,
+    `${moduleDir}/cli.js`,
+  ];
+  const cliPath =
+    cliPathCandidates.find((candidate) => fs.existsSync(candidate)) ?? null;
+  if (!cliPath) return null;
+  const needsTsxLoader =
+    fs.existsSync(`${moduleDir}/supervisor.ts`) &&
+    !fs.existsSync(`${moduleDir}/supervisor.js`);
+  return {
+    command: process.execPath,
+    args: needsTsxLoader
+      ? ["--import", "tsx", cliPath, ...baseArgs]
+      : [cliPath, ...baseArgs],
+  };
+};
+
+const serializeConfigArgs = (config: ShutdownSupervisorConfig): string[] => {
+  if (config.kind === "LOCAL") {
+    return [
+      "--kind=LOCAL",
+      `--parent-pid=${process.pid}`,
+      "--keep-alive=false",
+      `--chrome-pid=${config.pid}`,
+      ...(config.userDataDir ? [`--user-data-dir=${config.userDataDir}`] : []),
+      ...(config.createdTempProfile !== undefined
+        ? [`--created-temp-profile=${config.createdTempProfile}`]
+        : []),
+      ...(config.preserveUserDataDir !== undefined
+        ? [`--preserve-user-data-dir=${config.preserveUserDataDir}`]
+        : []),
+    ];
   }
-  return null;
+
+  return [
+    "--kind=STAGEHAND_API",
+    `--parent-pid=${process.pid}`,
+    "--keep-alive=false",
+    `--session-id=${config.sessionId}`,
+    `--api-key=${config.apiKey}`,
+    `--project-id=${config.projectId}`,
+  ];
 };
 
 /**
@@ -48,11 +105,11 @@ export function startShutdownSupervisor(
   config: ShutdownSupervisorConfig,
   opts?: { onError?: (error: Error, context: string) => void },
 ): ShutdownSupervisorHandle | null {
-  const resolved = resolveSupervisorScript();
+  const resolved = resolveSupervisorCommand(config);
   if (!resolved) {
     opts?.onError?.(
       new ShutdownSupervisorResolveError(
-        `Shutdown supervisor script missing (searched ${thisDir} for supervisor.js or supervisor.ts).`,
+        "Shutdown supervisor entry missing (expected Stagehand CLI entrypoint).",
       ),
       "resolve",
     );
@@ -78,13 +135,6 @@ export function startShutdownSupervisor(
     stdin?.unref?.();
   } catch {
     // best-effort: avoid keeping the event loop alive
-  }
-
-  try {
-    const message: ShutdownSupervisorMessage = { type: "config", config };
-    child.send?.(message);
-  } catch {
-    // ignore IPC failures
   }
 
   const ready = new Promise<void>((resolve) => {

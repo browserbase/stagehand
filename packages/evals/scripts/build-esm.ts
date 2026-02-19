@@ -26,7 +26,10 @@ const run = (args: string[]) => {
   }
 };
 
-fs.rmSync(`${repoRoot}/packages/evals/dist/esm`, { recursive: true, force: true });
+fs.rmSync(`${repoRoot}/packages/evals/dist/esm`, {
+  recursive: true,
+  force: true,
+});
 // Evals run from dist/esm JS, but still need config/assets/datasets on disk.
 run(["exec", "tsc", "-p", "packages/evals/tsconfig.json"]);
 

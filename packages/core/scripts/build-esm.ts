@@ -26,7 +26,10 @@ const run = (args: string[]) => {
   }
 };
 
-fs.rmSync(`${repoRoot}/packages/core/dist/esm`, { recursive: true, force: true });
+fs.rmSync(`${repoRoot}/packages/core/dist/esm`, {
+  recursive: true,
+  force: true,
+});
 
 // Core ESM emit includes generated lib/version.ts from gen-version (run in core build).
 run(["exec", "tsc", "-p", "packages/core/tsconfig.json"]);
@@ -73,7 +76,9 @@ fs.mkdirSync(`${repoRoot}/packages/core/dist/esm/lib/v3/dom/build`, {
 });
 // DOM script bundles are generated artifacts (not TS emit); copy into dist/esm for runtime.
 if (fs.existsSync(`${repoRoot}/packages/core/lib/v3/dom/build`)) {
-  for (const file of fs.readdirSync(`${repoRoot}/packages/core/lib/v3/dom/build`)) {
+  for (const file of fs.readdirSync(
+    `${repoRoot}/packages/core/lib/v3/dom/build`,
+  )) {
     if (file.endsWith(".js")) {
       fs.copyFileSync(
         `${repoRoot}/packages/core/lib/v3/dom/build/${file}`,

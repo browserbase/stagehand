@@ -26,7 +26,10 @@ const run = (args: string[]) => {
   }
 };
 
-fs.rmSync(`${repoRoot}/packages/core/dist/cjs`, { recursive: true, force: true });
+fs.rmSync(`${repoRoot}/packages/core/dist/cjs`, {
+  recursive: true,
+  force: true,
+});
 fs.mkdirSync(`${repoRoot}/packages/core/dist/cjs`, { recursive: true });
 
 run([
@@ -40,20 +43,19 @@ run([
   "--outfile=packages/core/dist/cjs/index.js",
   "--sourcemap",
   "--packages=external",
+  "--log-override:empty-import-meta=silent",
   "--log-level=warning",
 ]);
 
-// Runtime crash-cleanup supervisor is spawned as a separate Node process
-// from supervisorClient, so it must exist as a standalone CJS file.
 run([
   "exec",
   "esbuild",
-  "packages/core/lib/v3/shutdown/supervisor.ts",
+  "packages/core/lib/v3/cli.js",
   "--bundle",
   "--platform=node",
   "--format=cjs",
   "--target=node20",
-  "--outfile=packages/core/dist/cjs/supervisor.js",
+  "--outfile=packages/core/dist/cjs/cli.js",
   "--sourcemap",
   "--packages=external",
   "--log-level=warning",
@@ -70,6 +72,7 @@ run([
   "--format=cjs",
   "--platform=node",
   "--sourcemap",
+  "--log-override:empty-import-meta=silent",
   "--log-level=warning",
 ]);
 
@@ -97,7 +100,9 @@ fs.mkdirSync(`${repoRoot}/packages/core/dist/cjs/lib/v3/dom/build`, {
   recursive: true,
 });
 if (fs.existsSync(`${repoRoot}/packages/core/lib/v3/dom/build`)) {
-  for (const file of fs.readdirSync(`${repoRoot}/packages/core/lib/v3/dom/build`)) {
+  for (const file of fs.readdirSync(
+    `${repoRoot}/packages/core/lib/v3/dom/build`,
+  )) {
     if (file.endsWith(".js")) {
       fs.copyFileSync(
         `${repoRoot}/packages/core/lib/v3/dom/build/${file}`,

@@ -247,12 +247,11 @@ const runtime: Runtime =
   inferRuntimeFromExecution() ??
   "source";
 
-const cliPath =
-  strippedCli.cliPath
-    ? resolveRepoRelative(strippedCli.cliPath)
-    : runtime === "source"
-      ? `${repoRoot}/packages/evals/cli.ts`
-      : `${repoRoot}/packages/evals/dist/cli/cli.js`;
+const cliPath = strippedCli.cliPath
+  ? resolveRepoRelative(strippedCli.cliPath)
+  : runtime === "source"
+    ? `${repoRoot}/packages/evals/cli.ts`
+    : `${repoRoot}/packages/evals/dist/cli/cli.js`;
 if (!fs.existsSync(cliPath)) {
   console.error(`Missing ${cliPath}.`);
   process.exit(1);

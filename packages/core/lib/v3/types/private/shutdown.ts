@@ -20,7 +20,6 @@ export type ShutdownSupervisorConfig =
     };
 
 export type ShutdownSupervisorMessage =
-  | { type: "config"; config: ShutdownSupervisorConfig }
   | { type: "exit" }
   | { type: "ready" };
 
