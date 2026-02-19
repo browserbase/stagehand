@@ -1060,5 +1060,109 @@ describe("V3Context cookie methods", () => {
       const clearCalls = getMockConn(ctx).callsFor("Storage.clearCookies");
       expect(clearCalls).toHaveLength(1);
     });
+
+    it("clears and re-adds only non-matching cookies (path filter)", async () => {
+      const ctx = makeContext({
+        "Storage.getCookies": () => ({ cookies: [...cdpCookies] }),
+        "Storage.clearCookies": () => ({}),
+        "Storage.setCookies": () => ({}),
+      });
+
+      await ctx.clearCookies({ path: "/settings" });
+
+      const clearCalls = getMockConn(ctx).callsFor("Storage.clearCookies");
+      expect(clearCalls).toHaveLength(1);
+
+      const setCalls = getMockConn(ctx).callsFor("Storage.setCookies");
+      expect(setCalls).toHaveLength(1);
+      const kept = (
+        setCalls[0]!.params?.cookies as Array<{ name: string }>
+      ).map((c) => c.name);
+      expect(kept).toEqual(["session", "_ga"]);
+      expect(kept).not.toContain("pref");
+    });
+
+    it("throws when Storage.getCookies fails during filtered clear", async () => {
+      const ctx = makeContext({
+        "Storage.getCookies": () => {
+          throw new Error("CDP getCookies failure");
+        },
+        "Storage.clearCookies": () => ({}),
+        "Storage.setCookies": () => ({}),
+      });
+
+      await expect(ctx.clearCookies({ name: "session" })).rejects.toThrow(
+        /CDP getCookies failure/,
+      );
+
+      // clearCookies and setCookies should never have been called
+      const clearCalls = getMockConn(ctx).callsFor("Storage.clearCookies");
+      expect(clearCalls).toHaveLength(0);
+      const setCalls = getMockConn(ctx).callsFor("Storage.setCookies");
+      expect(setCalls).toHaveLength(0);
+    });
+
+    it("throws when Storage.clearCookies fails during filtered clear", async () => {
+      const ctx = makeContext({
+        "Storage.getCookies": () => ({ cookies: [...cdpCookies] }),
+        "Storage.clearCookies": () => {
+          throw new Error("CDP clearCookies failure");
+        },
+        "Storage.setCookies": () => ({}),
+      });
+
+      await expect(ctx.clearCookies({ name: "session" })).rejects.toThrow(
+        /CDP clearCookies failure/,
+      );
+
+      // setCookies should never have been called — cookies are untouched
+      const setCalls = getMockConn(ctx).callsFor("Storage.setCookies");
+      expect(setCalls).toHaveLength(0);
+    });
+
+    it("throws when Storage.setCookies fails during re-add, cookies are already wiped", async () => {
+      const ctx = makeContext({
+        "Storage.getCookies": () => ({ cookies: [...cdpCookies] }),
+        "Storage.clearCookies": () => ({}),
+        "Storage.setCookies": () => {
+          throw new Error("CDP setCookies failure");
+        },
+      });
+
+      await expect(ctx.clearCookies({ name: "session" })).rejects.toThrow(
+        /CDP setCookies failure/,
+      );
+
+      // clearCookies WAS called — cookies are gone
+      const clearCalls = getMockConn(ctx).callsFor("Storage.clearCookies");
+      expect(clearCalls).toHaveLength(1);
+    });
+  });
+
+  // ---------- cookies() sameSite edge cases ----------
+
+  describe("cookies() sameSite mapping", () => {
+    it("passes through valid sameSite values as-is", async () => {
+      for (const sameSite of ["Strict", "Lax", "None"] as const) {
+        const cdpCookie = { ...toCdpCookie(makeCookie()), sameSite };
+        const ctx = makeContext({
+          "Storage.getCookies": () => ({ cookies: [cdpCookie] }),
+        });
+        const result = await ctx.cookies();
+        expect(result[0]!.sameSite).toBe(sameSite);
+      }
+    });
+
+    it("does not normalize lowercase sameSite values from CDP", async () => {
+      // CDP may return lowercase values; the current implementation casts
+      // without normalizing, so "none" passes through as-is.
+      const cdpCookie = { ...toCdpCookie(makeCookie()), sameSite: "none" };
+      const ctx = makeContext({
+        "Storage.getCookies": () => ({ cookies: [cdpCookie] }),
+      });
+      const result = await ctx.cookies();
+      // This documents the current behavior: lowercase is NOT normalized.
+      expect(result[0]!.sameSite).toBe("none");
+    });
   });
 });
