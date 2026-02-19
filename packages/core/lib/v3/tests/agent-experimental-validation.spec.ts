@@ -1,12 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { z } from "zod";
 import { tool } from "ai";
-import { V3 } from "../v3";
-import { v3TestConfig } from "./v3.config";
+import { V3 } from "../v3.js";
+import { v3TestConfig } from "./v3.config.js";
 import {
   ExperimentalNotConfiguredError,
   StagehandInvalidArgumentError,
-} from "../types/public/sdkErrors";
+} from "../types/public/sdkErrors.js";
 
 // Define a mock custom tool for testing
 const mockCustomTool = tool({

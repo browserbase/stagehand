@@ -1,6 +1,6 @@
 import { ZodError } from "zod";
-// Avoid .js extension so tsup/esbuild resolves TS source
-import { STAGEHAND_VERSION } from "../../../version";
+// Avoid .js extension so bundlers resolve TS source
+import { STAGEHAND_VERSION } from "../../../version.js";
 
 export class StagehandError extends Error {
   public readonly cause?: unknown;
@@ -48,11 +48,15 @@ export class MissingEnvironmentVariableError extends StagehandError {
 
 export class UnsupportedModelError extends StagehandError {
   constructor(supportedModels: string[], feature?: string) {
-    super(
-      feature
-        ? `${feature} requires one of the following models: ${supportedModels}`
-        : `please use one of the supported models: ${supportedModels}`,
-    );
+    const message = feature
+      ? `${feature} requires a valid model.`
+      : `Unsupported model.`;
+
+    const guidance =
+      `\n\nPlease use the provider/model format (e.g., "openai/gpt-4o", "anthropic/claude-sonnet-4-5", "google/gemini-3-flash-preview").` +
+      `\n\nFor a complete list of supported models and providers, see: https://docs.stagehand.dev/v3/configuration/models#configuration-setup`;
+
+    super(`${message}${guidance}`);
   }
 }
 
@@ -161,6 +165,14 @@ export class StagehandDomProcessError extends StagehandError {
   }
 }
 
+export class StagehandLocatorError extends StagehandError {
+  constructor(action: string, selector: string, message: string) {
+    super(
+      `Error ${action} Element with selector: ${selector} Reason: ${message}`,
+    );
+  }
+}
+
 export class StagehandClickError extends StagehandError {
   constructor(message: string, selector: string) {
     super(
@@ -199,18 +211,18 @@ export class ExperimentalApiConflictError extends StagehandError {
   constructor() {
     super(
       "`experimental` mode cannot be used together with the Stagehand API. " +
-        "To use experimental features, set experimental: true, and useApi: false in the stagehand constructor. " +
-        "To use the Stagehand API, set experimental: false and useApi: true in the stagehand constructor. ",
+        "To use experimental features, set experimental: true and disableAPI: true in the stagehand constructor. " +
+        "To use the Stagehand API, set experimental: false and disableAPI: false (or omit it) in the stagehand constructor.",
     );
   }
 }
 
 export class ExperimentalNotConfiguredError extends StagehandError {
   constructor(featureName: string) {
-    super(`Feature "${featureName}" is an experimental feature, and cannot be configured when useAPI: true. 
-    Please set experimental: true and useAPI: false in the stagehand constructor to use this feature. 
-    If you wish to use the Stagehand API, please ensure ${featureName} is not defined in your function call, 
-    and set experimental: false, useAPI: true in the Stagehand constructor. `);
+    super(`Feature "${featureName}" is an experimental feature, and cannot be configured when disableAPI: false.
+    Please set experimental: true and disableAPI: true in the stagehand constructor to use this feature.
+    If you wish to use the Stagehand API, please ensure ${featureName} is not defined in your function call,
+    and set experimental: false, disableAPI: false (or omit it) in the Stagehand constructor.`);
   }
 }
 
@@ -385,5 +397,12 @@ export class StagehandSnapshotError extends StagehandError {
           ? `: ${String(cause)}`
           : "";
     super(`error taking snapshot${suffix}`, cause);
+  }
+}
+
+export class UnderstudyCommandException extends StagehandError {
+  constructor(message: string, cause?: unknown) {
+    super(message, cause);
+    this.name = "UnderstudyCommandException";
   }
 }

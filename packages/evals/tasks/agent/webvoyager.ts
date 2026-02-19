@@ -1,6 +1,7 @@
-import { EvalFunction } from "../../types/evals";
-import { V3Evaluator, imageResize } from "@browserbasehq/stagehand";
-import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
+import { EvalFunction } from "../../types/evals.js";
+import { V3Evaluator } from "@browserbasehq/stagehand";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector.js";
+import { imageResize } from "../../utils/imageResize.js";
 
 export const webvoyager: EvalFunction = async ({
   v3,

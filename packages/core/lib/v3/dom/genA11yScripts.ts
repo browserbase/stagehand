@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import esbuild from "esbuild";
 
-const here = __dirname;
+const here = path.dirname(fileURLToPath(import.meta.url));
 const srcDir = path.join(here, "./a11yScripts");
 const outDir = path.join(here, "./build");
 const entry = path.join(srcDir, "index.ts");

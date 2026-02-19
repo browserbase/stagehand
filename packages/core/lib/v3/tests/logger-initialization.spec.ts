@@ -4,8 +4,8 @@ import {
   unbindInstanceLogger,
   withInstanceLogContext,
   v3Logger,
-} from "../logger";
-import type { LogLine } from "../types/public/logs";
+} from "../logger.js";
+import type { LogLine } from "../types/public/logs.js";
 
 test.describe("V3 Logger Instance Routing", () => {
   test.afterEach(() => {

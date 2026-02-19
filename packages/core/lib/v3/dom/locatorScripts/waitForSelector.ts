@@ -7,6 +7,8 @@
  * and resilient to exceptions.
  */
 
+import { resolveXPathFirst } from "./xpathResolver.js";
+
 type WaitForSelectorState = "attached" | "detached" | "visible" | "hidden";
 
 /**
@@ -14,16 +16,6 @@ type WaitForSelectorState = "attached" | "detached" | "visible" | "hidden";
  */
 const isXPath = (selector: string): boolean => {
   return selector.startsWith("xpath=") || selector.startsWith("/");
-};
-
-/**
- * Normalize XPath by removing "xpath=" prefix if present.
- */
-const normalizeXPath = (selector: string): string => {
-  if (selector.startsWith("xpath=")) {
-    return selector.slice(6).trim();
-  }
-  return selector;
 };
 
 /**
@@ -113,217 +105,13 @@ const deepQuerySelector = (
 };
 
 /**
- * Parse XPath into steps for composed tree traversal.
- */
-type XPathStep = {
-  axis: "child" | "desc";
-  tag: string;
-  index: number | null;
-  attrName: string | null;
-  attrValue: string | null;
-};
-
-const parseXPathSteps = (xpath: string): XPathStep[] => {
-  const path = xpath.replace(/^xpath=/i, "");
-  const steps: XPathStep[] = [];
-  let i = 0;
-
-  while (i < path.length) {
-    let axis: "child" | "desc" = "child";
-    if (path.startsWith("//", i)) {
-      axis = "desc";
-      i += 2;
-    } else if (path[i] === "/") {
-      axis = "child";
-      i += 1;
-    }
-
-    const start = i;
-    // Handle brackets to avoid splitting on `/` inside predicates
-    let bracketDepth = 0;
-    while (i < path.length) {
-      if (path[i] === "[") bracketDepth++;
-      else if (path[i] === "]") bracketDepth--;
-      else if (path[i] === "/" && bracketDepth === 0) break;
-      i += 1;
-    }
-    const rawStep = path.slice(start, i).trim();
-    if (!rawStep) continue;
-
-    // Parse step: tagName[@attr='value'][index]
-    // Match tag name (everything before first [)
-    const tagMatch = rawStep.match(/^([^[]+)/);
-    const tagRaw = (tagMatch?.[1] ?? "*").trim();
-    const tag = tagRaw === "" ? "*" : tagRaw.toLowerCase();
-
-    // Match index predicate [N]
-    const indexMatch = rawStep.match(/\[(\d+)\]/);
-    const index = indexMatch ? Math.max(1, Number(indexMatch[1])) : null;
-
-    // Match attribute predicate [@attr='value'] or [@attr="value"]
-    const attrMatch = rawStep.match(
-      /\[@([a-zA-Z_][\w-]*)\s*=\s*['"]([^'"]*)['"]\]/,
-    );
-    const attrName = attrMatch ? attrMatch[1] : null;
-    const attrValue = attrMatch ? attrMatch[2] : null;
-
-    steps.push({ axis, tag, index, attrName, attrValue });
-  }
-
-  return steps;
-};
-
-/**
- * Get composed children of a node (including shadow root children).
- */
-const composedChildren = (node: Node | null | undefined): Element[] => {
-  const out: Element[] = [];
-  if (!node) return out;
-
-  if (node instanceof Document) {
-    if (node.documentElement) out.push(node.documentElement);
-    return out;
-  }
-
-  if (node instanceof ShadowRoot || node instanceof DocumentFragment) {
-    out.push(...Array.from(node.children ?? []));
-    return out;
-  }
-
-  if (node instanceof Element) {
-    out.push(...Array.from(node.children ?? []));
-    const open = node.shadowRoot;
-    if (open) out.push(...Array.from(open.children ?? []));
-    const closed = getClosedRoot(node);
-    if (closed) out.push(...Array.from(closed.children ?? []));
-    return out;
-  }
-
-  return out;
-};
-
-/**
- * Get all composed descendants of a node.
- */
-const composedDescendants = (node: Node | null | undefined): Element[] => {
-  const out: Element[] = [];
-  const seen = new Set<Element>();
-  const queue = [...composedChildren(node)];
-
-  while (queue.length) {
-    const next = queue.shift();
-    if (!next || seen.has(next)) continue;
-    seen.add(next);
-    out.push(next);
-    queue.push(...composedChildren(next));
-  }
-
-  return out;
-};
-
-/**
  * Resolve XPath with shadow DOM piercing support.
  */
 const deepXPathQuery = (
   xpath: string,
   pierceShadow: boolean,
 ): Element | null => {
-  const xp = normalizeXPath(xpath);
-  if (!xp) return null;
-
-  const backdoor = window.__stagehandV3__;
-
-  // Try fast path via piercer's resolveSimpleXPath first (handles shadow DOM)
-  if (pierceShadow) {
-    try {
-      if (backdoor && typeof backdoor.resolveSimpleXPath === "function") {
-        const fast = backdoor.resolveSimpleXPath(xp);
-        if (fast) return fast;
-      }
-    } catch {
-      // ignore and continue
-    }
-  }
-
-  // Try native document.evaluate (works for light DOM elements)
-  try {
-    const result = document.evaluate(
-      xp,
-      document,
-      null,
-      XPathResult.FIRST_ORDERED_NODE_TYPE,
-      null,
-    ).singleNodeValue as Element | null;
-    if (result) return result;
-  } catch {
-    // XPath syntax error or evaluation failed, continue to fallback
-  }
-
-  // If not piercing shadow DOM, we're done
-  if (!pierceShadow) {
-    return null;
-  }
-
-  // Parse XPath into steps for composed tree traversal (shadow DOM piercing)
-  const steps = parseXPathSteps(xp);
-  if (!steps.length) {
-    return null;
-  }
-
-  // Traverse composed tree following XPath steps
-  let current: Array<Document | Element | ShadowRoot | DocumentFragment> = [
-    document,
-  ];
-
-  for (const step of steps) {
-    const next: Element[] = [];
-    const seen = new Set<Element>();
-
-    for (const root of current) {
-      if (!root) continue;
-      const pool =
-        step.axis === "child"
-          ? composedChildren(root)
-          : composedDescendants(root);
-      if (!pool.length) continue;
-
-      // Filter by tag name
-      let matches = pool.filter((candidate) => {
-        if (!(candidate instanceof Element)) return false;
-        if (step.tag === "*") return true;
-        return candidate.localName === step.tag;
-      });
-
-      // Filter by attribute predicate if present
-      if (step.attrName != null && step.attrValue != null) {
-        matches = matches.filter((candidate) => {
-          const attrVal = candidate.getAttribute(step.attrName!);
-          return attrVal === step.attrValue;
-        });
-      }
-
-      if (step.index != null) {
-        const idx = step.index - 1;
-        const chosen = idx >= 0 && idx < matches.length ? matches[idx] : null;
-        if (chosen && !seen.has(chosen)) {
-          seen.add(chosen);
-          next.push(chosen);
-        }
-      } else {
-        for (const candidate of matches) {
-          if (!seen.has(candidate)) {
-            seen.add(candidate);
-            next.push(candidate);
-          }
-        }
-      }
-    }
-
-    if (!next.length) return null;
-    current = next;
-  }
-
-  return (current[0] as Element) ?? null;
+  return resolveXPathFirst(xpath, { pierceShadow });
 };
 
 /**

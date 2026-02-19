@@ -1,12 +1,12 @@
 import { promises as fs, type Stats } from "fs";
 import path from "path";
 import { Buffer } from "buffer";
-import { StagehandInvalidArgumentError } from "../types/public/sdkErrors";
+import { StagehandInvalidArgumentError } from "../types/public/sdkErrors.js";
 import {
   SetInputFilesArgument,
   SetInputFilePayload,
-} from "../types/public/locator";
-import { NormalizedFilePayload } from "../types/private/locator";
+} from "../types/public/locator.js";
+import { NormalizedFilePayload } from "../types/private/locator.js";
 
 const DEFAULT_MIME_TYPE = "application/octet-stream";
 

@@ -1,6 +1,6 @@
 import makeFetchCookie from "fetch-cookie";
-import { loadApiKeyFromEnv } from "../utils";
-import { STAGEHAND_VERSION } from "../version";
+import { loadApiKeyFromEnv } from "../utils.js";
+import { STAGEHAND_VERSION } from "../version.js";
 import {
   StagehandAPIError,
   StagehandAPIUnauthorizedError,
@@ -9,7 +9,7 @@ import {
   StagehandResponseParseError,
   StagehandServerError,
   ExperimentalNotConfiguredError,
-} from "./types/public";
+} from "./types/public/index.js";
 import type {
   ActResult,
   Action,
@@ -19,15 +19,51 @@ import type {
   ExtractResult,
   LogLine,
   StagehandMetrics,
+  BrowserbaseRegion,
   ActOptions,
   ExtractOptions,
   ObserveOptions,
   Api,
-} from "./types/public";
-import type { SerializableResponse } from "./types/private";
-import type { ModelConfiguration } from "./types/public/model";
-import { toJsonSchema } from "./zodCompat";
-import type { StagehandZodSchema } from "./zodCompat";
+} from "./types/public/index.js";
+import type {
+  SerializableResponse,
+  AgentCacheTransferPayload,
+} from "./types/private/index.js";
+import type { ModelConfiguration } from "./types/public/model.js";
+import { toJsonSchema } from "./zodCompat.js";
+import type { StagehandZodSchema } from "./zodCompat.js";
+
+// =============================================================================
+// Multi-region API URL mapping
+// =============================================================================
+
+/**
+ * Mapping of Browserbase regions to their corresponding Stagehand API base URLs.
+ * Users should configure their client to hit the API endpoint that matches
+ * the region where their browser session is running.
+ */
+export const REGION_API_URLS: Record<BrowserbaseRegion, string> = {
+  "us-west-2": "https://api.stagehand.browserbase.com",
+  "us-east-1": "https://api.use1.stagehand.browserbase.com",
+  "eu-central-1": "https://api.euc1.stagehand.browserbase.com",
+  "ap-southeast-1": "https://api.apse1.stagehand.browserbase.com",
+};
+
+/**
+ * Returns the full API URL (with /v1 suffix) for a given Browserbase region.
+ * If no region is specified or the region is unknown, defaults to us-west-2.
+ *
+ * @param region - The Browserbase region (e.g., "us-west-2", "eu-central-1")
+ * @returns The full API URL including /v1 suffix
+ */
+export function getApiUrlForRegion(
+  region: BrowserbaseRegion | undefined,
+): string {
+  const baseUrl =
+    REGION_API_URLS[region as BrowserbaseRegion] ??
+    REGION_API_URLS["us-west-2"];
+  return `${baseUrl}/v1`;
+}
 
 // =============================================================================
 // Client-specific types (can't be Zod schemas due to functions/Page objects)
@@ -142,9 +178,12 @@ export class StagehandAPIClient {
   private sessionId?: string;
   private modelApiKey: string;
   private modelProvider?: string;
+  private region?: BrowserbaseRegion;
   private logger: (message: LogLine) => void;
   private fetchWithCookies;
   private serverCache: boolean;
+  private lastFinishedEventData: Record<string, unknown> | null = null;
+  private latestAgentCacheEntry: AgentCacheTransferPayload | null = null;
 
   constructor({
     apiKey,
@@ -180,10 +219,8 @@ export class StagehandAPIClient {
       ? modelName.split("/")[0]
       : undefined;
 
-    const region = browserbaseSessionCreateParams?.region;
-    if (region && region !== "us-west-2") {
-      return { sessionId: browserbaseSessionID ?? null, available: false };
-    }
+    // Store the region for multi-region API URL resolution
+    this.region = browserbaseSessionCreateParams?.region;
 
     this.logger({
       category: "init",
@@ -363,6 +400,7 @@ export class StagehandAPIClient {
     agentConfig: AgentConfig,
     executeOptions: AgentExecuteOptions | string,
     frameId?: string,
+    shouldCache?: boolean,
   ): Promise<AgentResult> {
     // Check if integrations are being used in API mode (not supported)
     if (agentConfig.integrations && agentConfig.integrations.length > 0) {
@@ -383,11 +421,13 @@ export class StagehandAPIClient {
 
     const wireAgentConfig: Api.AgentExecuteRequest["agentConfig"] = {
       systemPrompt: agentConfig.systemPrompt,
-      cua: agentConfig.cua,
+      mode: agentConfig.mode ?? (agentConfig.cua === true ? "cua" : undefined),
+      cua: agentConfig.mode === undefined ? agentConfig.cua : undefined,
       model: agentConfig.model
-        ? (this.prepareModelConfig(
-            agentConfig.model as unknown as ModelConfiguration,
-          ) as unknown as Api.ModelConfig)
+        ? this.prepareModelConfig(agentConfig.model)
+        : undefined,
+      executionModel: agentConfig.executionModel
+        ? this.prepareModelConfig(agentConfig.executionModel)
         : undefined,
     };
 
@@ -396,12 +436,27 @@ export class StagehandAPIClient {
       agentConfig: wireAgentConfig,
       executeOptions: wireExecuteOptions,
       frameId,
+      shouldCache,
     };
 
-    return this.execute<AgentResult>({
+    const result = await this.execute<AgentResult>({
       method: "agentExecute",
       args: requestBody,
     });
+
+    const finishedData =
+      this.consumeFinishedEventData<Api.AgentExecuteResult>() ?? null;
+    this.latestAgentCacheEntry =
+      finishedData?.cacheEntry !== undefined
+        ? (finishedData.cacheEntry as AgentCacheTransferPayload)
+        : null;
+    return result;
+  }
+
+  consumeLatestAgentCacheEntry(): AgentCacheTransferPayload | null {
+    const entry = this.latestAgentCacheEntry;
+    this.latestAgentCacheEntry = null;
+    return entry;
   }
 
   async end(): Promise<Response> {
@@ -445,7 +500,7 @@ export class StagehandAPIClient {
     }
 
     // Parse the API data into StagehandMetrics format
-    const apiData = data.data || {};
+    const apiData = (data as Api.ReplayResponse).data;
     const metrics: StagehandMetrics = {
       actPromptTokens: 0,
       actCompletionTokens: 0,
@@ -475,7 +530,7 @@ export class StagehandAPIClient {
     };
 
     // Parse pages and their actions
-    const pages = apiData.pages || [];
+    const pages = apiData?.pages || [];
     for (const page of pages) {
       const actions = page.actions || [];
       for (const action of actions) {
@@ -486,8 +541,20 @@ export class StagehandAPIClient {
         if (tokenUsage) {
           const inputTokens = tokenUsage.inputTokens || 0;
           const outputTokens = tokenUsage.outputTokens || 0;
-          const reasoningTokens = tokenUsage.reasoningTokens || 0;
-          const cachedInputTokens = tokenUsage.cachedInputTokens || 0;
+          const reasoningTokens =
+            "reasoningTokens" in tokenUsage
+              ? Number(
+                  (tokenUsage as { reasoningTokens?: number })
+                    .reasoningTokens ?? 0,
+                )
+              : 0;
+          const cachedInputTokens =
+            "cachedInputTokens" in tokenUsage
+              ? Number(
+                  (tokenUsage as { cachedInputTokens?: number })
+                    .cachedInputTokens ?? 0,
+                )
+              : 0;
           const timeMs = tokenUsage.timeMs || 0;
 
           // Map method to metrics fields
@@ -574,12 +641,19 @@ export class StagehandAPIClient {
     >;
   }
 
+  private consumeFinishedEventData<T>(): T | null {
+    const data = this.lastFinishedEventData as T | null;
+    this.lastFinishedEventData = null;
+    return data;
+  }
+
   private async execute<T>({
     method,
     args,
     params,
     serverCache,
   }: ExecuteActionParams): Promise<T> {
+    this.lastFinishedEventData = null;
     const urlParams = new URLSearchParams(params as Record<string, string>);
     const queryString = urlParams.toString();
     const url = `/sessions/${this.sessionId}/${method}${queryString ? `?${queryString}` : ""}`;
@@ -640,6 +714,8 @@ export class StagehandAPIClient {
               throw new Error(errorMsg);
             }
             if (eventData.data.status === "finished") {
+              this.lastFinishedEventData = eventData.data;
+
               return this.attachCacheStatus(
                 eventData.data.result as T,
                 method,
@@ -782,16 +858,24 @@ export class StagehandAPIClient {
       defaultHeaders["Content-Type"] = "application/json";
     }
 
-    const response = await this.fetchWithCookies(
-      `${process.env.STAGEHAND_API_URL ?? "https://api.stagehand.browserbase.com/v1"}${path}`,
-      {
-        ...options,
-        headers: {
-          ...defaultHeaders,
-          ...options.headers,
-        },
+    // Use STAGEHAND_API_URL env var if set, otherwise use region-based URL
+    // Ensure /v1 suffix is present for consistency
+    let baseUrl: string;
+    if (process.env.STAGEHAND_API_URL) {
+      const envUrl = process.env.STAGEHAND_API_URL.replace(/\/+$/, "");
+      // Append /v1 if not already present
+      baseUrl = envUrl.endsWith("/v1") ? envUrl : `${envUrl}/v1`;
+    } else {
+      baseUrl = getApiUrlForRegion(this.region);
+    }
+
+    const response = await this.fetchWithCookies(`${baseUrl}${path}`, {
+      ...options,
+      headers: {
+        ...defaultHeaders,
+        ...options.headers,
       },
-    );
+    });
 
     // Log cache status if present in response headers
     const cacheStatus = response.headers.get("browserbase-cache-status");

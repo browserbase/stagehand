@@ -3,21 +3,22 @@ import {
   UnsupportedAISDKModelProviderError,
   UnsupportedModelError,
   UnsupportedModelProviderError,
-} from "../types/public/sdkErrors";
-import { LogLine } from "../types/public/logs";
+} from "../types/public/sdkErrors.js";
+import { LogLine } from "../types/public/logs.js";
 import {
   AvailableModel,
   ClientOptions,
   ModelProvider,
-} from "../types/public/model";
-import { AISdkClient } from "./aisdk";
-import { AnthropicClient } from "./AnthropicClient";
-import { CerebrasClient } from "./CerebrasClient";
-import { GoogleClient } from "./GoogleClient";
-import { GroqClient } from "./GroqClient";
-import { LLMClient } from "./LLMClient";
-import { OpenAIClient } from "./OpenAIClient";
+} from "../types/public/model.js";
+import { AISdkClient } from "./aisdk.js";
+import { AnthropicClient } from "./AnthropicClient.js";
+import { CerebrasClient } from "./CerebrasClient.js";
+import { GoogleClient } from "./GoogleClient.js";
+import { GroqClient } from "./GroqClient.js";
+import { LLMClient } from "./LLMClient.js";
+import { OpenAIClient } from "./OpenAIClient.js";
 import { openai, createOpenAI } from "@ai-sdk/openai";
+import { bedrock, createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { vertex, createVertex } from "@ai-sdk/google-vertex";
 import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
 import { google, createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -30,10 +31,12 @@ import { mistral, createMistral } from "@ai-sdk/mistral";
 import { deepseek, createDeepSeek } from "@ai-sdk/deepseek";
 import { perplexity, createPerplexity } from "@ai-sdk/perplexity";
 import { ollama, createOllama } from "ollama-ai-provider-v2";
-import { AISDKProvider, AISDKCustomProvider } from "../types/public/model";
+import { gateway, createGateway } from "ai";
+import { AISDKProvider, AISDKCustomProvider } from "../types/public/model.js";
 
 const AISDKProviders: Record<string, AISDKProvider> = {
   openai,
+  bedrock,
   anthropic,
   google,
   xai,
@@ -46,9 +49,11 @@ const AISDKProviders: Record<string, AISDKProvider> = {
   perplexity,
   ollama,
   vertex,
+  gateway,
 };
 const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   openai: createOpenAI,
+  bedrock: createAmazonBedrock,
   anthropic: createAnthropic,
   google: createGoogleGenerativeAI,
   vertex: createVertex,
@@ -61,6 +66,7 @@ const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   deepseek: createDeepSeek,
   perplexity: createPerplexity,
   ollama: createOllama,
+  gateway: createGateway,
 };
 
 const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
@@ -166,10 +172,18 @@ export class LLMProvider {
       });
     }
 
+    // Model name doesn't include "/" - this format is deprecated
     const provider = modelToProviderMap[modelName];
     if (!provider) {
       throw new UnsupportedModelError(Object.keys(modelToProviderMap));
     }
+
+    this.logger({
+      category: "llm",
+      message: `Deprecation warning: Model format "${modelName}" is deprecated. Please use the provider/model format (e.g., "openai/gpt-5" or "anthropic/claude-sonnet-4").`,
+      level: 0,
+    });
+
     const availableModel = modelName as AvailableModel;
     switch (provider) {
       case "openai":
@@ -203,6 +217,8 @@ export class LLMProvider {
           clientOptions,
         });
       default:
+        // This default case handles unknown providers that exist in modelToProviderMap
+        // but aren't implemented in the switch. This is an internal consistency issue.
         throw new UnsupportedModelProviderError([
           ...new Set(Object.values(modelToProviderMap)),
         ]);

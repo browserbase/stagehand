@@ -1,0 +1,51 @@
+name: Setup Node, pnpm, and Turbo cache
+description: Configure pnpm and Node.js with caching, restore Turbo cache, and install dependencies.
+inputs:
+  node-version:
+    description: Node.js version to use.
+    required: false
+    default: "20.x"
+  use-prebuilt-artifacts:
+    description: Whether to download pre-built package from build artifacts.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'pnpm'
+        cache-dependency-path: '**/pnpm-lock.yaml'
+
+    - name: Restore Turbo cache
+      uses: actions/cache/restore@v4
+      with:
+        path: .turbo
+        key: ${{ runner.os }}-turbo-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-turbo-
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile --prefer-offline
+  
+    - name: Download build artifacts
+      if: ${{ inputs.use-prebuilt-artifacts == 'true' }}
+      uses: actions/download-artifact@v4
+      with:
+        name: build-artifacts
+        path: .
+        merge-multiple: true
+
+    - name: Prepare test output directories
+      shell: bash
+      run: |
+        mkdir -p "${GITHUB_WORKSPACE}/ctrf"
+        if [ -n "${NODE_V8_COVERAGE:-}" ]; then
+          mkdir -p "$NODE_V8_COVERAGE"
+        fi

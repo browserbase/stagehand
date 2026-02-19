@@ -7,10 +7,10 @@ import type {
   RequestContext,
   SessionCacheConfig,
   SessionStartResult,
-} from "./SessionStore";
+} from "./SessionStore.js";
 
 const DEFAULT_MAX_CAPACITY = 100;
-const DEFAULT_TTL_MS = 300_000; // 5 minutes
+const DEFAULT_TTL_MS = 0; // 0 = infinite (no TTL-based eviction)
 
 /**
  * Internal node for LRU linked list
@@ -181,10 +181,17 @@ export class InMemorySessionStore implements SessionStore {
 
     // Create V3 instance (lazy initialization)
     const options = this.buildV3Options(node.params, ctx, node.loggerRef);
-
     const stagehand = new V3(options);
-    await stagehand.init();
-
+    try {
+      await stagehand.init();
+    } catch (error) {
+      try {
+        await stagehand.close();
+      } catch {
+        // best-effort cleanup for failed init attempts
+      }
+      throw error;
+    }
     node.stagehand = stagehand;
     return stagehand;
   }

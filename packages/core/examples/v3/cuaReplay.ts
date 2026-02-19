@@ -1,8 +1,5 @@
-import { Stagehand } from "../../lib/v3";
-import { v3Logger } from "../../lib/v3/logger";
-import dotenv from "dotenv";
-
-dotenv.config();
+import { Stagehand } from "../../lib/v3/index.js";
+import { v3Logger } from "../../lib/v3/logger.js";
 
 async function runDemo(runNumber: number) {
   const startTime = Date.now();
@@ -14,7 +11,8 @@ async function runDemo(runNumber: number) {
   });
 
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env: "BROWSERBASE",
+    disableAPI: false,
     verbose: 1,
     cacheDir: "cua-agent-cache",
   });
@@ -29,7 +27,10 @@ async function runDemo(runNumber: number) {
 
   const agent = stagehand.agent({
     mode: "cua",
-    model: "anthropic/claude-sonnet-4-20250514",
+    model: {
+      modelName: "anthropic/claude-sonnet-4-20250514",
+      apiKey: process.env.ANTHROPIC_API_KEY!,
+    },
   });
 
   const result = await agent.execute({

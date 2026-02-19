@@ -1,13 +1,12 @@
-import { ZodSchemaValidationError } from "./v3/types/public/sdkErrors";
+import { ZodSchemaValidationError } from "./v3/types/public/sdkErrors.js";
 import { Schema, Type } from "@google/genai";
 import { z, ZodTypeAny } from "zod";
 import z3 from "zod/v3";
-import { LogLine } from "./v3/types/public/logs";
-import { ModelProvider } from "./v3/types/public/model";
-import { ZodPathSegments } from "./v3/types/private/internal";
-import type { StagehandZodSchema } from "./v3/zodCompat";
-import { isZod4Schema } from "./v3/zodCompat";
-import sharp from "sharp";
+import { LogLine } from "./v3/types/public/logs.js";
+import { ModelProvider } from "./v3/types/public/model.js";
+import { ZodPathSegments } from "./v3/types/private/internal.js";
+import type { StagehandZodSchema } from "./v3/zodCompat.js";
+import { isZod4Schema } from "./v3/zodCompat.js";
 
 const ID_PATTERN = /^\d+-\d+$/;
 
@@ -696,7 +695,7 @@ export const providerEnvVarMap: Partial<
   google_legacy: "GOOGLE_API_KEY",
 };
 
-const providersWithoutApiKey = new Set(["ollama"]);
+const providersWithoutApiKey = new Set(["bedrock", "ollama"]);
 
 /**
  * Loads an API key for a provider, checking environment variables.
@@ -840,26 +839,5 @@ export function jsonSchemaToZod(schema: JsonSchema): ZodTypeAny {
     }
     default:
       return z.any();
-  }
-}
-
-export async function imageResize(
-  img: Buffer,
-  scaleFactor: number,
-): Promise<Buffer> {
-  const metadata = await sharp(img).metadata();
-
-  if (metadata.width && metadata.height) {
-    // calculate new dimensions
-    const width = Math.round(metadata.width * scaleFactor);
-    const height = Math.round(metadata.height * scaleFactor);
-    return await sharp(img)
-      .resize(width, height, { fit: "inside", kernel: sharp.kernel.lanczos3 })
-      .png({
-        compressionLevel: 9,
-        adaptiveFiltering: true,
-        palette: true,
-      })
-      .toBuffer();
   }
 }

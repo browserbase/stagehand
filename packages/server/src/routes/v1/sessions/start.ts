@@ -8,14 +8,27 @@ import { z } from "zod/v4";
 
 import { authMiddleware } from "../../../lib/auth.js";
 import { withErrorHandling } from "../../../lib/errorHandler.js";
-import { getOptionalHeader } from "../../../lib/header.js";
+import { getModelApiKey, getOptionalHeader } from "../../../lib/header.js";
 import { error, success } from "../../../lib/response.js";
 import { getSessionStore } from "../../../lib/sessionStoreManager.js";
 import { AISDK_PROVIDERS } from "../../../types/model.js";
 
 // Extended schema with custom refinement for local browser validation
-const startBodySchema = Api.SessionStartRequestSchema.superRefine(
-  (value, ctx) => {
+const startBodySchema = z
+  .preprocess((value) => {
+    if (!value || typeof value !== "object") {
+      return value;
+    }
+    const record = value as Record<string, unknown>;
+    if (
+      typeof record.verbose === "string" &&
+      ["0", "1", "2"].includes(record.verbose)
+    ) {
+      return { ...record, verbose: Number(record.verbose) };
+    }
+    return value;
+  }, Api.SessionStartRequestSchema)
+  .superRefine((value, ctx) => {
     if (value.browser?.type === "local") {
       const hasConnect = Boolean(value.browser.cdpUrl);
       const hasLaunch = Boolean(value.browser.launchOptions);
@@ -28,8 +41,7 @@ const startBodySchema = Api.SessionStartRequestSchema.superRefine(
         });
       }
     }
-  },
-);
+  });
 
 const startRouteHandler: RouteHandler = withErrorHandling(
   async (request, reply) => {
@@ -178,7 +190,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       sdkVersion,
       experimental,
       localBrowserLaunchOptions:
-        browserType === "local" && browser?.launchOptions
+        browserType === "local" && (browser?.launchOptions || browser?.cdpUrl)
           ? {
               cdpUrl: browser?.cdpUrl,
               ...(browser?.launchOptions ?? {}),
@@ -186,10 +198,43 @@ const startRouteHandler: RouteHandler = withErrorHandling(
           : undefined,
     });
 
+    // For local browsers with launchOptions (no explicit cdpUrl), eagerly
+    // initialize the browser so we can return the actual CDP URL
+    let finalCdpUrl = connectUrl ?? session.cdpUrl ?? "";
+    if (browserType === "local" && browser?.launchOptions && !browser?.cdpUrl) {
+      const modelApiKey = getModelApiKey(request);
+      try {
+        const stagehand = await sessionStore.getOrCreateStagehand(
+          session.sessionId,
+          { modelApiKey },
+        );
+        finalCdpUrl = stagehand.connectURL();
+      } catch (err) {
+        request.log.error(
+          {
+            err,
+            sessionId: session.sessionId,
+            browserType,
+            chromePathEnv: process.env.CHROME_PATH,
+            launchOptions: {
+              executablePath: browser.launchOptions.executablePath,
+              argsCount: browser.launchOptions.args?.length ?? 0,
+              headless: browser.launchOptions.headless,
+              hasUserDataDir: Boolean(browser.launchOptions.userDataDir),
+              port: browser.launchOptions.port,
+              connectTimeoutMs: browser.launchOptions.connectTimeoutMs,
+            },
+          },
+          "Failed to initialize local browser session in /v1/sessions/start",
+        );
+        throw err;
+      }
+    }
+
     return success(reply, {
       sessionId: session.sessionId,
       available: session.available,
-      cdpUrl: connectUrl ?? session.cdpUrl ?? "",
+      cdpUrl: finalCdpUrl,
     });
   },
 );

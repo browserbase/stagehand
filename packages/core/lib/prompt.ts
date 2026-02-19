@@ -1,4 +1,4 @@
-import { ChatMessage } from "./v3/llm/LLMClient";
+import { ChatMessage } from "./v3/llm/LLMClient.js";
 
 export function buildUserInstructionsString(
   userProvidedInstructions?: string,
@@ -110,7 +110,12 @@ Extracted content: ${JSON.stringify(extractionResponse, null, 2)}`,
 // observe
 export function buildObserveSystemPrompt(
   userProvidedInstructions?: string,
+  supportedActions?: string[],
 ): ChatMessage {
+  const actionsString = supportedActions?.length
+    ? `\n\nSupported actions: ${supportedActions.join(", ")}`
+    : "";
+
   const observeSystemPrompt = `
 You are helping the user automate the browser by finding elements based on what the user wants to observe in the page.
 
@@ -118,7 +123,8 @@ You will be given:
 1. a instruction of elements to observe
 2. a hierarchical accessibility tree showing the semantic structure of the page. The tree is a hybrid of the DOM and the accessibility tree.
 
-Return an array of elements that match the instruction if they exist, otherwise return an empty array.`;
+Return an array of elements that match the instruction if they exist, otherwise return an empty array.
+When returning elements, include the appropriate method from the supported actions list.${actionsString}. When choosing non-left click actions, provide right or middle as the argument.`;
   const content = observeSystemPrompt.replace(/\s+/g, " ");
 
   return {
@@ -172,6 +178,7 @@ export function buildActPrompt(
   
   General Instructions: 
     Provide an action for this element such as ${supportedActions.join(", ")}. Remember that to users, buttons and links look the same in most cases.
+    When choosing non-left click actions, provide right or middle as the argument
     If the action is completely unrelated to a potential action to be taken on the page, return an empty object. 
     ONLY return one action. If multiple actions are relevant, return the most relevant one. 
     If the user is asking to scroll to a position on the page, e.g., 'halfway' or 0.75, etc, you must return the argument formatted as the correct percentage, e.g., '50%' or '75%', etc.

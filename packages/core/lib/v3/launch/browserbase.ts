@@ -2,8 +2,9 @@ import Browserbase from "@browserbasehq/sdk";
 import {
   BrowserbaseSessionNotFoundError,
   StagehandInitError,
-} from "../types/public/sdkErrors";
-import type { BrowserbaseSessionCreateParams } from "../types/public/api";
+} from "../types/public/sdkErrors.js";
+import type { BrowserbaseSessionCreateParams } from "../types/public/api.js";
+import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig.js";
 
 export async function createBrowserbaseSession(
   apiKey: string,
@@ -12,12 +13,24 @@ export async function createBrowserbaseSession(
   resumeSessionId?: string,
 ): Promise<{ ws: string; sessionId: string; bb: Browserbase }> {
   const bb = new Browserbase({ apiKey });
+  const sessionCreateTimeoutMs = getEnvTimeoutMs(
+    "BROWSERBASE_SESSION_CREATE_MAX_MS",
+  );
 
   // Resume an existing session if provided
   if (resumeSessionId) {
-    const existing = (await bb.sessions.retrieve(
-      resumeSessionId,
-    )) as unknown as { id: string; connectUrl?: string; status?: string };
+    const retrievePromise = bb.sessions.retrieve(resumeSessionId);
+    const existing = (sessionCreateTimeoutMs
+      ? await withTimeout(
+          retrievePromise,
+          sessionCreateTimeoutMs,
+          "Browserbase session retrieve",
+        )
+      : await retrievePromise) as unknown as {
+      id: string;
+      connectUrl?: string;
+      status?: string;
+    };
     if (!existing?.id) {
       throw new BrowserbaseSessionNotFoundError();
     }
@@ -53,10 +66,14 @@ export async function createBrowserbaseSession(
     },
   } satisfies Browserbase.Sessions.SessionCreateParams;
 
-  const created = (await bb.sessions.create(createPayload)) as unknown as {
-    id: string;
-    connectUrl: string;
-  };
+  const createPromise = bb.sessions.create(createPayload);
+  const created = (sessionCreateTimeoutMs
+    ? await withTimeout(
+        createPromise,
+        sessionCreateTimeoutMs,
+        "Browserbase session create",
+      )
+    : await createPromise) as unknown as { id: string; connectUrl: string };
 
   if (!created?.connectUrl || !created?.id) {
     throw new StagehandInitError(

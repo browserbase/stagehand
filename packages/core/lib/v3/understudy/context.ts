@@ -1,15 +1,17 @@
 // lib/v3/understudy/context.ts
 import type { Protocol } from "devtools-protocol";
-import { v3Logger } from "../logger";
-import { CdpConnection, CDPSessionLike } from "./cdp";
-import { Page } from "./page";
-import { installV3PiercerIntoSession } from "./piercer";
-import { executionContexts } from "./executionContextRegistry";
-import type { StagehandAPIClient } from "../api";
-import { LocalBrowserLaunchOptions } from "../types/public";
-import { InitScriptSource } from "../types/private";
-import { normalizeInitScriptSource } from "./initScripts";
-import { TimeoutError, PageNotFoundError } from "../types/public/sdkErrors";
+import { v3Logger } from "../logger.js";
+import { CdpConnection, CDPSessionLike } from "./cdp.js";
+import { Page } from "./page.js";
+import { installV3PiercerIntoSession } from "./piercer.js";
+import { v3ScriptContent } from "../dom/build/scriptV3Content.js";
+import { executionContexts } from "./executionContextRegistry.js";
+import type { StagehandAPIClient } from "../api.js";
+import { LocalBrowserLaunchOptions } from "../types/public/index.js";
+import { InitScriptSource } from "../types/private/index.js";
+import { normalizeInitScriptSource } from "./initScripts.js";
+import { TimeoutError, PageNotFoundError } from "../types/public/sdkErrors.js";
+import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig.js";
 
 type TargetId = string;
 type SessionId = string;
@@ -43,10 +45,8 @@ export class V3Context {
   private readonly _piercerInstalled = new Set<string>();
   // Timestamp for most recent popup/open signal
   private _lastPopupSignalAt = 0;
+  private readonly _targetSessionListeners = new Set<SessionId>();
 
-  private sessionKey(session: CDPSessionLike): string {
-    return session.id ?? "root";
-  }
   private readonly _sessionInit = new Set<SessionId>();
   private pagesByTarget = new Map<TargetId, Page>();
   private mainFrameToTarget = new Map<string, TargetId>();
@@ -59,6 +59,32 @@ export class V3Context {
   private pendingCreatedTargetUrl = new Map<TargetId, string>();
   private readonly initScripts: string[] = [];
 
+  private installTargetSessionListeners(session: CDPSessionLike): void {
+    const sessionId = session.id;
+    if (!sessionId) return;
+    if (this._targetSessionListeners.has(sessionId)) return;
+    this._targetSessionListeners.add(sessionId);
+
+    session.on<Protocol.Target.AttachedToTargetEvent>(
+      "Target.attachedToTarget",
+      (evt) => {
+        void this.onAttachedToTarget(evt.targetInfo, evt.sessionId);
+      },
+    );
+    session.on<Protocol.Target.DetachedFromTargetEvent>(
+      "Target.detachedFromTarget",
+      (evt) => {
+        this.onDetachedFromTarget(evt.sessionId, evt.targetId ?? null);
+      },
+    );
+    session.on<Protocol.Target.TargetDestroyedEvent>(
+      "Target.targetDestroyed",
+      (evt) => {
+        this.cleanupByTarget(evt.targetId);
+      },
+    );
+  }
+
   /**
    * Create a Context for a given CDP websocket URL and bootstrap target wiring.
    */
@@ -70,16 +96,44 @@ export class V3Context {
       localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null;
     },
   ): Promise<V3Context> {
-    const conn = await CdpConnection.connect(wsUrl);
-    const ctx = new V3Context(
-      conn,
-      opts?.env ?? "LOCAL",
-      opts?.apiClient ?? null,
-      opts?.localBrowserLaunchOptions ?? null,
-    );
-    await ctx.bootstrap();
-    await ctx.waitForFirstTopLevelPage(5000);
-    return ctx;
+    const connectTask = async () => {
+      const conn = await CdpConnection.connect(wsUrl);
+      const ctx = new V3Context(
+        conn,
+        opts?.env ?? "LOCAL",
+        opts?.apiClient ?? null,
+        opts?.localBrowserLaunchOptions ?? null,
+      );
+      await ctx.bootstrap();
+      await ctx.waitForFirstTopLevelPage(5000);
+      return ctx;
+    };
+
+    const cdpTimeoutMs =
+      opts?.env === "BROWSERBASE"
+        ? getEnvTimeoutMs("BROWSERBASE_CDP_CONNECT_MAX_MS")
+        : undefined;
+
+    if (cdpTimeoutMs) {
+      let timedOut = false;
+      const connectPromise = connectTask();
+      const guarded = withTimeout(
+        connectPromise,
+        cdpTimeoutMs,
+        "Browserbase CDP connect",
+      ).catch((err) => {
+        timedOut = true;
+        throw err;
+      });
+      connectPromise
+        .then((ctx) => {
+          if (timedOut) void ctx.close();
+        })
+        .catch(() => {});
+      return await guarded;
+    }
+
+    return await connectTask();
   }
 
   /**
@@ -137,12 +191,12 @@ export class V3Context {
   }
 
   private async ensurePiercer(session: CDPSessionLike): Promise<boolean> {
-    const key = this.sessionKey(session);
-    if (this._piercerInstalled.has(key)) return true;
+    const id = session.id ?? "";
+    if (this._piercerInstalled.has(id)) return true;
 
     const installed = await installV3PiercerIntoSession(session);
     if (installed) {
-      this._piercerInstalled.add(key);
+      this._piercerInstalled.add(id);
     }
     return installed;
   }
@@ -214,6 +268,7 @@ export class V3Context {
     arg?: Arg,
   ): Promise<void> {
     const source = await normalizeInitScriptSource(script, arg);
+    if (this.initScripts.includes(source)) return;
     this.initScripts.push(source);
     const pages = this.pages();
     await Promise.all(pages.map((page) => page.registerInitScript(source)));
@@ -233,7 +288,16 @@ export class V3Context {
     return rows.map((r) => r.page);
   }
 
-  private async applyInitScriptsToPage(page: Page): Promise<void> {
+  private async applyInitScriptsToPage(
+    page: Page,
+    opts?: { seedOnly?: boolean },
+  ): Promise<void> {
+    if (opts?.seedOnly) {
+      for (const source of this.initScripts) {
+        page.seedInitScript(source);
+      }
+      return;
+    }
     for (const source of this.initScripts) {
       await page.registerInitScript(source);
     }
@@ -264,18 +328,31 @@ export class V3Context {
    * Waits until the target is attached and registered.
    */
   public async newPage(url = "about:blank"): Promise<Page> {
+    const targetUrl = String(url ?? "about:blank");
     const { targetId } = await this.conn.send<{ targetId: string }>(
       "Target.createTarget",
-      { url },
+      // Create at about:blank so init scripts can install before first real navigation.
+      { url: "about:blank" },
     );
-    this.pendingCreatedTargetUrl.set(targetId, url);
+    this.pendingCreatedTargetUrl.set(targetId, "about:blank");
     // Best-effort bring-to-front
     await this.conn.send("Target.activateTarget", { targetId }).catch(() => {});
 
     const deadline = Date.now() + 5000;
     while (Date.now() < deadline) {
       const page = this.pagesByTarget.get(targetId);
-      if (page) return page;
+      if (page) {
+        // we created at about:blank; navigate only after attach so init scripts run
+        // on the first real document. Fire-and-forget so newPage() resolves on attach.
+        if (targetUrl !== "about:blank") {
+          // Seed requested URL into the page cache before navigation events arrive.
+          page.seedCurrentUrl(targetUrl);
+          void page
+            .sendCDP("Page.navigate", { url: targetUrl })
+            .catch(() => {});
+        }
+        return page;
+      }
       await new Promise((r) => setTimeout(r, 25));
     }
     throw new TimeoutError(`newPage: target not attached (${targetId})`, 5000);
@@ -299,7 +376,6 @@ export class V3Context {
   /**
    * Bootstrap target lifecycle:
    * - Attach to existing targets.
-   * - Attach on `Target.targetCreated` (fallback for OOPIFs).
    * - Handle auto-attach events.
    * - Clean up on detach/destroy.
    */
@@ -328,28 +404,14 @@ export class V3Context {
       },
     );
 
-    // Fallback: explicitly attach when a target is created (covers OOPIFs that don't auto-attach reliably)
     this.conn.on<Protocol.Target.TargetCreatedEvent>(
       "Target.targetCreated",
       async (evt) => {
         const info = evt.targetInfo;
-        // Skip noisy workers; everything else (page/iframe/fenced_frame/etc.) we attach to.
-        if (
-          info.type === "worker" ||
-          info.type === "service_worker" ||
-          info.type === "shared_worker"
-        ) {
-          return;
-        }
         // Note popups to help activePage settle
         const ti = info;
         if (info.type === "page" && (ti?.openerId || ti?.openerFrameId)) {
           this._notePopupSignal();
-        }
-        try {
-          await this.conn.attachToTarget(info.targetId);
-        } catch {
-          // harmless if already attached or if target vanished
         }
       },
     );
@@ -385,93 +447,190 @@ export class V3Context {
     info: Protocol.Target.TargetInfo,
     sessionId: SessionId,
   ): Promise<void> {
+    // Workers are ignored by Stagehand, but with waitForDebuggerOnStart enabled
+    // they still need to be resumed so we don't leave them paused.
+    if (
+      info.type === "worker" ||
+      info.type === "service_worker" ||
+      info.type === "shared_worker"
+    ) {
+      const session = this.conn.getSession(sessionId);
+      if (session) {
+        await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
+      }
+      return;
+    }
+
     const session = this.conn.getSession(sessionId);
     if (!session) return;
 
     // Init guard
     if (this._sessionInit.has(sessionId)) return;
     this._sessionInit.add(sessionId);
-    await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
+
+    this.installTargetSessionListeners(session);
 
     // Register for Runtime events before enabling it so we don't miss initial contexts.
     executionContexts.attachSession(session);
 
-    const piercerReady = await this.ensurePiercer(session);
-    if (!piercerReady) return;
+    // Ensure we only resume once even if multiple code paths hit finally.
+    let resumed = false;
+    const resume = async (): Promise<void> => {
+      if (resumed) return;
+      resumed = true;
+      // waitForDebuggerOnStart pauses new targets; resume once we've done
+      // any "must happen before first document" work.
+      await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
+    };
 
-    await session
-      .send("Page.setLifecycleEventsEnabled", { enabled: true })
-      .catch(() => {});
-
-    // Top-level handling
-    if (isTopLevelPage(info)) {
-      const page = await Page.create(
-        this.conn,
-        session,
-        info.targetId,
-        this.apiClient,
-        this.localBrowserLaunchOptions,
-        this.env === "BROWSERBASE",
-      );
-      this.wireSessionToOwnerPage(sessionId, page);
-      this.pagesByTarget.set(info.targetId, page);
-      this.mainFrameToTarget.set(page.mainFrameId(), info.targetId);
-      this.sessionOwnerPage.set(sessionId, page);
-      this.frameOwnerPage.set(page.mainFrameId(), page);
-      this.typeByTarget.set(info.targetId, "page");
-      if (!this.createdAtByTarget.has(info.targetId)) {
-        this.createdAtByTarget.set(info.targetId, Date.now());
-      }
-      const pendingSeedUrl = this.pendingCreatedTargetUrl.get(info.targetId);
-      this.pendingCreatedTargetUrl.delete(info.targetId);
-      page.seedCurrentUrl(pendingSeedUrl ?? info.url ?? "");
-      this._pushActive(info.targetId);
-      this.installFrameEventBridges(sessionId, page);
-      await this.applyInitScriptsToPage(page);
-
-      return;
-    }
-
-    // Child (iframe / OOPIF)
+    // Install any context-level init scripts as early as possible on this session.
+    // If this throws, we still resume the target but avoid re-installing later.
+    let scriptsInstalled = true;
+    let piercerPreRegistered = false;
+    const installPromises: Array<Promise<unknown>> = [];
     try {
-      const { frameTree } =
-        await session.send<Protocol.Page.GetFrameTreeResponse>(
-          "Page.getFrameTree",
-        );
-      const childMainId = frameTree.frame.id;
-
-      // Try to find owner Page now (it may already have the node in its tree)
-      let owner = this.frameOwnerPage.get(childMainId);
-      if (!owner) {
-        for (const p of this.pagesByTarget.values()) {
-          const tree = p.asProtocolFrameTree(p.mainFrameId());
-          const has = (function find(n: Protocol.Page.FrameTree): boolean {
-            if (n.frame.id === childMainId) return true;
-            for (const c of n.childFrames ?? []) if (find(c)) return true;
-            return false;
-          })(tree);
-          if (has) {
-            owner = p;
-            break;
-          }
+      const send = (method: string, params?: object) =>
+        session.send(method, params).catch(() => {});
+      // make sure init scripts land before any subframe work.
+      installPromises.push(send("Page.enable"));
+      installPromises.push(send("Runtime.enable"));
+      installPromises.push(
+        session
+          .send("Target.setAutoAttach", {
+            autoAttach: true,
+            waitForDebuggerOnStart: true,
+            flatten: true,
+          })
+          .catch(() => {}),
+      );
+      // Send init scripts only after auto-attach has been issued.
+      if (this.initScripts.length) {
+        for (const source of this.initScripts) {
+          installPromises.push(
+            session.send("Page.addScriptToEvaluateOnNewDocument", {
+              source,
+              runImmediately: true,
+            }),
+          );
         }
       }
-
-      if (owner) {
-        owner.adoptOopifSession(session, childMainId);
-        this.sessionOwnerPage.set(sessionId, owner);
-        this.installFrameEventBridges(sessionId, owner);
-        // Prime the execution-context registry so later lookups succeed even if
-        // the frame navigates before we issue a command.
-        void executionContexts
-          .waitForMainWorld(session, childMainId)
-          .catch(() => {});
-      } else {
-        this.pendingOopifByMainFrame.set(childMainId, sessionId);
-      }
+      // register piercer (shadow-DOM hook) before resume so it runs
+      // before page scripts
+      installPromises.push(
+        session
+          .send("Page.addScriptToEvaluateOnNewDocument", {
+            source: v3ScriptContent,
+            runImmediately: true,
+          })
+          .then(() => {
+            piercerPreRegistered = true;
+          })
+          .catch(() => {}),
+      );
+      installPromises.push(resume());
     } catch {
-      // page.getFrameTree failed. Most likely was an ad iframe
-      // that opened & closed before we could attach. ignore
+      scriptsInstalled = false;
+    }
+    if (installPromises.length) {
+      const results = await Promise.allSettled(installPromises);
+      if (results.some((r) => r.status === "rejected")) {
+        scriptsInstalled = false;
+      }
+    }
+
+    // Only mark the piercer as installed when the pre-registration actually
+    // succeeded.  This lets ensurePiercer() short-circuit (avoiding sequential
+    // CDP round-trips that delay Page.create / installFrameEventBridges and
+    // cause same-process iframe frame-events to be missed) while still falling
+    // back to the full install path when registration failed.
+    if (piercerPreRegistered) {
+      this._piercerInstalled.add(sessionId);
+    }
+
+    try {
+      const piercerReady = await this.ensurePiercer(session);
+      if (!piercerReady) return;
+
+      await session
+        .send("Page.setLifecycleEventsEnabled", { enabled: true })
+        .catch(() => {});
+
+      // Top-level handling
+      if (isTopLevelPage(info)) {
+        const page = await Page.create(
+          this.conn,
+          session,
+          info.targetId,
+          this.apiClient,
+          this.localBrowserLaunchOptions,
+          this.env === "BROWSERBASE",
+        );
+        this.wireSessionToOwnerPage(sessionId, page);
+        this.pagesByTarget.set(info.targetId, page);
+        this.mainFrameToTarget.set(page.mainFrameId(), info.targetId);
+        this.sessionOwnerPage.set(sessionId, page);
+        this.frameOwnerPage.set(page.mainFrameId(), page);
+        this.typeByTarget.set(info.targetId, "page");
+        if (!this.createdAtByTarget.has(info.targetId)) {
+          this.createdAtByTarget.set(info.targetId, Date.now());
+        }
+        const pendingSeedUrl = this.pendingCreatedTargetUrl.get(info.targetId);
+        this.pendingCreatedTargetUrl.delete(info.targetId);
+        page.seedCurrentUrl(pendingSeedUrl ?? info.url ?? "");
+        this._pushActive(info.targetId);
+        this.installFrameEventBridges(sessionId, page);
+        // If we already installed scripts at the session level, only seed the
+        // Page's registry to avoid double-installing DOMContentLoaded handlers.
+        await this.applyInitScriptsToPage(page, {
+          seedOnly: scriptsInstalled,
+        });
+
+        return;
+      }
+
+      // Child (iframe / OOPIF)
+      try {
+        const { frameTree } =
+          await session.send<Protocol.Page.GetFrameTreeResponse>(
+            "Page.getFrameTree",
+          );
+        const childMainId = frameTree.frame.id;
+
+        // Try to find owner Page now (it may already have the node in its tree)
+        let owner = this.frameOwnerPage.get(childMainId);
+        if (!owner) {
+          for (const p of this.pagesByTarget.values()) {
+            const tree = p.asProtocolFrameTree(p.mainFrameId());
+            const has = (function find(n: Protocol.Page.FrameTree): boolean {
+              if (n.frame.id === childMainId) return true;
+              for (const c of n.childFrames ?? []) if (find(c)) return true;
+              return false;
+            })(tree);
+            if (has) {
+              owner = p;
+              break;
+            }
+          }
+        }
+
+        if (owner) {
+          owner.adoptOopifSession(session, childMainId);
+          this.sessionOwnerPage.set(sessionId, owner);
+          this.installFrameEventBridges(sessionId, owner);
+          // Prime the execution-context registry so later lookups succeed even if
+          // the frame navigates before we issue a command.
+          void executionContexts
+            .waitForMainWorld(session, childMainId)
+            .catch(() => {});
+        } else {
+          this.pendingOopifByMainFrame.set(childMainId, sessionId);
+        }
+      } catch {
+        // page.getFrameTree failed. Most likely was an ad iframe
+        // that opened & closed before we could attach. ignore
+      }
+    } finally {
+      await resume();
     }
   }
 
@@ -500,6 +659,10 @@ export class V3Context {
     )) {
       if (sid === sessionId) this.pendingOopifByMainFrame.delete(fid);
     }
+
+    this._targetSessionListeners.delete(sessionId);
+    this._sessionInit.delete(sessionId);
+    this._piercerInstalled.delete(sessionId);
   }
 
   /**

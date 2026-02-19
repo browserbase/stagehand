@@ -1,6 +1,7 @@
 // lib/v3/understudy/cdp.ts
 import WebSocket from "ws";
 import type { Protocol } from "devtools-protocol";
+import { STAGEHAND_VERSION } from "../../version.js";
 
 /**
  * CDP transport & session multiplexer
@@ -97,7 +98,12 @@ export class CdpConnection implements CDPSessionLike {
   }
 
   static async connect(wsUrl: string): Promise<CdpConnection> {
-    const ws = new WebSocket(wsUrl);
+    // Include User-Agent header for server-side observability and version tracking
+    const ws = new WebSocket(wsUrl, {
+      headers: {
+        "User-Agent": `Stagehand/${STAGEHAND_VERSION}`,
+      },
+    });
     await new Promise<void>((resolve, reject) => {
       ws.once("open", () => resolve());
       ws.once("error", (e) => reject(e));
@@ -109,12 +115,7 @@ export class CdpConnection implements CDPSessionLike {
     await this.send("Target.setAutoAttach", {
       autoAttach: true,
       flatten: true,
-      waitForDebuggerOnStart: false,
-      filter: [
-        { type: "worker", exclude: true },
-        { type: "shared_worker", exclude: true },
-        { type: "service_worker", exclude: true },
-      ],
+      waitForDebuggerOnStart: true,
     });
     await this.send("Target.setDiscoverTargets", { discover: true });
   }
@@ -134,6 +135,8 @@ export class CdpConnection implements CDPSessionLike {
         ts: Date.now(),
       });
     });
+    // Prevent unhandledRejection if a session detaches before the caller awaits.
+    void p.catch(() => {});
     this.cdpLogger?.({ method, params, targetId: null });
     this.ws.send(JSON.stringify(payload));
     return p;
@@ -266,6 +269,8 @@ export class CdpConnection implements CDPSessionLike {
         ts: Date.now(),
       });
     });
+    // Prevent unhandledRejection if a session detaches before the caller awaits.
+    void p.catch(() => {});
     const targetId = this.sessionToTarget.get(sessionId) ?? null;
     this.cdpLogger?.({ method, params, targetId });
     this.ws.send(JSON.stringify(payload));

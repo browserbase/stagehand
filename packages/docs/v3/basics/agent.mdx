@@ -49,13 +49,14 @@ Some advanced features are only available with certain agent modes:
 | Abort signal             | ❌  | ✅  | ✅     |
 | Message continuation     | ❌  | ✅  | ✅     |
 | Exclude tools            | ❌  | ✅  | ✅     |
+| Structured output        | ❌  | ✅  | ✅     |
 | DOM-based actions        | ❌  | ✅  | ✅     |
 | Coordinate-based actions | ✅  | ❌  | ✅     |
 | Visual cursor highlight  | ✅  | ❌  | ✅     |
 
 ### Computer Use Agents
 
-You can use specialized computer use models from either Google, OpenAI, or Anthropic as shown below, with `mode` set to `"cua"`. To compare the performance of different computer use models, you can visit our [evals page](https://www.stagehand.dev/agent-evals).
+You can use specialized computer use models from Google, OpenAI, Anthropic, or Microsoft as shown below, with `mode` set to `"cua"`. To compare the performance of different computer use models, you can visit our [evals page](https://www.stagehand.dev/agent-evals).
 
 <Warning>
 **Deprecation Notice:** The `cua: true` option is deprecated and will be removed in a future version. Use `mode: "cua"` instead.
@@ -140,7 +141,6 @@ Both DOM and CUA modes have their strengths and weaknesses. Hybrid mode combines
 
 Other models may not reliably produce accurate coordinates for clicking and typing.
 
-**Our recommendation:** `google/gemini-3-flash-preview` for the best balance of reliability, speed, and cost.
 </Warning>
 
 <Note>Hybrid mode requires `experimental: true` in your Stagehand constructor.</Note>
@@ -223,6 +223,11 @@ When you use `agent()`, Stagehand will return a `Promise<AgentResult>` with the 
     }
   ],
   completed: true,
+  // Only populated when `output` schema is provided (DOM/Hybrid modes only)
+  output: {
+    price: "$199",
+    airline: "Delta"
+  },
   usage: {
     input_tokens: 2040,
     output_tokens: 28,
@@ -815,6 +820,95 @@ const thirdResult = await agent.execute({
 
 console.log("Final action:", thirdResult.message);
 ```
+
+## Structured Output
+
+Define a Zod schema to receive structured data when the agent completes its task. This is useful when you need specific information extracted from the agent's execution, such as prices, dates, or other structured data.
+
+<Note>**Non-CUA agents only.** Structured output requires `experimental: true` and is not available with Computer Use Agents.</Note>
+
+<Tip>Use `.describe()` on schema fields to help the agent understand what data to extract.</Tip>
+
+<CodeGroup>
+```typescript Basic Usage
+import { z } from "zod/v3";
+
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true, // Required for structured output
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+});
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://www.google.com/flights");
+
+const result = await agent.execute({
+  instruction: "Find the cheapest flight from NYC to LA for next week",
+  maxSteps: 20,
+  output: z.object({
+    price: z.string().describe("The price of the flight"),
+    airline: z.string().describe("The airline name"),
+    departureTime: z.string().describe("Departure time"),
+    arrivalTime: z.string().describe("Arrival time"),
+  }),
+});
+
+// Access the structured output
+console.log(result.output);
+// { price: "$199", airline: "Delta", departureTime: "8:00 AM", arrivalTime: "11:30 AM" }
+```
+
+```typescript Complex Schema
+const result = await agent.execute({
+  instruction: "Extract all items from the shopping cart",
+  output: z.object({
+    items: z.array(z.object({
+      name: z.string().describe("Product name"),
+      quantity: z.number().describe("Quantity in cart"),
+      unitPrice: z.string().describe("Price per item"),
+      totalPrice: z.string().describe("Total price for this item"),
+    })).describe("List of items in the cart"),
+    subtotal: z.string().describe("Cart subtotal before tax"),
+    tax: z.string().optional().describe("Tax amount if shown"),
+    total: z.string().describe("Final total"),
+  }),
+});
+
+console.log(`Found ${result.output?.items.length} items in cart`);
+console.log(`Total: ${result.output?.total}`);
+```
+
+```typescript With Streaming
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+  stream: true,
+});
+
+const streamResult = await agent.execute({
+  instruction: "Find the top 3 search results",
+  output: z.object({
+    results: z.array(z.object({
+      title: z.string().describe("The title of the search result"),
+      url: z.string().url().describe("The URL of the search result"),
+      snippet: z.string().describe("A brief description or snippet"),
+    })).max(3).describe("Top 3 search results"),
+  }),
+});
+
+// Stream the text output
+for await (const delta of streamResult.textStream) {
+  process.stdout.write(delta);
+}
+
+// Get the structured output from the final result
+const finalResult = await streamResult.result;
+console.log(finalResult.output?.results);
+```
+</CodeGroup>
 
 ## Agent Execution Configuration
 

@@ -1,20 +1,12 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "module": "commonjs",
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "target": "es6",
-    "noImplicitAny": true,
-    "moduleResolution": "node",
-    "sourceMap": true,
     "outDir": "dist",
     "baseUrl": ".",
     "paths": {
       "*": ["node_modules/*", "packages/core/lib/types/*"],
       "@/*": ["./*"]
-    },
-    "skipLibCheck": true,
-    "declaration": true
+    }
   },
   "exclude": ["node_modules", "dist", ".eslintrc.cjs"]
 }

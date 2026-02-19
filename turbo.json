@@ -1,24 +1,33 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "globalDependencies": [
+    "package.json",
+    "packages/*/package.json",
     "tsconfig.json",
-    ".env"
+    "tsconfig.base.json"
   ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build", "gen-version"],
+      "dependsOn": ["^build", "gen-version", "build-dom-scripts"],
       "outputs": [
         "dist/**",
-        "lib/dom/build/**",
-        "lib/v3/dom/build/**",
-        "lib/version.ts"
+        "openapi.v3.yaml"
       ],
       "inputs": [
         "**/*.ts",
-        "**/*.tsx",
         "**/*.js",
         "package.json",
-        "tsconfig.json"
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "gen-version": {
+      "outputs": ["lib/version.ts"],
+      "inputs": [
+        "scripts/gen-version.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
       ]
     },
     "build-dom-scripts": {
@@ -27,34 +36,99 @@
         "lib/v3/dom/build/**"
       ],
       "inputs": [
-        "lib/v3/dom/**/*.ts"
+        "lib/v3/dom/**/*.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
       ]
     },
-    "build-js": {
-      "dependsOn": ["build-dom-scripts"],
-      "outputs": ["dist/**"],
+    "build:esm": {
+      "dependsOn": ["^build:esm", "gen-version", "build-dom-scripts"],
+      "outputs": [
+        "dist/esm/**"
+      ],
       "inputs": [
-        "lib/**/*.ts",
-        "lib/**/*.tsx"
+        "**/*.ts",
+        "**/*.js",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "build:esm-tests": {
+      "dependsOn": ["^build:esm"],
+      "outputs": ["dist/tests/**"],
+      "inputs": [
+        "test/**/*.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "build:sea:esm": {
+      "dependsOn": ["^build:esm"],
+      "outputs": [
+        "dist/sea/**",
+        "dist/app.mjs"
+      ],
+      "env": [
+        "SEA_BUILD_MODE",
+        "SEA_TARGET_PLATFORM",
+        "SEA_TARGET_ARCH",
+        "SEA_BINARY_NAME"
+      ],
+      "inputs": [
+        "src/**/*.ts",
+        "scripts/**/*.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "build:sea:cjs": {
+      "dependsOn": ["^build:cjs"],
+      "outputs": ["dist/sea/**"],
+      "env": [
+        "SEA_BUILD_MODE",
+        "SEA_TARGET_PLATFORM",
+        "SEA_TARGET_ARCH",
+        "SEA_BINARY_NAME"
+      ],
+      "inputs": [
+        "src/**/*.ts",
+        "scripts/**/*.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "build:cjs": {
+      "dependsOn": ["^build:cjs", "gen-version", "build-dom-scripts"],
+      "outputs": [
+        "dist/cjs/**"
+      ],
+      "inputs": [
+        "**/*.ts",
+        "**/*.js",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
       ]
     },
     "build:cli": {
       "dependsOn": ["^build"],
-      "outputs": [],
+      "outputs": ["dist/cli/**"],
       "inputs": [
         "cli.ts",
-        "evals.config.json"
+        "evals.config.json",
+        "scripts/**"
       ]
     },
-    "gen-version": {
-      "outputs": ["lib/version.ts"],
-      "inputs": ["package.json", "scripts/gen-version.ts"]
-    },
     "lint": {
+      "dependsOn": ["^build:esm"],
       "outputs": [],
       "inputs": [
         "**/*.ts",
-        "**/*.tsx",
         "**/*.js",
         "**/*.jsx",
         ".eslintrc*",
@@ -73,53 +147,135 @@
         "**/*.test.ts"
       ]
     },
-    "e2e": {
-      "dependsOn": ["build"],
-      "outputs": [
-        "playwright-report/**",
-        "test-results/**"
-      ],
-      "cache": false
-    },
-    "e2e:local": {
-      "dependsOn": ["build"],
-      "outputs": [
-        "playwright-report/**",
-        "test-results/**"
-      ],
-      "cache": false,
-      "env": [
-        "ANTHROPIC_API_KEY",
-        "OPENAI_API_KEY"
-      ]
-    },
-    "e2e:bb": {
-      "dependsOn": ["build"],
-      "outputs": [
-        "playwright-report/**",
-        "test-results/**"
-      ],
-      "cache": false,
-      "env": [
-        "BROWSERBASE_API_KEY",
-        "BROWSERBASE_PROJECT_ID",
-        "OPENAI_API_KEY",
-        "ANTHROPIC_API_KEY",
-        "GOOGLE_GENERATIVE_AI_API_KEY"
-      ]
-    },
-    "evals": {
-      "dependsOn": ["build"],
+    "test:core": {
+      "dependsOn": ["build:esm"],
       "outputs": [],
       "cache": false,
       "env": [
+        "ANTHROPIC_API_KEY",
+        "BROWSERBASE_API_KEY",
+        "BROWSERBASE_CDP_CONNECT_MAX_MS",
+        "BROWSERBASE_PROJECT_ID",
+        "BROWSERBASE_SESSION_CREATE_MAX_MS",
+        "CHROME_PATH",
+        "CTRF_JUNIT_PATH",
+        "GEMINI_API_KEY",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        "HEADLESS",
+        "LLM_MAX_MS",
+        "NODE_OPTIONS",
+        "NODE_V8_COVERAGE",
+        "OPENAI_API_KEY",
+        "STAGEHAND_BROWSER_TARGET",
+        "STAGEHAND_SERVER_TARGET",
+        "VITEST_CONSOLE_REPORTER"
+      ],
+      "inputs": [
+        "tests/**/*.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "test:e2e": {
+      "dependsOn": ["build:esm"],
+      "outputs": [
+        "playwright-report/**",
+        "test-results/**"
+      ],
+      "cache": false,
+      "env": [
+        "ANTHROPIC_API_KEY",
         "BROWSERBASE_API_KEY",
         "BROWSERBASE_PROJECT_ID",
-        "OPENAI_API_KEY",
-        "ANTHROPIC_API_KEY",
+        "BROWSERBASE_CDP_CONNECT_MAX_MS",
+        "BROWSERBASE_REGION",
+        "BROWSERBASE_SESSION_LIMIT_PER_E2E_TEST",
+        "BROWSERBASE_SESSION_CREATE_MAX_MS",
+        "CHROME_PATH",
+        "CTRF_JUNIT_PATH",
+        "GEMINI_API_KEY",
         "GOOGLE_GENERATIVE_AI_API_KEY",
+        "HEADLESS",
+        "LLM_MAX_MS",
+        "LOCAL_SESSION_LIMIT_PER_E2E_TEST",
+        "NODE_OPTIONS",
+        "NODE_V8_COVERAGE",
+        "OPENAI_API_KEY",
+        "PLAYWRIGHT_CONSOLE_REPORTER",
+        "STAGEHAND_BROWSER_TARGET",
+        "STAGEHAND_SERVER_TARGET"
+      ],
+      "inputs": [
+        "lib/v3/tests/**/*.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "test:evals": {
+      "dependsOn": ["build:esm", "build:cli"],
+      "outputs": [],
+      "cache": false,
+      "env": [
+        "ANTHROPIC_API_KEY",
         "BRAINTRUST_API_KEY",
-        "EVAL_ENV"
+        "BROWSERBASE_API_KEY",
+        "BROWSERBASE_CDP_CONNECT_MAX_MS",
+        "BROWSERBASE_PROJECT_ID",
+        "CHROME_PATH",
+        "EVAL_MAX_CONCURRENCY",
+        "EVAL_AGENT_MODELS",
+        "EVAL_AGENT_MODELS_CUA",
+        "EVAL_CATEGORIES",
+        "EVAL_MODELS",
+        "EVAL_TRIAL_COUNT",
+        "GEMINI_API_KEY",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        "LLM_MAX_MS",
+        "NODE_OPTIONS",
+        "NODE_V8_COVERAGE",
+        "OPENAI_API_KEY",
+        "STAGEHAND_BROWSER_TARGET",
+        "STAGEHAND_SERVER_TARGET"
+      ],
+      "inputs": [
+        "scripts/**",
+        "cli.ts",
+        "evals.config.json",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "test:server": {
+      "dependsOn": ["build:sea:esm", "build:esm-tests"],
+      "outputs": [],
+      "cache": false,
+      "env": [
+        "ANTHROPIC_API_KEY",
+        "BB_ENV",
+        "CHROME_PATH",
+        "GEMINI_API_KEY",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        "NODE_OPTIONS",
+        "NODE_TEST_CONSOLE_REPORTER",
+        "NODE_TEST_REPORTER",
+        "NODE_TEST_REPORTER_DESTINATION",
+        "NODE_V8_COVERAGE",
+        "OPENAI_API_KEY",
+        "SEA_BINARY_NAME",
+        "STAGEHAND_BASE_URL",
+        "STAGEHAND_BROWSER_TARGET",
+        "STAGEHAND_SERVER_TARGET"
+      ],
+      "inputs": [
+        "test/**/*.ts",
+        "scripts/**",
+        "src/**/*.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
       ]
     },
     "docs": {

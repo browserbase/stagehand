@@ -14,8 +14,33 @@ const endRouteHandler: RouteHandlerMethod = withErrorHandling(
       return error(reply, "Unauthorized", StatusCodes.UNAUTHORIZED);
     }
 
+    // This endpoint intentionally has no request body. Reject unexpected bodies to
+    // catch misconfigured clients, while still allowing empty JSON bodies.
+    const body = (request as { body?: unknown }).body;
+    if (body != null) {
+      if (typeof body !== "object" || Buffer.isBuffer(body)) {
+        return error(
+          reply,
+          "Request body must be empty",
+          StatusCodes.BAD_REQUEST,
+        );
+      }
+
+      if (Object.keys(body as Record<string, unknown>).length > 0) {
+        return error(
+          reply,
+          "Request body must be empty",
+          StatusCodes.BAD_REQUEST,
+        );
+      }
+    }
+
     const { id: sessionId } = request.params as Api.SessionIdParams;
     const sessionStore = getSessionStore();
+    const hasSession = await sessionStore.hasSession(sessionId);
+    if (!hasSession) {
+      return error(reply, "Session not found", StatusCodes.NOT_FOUND);
+    }
     await sessionStore.endSession(sessionId);
 
     return reply.status(StatusCodes.OK).send({ success: true });
@@ -29,7 +54,6 @@ const endRoute: RouteOptions = {
     ...Api.Operations.SessionEnd,
     headers: Api.SessionHeadersSchema,
     params: Api.SessionIdParamsSchema,
-    body: Api.SessionEndRequestSchema,
     response: {
       200: Api.SessionEndResponseSchema,
     },

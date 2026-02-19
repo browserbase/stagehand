@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { LogLine } from "../types/public/logs";
+import { LogLine } from "../types/public/logs.js";
 import {
   AgentAction,
   AgentResult,
@@ -11,19 +11,19 @@ import {
   FunctionCallItem,
   SafetyCheck,
   SafetyConfirmationHandler,
-} from "../types/public/agent";
-import { ClientOptions } from "../types/public/model";
-import { AgentClient } from "./AgentClient";
+} from "../types/public/agent.js";
+import { ClientOptions } from "../types/public/model.js";
+import { AgentClient } from "./AgentClient.js";
 import {
   AgentScreenshotProviderError,
   StagehandClosedError,
-} from "../types/public/sdkErrors";
+} from "../types/public/sdkErrors.js";
 import { ToolSet } from "ai";
 import {
   SessionFileLogger,
   formatCuaPromptPreview,
   formatCuaResponsePreview,
-} from "../flowLogger";
+} from "../flowLogger.js";
 import { v7 as uuidv7 } from "uuid";
 
 /**

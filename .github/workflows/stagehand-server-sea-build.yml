@@ -1,0 +1,85 @@
+name: Stagehand Server SEA Build
+
+on:
+  workflow_call:
+    inputs:
+      matrix:
+        description: "JSON matrix include list for SEA binaries."
+        required: false
+        type: string
+        default: |
+          [
+            {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64"},
+            {"os":"ubuntu-latest","platform":"linux","arch":"arm64","binary_name":"stagehand-server-linux-arm64"},
+            {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-darwin-arm64"},
+            {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-darwin-x64"},
+            {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe"},
+            {"os":"windows-latest","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe"}
+          ]
+  workflow_dispatch:
+    inputs:
+      matrix:
+        description: "JSON matrix include list for SEA binaries."
+        required: false
+        default: |
+          [
+            {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64"},
+            {"os":"ubuntu-latest","platform":"linux","arch":"arm64","binary_name":"stagehand-server-linux-arm64"},
+            {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-darwin-arm64"},
+            {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-darwin-x64"},
+            {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe"},
+            {"os":"windows-latest","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe"}
+          ]
+
+jobs:
+  build_binaries:
+    name: Build SEA binaries (${{ matrix.binary_name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(inputs.matrix) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          fetch-tags: false
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: 'pnpm'
+          cache-dependency-path: '**/pnpm-lock.yaml'
+
+      - name: Install dependencies
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: pnpm install --frozen-lockfile
+
+      - name: Build SEA binary (CJS)
+        env:
+          SEA_TARGET_PLATFORM: ${{ matrix.platform }}
+          SEA_TARGET_ARCH: ${{ matrix.arch }}
+          SEA_BINARY_NAME: ${{ matrix.binary_name }}
+        run: |
+          pnpm exec turbo run build:sea:cjs
+
+      - name: Verify SEA binary exists
+        shell: bash
+        run: |
+          test -f "packages/server/dist/sea/${{ matrix.binary_name }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.binary_name }}
+          # package.json is included to anchor artifact paths at repo root.
+          path: |
+            package.json
+            packages/server/dist/sea/${{ matrix.binary_name }}
+          retention-days: 7

@@ -5,7 +5,7 @@ import {
   findNodeByBackendId,
   mergeDomNodes,
   shouldExpandNode,
-} from "../lib/v3/understudy/a11y/snapshot/domTree";
+} from "../lib/v3/understudy/a11y/snapshot/domTree.js";
 
 let nextNodeId = 1;
 const makeNode = (

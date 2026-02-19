@@ -1,29 +1,29 @@
 // lib/v3/handlers/actHandler.ts
-import { act as actInference } from "../../inference";
-import { buildActPrompt, buildStepTwoPrompt } from "../../prompt";
-import { trimTrailingTextNode } from "../../utils";
-import { v3Logger } from "../logger";
-import { ActHandlerParams } from "../types/private/handlers";
-import { ActResult, Action, V3FunctionName } from "../types/public/methods";
-import { ActTimeoutError } from "../types/public/sdkErrors";
+import { act as actInference } from "../../inference.js";
+import { buildActPrompt, buildStepTwoPrompt } from "../../prompt.js";
+import { trimTrailingTextNode } from "../../utils.js";
+import { v3Logger } from "../logger.js";
+import { ActHandlerParams } from "../types/private/handlers.js";
+import { ActResult, Action, V3FunctionName } from "../types/public/methods.js";
+import { ActTimeoutError } from "../types/public/sdkErrors.js";
 import {
   captureHybridSnapshot,
   diffCombinedTrees,
-} from "../understudy/a11y/snapshot";
-import { LLMClient } from "../llm/LLMClient";
-import { SupportedPlaywrightAction } from "../types/private";
-import { EncodedId } from "../types/private/internal";
+} from "../understudy/a11y/snapshot/index.js";
+import { LLMClient } from "../llm/LLMClient.js";
+import { SupportedUnderstudyAction } from "../types/private/index.js";
+import { EncodedId } from "../types/private/internal.js";
 import {
   AvailableModel,
   ClientOptions,
   ModelConfiguration,
-} from "../types/public/model";
-import type { Page } from "../understudy/page";
+} from "../types/public/model.js";
+import type { Page } from "../understudy/page.js";
 import {
   performUnderstudyMethod,
   waitForDomNetworkQuiet,
-} from "./handlerUtils/actHandlerUtils";
-import { createTimeoutGuard } from "./handlerUtils/timeoutGuard";
+} from "./handlerUtils/actHandlerUtils.js";
+import { createTimeoutGuard } from "./handlerUtils/timeoutGuard.js";
 
 type ActInferenceElement = {
   elementId?: string;
@@ -157,7 +157,7 @@ export class ActHandler {
 
     const actInstruction = buildActPrompt(
       instruction,
-      Object.values(SupportedPlaywrightAction),
+      Object.values(SupportedUnderstudyAction),
       variables,
     );
 
@@ -218,13 +218,13 @@ export class ActHandler {
     const stepTwoInstructions = buildStepTwoPrompt(
       instruction,
       previousAction,
-      Object.values(SupportedPlaywrightAction).filter(
+      Object.values(SupportedUnderstudyAction).filter(
         (
           action,
         ): action is Exclude<
-          SupportedPlaywrightAction,
-          SupportedPlaywrightAction.SELECT_OPTION_FROM_DROPDOWN
-        > => action !== SupportedPlaywrightAction.SELECT_OPTION_FROM_DROPDOWN,
+          SupportedUnderstudyAction,
+          SupportedUnderstudyAction.SELECT_OPTION_FROM_DROPDOWN
+        > => action !== SupportedUnderstudyAction.SELECT_OPTION_FROM_DROPDOWN,
       ),
       variables,
     );
@@ -364,7 +364,7 @@ export class ActHandler {
 
           const instruction = buildActPrompt(
             actCommand,
-            Object.values(SupportedPlaywrightAction),
+            Object.values(SupportedUnderstudyAction),
             {},
           );
 
@@ -471,10 +471,47 @@ function normalizeActInferenceElement(
     return undefined;
   }
 
+  // For dragAndDrop, convert element ID in arguments to xpath (target element)
+  let resolvedArgs = hasArgs ? args : undefined;
+  if (method === "dragAndDrop" && hasArgs && args.length > 0) {
+    const targetArg = args[0];
+    // Check if argument looks like an element ID (e.g., "1-67")
+    if (typeof targetArg === "string" && /^\d+-\d+$/.test(targetArg)) {
+      const argXpath = xpathMap[targetArg as EncodedId];
+      const trimmedArgXpath = trimTrailingTextNode(argXpath);
+      if (trimmedArgXpath) {
+        resolvedArgs = [`xpath=${trimmedArgXpath}`, ...args.slice(1)];
+      } else {
+        // Target element lookup failed, filter out this action
+        v3Logger({
+          category: "action",
+          message: "dragAndDrop target element lookup failed",
+          level: 1,
+          auxiliary: {
+            targetElementId: { value: targetArg, type: "string" },
+            sourceElementId: { value: elementId, type: "string" },
+          },
+        });
+        return undefined;
+      }
+    } else {
+      v3Logger({
+        category: "action",
+        message: "dragAndDrop target element invalid ID format",
+        level: 0,
+        auxiliary: {
+          targetElementId: { value: String(targetArg), type: "string" },
+          sourceElementId: { value: elementId, type: "string" },
+        },
+      });
+      return undefined;
+    }
+  }
+
   return {
     description,
     method,
-    arguments: hasArgs ? args : undefined,
+    arguments: resolvedArgs,
     selector: `xpath=${trimmed}`,
   } as Action;
 }

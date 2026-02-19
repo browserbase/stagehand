@@ -1,12 +1,12 @@
 import type { Protocol } from "devtools-protocol";
-import type { CDPSessionLike } from "../../cdp";
-import { StagehandDomProcessError } from "../../../types/public/sdkErrors";
-import type { SessionDomIndex } from "../../../types/private/snapshot";
+import type { CDPSessionLike } from "../../cdp.js";
+import { StagehandDomProcessError } from "../../../types/public/sdkErrors.js";
+import type { SessionDomIndex } from "../../../types/private/snapshot.js";
 import {
   buildChildXPathSegments,
   joinXPath,
   normalizeXPath,
-} from "./xpathUtils";
+} from "./xpathUtils.js";
 
 // starting from infinite depth (-1), exponentially shrink down to 1
 const DOM_DEPTH_ATTEMPTS = [-1, 256, 128, 64, 32, 16, 8, 4, 2, 1];

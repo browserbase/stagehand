@@ -29,11 +29,14 @@ import endRoute from "./routes/v1/sessions/_id/end.js";
 import extractRoute from "./routes/v1/sessions/_id/extract.js";
 import navigateRoute from "./routes/v1/sessions/_id/navigate.js";
 import observeRoute from "./routes/v1/sessions/_id/observe.js";
+import replayRoute from "./routes/v1/sessions/_id/replay.js";
 import startRoute from "./routes/v1/sessions/start.js";
 
 // Constants for graceful shutdown
 const READY_WAIT_PERIOD = 10_000; // 10 seconds
 const GRACEFUL_SHUTDOWN_PERIOD = 30_000; // 30 seconds
+
+const usePrettyLogs = process.env.NODE_ENV === "development" && !process.env.CI;
 
 const app = fastify({
   disableRequestLogging: true,
@@ -51,7 +54,7 @@ const app = fastify({
 
     level: process.env.NODE_ENV === "production" ? "info" : "trace",
 
-    ...(process.env.NODE_ENV === "development" && {
+    ...(usePrettyLogs && {
       transport: {
         options: {
           colorize: true,
@@ -66,6 +69,22 @@ const app = fastify({
 });
 
 export const logger = app.log;
+
+// Allow requests with `Content-Type: application/json` and an empty body (0 bytes).
+// Some clients always send the header even when there is no request body (e.g. /end).
+const defaultJsonParser = app.getDefaultJsonParser("error", "error");
+app.addContentTypeParser<string>(
+  "application/json",
+  { parseAs: "string" },
+  (request, body, done) => {
+    if (body === "" || (Buffer.isBuffer(body) && body.length === 0)) {
+      done(null, {});
+      return;
+    }
+
+    void defaultJsonParser(request, body, done);
+  },
+);
 
 process.on("uncaughtException", (error) => {
   app.log.error(error, "Uncaught Exception:");
@@ -166,7 +185,7 @@ const start = async () => {
           .map((err) => (err as RequestValidationError).params.issue);
 
         request.log.warn({ zodIssues }, "request validation failed");
-        return reply.status(StatusCodes.UNPROCESSABLE_ENTITY).send({
+        return reply.status(StatusCodes.BAD_REQUEST).send({
           error: "Request validation failed",
           issues: zodIssues,
         });
@@ -224,6 +243,7 @@ const start = async () => {
         instance.route(extractRoute);
         instance.route(navigateRoute);
         instance.route(observeRoute);
+        instance.route(replayRoute);
         instance.route(startRoute);
         instance.route(agentExecuteRoute);
         done();

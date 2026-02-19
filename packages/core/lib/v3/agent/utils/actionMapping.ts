@@ -1,5 +1,5 @@
-import { AgentAction } from "../../types/public/agent";
-import { ActionMappingOptions } from "../../types/private/agent";
+import { AgentAction } from "../../types/public/agent.js";
+import { ActionMappingOptions } from "../../types/private/agent.js";
 
 /**
  * Keys to exclude from tool outputs when mapping to actions.
@@ -121,7 +121,7 @@ function createStandardAction(
     type: toolCallName,
     reasoning,
     taskCompleted:
-      toolCallName === "close" ? (args?.taskComplete as boolean) : false,
+      toolCallName === "done" ? (args?.taskComplete as boolean) : false,
     ...args,
   };
 

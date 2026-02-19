@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "../v3";
-import { v3TestConfig } from "./v3.config";
-import { V3Context } from "../understudy/context";
+import { V3 } from "../v3.js";
+import { v3TestConfig } from "./v3.config.js";
+import { V3Context } from "../understudy/context.js";
 
 const toDataUrl = (html: string): string =>
   `data:text/html,${encodeURIComponent(html)}`;
@@ -49,23 +49,25 @@ test.describe("context.addInitScript", () => {
   test("re-applies the script on every navigation for the same page", async () => {
     const page = await ctx.awaitActivePage();
 
-    await ctx.addInitScript(() => {
-      function markVisit() {
-        const root = document.documentElement;
-        if (!root) return;
-        const current = Number(window.name || "0");
-        const next = current + 1;
-        window.name = String(next);
-        root.dataset.visitCount = String(next);
-      }
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", markVisit, {
-          once: true,
-        });
-      } else {
-        markVisit();
-      }
-    });
+    await ctx.addInitScript(`
+      (function () {
+        function markVisit() {
+          var root = document.documentElement;
+          if (!root) return;
+          var current = Number(window.name || "0");
+          var next = current + 1;
+          window.name = String(next);
+          root.dataset.visitCount = String(next);
+        }
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", markVisit, {
+            once: true,
+          });
+        } else {
+          markVisit();
+        }
+      })();
+    `);
 
     await page.goto(toDataUrl("<html><body>first</body></html>"), {
       waitUntil: "load",
@@ -87,6 +89,37 @@ test.describe("context.addInitScript", () => {
   test("applies script (with args) to newly created pages", async () => {
     const payload = { greeting: "hi", nested: { count: 2 } };
 
+    const initPayload = ((arg) => {
+      function setPayload() {
+        const root = document.documentElement;
+        if (!root) return;
+        root.dataset.initPayload = JSON.stringify(arg);
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", setPayload, {
+          once: true,
+        });
+      } else {
+        setPayload();
+      }
+    }) as (arg: typeof payload) => void;
+    await ctx.addInitScript(initPayload, payload);
+
+    const newPage = await ctx.newPage();
+    await newPage.goto(toDataUrl("<html><body>child</body></html>"), {
+      waitUntil: "load",
+    });
+
+    const observed = await newPage.evaluate(() => {
+      const raw = document.documentElement.dataset.initPayload;
+      return raw ? JSON.parse(raw) : undefined;
+    });
+    expect(observed).toEqual(payload);
+  });
+
+  test("applies script to newPage(url) on initial document", async () => {
+    const payload = { marker: "newPageUrl" };
+
     await ctx.addInitScript((arg) => {
       function setPayload(): void {
         const root = document.documentElement;
@@ -102,12 +135,63 @@ test.describe("context.addInitScript", () => {
       }
     }, payload);
 
-    const newPage = await ctx.newPage();
-    await newPage.goto(toDataUrl("<html><body>child</body></html>"), {
-      waitUntil: "load",
-    });
+    const newPage = await ctx.newPage(
+      toDataUrl("<html><body>new page</body></html>"),
+    );
+    await newPage.waitForLoadState("load");
 
     const observed = await newPage.evaluate(() => {
+      const raw = document.documentElement.dataset.initPayload;
+      return raw ? JSON.parse(raw) : undefined;
+    });
+    expect(observed).toEqual(payload);
+  });
+
+  test("applies script to pages opened via link clicks", async () => {
+    const payload = { marker: "linkClick" };
+
+    await ctx.addInitScript((arg) => {
+      function setPayload(): void {
+        const root = document.documentElement;
+        if (!root) return;
+        root.dataset.initPayload = JSON.stringify(arg);
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", setPayload, {
+          once: true,
+        });
+      } else {
+        setPayload();
+      }
+    }, payload);
+
+    const popupUrl = toDataUrl("<html><body>popup</body></html>");
+    const openerHtml =
+      "<!DOCTYPE html>" +
+      "<html><body>" +
+      '<a id="open" target="_blank" href="' +
+      popupUrl +
+      '">open</a>' +
+      "</body></html>";
+
+    const opener = await ctx.awaitActivePage();
+    await opener.goto(toDataUrl(openerHtml), { waitUntil: "load" });
+    await opener.locator("#open").click();
+
+    const openerId = opener.targetId();
+    const deadline = Date.now() + 2000;
+    let popup = ctx.pages().find((p) => p.targetId() !== openerId);
+    while (!popup && Date.now() < deadline) {
+      await opener.waitForTimeout(25);
+      popup = ctx.pages().find((p) => p.targetId() !== openerId);
+    }
+    if (!popup) {
+      throw new Error("Popup page was not created");
+    }
+
+    await popup.waitForLoadState("load");
+
+    const observed = await popup.evaluate(() => {
       const raw = document.documentElement.dataset.initPayload;
       return raw ? JSON.parse(raw) : undefined;
     });

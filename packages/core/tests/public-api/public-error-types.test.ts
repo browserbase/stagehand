@@ -1,5 +1,5 @@
 import { describe, expectTypeOf, it } from "vitest";
-import * as Stagehand from "../../dist";
+import * as Stagehand from "@browserbasehq/stagehand";
 
 export const publicErrorTypes = {
   AgentAbortError: Stagehand.AgentAbortError,
@@ -37,6 +37,7 @@ export const publicErrorTypes = {
   StagehandIframeError: Stagehand.StagehandIframeError,
   StagehandInitError: Stagehand.StagehandInitError,
   StagehandInvalidArgumentError: Stagehand.StagehandInvalidArgumentError,
+  StagehandLocatorError: Stagehand.StagehandLocatorError,
   StagehandMissingArgumentError: Stagehand.StagehandMissingArgumentError,
   StagehandNotInitializedError: Stagehand.StagehandNotInitializedError,
   StagehandResponseBodyError: Stagehand.StagehandResponseBodyError,
@@ -59,6 +60,7 @@ export const publicErrorTypes = {
   ActTimeoutError: Stagehand.ActTimeoutError,
   ObserveTimeoutError: Stagehand.ObserveTimeoutError,
   ExtractTimeoutError: Stagehand.ExtractTimeoutError,
+  UnderstudyCommandException: Stagehand.UnderstudyCommandException,
 } as const;
 
 const errorTypes = Object.keys(publicErrorTypes) as Array<

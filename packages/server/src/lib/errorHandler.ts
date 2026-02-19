@@ -62,7 +62,7 @@ export function withErrorHandling<
 
       return error(
         reply,
-        "An unexpected error occurred",
+        "An internal server error occurred",
         StatusCodes.INTERNAL_SERVER_ERROR,
       );
     }

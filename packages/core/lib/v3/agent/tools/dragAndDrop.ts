@@ -1,14 +1,14 @@
 import { tool } from "ai";
 import { z } from "zod";
-import type { V3 } from "../../v3";
-import type { Action } from "../../types/public/methods";
+import type { V3 } from "../../v3.js";
+import type { Action } from "../../types/public/methods.js";
 import type {
   DragAndDropToolResult,
   ModelOutputContentItem,
-} from "../../types/public/agent";
-import { processCoordinates } from "../utils/coordinateNormalization";
-import { ensureXPath } from "../utils/xpath";
-import { waitAndCaptureScreenshot } from "../utils/screenshotHandler";
+} from "../../types/public/agent.js";
+import { processCoordinates } from "../utils/coordinateNormalization.js";
+import { ensureXPath } from "../utils/xpath.js";
+import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
 
 export const dragAndDropTool = (v3: V3, provider?: string) =>
   tool({

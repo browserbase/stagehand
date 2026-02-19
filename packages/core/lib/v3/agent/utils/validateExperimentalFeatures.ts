@@ -1,8 +1,11 @@
 import {
   ExperimentalNotConfiguredError,
   StagehandInvalidArgumentError,
-} from "../../types/public/sdkErrors";
-import type { AgentConfig, AgentExecuteOptionsBase } from "../../types/public";
+} from "../../types/public/sdkErrors.js";
+import type {
+  AgentConfig,
+  AgentExecuteOptionsBase,
+} from "../../types/public/index.js";
 
 export interface AgentValidationOptions {
   /** Whether experimental mode is enabled */
@@ -35,7 +38,10 @@ export function validateExperimentalFeatures(
   const { isExperimental, agentConfig, executeOptions, isStreaming } = options;
 
   // Check if CUA mode is enabled (via mode: "cua" or deprecated cua: true)
-  const isCuaMode = agentConfig?.mode === "cua" || agentConfig?.cua === true;
+  const isCuaMode =
+    agentConfig?.mode !== undefined
+      ? agentConfig.mode === "cua"
+      : agentConfig?.cua === true;
 
   // CUA-specific validation: certain features are not available at all
   if (isCuaMode) {

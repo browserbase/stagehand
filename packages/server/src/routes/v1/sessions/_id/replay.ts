@@ -5,7 +5,7 @@ import { Api } from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { withErrorHandling } from "../../../../lib/errorHandler.js";
-import { error } from "../../../../lib/response.js";
+import { error, success } from "../../../../lib/response.js";
 
 const replayRouteHandler: RouteHandlerMethod = withErrorHandling(
   async (request, reply) => {
@@ -13,7 +13,13 @@ const replayRouteHandler: RouteHandlerMethod = withErrorHandling(
       return error(reply, "Unauthorized", StatusCodes.UNAUTHORIZED);
     }
 
-    return error(reply, "Not implemented", StatusCodes.NOT_IMPLEMENTED);
+    reply.log.warn("Replay endpoint not implemented for local server.");
+
+    const replay: Api.ReplayResult = {
+      pages: [],
+    };
+
+    return success(reply, replay);
   },
 );
 
@@ -22,7 +28,6 @@ const replayRoute: RouteOptions = {
   url: "/sessions/:id/replay",
   schema: {
     ...Api.Operations.SessionReplay,
-    hide: true, // Hide from OpenAPI documentation
     headers: Api.SessionHeadersSchema,
     params: Api.SessionIdParamsSchema,
     response: {

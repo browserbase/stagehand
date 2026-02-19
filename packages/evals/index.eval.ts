@@ -12,24 +12,26 @@
  * - Runs each selected task against each selected model in parallel, collecting results.
  * - Saves a summary of the evaluation results to `../../eval-summary.json`.
  */
-import path from "path";
-import process from "process";
+import fs from "node:fs";
+import path from "node:path";
+import process from "node:process";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   DEFAULT_EVAL_CATEGORIES,
   filterByCategory,
   filterByEvalName,
-} from "./args";
-import { generateExperimentName } from "./utils";
-import { exactMatch, errorMatch } from "./scoring";
+} from "./args.js";
+import { generateExperimentName } from "./utils.js";
+import { exactMatch, errorMatch } from "./scoring.js";
 import {
   tasksByName,
   tasksConfig,
   getModelList,
   getAgentModelEntries,
-} from "./taskConfig";
+} from "./taskConfig.js";
 import { Eval } from "braintrust";
-import { SummaryResult, Testcase, EvalInput } from "./types/evals";
-import { EvalLogger } from "./logger";
+import { SummaryResult, Testcase, EvalInput } from "./types/evals.js";
+import { EvalLogger } from "./logger.js";
 import {
   AvailableModel,
   LLMClient,
@@ -37,18 +39,22 @@ import {
   AgentProvider,
   loadApiKeyFromEnv,
   LogLine,
+  getAISDKLanguageModel,
 } from "@browserbasehq/stagehand";
-import { AISdkClientWrapped } from "./lib/AISdkClientWrapped";
-import { getAISDKLanguageModel } from "@browserbasehq/stagehand/lib/v3/llm/LLMProvider";
-import { env } from "./env";
-import dotenv from "dotenv";
-import { initV3 } from "./initV3";
-import { generateSummary } from "./summary";
-import { buildGAIATestcases } from "./suites/gaia";
-import { buildWebVoyagerTestcases } from "./suites/webvoyager";
-import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web";
+import { AISdkClientWrapped } from "./lib/AISdkClientWrapped.js";
+import { env } from "./env.js";
+import { initV3 } from "./initV3.js";
+import { generateSummary } from "./summary.js";
+import { buildGAIATestcases } from "./suites/gaia.js";
+import { buildWebVoyagerTestcases } from "./suites/webvoyager.js";
+import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web.js";
+import { endBrowserbaseSession } from "./browserbaseCleanup.js";
+import { buildWebTailBenchTestcases } from "./suites/webtailbench.js";
 
+import dotenv from "dotenv";
 dotenv.config();
+
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Read max concurrency and trial count from environment variables set in args.ts.
@@ -175,6 +181,24 @@ const generateFilteredTestcases = (): Testcase[] => {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/onlineMind2Web");
   }
 
+  // Special handling: fan out WebTailBench dataset for agent/webtailbench
+  const isWebTailBenchTaskIncluded =
+    taskNamesToRun.includes("agent/webtailbench");
+
+  if (
+    isWebTailBenchTaskIncluded &&
+    (!datasetFilter || datasetFilter === "webtailbench")
+  ) {
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webtailbench");
+    allTestcases.push(...buildWebTailBenchTestcases(currentModels));
+  } else if (
+    isWebTailBenchTaskIncluded &&
+    datasetFilter &&
+    datasetFilter !== "webtailbench"
+  ) {
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webtailbench");
+  }
+
   // Create a list of all remaining testcases using the determined task names and models
   const isAgentCategory =
     effectiveCategory === "agent" ||
@@ -273,44 +297,23 @@ const generateFilteredTestcases = (): Testcase[] => {
         const logger = new EvalLogger();
         // Track V3 instance at outer scope to ensure cleanup in all cases
         let v3Input: Awaited<ReturnType<typeof initV3>> | undefined;
+        let v3ToClose: Awaited<ReturnType<typeof initV3>>["v3"] | null = null;
 
         try {
-          // Dynamically import the task based on its name
-          const taskModulePath = path.join(
-            __dirname,
-            "tasks",
-            `${input.name}.ts`,
+          const taskBasePath = path.join(moduleDir, "tasks", input.name);
+          const taskCandidates = [`${taskBasePath}.js`, `${taskBasePath}.ts`];
+          const taskModulePath = taskCandidates.find((candidate) =>
+            fs.existsSync(candidate),
           );
 
-          // Check if file exists at direct path
-          let taskModule;
-          try {
-            // First try to import directly (for backward compatibility)
-            taskModule = await import(taskModulePath);
-          } catch (error) {
-            if (input.name.includes("/")) {
-              // If the name includes a path separator, try to import from subdirectory
-              const subDirPath = path.join(
-                __dirname,
-                "tasks",
-                `${input.name}.ts`,
-              );
-              try {
-                taskModule = await import(subDirPath);
-              } catch (subError) {
-                throw new StagehandEvalError(
-                  `Failed to import task module for ${input.name}. Tried paths:\n` +
-                    `- ${taskModulePath}\n` +
-                    `- ${subDirPath}\n` +
-                    `Error: ${subError.message}`,
-                );
-              }
-            } else {
-              throw new StagehandEvalError(
-                `Failed to import task module for ${input.name} at path ${taskModulePath}: ${error.message}`,
-              );
-            }
+          if (!taskModulePath) {
+            throw new StagehandEvalError(
+              `Failed to find task module for ${input.name}. Tried paths:\n` +
+                taskCandidates.map((candidate) => `- ${candidate}`).join("\n"),
+            );
           }
+
+          const taskModule = await import(pathToFileURL(taskModulePath).href);
 
           // Extract the task function
           const taskName = input.name.includes("/")
@@ -365,13 +368,15 @@ const generateFilteredTestcases = (): Testcase[] => {
               createAgent: isAgentTask,
               isCUA: input.isCUA,
             });
+            v3ToClose = v3Input.v3;
           } else {
             let llmClient: LLMClient;
             if (input.modelName.includes("/")) {
+              const firstSlashIndex = input.modelName.indexOf("/");
               llmClient = new AISdkClientWrapped({
                 model: getAISDKLanguageModel(
-                  input.modelName.split("/")[0],
-                  input.modelName.split("/")[1],
+                  input.modelName.substring(0, firstSlashIndex),
+                  input.modelName.substring(firstSlashIndex + 1),
                 ),
               });
             }
@@ -382,6 +387,7 @@ const generateFilteredTestcases = (): Testcase[] => {
               createAgent: isAgentTask,
               isCUA: input.isCUA,
             });
+            v3ToClose = v3Input.v3;
           }
           // Pass full EvalInput to the task (data-driven params available via input.params)
           const result = await taskFunction({ ...v3Input, input });
@@ -432,6 +438,7 @@ const generateFilteredTestcases = (): Testcase[] => {
               );
             }
           }
+          await endBrowserbaseSession(v3ToClose);
           // Clear logger to free memory (logs already captured in result)
           logger.clear();
         }

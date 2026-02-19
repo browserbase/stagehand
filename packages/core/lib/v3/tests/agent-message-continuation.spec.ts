@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "../v3";
-import { v3TestConfig } from "./v3.config";
+import { V3 } from "../v3.js";
+import { v3TestConfig } from "./v3.config.js";
 import type { ModelMessage } from "ai";
 
 test.describe("Stagehand agent message continuation", () => {
@@ -29,8 +29,7 @@ test.describe("Stagehand agent message continuation", () => {
     await page.goto("https://example.com");
 
     const result = await agent.execute({
-      instruction:
-        "What is the title of this page? Use close tool with taskComplete: true after answering.",
+      instruction: "What is the title of this page? Describe it briefly.",
       maxSteps: 5,
     });
 
@@ -56,8 +55,7 @@ test.describe("Stagehand agent message continuation", () => {
 
     // First execution
     const result1 = await agent.execute({
-      instruction:
-        "What is the title of this page? Use close tool with taskComplete: true after answering.",
+      instruction: "What is the title of this page? Describe it briefly.",
       maxSteps: 5,
     });
 
@@ -67,7 +65,7 @@ test.describe("Stagehand agent message continuation", () => {
     // Second execution continuing from first
     const result2 = await agent.execute({
       instruction:
-        "Based on what you just told me, is this a simple or complex website? Use close tool with taskComplete: true after answering.",
+        "Based on what you just told me, is this a simple or complex website? Answer briefly.",
       maxSteps: 5,
       messages: result1.messages,
     });
@@ -89,7 +87,7 @@ test.describe("Stagehand agent message continuation", () => {
 
     const result = await agent.execute({
       instruction:
-        "Use the ariaTree tool to see the page, then use close tool with taskComplete: true.",
+        "Use the ariaTree tool to see the page, then describe what you found briefly.",
       maxSteps: 5,
     });
 
@@ -131,8 +129,7 @@ test.describe("Stagehand agent message continuation", () => {
     await page.goto("https://example.com");
 
     const streamResult = await agent.execute({
-      instruction:
-        "What is this page? Use close tool with taskComplete: true after answering.",
+      instruction: "What is this page? Describe it briefly.",
       maxSteps: 5,
     });
 

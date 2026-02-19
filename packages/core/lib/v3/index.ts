@@ -1,17 +1,20 @@
-export { V3 } from "./v3";
-export { V3 as Stagehand } from "./v3";
+export { V3 } from "./v3.js";
+export { V3 as Stagehand } from "./v3.js";
 
-export * from "./types/public";
-export { AnnotatedScreenshotText, LLMClient } from "./llm/LLMClient";
+export * from "./types/public/index.js";
+export { AnnotatedScreenshotText, LLMClient } from "./llm/LLMClient.js";
 
-export { AgentProvider, modelToAgentProviderMap } from "./agent/AgentProvider";
+export {
+  AgentProvider,
+  modelToAgentProviderMap,
+} from "./agent/AgentProvider.js";
 export type {
   AgentTools,
   AgentToolTypesMap,
   AgentUITools,
   AgentToolCall,
   AgentToolResult,
-} from "./agent/tools";
+} from "./agent/tools/index.js";
 
 export {
   validateZodSchema,
@@ -24,13 +27,15 @@ export {
   loadApiKeyFromEnv,
   trimTrailingTextNode,
   jsonSchemaToZod,
-  imageResize,
-} from "../utils";
-export { isZod4Schema, isZod3Schema, toJsonSchema } from "./zodCompat";
+} from "../utils.js";
+export { isZod4Schema, isZod3Schema, toJsonSchema } from "./zodCompat.js";
 
-export { connectToMCPServer } from "./mcp/connection";
-export { V3Evaluator } from "../v3Evaluator";
+export { connectToMCPServer } from "./mcp/connection.js";
+export { V3Evaluator } from "../v3Evaluator.js";
 export { tool } from "ai";
+export { getAISDKLanguageModel } from "./llm/LLMProvider.js";
+export { __internalCreateInMemoryAgentCacheHandle } from "./cache/serverAgentCache.js";
+export type { ServerAgentCacheHandle } from "./cache/serverAgentCache.js";
 
 export type {
   ChatMessage,
@@ -42,13 +47,13 @@ export type {
   CreateChatCompletionOptions,
   LLMUsage,
   LLMParsedResponse,
-} from "./llm/LLMClient";
+} from "./llm/LLMClient.js";
 
 export type {
   StagehandZodSchema,
   StagehandZodObject,
   InferStagehandSchema,
   JsonSchemaDocument,
-} from "./zodCompat";
+} from "./zodCompat.js";
 
-export type { JsonSchema, JsonSchemaProperty } from "../utils";
+export type { JsonSchema, JsonSchemaProperty } from "../utils.js";

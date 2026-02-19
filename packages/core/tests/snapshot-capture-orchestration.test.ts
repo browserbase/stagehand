@@ -1,13 +1,16 @@
 import type { Protocol } from "devtools-protocol";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CDPSessionLike } from "../lib/v3/understudy/cdp";
-import type { Page } from "../lib/v3/understudy/page";
-import type { FrameContext, SessionDomIndex } from "../lib/v3/types/private";
-import * as capture from "../lib/v3/understudy/a11y/snapshot/capture";
-import * as a11yTree from "../lib/v3/understudy/a11y/snapshot/a11yTree";
-import * as domTree from "../lib/v3/understudy/a11y/snapshot/domTree";
-import * as focusSelectors from "../lib/v3/understudy/a11y/snapshot/focusSelectors";
-import { MockCDPSession } from "./helpers/mockCDPSession";
+import type { CDPSessionLike } from "../lib/v3/understudy/cdp.js";
+import type { Page } from "../lib/v3/understudy/page.js";
+import type {
+  FrameContext,
+  SessionDomIndex,
+} from "../lib/v3/types/private/index.js";
+import * as capture from "../lib/v3/understudy/a11y/snapshot/capture.js";
+import * as a11yTree from "../lib/v3/understudy/a11y/snapshot/a11yTree.js";
+import * as domTree from "../lib/v3/understudy/a11y/snapshot/domTree.js";
+import * as focusSelectors from "../lib/v3/understudy/a11y/snapshot/focusSelectors.js";
+import { MockCDPSession } from "./helpers/mockCDPSession.js";
 
 const makeProtocolFrame = (id: string): Protocol.Page.Frame =>
   ({
@@ -212,6 +215,7 @@ describe("collectPerFrameMaps", () => {
       sessionToIndex,
       { experimental: true },
       true,
+      context.frames,
     );
 
     expect(result.perFrameOutlines).toEqual([
@@ -260,11 +264,49 @@ describe("collectPerFrameMaps", () => {
       sessionToIndex,
       undefined,
       false,
+      context.frames,
     );
 
     expect(buildSpy).toHaveBeenCalledWith(session, false);
     expect(sessionToIndex.get("new-session")).toBe(idx);
     expect(result.perFrameMaps.get("frame-9")?.xpathMap["2-100"]).toBe("/");
+  });
+
+  it("skips frames that are not listed in the frameIds argument", async () => {
+    const session = new MockCDPSession({}, "session-a");
+    const page = makePage({
+      getSessionForFrame: () => session,
+      getOrdinal: (frameId: string) => (frameId === "frame-1" ? 0 : 1),
+    });
+    const context: FrameContext = {
+      rootId: "frame-1",
+      frames: ["frame-1", "frame-2"],
+      parentByFrame: new Map([
+        ["frame-1", null],
+        ["frame-2", "frame-1"],
+      ]),
+    };
+    const sessionIndex = makeSessionIndex();
+    const sessionToIndex = new Map([[session.id, sessionIndex]]);
+
+    const a11ySpy = vi.spyOn(a11yTree, "a11yForFrame").mockResolvedValue({
+      outline: "outline",
+      urlMap: {},
+      scopeApplied: false,
+    });
+
+    const result = await capture.collectPerFrameMaps(
+      page,
+      context,
+      sessionToIndex,
+      undefined,
+      true,
+      ["frame-1"],
+    );
+
+    expect(a11ySpy).toHaveBeenCalledTimes(1);
+    expect(result.perFrameMaps.has("frame-2")).toBe(false);
+    expect(result.perFrameOutlines.map((o) => o.frameId)).toEqual(["frame-1"]);
   });
 });
 
@@ -275,6 +317,45 @@ describe("captureHybridSnapshot", () => {
       getSessionForFrame: () => session,
     });
     const options = { focusSelector: "/html" };
+
+    vi.spyOn(focusSelectors, "resolveFocusFrameAndTail").mockResolvedValue({
+      targetFrameId: "frame-1",
+      tailXPath: "",
+      absPrefix: "",
+    });
+    const domMapsSpy = vi
+      .spyOn(domTree, "domMapsForSession")
+      .mockResolvedValue({
+        tagNameMap: { "0-100": "#document" },
+        xpathMap: { "0-100": "/" },
+        scrollableMap: {},
+      });
+    const a11ySpy = vi.spyOn(a11yTree, "a11yForFrame").mockResolvedValue({
+      outline: "scoped outline",
+      urlMap: { "0-100": "https://frame-1.test" },
+      scopeApplied: true,
+    });
+    const buildIndexSpy = vi
+      .spyOn(domTree, "buildSessionDomIndex")
+      .mockImplementation(() => {
+        throw new Error("should not build session index when scoped");
+      });
+
+    const result = await capture.captureHybridSnapshot(page, options);
+
+    expect(result.combinedTree).toBe("scoped outline");
+    expect(result.combinedUrlMap["0-100"]).toBe("https://frame-1.test");
+    expect(domMapsSpy).toHaveBeenCalled();
+    expect(a11ySpy).toHaveBeenCalled();
+    expect(buildIndexSpy).not.toHaveBeenCalled();
+  });
+
+  it("scoped snapshot still succeeds when iframe inclusion is disabled", async () => {
+    const session = new MockCDPSession({}, "session-a");
+    const page = makePage({
+      getSessionForFrame: () => session,
+    });
+    const options = { focusSelector: "/html", includeIframes: false };
 
     vi.spyOn(focusSelectors, "resolveFocusFrameAndTail").mockResolvedValue({
       targetFrameId: "frame-1",
@@ -348,5 +429,44 @@ describe("captureHybridSnapshot", () => {
       "frame-1",
       "frame-2",
     ]);
+  });
+
+  it("omits iframe frames when includeIframes is false", async () => {
+    const session = new MockCDPSession(
+      {
+        "DOM.getFrameOwner": async () => ({ backendNodeId: 150 }),
+      },
+      "session-a",
+    );
+    const page = makePage({
+      asProtocolFrameTree: () =>
+        makeFrameTree("frame-1", [makeFrameTree("frame-2")]),
+      listAllFrameIds: () => ["frame-1", "frame-2"],
+      getSessionForFrame: () => session,
+      getOrdinal: (frameId: string) => (frameId === "frame-1" ? 0 : 1),
+    });
+
+    const idx = makeSessionIndex();
+    vi.spyOn(domTree, "buildSessionDomIndex").mockResolvedValue(idx);
+    const a11ySpy = vi
+      .spyOn(a11yTree, "a11yForFrame")
+      .mockImplementation(async (_sess, frameId) => ({
+        outline:
+          frameId === "frame-1"
+            ? "[0-150] iframe host"
+            : "[1-200] child subtree",
+        urlMap: { [`url-${frameId}`]: `https://${frameId}.test` },
+        scopeApplied: false,
+      }));
+
+    const snapshot = await capture.captureHybridSnapshot(page, {
+      includeIframes: false,
+    });
+
+    expect(a11ySpy).toHaveBeenCalledTimes(1);
+    expect(session.callsFor("DOM.getFrameOwner")).toHaveLength(0);
+    expect(snapshot.perFrame?.map((pf) => pf.frameId)).toEqual(["frame-1"]);
+    expect(snapshot.combinedXpathMap["1-201"]).toBeUndefined();
+    expect(snapshot.combinedTree).not.toContain("[1-200] child subtree");
   });
 });

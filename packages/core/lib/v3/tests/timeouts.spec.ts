@@ -1,7 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "../v3";
-import { v3DynamicTestConfig } from "./v3.dynamic.config";
+import { V3 } from "../v3.js";
+import { v3DynamicTestConfig } from "./v3.dynamic.config.js";
 import { z } from "zod";
+import { closeV3 } from "./testUtils.js";
 
 test.describe("V3 hard timeouts", () => {
   let v3: V3;
@@ -12,7 +13,7 @@ test.describe("V3 hard timeouts", () => {
   });
 
   test.afterEach(async () => {
-    await v3?.close?.().catch(() => {});
+    await closeV3(v3);
   });
 
   test("observe() enforces timeoutMs", async () => {

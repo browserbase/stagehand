@@ -67,13 +67,18 @@ interface AgentInstance {
   - An object with `modelName` and additional provider-specific options
 
   **Available CUA Models:**
-  - `"openai/computer-use-preview"`
-  - `"openai/computer-use-preview-2025-03-11"`
   - `"anthropic/claude-3-7-sonnet-latest"`
   - `"anthropic/claude-haiku-4-5-20251001"`
   - `"anthropic/claude-sonnet-4-20250514"`
   - `"anthropic/claude-sonnet-4-5-20250929"`
+  - `"anthropic/claude-opus-4-5-20251101"`
+  - `"anthropic/claude-opus-4-6"`
   - `"google/gemini-2.5-computer-use-preview-10-2025"`
+  - `"google/gemini-3-flash-preview"`
+  - `"google/gemini-3-pro-preview"`
+  - `"microsoft/fara-7b"`
+  - `"openai/computer-use-preview"`
+  - `"openai/computer-use-preview-2025-03-11"`
 
   <Expandable title="AgentModelConfig Object">
     <ParamField path="modelName" type="string" required>
@@ -157,6 +162,7 @@ interface AgentExecuteOptions {
   messages?: ModelMessage[]; // Continue from previous conversation (experimental)
   signal?: AbortSignal; // Cancel execution (experimental)
   excludeTools?: string[]; // Tools to exclude from this execution (experimental)
+  output?: ZodObject; // Zod schema for structured output (experimental)
   callbacks?: AgentExecuteCallbacks;
 }
 
@@ -185,6 +191,7 @@ interface AgentStreamExecuteOptions {
   messages?: ModelMessage[]; // Continue from previous conversation (experimental)
   signal?: AbortSignal; // Cancel execution (experimental)
   excludeTools?: string[]; // Tools to exclude from this execution (experimental)
+  output?: ZodObject; // Zod schema for structured output (experimental)
   callbacks?: AgentStreamCallbacks;
 }
 
@@ -254,6 +261,27 @@ interface AgentStreamCallbacks {
   <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `cua: true`.</Warning>
 </ParamField>
 
+<ParamField path="output" type="ZodObject" optional>
+  A Zod schema defining structured output data to return when the task completes. The agent will populate this data based on the information it gathered during execution. The result will be available in `AgentResult.output`.
+
+  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `mode: "cua"`.</Warning>
+
+  ```typescript
+  import { z } from "zod/v3";
+
+  const result = await agent.execute({
+    instruction: "Find the cheapest flight from NYC to LA",
+    output: z.object({
+      price: z.string().describe("The price of the flight"),
+      airline: z.string().describe("The airline name"),
+      departureTime: z.string().describe("Departure time"),
+    }),
+  });
+
+  console.log(result.output); // { price: "$199", airline: "Delta", departureTime: "8:00 AM" }
+  ```
+</ParamField>
+
 <ParamField path="callbacks" type="AgentExecuteCallbacks | AgentStreamCallbacks" optional>
   Callbacks to hook into the agent's execution lifecycle. The available callbacks depend on whether streaming is enabled.
 
@@ -306,6 +334,7 @@ interface AgentResult {
   completed: boolean;
   metadata?: Record<string, unknown>;
   messages?: ModelMessage[]; // Conversation history for continuation (experimental)
+  output?: Record<string, unknown>; // Structured output data (experimental)
   usage?: {
     input_tokens: number;
     output_tokens: number;
@@ -380,6 +409,12 @@ interface AgentStreamResult {
   <Note>**Non-CUA agents only.** Requires `experimental: true`.</Note>
 </ResponseField>
 
+<ResponseField name="output" type="Record<string, unknown>" optional>
+  Custom structured output data extracted based on the `output` Zod schema provided in execute options. Only populated if an `output` schema was provided.
+
+  <Note>**Non-CUA agents only.** Requires `experimental: true`.</Note>
+</ResponseField>
+
 <ResponseField name="usage" type="object" optional>
   Token usage and performance metrics.
 
@@ -423,6 +458,11 @@ interface AgentStreamResult {
   "completed": true,
   "metadata": {
     "steps_taken": 2
+  },
+  "output": {
+    "price": "$199",
+    "airline": "Delta",
+    "departureTime": "8:00 AM"
   },
   "usage": {
     "input_tokens": 1250,
@@ -736,6 +776,46 @@ const result = await agent.execute({
 });
 
 console.log("Completed:", result.completed);
+```
+
+</Tab>
+<Tab title="Structured Output">
+
+```typescript
+import { z } from "zod/v3";
+
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true, // Required for structured output
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+});
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://www.google.com/flights");
+
+// Define output schema to receive structured data
+const result = await agent.execute({
+  instruction: "Find the cheapest flight from NYC to LA for next week",
+  maxSteps: 20,
+  output: z.object({
+    price: z.string().describe("The price of the flight"),
+    airline: z.string().describe("The airline name"),
+    departureTime: z.string().describe("Departure time"),
+    arrivalTime: z.string().describe("Arrival time"),
+    flightNumber: z.string().optional().describe("Flight number if available"),
+  }),
+});
+
+// Access the structured output
+console.log("Flight found:");
+console.log(`  Price: ${result.output?.price}`);
+console.log(`  Airline: ${result.output?.airline}`);
+console.log(`  Departure: ${result.output?.departureTime}`);
+console.log(`  Arrival: ${result.output?.arrivalTime}`);
 ```
 
 </Tab>

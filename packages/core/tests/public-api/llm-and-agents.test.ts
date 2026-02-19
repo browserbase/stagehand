@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
-import * as Stagehand from "../../dist/index.js";
+import * as Stagehand from "@browserbasehq/stagehand";
 
 describe("LLM and Agents public API types", () => {
   describe("AISdkClient", () => {
@@ -26,10 +26,13 @@ describe("LLM and Agents public API types", () => {
       "openai/computer-use-preview-2025-03-11",
       "anthropic/claude-3-7-sonnet-latest",
       "anthropic/claude-opus-4-5-20251101",
+      "anthropic/claude-opus-4-6",
       "anthropic/claude-haiku-4-5-20251001",
       "anthropic/claude-sonnet-4-20250514",
       "anthropic/claude-sonnet-4-5-20250929",
       "google/gemini-2.5-computer-use-preview-10-2025",
+      "google/gemini-3-flash-preview",
+      "google/gemini-3-pro-preview",
       "microsoft/fara-7b",
     ] as const;
 

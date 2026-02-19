@@ -13,6 +13,10 @@ export type SnapshotOptions = {
    */
   pierceShadow?: boolean;
   /**
+   * Toggle whether iframe subtrees are included in the merged snapshot. Defaults to true.
+   */
+  includeIframes?: boolean;
+  /**
    * Optional feature flag that surfaces experimental traversal tweaks in the Accessibility layer.
    */
   experimental?: boolean;

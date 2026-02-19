@@ -1,8 +1,7 @@
-import { EvalFunction } from "../../types/evals";
-import { V3Evaluator, imageResize } from "@browserbasehq/stagehand";
-import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
-import dotenv from "dotenv";
-dotenv.config();
+import { EvalFunction } from "../../types/evals.js";
+import { V3Evaluator } from "@browserbasehq/stagehand";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector.js";
+import { imageResize } from "../../utils/imageResize.js";
 
 export const onlineMind2Web: EvalFunction = async ({
   v3,

@@ -275,6 +275,11 @@ export const ProxyConfigSchema = z
   ])
   .meta({ id: "ProxyConfig" });
 
+/** Browserbase region identifier for multi-region support */
+export const BrowserbaseRegionSchema = z
+  .enum(["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"])
+  .meta({ id: "BrowserbaseRegion" });
+
 /** Browserbase session creation parameters */
 export const BrowserbaseSessionCreateParamsSchema = z
   .object({
@@ -283,9 +288,7 @@ export const BrowserbaseSessionCreateParamsSchema = z
     extensionId: z.string().optional(),
     keepAlive: z.boolean().optional(),
     proxies: z.union([z.boolean(), z.array(ProxyConfigSchema)]).optional(),
-    region: z
-      .enum(["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"])
-      .optional(),
+    region: BrowserbaseRegionSchema.optional(),
     timeout: z.number().optional(),
     userMetadata: z.record(z.string(), z.unknown()).optional(),
   })
@@ -369,14 +372,11 @@ export const SessionStartResponseSchema = wrapResponse(
 // Session End
 // =============================================================================
 
-/** Session end request - empty JSON object (required). */
+/** Session end request - no request body. */
 export const SessionEndRequestSchema = z
-  .object({
-    // Dummy property to ensure Stainless generates body parameter
-    // The server accepts {} (this field should be omitted)
-    _forceBody: z.undefined().optional(),
-  })
+  .object({})
   .strict()
+  .optional()
   .meta({ id: "SessionEndRequest" });
 
 export const SessionEndResultSchema = z
@@ -400,7 +400,10 @@ export const SessionEndResponseSchema = z
 
 export const ActOptionsSchema = z
   .object({
-    model: ModelConfigSchema.optional(),
+    model: z.union([ModelConfigSchema, z.string()]).optional().meta({
+      description:
+        "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
+    }),
     variables: z
       .record(z.string(), z.string())
       .optional()
@@ -471,7 +474,10 @@ export const ActResponseSchema = wrapResponse(ActResultSchema, "ActResponse");
 
 export const ExtractOptionsSchema = z
   .object({
-    model: ModelConfigSchema.optional(),
+    model: z.union([ModelConfigSchema, z.string()]).optional().meta({
+      description:
+        "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
+    }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the extraction",
       example: 30000,
@@ -529,7 +535,10 @@ export const ExtractResponseSchema = wrapResponse(
 
 export const ObserveOptionsSchema = z
   .object({
-    model: ModelConfigSchema.optional(),
+    model: z.union([ModelConfigSchema, z.string()]).optional().meta({
+      description:
+        "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
+    }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the observation",
       example: 30000,
@@ -587,13 +596,26 @@ export const AgentConfigSchema = z
           "AI provider for the agent (legacy, use model: openai/gpt-5-nano instead)",
         example: "openai",
       }),
-    model: ModelConfigSchema.optional(),
+    model: z.union([ModelConfigSchema, z.string()]).optional().meta({
+      description:
+        "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
+    }),
     systemPrompt: z.string().optional().meta({
       description: "Custom system prompt for the agent",
     }),
     cua: z.boolean().optional().meta({
-      description: "Enable Computer Use Agent mode",
+      description:
+        "Deprecated. Use mode: 'cua' instead. If both are provided, mode takes precedence.",
       example: true,
+    }),
+    mode: z.enum(["dom", "hybrid", "cua"]).optional().meta({
+      description:
+        "Tool mode for the agent (dom, hybrid, cua). If set, overrides cua.",
+      example: "cua",
+    }),
+    executionModel: z.union([ModelConfigSchema, z.string()]).optional().meta({
+      description:
+        "Model configuration object or model name string (e.g., 'openai/gpt-5-nano') for tool execution (observe/act calls within agent tools). If not specified, inherits from the main model configuration.",
     }),
   })
   .meta({ id: "AgentConfig" });
@@ -652,6 +674,18 @@ export const AgentResultDataSchema = z
   })
   .meta({ id: "AgentResultData" });
 
+export const AgentCacheEntrySchema = z
+  .object({
+    cacheKey: z.string().meta({
+      description:
+        "Opaque cache identifier computed from instruction, URL, options, and config",
+    }),
+    entry: z.unknown().meta({
+      description: "Serialized cache entry that can be written to disk",
+    }),
+  })
+  .meta({ id: "AgentCacheEntry" });
+
 export const AgentExecuteOptionsSchema = z
   .object({
     instruction: z.string().meta({
@@ -681,12 +715,17 @@ export const AgentExecuteRequestSchema = z
       description: "Whether to stream the response via SSE",
       example: true,
     }),
+    shouldCache: z.boolean().optional().meta({
+      description:
+        "If true, the server captures a cache entry and returns it to the client",
+    }),
   })
   .meta({ id: "AgentExecuteRequest" });
 
 export const AgentExecuteResultSchema = z
   .object({
     result: AgentResultDataSchema,
+    cacheEntry: AgentCacheEntrySchema.optional(),
   })
   .meta({ id: "AgentExecuteResult" });
 
@@ -769,16 +808,19 @@ export const TokenUsageSchema = z
   .object({
     inputTokens: z.number().optional(),
     outputTokens: z.number().optional(),
-    reasoningTokens: z.number().optional(),
-    cachedInputTokens: z.number().optional(),
     timeMs: z.number().optional(),
+    cost: z.number().optional(),
   })
   .meta({ id: "TokenUsage" });
 
 /** Action entry in replay metrics */
 export const ReplayActionSchema = z
   .object({
-    method: z.string().optional(),
+    method: z.string(),
+    parameters: z.record(z.string(), z.unknown()),
+    result: z.record(z.string(), z.unknown()),
+    timestamp: z.number(),
+    endTime: z.number().optional(),
     tokenUsage: TokenUsageSchema.optional(),
   })
   .meta({ id: "ReplayAction" });
@@ -786,14 +828,18 @@ export const ReplayActionSchema = z
 /** Page entry in replay metrics */
 export const ReplayPageSchema = z
   .object({
-    actions: z.array(ReplayActionSchema).optional(),
+    url: z.string(),
+    timestamp: z.number(),
+    duration: z.number(),
+    actions: z.array(ReplayActionSchema),
   })
   .meta({ id: "ReplayPage" });
 
 /** Inner result data for replay */
 export const ReplayResultSchema = z
   .object({
-    pages: z.array(ReplayPageSchema).optional(),
+    pages: z.array(ReplayPageSchema),
+    clientLanguage: z.string().optional(),
   })
   .meta({ id: "ReplayResult" });
 
@@ -1023,6 +1069,7 @@ export type BrowserbaseProxyConfig = z.infer<
   typeof BrowserbaseProxyConfigSchema
 >;
 export type ExternalProxyConfig = z.infer<typeof ExternalProxyConfigSchema>;
+export type BrowserbaseRegion = z.infer<typeof BrowserbaseRegionSchema>;
 export type BrowserbaseSessionCreateParams = z.infer<
   typeof BrowserbaseSessionCreateParamsSchema
 >;

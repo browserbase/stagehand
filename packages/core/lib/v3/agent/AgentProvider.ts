@@ -1,16 +1,16 @@
 import { ToolSet } from "ai/dist";
-import { AgentProviderType } from "../types/public/agent";
-import { LogLine } from "../types/public/logs";
-import { ClientOptions } from "../types/public/model";
+import { AgentProviderType } from "../types/public/agent.js";
+import { LogLine } from "../types/public/logs.js";
+import { ClientOptions } from "../types/public/model.js";
 import {
   UnsupportedModelError,
   UnsupportedModelProviderError,
-} from "../types/public/sdkErrors";
-import { AgentClient } from "./AgentClient";
-import { AnthropicCUAClient } from "./AnthropicCUAClient";
-import { OpenAICUAClient } from "./OpenAICUAClient";
-import { GoogleCUAClient } from "./GoogleCUAClient";
-import { MicrosoftCUAClient } from "./MicrosoftCUAClient";
+} from "../types/public/sdkErrors.js";
+import { AgentClient } from "./AgentClient.js";
+import { AnthropicCUAClient } from "./AnthropicCUAClient.js";
+import { OpenAICUAClient } from "./OpenAICUAClient.js";
+import { GoogleCUAClient } from "./GoogleCUAClient.js";
+import { MicrosoftCUAClient } from "./MicrosoftCUAClient.js";
 
 // Map model names to their provider types
 export const modelToAgentProviderMap: Record<string, AgentProviderType> = {
@@ -20,8 +20,11 @@ export const modelToAgentProviderMap: Record<string, AgentProviderType> = {
   "claude-sonnet-4-20250514": "anthropic",
   "claude-sonnet-4-5-20250929": "anthropic",
   "claude-opus-4-5-20251101": "anthropic",
+  "claude-opus-4-6": "anthropic",
   "claude-haiku-4-5-20251001": "anthropic",
   "gemini-2.5-computer-use-preview-10-2025": "google",
+  "gemini-3-flash-preview": "google",
+  "gemini-3-pro-preview": "google",
   "fara-7b": "microsoft",
 };
 

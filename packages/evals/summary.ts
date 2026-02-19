@@ -1,6 +1,21 @@
 import fs from "fs";
-import { tasksByName } from "./taskConfig";
-import type { SummaryResult } from "./types/evals";
+import path from "path";
+import { tasksByName } from "./taskConfig.js";
+import type { SummaryResult } from "./types/evals.js";
+
+const findRepoRoot = (startDir: string): string => {
+  let current = path.resolve(startDir);
+  while (true) {
+    if (fs.existsSync(path.join(current, "pnpm-workspace.yaml"))) {
+      return current;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return startDir;
+    }
+    current = parent;
+  }
+};
 
 export const generateSummary = async (
   results: SummaryResult[],
@@ -61,9 +76,10 @@ export const generateSummary = async (
     models,
   };
 
-  fs.writeFileSync(
-    "../../eval-summary.json",
-    JSON.stringify(formattedSummary, null, 2),
+  const summaryPath = path.join(
+    findRepoRoot(process.cwd()),
+    "eval-summary.json",
   );
-  console.log("Evaluation summary written to ../../eval-summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(formattedSummary, null, 2));
+  console.log(`Evaluation summary written to ${summaryPath}`);
 };

@@ -8,7 +8,7 @@ import {
   Tool,
   GoogleGenAIOptions,
 } from "@google/genai";
-import { LogLine } from "../types/public/logs";
+import { LogLine } from "../types/public/logs.js";
 import {
   AgentAction,
   AgentResult,
@@ -16,28 +16,28 @@ import {
   AgentExecutionOptions,
   SafetyCheck,
   SafetyConfirmationHandler,
-} from "../types/public/agent";
-import { ClientOptions } from "../types/public/model";
-import { AgentClient } from "./AgentClient";
+} from "../types/public/agent.js";
+import { ClientOptions } from "../types/public/model.js";
+import { AgentClient } from "./AgentClient.js";
 import {
   AgentScreenshotProviderError,
   LLMResponseError,
   StagehandClosedError,
-} from "../types/public/sdkErrors";
-import { buildGoogleCUASystemPrompt } from "../../prompt";
-import { compressGoogleConversationImages } from "./utils/imageCompression";
-import { mapKeyToPlaywright } from "./utils/cuaKeyMapping";
+} from "../types/public/sdkErrors.js";
+import { buildGoogleCUASystemPrompt } from "../../prompt.js";
+import { compressGoogleConversationImages } from "./utils/imageCompression.js";
+import { mapKeyToPlaywright } from "./utils/cuaKeyMapping.js";
 import {
   executeGoogleCustomTool,
   isCustomTool,
   convertToolSetToFunctionDeclarations,
-} from "./utils/googleCustomToolHandler";
+} from "./utils/googleCustomToolHandler.js";
 import { ToolSet } from "ai";
 import {
   SessionFileLogger,
   formatCuaPromptPreview,
   formatCuaResponsePreview,
-} from "../flowLogger";
+} from "../flowLogger.js";
 import { v7 as uuidv7 } from "uuid";
 
 /**

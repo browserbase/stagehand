@@ -1,4 +1,4 @@
-import { EvalFunction } from "../types/evals";
+import { EvalFunction } from "../types/evals.js";
 
 export const csr_in_spif: EvalFunction = async ({
   debugUrl,

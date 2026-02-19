@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
-import type { ActHandler } from "../handlers/actHandler";
-import type { LLMClient } from "../llm/LLMClient";
+import type { ActHandler } from "../handlers/actHandler.js";
+import type { LLMClient } from "../llm/LLMClient.js";
 import type {
   AgentReplayActStep,
   AgentReplayFillFormStep,
@@ -15,7 +15,8 @@ import type {
   ActFn,
   AgentCacheContext,
   AgentCacheDeps,
-} from "../types/private";
+  AgentCacheTransferPayload,
+} from "../types/private/index.js";
 import type {
   Action,
   AgentResult,
@@ -24,11 +25,15 @@ import type {
   AgentExecuteOptionsBase,
   AvailableModel,
   Logger,
-} from "../types/public";
-import type { Page } from "../understudy/page";
-import type { V3Context } from "../understudy/context";
-import { CacheStorage } from "./CacheStorage";
-import { cloneForCache, safeGetPageUrl } from "./utils";
+} from "../types/public/index.js";
+import type { Page } from "../understudy/page.js";
+import type { V3Context } from "../understudy/context.js";
+import { CacheStorage } from "./CacheStorage.js";
+import {
+  cloneForCache,
+  safeGetPageUrl,
+  waitForCachedSelector,
+} from "./utils.js";
 
 const SENSITIVE_CONFIG_KEYS = new Set(["apikey", "api_key", "api-key"]);
 
@@ -42,8 +47,10 @@ export class AgentCache {
   private readonly getSystemPrompt: () => string | undefined;
   private readonly domSettleTimeoutMs?: number;
   private readonly act: ActFn;
+  private readonly bufferLatestEntry: boolean;
 
   private recording: AgentReplayStep[] | null = null;
+  private latestEntry: AgentCacheTransferPayload | null = null;
 
   constructor({
     storage,
@@ -55,6 +62,7 @@ export class AgentCache {
     getSystemPrompt,
     domSettleTimeoutMs,
     act,
+    bufferLatestEntry,
   }: AgentCacheDeps) {
     this.storage = storage;
     this.logger = logger;
@@ -65,6 +73,7 @@ export class AgentCache {
     this.getSystemPrompt = getSystemPrompt;
     this.domSettleTimeoutMs = domSettleTimeoutMs;
     this.act = act;
+    this.bufferLatestEntry = bufferLatestEntry ?? false;
   }
 
   get enabled(): boolean {
@@ -112,7 +121,9 @@ export class AgentCache {
     );
 
     const isCuaMode =
-      agentOptions?.mode === "cua" || agentOptions?.cua === true;
+      agentOptions?.mode !== undefined
+        ? agentOptions.mode === "cua"
+        : agentOptions?.cua === true;
 
     return JSON.stringify({
       v3Model: this.getBaseModelName(),
@@ -368,6 +379,56 @@ export class AgentCache {
         steps: { value: String(steps.length), type: "string" },
       },
     });
+
+    if (this.bufferLatestEntry) {
+      this.latestEntry = {
+        cacheKey: context.cacheKey,
+        entry: cloneForCache(entry),
+      };
+    }
+  }
+
+  consumeBufferedEntry(): AgentCacheTransferPayload | null {
+    if (!this.bufferLatestEntry || !this.latestEntry) {
+      return null;
+    }
+
+    const payload = this.latestEntry;
+    this.latestEntry = null;
+    return payload;
+  }
+
+  async storeTransferredEntry(
+    payload: AgentCacheTransferPayload | null,
+  ): Promise<void> {
+    if (!this.enabled || !payload) return;
+
+    const entry = cloneForCache(payload.entry);
+    const { error, path } = await this.storage.writeJson(
+      `agent-${payload.cacheKey}.json`,
+      entry,
+    );
+    if (error && path) {
+      this.logger({
+        category: "cache",
+        message: "failed to import remote agent cache entry",
+        level: 0,
+        auxiliary: {
+          error: { value: String(error), type: "string" },
+        },
+      });
+      return;
+    }
+
+    this.logger({
+      category: "cache",
+      message: "agent cache imported from server",
+      level: 2,
+      auxiliary: {
+        instruction: { value: entry.instruction, type: "string" },
+        steps: { value: String(entry.steps?.length ?? 0), type: "string" },
+      },
+    });
   }
 
   /**
@@ -588,7 +649,7 @@ export class AgentCache {
       case "keys":
         await this.replayAgentKeysStep(step as AgentReplayKeysStep, ctx);
         return step;
-      case "close":
+      case "done":
       case "extract":
       case "screenshot":
       case "ariaTree":
@@ -614,6 +675,13 @@ export class AgentCache {
       const page = await ctx.awaitActivePage();
       const updatedActions: Action[] = [];
       for (const action of actions) {
+        await waitForCachedSelector({
+          page,
+          selector: action.selector,
+          timeout: this.domSettleTimeoutMs,
+          logger: this.logger,
+          context: "agent act",
+        });
         const result = await handler.takeDeterministicAction(
           action,
           page,
@@ -651,6 +719,13 @@ export class AgentCache {
     const page = await ctx.awaitActivePage();
     const updatedActions: Action[] = [];
     for (const action of actions) {
+      await waitForCachedSelector({
+        page,
+        selector: action.selector,
+        timeout: this.domSettleTimeoutMs,
+        logger: this.logger,
+        context: "fillForm",
+      });
       const result = await handler.takeDeterministicAction(
         action,
         page,

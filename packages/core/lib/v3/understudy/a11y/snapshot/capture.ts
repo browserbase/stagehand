@@ -1,7 +1,7 @@
 import type { Protocol } from "devtools-protocol";
-import type { CDPSessionLike } from "../../cdp";
-import { Page } from "../../page";
-import { v3Logger } from "../../../logger";
+import type { CDPSessionLike } from "../../cdp.js";
+import { Page } from "../../page.js";
+import { v3Logger } from "../../../logger.js";
 import type {
   FrameContext,
   FrameDomMaps,
@@ -9,20 +9,20 @@ import type {
   HybridSnapshot,
   SnapshotOptions,
   SessionDomIndex,
-} from "../../../types/private";
-import { a11yForFrame } from "./a11yTree";
+} from "../../../types/private/index.js";
+import { a11yForFrame } from "./a11yTree.js";
 import {
   resolveCssFocusFrameAndTail,
   resolveFocusFrameAndTail,
-} from "./focusSelectors";
+} from "./focusSelectors.js";
 import {
   buildSessionDomIndex,
   domMapsForSession,
   relativizeXPath,
-} from "./domTree";
-import { injectSubtrees } from "./treeFormatUtils";
-import { ownerSession, parentSession } from "./sessions";
-import { normalizeXPath, prefixXPath } from "./xpathUtils";
+} from "./domTree.js";
+import { injectSubtrees } from "./treeFormatUtils.js";
+import { ownerSession, parentSession } from "./sessions.js";
+import { normalizeXPath, prefixXPath } from "./xpathUtils.js";
 
 /**
  * Capture a hybrid DOM + Accessibility snapshot for the provided page.
@@ -47,6 +47,7 @@ export async function captureHybridSnapshot(
   options?: SnapshotOptions,
 ): Promise<HybridSnapshot> {
   const pierce = options?.pierceShadow ?? true;
+  const includeIframes = options?.includeIframes !== false;
 
   const context = buildFrameContext(page);
 
@@ -58,22 +59,25 @@ export async function captureHybridSnapshot(
   );
   if (scopedSnapshot) return scopedSnapshot;
 
-  const sessionToIndex = await buildSessionIndexes(
-    page,
-    context.frames,
-    pierce,
-  );
+  const framesInScope = includeIframes ? [...context.frames] : [context.rootId];
+  if (!framesInScope.includes(context.rootId)) {
+    framesInScope.unshift(context.rootId);
+  }
+
+  const sessionToIndex = await buildSessionIndexes(page, framesInScope, pierce);
   const { perFrameMaps, perFrameOutlines } = await collectPerFrameMaps(
     page,
     context,
     sessionToIndex,
     options,
     pierce,
+    framesInScope,
   );
   const { absPrefix, iframeHostEncByChild } = await computeFramePrefixes(
     page,
     context,
     perFrameMaps,
+    framesInScope,
   );
 
   return mergeFramesIntoSnapshot(
@@ -82,6 +86,7 @@ export async function captureHybridSnapshot(
     perFrameOutlines,
     absPrefix,
     iframeHostEncByChild,
+    framesInScope,
   );
 }
 
@@ -266,6 +271,7 @@ export async function collectPerFrameMaps(
   sessionToIndex: Map<string, SessionDomIndex>,
   options: SnapshotOptions | undefined,
   pierce: boolean,
+  frameIds: string[],
 ): Promise<{
   perFrameMaps: Map<string, FrameDomMaps>;
   perFrameOutlines: Array<{ frameId: string; outline: string }>;
@@ -273,7 +279,7 @@ export async function collectPerFrameMaps(
   const perFrameMaps = new Map<string, FrameDomMaps>();
   const perFrameOutlines: Array<{ frameId: string; outline: string }> = [];
 
-  for (const frameId of context.frames) {
+  for (const frameId of frameIds) {
     const sess = ownerSession(page, frameId);
     const sid = sess.id ?? "root";
     let idx = sessionToIndex.get(sid);
@@ -343,6 +349,7 @@ export async function computeFramePrefixes(
   page: Page,
   context: FrameContext,
   perFrameMaps: Map<string, FrameDomMaps>,
+  frameIds: string[],
 ): Promise<{
   absPrefix: Map<string, string>;
   iframeHostEncByChild: Map<string, string>;
@@ -350,13 +357,19 @@ export async function computeFramePrefixes(
   const absPrefix = new Map<string, string>();
   const iframeHostEncByChild = new Map<string, string>();
   absPrefix.set(context.rootId, "");
+  const included = new Set(frameIds);
 
-  const queue: string[] = [context.rootId];
+  const queue: string[] = [];
+  if (included.has(context.rootId)) {
+    queue.push(context.rootId);
+  }
+
   while (queue.length) {
     const parent = queue.shift()!;
     const parentAbs = absPrefix.get(parent)!;
 
     for (const child of context.frames) {
+      if (!included.has(child)) continue;
       if (context.parentByFrame.get(child) !== parent) continue;
       queue.push(child);
 
@@ -407,11 +420,12 @@ export function mergeFramesIntoSnapshot(
   perFrameOutlines: Array<{ frameId: string; outline: string }>,
   absPrefix: Map<string, string>,
   iframeHostEncByChild: Map<string, string>,
+  frameIds: string[],
 ): HybridSnapshot {
   const combinedXpathMap: Record<string, string> = {};
   const combinedUrlMap: Record<string, string> = {};
 
-  for (const frameId of context.frames) {
+  for (const frameId of frameIds) {
     const maps = perFrameMaps.get(frameId);
     if (!maps) continue;
 

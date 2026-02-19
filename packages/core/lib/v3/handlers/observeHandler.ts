@@ -1,20 +1,23 @@
 // lib/v3/handlers/observeHandler.ts
-import { observe as runObserve } from "../../inference";
-import { trimTrailingTextNode } from "../../utils";
-import { v3Logger } from "../logger";
-import { V3FunctionName } from "../types/public/methods";
-import { captureHybridSnapshot } from "../understudy/a11y/snapshot";
-import { LLMClient } from "../llm/LLMClient";
-import { ObserveHandlerParams } from "../types/private/handlers";
-import { EncodedId } from "../types/private/internal";
-import { Action } from "../types/public/methods";
+import { observe as runObserve } from "../../inference.js";
+import { trimTrailingTextNode } from "../../utils.js";
+import { v3Logger } from "../logger.js";
+import { V3FunctionName } from "../types/public/methods.js";
+import { captureHybridSnapshot } from "../understudy/a11y/snapshot/index.js";
+import { LLMClient } from "../llm/LLMClient.js";
+import {
+  ObserveHandlerParams,
+  SupportedUnderstudyAction,
+} from "../types/private/handlers.js";
+import { EncodedId } from "../types/private/internal.js";
+import { Action } from "../types/public/methods.js";
 import {
   AvailableModel,
   ClientOptions,
   ModelConfiguration,
-} from "../types/public/model";
-import { ObserveTimeoutError } from "../types/public/sdkErrors";
-import { createTimeoutGuard } from "./handlerUtils/timeoutGuard";
+} from "../types/public/model.js";
+import { ObserveTimeoutError } from "../types/public/sdkErrors.js";
+import { createTimeoutGuard } from "./handlerUtils/timeoutGuard.js";
 
 export class ObserveHandler {
   private readonly llmClient: LLMClient;
@@ -114,6 +117,7 @@ export class ObserveHandler {
       userProvidedInstructions: this.systemPrompt,
       logger: v3Logger,
       logInferenceToFile: this.logInferenceToFile,
+      supportedActions: Object.values(SupportedUnderstudyAction),
     });
 
     const {
@@ -145,8 +149,56 @@ export class ObserveHandler {
             const trimmedXpath = trimTrailingTextNode(xpath);
             if (!trimmedXpath) return undefined;
 
+            // For dragAndDrop, convert element ID in arguments to xpath (target element)
+            let resolvedArgs = rest.arguments;
+            if (
+              rest.method === "dragAndDrop" &&
+              Array.isArray(rest.arguments) &&
+              rest.arguments.length > 0
+            ) {
+              const targetArg = rest.arguments[0];
+              // Check if argument looks like an element ID (e.g., "1-67")
+              if (
+                typeof targetArg === "string" &&
+                /^\d+-\d+$/.test(targetArg)
+              ) {
+                const argXpath = combinedXpathMap[targetArg as EncodedId];
+                const trimmedArgXpath = trimTrailingTextNode(argXpath);
+                if (trimmedArgXpath) {
+                  resolvedArgs = [
+                    `xpath=${trimmedArgXpath}`,
+                    ...rest.arguments.slice(1),
+                  ];
+                } else {
+                  // Target element lookup failed, filter out this action
+                  v3Logger({
+                    category: "observation",
+                    message: "dragAndDrop target element lookup failed",
+                    level: 0,
+                    auxiliary: {
+                      targetElementId: { value: targetArg, type: "string" },
+                      sourceElementId: { value: elementId, type: "string" },
+                    },
+                  });
+                  return undefined;
+                }
+              } else {
+                v3Logger({
+                  category: "observation",
+                  message: "dragAndDrop target element invalid ID format",
+                  level: 0,
+                  auxiliary: {
+                    targetElementId: { value: targetArg, type: "string" },
+                    sourceElementId: { value: elementId, type: "string" },
+                  },
+                });
+                return undefined;
+              }
+            }
+
             return {
               ...rest,
+              arguments: resolvedArgs,
               selector: `xpath=${trimmedXpath}`,
             } as {
               description: string;

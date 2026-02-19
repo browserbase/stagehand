@@ -4,7 +4,7 @@ import type { LogLine } from "@browserbasehq/stagehand";
 import type { AgentInstance } from "@browserbasehq/stagehand";
 import type { EvalCase } from "braintrust";
 import type { V3 } from "@browserbasehq/stagehand";
-import { EvalLogger } from "../logger";
+import { EvalLogger } from "../logger.js";
 
 export type StagehandInitResult = {
   v3?: V3;
@@ -76,6 +76,7 @@ export interface Testcase
     task_id?: string;
     website?: string;
     difficulty?: string;
+    task_category?: string;
   };
   expected: unknown;
 }

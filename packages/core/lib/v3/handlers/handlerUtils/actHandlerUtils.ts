@@ -1,19 +1,16 @@
 // lib/v3/handlers/handlerUtils/actHandlerUtils.ts
 import { Protocol } from "devtools-protocol";
-import { Frame } from "../../understudy/frame";
-import { Locator } from "../../understudy/locator";
-import { resolveLocatorWithHops } from "../../understudy/deepLocator";
-import type { Page } from "../../understudy/page";
-import { v3Logger } from "../../logger";
-import { SessionFileLogger } from "../../flowLogger";
-import { StagehandClickError } from "../../types/public/sdkErrors";
-
-export class UnderstudyCommandException extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "UnderstudyCommandException";
-  }
-}
+import { Frame } from "../../understudy/frame.js";
+import { Locator } from "../../understudy/locator.js";
+import { MouseButton } from "../../types/public/locator.js";
+import { resolveLocatorWithHops } from "../../understudy/deepLocator.js";
+import type { Page } from "../../understudy/page.js";
+import { v3Logger } from "../../logger.js";
+import { SessionFileLogger } from "../../flowLogger.js";
+import {
+  StagehandClickError,
+  UnderstudyCommandException,
+} from "../../types/public/sdkErrors.js";
 
 export interface UnderstudyMethodHandlerContext {
   method: string;
@@ -126,7 +123,10 @@ export async function performUnderstudyMethod(
         args: { value: JSON.stringify(args), type: "object" },
       },
     });
-    throw new UnderstudyCommandException(msg);
+    if (e instanceof UnderstudyCommandException) {
+      throw e;
+    }
+    throw new UnderstudyCommandException(msg, e);
   } finally {
     SessionFileLogger.logUnderstudyActionCompleted();
   }
@@ -162,17 +162,19 @@ export async function selectOption(ctx: UnderstudyMethodHandlerContext) {
     const text = args[0]?.toString() || "";
     await locator.selectOption(text);
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const stack = e instanceof Error ? e.stack : undefined;
     v3Logger({
       category: "action",
       message: "error selecting option",
       level: 0,
       auxiliary: {
-        error: { value: e.message, type: "string" },
-        trace: { value: e.stack, type: "string" },
+        error: { value: msg, type: "string" },
+        trace: { value: stack ?? "", type: "string" },
         xpath: { value: xpath, type: "string" },
       },
     });
-    throw new UnderstudyCommandException(e.message);
+    throw new UnderstudyCommandException(msg, e);
   }
 }
 
@@ -224,7 +226,8 @@ async function scrollByPixelOffset(
     const { x, y } = await locator.centroid();
     await page.scroll(x, y, dx, dy);
   } catch (e) {
-    throw new UnderstudyCommandException(e.message);
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new UnderstudyCommandException(msg, e);
   }
 }
 
@@ -262,7 +265,7 @@ async function fillOrType(ctx: UnderstudyMethodHandlerContext): Promise<void> {
         xpath: { value: xpath, type: "string" },
       },
     });
-    throw new UnderstudyCommandException(msg);
+    throw new UnderstudyCommandException(msg, e);
   }
 }
 
@@ -281,7 +284,7 @@ async function typeText(ctx: UnderstudyMethodHandlerContext): Promise<void> {
         xpath: { value: xpath, type: "string" },
       },
     });
-    throw new UnderstudyCommandException(msg);
+    throw new UnderstudyCommandException(msg, e);
   }
 }
 
@@ -311,16 +314,16 @@ async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
         xpath: { value: xpath, type: "string" },
       },
     });
-    throw new UnderstudyCommandException(msg);
+    throw new UnderstudyCommandException(msg, e);
   }
 }
 
 async function clickElement(
   ctx: UnderstudyMethodHandlerContext,
 ): Promise<void> {
-  const { locator, xpath } = ctx;
+  const { locator, xpath, args } = ctx;
   try {
-    await locator.click();
+    await locator.click({ button: (args[0] as MouseButton) || undefined });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     v3Logger({
@@ -351,7 +354,7 @@ async function doubleClick(ctx: UnderstudyMethodHandlerContext): Promise<void> {
         xpath: { value: xpath, type: "string" },
       },
     });
-    throw new UnderstudyCommandException(msg);
+    throw new UnderstudyCommandException(msg, e);
   }
 }
 
@@ -428,7 +431,7 @@ async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
         to: { value: toXPath, type: "string" },
       },
     });
-    throw new UnderstudyCommandException(msg);
+    throw new UnderstudyCommandException(msg, e);
   }
 }
 
@@ -507,17 +510,19 @@ export async function hover(ctx: UnderstudyMethodHandlerContext) {
   try {
     await locator.hover();
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const stack = e instanceof Error ? e.stack : undefined;
     v3Logger({
       category: "action",
       message: "error attempting to hover",
       level: 0,
       auxiliary: {
-        error: { value: e.message, type: "string" },
-        trace: { value: e.stack, type: "string" },
+        error: { value: msg, type: "string" },
+        trace: { value: stack ?? "", type: "string" },
         xpath: { value: xpath, type: "string" },
       },
     });
-    throw new UnderstudyCommandException(e.message);
+    throw new UnderstudyCommandException(msg, e);
   }
 }
 
