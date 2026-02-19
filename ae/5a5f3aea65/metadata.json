@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "ae5a5f3aea65",
+  "strategy": "manual-commit",
+  "branch": "update-model-handling-on-agent",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "packages/core/tests/agent-execution-model.test.ts",
+    "packages/core/tests/model-utils.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ae/5a5f3aea65/0/metadata.json",
+      "transcript": "/ae/5a5f3aea65/0/full.jsonl",
+      "context": "/ae/5a5f3aea65/0/context.md",
+      "content_hash": "/ae/5a5f3aea65/0/content_hash.txt",
+      "prompt": "/ae/5a5f3aea65/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 41,
+    "cache_creation_tokens": 66836,
+    "cache_read_tokens": 1618119,
+    "output_tokens": 1946,
+    "api_call_count": 33
+  }
+}
