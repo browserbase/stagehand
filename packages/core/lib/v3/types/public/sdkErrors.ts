@@ -400,6 +400,17 @@ export class StagehandClosedError extends StagehandError {
   }
 }
 
+export class StagehandSetExtraHTTPHeadersError extends StagehandError {
+  public readonly failures: string[];
+
+  constructor(failures: string[]) {
+    super(
+      `setExtraHTTPHeaders failed for ${failures.length} session(s): ${failures.join(", ")}`,
+    );
+    this.failures = failures;
+  }
+}
+
 export class StagehandSnapshotError extends StagehandError {
   constructor(cause?: unknown) {
     const suffix =
