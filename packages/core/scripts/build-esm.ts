@@ -19,8 +19,18 @@ const repoRoot = (() => {
   return root;
 })();
 
+const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+
 const run = (args: string[]) => {
-  const result = spawnSync("pnpm", args, { stdio: "inherit", cwd: repoRoot });
+  const result = spawnSync(pnpmCommand, args, {
+    stdio: "inherit",
+    cwd: repoRoot,
+  });
+  if (result.error) {
+    console.error(`Failed to run ${pnpmCommand} ${args.join(" ")}`);
+    console.error(result.error);
+    process.exit(1);
+  }
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
   }
