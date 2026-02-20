@@ -225,23 +225,25 @@ async function waitForChildFrame(
       const probes = await Promise.all(
         childFrames.map(async (child): Promise<ChildFrameProbe> => {
           try {
-            const state: { href: string; readyState: DocumentReadyState } =
-              await child.evaluate(() => ({
+            const state = await child.evaluate(
+              (): { href: string; readyState: DocumentReadyState } => ({
                 href: location.href,
                 readyState: document.readyState,
-              }));
+              }),
+            );
             return {
               child,
               href: state.href,
               readyState: state.readyState,
             };
           } catch (error) {
-            return {
+            const failedProbe: ChildFrameProbe = {
               child,
               href: undefined,
               readyState: undefined,
               error: formatError(error),
             };
+            return failedProbe;
           }
         }),
       );

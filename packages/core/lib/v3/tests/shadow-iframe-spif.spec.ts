@@ -27,7 +27,7 @@ async function runCase(v3: V3, c: Case, framework: Framework): Promise<void> {
   let cleanup: (() => Promise<void> | void) | null = null;
 
   // Acquire the correct page for the requested framework
-  let page: AnyPage;
+  let page: AnyPage | undefined;
   switch (framework) {
     case "v3": {
       const v3Page = v3.context.pages()[0];
@@ -59,8 +59,8 @@ async function runCase(v3: V3, c: Case, framework: Framework): Promise<void> {
       );
       const pwContext = pwBrowser.contexts()[0];
       const pwPage = pwContext.pages()[0];
-      await pwPage.goto(c.url, { waitUntil: "networkidle" });
-      page = pwPage;
+      await pwPage.goto(c.url, { waitUntil: "networkidle" as never });
+      page = pwPage as unknown as AnyPage;
       cleanup = async () => {
         try {
           await pwBrowser.close();
@@ -76,8 +76,8 @@ async function runCase(v3: V3, c: Case, framework: Framework): Promise<void> {
       );
       const prContext = prBrowser.contexts()[0];
       const prPage = prContext.pages()[0];
-      await prPage.goto(c.url, { waitUntil: "networkidle" });
-      page = prPage;
+      await prPage.goto(c.url, { waitUntil: "networkidle" as never });
+      page = prPage as unknown as AnyPage;
       cleanup = async () => {
         try {
           await prBrowser.close();
@@ -90,6 +90,7 @@ async function runCase(v3: V3, c: Case, framework: Framework): Promise<void> {
   }
 
   try {
+    if (!page) throw new Error("Missing page for selected framework");
     await v3.act(c.action, { page });
     // Post-action extraction; verify expected text appears
     const extraction = await v3.extract({ page });

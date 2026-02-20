@@ -30,10 +30,13 @@ const bbWorkers =
 const ctrfJunitPath = process.env.CTRF_JUNIT_PATH;
 const reporter: ReporterDescription[] = ctrfJunitPath
   ? [
-      [consoleReporter],
-      ["junit", { outputFile: ctrfJunitPath, includeProjectInTestName: true }],
+      [consoleReporter] as ReporterDescription,
+      [
+        "junit",
+        { outputFile: ctrfJunitPath, includeProjectInTestName: true },
+      ] as ReporterDescription,
     ]
-  : [[consoleReporter]];
+  : [[consoleReporter] as ReporterDescription];
 
 export default defineConfig({
   testDir,
