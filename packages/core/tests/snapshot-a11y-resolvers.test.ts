@@ -146,6 +146,31 @@ describe("a11yForFrame", () => {
     const result = await a11yForFrame(session, "frame-1", opts);
     expect(result.scopeApplied).toBe(false);
   });
+
+  it("injects file input nodes from DOM metadata when AX tree omits them", async () => {
+    const session = new MockCDPSession({
+      ...baseHandlers,
+      "Accessibility.getFullAXTree": async () => ({ nodes: baseAxNodes() }),
+    });
+
+    const opts: A11yOptions = {
+      focusSelector: undefined,
+      experimental: false,
+      tagNameMap: {
+        "enc-100": "#document",
+        "enc-101": "a",
+        "enc-777": "input",
+      },
+      inputTypeMap: {
+        "enc-777": "file",
+      },
+      scrollableMap: {},
+      encode: (backend) => `enc-${backend}`,
+    };
+
+    const result = await a11yForFrame(session, "frame-1", opts);
+    expect(result.outline).toContain("[enc-777] file input");
+  });
 });
 
 describe("resolveObjectIdForXPath", () => {
@@ -289,6 +314,7 @@ describe("tryScopedSnapshot", () => {
       .spyOn(domTree, "domMapsForSession")
       .mockResolvedValue({
         tagNameMap: { "1-10": "div" },
+        inputTypeMap: {},
         xpathMap: { "1-10": "/div[1]" },
         scrollableMap: {},
       });
@@ -322,6 +348,7 @@ describe("tryScopedSnapshot", () => {
     const session = new MockCDPSession({});
     vi.spyOn(domTree, "domMapsForSession").mockResolvedValue({
       tagNameMap: { "1-10": "div" },
+      inputTypeMap: {},
       xpathMap: { "1-10": "/div[1]" },
       scrollableMap: {},
     });
@@ -357,6 +384,7 @@ describe("tryScopedSnapshot", () => {
     const session = new MockCDPSession({});
     vi.spyOn(domTree, "domMapsForSession").mockResolvedValue({
       tagNameMap: { "1-10": "div" },
+      inputTypeMap: {},
       xpathMap: { "1-10": "/div[1]" },
       scrollableMap: {},
     });

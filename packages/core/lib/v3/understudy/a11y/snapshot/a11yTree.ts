@@ -94,8 +94,11 @@ export async function a11yForFrame(
 
   const decorated = decorateRoles(nodesForOutline, opts);
   const { tree } = await buildHierarchicalTree(decorated, opts);
+  const treeWithFileInputs = appendMissingFileInputNodes(tree, decorated, opts);
 
-  const simplified = tree.map((n) => formatTreeLine(n)).join("\n");
+  const simplified = treeWithFileInputs
+    .map((n) => formatTreeLine(n))
+    .join("\n");
   return { outline: simplified.trimEnd(), urlMap, scopeApplied };
 }
 
@@ -154,7 +157,8 @@ export async function buildHierarchicalTree(
     const keep =
       !!(n.name && n.name.trim()) ||
       !!(n.childIds && n.childIds.length) ||
-      !isStructural(n.role);
+      !isStructural(n.role) ||
+      isFileInputNode(n, opts);
     if (!keep) continue;
     nodeMap.set(n.nodeId, { ...n });
   }
@@ -181,6 +185,9 @@ export async function buildHierarchicalTree(
 
     const children = node.children ?? [];
     if (!children.length) {
+      if (isFileInputNode(node, opts)) {
+        return { ...node, role: "file input" };
+      }
       return isStructural(node.role) ? null : node;
     }
 
@@ -190,12 +197,15 @@ export async function buildHierarchicalTree(
 
     const prunedStatic = removeRedundantStaticTextChildren(node, cleanedKids);
 
-    if (isStructural(node.role)) {
+    if (isStructural(node.role) && !isFileInputNode(node, opts)) {
       if (prunedStatic.length === 1) return prunedStatic[0]!;
       if (prunedStatic.length === 0) return null;
     }
 
     let newRole = node.role;
+    if (isFileInputNode(node, opts)) {
+      newRole = "file input";
+    }
     if ((newRole === "generic" || newRole === "none") && node.encodedId) {
       const tagName = opts.tagNameMap[node.encodedId];
       if (tagName) newRole = tagName;
@@ -208,6 +218,72 @@ export async function buildHierarchicalTree(
 
     return { ...node, role: newRole, children: prunedStatic };
   }
+}
+
+function isEncodedFileInput(encodedId: string, opts: A11yOptions): boolean {
+  const tag = opts.tagNameMap[encodedId];
+  const inputType = opts.inputTypeMap?.[encodedId];
+  return (
+    String(tag ?? "").toLowerCase() === "input" &&
+    String(inputType ?? "").toLowerCase() === "file"
+  );
+}
+
+function isFileInputNode(node: A11yNode, opts: A11yOptions): boolean {
+  if (!node.encodedId) return false;
+  return isEncodedFileInput(node.encodedId, opts);
+}
+
+function collectEncodedIds(
+  nodes: A11yNode[],
+  out = new Set<string>(),
+): Set<string> {
+  for (const node of nodes) {
+    if (node.encodedId) out.add(node.encodedId);
+    if (node.children?.length) collectEncodedIds(node.children, out);
+  }
+  return out;
+}
+
+function appendMissingFileInputNodes(
+  tree: A11yNode[],
+  decorated: A11yNode[],
+  opts: A11yOptions,
+): A11yNode[] {
+  const inputTypes = opts.inputTypeMap ?? {};
+  const presentEncodedIds = collectEncodedIds(tree);
+  const decoratedByEncoded = new Map<string, A11yNode>();
+  for (const node of decorated) {
+    if (node.encodedId && !decoratedByEncoded.has(node.encodedId)) {
+      decoratedByEncoded.set(node.encodedId, node);
+    }
+  }
+
+  const extras: A11yNode[] = [];
+  for (const [encodedId, inputType] of Object.entries(inputTypes)) {
+    if (String(inputType).toLowerCase() !== "file") continue;
+    if (!isEncodedFileInput(encodedId, opts)) continue;
+    if (presentEncodedIds.has(encodedId)) continue;
+
+    const existing = decoratedByEncoded.get(encodedId);
+    if (existing) {
+      extras.push({
+        ...existing,
+        role: "file input",
+        children: undefined,
+      });
+      continue;
+    }
+
+    extras.push({
+      role: "file input",
+      nodeId: `synthetic-file-${encodedId}`,
+      encodedId,
+    });
+  }
+
+  if (!extras.length) return tree;
+  return [...tree, ...extras];
 }
 
 export function isStructural(role: string): boolean {

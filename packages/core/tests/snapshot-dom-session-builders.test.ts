@@ -27,6 +27,7 @@ const makeDomNode = (
     nodeValue: overrides.nodeValue ?? "",
     childNodeCount: overrides.childNodeCount ?? children.length,
     children,
+    attributes: overrides.attributes,
     shadowRoots: overrides.shadowRoots,
     contentDocument: overrides.contentDocument,
     isScrollable: overrides.isScrollable,
@@ -35,9 +36,13 @@ const makeDomNode = (
 
 const buildSampleDomTree = () => {
   const iframeChild = makeDomNode({ nodeName: "P" });
+  const iframeFileInput = makeDomNode({
+    nodeName: "INPUT",
+    attributes: ["type", "file", "id", "resumeUpload"],
+  });
   const iframeBody = makeDomNode({
     nodeName: "BODY",
-    children: [iframeChild],
+    children: [iframeChild, iframeFileInput],
     isScrollable: true,
   });
   const iframeHtml = makeDomNode({ nodeName: "HTML", children: [iframeBody] });
@@ -74,6 +79,7 @@ const buildSampleDomTree = () => {
     iframeHtml,
     iframeBody,
     iframeChild,
+    iframeFileInput,
   };
 };
 
@@ -209,6 +215,9 @@ describe("buildSessionDomIndex", () => {
     expect(
       index.contentDocRootByIframe.get(tree.iframeElement.backendNodeId),
     ).toBe(tree.iframeDoc.backendNodeId);
+    expect(index.inputTypeByBe?.get(tree.iframeFileInput.backendNodeId)).toBe(
+      "file",
+    );
   });
 });
 
@@ -237,11 +246,14 @@ describe("domMapsForSession", () => {
     const iframeDocKey = `frame-A-${tree.iframeDoc.backendNodeId}`;
     const iframeBodyKey = `frame-A-${tree.iframeBody.backendNodeId}`;
     const iframeChildKey = `frame-A-${tree.iframeChild.backendNodeId}`;
+    const iframeFileInputKey = `frame-A-${tree.iframeFileInput.backendNodeId}`;
 
     expect(maps.tagNameMap[iframeDocKey]).toBe("#document");
     expect(maps.xpathMap[iframeDocKey]).toBe("/");
     expect(maps.xpathMap[iframeBodyKey]).toBe("/html[1]/body[1]");
     expect(maps.xpathMap[iframeChildKey]).toBe("/html[1]/body[1]/p[1]");
+    expect(maps.xpathMap[iframeFileInputKey]).toBe("/html[1]/body[1]/input[1]");
+    expect(maps.inputTypeMap[iframeFileInputKey]).toBe("file");
     expect(maps.scrollableMap[iframeBodyKey]).toBe(true);
     expect(Object.keys(maps.tagNameMap)).not.toContain(
       `frame-A-${tree.html.backendNodeId}`,

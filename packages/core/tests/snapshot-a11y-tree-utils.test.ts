@@ -124,6 +124,28 @@ describe("buildHierarchicalTree", () => {
     expect(tree).toEqual([]);
   });
 
+  it("keeps structural file inputs so observe context retains upload targets", async () => {
+    const nodes: A11yNode[] = [
+      {
+        role: "generic",
+        name: "",
+        nodeId: "upload",
+        encodedId: "upload",
+        parentId: undefined,
+        childIds: [],
+      },
+    ];
+
+    const { tree } = await buildHierarchicalTree(nodes, {
+      ...opts,
+      tagNameMap: { upload: "input" },
+      inputTypeMap: { upload: "file" },
+    });
+    expect(tree).toHaveLength(1);
+    expect(tree[0]?.encodedId).toBe("upload");
+    expect(tree[0]?.role).toBe("file input");
+  });
+
   it("promotes select/combobox tag names for structural nodes", async () => {
     const nodes: A11yNode[] = [
       {
