@@ -242,6 +242,14 @@ export class CdpConnection implements CDPSessionLike {
       if (sessionId) {
         const session = this.sessions.get(sessionId);
         session?.dispatch(method, params);
+
+        // Forward target lifecycle events to root listeners as well.
+        // Some browsers emit these via a parent session rather than the root
+        // connection; fan-out keeps target tracking consistent.
+        if (method.startsWith("Target.")) {
+          const handlers = this.eventHandlers.get(method);
+          if (handlers) for (const h of handlers) h(params);
+        }
       } else {
         const handlers = this.eventHandlers.get(method);
         if (handlers) for (const h of handlers) h(params);
