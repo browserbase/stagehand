@@ -2,13 +2,17 @@ import {
   Client,
   ClientOptions,
 } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import {
+  StreamableHTTPClientTransport,
+  type StreamableHTTPClientTransportOptions,
+} from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { MCPConnectionError } from "../types/public/sdkErrors.js";
 
 export interface ConnectToMCPServerOptions {
   serverUrl: string | URL;
   clientOptions?: ClientOptions;
+  requestOptions?: StreamableHTTPClientTransportOptions;
 }
 
 export interface StdioServerConfig {
@@ -23,6 +27,7 @@ export const connectToMCPServer = async (
   try {
     let transport;
     let clientOptions: ClientOptions | undefined;
+    let requestOptions: StreamableHTTPClientTransportOptions | undefined;
 
     // Check if it's a stdio config (has 'command' property)
     if (typeof serverConfig === "object" && "command" in serverConfig) {
@@ -37,9 +42,14 @@ export const connectToMCPServer = async (
         serverUrl = (serverConfig as ConnectToMCPServerOptions).serverUrl;
         clientOptions = (serverConfig as ConnectToMCPServerOptions)
           .clientOptions;
+        requestOptions = (serverConfig as ConnectToMCPServerOptions)
+          .requestOptions;
       }
 
-      transport = new StreamableHTTPClientTransport(new URL(serverUrl));
+      transport = new StreamableHTTPClientTransport(
+        new URL(serverUrl),
+        requestOptions,
+      );
     }
 
     const client = new Client({
