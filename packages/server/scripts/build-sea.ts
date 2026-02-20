@@ -193,7 +193,7 @@ const writeSeaConfig = (
 
 const buildCjsBundle = () => {
   run(
-    "pnpm",
+    pnpmCommand,
     [
       "exec",
       "turbo",
@@ -207,7 +207,7 @@ const buildCjsBundle = () => {
   fs.mkdirSync(`${repoDir}/packages/server/dist/sea`, { recursive: true });
   const bundlePath = `${repoDir}/packages/server/dist/sea/bundle.cjs`;
   run(
-    "pnpm",
+    pnpmCommand,
     [
       "exec",
       "esbuild",
