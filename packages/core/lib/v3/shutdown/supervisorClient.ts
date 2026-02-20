@@ -99,7 +99,8 @@ export function startShutdownSupervisor(
 
   const child = spawn(resolved.command, resolved.args, {
     // stdin is the parent lifeline.
-    stdio: ["pipe", "ignore", "ignore"],
+    // Preserve supervisor stderr so crash-cleanup debug lines are visible.
+    stdio: ["pipe", "ignore", "inherit"],
     detached: true,
   });
   child.on("error", (error) => {
