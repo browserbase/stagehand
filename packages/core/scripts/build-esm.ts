@@ -64,21 +64,15 @@ fs.writeFileSync(
 );
 fs.writeFileSync(
   `${repoRoot}/packages/core/dist/esm/index.js`,
-  [
-    'import * as Stagehand from "./lib/v3/index.js";',
-    'export * from "./lib/v3/index.js";',
-    "export default Stagehand;",
-    "",
-  ].join("\n"),
+  `export * from "./lib/v3/index.js";
+export { default } from "./lib/v3/index.js";
+`,
 );
 fs.writeFileSync(
   `${repoRoot}/packages/core/dist/esm/index.d.ts`,
-  [
-    'import * as Stagehand from "./lib/v3/index.js";',
-    'export * from "./lib/v3/index.js";',
-    "export default Stagehand;",
-    "",
-  ].join("\n"),
+  `export * from "./lib/v3/index.js";
+export { default } from "./lib/v3/index.js";
+`,
 );
 
 fs.mkdirSync(`${repoRoot}/packages/core/dist/esm/lib/v3/dom/build`, {

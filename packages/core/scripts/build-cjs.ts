@@ -100,7 +100,9 @@ run([
 
 fs.writeFileSync(
   `${repoRoot}/packages/core/dist/cjs/index.d.ts`,
-  'export * from "./lib/v3/index";\n',
+  `export * from "./lib/v3/index";
+export { default } from "./lib/v3/index";
+`,
 );
 fs.writeFileSync(
   `${repoRoot}/packages/core/dist/cjs/package.json`,
