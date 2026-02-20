@@ -31,24 +31,31 @@ import { Page } from "../../understudy/page.js";
 // =============================================================================
 
 /**
- * Supported value types for agent variables.
+ * A variable value can be a simple primitive or a rich object with an optional description.
+ * This unified type is shared across `act`, `agent.execute`, and other methods.
+ *
+ * @example Simple (backward-compatible):
+ * ```typescript
+ * variables: { username: "john@example.com" }
+ * ```
+ *
+ * @example Rich with description (useful for agents):
+ * ```typescript
+ * variables: {
+ *   username: { value: "john@example.com", description: "The login email" }
+ * }
+ * ```
  */
-export type VariableValue = string | number | boolean;
+export type VariableValue =
+  | string
+  | number
+  | boolean
+  | { value: string | number | boolean; description?: string };
 
 /**
- * A variable that can be used by the agent when filling forms or typing text.
+ * A collection of named variables for use in act, agent, and other methods.
  */
-export interface Variable {
-  /** The value of the variable */
-  value: VariableValue;
-  /** Description of when/how to use this variable */
-  description: string;
-}
-
-/**
- * A collection of named variables available to the agent.
- */
-export type Variables = Record<string, Variable>;
+export type Variables = Record<string, VariableValue>;
 
 export interface AgentContext {
   options: AgentExecuteOptionsBase;
@@ -368,28 +375,21 @@ export interface AgentExecuteOptionsBase {
    * The agent will see variable names and descriptions in the system prompt,
    * and can use them via `%variableName%` syntax in act/type/fillForm tool calls.
    *
+   * Accepts both simple values and rich objects with descriptions (same type as `act`).
+   *
    * **Note:** Not supported in CUA mode (`mode: "cua"`). Requires `experimental: true`.
    *
    * @experimental
    * @example
    * ```typescript
-   * const stagehand = new Stagehand({ experimental: true });
-   * await stagehand.init();
+   * // Simple values
+   * variables: { username: "john@example.com", password: "secret123" }
    *
-   * const agent = stagehand.agent({ model: "openai/gpt-4o" });
-   * const result = await agent.execute({
-   *   instruction: "Log into the website",
-   *   variables: {
-   *     loginEmail: {
-   *       value: "john@example.com",
-   *       description: "The email to use for logging in"
-   *     },
-   *     loginPassword: {
-   *       value: "secret123",
-   *       description: "The password to use for logging in"
-   *     }
-   *   }
-   * });
+   * // Rich values with descriptions (helps the agent understand context)
+   * variables: {
+   *   username: { value: "john@example.com", description: "The login email" },
+   *   password: { value: "secret123", description: "The login password" },
+   * }
    * ```
    */
   variables?: Variables;

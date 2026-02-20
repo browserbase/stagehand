@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-Add support for using variables in agent
+Add unified variables support across act and agent with a single VariableValue type

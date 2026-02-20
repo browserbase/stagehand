@@ -49,6 +49,8 @@ type ExpectedExportedTypes = {
   AgentModelConfig: Stagehand.AgentModelConfig;
   AgentConfig: Stagehand.AgentConfig;
   AgentToolMode: Stagehand.AgentToolMode;
+  VariableValue: Stagehand.VariableValue;
+  Variables: Stagehand.Variables;
   AgentCallbacks: Stagehand.AgentCallbacks;
   AgentExecuteCallbacks: Stagehand.AgentExecuteCallbacks;
   AgentStreamCallbacks: Stagehand.AgentStreamCallbacks;
@@ -115,7 +117,7 @@ describe("Stagehand public API types", () => {
   describe("ActOptions", () => {
     type ExpectedActOptions = {
       model?: Stagehand.ModelConfiguration;
-      variables?: Record<string, string>;
+      variables?: Stagehand.Variables;
       timeout?: number;
       page?: Stagehand.AnyPage;
     };

@@ -217,9 +217,15 @@ export function buildAgentSystemPrompt(
     <usage>${variableToolsNote}</usage>
     <example>To type a password, use: type %password% into the password field</example>
     ${Object.entries(variables)
-      .map(
-        ([name, v]) => `<variable name="${name}">${v.description}</variable>`,
-      )
+      .map(([name, v]) => {
+        const description =
+          typeof v === "object" && v !== null && "value" in v
+            ? v.description
+            : undefined;
+        return description
+          ? `<variable name="${name}">${description}</variable>`
+          : `<variable name="${name}" />`;
+      })
       .join("\n    ")}
   </variables>`
     : "";

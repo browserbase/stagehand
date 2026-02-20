@@ -3,14 +3,12 @@ import { z } from "zod";
 import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
 import type { AgentModelConfig, Variables } from "../../types/public/agent.js";
-import { toActVariables } from "../utils/variables.js";
 
 export const actTool = (
   v3: V3,
   executionModel?: string | AgentModelConfig,
   variables?: Variables,
 ) => {
-  const actVariables = toActVariables(variables);
   const hasVariables = variables && Object.keys(variables).length > 0;
   const actionDescription = hasVariables
     ? `Describe what to click or type, e.g. "click the Login button" or "type %variableName% into the input". Available variables: ${Object.keys(variables).join(", ")}`
@@ -36,8 +34,8 @@ export const actTool = (
           },
         });
         const options = executionModel
-          ? { model: executionModel, variables: actVariables }
-          : { variables: actVariables };
+          ? { model: executionModel, variables }
+          : { variables };
         const result = await v3.act(action, options);
         const actions = (result.actions as Action[] | undefined) ?? [];
         v3.recordAgentReplayStep({

@@ -3,14 +3,12 @@ import { z } from "zod";
 import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
 import type { AgentModelConfig, Variables } from "../../types/public/agent.js";
-import { toActVariables } from "../utils/variables.js";
 
 export const fillFormTool = (
   v3: V3,
   executionModel?: string | AgentModelConfig,
   variables?: Variables,
 ) => {
-  const actVariables = toActVariables(variables);
   const hasVariables = variables && Object.keys(variables).length > 0;
   const valueDescription = hasVariables
     ? `Text to type into the target. Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}`
@@ -56,9 +54,7 @@ export const fillFormTool = (
       const completed = [] as unknown[];
       const replayableActions: Action[] = [];
       for (const res of observeResults) {
-        const actOptions = actVariables
-          ? { variables: actVariables }
-          : undefined;
+        const actOptions = variables ? { variables } : undefined;
         const actResult = await v3.act(res, actOptions);
         completed.push(actResult);
         if (Array.isArray(actResult.actions)) {
