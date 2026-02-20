@@ -121,8 +121,6 @@ export class V3Context {
   private pendingCreatedTargetUrl = new Map<TargetId, string>();
   private readonly initScripts: string[] = [];
   private extraHttpHeaders: Record<string, string> | null = null;
-  // Monotonic token to avoid stale rollbacks when overlapping header updates run.
-  private extraHttpHeadersVersion = 0;
 
   private installTargetSessionListeners(session: CDPSessionLike): void {
     const sessionId = session.id;
@@ -342,12 +340,7 @@ export class V3Context {
   public async setExtraHTTPHeaders(
     headers: Record<string, string>,
   ): Promise<void> {
-    const previousHeaders = this.extraHttpHeaders
-      ? { ...this.extraHttpHeaders }
-      : null;
     const nextHeaders = { ...headers };
-    // Capture a version token so overlapping calls don't roll back newer updates.
-    const version = ++this.extraHttpHeadersVersion;
     this.extraHttpHeaders = nextHeaders;
 
     const sessions: CDPSessionLike[] = [];
@@ -358,47 +351,33 @@ export class V3Context {
 
     if (!sessions.length) return;
 
-    const applyHeaders = async (
-      headersToApply: Record<string, string>,
-      callVersion: number,
-    ): Promise<string[]> => {
-      // If a newer call superseded this one, skip applying to avoid stale updates.
-      if (callVersion !== this.extraHttpHeadersVersion) return [];
-      const results = await Promise.allSettled(
-        sessions.map(async (session) => {
-          await session.send("Network.enable");
-          await session.send("Network.setExtraHTTPHeaders", {
-            headers: headersToApply,
-          });
-        }),
-      );
-
-      return results
-        .map((result, index) => ({ result, session: sessions[index] }))
-        .filter(
-          (
-            entry,
-          ): entry is {
-            result: PromiseRejectedResult;
-            session: CDPSessionLike;
-          } => entry.result.status === "rejected",
-        )
-        .map((entry) => {
-          const reason = entry.result.reason as Error;
-          const sid = entry.session.id ?? "unknown";
-          const message = reason?.message ?? String(reason);
-          return `session=${sid} error=${message}`;
+    const results = await Promise.allSettled(
+      sessions.map(async (session) => {
+        await session.send("Network.enable");
+        await session.send("Network.setExtraHTTPHeaders", {
+          headers: nextHeaders,
         });
-    };
+      }),
+    );
 
-    const failures = await applyHeaders(nextHeaders, version);
+    const failures = results
+      .map((result, index) => ({ result, session: sessions[index] }))
+      .filter(
+        (
+          entry,
+        ): entry is {
+          result: PromiseRejectedResult;
+          session: CDPSessionLike;
+        } => entry.result.status === "rejected",
+      )
+      .map((entry) => {
+        const reason = entry.result.reason as Error;
+        const sid = entry.session.id ?? "unknown";
+        const message = reason?.message ?? String(reason);
+        return `session=${sid} error=${message}`;
+      });
+
     if (failures.length) {
-      // Only roll back if this call is still the latest.
-      if (version === this.extraHttpHeadersVersion) {
-        this.extraHttpHeaders = previousHeaders;
-        const rollbackHeaders = previousHeaders ?? {};
-        await applyHeaders(rollbackHeaders, version).catch(() => {});
-      }
       throw new StagehandSetExtraHTTPHeadersError(failures);
     }
   }

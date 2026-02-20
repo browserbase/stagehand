@@ -9,7 +9,6 @@ type ContextStub = {
     getSession: (id: string) => MockCDPSession | undefined;
   };
   extraHttpHeaders: Record<string, string> | null;
-  extraHttpHeadersVersion: number;
 };
 
 const makeContext = (sessions: MockCDPSession[]): ContextStub => {
@@ -22,7 +21,6 @@ const makeContext = (sessions: MockCDPSession[]): ContextStub => {
       getSession: (id: string) => sessionsById.get(id),
     },
     extraHttpHeaders: null,
-    extraHttpHeadersVersion: 0,
   };
 };
 
@@ -80,47 +78,7 @@ describe("V3Context.setExtraHTTPHeaders", () => {
       expect(err.failures[0]).toContain("boom");
     }
 
-    expect(sessionA.callsFor("Network.setExtraHTTPHeaders").length).toBe(2);
-    expect(sessionB.callsFor("Network.setExtraHTTPHeaders").length).toBe(2);
-  });
-
-  it("does not roll back newer updates when an earlier call fails", async () => {
-    const pending: Array<{
-      resolve: () => void;
-      reject: (error: Error) => void;
-      params: Record<string, unknown>;
-    }> = [];
-
-    const sessionA = new MockCDPSession(
-      {
-        "Network.setExtraHTTPHeaders": (params) => {
-          const headers = (params?.headers ?? {}) as Record<string, string>;
-          if (headers["x-test"] === "two") return;
-          return new Promise<void>((resolve, reject) => {
-            pending.push({
-              resolve,
-              reject,
-              params: params ?? {},
-            });
-          });
-        },
-      },
-      "session-a",
-    );
-    const ctx = makeContext([sessionA]);
-
-    const call1 = setExtraHTTPHeaders.call(ctx, { "x-test": "one" });
-    const call2 = setExtraHTTPHeaders.call(ctx, { "x-test": "two" });
-
-    await call2;
-
-    pending[0]?.reject(new Error("boom"));
-    await expect(call1).rejects.toBeInstanceOf(
-      StagehandSetExtraHTTPHeadersError,
-    );
-
-    const applied = sessionA.callsFor("Network.setExtraHTTPHeaders");
-    expect(applied.length).toBe(2);
-    expect(applied[1]?.params).toEqual({ headers: { "x-test": "two" } });
+    expect(sessionA.callsFor("Network.setExtraHTTPHeaders").length).toBe(1);
+    expect(sessionB.callsFor("Network.setExtraHTTPHeaders").length).toBe(1);
   });
 });
