@@ -56,7 +56,19 @@ export async function generateObjectShim<SCHEMA extends StagehandZodSchema>(
     ("messages" in rest && rest.messages !== undefined)
   ) {
     const result = await generateText({ ...rest, output });
-    return { ...result, object: result.output };
+    // Explicitly copy getter-based properties that would be lost in a spread,
+    // so callers who destructure { object, usage, finishReason } get valid values.
+    return {
+      ...result,
+      object: result.output,
+      output: result.output,
+      usage: result.usage,
+      finishReason: result.finishReason,
+      text: result.text,
+      reasoning: result.reasoning,
+      files: result.files,
+      sources: result.sources,
+    };
   }
 
   throw new Error("generateObjectShim requires either prompt or messages");
@@ -87,7 +99,19 @@ export function streamObjectShim<SCHEMA extends StagehandZodSchema>(
     ("messages" in rest && rest.messages !== undefined)
   ) {
     const result = streamText({ ...rest, output });
-    return { ...result, partialObjectStream: result.partialOutputStream };
+    // Explicitly copy getter-based properties that would be lost in a spread,
+    // and alias partialOutputStream → partialObjectStream for backwards compat.
+    return {
+      ...result,
+      partialObjectStream: result.partialOutputStream,
+      output: result.output,
+      usage: result.usage,
+      finishReason: result.finishReason,
+      text: result.text,
+      reasoning: result.reasoning,
+      files: result.files,
+      sources: result.sources,
+    };
   }
 
   throw new Error("streamObjectShim requires either prompt or messages");
