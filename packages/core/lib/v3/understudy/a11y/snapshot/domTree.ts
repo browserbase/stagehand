@@ -17,6 +17,21 @@ function isCborStackError(message: string): boolean {
   return message.includes("CBOR: stack limit exceeded");
 }
 
+function extractInputType(node: Protocol.DOM.Node): string | undefined {
+  const tag = String(node.nodeName ?? "").toLowerCase();
+  if (tag !== "input") return undefined;
+  const attrs = Array.isArray(node.attributes) ? node.attributes : [];
+  for (let i = 0; i < attrs.length - 1; i += 2) {
+    const name = String(attrs[i] ?? "").toLowerCase();
+    if (name !== "type") continue;
+    const value = String(attrs[i + 1] ?? "")
+      .trim()
+      .toLowerCase();
+    return value || "text";
+  }
+  return "text";
+}
+
 /**
  * Determine if CDP truncated a node's children when streaming the DOM tree.
  * childNodeCount stays accurate even when `children` are omitted; we use this to
@@ -182,6 +197,7 @@ export async function domMapsForSession(
   attemptOwnerLookup = true,
 ): Promise<{
   tagNameMap: Record<string, string>;
+  inputTypeMap: Record<string, string>;
   xpathMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
 }> {
@@ -208,6 +224,7 @@ export async function domMapsForSession(
   }
 
   const tagNameMap: Record<string, string> = {};
+  const inputTypeMap: Record<string, string> = {};
   const xpathMap: Record<string, string> = {};
   const scrollableMap: Record<string, boolean> = {};
 
@@ -220,6 +237,8 @@ export async function domMapsForSession(
     if (node.backendNodeId) {
       const encId = encode(frameId, node.backendNodeId);
       tagNameMap[encId] = String(node.nodeName).toLowerCase();
+      const inputType = extractInputType(node);
+      if (inputType) inputTypeMap[encId] = inputType;
       xpathMap[encId] = xpath || "/";
       const isScrollable = node?.isScrollable === true;
       if (isScrollable) scrollableMap[encId] = true;
@@ -246,7 +265,7 @@ export async function domMapsForSession(
     }
   }
 
-  return { tagNameMap, xpathMap, scrollableMap };
+  return { tagNameMap, inputTypeMap, xpathMap, scrollableMap };
 }
 
 /**
@@ -263,6 +282,7 @@ export async function buildSessionDomIndex(
 
   const absByBe = new Map<number, string>();
   const tagByBe = new Map<number, string>();
+  const inputTypeByBe = new Map<number, string>();
   const scrollByBe = new Map<number, boolean>();
   const docRootOf = new Map<number, number>();
   const contentDocRootByIframe = new Map<number, number>();
@@ -276,6 +296,8 @@ export async function buildSessionDomIndex(
     if (node.backendNodeId) {
       absByBe.set(node.backendNodeId, xp || "/");
       tagByBe.set(node.backendNodeId, String(node.nodeName).toLowerCase());
+      const inputType = extractInputType(node);
+      if (inputType) inputTypeByBe.set(node.backendNodeId, inputType);
       if (node?.isScrollable === true) scrollByBe.set(node.backendNodeId, true);
       docRootOf.set(node.backendNodeId, docRootBe);
     }
@@ -305,6 +327,7 @@ export async function buildSessionDomIndex(
     rootBackend: rootBe,
     absByBe,
     tagByBe,
+    inputTypeByBe,
     scrollByBe,
     docRootOf,
     contentDocRootByIframe,

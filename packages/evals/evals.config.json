@@ -261,6 +261,10 @@
       "categories": ["observe"]
     },
     {
+      "name": "observe_file_input_upload",
+      "categories": ["observe", "regression"]
+    },
+    {
       "name": "observe_iframes1",
       "categories": ["regression", "observe"]
     },

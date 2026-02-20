@@ -59,6 +59,7 @@ const makeSessionIndex = (): SessionDomIndex => ({
     [150, "/html[1]/body[1]/iframe[1]"],
     [200, "/html[1]/body[1]/iframe[1]"],
     [201, "/html[1]/body[1]/iframe[1]/div[1]"],
+    [202, "/html[1]/body[1]/iframe[1]/input[1]"],
   ]),
   tagByBe: new Map([
     [100, "#document"],
@@ -67,7 +68,9 @@ const makeSessionIndex = (): SessionDomIndex => ({
     [150, "iframe"],
     [200, "#document"],
     [201, "div"],
+    [202, "input"],
   ]),
+  inputTypeByBe: new Map([[202, "file"]]),
   scrollByBe: new Map([[201, true]]),
   docRootOf: new Map([
     [100, 100],
@@ -76,6 +79,7 @@ const makeSessionIndex = (): SessionDomIndex => ({
     [150, 100],
     [200, 200],
     [201, 200],
+    [202, 200],
   ]),
   contentDocRootByIframe: new Map([[150, 200]]),
 });
@@ -229,6 +233,8 @@ describe("collectPerFrameMaps", () => {
     const childMaps = result.perFrameMaps.get("frame-2");
     expect(childMaps?.xpathMap["1-200"]).toBe("/");
     expect(childMaps?.xpathMap["1-201"]).toBe("/div[1]");
+    expect(childMaps?.xpathMap["1-202"]).toBe("/input[1]");
+    expect(childMaps?.inputTypeMap?.["1-202"]).toBe("file");
     expect(childMaps?.scrollableMap["1-201"]).toBe(true);
     expect(childMaps?.urlMap).toEqual({
       "url-frame-2": "https://frame-2.test",
@@ -327,6 +333,7 @@ describe("captureHybridSnapshot", () => {
       .spyOn(domTree, "domMapsForSession")
       .mockResolvedValue({
         tagNameMap: { "0-100": "#document" },
+        inputTypeMap: {},
         xpathMap: { "0-100": "/" },
         scrollableMap: {},
       });
@@ -366,6 +373,7 @@ describe("captureHybridSnapshot", () => {
       .spyOn(domTree, "domMapsForSession")
       .mockResolvedValue({
         tagNameMap: { "0-100": "#document" },
+        inputTypeMap: {},
         xpathMap: { "0-100": "/" },
         scrollableMap: {},
       });
