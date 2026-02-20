@@ -54,4 +54,17 @@ export interface V3Options {
   cacheDir?: string;
   domSettleTimeout?: number;
   disableAPI?: boolean;
+  /**
+   * Server-side cache threshold configuration per method.
+   * Overrides the LaunchDarkly flag threshold for the specified methods.
+   * Can be a boolean (true = use server cache with default threshold) or
+   * an object with a threshold number specifying the minimum hit count
+   * before cached results are returned.
+   * Method-level serverCache options take precedence over these constructor values.
+   */
+  serverCache?: {
+    act?: boolean | { threshold: number };
+    extract?: boolean | { threshold: number };
+    observe?: boolean | { threshold: number };
+  };
 }

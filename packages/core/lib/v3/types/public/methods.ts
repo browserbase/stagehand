@@ -15,6 +15,7 @@ export interface ActOptions {
   variables?: Variables;
   timeout?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  serverCache?: boolean | { threshold: number };
 }
 
 export interface ActResult {
@@ -46,6 +47,7 @@ export interface ExtractOptions {
   timeout?: number;
   selector?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  serverCache?: boolean | { threshold: number };
 }
 
 export const defaultExtractSchema = z.object({
@@ -61,6 +63,7 @@ export interface ObserveOptions {
   timeout?: number;
   selector?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  serverCache?: boolean | { threshold: number };
 }
 
 export enum V3FunctionName {

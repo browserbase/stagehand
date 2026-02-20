@@ -401,6 +401,27 @@ export class V3 {
     return Promise.resolve(this.stagehandMetrics);
   }
 
+  /**
+   * Resolves the effective server cache threshold for a method call.
+   * Method-level serverCache takes precedence over constructor-level serverCache.
+   * Returns the threshold number if the effective serverCache is an object with threshold,
+   * or undefined if it's a boolean or unset (letting LaunchDarkly handle it).
+   */
+  private resolveServerCacheThreshold(
+    method: "act" | "extract" | "observe",
+    methodLevelCache?: boolean | { threshold: number },
+  ): number | undefined {
+    const effective =
+      methodLevelCache !== undefined
+        ? methodLevelCache
+        : this.opts.serverCache?.[method];
+
+    if (typeof effective === "object" && effective !== null) {
+      return effective.threshold;
+    }
+    return undefined;
+  }
+
   private resolveLlmClient(model?: ModelConfiguration): LLMClient {
     if (!model) {
       return this.llmClient;
@@ -1081,6 +1102,10 @@ export class V3 {
             input,
             options,
             frameId: v3Page.mainFrameId(),
+            cacheThreshold: this.resolveServerCacheThreshold(
+              "act",
+              options?.serverCache,
+            ),
           });
         } else {
           const effectiveTimeoutMs =
@@ -1169,7 +1194,15 @@ export class V3 {
       };
       if (this.apiClient) {
         const frameId = page.mainFrameId();
-        actResult = await this.apiClient.act({ input, options, frameId });
+        actResult = await this.apiClient.act({
+          input,
+          options,
+          frameId,
+          cacheThreshold: this.resolveServerCacheThreshold(
+            "act",
+            options?.serverCache,
+          ),
+        });
       } else {
         actResult = await this.actHandler.act(handlerParams);
       }
@@ -1284,6 +1317,10 @@ export class V3 {
           schema: handlerParams.schema,
           options,
           frameId,
+          cacheThreshold: this.resolveServerCacheThreshold(
+            "extract",
+            options?.serverCache,
+          ),
         });
       } else {
         result =
@@ -1353,6 +1390,10 @@ export class V3 {
           instruction,
           options,
           frameId,
+          cacheThreshold: this.resolveServerCacheThreshold(
+            "observe",
+            options?.serverCache,
+          ),
         });
       } else {
         results = await this.observeHandler.observe(handlerParams);
