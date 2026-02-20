@@ -84,18 +84,30 @@ const startPidPolling = (pid: number): void => {
       clearInterval(pidPollTimer);
       pidPollTimer = null;
     }
-    void runCleanup().finally(() => exit(0));
+    void runCleanup("Browser process exited").finally(() => exit(0));
   }, PID_POLL_INTERVAL_MS);
 };
 
 const cleanupLocal = async (
   cfg: Extract<ShutdownSupervisorConfig, { kind: "LOCAL" }>,
+  reason: string,
 ) => {
+  const deletingUserDataDir = Boolean(
+    cfg.createdTempProfile && !cfg.preserveUserDataDir && cfg.userDataDir,
+  );
   await cleanupLocalBrowser({
     // If polling already observed ESRCH, avoid a follow-up PID kill.
     // The PID could be reused by a different process before cleanup runs.
     killChrome:
-      cfg.pid && !localPidKnownGone ? () => politeKill(cfg.pid) : undefined,
+      cfg.pid && !localPidKnownGone
+        ? () => {
+            console.error(
+              `[shutdown-supervisor] Shutting down Chrome pid=${cfg.pid} ` +
+                `(reason=${reason}, deletingUserDataDir=${deletingUserDataDir})`,
+            );
+            return politeKill(cfg.pid);
+          }
+        : undefined,
     userDataDir: cfg.userDataDir,
     createdTempProfile: cfg.createdTempProfile,
     preserveUserDataDir: cfg.preserveUserDataDir,
@@ -104,9 +116,14 @@ const cleanupLocal = async (
 
 const cleanupBrowserbase = async (
   cfg: Extract<ShutdownSupervisorConfig, { kind: "STAGEHAND_API" }>,
+  reason: string,
 ) => {
   if (!cfg.apiKey || !cfg.projectId || !cfg.sessionId) return;
   try {
+    console.error(
+      `[shutdown-supervisor] Ending Browserbase session ${cfg.sessionId} ` +
+        `(reason=${reason})`,
+    );
     const bb = new Browserbase({ apiKey: cfg.apiKey });
     await bb.sessions.update(cfg.sessionId, {
       status: "REQUEST_RELEASE",
@@ -118,17 +135,17 @@ const cleanupBrowserbase = async (
 };
 
 // Idempotent cleanup entrypoint used by all supervisor shutdown paths.
-const runCleanup = (): Promise<void> => {
+const runCleanup = (reason: string): Promise<void> => {
   if (!cleanupPromise) {
     cleanupPromise = (async () => {
       const cfg = config;
       if (!cfg) return;
       if (cfg.kind === "LOCAL") {
-        await cleanupLocal(cfg);
+        await cleanupLocal(cfg, reason);
         return;
       }
       if (cfg.kind === "STAGEHAND_API") {
-        await cleanupBrowserbase(cfg);
+        await cleanupBrowserbase(cfg, reason);
       }
     })();
   }
@@ -143,8 +160,8 @@ const applyConfig = (nextConfig: ShutdownSupervisorConfig): void => {
   }
 };
 
-const onLifelineClosed = () => {
-  void runCleanup().finally(() => exit(0));
+const onLifelineClosed = (reason: string) => {
+  void runCleanup(reason).finally(() => exit(0));
 };
 
 const parseConfigFromArgv = (
@@ -170,9 +187,15 @@ export const runShutdownSupervisor = (
   // Stdin is the lifeline; losing it means parent is gone.
   try {
     process.stdin.resume();
-    process.stdin.on("end", onLifelineClosed);
-    process.stdin.on("close", onLifelineClosed);
-    process.stdin.on("error", onLifelineClosed);
+    process.stdin.on("end", () =>
+      onLifelineClosed("Stagehand process completed"),
+    );
+    process.stdin.on("close", () =>
+      onLifelineClosed("Stagehand process completed"),
+    );
+    process.stdin.on("error", () =>
+      onLifelineClosed("Stagehand process crashed or was killed"),
+    );
   } catch {
     // ignore
   }
