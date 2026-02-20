@@ -9,7 +9,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { SourceMapConsumer } from "source-map";
+import {
+  SourceMapConsumer,
+  type RawIndexMap,
+  type RawSourceMap,
+} from "source-map";
 
 type CoverageRange = {
   startOffset: number;
@@ -41,7 +45,9 @@ const toFilePath = (urlOrPath: string): string | null => {
   return path.isAbsolute(urlOrPath) ? urlOrPath : null;
 };
 
-const readSourceMap = (jsPath: string): Record<string, unknown> | null => {
+type SourceMapPayload = RawSourceMap | RawIndexMap;
+
+const readSourceMap = (jsPath: string): SourceMapPayload | null => {
   if (!fs.existsSync(jsPath)) return null;
   const source = fs.readFileSync(jsPath, "utf8");
   const inlineMatch = source.match(
@@ -50,7 +56,7 @@ const readSourceMap = (jsPath: string): Record<string, unknown> | null => {
   if (inlineMatch) {
     return JSON.parse(
       Buffer.from(inlineMatch[1], "base64").toString("utf8"),
-    ) as Record<string, unknown>;
+    ) as SourceMapPayload;
   }
   const mapMatch = source.match(/sourceMappingURL=([^\s]+)/);
   if (!mapMatch) return null;
@@ -58,10 +64,7 @@ const readSourceMap = (jsPath: string): Record<string, unknown> | null => {
   if (mapFile.startsWith("data:")) return null;
   const mapPath = path.resolve(path.dirname(jsPath), mapFile);
   if (!fs.existsSync(mapPath)) return null;
-  return JSON.parse(fs.readFileSync(mapPath, "utf8")) as Record<
-    string,
-    unknown
-  >;
+  return JSON.parse(fs.readFileSync(mapPath, "utf8")) as SourceMapPayload;
 };
 
 const buildLineStarts = (source: string) => {

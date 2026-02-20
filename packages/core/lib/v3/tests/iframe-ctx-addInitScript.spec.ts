@@ -39,6 +39,13 @@ type FrameTreeNode = {
   frame: { id: string; parentId?: string; url?: string };
   childFrames?: FrameTreeNode[];
 };
+type ChildFrame = ReturnType<Page["frames"]>[number];
+type ChildFrameProbe = {
+  child: ChildFrame;
+  href?: string;
+  readyState?: DocumentReadyState;
+  error?: string;
+};
 
 const formatError = (error: unknown): string => {
   if (error instanceof Error) return error.message;
@@ -181,7 +188,7 @@ async function waitForChildFrame(
   page: Page,
   expectedChildUrl: string,
   timeoutMs = CHILD_FRAME_TIMEOUT_MS,
-): Promise<ReturnType<Page["frames"]>[number]> {
+): Promise<ChildFrame> {
   const mainFrameId = page.mainFrame().frameId;
   const deadline = Date.now() + timeoutMs;
   let observedFrameCount = 0;
@@ -216,17 +223,17 @@ async function waitForChildFrame(
 
     if (childFrames.length) {
       const probes = await Promise.all(
-        childFrames.map(async (child) => {
+        childFrames.map(async (child): Promise<ChildFrameProbe> => {
           try {
-            const state = await child.evaluate(() => ({
-              href: location.href,
-              readyState: document.readyState,
-            }));
+            const state: { href: string; readyState: DocumentReadyState } =
+              await child.evaluate(() => ({
+                href: location.href,
+                readyState: document.readyState,
+              }));
             return {
               child,
               href: state.href,
               readyState: state.readyState,
-              error: undefined,
             };
           } catch (error) {
             return {

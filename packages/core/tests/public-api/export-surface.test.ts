@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import StagehandDefaultExport, * as Stagehand from "@browserbasehq/stagehand";
+import * as Stagehand from "@browserbasehq/stagehand";
 import { publicErrorTypes } from "./public-error-types.test.js";
 
 // Type matcher guidelines:
@@ -12,6 +12,10 @@ import { publicErrorTypes } from "./public-error-types.test.js";
 //
 // toExtend – Assert that a type is compatible with a broader contract (assignable/extends).
 //   e.g. expectTypeOf<User>().toExtend<BaseUser>()
+
+const stagehandWithDefault = Stagehand as typeof Stagehand & {
+  default: typeof Stagehand;
+};
 
 const publicApiShape = {
   __internalMaybeRunShutdownSupervisorFromArgv:
@@ -33,7 +37,7 @@ const publicApiShape = {
   V3Evaluator: Stagehand.V3Evaluator,
   V3FunctionName: Stagehand.V3FunctionName,
   connectToMCPServer: Stagehand.connectToMCPServer,
-  default: StagehandDefaultExport,
+  default: stagehandWithDefault.default,
   defaultExtractSchema: Stagehand.defaultExtractSchema,
   getAISDKLanguageModel: Stagehand.getAISDKLanguageModel,
   getZodType: Stagehand.getZodType,
@@ -57,7 +61,7 @@ const publicApiShape = {
 } as const;
 
 type StagehandExports = typeof Stagehand & {
-  default: typeof StagehandDefaultExport;
+  default: typeof stagehandWithDefault.default;
 };
 
 type PublicAPI = {
@@ -73,6 +77,12 @@ describe("Stagehand public API export surface", () => {
   it("does not expose unexpected top-level exports", () => {
     const expected = Object.keys(publicApiShape).sort();
     const actual = Object.keys(Stagehand).sort();
+    expect(actual).toStrictEqual(expected);
+  });
+
+  it("default export mirrors the named export surface", () => {
+    const expected = Object.keys(Stagehand).sort();
+    const actual = Object.keys(stagehandWithDefault.default).sort();
     expect(actual).toStrictEqual(expected);
   });
 });

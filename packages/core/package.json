@@ -60,7 +60,6 @@
   },
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",
-    "uuid": "^11.1.0",
     "@anthropic-ai/sdk": "0.39.0",
     "@browserbasehq/sdk": "^2.4.0",
     "@google/genai": "^1.22.0",
@@ -72,6 +71,7 @@
     "openai": "^4.87.1",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
+    "uuid": "^11.1.0",
     "ws": "^8.18.0",
     "zod-to-json-schema": "^3.25.0"
   },
@@ -99,11 +99,12 @@
     "puppeteer-core": "^22.8.0"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.0.8",
     "@playwright/test": "^1.42.1",
     "@types/adm-zip": "^0.5.7",
+    "@types/jsdom": "^27.0.0",
     "@types/node": "^20.11.30",
     "@types/ws": "^8.5.13",
+    "@vitest/coverage-v8": "^4.0.8",
     "adm-zip": "^0.5.16",
     "chalk": "^5.4.1",
     "eslint": "^9.16.0",
