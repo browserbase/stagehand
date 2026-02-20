@@ -2,7 +2,7 @@
  * Example: Run a Stagehand agent and persist structured logging events to a user-specified dir.
  */
 import path from "node:path";
-import { Stagehand } from "../lib/v3";
+import { Stagehand } from "../lib/v3/index.js";
 
 async function main() {
   const logsRoot = path.resolve(process.cwd(), "examples", "logs");

@@ -1,8 +1,11 @@
 import { generateText, ModelMessage, LanguageModel, ToolSet } from "ai";
 import { z } from "zod";
 import { tool } from "ai";
-import { LogLine } from "../../types/public/logs";
-import { StagehandZodObject } from "../../zodCompat";
+import { LogLine } from "../../types/public/logs.js";
+import { StagehandZodObject } from "../../zodCompat.js";
+import { getZFactory } from "../../../utils.js";
+import type { StagehandZodSchema } from "../../zodCompat.js";
+
 interface DoneResult {
   reasoning: string;
   taskComplete: boolean;
@@ -10,14 +13,16 @@ interface DoneResult {
   output?: Record<string, unknown>;
 }
 
-const baseDoneSchema = z.object({
-  reasoning: z
-    .string()
-    .describe("Brief summary of what actions were taken and the outcome"),
-  taskComplete: z
-    .boolean()
-    .describe("true if the task was fully completed, false otherwise"),
-});
+function buildBaseDoneSchema(factory: typeof z) {
+  return factory.object({
+    reasoning: factory
+      .string()
+      .describe("Brief summary of what actions were taken and the outcome"),
+    taskComplete: factory
+      .boolean()
+      .describe("true if the task was fully completed, false otherwise"),
+  });
+}
 
 /**
  * Force a done tool call at the end of an agent run.
@@ -38,6 +43,12 @@ export async function handleDoneToolCall(options: {
     message: "Agent calling tool: done",
     level: 1,
   });
+  // Use the same Zod version as the user's outputSchema to avoid v3/v4 mixing
+  const factory = outputSchema
+    ? getZFactory(outputSchema as StagehandZodSchema)
+    : z;
+  const baseDoneSchema = buildBaseDoneSchema(factory);
+
   // Merge base done schema with user-provided output schema if present
   const doneToolSchema = outputSchema
     ? baseDoneSchema.extend({
@@ -50,10 +61,12 @@ export async function handleDoneToolCall(options: {
   const outputInstructions = outputSchema
     ? `\n\nThe user also requested the following information from this task. Provide it in the "output" field:\n${JSON.stringify(
         Object.fromEntries(
-          Object.entries(outputSchema.shape).map(([key, value]) => [
-            key,
-            value.description || "no description",
-          ]),
+          Object.entries(outputSchema.shape).map(
+            ([key, value]: [string, StagehandZodSchema]) => [
+              key,
+              value.description || "no description",
+            ],
+          ),
         ),
         null,
         2,
@@ -110,7 +123,9 @@ Call the "done" tool with:
     };
   }
 
-  const input = doneToolCall.input as z.infer<typeof baseDoneSchema> & {
+  const input = doneToolCall.input as {
+    reasoning: string;
+    taskComplete: boolean;
     output?: Record<string, unknown>;
   };
   logger({

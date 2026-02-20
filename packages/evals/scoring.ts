@@ -2,7 +2,39 @@
  * This file implements scoring functions needed by braintrust.
  */
 
-import { EvalArgs, EvalInput, EvalResult } from "./types/evals";
+import { EvalArgs, EvalInput, EvalResult } from "./types/evals.js";
+
+function formatTaskOutput(output: unknown): string {
+  let value: string | undefined;
+  if (typeof output === "string") {
+    value = output;
+  } else if (output instanceof Error) {
+    value = output.stack ?? `${output.name}: ${output.message}`;
+  } else {
+    try {
+      value = JSON.stringify(output, (_key, current) => {
+        if (current instanceof Error) {
+          return {
+            name: current.name,
+            message: current.message,
+            stack: current.stack,
+          };
+        }
+        return current;
+      });
+    } catch {
+      value = undefined;
+    }
+    if (value === undefined) {
+      value = String(output);
+    }
+  }
+
+  if (value.length > 160) {
+    return `${value.slice(0, 157)}...`;
+  }
+  return value;
+}
 
 /**
  * Scoring function: exactMatch
@@ -16,7 +48,9 @@ import { EvalArgs, EvalInput, EvalResult } from "./types/evals";
 export function exactMatch(
   args: EvalArgs<EvalInput, boolean | { _success: boolean }, unknown>,
 ): EvalResult {
-  console.log(`Task "${args.input.name}" returned: ${args.output}`);
+  console.log(
+    `Task "${args.input.name}" returned: ${formatTaskOutput(args.output)}`,
+  );
 
   const expected = args.expected ?? true;
   if (expected === true) {
@@ -53,7 +87,9 @@ export function errorMatch(
     unknown
   >,
 ): EvalResult {
-  console.log(`Task "${args.input.name}" returned: ${args.output}`);
+  console.log(
+    `Task "${args.input.name}" returned: ${formatTaskOutput(args.output)}`,
+  );
 
   return {
     name: "Error rate",

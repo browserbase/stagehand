@@ -1,4 +1,4 @@
-import type { V3 } from "../../v3";
+import type { V3 } from "../../v3.js";
 
 // Default viewport for advancedStealth mode
 const STEALTH_VIEWPORT = { width: 1288, height: 711 };

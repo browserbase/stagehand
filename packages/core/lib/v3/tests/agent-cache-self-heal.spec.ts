@@ -1,13 +1,13 @@
 import { test, expect } from "@playwright/test";
 import fs from "fs/promises";
 import path from "path";
-import { V3 } from "../v3";
-import { v3TestConfig } from "./v3.config";
+import { V3 } from "../v3.js";
+import { v3TestConfig } from "./v3.config.js";
 import type {
   AgentReplayActStep,
   AgentReplayFillFormStep,
   CachedAgentEntry,
-} from "../types/private/cache";
+} from "../types/private/cache.js";
 
 test.describe("Agent cache self-heal (e2e)", () => {
   let v3: V3;

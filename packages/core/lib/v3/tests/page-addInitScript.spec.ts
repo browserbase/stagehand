@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "../v3";
-import { v3TestConfig } from "./v3.config";
-import { V3Context } from "../understudy/context";
+import { V3 } from "../v3.js";
+import { v3TestConfig } from "./v3.config.js";
+import { V3Context } from "../understudy/context.js";
 
 const EXAMPLE_URL = "https://example.com";
 
@@ -39,20 +39,22 @@ test.describe("page.addInitScript", () => {
   test("scopes scripts to the page only", async () => {
     const first = await ctx.awaitActivePage();
 
-    await first.addInitScript(() => {
-      function markScope(): void {
-        const root = document.documentElement;
-        if (!root) return;
-        root.dataset.scopeWitness = "page-one";
-      }
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", markScope, {
-          once: true,
-        });
-      } else {
-        markScope();
-      }
-    });
+    await first.addInitScript(`
+      (function () {
+        function markScope() {
+          var root = document.documentElement;
+          if (!root) return;
+          root.dataset.scopeWitness = "page-one";
+        }
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", markScope, {
+            once: true,
+          });
+        } else {
+          markScope();
+        }
+      })();
+    `);
 
     await first.goto(`${EXAMPLE_URL}/?page=one`, {
       waitUntil: "domcontentloaded",
@@ -78,8 +80,8 @@ test.describe("page.addInitScript", () => {
     const page = await ctx.awaitActivePage();
     const payload = { greeting: "hi", nested: { count: 1 } };
 
-    await page.addInitScript((arg) => {
-      function setPayload(): void {
+    const initPayload = ((arg) => {
+      function setPayload() {
         const root = document.documentElement;
         if (!root) return;
         root.dataset.pageInitPayload = JSON.stringify(arg);
@@ -91,7 +93,8 @@ test.describe("page.addInitScript", () => {
       } else {
         setPayload();
       }
-    }, payload);
+    }) as (arg: typeof payload) => void;
+    await page.addInitScript(initPayload, payload);
 
     await page.goto(`${EXAMPLE_URL}/?page=payload`, {
       waitUntil: "domcontentloaded",

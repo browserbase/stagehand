@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "../v3";
-import { v3TestConfig } from "./v3.config";
-import { V3Context } from "../understudy/context";
+import { V3 } from "../v3.js";
+import { v3TestConfig } from "./v3.config.js";
+import { V3Context } from "../understudy/context.js";
 
 const toDataUrl = (html: string): string =>
   `data:text/html,${encodeURIComponent(html)}`;
@@ -49,23 +49,25 @@ test.describe("context.addInitScript", () => {
   test("re-applies the script on every navigation for the same page", async () => {
     const page = await ctx.awaitActivePage();
 
-    await ctx.addInitScript(() => {
-      function markVisit() {
-        const root = document.documentElement;
-        if (!root) return;
-        const current = Number(window.name || "0");
-        const next = current + 1;
-        window.name = String(next);
-        root.dataset.visitCount = String(next);
-      }
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", markVisit, {
-          once: true,
-        });
-      } else {
-        markVisit();
-      }
-    });
+    await ctx.addInitScript(`
+      (function () {
+        function markVisit() {
+          var root = document.documentElement;
+          if (!root) return;
+          var current = Number(window.name || "0");
+          var next = current + 1;
+          window.name = String(next);
+          root.dataset.visitCount = String(next);
+        }
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", markVisit, {
+            once: true,
+          });
+        } else {
+          markVisit();
+        }
+      })();
+    `);
 
     await page.goto(toDataUrl("<html><body>first</body></html>"), {
       waitUntil: "load",
@@ -87,8 +89,8 @@ test.describe("context.addInitScript", () => {
   test("applies script (with args) to newly created pages", async () => {
     const payload = { greeting: "hi", nested: { count: 2 } };
 
-    await ctx.addInitScript((arg) => {
-      function setPayload(): void {
+    const initPayload = ((arg) => {
+      function setPayload() {
         const root = document.documentElement;
         if (!root) return;
         root.dataset.initPayload = JSON.stringify(arg);
@@ -100,7 +102,8 @@ test.describe("context.addInitScript", () => {
       } else {
         setPayload();
       }
-    }, payload);
+    }) as (arg: typeof payload) => void;
+    await ctx.addInitScript(initPayload, payload);
 
     const newPage = await ctx.newPage();
     await newPage.goto(toDataUrl("<html><body>child</body></html>"), {

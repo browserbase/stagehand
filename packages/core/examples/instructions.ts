@@ -1,7 +1,7 @@
 /**
  * This example shows how to use custom system prompts with Stagehand.
  */
-import { Stagehand } from "../lib/v3";
+import { Stagehand } from "../lib/v3/index.js";
 
 async function example() {
   const stagehand = new Stagehand({

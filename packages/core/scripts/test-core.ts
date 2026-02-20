@@ -1,0 +1,143 @@
+/**
+ * Core unit tests (Vitest) on dist/esm tests.
+ *
+ * Prereqs: pnpm run build:esm (packages/core/dist/esm/tests present).
+ * Args: [test paths...] -- [vitest args...] | --list (prints JSON matrix)
+ * Env: NODE_V8_COVERAGE, NODE_OPTIONS, VITEST_CONSOLE_REPORTER;
+ *      writes CTRF to ctrf/vitest-core.xml by default.
+ * Example: pnpm run test:core -- packages/core/dist/esm/tests/foo.test.js -- --reporter=junit
+ */
+import fs from "node:fs";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import {
+  ensureParentDir,
+  parseListFlag,
+  splitArgs,
+  collectFiles,
+  toSafeName,
+  normalizeVitestArgs,
+  findJunitPath,
+  hasReporterName,
+  writeCtrfFromJunit,
+} from "./test-utils.js";
+
+const repoRoot = (() => {
+  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
+  const root = value.split("/packages/core/")[0];
+  if (root === value) {
+    throw new Error(`Unable to determine repo root from ${value}`);
+  }
+  return root;
+})();
+
+const testsDir = `${repoRoot}/packages/core/dist/esm/tests`;
+const defaultConfigPath = `${repoRoot}/packages/core/vitest.esm.config.mjs`;
+
+const resolveRepoRelative = (value: string) =>
+  path.isAbsolute(value) ? value : path.resolve(repoRoot, value);
+
+const hasConfigArg = (argsList: string[]) =>
+  argsList.some((arg, i) => {
+    if (arg.startsWith("--config=")) return true;
+    return arg === "--config" && Boolean(argsList[i + 1]);
+  });
+
+const toTestName = (testPath: string) => {
+  const abs = resolveRepoRelative(testPath);
+  const rel = path.relative(testsDir, abs).replaceAll("\\", "/");
+  if (!rel.startsWith("..")) {
+    return rel.replace(/\.test\.(ts|js)$/i, "");
+  }
+  return path.basename(abs).replace(/\.test\.(ts|js)$/i, "");
+};
+
+if (!fs.existsSync(testsDir)) {
+  console.error(
+    "Missing packages/core/dist/esm/tests. Run pnpm run build:esm first.",
+  );
+  process.exit(1);
+}
+
+const listFlag = parseListFlag(process.argv.slice(2));
+const { paths, extra } = splitArgs(listFlag.args);
+
+if (listFlag.list) {
+  const tests = collectFiles(testsDir, ".test.js");
+  const entries = tests.map((file) => {
+    const rel = path.relative(testsDir, file).replace(/\.test\.js$/, "");
+    return {
+      path: path.relative(repoRoot, file),
+      name: rel,
+      safe_name: toSafeName(rel),
+    };
+  });
+  console.log(JSON.stringify(entries));
+  process.exit(0);
+}
+
+const runtimePaths = paths.map(resolveRepoRelative);
+const hasUserConfig = hasConfigArg(extra);
+
+const baseNodeOptions = "--enable-source-maps";
+const nodeOptions = [process.env.NODE_OPTIONS, baseNodeOptions]
+  .filter(Boolean)
+  .join(" ");
+
+const relTestName = paths.length === 1 ? toTestName(paths[0]) : null;
+
+const coverageDir = resolveRepoRelative(
+  process.env.NODE_V8_COVERAGE ??
+    (relTestName
+      ? `${repoRoot}/coverage/core-unit/${relTestName}`
+      : `${repoRoot}/coverage/core-unit`),
+);
+fs.mkdirSync(coverageDir, { recursive: true });
+
+const normalizedExtra = normalizeVitestArgs(repoRoot, extra);
+const defaultJunitPath = (() => {
+  if (!relTestName) {
+    return `${repoRoot}/ctrf/core-unit/all.xml`;
+  }
+  return `${repoRoot}/ctrf/core-unit/${relTestName}.xml`;
+})();
+const hasOutput = Boolean(findJunitPath(normalizedExtra));
+const vitestArgs = [...normalizedExtra];
+const consoleReporter = process.env.VITEST_CONSOLE_REPORTER ?? "default";
+if (!hasReporterName(vitestArgs, consoleReporter)) {
+  vitestArgs.push(`--reporter=${consoleReporter}`);
+}
+if (!hasReporterName(vitestArgs, "junit")) {
+  vitestArgs.push("--reporter=junit");
+}
+if (!hasOutput) {
+  ensureParentDir(defaultJunitPath);
+  vitestArgs.push(`--outputFile.junit=${defaultJunitPath}`);
+}
+const junitPath = findJunitPath(vitestArgs) ?? defaultJunitPath;
+
+const env = {
+  ...process.env,
+  NODE_OPTIONS: nodeOptions,
+  NODE_V8_COVERAGE: coverageDir,
+};
+
+const result = spawnSync(
+  "pnpm",
+  [
+    "--filter",
+    "@browserbasehq/stagehand",
+    "exec",
+    "vitest",
+    "run",
+    ...(hasUserConfig ? [] : ["--config", defaultConfigPath]),
+    ...vitestArgs,
+    ...runtimePaths,
+  ],
+  { stdio: "inherit", env },
+);
+
+writeCtrfFromJunit(junitPath, "vitest");
+
+process.exit(result.status ?? 1);

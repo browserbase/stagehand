@@ -14,11 +14,11 @@ import {
 import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { ChatCompletion } from "openai/resources";
 import { v7 as uuidv7 } from "uuid";
-import { LogLine } from "../types/public/logs";
-import { AvailableModel } from "../types/public/model";
-import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
-import { SessionFileLogger, formatLlmPromptPreview } from "../flowLogger";
-import { toJsonSchema } from "../zodCompat";
+import { LogLine } from "../types/public/logs.js";
+import { AvailableModel } from "../types/public/model.js";
+import { CreateChatCompletionOptions, LLMClient } from "./LLMClient.js";
+import { SessionFileLogger, formatLlmPromptPreview } from "../flowLogger.js";
+import { toJsonSchema } from "../zodCompat.js";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
@@ -135,10 +135,16 @@ export class AISdkClient extends LLMClient {
       (this.model.modelId.includes("gpt-5.1") ||
         this.model.modelId.includes("gpt-5.2")) &&
       !isCodex;
-    const isDeepSeek = this.model.modelId.includes("deepseek");
     // Kimi models only support temperature=1
     const isKimi = this.model.modelId.includes("kimi");
     const temperature = isKimi ? 1 : options.temperature;
+
+    // Models that lack native structured-output support need a prompt-based
+    // JSON fallback instead of response_format: { type: "json_schema" }.
+    const PROMPT_JSON_FALLBACK_PATTERNS = ["deepseek", "kimi", "glm"];
+    const needsPromptJsonFallback = PROMPT_JSON_FALLBACK_PATTERNS.some((p) =>
+      this.model.modelId.includes(p),
+    );
 
     if (options.response_model) {
       // Log LLM request for generateObject (extract)
@@ -154,7 +160,7 @@ export class AISdkClient extends LLMClient {
       });
 
       // For models that don't support native structured outputs, add a prompt instruction
-      if (isDeepSeek || isKimi) {
+      if (needsPromptJsonFallback) {
         const parsedSchema = JSON.stringify(
           toJsonSchema(options.response_model.schema),
         );

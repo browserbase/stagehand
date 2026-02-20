@@ -1,26 +1,25 @@
 /**
  * Shutdown supervisor process.
  *
- * This process watches a lifeline (stdin/IPC). When the parent dies, the
- * lifeline closes and the supervisor performs best-effort cleanup:
- * - LOCAL: kill Chrome + remove temp profile (when keepAlive is false)
- * - STAGEHAND_API: request session release (when keepAlive is false)
+ * This process watches a stdin lifeline. When the parent dies, stdin closes
+ * and the supervisor performs best-effort cleanup:
+ * - LOCAL: kill Chrome + remove temp profile
+ * - STAGEHAND_API: request session release
  */
 
 import Browserbase from "@browserbasehq/sdk";
-import type {
-  ShutdownSupervisorConfig,
-  ShutdownSupervisorMessage,
-} from "../types/private/shutdown";
-import { cleanupLocalBrowser } from "./cleanupLocal";
+import type { ShutdownSupervisorConfig } from "../types/private/shutdown.js";
+import { cleanupLocalBrowser } from "./cleanupLocal.js";
 
-const SIGKILL_POLL_MS = 500;
-const SIGKILL_TIMEOUT_MS = 10_000;
+const SIGKILL_POLL_MS = 250;
+const SIGKILL_TIMEOUT_MS = 7_000;
 const PID_POLL_INTERVAL_MS = 500;
 
-let armed = false;
+// `cleanupPromise` guarantees we execute cleanup at most once.
 let config: ShutdownSupervisorConfig | null = null;
 let cleanupPromise: Promise<void> | null = null;
+let started = false;
+let localPidKnownGone = false;
 
 const exit = (code = 0): void => {
   try {
@@ -30,21 +29,27 @@ const exit = (code = 0): void => {
   }
 };
 
-const safeKill = async (pid: number): Promise<void> => {
+// Best-effort two-phase kill: SIGTERM first, then SIGKILL after timeout.
+// Treat only ESRCH as "already gone"; other errors should not imply dead.
+const politeKill = async (pid: number): Promise<void> => {
   const isAlive = (): boolean => {
     try {
       process.kill(pid, 0);
       return true;
-    } catch {
-      return false;
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      // ESRCH = "No such process" (PID is already gone).
+      return err.code !== "ESRCH";
     }
   };
 
   if (!isAlive()) return;
   try {
     process.kill(pid, "SIGTERM");
-  } catch {
-    return;
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    // ESRCH = process already exited; no further action needed.
+    if (err.code === "ESRCH") return;
   }
 
   const deadline = Date.now() + SIGKILL_TIMEOUT_MS;
@@ -59,30 +64,50 @@ const safeKill = async (pid: number): Promise<void> => {
   }
 };
 
-let pidGone = false;
 let pidPollTimer: NodeJS.Timeout | null = null;
 
+// Local-only fallback: if Chrome dies while parent still lives, run cleanup and exit.
 const startPidPolling = (pid: number): void => {
   if (pidPollTimer) return;
   pidPollTimer = setInterval(() => {
     try {
       process.kill(pid, 0);
-    } catch {
-      pidGone = true;
-      if (pidPollTimer) {
-        clearInterval(pidPollTimer);
-        pidPollTimer = null;
-      }
+      return;
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      // Only ESRCH means the process is definitely gone.
+      if (err.code !== "ESRCH") return;
     }
+
+    localPidKnownGone = true;
+    if (pidPollTimer) {
+      clearInterval(pidPollTimer);
+      pidPollTimer = null;
+    }
+    void runCleanup("Browser process exited").finally(() => exit(0));
   }, PID_POLL_INTERVAL_MS);
 };
 
 const cleanupLocal = async (
   cfg: Extract<ShutdownSupervisorConfig, { kind: "LOCAL" }>,
+  reason: string,
 ) => {
-  if (cfg.keepAlive) return;
+  const deletingUserDataDir = Boolean(
+    cfg.createdTempProfile && !cfg.preserveUserDataDir && cfg.userDataDir,
+  );
   await cleanupLocalBrowser({
-    killChrome: cfg.pid && !pidGone ? () => safeKill(cfg.pid) : undefined,
+    // If polling already observed ESRCH, avoid a follow-up PID kill.
+    // The PID could be reused by a different process before cleanup runs.
+    killChrome:
+      cfg.pid && !localPidKnownGone
+        ? () => {
+            console.error(
+              `[shutdown-supervisor] Shutting down Chrome pid=${cfg.pid} ` +
+                `(reason=${reason}, deletingUserDataDir=${deletingUserDataDir})`,
+            );
+            return politeKill(cfg.pid);
+          }
+        : undefined,
     userDataDir: cfg.userDataDir,
     createdTempProfile: cfg.createdTempProfile,
     preserveUserDataDir: cfg.preserveUserDataDir,
@@ -91,10 +116,14 @@ const cleanupLocal = async (
 
 const cleanupBrowserbase = async (
   cfg: Extract<ShutdownSupervisorConfig, { kind: "STAGEHAND_API" }>,
+  reason: string,
 ) => {
-  if (cfg.keepAlive) return;
   if (!cfg.apiKey || !cfg.projectId || !cfg.sessionId) return;
   try {
+    console.error(
+      `[shutdown-supervisor] Ending Browserbase session ${cfg.sessionId} ` +
+        `(reason=${reason})`,
+    );
     const bb = new Browserbase({ apiKey: cfg.apiKey });
     await bb.sessions.update(cfg.sessionId, {
       status: "REQUEST_RELEASE",
@@ -105,59 +134,78 @@ const cleanupBrowserbase = async (
   }
 };
 
-const runCleanup = (): Promise<void> => {
+// Idempotent cleanup entrypoint used by all supervisor shutdown paths.
+const runCleanup = (reason: string): Promise<void> => {
   if (!cleanupPromise) {
     cleanupPromise = (async () => {
       const cfg = config;
-      if (!cfg || !armed) return;
-      armed = false;
+      if (!cfg) return;
       if (cfg.kind === "LOCAL") {
-        await cleanupLocal(cfg);
+        await cleanupLocal(cfg, reason);
         return;
       }
       if (cfg.kind === "STAGEHAND_API") {
-        await cleanupBrowserbase(cfg);
+        await cleanupBrowserbase(cfg, reason);
       }
     })();
   }
   return cleanupPromise;
 };
 
-const onLifelineClosed = () => {
-  void runCleanup().finally(() => exit(0));
-};
-
-const onMessage = (raw: unknown) => {
-  if (!raw || typeof raw !== "object") return;
-  const msg = raw as ShutdownSupervisorMessage;
-  if (msg.type === "config") {
-    config = msg.config ?? null;
-    armed = Boolean(config) && config?.keepAlive === false;
-    if (armed && config?.kind === "LOCAL" && config?.pid) {
-      startPidPolling(config.pid);
-    }
-    try {
-      process.send?.({ type: "ready" });
-    } catch {
-      // ignore IPC failures
-    }
-    return;
-  }
-  if (msg.type === "exit") {
-    armed = false;
-    exit(0);
+const applyConfig = (nextConfig: ShutdownSupervisorConfig): void => {
+  config = nextConfig;
+  localPidKnownGone = false;
+  if (config.kind === "LOCAL" && config.pid) {
+    startPidPolling(config.pid);
   }
 };
 
-// Keep stdin open as a lifeline to the parent process.
-try {
-  process.stdin.resume();
-  process.stdin.on("end", onLifelineClosed);
-  process.stdin.on("close", onLifelineClosed);
-  process.stdin.on("error", onLifelineClosed);
-} catch {
-  // ignore
-}
+const onLifelineClosed = (reason: string) => {
+  void runCleanup(reason).finally(() => exit(0));
+};
 
-process.on("disconnect", onLifelineClosed);
-process.on("message", onMessage);
+const parseConfigFromArgv = (
+  argv: readonly string[] = process.argv.slice(2),
+): ShutdownSupervisorConfig | null => {
+  const prefix = "--supervisor-config=";
+  const raw = argv.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
+  if (!argv.includes("--supervisor") || !raw) return null;
+  try {
+    return JSON.parse(raw) as ShutdownSupervisorConfig;
+  } catch {
+    return null;
+  }
+};
+
+export const runShutdownSupervisor = (
+  initialConfig: ShutdownSupervisorConfig,
+): void => {
+  if (started) return;
+  started = true;
+  applyConfig(initialConfig);
+
+  // Stdin is the lifeline; losing it means parent is gone.
+  try {
+    process.stdin.resume();
+    process.stdin.on("end", () =>
+      onLifelineClosed("Stagehand process completed"),
+    );
+    process.stdin.on("close", () =>
+      onLifelineClosed("Stagehand process completed"),
+    );
+    process.stdin.on("error", () =>
+      onLifelineClosed("Stagehand process crashed or was killed"),
+    );
+  } catch {
+    // ignore
+  }
+};
+
+export const maybeRunShutdownSupervisorFromArgv = (
+  argv: readonly string[] = process.argv.slice(2),
+): boolean => {
+  const parsed = parseConfigFromArgv(argv);
+  if (!parsed) return false;
+  runShutdownSupervisor(parsed);
+  return true;
+};

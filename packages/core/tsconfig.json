@@ -1,23 +1,17 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "module": "commonjs",
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "target": "es6",
-    "noImplicitAny": true,
-    "moduleResolution": "node",
-    "sourceMap": true,
-    "outDir": "./dist",
-    "rootDir": "../../",
     "baseUrl": "../../",
+    "rootDir": ".",
+    "outDir": "./dist/esm",
+    "allowJs": true,
     "paths": {
+      "@browserbasehq/stagehand": ["packages/core/lib/v3/index.ts"],
+      "@browserbasehq/stagehand/*": ["packages/core/lib/*"],
       "*": ["node_modules/*", "packages/core/lib/types/*"],
-      "@/*": ["./"]
-    },
-    "skipLibCheck": true,
-    "declaration": true,
-    "emitDeclarationOnly": true
+      "@/*": ["./*"]
+    }
   },
-  "include": ["lib/**/*", "examples/**/*", "tests/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["lib/**/*"],
+  "exclude": ["node_modules", "dist", "tests", "examples", "lib/**/tests/**"]
 }

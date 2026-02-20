@@ -7,18 +7,21 @@ import {
   locatorScriptBootstrap,
   locatorScriptGlobalRefs,
   locatorScriptSources,
-} from "../dom/build/locatorScripts.generated";
-import type { Frame } from "./frame";
-import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver";
+} from "../dom/build/locatorScripts.generated.js";
+import type { Frame } from "./frame.js";
+import {
+  FrameSelectorResolver,
+  type SelectorQuery,
+} from "./selectorResolver.js";
 import {
   StagehandElementNotFoundError,
   StagehandInvalidArgumentError,
   StagehandLocatorError,
   ElementNotVisibleError,
-} from "../types/public/sdkErrors";
-import { normalizeInputFiles } from "./fileUploadUtils";
-import { SetInputFilesArgument, MouseButton } from "../types/public/locator";
-import { NormalizedFilePayload } from "../types/private/locator";
+} from "../types/public/sdkErrors.js";
+import { normalizeInputFiles } from "./fileUploadUtils.js";
+import { SetInputFilesArgument, MouseButton } from "../types/public/locator.js";
+import { NormalizedFilePayload } from "../types/private/locator.js";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
 
@@ -401,32 +404,39 @@ export class Locator {
       if (!box.model) throw new ElementNotVisibleError(this.selector);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
-      // Dispatch input (from the same session)
-      await session.send<never>("Input.dispatchMouseEvent", {
-        type: "mouseMoved",
-        x: cx,
-        y: cy,
-        button: "none",
-      } as Protocol.Input.DispatchMouseEventRequest);
+      // Dispatch click events in a pipelined burst to reduce inter-click delay
+      // from network/CPU jitter between round trips.
+      const dispatches: Array<Promise<unknown>> = [];
+      dispatches.push(
+        session.send<never>("Input.dispatchMouseEvent", {
+          type: "mouseMoved",
+          x: cx,
+          y: cy,
+          button: "none",
+        } as Protocol.Input.DispatchMouseEventRequest),
+      );
 
-      // Dispatch mouse pressed and released events for the given click count
       for (let i = 1; i <= clickCount; i++) {
-        await session.send<never>("Input.dispatchMouseEvent", {
-          type: "mousePressed",
-          x: cx,
-          y: cy,
-          button,
-          clickCount: i,
-        } as Protocol.Input.DispatchMouseEventRequest);
-
-        await session.send<never>("Input.dispatchMouseEvent", {
-          type: "mouseReleased",
-          x: cx,
-          y: cy,
-          button,
-          clickCount: i,
-        } as Protocol.Input.DispatchMouseEventRequest);
+        dispatches.push(
+          session.send<never>("Input.dispatchMouseEvent", {
+            type: "mousePressed",
+            x: cx,
+            y: cy,
+            button,
+            clickCount: i,
+          } as Protocol.Input.DispatchMouseEventRequest),
+        );
+        dispatches.push(
+          session.send<never>("Input.dispatchMouseEvent", {
+            type: "mouseReleased",
+            x: cx,
+            y: cy,
+            button,
+            clickCount: i,
+          } as Protocol.Input.DispatchMouseEventRequest),
+        );
       }
+      await Promise.all(dispatches);
     } finally {
       // release the element handle
       try {

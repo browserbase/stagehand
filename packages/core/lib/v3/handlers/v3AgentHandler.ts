@@ -1,7 +1,7 @@
-import { createAgentTools } from "../agent/tools";
-import { buildAgentSystemPrompt } from "../agent/prompts/agentSystemPrompt";
-import { LogLine } from "../types/public/logs";
-import { V3 } from "../v3";
+import { createAgentTools } from "../agent/tools/index.js";
+import { buildAgentSystemPrompt } from "../agent/prompts/agentSystemPrompt.js";
+import { LogLine } from "../types/public/logs.js";
+import { V3 } from "../v3.js";
 import {
   ModelMessage,
   ToolSet,
@@ -14,10 +14,10 @@ import {
   type StreamTextOnStepFinishCallback,
   type PrepareStepFunction,
 } from "ai";
-import { StagehandZodObject } from "../zodCompat";
-import { processMessages } from "../agent/utils/messageProcessing";
-import { LLMClient } from "../llm/LLMClient";
-import { SessionFileLogger } from "../flowLogger";
+import { StagehandZodObject } from "../zodCompat.js";
+import { processMessages } from "../agent/utils/messageProcessing.js";
+import { LLMClient } from "../llm/LLMClient.js";
+import { SessionFileLogger } from "../flowLogger.js";
 import {
   AgentExecuteOptions,
   AgentStreamExecuteOptions,
@@ -28,15 +28,16 @@ import {
   AgentStreamResult,
   AgentStreamCallbacks,
   AgentToolMode,
-} from "../types/public/agent";
-import { V3FunctionName } from "../types/public/methods";
-import { mapToolResultToActions } from "../agent/utils/actionMapping";
+  AgentModelConfig,
+} from "../types/public/agent.js";
+import { V3FunctionName } from "../types/public/methods.js";
+import { mapToolResultToActions } from "../agent/utils/actionMapping.js";
 import {
   MissingLLMConfigurationError,
   StreamingCallbacksInNonStreamingModeError,
   AgentAbortError,
-} from "../types/public/sdkErrors";
-import { handleDoneToolCall } from "../agent/utils/handleDoneToolCall";
+} from "../types/public/sdkErrors.js";
+import { handleDoneToolCall } from "../agent/utils/handleDoneToolCall.js";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -68,7 +69,7 @@ export class V3AgentHandler {
   private v3: V3;
   private logger: (message: LogLine) => void;
   private llmClient: LLMClient;
-  private executionModel?: string;
+  private executionModel?: string | AgentModelConfig;
   private systemInstructions?: string;
   private mcpTools?: ToolSet;
   private mode: AgentToolMode;
@@ -77,7 +78,7 @@ export class V3AgentHandler {
     v3: V3,
     logger: (message: LogLine) => void,
     llmClient: LLMClient,
-    executionModel?: string,
+    executionModel?: string | AgentModelConfig,
     systemInstructions?: string,
     mcpTools?: ToolSet,
     mode?: AgentToolMode,

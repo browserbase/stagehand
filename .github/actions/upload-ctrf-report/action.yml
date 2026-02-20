@@ -1,0 +1,34 @@
+name: Upload CTRF report
+description: Upload CTRF report artifact.
+inputs:
+  name:
+    description: Report path (used as artifact name when sanitized).
+    required: true
+  path:
+    description: Optional explicit path (defaults to name).
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Normalize inputs
+      id: normalize
+      shell: bash
+      run: |
+        name="${{ inputs.name }}"
+        echo "name=${name//\//-}" >> "$GITHUB_OUTPUT"
+        if [ -n "${{ inputs.path }}" ]; then
+          echo "path=${{ inputs.path }}" >> "$GITHUB_OUTPUT"
+        else
+          echo "path=${{ inputs.name }}" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Upload CTRF report artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.normalize.outputs.name }}
+        # package.json anchors uploaded paths to the repository root.
+        path: |
+          package.json
+          ${{ steps.normalize.outputs.path }}

@@ -1,6 +1,16 @@
 import fs from "fs";
-import { tasksByName } from "./taskConfig";
-import type { SummaryResult } from "./types/evals";
+import { fileURLToPath } from "node:url";
+import { tasksByName } from "./taskConfig.js";
+import type { SummaryResult } from "./types/evals.js";
+
+const repoRoot = (() => {
+  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
+  const root = value.split("/packages/evals/")[0];
+  if (root === value) {
+    throw new Error(`Unable to determine repo root from ${value}`);
+  }
+  return root;
+})();
 
 export const generateSummary = async (
   results: SummaryResult[],
@@ -61,9 +71,7 @@ export const generateSummary = async (
     models,
   };
 
-  fs.writeFileSync(
-    "../../eval-summary.json",
-    JSON.stringify(formattedSummary, null, 2),
-  );
-  console.log("Evaluation summary written to ../../eval-summary.json");
+  const summaryPath = `${repoRoot}/eval-summary.json`;
+  fs.writeFileSync(summaryPath, JSON.stringify(formattedSummary, null, 2));
+  console.log(`Evaluation summary written to ${summaryPath}`);
 };

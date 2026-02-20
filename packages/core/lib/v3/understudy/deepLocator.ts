@@ -1,9 +1,9 @@
-import { Locator } from "./locator";
-import type { Frame } from "./frame";
-import type { Page } from "./page";
-import { v3Logger } from "../logger";
-import { FrameLocator, frameLocatorFromFrame } from "./frameLocator";
-import { StagehandInvalidArgumentError } from "../types/public/sdkErrors";
+import { Locator } from "./locator.js";
+import type { Frame } from "./frame.js";
+import type { Page } from "./page.js";
+import { v3Logger } from "../logger.js";
+import { FrameLocator, frameLocatorFromFrame } from "./frameLocator.js";
+import { StagehandInvalidArgumentError } from "../types/public/sdkErrors.js";
 
 /**
  * Recognize iframe steps like "iframe" or "iframe[2]" in an XPath.

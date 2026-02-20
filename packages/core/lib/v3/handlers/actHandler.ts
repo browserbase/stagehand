@@ -1,29 +1,29 @@
 // lib/v3/handlers/actHandler.ts
-import { act as actInference } from "../../inference";
-import { buildActPrompt, buildStepTwoPrompt } from "../../prompt";
-import { trimTrailingTextNode } from "../../utils";
-import { v3Logger } from "../logger";
-import { ActHandlerParams } from "../types/private/handlers";
-import { ActResult, Action, V3FunctionName } from "../types/public/methods";
-import { ActTimeoutError } from "../types/public/sdkErrors";
+import { act as actInference } from "../../inference.js";
+import { buildActPrompt, buildStepTwoPrompt } from "../../prompt.js";
+import { trimTrailingTextNode } from "../../utils.js";
+import { v3Logger } from "../logger.js";
+import { ActHandlerParams } from "../types/private/handlers.js";
+import { ActResult, Action, V3FunctionName } from "../types/public/methods.js";
+import { ActTimeoutError } from "../types/public/sdkErrors.js";
 import {
   captureHybridSnapshot,
   diffCombinedTrees,
-} from "../understudy/a11y/snapshot";
-import { LLMClient } from "../llm/LLMClient";
-import { SupportedUnderstudyAction } from "../types/private";
-import { EncodedId } from "../types/private/internal";
+} from "../understudy/a11y/snapshot/index.js";
+import { LLMClient } from "../llm/LLMClient.js";
+import { SupportedUnderstudyAction } from "../types/private/index.js";
+import { EncodedId } from "../types/private/internal.js";
 import {
   AvailableModel,
   ClientOptions,
   ModelConfiguration,
-} from "../types/public/model";
-import type { Page } from "../understudy/page";
+} from "../types/public/model.js";
+import type { Page } from "../understudy/page.js";
 import {
   performUnderstudyMethod,
   waitForDomNetworkQuiet,
-} from "./handlerUtils/actHandlerUtils";
-import { createTimeoutGuard } from "./handlerUtils/timeoutGuard";
+} from "./handlerUtils/actHandlerUtils.js";
+import { createTimeoutGuard } from "./handlerUtils/timeoutGuard.js";
 
 type ActInferenceElement = {
   elementId?: string;

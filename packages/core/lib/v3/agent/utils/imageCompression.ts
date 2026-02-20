@@ -3,7 +3,7 @@ import {
   AnthropicContentBlock,
   AnthropicToolResult,
   ResponseInputItem as OpenAIResponseInputItem,
-} from "../../types/public/agent";
+} from "../../types/public/agent.js";
 import type {
   Content as GoogleContent,
   Part as GooglePart,

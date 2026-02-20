@@ -275,6 +275,11 @@ export const ProxyConfigSchema = z
   ])
   .meta({ id: "ProxyConfig" });
 
+/** Browserbase region identifier for multi-region support */
+export const BrowserbaseRegionSchema = z
+  .enum(["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"])
+  .meta({ id: "BrowserbaseRegion" });
+
 /** Browserbase session creation parameters */
 export const BrowserbaseSessionCreateParamsSchema = z
   .object({
@@ -283,9 +288,7 @@ export const BrowserbaseSessionCreateParamsSchema = z
     extensionId: z.string().optional(),
     keepAlive: z.boolean().optional(),
     proxies: z.union([z.boolean(), z.array(ProxyConfigSchema)]).optional(),
-    region: z
-      .enum(["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"])
-      .optional(),
+    region: BrowserbaseRegionSchema.optional(),
     timeout: z.number().optional(),
     userMetadata: z.record(z.string(), z.unknown()).optional(),
   })
@@ -805,16 +808,19 @@ export const TokenUsageSchema = z
   .object({
     inputTokens: z.number().optional(),
     outputTokens: z.number().optional(),
-    reasoningTokens: z.number().optional(),
-    cachedInputTokens: z.number().optional(),
     timeMs: z.number().optional(),
+    cost: z.number().optional(),
   })
   .meta({ id: "TokenUsage" });
 
 /** Action entry in replay metrics */
 export const ReplayActionSchema = z
   .object({
-    method: z.string().optional(),
+    method: z.string(),
+    parameters: z.record(z.string(), z.unknown()),
+    result: z.record(z.string(), z.unknown()),
+    timestamp: z.number(),
+    endTime: z.number().optional(),
     tokenUsage: TokenUsageSchema.optional(),
   })
   .meta({ id: "ReplayAction" });
@@ -822,14 +828,18 @@ export const ReplayActionSchema = z
 /** Page entry in replay metrics */
 export const ReplayPageSchema = z
   .object({
-    actions: z.array(ReplayActionSchema).optional(),
+    url: z.string(),
+    timestamp: z.number(),
+    duration: z.number(),
+    actions: z.array(ReplayActionSchema),
   })
   .meta({ id: "ReplayPage" });
 
 /** Inner result data for replay */
 export const ReplayResultSchema = z
   .object({
-    pages: z.array(ReplayPageSchema).optional(),
+    pages: z.array(ReplayPageSchema),
+    clientLanguage: z.string().optional(),
   })
   .meta({ id: "ReplayResult" });
 
@@ -1059,6 +1069,7 @@ export type BrowserbaseProxyConfig = z.infer<
   typeof BrowserbaseProxyConfigSchema
 >;
 export type ExternalProxyConfig = z.infer<typeof ExternalProxyConfigSchema>;
+export type BrowserbaseRegion = z.infer<typeof BrowserbaseRegionSchema>;
 export type BrowserbaseSessionCreateParams = z.infer<
   typeof BrowserbaseSessionCreateParamsSchema
 >;

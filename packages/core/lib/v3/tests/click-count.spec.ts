@@ -1,6 +1,41 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "../v3";
-import { v3TestConfig } from "./v3.config";
+import { V3 } from "../v3.js";
+import { v3TestConfig } from "./v3.config.js";
+
+// Keep double-click verification event-based and deterministic.
+// Time-delta counters (Date.now() between mousedowns) are flaky at ms boundaries
+// and can miss valid double-clicks when synthetic input lands in the same millisecond.
+const doubleClickFixtureUrl = `data:text/html,${encodeURIComponent(`<!DOCTYPE html>
+<html>
+  <body>
+    <div id="target" style="width: 240px; height: 120px; border: 1px solid #000;">target</div>
+    <input id="clickCount" value="0" readonly />
+    <input id="dblClickCount" value="0" readonly />
+    <input id="lastClickDetail" value="0" readonly />
+    <input id="lastDblClickDetail" value="0" readonly />
+    <script>
+      const target = document.getElementById("target");
+      const clickCount = document.getElementById("clickCount");
+      const dblClickCount = document.getElementById("dblClickCount");
+      const lastClickDetail = document.getElementById("lastClickDetail");
+      const lastDblClickDetail = document.getElementById("lastDblClickDetail");
+      let clicks = 0;
+      let dblClicks = 0;
+
+      target.addEventListener("click", (event) => {
+        clicks += 1;
+        clickCount.value = String(clicks);
+        lastClickDetail.value = String(event.detail);
+      });
+
+      target.addEventListener("dblclick", (event) => {
+        dblClicks += 1;
+        dblClickCount.value = String(dblClicks);
+        lastDblClickDetail.value = String(event.detail);
+      });
+    </script>
+  </body>
+</html>`)}`;
 
 test.describe("Locator and Page click methods", () => {
   let v3: V3;
@@ -39,34 +74,31 @@ test.describe("Locator and Page click methods", () => {
 
   test("locator.click() with clickCount: 2 performs double-click", async () => {
     const page = v3.context.pages()[0];
-    await page.goto(
-      "https://browserbase.github.io/stagehand-eval-sites/sites/click-test/",
-    );
-
-    // Wait for page to be fully loaded
+    await page.goto(doubleClickFixtureUrl);
     await page.waitForLoadState("domcontentloaded");
 
-    // Get initial counts
-    const countDisplay = page.locator("#count");
-    const dcCountDisplay = page.locator("#dcCount");
+    const countDisplay = page.locator("#clickCount");
+    const dcCountDisplay = page.locator("#dblClickCount");
+    const clickDetailDisplay = page.locator("#lastClickDetail");
+    const dblClickDetailDisplay = page.locator("#lastDblClickDetail");
 
     const initialCount = await countDisplay.inputValue();
     const initialDcCount = await dcCountDisplay.inputValue();
     expect(initialCount).toBe("0");
     expect(initialDcCount).toBe("0");
 
-    // Perform double-click on the textarea
-    const clickArea = page.locator("#textarea");
+    const clickArea = page.locator("#target");
     await clickArea.click({ clickCount: 2 });
 
-    // Verify both counters incremented
-    // Regular count should be 2 (one for each click in the double-click)
     const newCount = await countDisplay.inputValue();
     expect(newCount).toBe("2");
 
-    // Double-click count should be 1 (one double-click event detected)
     const newDcCount = await dcCountDisplay.inputValue();
     expect(newDcCount).toBe("1");
+    // `dblclick` is the browser-level contract for double-click behavior.
+    // Verifying `detail=2` ensures the click sequence is recognized as a true multi-click.
+    expect(await clickDetailDisplay.inputValue()).toBe("2");
+    expect(await dblClickDetailDisplay.inputValue()).toBe("2");
   });
 
   test("locator.click() with clickCount: 3 performs triple-click", async () => {
@@ -119,36 +151,33 @@ test.describe("Locator and Page click methods", () => {
 
   test("page.click() with clickCount: 2 performs double-click", async () => {
     const page = v3.context.pages()[0];
-    await page.goto(
-      "https://browserbase.github.io/stagehand-eval-sites/sites/click-test/",
-    );
-
-    // Wait for page to be fully loaded
+    await page.goto(doubleClickFixtureUrl);
     await page.waitForLoadState("domcontentloaded");
 
-    // Get initial counts
-    const countDisplay = page.locator("#count");
-    const dcCountDisplay = page.locator("#dcCount");
+    const countDisplay = page.locator("#clickCount");
+    const dcCountDisplay = page.locator("#dblClickCount");
+    const clickDetailDisplay = page.locator("#lastClickDetail");
+    const dblClickDetailDisplay = page.locator("#lastDblClickDetail");
 
     const initialCount = await countDisplay.inputValue();
     const initialDcCount = await dcCountDisplay.inputValue();
     expect(initialCount).toBe("0");
     expect(initialDcCount).toBe("0");
 
-    // Get the centroid of the textarea to click
-    const clickArea = page.locator("#textarea");
+    const clickArea = page.locator("#target");
     const { x, y } = await clickArea.centroid();
 
-    // Perform double-click using page.click() with coordinates
     await page.click(x, y, { clickCount: 2 });
 
-    // Verify both counters incremented
     const newCount = await countDisplay.inputValue();
     expect(newCount).toBe("2");
 
-    // Double-click count should be 1
     const newDcCount = await dcCountDisplay.inputValue();
     expect(newDcCount).toBe("1");
+    // `dblclick` is the browser-level contract for double-click behavior.
+    // Verifying `detail=2` ensures the click sequence is recognized as a true multi-click.
+    expect(await clickDetailDisplay.inputValue()).toBe("2");
+    expect(await dblClickDetailDisplay.inputValue()).toBe("2");
   });
 
   test("page.click() with clickCount: 3 performs triple-click", async () => {

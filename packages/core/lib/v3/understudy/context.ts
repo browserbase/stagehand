@@ -1,16 +1,17 @@
 // lib/v3/understudy/context.ts
 import type { Protocol } from "devtools-protocol";
-import { v3Logger } from "../logger";
-import { CdpConnection, CDPSessionLike } from "./cdp";
-import { Page } from "./page";
-import { installV3PiercerIntoSession } from "./piercer";
-import { v3ScriptContent } from "../dom/build/scriptV3Content";
-import { executionContexts } from "./executionContextRegistry";
-import type { StagehandAPIClient } from "../api";
-import { LocalBrowserLaunchOptions } from "../types/public";
-import { InitScriptSource } from "../types/private";
-import { normalizeInitScriptSource } from "./initScripts";
-import { TimeoutError, PageNotFoundError } from "../types/public/sdkErrors";
+import { v3Logger } from "../logger.js";
+import { CdpConnection, CDPSessionLike } from "./cdp.js";
+import { Page } from "./page.js";
+import { installV3PiercerIntoSession } from "./piercer.js";
+import { v3ScriptContent } from "../dom/build/scriptV3Content.js";
+import { executionContexts } from "./executionContextRegistry.js";
+import type { StagehandAPIClient } from "../api.js";
+import { LocalBrowserLaunchOptions } from "../types/public/index.js";
+import { InitScriptSource } from "../types/private/index.js";
+import { normalizeInitScriptSource } from "./initScripts.js";
+import { TimeoutError, PageNotFoundError } from "../types/public/sdkErrors.js";
+import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig.js";
 
 type TargetId = string;
 type SessionId = string;
@@ -53,6 +54,21 @@ function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
   const ti = info as unknown as { subtype?: string };
   return info.type === "page" && ti.subtype !== "iframe";
 }
+
+const DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS = 5000;
+const CI_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS = 30000;
+const FIRST_TOP_LEVEL_PAGE_TIMEOUT_ENV =
+  "STAGEHAND_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS";
+
+function getFirstTopLevelPageTimeoutMs(): number {
+  return (
+    getEnvTimeoutMs(FIRST_TOP_LEVEL_PAGE_TIMEOUT_ENV) ??
+    (process.env.CI
+      ? CI_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS
+      : DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS)
+  );
+}
+
 
 /**
  * V3Context
@@ -127,16 +143,44 @@ export class V3Context {
       localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null;
     },
   ): Promise<V3Context> {
-    const conn = await CdpConnection.connect(wsUrl);
-    const ctx = new V3Context(
-      conn,
-      opts?.env ?? "LOCAL",
-      opts?.apiClient ?? null,
-      opts?.localBrowserLaunchOptions ?? null,
-    );
-    await ctx.bootstrap();
-    await ctx.waitForFirstTopLevelPage(5000);
-    return ctx;
+    const connectTask = async () => {
+      const conn = await CdpConnection.connect(wsUrl);
+      const ctx = new V3Context(
+        conn,
+        opts?.env ?? "LOCAL",
+        opts?.apiClient ?? null,
+        opts?.localBrowserLaunchOptions ?? null,
+      );
+      await ctx.bootstrap();
+      await ctx.waitForFirstTopLevelPage(getFirstTopLevelPageTimeoutMs());
+      return ctx;
+    };
+
+    const cdpTimeoutMs =
+      opts?.env === "BROWSERBASE"
+        ? getEnvTimeoutMs("BROWSERBASE_CDP_CONNECT_MAX_MS")
+        : undefined;
+
+    if (cdpTimeoutMs) {
+      let timedOut = false;
+      const connectPromise = connectTask();
+      const guarded = withTimeout(
+        connectPromise,
+        cdpTimeoutMs,
+        "Browserbase CDP connect",
+      ).catch((err) => {
+        timedOut = true;
+        throw err;
+      });
+      connectPromise
+        .then((ctx) => {
+          if (timedOut) void ctx.close();
+        })
+        .catch(() => {});
+      return await guarded;
+    }
+
+    return await connectTask();
   }
 
   /**

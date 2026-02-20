@@ -1,9 +1,7 @@
-import { Stagehand } from "../lib/v3";
-import dotenv from "dotenv";
+import { Stagehand } from "../lib/v3/index.js";
 import chalk from "chalk";
 
 // Load environment variables
-dotenv.config();
 async function main() {
   console.log(`\n${chalk.bold("Stagehand 🤘 Agent Streaming Example")}\n`);
   // Initialize Stagehand

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "../v3";
-import { v3TestConfig } from "./v3.config";
+import { V3 } from "../v3.js";
+import { v3TestConfig } from "./v3.config.js";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -23,10 +23,16 @@ test.describe("userDataDir persistence", () => {
   });
 
   test("Chrome uses the specified userDataDir", async () => {
+    const browserTarget = (
+      process.env.STAGEHAND_BROWSER_TARGET ?? "local"
+    ).toLowerCase();
+    const isBrowserbase = browserTarget === "browserbase";
+    test.skip(isBrowserbase, "Requires local Chromium for userDataDir checks");
+
     v3 = new V3({
       ...v3TestConfig,
       localBrowserLaunchOptions: {
-        ...v3TestConfig.localBrowserLaunchOptions,
+        ...(v3TestConfig.localBrowserLaunchOptions ?? {}),
         userDataDir: testDir,
         preserveUserDataDir: true,
       },

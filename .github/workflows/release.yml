@@ -18,44 +18,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js 20.x
-        uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+        with:
+          use-prebuilt-artifacts: "false"
+
+      - name: Configure npm registry for Trusted Publishing
+        uses: actions/setup-node@v6
         with:
           node-version: 20.x
           registry-url: "https://registry.npmjs.org"
 
-      # Ensure npm 11.5.1 or later is installed for Trusted Publishing.
-      - name: Update npm
+      - name: Update npm for Trusted Publishing
         run: npm install -g npm@latest
 
-      - name: Enable Corepack
-        run: |
-          npm install -g corepack@latest
-          corepack enable
-
-      - name: Get pnpm store directory
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
-
-      - name: Install dependencies
-        run: |
-          rm -rf node_modules
-          pnpm install --no-frozen-lockfile
-
-      - name: Build
-        run: pnpm run build
+      - name: Run Lint & Build
+        run: pnpm exec turbo run lint && pnpm exec turbo run build
 
       - name: Create Release Pull Request or Publish to npm
         id: changesets

@@ -1,46 +1,46 @@
 import { Protocol } from "devtools-protocol";
 import { promises as fs } from "fs";
-import { v3Logger } from "../logger";
-import { logAction } from "../flowLogger";
-import type { CDPSessionLike } from "./cdp";
-import { CdpConnection } from "./cdp";
-import { Frame } from "./frame";
-import { FrameLocator } from "./frameLocator";
-import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator";
+import { v3Logger } from "../logger.js";
+import { logAction } from "../flowLogger.js";
+import type { CDPSessionLike } from "./cdp.js";
+import { CdpConnection } from "./cdp.js";
+import { Frame } from "./frame.js";
+import { FrameLocator } from "./frameLocator.js";
+import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator.js";
 import {
   captureHybridSnapshot,
   resolveXpathForLocation,
-} from "./a11y/snapshot";
-import { FrameRegistry } from "./frameRegistry";
-import { executionContexts } from "./executionContextRegistry";
+} from "./a11y/snapshot/index.js";
+import { FrameRegistry } from "./frameRegistry.js";
+import { executionContexts } from "./executionContextRegistry.js";
 import {
   LoadState,
   SnapshotResult,
   PageSnapshotOptions,
-} from "../types/public/page";
-import { NetworkManager } from "./networkManager";
-import { LifecycleWatcher } from "./lifecycleWatcher";
-import { NavigationResponseTracker } from "./navigationResponseTracker";
-import { Response, isSerializableResponse } from "./response";
-import { ConsoleMessage, ConsoleListener } from "./consoleMessage";
-import type { StagehandAPIClient } from "../api";
+} from "../types/public/page.js";
+import { NetworkManager } from "./networkManager.js";
+import { LifecycleWatcher } from "./lifecycleWatcher.js";
+import { NavigationResponseTracker } from "./navigationResponseTracker.js";
+import { Response, isSerializableResponse } from "./response.js";
+import { ConsoleMessage, ConsoleListener } from "./consoleMessage.js";
+import type { StagehandAPIClient } from "../api.js";
 import {
   LocalBrowserLaunchOptions,
   StagehandSnapshotError,
-} from "../types/public";
-import type { Locator } from "./locator";
+} from "../types/public/index.js";
+import type { Locator } from "./locator.js";
 import {
   StagehandInvalidArgumentError,
   StagehandEvalError,
-} from "../types/public/sdkErrors";
-import { normalizeInitScriptSource } from "./initScripts";
-import { buildLocatorInvocation } from "./locatorInvocation";
+} from "../types/public/sdkErrors.js";
+import { normalizeInitScriptSource } from "./initScripts.js";
+import { buildLocatorInvocation } from "./locatorInvocation.js";
 import type {
   ScreenshotAnimationsOption,
   ScreenshotCaretOption,
   ScreenshotOptions,
   ScreenshotScaleOption,
-} from "../types/public/screenshotTypes";
+} from "../types/public/screenshotTypes.js";
 import {
   applyMaskOverlays,
   applyStyleToFrames,
@@ -53,8 +53,8 @@ import {
   setTransparentBackground,
   withScreenshotTimeout,
   type ScreenshotCleanup,
-} from "./screenshotUtils";
-import { InitScriptSource } from "../types/private";
+} from "./screenshotUtils.js";
+import { InitScriptSource } from "../types/private/index.js";
 
 /**
  * Page
@@ -1389,33 +1389,41 @@ export class Page {
       }
     }
 
-    // Synthesize a simple mouse move + press + release sequence
+    // Synthesize a simple mouse move + press + release sequence.
     await this.updateCursor(x, y);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseMoved",
-      x,
-      y,
-      button: "none",
-    } as Protocol.Input.DispatchMouseEventRequest);
+    // Dispatch click events in a pipelined burst to reduce inter-click delay
+    // from network/CPU jitter between round trips.
+    const dispatches: Array<Promise<unknown>> = [];
+    dispatches.push(
+      this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x,
+        y,
+        button: "none",
+      } as Protocol.Input.DispatchMouseEventRequest),
+    );
 
-    // Dispatch mouse pressed and released events for the given click count
     for (let i = 1; i <= clickCount; i++) {
-      await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-        type: "mousePressed",
-        x,
-        y,
-        button,
-        clickCount: i,
-      } as Protocol.Input.DispatchMouseEventRequest);
-
-      await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-        type: "mouseReleased",
-        x,
-        y,
-        button,
-        clickCount: i,
-      } as Protocol.Input.DispatchMouseEventRequest);
+      dispatches.push(
+        this.mainSession.send<never>("Input.dispatchMouseEvent", {
+          type: "mousePressed",
+          x,
+          y,
+          button,
+          clickCount: i,
+        } as Protocol.Input.DispatchMouseEventRequest),
+      );
+      dispatches.push(
+        this.mainSession.send<never>("Input.dispatchMouseEvent", {
+          type: "mouseReleased",
+          x,
+          y,
+          button,
+          clickCount: i,
+        } as Protocol.Input.DispatchMouseEventRequest),
+      );
     }
+    await Promise.all(dispatches);
 
     return xpathResult ?? "";
   }
@@ -2154,6 +2162,30 @@ export class Page {
     );
   }
 
+  private async isMainLoadStateReady(
+    state: "domcontentloaded" | "load",
+  ): Promise<boolean> {
+    try {
+      const ctxId = await this.mainWorldExecutionContextId();
+      const { result } =
+        await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
+          "Runtime.evaluate",
+          {
+            expression: "document.readyState",
+            contextId: ctxId,
+            returnByValue: true,
+          },
+        );
+      const readyState = String(result?.value ?? "");
+      if (state === "domcontentloaded") {
+        return readyState === "interactive" || readyState === "complete";
+      }
+      return readyState === "complete";
+    } catch {
+      return false;
+    }
+  }
+
   /**
    * Wait until the **current** main frame reaches a lifecycle state.
    * - Fast path via `document.readyState`.
@@ -2169,38 +2201,30 @@ export class Page {
       .catch(() => {});
 
     // Fast path: check the *current* main frame's readyState.
-    try {
-      const ctxId = await this.mainWorldExecutionContextId();
-      const { result } =
-        await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
-          "Runtime.evaluate",
-          {
-            expression: "document.readyState",
-            contextId: ctxId,
-            returnByValue: true,
-          },
-        );
-      const rs = String(result?.value ?? "");
-      if (
-        (state === "domcontentloaded" &&
-          (rs === "interactive" || rs === "complete")) ||
-        (state === "load" && rs === "complete")
-      ) {
-        return;
-      }
-    } catch {
-      // ignore fast-path failures
+    if (
+      (state === "domcontentloaded" || state === "load") &&
+      (await this.isMainLoadStateReady(state))
+    ) {
+      return;
     }
 
     const wanted = LIFECYCLE_NAME[state];
     return new Promise<void>((resolve, reject) => {
       let done = false;
       let timer: ReturnType<typeof setTimeout> | null = null;
+      let pollTimer: ReturnType<typeof setTimeout> | null = null;
+      let pollInFlight = false;
 
       const off = () => {
         this.mainSession.off("Page.lifecycleEvent", onLifecycle);
         this.mainSession.off("Page.domContentEventFired", onDomContent);
         this.mainSession.off("Page.loadEventFired", onLoad);
+      };
+      const clearPollTimer = () => {
+        if (pollTimer) {
+          clearTimeout(pollTimer);
+          pollTimer = null;
+        }
       };
 
       const finish = () => {
@@ -2210,6 +2234,7 @@ export class Page {
           clearTimeout(timer);
           timer = null;
         }
+        clearPollTimer();
         off();
         resolve();
       };
@@ -2233,9 +2258,36 @@ export class Page {
       this.mainSession.on("Page.domContentEventFired", onDomContent);
       this.mainSession.on("Page.loadEventFired", onLoad);
 
+      // Fallback polling closes lifecycle-event races in remote environments
+      // where readyState has advanced but the corresponding event was missed.
+      const pollReadyState = async () => {
+        if (done || pollInFlight) return;
+        pollInFlight = true;
+        try {
+          if (done) return;
+          if (
+            (state === "domcontentloaded" || state === "load") &&
+            (await this.isMainLoadStateReady(state))
+          ) {
+            finish();
+            return;
+          }
+        } finally {
+          pollInFlight = false;
+        }
+        if (!done) {
+          clearPollTimer();
+          pollTimer = setTimeout(() => {
+            void pollReadyState();
+          }, 100);
+        }
+      };
+      void pollReadyState();
+
       timer = setTimeout(() => {
         if (done) return;
         done = true;
+        clearPollTimer();
         off();
         reject(
           new Error(

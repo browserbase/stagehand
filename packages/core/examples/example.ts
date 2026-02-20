@@ -1,4 +1,4 @@
-import { Stagehand } from "../lib/v3";
+import { Stagehand } from "../lib/v3/index.js";
 
 async function example(stagehand: Stagehand) {
   /**
@@ -29,16 +29,26 @@ async function example(stagehand: Stagehand) {
     "select blue as the favorite color on the dropdown",
     { page: page2 },
   );
-  action2.map(async (action) => {
-    await stagehand.act(action);
-  });
+  for (const action of action2) {
+    await stagehand.act(action, { page: page2, timeout: 30_000 });
+  }
 }
 
 (async () => {
   const stagehand = new Stagehand({
     env: "BROWSERBASE",
+    apiKey: process.env.BROWSERBASE_API_KEY,
+    projectId: process.env.BROWSERBASE_PROJECT_ID,
+    model: {
+      modelName: "openai/gpt-5",
+      apiKey: process.env.MODEL_API_KEY,
+    },
     verbose: 2,
   });
-  await stagehand.init();
-  await example(stagehand);
+  try {
+    await stagehand.init();
+    await example(stagehand);
+  } finally {
+    await stagehand.close();
+  }
 })();

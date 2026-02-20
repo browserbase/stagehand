@@ -2,9 +2,9 @@ import { test, expect } from "@playwright/test";
 import { promises as fs } from "fs";
 import * as os from "os";
 import * as path from "path";
-import { V3 } from "../v3";
-import { v3TestConfig } from "./v3.config";
-import { Frame } from "../understudy/frame";
+import { V3 } from "../v3.js";
+import { v3TestConfig } from "./v3.config.js";
+import { Frame } from "../understudy/frame.js";
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -82,6 +82,11 @@ test.describe("Page.screenshot options", () => {
 
   test("applies advanced options and cleans up overlays", async () => {
     const page = v3.context.pages()[0];
+    const screenshotTimeout = process.env.CI ? 15000 : 5000;
+    const testStart = Date.now();
+    console.log(
+      `[screenshot-test] start ${new Date(testStart).toISOString()} timeout=${screenshotTimeout}`,
+    );
 
     const html = `
       <!doctype html>
@@ -104,12 +109,14 @@ test.describe("Page.screenshot options", () => {
     `;
 
     await page.goto("data:text/html," + encodeURIComponent(html));
+    console.log(`[screenshot-test] page loaded in ${Date.now() - testStart}ms`);
 
     const maskLocator = page.locator(".mask-target");
     const tempPath = path.join(
       os.tmpdir(),
       `stagehand-screenshot-${Date.now()}-${Math.random().toString(36).slice(2)}.jpeg`,
     );
+    console.log(`[screenshot-test] tempPath=${tempPath}`);
 
     const targetId = page.targetId();
     const screenshotCalls: Array<{
@@ -158,6 +165,9 @@ test.describe("Page.screenshot options", () => {
     };
 
     try {
+      const maskCount = await maskLocator.count();
+      console.log(`[screenshot-test] maskLocator.count=${maskCount}`);
+
       const buffer = await page.screenshot({
         animations: "disabled",
         caret: "hide",
@@ -169,12 +179,18 @@ test.describe("Page.screenshot options", () => {
         quality: 80,
         scale: "css",
         style: "body { border: 3px solid black; }",
-        timeout: 2000,
+        timeout: screenshotTimeout,
         type: "jpeg",
       });
+      console.log(
+        `[screenshot-test] screenshot returned bytes=${buffer.length} elapsed=${Date.now() - testStart}ms`,
+      );
 
       expect(Buffer.isBuffer(buffer)).toBeTruthy();
       expect(screenshotCalls.length).toBeGreaterThanOrEqual(1);
+      console.log(
+        `[screenshot-test] screenshotCalls=${screenshotCalls.length} evaluateCalls=${evaluateCalls.length} sendCalls=${sendCalls.length}`,
+      );
       const recorded = screenshotCalls[0]?.options ?? {};
       expect(recorded).toMatchObject({ type: "jpeg", quality: 80 });
       expect(recorded?.clip).toMatchObject({

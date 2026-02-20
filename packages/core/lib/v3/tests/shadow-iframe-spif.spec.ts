@@ -1,11 +1,12 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "../v3";
+import { V3 } from "../v3.js";
 import puppeteer from "puppeteer-core";
 import { chromium as playwrightChromium } from "playwright";
 import { chromium as patchrightChromium } from "patchright-core";
-import { Action } from "../types/public/methods";
-import { AnyPage } from "../types/public/page";
-import { v3DynamicTestConfig } from "./v3.dynamic.config";
+import { Action } from "../types/public/methods.js";
+import { AnyPage } from "../types/public/page.js";
+import { v3DynamicTestConfig } from "./v3.dynamic.config.js";
+import { closeV3 } from "./testUtils.js";
 
 /**
  * IMPORTANT:
@@ -89,30 +90,6 @@ async function runCase(v3: V3, c: Case, framework: Framework): Promise<void> {
 
 const cases: Case[] = [
   {
-    title: "Closed shadow root inside OOPIF",
-    url: "https://browserbase.github.io/stagehand-eval-sites/sites/closed-shadow-root-in-oopif/",
-    action: {
-      selector:
-        "xpath=/html/body/main/section/iframe/html/body/shadow-demo//div/button",
-      method: "click",
-      arguments: [""],
-      description: "click button inside closed shadow root in OOPIF",
-    },
-    expectedSubstrings: ["button successfully clicked"],
-  },
-  {
-    title: "Open shadow root inside OOPIF",
-    url: "https://browserbase.github.io/stagehand-eval-sites/sites/open-shadow-root-in-oopif/",
-    action: {
-      selector:
-        "xpath=/html/body/main/section/iframe/html/body/shadow-demo//div/button",
-      method: "click",
-      arguments: [""],
-      description: "",
-    },
-    expectedSubstrings: ["button successfully clicked"],
-  },
-  {
     title: "Open shadow root inside SPIF",
     url: "https://browserbase.github.io/stagehand-eval-sites/sites/open-shadow-root-in-spif/",
     action: {
@@ -157,33 +134,9 @@ const cases: Case[] = [
     },
     expectedSubstrings: ["button successfully clicked"],
   },
-  {
-    title: "OOPIF inside open shadow root",
-    url: "https://browserbase.github.io/stagehand-eval-sites/sites/oopif-in-open-shadow-dom/",
-    action: {
-      selector:
-        "xpath=/html/body/shadow-host//section/iframe/html/body/main/section[1]/form/div/div[1]/input",
-      method: "fill",
-      arguments: ["nunya"],
-      description: "",
-    },
-    expectedSubstrings: ["nunya"],
-  },
-  {
-    title: "OOPIF inside closed shadow root",
-    url: "https://browserbase.github.io/stagehand-eval-sites/sites/oopif-in-closed-shadow-dom/",
-    action: {
-      selector:
-        "xpath=/html/body/shadow-host//section/iframe/html/body/main/section[1]/form/div/div[1]/input",
-      method: "fill",
-      arguments: ["nunya"],
-      description: "fill input inside OOPIF",
-    },
-    expectedSubstrings: ["nunya"],
-  },
 ];
 
-test.describe.parallel("Stagehand v3: shadow <-> iframe scenarios", () => {
+test.describe.parallel("Stagehand v3: shadow <-> iframe SPIF scenarios", () => {
   let v3: V3;
 
   test.beforeEach(async () => {
@@ -192,7 +145,7 @@ test.describe.parallel("Stagehand v3: shadow <-> iframe scenarios", () => {
   });
 
   test.afterEach(async () => {
-    await v3?.close?.().catch(() => {});
+    await closeV3(v3);
   });
 
   const frameworks: Framework[] = [

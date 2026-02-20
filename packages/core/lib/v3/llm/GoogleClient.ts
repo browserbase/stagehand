@@ -10,13 +10,13 @@ import {
   Type,
 } from "@google/genai";
 
-import { LogLine } from "../types/public/logs";
-import { AvailableModel, ClientOptions } from "../types/public/model";
+import { LogLine } from "../types/public/logs.js";
+import { AvailableModel, ClientOptions } from "../types/public/model.js";
 import {
   validateZodSchema,
   toGeminiSchema,
   loadApiKeyFromEnv,
-} from "../../utils";
+} from "../../utils.js";
 import {
   ChatCompletionOptions,
   ChatMessage,
@@ -24,11 +24,11 @@ import {
   LLMClient,
   LLMResponse,
   AnnotatedScreenshotText,
-} from "./LLMClient";
+} from "./LLMClient.js";
 import {
   CreateChatCompletionResponseError,
   StagehandError,
-} from "../types/public/sdkErrors";
+} from "../types/public/sdkErrors.js";
 
 // Mapping from generic roles to Gemini roles
 const roleMap: { [key in ChatMessage["role"]]: string } = {
@@ -60,8 +60,8 @@ const safetySettings = [
 export class GoogleClient extends LLMClient {
   public type = "google" as const;
   private client: GoogleGenAI;
-  public clientOptions: ClientOptions;
-  public hasVision: boolean;
+  declare public clientOptions: ClientOptions;
+  declare public hasVision: boolean;
   private logger: (message: LogLine) => void;
 
   constructor({
