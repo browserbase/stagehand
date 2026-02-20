@@ -647,14 +647,19 @@ export class V3Context {
     // Queue resume as the last pre-resume command so Chrome processes all
     // registrations before execution continues.
     const resumeOp = queuePreResume("Runtime.runIfWaitingForDebugger");
-    const [coreResults, headerResults, initScriptResults, piercerPreRegistered, resumedOk] =
-      await Promise.all([
-        Promise.all(corePreResumeOps),
-        Promise.all(headerPreResumeOps),
-        Promise.all(initScriptOps),
-        piercerPreloadOp,
-        resumeOp,
-      ]);
+    const [
+      coreResults,
+      headerResults,
+      initScriptResults,
+      piercerPreRegistered,
+      resumedOk,
+    ] = await Promise.all([
+      Promise.all(corePreResumeOps),
+      Promise.all(headerPreResumeOps),
+      Promise.all(initScriptOps),
+      piercerPreloadOp,
+      resumeOp,
+    ]);
     // Header propagation is independent of init-script determinism but still
     // part of pre-resume attach setup; awaited above for ordering/lifecycle.
     void headerResults;
