@@ -14,6 +14,7 @@ import {
   TimeoutError,
   CookieSetError,
   PageNotFoundError,
+  StagehandSetExtraHTTPHeadersError,
 } from "../types/public/sdkErrors.js";
 import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig.js";
 import {
@@ -119,6 +120,7 @@ export class V3Context {
   private _pageOrder: TargetId[] = [];
   private pendingCreatedTargetUrl = new Map<TargetId, string>();
   private readonly initScripts: string[] = [];
+  private extraHttpHeaders: Record<string, string> | null = null;
 
   private installTargetSessionListeners(session: CDPSessionLike): void {
     const sessionId = session.id;
@@ -333,6 +335,51 @@ export class V3Context {
     this.initScripts.push(source);
     const pages = this.pages();
     await Promise.all(pages.map((page) => page.registerInitScript(source)));
+  }
+
+  public async setExtraHTTPHeaders(
+    headers: Record<string, string>,
+  ): Promise<void> {
+    const nextHeaders = { ...headers };
+    this.extraHttpHeaders = nextHeaders;
+
+    const sessions: CDPSessionLike[] = [];
+    for (const sessionId of this._sessionInit) {
+      const session = this.conn.getSession(sessionId);
+      if (session) sessions.push(session);
+    }
+
+    if (!sessions.length) return;
+
+    const results = await Promise.allSettled(
+      sessions.map(async (session) => {
+        await session.send("Network.enable");
+        await session.send("Network.setExtraHTTPHeaders", {
+          headers: nextHeaders,
+        });
+      }),
+    );
+
+    const failures = results
+      .map((result, index) => ({ result, session: sessions[index] }))
+      .filter(
+        (
+          entry,
+        ): entry is {
+          result: PromiseRejectedResult;
+          session: CDPSessionLike;
+        } => entry.result.status === "rejected",
+      )
+      .map((entry) => {
+        const reason = entry.result.reason as Error;
+        const sid = entry.session.id ?? "unknown";
+        const message = reason?.message ?? String(reason);
+        return `session=${sid} error=${message}`;
+      });
+
+    if (failures.length) {
+      throw new StagehandSetExtraHTTPHeadersError(failures);
+    }
   }
 
   /**
@@ -562,6 +609,11 @@ export class V3Context {
           })
           .catch(() => {}),
       );
+      if (this.extraHttpHeaders) {
+        const headers = { ...this.extraHttpHeaders };
+        installPromises.push(send("Network.enable"));
+        installPromises.push(send("Network.setExtraHTTPHeaders", { headers }));
+      }
       // Send init scripts only after auto-attach has been issued.
       if (this.initScripts.length) {
         for (const source of this.initScripts) {
