@@ -210,20 +210,27 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
 
   const yaml = app.swagger({ yaml: true });
   // Mintlify expects OpenAPI version fields to be strings, so quote them here.
-  // Also fix markdown table formatting: in folded YAML blocks, table rows must be
-  // on consecutive lines (no blank lines between them) for proper rendering.
-  const fixedYaml = yaml
+  let fixedYaml = yaml
     .replace(/^openapi:\s*(?!['"])([^#\s]+)\s*$/m, 'openapi: "$1"')
-    .replace(/^ {2}version:\s*(?!['"])([^#\s]+)\s*$/m, '  version: "$1"')
-    // Remove blank lines between markdown table rows in folded YAML blocks
-    .replace(/(\| Region \| Endpoint \|)\n\n(\s*\|[-|]+\|)/g, "$1\n$2")
-    .replace(/(\|[-|]+\|)\n\n(\s*\| us-west-2)/g, "$1\n$2")
-    .replace(/(\| us-west-2[^|]+\|[^|]+\|)\n\n(\s*\| us-east-1)/g, "$1\n$2")
-    .replace(/(\| us-east-1[^|]+\|[^|]+\|)\n\n(\s*\| eu-central-1)/g, "$1\n$2")
-    .replace(
-      /(\| eu-central-1[^|]+\|[^|]+\|)\n\n(\s*\| ap-southeast-1)/g,
-      "$1\n$2",
+    .replace(/^ {2}version:\s*(?!['"])([^#\s]+)\s*$/m, '  version: "$1"');
+
+  // The YAML serializer may emit the info.description using folded block scalar
+  // style (>-), which collapses newlines into spaces and breaks Markdown tables.
+  // Convert it to literal block scalar style (|) which preserves newlines as-is.
+  const foldedDescRe = /( {2}description:) >-\n([\s\S]*?)(\n {2}[a-z])/i;
+  const descMatch = fixedYaml.match(foldedDescRe);
+  if (descMatch) {
+    let content = descMatch[2];
+    // In >- (folded): \n\n\n = actual blank line, \n\n = fold point (becomes space)
+    // In | (literal): \n\n = actual blank line, \n = newline preserved
+    content = content.replace(/\n\n\n/g, "\n<<<PARA>>>\n");
+    content = content.replace(/\n\n/g, "\n");
+    content = content.replace(/<<<PARA>>>\n/g, "\n");
+    fixedYaml = fixedYaml.replace(
+      descMatch[0],
+      `${descMatch[1]} |\n${content}${descMatch[3]}`,
     );
+  }
 
   await writeFile(OUTPUT_PATH, fixedYaml, "utf8");
 
