@@ -18,4 +18,4 @@ packages/docs/
 **/.browserbase/
 **/.browserbase/**
 stainless.yml
-packages/server/openapi.v3.yaml
+openapi.*.yaml
