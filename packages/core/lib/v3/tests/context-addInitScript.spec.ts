@@ -2,9 +2,28 @@ import { test, expect } from "@playwright/test";
 import { V3 } from "../v3.js";
 import { v3TestConfig } from "./v3.config.js";
 import { V3Context } from "../understudy/context.js";
+import type { Page as V3Page } from "../understudy/page.js";
 
 const toDataUrl = (html: string): string =>
   `data:text/html,${encodeURIComponent(html)}`;
+
+const waitForPopupPage = async (
+  ctx: V3Context,
+  opener: V3Page,
+  timeoutMs = 5000,
+): Promise<V3Page> => {
+  const openerId = opener.targetId();
+  const deadline = Date.now() + timeoutMs;
+  let popup = ctx.pages().find((p) => p.targetId() !== openerId);
+  while (!popup && Date.now() < deadline) {
+    await opener.waitForTimeout(25);
+    popup = ctx.pages().find((p) => p.targetId() !== openerId);
+  }
+  if (!popup) {
+    throw new Error("Popup page was not created");
+  }
+  return popup;
+};
 
 test.describe("context.addInitScript", () => {
   let v3: V3;
@@ -178,16 +197,7 @@ test.describe("context.addInitScript", () => {
     await opener.goto(toDataUrl(openerHtml), { waitUntil: "load" });
     await opener.locator("#open").click();
 
-    const openerId = opener.targetId();
-    const deadline = Date.now() + 2000;
-    let popup = ctx.pages().find((p) => p.targetId() !== openerId);
-    while (!popup && Date.now() < deadline) {
-      await opener.waitForTimeout(25);
-      popup = ctx.pages().find((p) => p.targetId() !== openerId);
-    }
-    if (!popup) {
-      throw new Error("Popup page was not created");
-    }
+    const popup = await waitForPopupPage(ctx, opener);
 
     await popup.waitForLoadState("load");
 
@@ -196,6 +206,66 @@ test.describe("context.addInitScript", () => {
       return raw ? JSON.parse(raw) : undefined;
     });
     expect(observed).toEqual(payload);
+
+    await popup.reload({ waitUntil: "load" });
+    const observedAfterReload = await popup.evaluate(() => {
+      const raw = document.documentElement.dataset.initPayload;
+      return raw ? JSON.parse(raw) : undefined;
+    });
+    expect(observedAfterReload).toEqual(payload);
+  });
+
+  test("applies script to in-process popup", async () => {
+    await ctx.addInitScript(() => {
+      (window as unknown as { __injected?: number }).__injected = 123;
+    });
+
+    const opener = await ctx.awaitActivePage();
+    const openerHtml =
+      "<!DOCTYPE html>" +
+      "<html><body>" +
+      '<a id="open" target="_blank" href="about:blank">open</a>' +
+      "</body></html>";
+    await opener.goto(toDataUrl(openerHtml), { waitUntil: "load" });
+    await opener.locator("#open").click();
+
+    const popup = await waitForPopupPage(ctx, opener);
+    await popup.waitForLoadState("load");
+    const injected = await popup.evaluate(() => {
+      return (window as unknown as { __injected?: number }).__injected;
+    });
+    expect(injected).toBe(123);
+  });
+
+  test("applies script to cross-process popup and survives reload", async () => {
+    await ctx.addInitScript(() => {
+      (window as unknown as { __injected?: number }).__injected = 123;
+    });
+
+    const opener = await ctx.awaitActivePage();
+    const openerHtml =
+      "<!DOCTYPE html>" +
+      "<html><body>" +
+      '<a id="open" target="_blank" href="https://example.com/">open</a>' +
+      "</body></html>";
+    await opener.goto(toDataUrl(openerHtml), {
+      waitUntil: "load",
+    });
+    await opener.locator("#open").click();
+
+    const popup = await waitForPopupPage(ctx, opener);
+    await popup.waitForLoadState("load");
+
+    const injected = await popup.evaluate(() => {
+      return (window as unknown as { __injected?: number }).__injected;
+    });
+    expect(injected).toBe(123);
+
+    await popup.reload({ waitUntil: "load" });
+    const injectedAfterReload = await popup.evaluate(() => {
+      return (window as unknown as { __injected?: number }).__injected;
+    });
+    expect(injectedAfterReload).toBe(123);
   });
 
   test("context.addInitScript installs a function callable from page.evaluate", async () => {
