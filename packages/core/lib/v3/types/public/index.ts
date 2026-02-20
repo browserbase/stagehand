@@ -11,5 +11,6 @@ export * from "./model.js";
 export * from "./options.js";
 export * from "./page.js";
 export * from "./sdkErrors.js";
+export * from "./context.js";
 export { AISdkClient } from "../../external_clients/aisdk.js";
 export { CustomOpenAIClient } from "../../external_clients/customOpenAI.js";

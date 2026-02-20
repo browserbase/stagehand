@@ -129,6 +129,18 @@ export class StagehandInvalidArgumentError extends StagehandError {
   }
 }
 
+export class CookieValidationError extends StagehandError {
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+export class CookieSetError extends StagehandError {
+  constructor(message: string) {
+    super(message);
+  }
+}
+
 export class StagehandElementNotFoundError extends StagehandError {
   constructor(xpaths: string[]) {
     super(`Could not find an element for the given xPath(s): ${xpaths}`);

@@ -8,6 +8,8 @@ export const publicErrorTypes = {
   CaptchaTimeoutError: Stagehand.CaptchaTimeoutError,
   ConnectionTimeoutError: Stagehand.ConnectionTimeoutError,
   ContentFrameNotFoundError: Stagehand.ContentFrameNotFoundError,
+  CookieSetError: Stagehand.CookieSetError,
+  CookieValidationError: Stagehand.CookieValidationError,
   CreateChatCompletionResponseError:
     Stagehand.CreateChatCompletionResponseError,
   CuaModelRequiredError: Stagehand.CuaModelRequiredError,
