@@ -278,6 +278,9 @@ importers:
       '@t3-oss/env-core':
         specifier: ^0.13.8
         version: 0.13.8(arktype@2.1.20)(typescript@5.9.3)(zod@4.2.1)
+      ai:
+        specifier: ^5.0.0
+        version: 5.0.133(zod@4.2.1)
       fastify:
         specifier: ^5.3.2
         version: 5.6.2

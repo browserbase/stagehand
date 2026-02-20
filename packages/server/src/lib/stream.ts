@@ -1,3 +1,4 @@
+import type { TextStreamPart, ToolSet } from "ai";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import type { Stagehand as V3Stagehand } from "@browserbasehq/stagehand";
@@ -14,15 +15,22 @@ import { error, success } from "./response.js";
 import { getSessionStore } from "./sessionStoreManager.js";
 import type { RequestContext } from "./SessionStore.js";
 
+/**
+ * Callback for sending stream events during handler execution.
+ * Used for forwarding real-time LLM stream data (text deltas, tool calls, etc.)
+ * Each event is a strongly typed TextStreamPart from the AI SDK.
+ */
+export type SendStreamEventCallback = (event: TextStreamPart<ToolSet>) => void;
+
 interface StreamingResponseOptions<TV3> {
   sessionId: string;
   request: FastifyRequest;
   reply: FastifyReply;
   schema: z.ZodType<TV3>;
-  handler: (ctx: {
-    stagehand: V3Stagehand;
-    data: TV3;
-  }) => Promise<{ result: unknown; actionId?: string }>;
+  handler: (
+    ctx: { stagehand: V3Stagehand; data: TV3 },
+    sendStreamEvent?: SendStreamEventCallback,
+  ) => Promise<{ result: unknown; actionId?: string }>;
   operation?: string;
 }
 
@@ -151,11 +159,15 @@ export async function createStreamingResponse<TV3>({
 
   sendData("system", { status: "connected" });
 
+  const sendStreamEvent: SendStreamEventCallback = (event) => {
+    sendData("stream", event as unknown as object);
+  };
+
   let result: Awaited<ReturnType<typeof handler>> | null = null;
   let handlerError: Error | null = null;
 
   try {
-    result = await handler({ stagehand, data: parsedData });
+    result = await handler({ stagehand, data: parsedData }, sendStreamEvent);
   } catch (err) {
     handlerError = err instanceof Error ? err : new Error("Unknown error");
   }

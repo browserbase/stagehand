@@ -21,6 +21,7 @@
     "gen:openapi": "tsx scripts/gen-openapi.ts && prettier --write openapi.v3.yaml"
   },
   "dependencies": {
+    "ai": "^5.0.0",
     "@browserbasehq/sdk": "^2.4.0",
     "@browserbasehq/stagehand": "workspace:*",
     "@fastify/cors": "^11.0.1",
