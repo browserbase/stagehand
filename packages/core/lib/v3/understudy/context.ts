@@ -18,6 +18,43 @@ type SessionId = string;
 
 type TargetType = "page" | "iframe" | string;
 
+/**
+ * Returns true when the target's URL points to a document with a real,
+ * pierceable HTML DOM.  We allowlist the small set of schemes that carry
+ * web content rather than trying to blacklist every internal browser scheme
+ * (chrome://, chrome-extension://, devtools://, brave://, edge://, …).
+ */
+function hasInjectableDOM(url: string | undefined): boolean {
+  if (!url || url === "") return true;
+  if (
+    url === "about:blank" ||
+    url === "about:srcdoc" ||
+    url.startsWith("about:blank#")
+  )
+    return true;
+  if (url.startsWith("http://") || url.startsWith("https://")) return true;
+  if (
+    url.startsWith("data:") ||
+    url.startsWith("blob:") ||
+    url.startsWith("file://") ||
+    url.startsWith("filesystem:")
+  )
+    return true;
+  return false;
+}
+
+function isNonWebTarget(info: Protocol.Target.TargetInfo): boolean {
+  return (
+    (info.type !== "page" && info.type !== "iframe") ||
+    !hasInjectableDOM(info.url)
+  );
+}
+
+function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
+  const ti = info as unknown as { subtype?: string };
+  return info.type === "page" && ti.subtype !== "iframe";
+}
+
 const DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS = 5000;
 const CI_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS = 30000;
 const FIRST_TOP_LEVEL_PAGE_TIMEOUT_ENV =
@@ -30,11 +67,6 @@ function getFirstTopLevelPageTimeoutMs(): number {
       ? CI_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS
       : DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS)
   );
-}
-
-function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
-  const ti = info as unknown as { subtype?: string };
-  return info.type === "page" && ti.subtype !== "iframe";
 }
 
 /**
@@ -461,13 +493,11 @@ export class V3Context {
     info: Protocol.Target.TargetInfo,
     sessionId: SessionId,
   ): Promise<void> {
-    // Workers are ignored by Stagehand, but with waitForDebuggerOnStart enabled
-    // they still need to be resumed so we don't leave them paused.
-    if (
-      info.type === "worker" ||
-      info.type === "service_worker" ||
-      info.type === "shared_worker"
-    ) {
+    // Skip non-web targets (workers, chrome extensions, background pages, etc.).
+    // They still need to be resumed so we don't leave them paused by
+    // waitForDebuggerOnStart, but injecting the piercer into these targets
+    // can throw or corrupt their internal state (e.g. Chrome's PDF viewer).
+    if (isNonWebTarget(info)) {
       const session = this.conn.getSession(sessionId);
       if (session) {
         await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
