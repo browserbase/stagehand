@@ -16,9 +16,9 @@
     "format": "prettier --write ."
   },
   "dependencies": {
-    "@ai-sdk/provider": "^2.0.0",
+    "@ai-sdk/provider": "^3.0.0",
     "@browserbasehq/stagehand": "workspace:*",
-    "ai": "^5.0.133",
+    "ai": "^6.0.0",
     "dotenv": "^17.3.1",
     "openai": "^4.87.1",
     "sharp": "^0.34.5",

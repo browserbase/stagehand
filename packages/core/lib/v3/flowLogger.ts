@@ -1006,17 +1006,17 @@ export class SessionFileLogger {
    * Create middleware for wrapping language models with LLM call logging.
    * Returns a no-op middleware when logging is disabled.
    */
-  static createLlmLoggingMiddleware(
-    modelId: string,
-  ): Pick<LanguageModelMiddleware, "wrapGenerate"> {
+  static createLlmLoggingMiddleware(modelId: string): LanguageModelMiddleware {
     // No-op middleware when logging is disabled
     if (!CONFIG_DIR) {
       return {
+        specificationVersion: "v3" as const,
         wrapGenerate: async ({ doGenerate }) => doGenerate(),
       };
     }
 
     return {
+      specificationVersion: "v3" as const,
       wrapGenerate: async ({ doGenerate, params }) => {
         const ctx = SessionFileLogger.getContext();
         // Skip logging overhead if no context (shouldn't happen but be safe)
@@ -1117,8 +1117,14 @@ export class SessionFileLogger {
             model: modelId,
             operation: "generateText",
             output: outputPreview || "[empty]",
-            inputTokens: result.usage?.inputTokens,
-            outputTokens: result.usage?.outputTokens,
+            inputTokens:
+              typeof result.usage.inputTokens === "number"
+                ? result.usage.inputTokens
+                : (result.usage.inputTokens?.total ?? 0),
+            outputTokens:
+              typeof result.usage.outputTokens === "number"
+                ? result.usage.outputTokens
+                : (result.usage.outputTokens?.total ?? 0),
           },
           ctx,
         );
