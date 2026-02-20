@@ -26,6 +26,37 @@ import { Page as PuppeteerPage } from "puppeteer-core";
 import { Page as PatchrightPage } from "patchright-core";
 import { Page } from "../../understudy/page.js";
 
+// =============================================================================
+// Variable Types
+// =============================================================================
+
+/**
+ * A variable value can be a simple primitive or a rich object with an optional description.
+ * This unified type is shared across `act`, `agent.execute`, and other methods.
+ *
+ * @example Simple (backward-compatible):
+ * ```typescript
+ * variables: { username: "john@example.com" }
+ * ```
+ *
+ * @example Rich with description (useful for agents):
+ * ```typescript
+ * variables: {
+ *   username: { value: "john@example.com", description: "The login email" }
+ * }
+ * ```
+ */
+export type VariableValue =
+  | string
+  | number
+  | boolean
+  | { value: string | number | boolean; description?: string };
+
+/**
+ * A collection of named variables for use in act, agent, and other methods.
+ */
+export type Variables = Record<string, VariableValue>;
+
 export interface AgentContext {
   options: AgentExecuteOptionsBase;
   maxSteps: number;
@@ -339,6 +370,29 @@ export interface AgentExecuteOptionsBase {
    * ```
    */
   output?: StagehandZodObject;
+  /**
+   * Variables that the agent can use when filling forms or typing text.
+   * The agent will see variable names and descriptions in the system prompt,
+   * and can use them via `%variableName%` syntax in act/type/fillForm tool calls.
+   *
+   * Accepts both simple values and rich objects with descriptions (same type as `act`).
+   *
+   * **Note:** Not supported in CUA mode (`mode: "cua"`). Requires `experimental: true`.
+   *
+   * @experimental
+   * @example
+   * ```typescript
+   * // Simple values
+   * variables: { username: "john@example.com", password: "secret123" }
+   *
+   * // Rich values with descriptions (helps the agent understand context)
+   * variables: {
+   *   username: { value: "john@example.com", description: "The login email" },
+   *   password: { value: "secret123", description: "The login password" },
+   * }
+   * ```
+   */
+  variables?: Variables;
 }
 
 /**
