@@ -5,13 +5,20 @@ import type { Action } from "../../types/public/methods.js";
 import type {
   TypeToolResult,
   ModelOutputContentItem,
+  Variables,
 } from "../../types/public/agent.js";
 import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { ensureXPath } from "../utils/xpath.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
+import { substituteVariables } from "../utils/variables.js";
 
-export const typeTool = (v3: V3, provider?: string) =>
-  tool({
+export const typeTool = (v3: V3, provider?: string, variables?: Variables) => {
+  const hasVariables = variables && Object.keys(variables).length > 0;
+  const textDescription = hasVariables
+    ? `The text to type into the element. Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}`
+    : "The text to type into the element";
+
+  return tool({
     description:
       "Type text into an element using its coordinates. This will click the element and then type the text into it (this is the most reliable way to type into an element, always use this over act, unless the element is not visible in the screenshot, but shown in ariaTree)",
     inputSchema: z.object({
@@ -20,7 +27,7 @@ export const typeTool = (v3: V3, provider?: string) =>
         .describe(
           "Describe the element to type into in a short, specific phrase that mentions the element type and a good visual description",
         ),
-      text: z.string().describe("The text to type into the element"),
+      text: z.string().describe(textDescription),
       coordinates: z
         .array(z.number())
         .describe("The (x, y) coordinates to type into the element"),
@@ -38,6 +45,9 @@ export const typeTool = (v3: V3, provider?: string) =>
           provider,
           v3,
         );
+
+        // Substitute any %variableName% tokens in the text
+        const actualText = substituteVariables(text, variables);
 
         v3.logger({
           category: "agent",
@@ -57,7 +67,7 @@ export const typeTool = (v3: V3, provider?: string) =>
           returnXpath: shouldCollectXpath,
         });
 
-        await page.type(text);
+        await page.type(actualText);
 
         const screenshotBase64 = await waitAndCaptureScreenshot(page);
 
@@ -83,7 +93,7 @@ export const typeTool = (v3: V3, provider?: string) =>
         return {
           success: true,
           describe,
-          text,
+          text, // Return original text (with %variableName% tokens) to avoid exposing sensitive values to LLM
           screenshotBase64,
         };
       } catch (error) {
@@ -128,3 +138,4 @@ export const typeTool = (v3: V3, provider?: string) =>
       };
     },
   });
+};

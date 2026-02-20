@@ -18,12 +18,14 @@ import {
   ClientOptions,
   ModelConfiguration,
 } from "../types/public/model.js";
+import type { Variables } from "../types/public/agent.js";
 import type { Page } from "../understudy/page.js";
 import {
   performUnderstudyMethod,
   waitForDomNetworkQuiet,
 } from "./handlerUtils/actHandlerUtils.js";
 import { createTimeoutGuard } from "./handlerUtils/timeoutGuard.js";
+import { resolveVariableValue } from "../agent/utils/variables.js";
 
 type ActInferenceElement = {
   elementId?: string;
@@ -272,7 +274,7 @@ export class ActHandler {
     domSettleTimeoutMs?: number,
     llmClientOverride?: LLMClient,
     ensureTimeRemaining?: () => void,
-    variables?: Record<string, string>,
+    variables?: Variables,
   ): Promise<ActResult> {
     ensureTimeRemaining?.();
     const settleTimeout = domSettleTimeoutMs ?? this.defaultDomSettleTimeoutMs;
@@ -518,7 +520,7 @@ function normalizeActInferenceElement(
 
 function substituteVariablesInArguments(
   args: string[] | undefined,
-  variables?: Record<string, string>,
+  variables?: Variables,
 ): string[] | undefined {
   if (!variables || !Array.isArray(args)) {
     return args;
@@ -526,9 +528,9 @@ function substituteVariablesInArguments(
 
   return args.map((arg: string) => {
     let out = arg;
-    for (const [key, value] of Object.entries(variables)) {
+    for (const [key, v] of Object.entries(variables)) {
       const token = `%${key}%`;
-      out = out.split(token).join(String(value));
+      out = out.split(token).join(resolveVariableValue(v));
     }
     return out;
   });

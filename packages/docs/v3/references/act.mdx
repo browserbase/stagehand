@@ -45,10 +45,17 @@ interface Action {
 ```typescript
 interface ActOptions {
   model?: ModelConfiguration;
-  variables?: Record<string, string>;
+  variables?: Record<string, VariableValue>;
   timeout?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 }
+
+// VariableValue can be a simple primitive or a rich object:
+type VariableValue =
+  | string
+  | number
+  | boolean
+  | { value: string | number | boolean; description?: string };
 
 // ModelConfiguration can be either a string or an object
 type ModelConfiguration =
@@ -104,13 +111,26 @@ type ModelConfiguration =
   </Expandable>
 </ParamField>
 
-<ParamField path="variables" type="Record<string, string>" optional>
+<ParamField path="variables" type="Record<string, VariableValue>" optional>
   Key-value pairs for variable substitution using `%variableName%` syntax in your instruction. Variables are **not shared with LLM providers**, making them ideal for sensitive data like passwords and API keys.
+
+  Values can be simple primitives (`string`, `number`, `boolean`) or rich objects with an optional description (`{ value, description? }`).
 
   **Example:**
   ```typescript
+  // Simple values
   await stagehand.act("type %password% into the password field", {
     variables: { password: process.env.USER_PASSWORD }
+  });
+
+  // Rich values with descriptions
+  await stagehand.act("type %password% into the password field", {
+    variables: {
+      password: {
+        value: process.env.USER_PASSWORD,
+        description: "The user's login password"
+      }
+    }
   });
   ```
 </ParamField>

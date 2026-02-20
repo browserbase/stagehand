@@ -8,10 +8,11 @@ import type {
 } from "../../zodCompat.js";
 import { Page } from "../../understudy/page.js";
 import { ModelConfiguration } from "../public/model.js";
+import type { Variables } from "./agent.js";
 
 export interface ActOptions {
   model?: ModelConfiguration;
-  variables?: Record<string, string>;
+  variables?: Variables;
   timeout?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 }

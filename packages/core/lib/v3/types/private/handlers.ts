@@ -1,11 +1,12 @@
 import { Page } from "../../understudy/page.js";
 import { ModelConfiguration } from "../public/model.js";
 import type { StagehandZodSchema } from "../../zodCompat.js";
+import type { Variables } from "../public/agent.js";
 
 export interface ActHandlerParams {
   instruction: string;
   model?: ModelConfiguration;
-  variables?: Record<string, string>;
+  variables?: Variables;
   timeout?: number;
   page: Page;
 }

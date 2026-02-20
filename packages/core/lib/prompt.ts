@@ -1,4 +1,5 @@
 import { ChatMessage } from "./v3/llm/LLMClient.js";
+import type { Variables } from "./v3/types/public/agent.js";
 
 export function buildUserInstructionsString(
   userProvidedInstructions?: string,
@@ -170,7 +171,7 @@ Return the element that matches the instruction if it exists. Otherwise, return 
 export function buildActPrompt(
   action: string,
   supportedActions: string[],
-  variables?: Record<string, string>,
+  variables?: Variables,
 ): string {
   // Base instruction
   let instruction = `Find the most relevant element to perform an action on given the following action: ${action}.  
@@ -215,7 +216,7 @@ export function buildStepTwoPrompt(
   originalUserAction: string,
   previousAction: string,
   supportedActions: string[],
-  variables?: Record<string, string>,
+  variables?: Variables,
 ): string {
   // Base instruction
   let instruction = `

@@ -23,6 +23,9 @@ export type AgentCacheContext = {
   options: SanitizedAgentExecuteOptions;
   configSignature: string;
   cacheKey: string;
+  variableKeys: string[] /** Variable keys used in this execution (for cache key) */;
+  /** Variable values to substitute during replay */
+  variables?: Record<string, string>;
 };
 
 export type AgentCacheTransferPayload = {
