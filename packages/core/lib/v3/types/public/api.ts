@@ -617,6 +617,10 @@ export const AgentConfigSchema = z
       description:
         "Model configuration object or model name string (e.g., 'openai/gpt-5-nano') for tool execution (observe/act calls within agent tools). If not specified, inherits from the main model configuration.",
     }),
+    stream: z.boolean().optional().meta({
+      description:
+        "Enable streaming mode for the agent. When true, real-time LLM stream events (text deltas, tool calls, etc.) are forwarded to the client as SSE events with type 'stream'.",
+    }),
   })
   .meta({ id: "AgentConfig" });
 
@@ -863,9 +867,10 @@ export const StreamEventStatusSchema = z
   });
 
 /** Type discriminator for SSE stream events */
-export const StreamEventTypeSchema = z.enum(["system", "log"]).meta({
+export const StreamEventTypeSchema = z.enum(["system", "log", "stream"]).meta({
   id: "StreamEventType",
-  description: "Type of stream event - system events or log messages",
+  description:
+    "Type of stream event - system events, log messages, or real-time LLM stream parts",
 });
 
 /** Data payload for system stream events */
@@ -897,6 +902,16 @@ export const StreamEventLogDataSchema = z
   })
   .meta({ id: "StreamEventLogData" });
 
+/** Data payload for real-time LLM stream events (TextStreamPart from AI SDK) */
+export const StreamEventStreamDataSchema = z.unknown().meta({
+  id: "StreamEventStreamData",
+  description:
+    "Real-time LLM stream part (text-delta, tool-call, tool-result, etc.) forwarded from the AI SDK.",
+  override: ({ jsonSchema }: { jsonSchema: Record<string, unknown> }) => {
+    jsonSchema["x-stainless-any"] = true;
+  },
+});
+
 /**
  * SSE stream event sent during streaming responses.
  *
@@ -908,7 +923,11 @@ export const StreamEventLogDataSchema = z
  */
 export const StreamEventSchema = z
   .object({
-    data: z.union([StreamEventSystemDataSchema, StreamEventLogDataSchema]),
+    data: z.union([
+      StreamEventSystemDataSchema,
+      StreamEventLogDataSchema,
+      StreamEventStreamDataSchema,
+    ]),
     type: StreamEventTypeSchema,
     id: z.string().uuid().meta({
       description: "Unique identifier for this event",

@@ -37,7 +37,7 @@ const agentExecuteRouteHandler: RouteHandlerMethod = withErrorHandling(
       request,
       reply,
       schema: Api.AgentExecuteRequestSchema,
-      handler: async ({ stagehand, data }) => {
+      handler: async ({ stagehand, data }, sendStreamEvent) => {
         const { agentConfig, executeOptions } = data;
         const { frameId } = data;
         const page = frameId
@@ -70,9 +70,36 @@ const agentExecuteRouteHandler: RouteHandlerMethod = withErrorHandling(
         };
         let result;
         try {
-          result = await stagehand
-            .agent(normalizedAgentConfig)
-            .execute(fullExecuteOptions);
+          if (agentConfig.stream) {
+            const streamResult = await stagehand
+              .agent({ ...normalizedAgentConfig, stream: true as const })
+              .execute(fullExecuteOptions);
+
+            let disconnected = false;
+            reply.raw.once("close", () => {
+              disconnected = true;
+            });
+
+            for await (const event of streamResult.fullStream) {
+              // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- mutated asynchronously by 'close' event between iterations
+              if (disconnected) break;
+              sendStreamEvent?.(event);
+            }
+
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- mutated asynchronously by 'close' event
+            if (disconnected) {
+              request.log.warn(
+                "Client disconnected during agent stream, skipping result",
+              );
+              return { result: null };
+            }
+
+            result = await streamResult.result;
+          } else {
+            result = await stagehand
+              .agent({ ...normalizedAgentConfig, stream: false as const })
+              .execute(fullExecuteOptions);
+          }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           throw new AppError(message, StatusCodes.UNPROCESSABLE_ENTITY);

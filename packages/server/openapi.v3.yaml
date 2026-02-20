@@ -2,14 +2,19 @@ openapi: "3.1.0"
 info:
   title: Stagehand API
   version: "3.1.0"
-  description: |
+  description: >-
     Stagehand SDK for AI browser automation [ALPHA]. This API allows clients to
+
     execute browser automation tasks remotely on the Browserbase cloud.
+
 
     ## Multi-Region Support
 
+
     The Stagehand API is available in multiple regions. Choose the API endpoint
+
     that matches where your browser session is running:
+
 
     | Region | Endpoint |
     |--------|----------|
@@ -18,21 +23,33 @@ info:
     | eu-central-1 | https://api.euc1.stagehand.browserbase.com |
     | ap-southeast-1 | https://api.apse1.stagehand.browserbase.com |
 
+
     **Important:** The API endpoint must match your browser session region.
+
     If there's a mismatch, you'll receive a BAD_REQUEST error:
+
     `Session is in region 'X' but this API instance serves 'Y'. Please route
+
     your request to the X Stagehand API endpoint.`
 
+
     To disable API mode and use local browser automation, set `disableAPI: true`
+
     in your Stagehand configuration.
+
 
     ## Authentication and Usage
 
+
     All endpoints except /sessions/start require an active session ID.
+
     Responses are streamed using Server-Sent Events (SSE) when the
+
     `x-stream-response: true` header is provided.
 
+
     This SDK is currently ALPHA software and is not production ready!
+
     Please try it and give us your feedback, stay tuned for upcoming release
     announcements!
   contact:
@@ -105,6 +122,11 @@ components:
       required:
         - cacheKey
         - entry
+    StreamEventStreamData:
+      description:
+        Real-time LLM stream part (text-delta, tool-call, tool-result,
+        etc.) forwarded from the AI SDK.
+      x-stainless-any: true
     BrowserbaseRegion:
       type: string
       enum:
@@ -703,6 +725,12 @@ components:
           anyOf:
             - $ref: "#/components/schemas/ModelConfig"
             - type: string
+        stream:
+          description:
+            Enable streaming mode for the agent. When true, real-time LLM
+            stream events (text deltas, tool calls, etc.) are forwarded to the
+            client as SSE events with type 'stream'.
+          type: boolean
     AgentAction:
       type: object
       properties:
@@ -960,11 +988,14 @@ components:
         - finished
         - error
     StreamEventType:
-      description: Type of stream event - system events or log messages
+      description:
+        Type of stream event - system events, log messages, or real-time
+        LLM stream parts
       type: string
       enum:
         - system
         - log
+        - stream
     StreamEventSystemData:
       type: object
       properties:
@@ -1603,6 +1634,12 @@ components:
           anyOf:
             - $ref: "#/components/schemas/ModelConfigOutput"
             - type: string
+        stream:
+          description:
+            Enable streaming mode for the agent. When true, real-time LLM
+            stream events (text deltas, tool calls, etc.) are forwarded to the
+            client as SSE events with type 'stream'.
+          type: boolean
       additionalProperties: false
     AgentUsageOutput:
       type: object
@@ -1868,6 +1905,7 @@ components:
           anyOf:
             - $ref: "#/components/schemas/StreamEventSystemDataOutput"
             - $ref: "#/components/schemas/StreamEventLogDataOutput"
+            - $ref: "#/components/schemas/StreamEventStreamData"
         type:
           $ref: "#/components/schemas/StreamEventType"
         id:
