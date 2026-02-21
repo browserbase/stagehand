@@ -32,6 +32,7 @@ const repoRoot = (() => {
   return root;
 })();
 
+const sourceTestsDir = `${repoRoot}/packages/core/tests`;
 const testsDir = `${repoRoot}/packages/core/dist/esm/tests`;
 const defaultConfigPath = `${repoRoot}/packages/core/vitest.esm.config.mjs`;
 
@@ -53,28 +54,30 @@ const toTestName = (testPath: string) => {
   return path.basename(abs).replace(/\.test\.(ts|js)$/i, "");
 };
 
-if (!fs.existsSync(testsDir)) {
-  console.error(
-    "Missing packages/core/dist/esm/tests. Run pnpm run build:esm first.",
-  );
-  process.exit(1);
-}
-
 const listFlag = parseListFlag(process.argv.slice(2));
 const { paths, extra } = splitArgs(listFlag.args);
 
 if (listFlag.list) {
-  const tests = collectFiles(testsDir, ".test.js");
+  const tests = collectFiles(sourceTestsDir, ".test.ts");
   const entries = tests.map((file) => {
-    const rel = path.relative(testsDir, file).replace(/\.test\.js$/, "");
+    const relSource = path.relative(sourceTestsDir, file).replaceAll("\\", "/");
+    const rel = relSource.replace(/\.test\.ts$/, "");
+    const distPath = `${testsDir}/${relSource.replace(/\.test\.ts$/, ".test.js")}`;
     return {
-      path: path.relative(repoRoot, file),
+      path: path.relative(repoRoot, distPath).replaceAll("\\", "/"),
       name: rel,
       safe_name: toSafeName(rel),
     };
   });
   console.log(JSON.stringify(entries));
   process.exit(0);
+}
+
+if (!fs.existsSync(testsDir)) {
+  console.error(
+    "Missing packages/core/dist/esm/tests. Run pnpm run build:esm first.",
+  );
+  process.exit(1);
 }
 
 const runtimePaths = paths.map(resolveRepoRelative);

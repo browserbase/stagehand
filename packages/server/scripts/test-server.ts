@@ -5,7 +5,7 @@
  * - pnpm run build (packages/server/dist/tests + packages/server/dist/server.js).
  * - SEA integration still requires build:sea when STAGEHAND_SERVER_TARGET=sea.
  *
- * Args: [test paths...] -- [node --test args...] | --list [unit|integration] (prints JSON matrix)
+ * Args: [test paths...] -- [node --test args...] | --list (prints JSON matrix)
  * Env: STAGEHAND_SERVER_TARGET=sea|local|remote, STAGEHAND_BASE_URL, SEA_BINARY_NAME,
  *      NODE_TEST_CONSOLE_REPORTER, NODE_TEST_REPORTER, NODE_TEST_REPORTER_DESTINATION,
  *      NODE_V8_COVERAGE; writes CTRF to ctrf/node-test-*.xml by default.
@@ -15,14 +15,64 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import {
-  ensureParentDir,
-  parseListFlag,
-  splitArgs,
-  collectFiles,
-  toSafeName,
-  writeCtrfFromJunit,
-} from "../../core/scripts/test-utils.js";
+
+const ensureParentDir = (filePath: string) => {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+};
+
+const splitArgs = (args: string[]) => {
+  const tokens = [...args];
+  while (tokens[0] === "--") {
+    tokens.shift();
+  }
+
+  const leadingExtra: string[] = [];
+  while (tokens.length > 0 && tokens[0].startsWith("-")) {
+    const arg = tokens.shift();
+    if (!arg) break;
+    if (arg === "--") break;
+    leadingExtra.push(arg);
+    if (
+      !arg.includes("=") &&
+      tokens[0] &&
+      tokens[0] !== "--" &&
+      !tokens[0].startsWith("-")
+    ) {
+      leadingExtra.push(tokens.shift() as string);
+    }
+  }
+
+  while (tokens[0] === "--") {
+    tokens.shift();
+  }
+
+  const separatorIndex = tokens.indexOf("--");
+  return {
+    paths: separatorIndex === -1 ? tokens : tokens.slice(0, separatorIndex),
+    extra: [
+      ...leadingExtra,
+      ...(separatorIndex === -1 ? [] : tokens.slice(separatorIndex + 1)),
+    ],
+  };
+};
+
+const toSafeName = (name: string) => name.replace(/[\\/]/g, "-");
+
+const collectFiles = (dir: string, suffix: string) => {
+  const results: string[] = [];
+  const walk = (current: string) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const full = `${current}/${entry.name}`;
+      if (entry.isDirectory()) {
+        walk(full);
+      } else if (entry.isFile() && entry.name.endsWith(suffix)) {
+        results.push(full);
+      }
+    }
+  };
+  if (fs.existsSync(dir)) walk(dir);
+  return results.sort();
+};
 
 const repoRoot = (() => {
   const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
@@ -33,6 +83,26 @@ const repoRoot = (() => {
   return root;
 })();
 
+const writeCtrfFromJunit = (junitPath: string, tool: string) => {
+  if (!fs.existsSync(junitPath)) return;
+  const stat = fs.statSync(junitPath);
+  if (stat.size === 0) return;
+  const ctrfPath = junitPath.match(/\.xml$/i)
+    ? junitPath.replace(/\.xml$/i, ".json")
+    : `${junitPath}.json`;
+  const result = spawnSync(
+    "pnpm",
+    ["exec", "junit-to-ctrf", junitPath, "-o", ctrfPath, "-t", tool],
+    { stdio: "inherit", cwd: repoRoot },
+  );
+  if (result.status !== 0) {
+    console.warn(`CTRF conversion failed for ${junitPath}.`);
+  }
+};
+
+const sourceTestsDir = `${repoRoot}/packages/server/test`;
+const sourceUnitDir = `${sourceTestsDir}/unit`;
+const sourceIntegrationDir = `${sourceTestsDir}/integration`;
 const unitDir = `${repoRoot}/packages/server/dist/tests/unit`;
 const integrationDir = `${repoRoot}/packages/server/dist/tests/integration`;
 const allTestsDir = `${repoRoot}/packages/server/dist/tests`;
@@ -74,15 +144,42 @@ const toTestName = (testPath: string, root: string) => {
   return path.basename(abs).replace(/\.test\.js$/i, "");
 };
 
-if (!fs.existsSync(allTestsDir)) {
-  console.error(
-    "Missing packages/server/dist/tests. Run pnpm run build first.",
+const rawArgs = process.argv.slice(2);
+const listRequested = rawArgs.includes("--list");
+
+if (listRequested) {
+  const unitTests = collectFiles(sourceUnitDir, ".test.ts").map((file) => {
+    const relSource = path.relative(sourceTestsDir, file).replaceAll("\\", "/");
+    const distPath = `${repoRoot}/packages/server/dist/tests/${relSource.replace(/\.test\.ts$/, ".test.js")}`;
+    const name = path.basename(file, ".test.ts");
+    return {
+      path: path.relative(repoRoot, distPath).replaceAll("\\", "/"),
+      name,
+      safe_name: toSafeName(name),
+    };
+  });
+  const integrationTests = collectFiles(sourceIntegrationDir, ".test.ts").map(
+    (file) => {
+      const relSource = path
+        .relative(sourceTestsDir, file)
+        .replaceAll("\\", "/");
+      const distPath = `${repoRoot}/packages/server/dist/tests/${relSource.replace(/\.test\.ts$/, ".test.js")}`;
+      const rel = path
+        .relative(sourceIntegrationDir, file)
+        .replaceAll("\\", "/")
+        .replace(/\.test\.ts$/, "");
+      return {
+        path: path.relative(repoRoot, distPath).replaceAll("\\", "/"),
+        name: rel,
+        safe_name: toSafeName(rel),
+      };
+    },
   );
-  process.exit(1);
+  console.log(JSON.stringify([...unitTests, ...integrationTests]));
+  process.exit(0);
 }
 
-const listFlag = parseListFlag(process.argv.slice(2));
-const { paths, extra } = splitArgs(listFlag.args);
+const { paths, extra } = splitArgs(rawArgs);
 const { filtered: extraArgs, removed: removedReporterOverride } =
   stripNodeReporterArgs(extra);
 if (removedReporterOverride) {
@@ -91,36 +188,11 @@ if (removedReporterOverride) {
   );
 }
 
-if (listFlag.list) {
-  const unitTests = collectFiles(unitDir, ".test.js").map((file) => {
-    const name = path.basename(file, ".test.js");
-    return {
-      path: path.relative(repoRoot, file),
-      name,
-      safe_name: toSafeName(name),
-    };
-  });
-  const integrationTests = collectFiles(integrationDir, ".test.js").map(
-    (file) => {
-      const rel = path
-        .relative(integrationDir, file)
-        .replace(/\.test\.js$/, "");
-      return {
-        path: path.relative(repoRoot, file),
-        name: rel,
-        safe_name: toSafeName(rel),
-      };
-    },
+if (!fs.existsSync(allTestsDir)) {
+  console.error(
+    "Missing packages/server/dist/tests. Run pnpm run build first.",
   );
-  const value = listFlag.value.toLowerCase();
-  if (value === "unit") {
-    console.log(JSON.stringify(unitTests));
-  } else if (value === "integration") {
-    console.log(JSON.stringify(integrationTests));
-  } else {
-    console.log(JSON.stringify([...unitTests, ...integrationTests]));
-  }
-  process.exit(0);
+  process.exit(1);
 }
 
 const serverTarget = (

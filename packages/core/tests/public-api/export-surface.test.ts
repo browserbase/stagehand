@@ -75,4 +75,12 @@ describe("Stagehand public API export surface", () => {
     const actual = Object.keys(Stagehand).sort();
     expect(actual).toStrictEqual(expected);
   });
+
+  it("default export mirrors the named export surface", () => {
+    const expected = Object.keys(Stagehand)
+      .filter((key) => key !== "default")
+      .sort();
+    const actual = Object.keys(StagehandDefaultExport).sort();
+    expect(actual).toStrictEqual(expected);
+  });
 });
