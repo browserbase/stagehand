@@ -3,6 +3,7 @@ import * as Stagehand from "@browserbasehq/stagehand";
 
 export const publicErrorTypes = {
   AgentAbortError: Stagehand.AgentAbortError,
+  CdpConnectionClosedError: Stagehand.CdpConnectionClosedError,
   AgentScreenshotProviderError: Stagehand.AgentScreenshotProviderError,
   BrowserbaseSessionNotFoundError: Stagehand.BrowserbaseSessionNotFoundError,
   CaptchaTimeoutError: Stagehand.CaptchaTimeoutError,
