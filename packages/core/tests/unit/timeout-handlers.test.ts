@@ -20,21 +20,21 @@ import {
 } from "../../lib/inference.js";
 import { V3FunctionName } from "../../lib/v3/types/public/methods.js";
 
-vi.mock("../lib/v3/handlers/handlerUtils/timeoutGuard", () => ({
+vi.mock("../../lib/v3/handlers/handlerUtils/timeoutGuard", () => ({
   createTimeoutGuard: vi.fn(),
 }));
 
-vi.mock("../lib/v3/handlers/handlerUtils/actHandlerUtils", () => ({
+vi.mock("../../lib/v3/handlers/handlerUtils/actHandlerUtils", () => ({
   waitForDomNetworkQuiet: vi.fn(),
   performUnderstudyMethod: vi.fn(),
 }));
 
-vi.mock("../lib/v3/understudy/a11y/snapshot", () => ({
+vi.mock("../../lib/v3/understudy/a11y/snapshot", () => ({
   captureHybridSnapshot: vi.fn(),
   diffCombinedTrees: vi.fn(),
 }));
 
-vi.mock("../lib/inference", () => ({
+vi.mock("../../lib/inference", () => ({
   act: vi.fn(),
   extract: vi.fn(),
   observe: vi.fn(),
@@ -187,7 +187,7 @@ describe("ActHandler two-step timeout", () => {
     });
 
     const { performUnderstudyMethod } = await import(
-      "../lib/v3/handlers/handlerUtils/actHandlerUtils.js"
+      "../../lib/v3/handlers/handlerUtils/actHandlerUtils.js"
     );
     const performUnderstudyMethodMock = vi.mocked(performUnderstudyMethod);
     performUnderstudyMethodMock.mockResolvedValue(undefined);
@@ -208,7 +208,7 @@ describe("ActHandler two-step timeout", () => {
     } as ReturnType<typeof actInference> extends Promise<infer T> ? T : never);
 
     const diffCombinedTreesMock = vi.mocked(
-      (await import("../lib/v3/understudy/a11y/snapshot/index.js"))
+      (await import("../../lib/v3/understudy/a11y/snapshot/index.js"))
         .diffCombinedTrees,
     );
     diffCombinedTreesMock.mockReturnValue("diff tree");
@@ -268,7 +268,7 @@ describe("ActHandler self-heal timeout", () => {
     });
 
     const { performUnderstudyMethod } = await import(
-      "../lib/v3/handlers/handlerUtils/actHandlerUtils.js"
+      "../../lib/v3/handlers/handlerUtils/actHandlerUtils.js"
     );
     const performUnderstudyMethodMock = vi.mocked(performUnderstudyMethod);
     // First call fails, triggering self-heal
@@ -339,7 +339,7 @@ describe("ActHandler self-heal timeout", () => {
     });
 
     const { performUnderstudyMethod } = await import(
-      "../lib/v3/handlers/handlerUtils/actHandlerUtils.js"
+      "../../lib/v3/handlers/handlerUtils/actHandlerUtils.js"
     );
     const performUnderstudyMethodMock = vi.mocked(performUnderstudyMethod);
     // First call fails, triggering self-heal
@@ -740,7 +740,7 @@ describe("No-timeout success paths", () => {
     });
 
     const { performUnderstudyMethod } = await import(
-      "../lib/v3/handlers/handlerUtils/actHandlerUtils.js"
+      "../../lib/v3/handlers/handlerUtils/actHandlerUtils.js"
     );
     const performUnderstudyMethodMock = vi.mocked(performUnderstudyMethod);
     performUnderstudyMethodMock.mockResolvedValue(undefined);
@@ -910,7 +910,7 @@ describe("No-timeout success paths", () => {
     });
 
     const { performUnderstudyMethod } = await import(
-      "../lib/v3/handlers/handlerUtils/actHandlerUtils.js"
+      "../../lib/v3/handlers/handlerUtils/actHandlerUtils.js"
     );
     const performUnderstudyMethodMock = vi.mocked(performUnderstudyMethod);
     performUnderstudyMethodMock.mockResolvedValue(undefined);
@@ -967,7 +967,7 @@ describe("No-timeout success paths", () => {
     });
 
     const { performUnderstudyMethod } = await import(
-      "../lib/v3/handlers/handlerUtils/actHandlerUtils.js"
+      "../../lib/v3/handlers/handlerUtils/actHandlerUtils.js"
     );
     const performUnderstudyMethodMock = vi.mocked(performUnderstudyMethod);
     performUnderstudyMethodMock.mockResolvedValue(undefined);
