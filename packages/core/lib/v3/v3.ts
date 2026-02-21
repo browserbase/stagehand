@@ -920,6 +920,7 @@ export class V3 {
               apiKey,
               projectId,
               logger: this.logger,
+              serverCache: this.opts.serverCache,
             });
             const createSessionPayload = {
               projectId: effectiveSessionParams.projectId ?? projectId,
