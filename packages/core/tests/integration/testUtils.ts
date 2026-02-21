@@ -1,5 +1,20 @@
 import type { V3 } from "../../lib/v3/v3.js";
 
+/**
+ * Races a promise against a timeout.
+ * Resolves to the promise value or "timeout" if the deadline expires.
+ */
+export function raceTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+): Promise<T | "timeout"> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<"timeout">((resolve) => {
+    timer = setTimeout(() => resolve("timeout"), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 const CLOSE_TIMEOUT_MS = 5_000;
 
 async function settleWithTimeout(

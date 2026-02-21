@@ -1392,6 +1392,19 @@ export class V3 {
 
     const keepAlive = this.keepAlive === true;
 
+    // Unhook CDP transport close handler BEFORE ending the API session.
+    // apiClient.end() can cause the hosted API to terminate the Browserbase
+    // session, which closes the CDP WebSocket. If the handler is still
+    // registered, _onCdpClosed fires and re-enters close() with force=true,
+    // causing a double-close cascade.
+    try {
+      if (this.ctx?.conn && this._onCdpClosed) {
+        this.ctx.conn.offTransportClosed?.(this._onCdpClosed);
+      }
+    } catch {
+      // ignore
+    }
+
     // End Browserbase session via API when keepAlive is not enabled
     if (!keepAlive && this.apiClient) {
       try {
@@ -1405,15 +1418,6 @@ export class V3 {
       // Close session file logger
       try {
         await SessionFileLogger.close();
-      } catch {
-        // ignore
-      }
-
-      // Unhook CDP transport close handler
-      try {
-        if (this.ctx?.conn && this._onCdpClosed) {
-          this.ctx.conn.offTransportClosed?.(this._onCdpClosed);
-        }
       } catch {
         // ignore
       }

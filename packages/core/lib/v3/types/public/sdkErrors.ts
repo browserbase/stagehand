@@ -400,6 +400,12 @@ export class StagehandClosedError extends StagehandError {
   }
 }
 
+export class CdpConnectionClosedError extends StagehandError {
+  constructor(reason: string) {
+    super(`CDP connection closed: ${reason}`);
+  }
+}
+
 export class StagehandSetExtraHTTPHeadersError extends StagehandError {
   public readonly failures: string[];
 
