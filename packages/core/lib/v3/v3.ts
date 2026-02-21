@@ -426,6 +426,35 @@ export class V3 {
     return undefined;
   }
 
+  /**
+   * Resolves the effective serverCache boolean for the cache-bypass header.
+   * Method-level takes precedence over constructor-level per-method settings.
+   * Returns false when caching should be bypassed, true when it should be
+   * explicitly enabled, or undefined to let the APIClient use its default.
+   */
+  private resolveServerCacheBoolean(
+    method: "act" | "extract" | "observe",
+    methodLevelCache?: boolean | { threshold: number },
+  ): boolean | undefined {
+    // Method-level is always highest priority
+    if (methodLevelCache !== undefined) {
+      // { threshold } means enabled; boolean passes through
+      return typeof methodLevelCache === "object" ? true : methodLevelCache;
+    }
+    // Constructor-level global boolean (stg-1182 use-case: serverCache: false)
+    if (typeof this.opts.serverCache === "boolean") {
+      return this.opts.serverCache;
+    }
+    // Constructor-level per-method object
+    if (typeof this.opts.serverCache === "object") {
+      const methodSetting = this.opts.serverCache[method];
+      if (methodSetting !== undefined) {
+        return typeof methodSetting === "object" ? true : methodSetting;
+      }
+    }
+    return undefined;
+  }
+
   private resolveLlmClient(model?: ModelConfiguration): LLMClient {
     if (!model) {
       return this.llmClient;
@@ -1111,9 +1140,16 @@ export class V3 {
         // Use selector as provided to support XPath, CSS, and other engines
         const selector = input.selector;
         if (this.apiClient) {
+          const resolvedServerCache = this.resolveServerCacheBoolean(
+            "act",
+            options?.serverCache,
+          );
           actResult = await this.apiClient.act({
             input,
-            options,
+            options:
+              resolvedServerCache !== undefined
+                ? { ...options, serverCache: resolvedServerCache }
+                : options,
             frameId: v3Page.mainFrameId(),
             cacheThreshold: this.resolveServerCacheThreshold(
               "act",
@@ -1207,9 +1243,16 @@ export class V3 {
       };
       if (this.apiClient) {
         const frameId = page.mainFrameId();
+        const resolvedServerCache = this.resolveServerCacheBoolean(
+          "act",
+          options?.serverCache,
+        );
         actResult = await this.apiClient.act({
           input,
-          options,
+          options:
+            resolvedServerCache !== undefined
+              ? { ...options, serverCache: resolvedServerCache }
+              : options,
           frameId,
           cacheThreshold: this.resolveServerCacheThreshold(
             "act",
@@ -1325,10 +1368,17 @@ export class V3 {
       let result: z.infer<typeof effectiveSchema> | { pageText: string };
       if (this.apiClient) {
         const frameId = page.mainFrameId();
+        const resolvedServerCache = this.resolveServerCacheBoolean(
+          "extract",
+          options?.serverCache,
+        );
         result = await this.apiClient.extract({
           instruction: handlerParams.instruction,
           schema: handlerParams.schema,
-          options,
+          options:
+            resolvedServerCache !== undefined
+              ? { ...options, serverCache: resolvedServerCache }
+              : options,
           frameId,
           cacheThreshold: this.resolveServerCacheThreshold(
             "extract",
@@ -1399,9 +1449,16 @@ export class V3 {
       let results: Action[];
       if (this.apiClient) {
         const frameId = page.mainFrameId();
+        const resolvedServerCache = this.resolveServerCacheBoolean(
+          "observe",
+          options?.serverCache,
+        );
         results = await this.apiClient.observe({
           instruction,
-          options,
+          options:
+            resolvedServerCache !== undefined
+              ? { ...options, serverCache: resolvedServerCache }
+              : options,
           frameId,
           cacheThreshold: this.resolveServerCacheThreshold(
             "observe",
