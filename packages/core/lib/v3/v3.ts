@@ -411,10 +411,14 @@ export class V3 {
     method: "act" | "extract" | "observe",
     methodLevelCache?: boolean | { threshold: number },
   ): number | undefined {
+    // When serverCache is a boolean it's a global enable/disable flag with no
+    // per-method threshold, so only index into it when it's an object.
+    const constructorMethodCache =
+      typeof this.opts.serverCache === "object"
+        ? this.opts.serverCache[method]
+        : undefined;
     const effective =
-      methodLevelCache !== undefined
-        ? methodLevelCache
-        : this.opts.serverCache?.[method];
+      methodLevelCache !== undefined ? methodLevelCache : constructorMethodCache;
 
     if (typeof effective === "object" && effective !== null) {
       return effective.threshold;
@@ -920,7 +924,15 @@ export class V3 {
               apiKey,
               projectId,
               logger: this.logger,
-              serverCache: this.opts.serverCache,
+              // V3Options.serverCache can be boolean | object; APIClient only needs
+              // a boolean (for the global cache-bypass header). When serverCache is
+              // an object (per-method threshold config), pass undefined so the
+              // client defaults to caching enabled; per-method settings are
+              // handled via cacheThreshold in each individual request.
+              serverCache:
+                typeof this.opts.serverCache === "boolean"
+                  ? this.opts.serverCache
+                  : undefined,
             });
             const createSessionPayload = {
               projectId: effectiveSessionParams.projectId ?? projectId,
