@@ -2,6 +2,7 @@
 import WebSocket from "ws";
 import type { Protocol } from "devtools-protocol";
 import { STAGEHAND_VERSION } from "../../version.js";
+import { CdpConnectionClosedError } from "../types/public/sdkErrors.js";
 
 /**
  * CDP transport & session multiplexer
@@ -87,11 +88,13 @@ export class CdpConnection implements CDPSessionLike {
     this.ws.on("close", (code, reason) => {
       // Reason is a Buffer in ws; stringify defensively
       const why = `socket-close code=${code} reason=${String(reason || "")}`;
+      this.rejectAllInflight(why);
       this.emitTransportClosed(why);
     });
 
     this.ws.on("error", (err) => {
       const why = `socket-error ${err?.message ?? String(err)}`;
+      this.rejectAllInflight(why);
       this.emitTransportClosed(why);
     });
     this.ws.on("message", (data) => this.onMessage(data.toString()));
@@ -154,10 +157,18 @@ export class CdpConnection implements CDPSessionLike {
   }
 
   async close(): Promise<void> {
+    if (this.ws.readyState === WebSocket.CLOSED) return;
     await new Promise<void>((resolve) => {
       this.ws.once("close", () => resolve());
       this.ws.close();
     });
+  }
+
+  private rejectAllInflight(why: string): void {
+    for (const [id, entry] of this.inflight.entries()) {
+      entry.reject(new CdpConnectionClosedError(why));
+      this.inflight.delete(id);
+    }
   }
 
   getSession(sessionId: string): CdpSession | undefined {
