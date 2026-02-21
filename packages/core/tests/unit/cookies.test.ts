@@ -581,7 +581,7 @@ describe("V3Context cookie methods", () => {
   let V3ContextClass: { prototype: V3Context } & Record<string, any>;
 
   beforeEach(async () => {
-    const mod = await import("../lib/v3/understudy/context");
+    const mod = await import("../../lib/v3/understudy/context");
     V3ContextClass = mod.V3Context as typeof V3ContextClass;
   });
 
