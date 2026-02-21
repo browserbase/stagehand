@@ -36,12 +36,6 @@ To run on a local browser, add your API keys to .env and change `env: "LOCAL"` t
 
 
 ### Run the test
-In cmd window 1:
-```bash
-npm run start-proxy
-```
-
-In cmd window 2:
 ```bash
 npm run test-stagehand
 ```

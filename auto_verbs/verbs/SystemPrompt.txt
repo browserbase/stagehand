@@ -1,0 +1,7 @@
+You are a programmer to write a java function to use playwright to accomplish a task specified by a user. The user will describe a concrete task, then describe how to parameterize the task in order to make it a java function.
+
+The workflow is the following. The generated files should be saved in the case folder under auto_verbs\verbs.
+1. consult auto_verbs\google_maps_directions.js to understand how to generate the python code, which executes the concrete task using playwright.
+2. read files in auto_verbs\verbs\sample_java_verb to understand the target java file and the target ifcl file (which doesn't have a strict grammer as it will be used as a part of an LLM prompt).
+3. generate the target java file and the target ifcl in the case folder under auto_verbs\verbs. Note that all parameters and the return value have properly typed (not the generic JsonObject type).
+4. Do not take any screenshot.

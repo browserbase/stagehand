@@ -1,10 +1,13 @@
 import "dotenv/config";
 import { Stagehand } from "@browserbasehq/stagehand";
+import { setupAzureOAuth } from "./azure-oauth-client";
 
 async function main() {
+  const oauth = await setupAzureOAuth();
+
   const stagehand = new Stagehand({
-    //env: "BROWSERBASE",
     env: "LOCAL",
+    llmClient: oauth.llmClient,
   });
 
   await stagehand.init();
@@ -17,8 +20,7 @@ async function main() {
   const page = stagehand.context.pages()[0];
 
   await page.goto("https://stagehand.dev");
-  return;
-  
+
   const extractResult = await stagehand.extract(
     "Extract the value proposition from the page."
   );
@@ -40,6 +42,7 @@ async function main() {
   console.log(`Agent result:\n`, agentResult);
 
   await stagehand.close();
+  await oauth.cleanup();
 }
 
 main().catch((err) => {

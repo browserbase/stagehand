@@ -1,0 +1,15 @@
+Please read auto_verbs\verbs\SystemPrompt.txt
+
+* The target website
+redfin.com
+
+* Purpose of the target function
+Search Redfin for apartments for rent in a location and price range.
+
+* Input parameters
+- the city or area to search
+- min of the price range
+- max of the price range
+
+* return
+a list of apartments (at most 5 apartments)

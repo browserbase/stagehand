@@ -4,19 +4,14 @@
   "scripts": {
     "build": "tsc",
     "start": "tsx index.ts",
-    "start-proxy": "node oauth-proxy-server.js",
-    "test-stagehand": "node test-stagehand-oauth.js",
+    "test-stagehand": "npx tsx test-stagehand-oauth-lib.ts",
     "dev": "npx ts-node index.ts"
   },
   "dependencies": {
     "@browserbasehq/stagehand": "file:../packages/core",
-    "cors": "^2.8.6",
-    "dotenv": "^16.4.7",
-    "express": "^4.22.1"
+    "dotenv": "^16.4.7"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.0",
-    "@types/express": "^4.17.0",
     "@types/node": "^20.0.0",
     "azure-identity": "^0.0.1-security",
     "openai": "^6.22.0",

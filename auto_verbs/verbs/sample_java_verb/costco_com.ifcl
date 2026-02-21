@@ -1,0 +1,62 @@
+import com.microsoft.playwright.BrowserContext;
+
+public class costco_com extends com_base {
+    public costco_com(BrowserContext _context);
+
+    /**
+     * Search for a list of products at Costco and return the list.
+     * @param searchTerm The product to search for (e.g., "eggs", "mower").
+     * @return ProductListResult containing a list of found products and any error message.
+     */
+    public ProductListResult searchProducts(String searchTerm);
+
+    /**
+     * Search for a product at Costco and return only the first product found.
+     * @param searchTerm The product to search for (e.g., "eggs", "mower").
+     * @return ProductInfo for the first product found, or with error message if not found.
+     */
+    public ProductInfo searchProduct(String searchTerm);
+
+    /**
+     * Set the preferred warehouse by city or zip code.
+     * @param location The city, state, or zip code to set as preferred warehouse.
+     * @return WarehouseStatusResult with status or error message.
+     */
+    public WarehouseStatusResult setPreferredWarehouse(String location);
+
+    /**
+     * Represents a product with name and price.
+     */
+    public static class ProductInfo {
+        /** Name of the product. */
+        public final String productName;
+        /** Price of the product. */
+        public final CurrencyAmount productPrice;
+        /** Error message, if any. */
+        public final String error;
+        public ProductInfo(String productName, CurrencyAmount productPrice);
+        public ProductInfo(String productName, CurrencyAmount productPrice, String error);
+    }
+
+    /**
+     * Represents a list of products and an optional error message.
+     */
+    public static class ProductListResult {
+        /** List of found products. */
+        public final java.util.List<ProductInfo> products;
+        /** Error message, if any. */
+        public final String error;
+        public ProductListResult(java.util.List<ProductInfo> products, String error);
+    }
+
+    /**
+     * Represents the result of setting a preferred warehouse.
+     */
+    public static class WarehouseStatusResult {
+        /** Status string, e.g., "success". */
+        public final String status;
+        /** Error message, if any. */
+        public final String error;
+        public WarehouseStatusResult(String status, String error);
+    }
+}

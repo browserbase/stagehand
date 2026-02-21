@@ -4,12 +4,8 @@ Automated browser interaction scripts using [Stagehand](https://github.com/brows
 
 ## Prerequisites
 
-1. OAuth proxy server running (from `my-stagehand-app/`):
-   ```bash
-   cd my-stagehand-app
-   node oauth-proxy-server.js
-   ```
-2. Node.js dependencies installed in `my-stagehand-app/`
+1. Azure CLI authenticated (`az login`)
+2. Node.js dependencies installed
 
 ## Programs
 

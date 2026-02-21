@@ -1,306 +1,264 @@
 const { Stagehand } = require("@browserbasehq/stagehand");
+const { PlaywrightRecorder, setupAzureOpenAI, observeAndAct, extractAriaScopeForXPath } = require("./stagehand-utils");
 const fs = require("fs");
 const path = require("path");
 
 /**
- * Google Maps Driving Directions: Bellevue Square → Redmond Town Center
+ * Google Maps Directions
  * 
- * Uses Stagehand to automate the search, records all browser interactions,
- * and generates a Python Playwright script from the recorded actions.
+ * Uses AI-driven discovery to dynamically interact with the interface.
+ * Refactored to use utility functions for better code organization.
+ * Includes Python Playwright script generation.
  */
 
-// ── Interaction Recorder ────────────────────────────────────────────────────
-class PlaywrightRecorder {
-  constructor() {
-    this.actions = [];
-    this.startTime = Date.now();
+// ── Google Maps Configuration ───────────────────────────────────────────────
+const GOOGLE_MAPS_CONFIG = {
+  url: "https://www.google.com/maps",
+  locations: {
+    start: "Bellevue Square, Bellevue, WA",
+    destination: "Redmond Town Center, Redmond, WA"
+  },
+  waitTimes: {
+    pageLoad: 3000,
+    afterAction: 1000,
+    afterSearch: 5000
   }
+};
 
-  record(type, details) {
-    this.actions.push({
-      timestamp: Date.now() - this.startTime,
-      type,
-      ...details,
-    });
-    console.log(`  📝 Recorded: ${type} → ${details.description || JSON.stringify(details)}`);
-  }
+// ── Google Maps Specific Functions ──────────────────────────────────────────
 
-  goto(url) {
-    this.record("goto", { url, description: `Navigate to ${url}` });
-  }
+/**
+ * Perform interface discovery specific to Google Maps
+ * @param {object} stagehand - Stagehand instance
+ * @param {PlaywrightRecorder} recorder - Recorder instance
+ * @returns {object} Discovery results
+ */
+async function discoverGoogleMapsInterface(stagehand, recorder) {
+  console.log("🔍 STEP 1: Exploring the Google Maps interface...");
+  console.log("   (This is what a human would do - look around first)\n");
+  
+  const { z } = require("zod/v3");
+  
+  const interfaceDiscovery = await stagehand.extract(
+    "Analyze the current Google Maps interface. What navigation options, buttons, menus, or controls are visible? Look for anything related to directions, routes, or travel planning.",
+    z.object({
+      availableOptions: z.array(z.string()).describe("List of visible options/buttons/controls"),
+      directionsRelated: z.array(z.string()).describe("Options specifically related to getting directions"),
+      searchFeatures: z.array(z.string()).describe("Search-related features"),
+      otherControls: z.array(z.string()).describe("Other notable controls or features"),
+    })
+  );
 
-  click(selector, description) {
-    this.record("click", { selector, description: description || `Click ${selector}` });
-  }
+  // Record the interface discovery
+  recorder.record("extract", {
+    instruction: "Analyze the current Google Maps interface",
+    description: "Interface discovery analysis",
+    results: interfaceDiscovery,
+  });
 
-  fill(selector, value, description) {
-    this.record("fill", { selector, value, description: description || `Fill ${selector} with "${value}"` });
-  }
+  console.log("📋 Interface Discovery Results:");
+  console.log(`   🎯 Available options: ${interfaceDiscovery.availableOptions.join(", ")}`);
+  console.log(`   🧭 Directions-related: ${interfaceDiscovery.directionsRelated.join(", ")}`);
+  console.log(`   🔍 Search features: ${interfaceDiscovery.searchFeatures.join(", ")}`);
+  console.log(`   ⚙️  Other controls: ${interfaceDiscovery.otherControls.join(", ")}`);
+  console.log("");
 
-  press(selector, key, description) {
-    this.record("press", { selector, key, description: description || `Press ${key}` });
-  }
-
-  wait(ms, description) {
-    this.record("wait", { ms, description: description || `Wait ${ms}ms` });
-  }
-
-  screenshot(name) {
-    this.record("screenshot", { name, description: `Take screenshot: ${name}` });
-  }
-
-  extractText(selector, variableName, description) {
-    this.record("extract_text", { selector, variableName, description: description || `Extract text from ${selector}` });
-  }
-
-  /** Generate a Python Playwright script from recorded actions */
-  generatePythonScript() {
-    const lines = [
-      `"""`,
-      `Auto-generated Playwright script (Python)`,
-      `Google Maps Driving Directions: Bellevue Square → Redmond Town Center`,
-      ``,
-      `Generated on: ${new Date().toISOString()}`,
-      `Recorded ${this.actions.length} browser interactions`,
-      `"""`,
-      ``,
-      `import re`,
-      `from playwright.sync_api import Playwright, sync_playwright, expect`,
-      ``,
-      ``,
-      `def run(playwright: Playwright) -> None:`,
-      `    browser = playwright.chromium.launch(headless=False, channel="chrome")`,
-      `    context = browser.new_context(`,
-      `        viewport={"width": 1280, "height": 720},`,
-      `        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",`,
-      `    )`,
-      `    page = context.new_page()`,
-      ``,
-    ];
-
-    for (const action of this.actions) {
-      lines.push(`    # ${action.description}`);
-
-      switch (action.type) {
-        case "goto":
-          lines.push(`    page.goto("${action.url}")`);
-          lines.push(`    page.wait_for_load_state("domcontentloaded")`);
-          break;
-
-        case "click":
-          if (action.selector) {
-            lines.push(`    page.locator("${this._escapePy(action.selector)}").click()`);
-          } else {
-            lines.push(`    # Action performed via AI: ${action.description}`);
-          }
-          break;
-
-        case "fill":
-          if (action.selector) {
-            lines.push(`    page.locator("${this._escapePy(action.selector)}").fill("${this._escapePy(action.value)}")`);
-          } else {
-            lines.push(`    # Action performed via AI: Fill "${action.value}"`);
-          }
-          break;
-
-        case "press":
-          if (action.selector) {
-            lines.push(`    page.locator("${this._escapePy(action.selector)}").press("${action.key}")`);
-          } else {
-            lines.push(`    page.keyboard.press("${action.key}")`);
-          }
-          break;
-
-        case "wait":
-          lines.push(`    page.wait_for_timeout(${action.ms})`);
-          break;
-
-        case "screenshot":
-          lines.push(`    page.screenshot(path="${action.name}.png")`);
-          break;
-
-        case "extract_text":
-          if (action.selector) {
-            lines.push(`    ${action.variableName} = page.locator("${this._escapePy(action.selector)}").text_content()`);
-            lines.push(`    print(f"${action.variableName}: {${action.variableName}}")`);
-          } else {
-            lines.push(`    # Text extracted via AI: ${action.description}`);
-          }
-          break;
-
-        case "act":
-          lines.push(`    # Stagehand AI action: ${action.instruction}`);
-          lines.push(`    # Observed: ${action.observedDescription || action.description}`);
-          if (action.aria) {
-            // Prefer ARIA-based locators for resilience
-            const aria = action.aria;
-            const method = action.method || "click";
-            const args = action.arguments || [];
-            const role = aria.role || aria.implicitRole;
-            const label = aria.ariaLabel || aria.placeholder || aria.tooltip || aria.title || null;
-            const text = aria.textContent || null;
-
-            // Only scope when the DOM has multiple elements with the same role+label
-            const needsScoping = (aria.matchCount || 1) > 1;
-
-            let scopePrefix = "";
-            if (needsScoping) {
-              const ancestors = aria.ariaAncestors || [];
-              const elementLabel = (label || text || "").toLowerCase();
-
-              // Strategy: find the nearest ancestor that can uniquely scope this element.
-              // IDs are unique by HTML spec, so they're the most reliable disambiguator.
-              // ARIA labels on ancestors may still be shared (e.g., "Google Maps" wraps both
-              // Search buttons), so only use them if no ID-based scope is available.
-
-              // 1. Nearest ancestor with an ID (most reliable)
-              const idAnc = ancestors.find(a => a.id);
-              // 2. Nearest ancestor with a distinguishing aria-label (not same as element's)
-              const ariaAnc = ancestors.find(a => a.ariaLabel && a.ariaLabel.toLowerCase() !== elementLabel);
-              // 3. Nearest ancestor with role + distinguishing aria-label
-              const roleAnc = ancestors.find(a => a.role && a.ariaLabel && a.ariaLabel.toLowerCase() !== elementLabel);
-
-              if (idAnc) {
-                // ID is guaranteed unique — best for disambiguation
-                scopePrefix = `page.locator("#${this._escapePy(idAnc.id)}").`;
-                lines.push(`    # Scoped to #${idAnc.id} (${aria.matchCount} elements share this role+label)`);
-              } else if (roleAnc) {
-                const kw = this._extractKeyword(roleAnc.ariaLabel);
-                scopePrefix = `page.get_by_role("${roleAnc.role}", name=re.compile(r"${this._escapePy(kw)}", re.IGNORECASE)).`;
-                lines.push(`    # Scoped via ancestor role="${roleAnc.role}", label="${roleAnc.ariaLabel}"`);
-              } else if (ariaAnc) {
-                const kw = this._extractKeyword(ariaAnc.ariaLabel);
-                scopePrefix = `page.get_by_label(re.compile(r"${this._escapePy(kw)}", re.IGNORECASE)).`;
-                lines.push(`    # Scoped via ancestor aria-label="${ariaAnc.ariaLabel}"`);
-              } else if (aria.nearestAncestorId) {
-                scopePrefix = `page.locator("#${this._escapePy(aria.nearestAncestorId)}").`;
-                lines.push(`    # Scoped to parent #${aria.nearestAncestorId}`);
-              }
-            }
-
-            let locatorCode;
-            if (role && label) {
-              const labelEsc = this._escapePy(label);
-              const keyword = this._extractKeyword(label);
-              locatorCode = `${scopePrefix || "page."}get_by_role("${role}", name=re.compile(r"${this._escapePy(keyword)}", re.IGNORECASE))`;
-              lines.push(`    # ARIA: role="${role}", label="${labelEsc}"`);
-            } else if (label) {
-              const keyword = this._extractKeyword(label);
-              locatorCode = `${scopePrefix || "page."}get_by_label(re.compile(r"${this._escapePy(keyword)}", re.IGNORECASE))`;
-              lines.push(`    # ARIA: label="${this._escapePy(label)}"`);
-            } else if (role && text) {
-              const keyword = this._extractKeyword(text);
-              locatorCode = `${scopePrefix || "page."}get_by_role("${role}", name=re.compile(r"${this._escapePy(keyword)}", re.IGNORECASE))`;
-              lines.push(`    # ARIA: role="${role}", text="${this._escapePy(text)}"`);
-            } else if (action.selector) {
-              locatorCode = `page.locator("${this._escapePy(action.selector)}")`;
-              lines.push(`    # Fallback to XPath (no ARIA attributes found)`);
-            }
-
-            if (locatorCode) {
-              if (method === "fill" || method === "type") {
-                const value = args.length > 0 ? this._escapePy(args[0]) : "";
-                lines.push(`    ${locatorCode}.fill("${value}")`);
-              } else if (method === "press") {
-                const key = args.length > 0 ? args[0] : "Enter";
-                lines.push(`    ${locatorCode}.press("${key}")`);
-              } else {
-                lines.push(`    ${locatorCode}.click()`);
-              }
-            }
-          } else if (action.selector) {
-            const sel = this._escapePy(action.selector);
-            const method = action.method || "click";
-            const args = action.arguments || [];
-            lines.push(`    # Fallback to XPath (no ARIA info captured)`);
-            if (method === "fill" || method === "type") {
-              const value = args.length > 0 ? this._escapePy(args[0]) : "";
-              lines.push(`    page.locator("${sel}").fill("${value}")`);
-            } else if (method === "press") {
-              const key = args.length > 0 ? args[0] : "Enter";
-              lines.push(`    page.locator("${sel}").press("${key}")`);
-            } else {
-              lines.push(`    page.locator("${sel}").click()`);
-            }
-          } else {
-            lines.push(`    # No selector recorded for this action`);
-          }
-          break;
-
-        default:
-          lines.push(`    # Unknown action: ${action.type}`);
-      }
-      lines.push(``);
-    }
-
-    lines.push(`    # ---------------------`);
-    lines.push(`    # Cleanup`);
-    lines.push(`    # ---------------------`);
-    lines.push(`    context.close()`);
-    lines.push(`    browser.close()`);
-    lines.push(``);
-    lines.push(``);
-    lines.push(`with sync_playwright() as playwright:`);
-    lines.push(`    run(playwright)`);
-    lines.push(``);
-
-    return lines.join("\n");
-  }
-
-  _escapePy(s) {
-    return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  }
-
-  /** Extract essential keyword(s) from a label for resilient regex matching */
-  _extractKeyword(label) {
-    if (!label) return "";
-    // Remove filler phrases like "Choose ... or click on the map..."
-    // Keep the core identifying words
-    let cleaned = label
-      .replace(/,?\s*or click on the map\.{0,3}/i, "")
-      .replace(/^choose\s+/i, "")
-      .trim();
-    // If still long, take first few meaningful words (up to ~40 chars)
-    if (cleaned.length > 40) {
-      cleaned = cleaned.substring(0, 40).replace(/\s+\S*$/, "");
-    }
-    return cleaned;
-  }
+  return interfaceDiscovery;
 }
 
+/**
+ * Plan strategy for getting directions based on discovered interface
+ * @param {object} stagehand - Stagehand instance
+ * @param {PlaywrightRecorder} recorder - Recorder instance
+ * @param {object} interfaceDiscovery - Previously discovered interface elements
+ * @returns {object} Strategy plan
+ */
+async function planDirectionsStrategy(stagehand, recorder, interfaceDiscovery) {
+  console.log("🔍 STEP 2: Planning our approach based on discovery...");
+  console.log("   (Now we adapt our strategy based on what we found)\n");
 
-// ── Main Program ────────────────────────────────────────────────────────────
+  const { z } = require("zod/v3");
+
+  // Based on what we discovered, let's plan our approach
+  const strategyPlan = await stagehand.extract(
+    `Based on the available options found: ${interfaceDiscovery.availableOptions.join(", ")}, what's the best approach to get driving directions from "${GOOGLE_MAPS_CONFIG.locations.start}" to "${GOOGLE_MAPS_CONFIG.locations.destination}"? Consider the available directions-related features: ${interfaceDiscovery.directionsRelated.join(", ")}`,
+    z.object({
+      recommendedApproach: z.string().describe("The best strategy to get directions"),
+      firstAction: z.string().describe("What should we click or interact with first"),
+      expectedWorkflow: z.array(z.string()).describe("Step-by-step workflow we expect to follow"),
+      alternativesIfFailed: z.array(z.string()).describe("Backup approaches if the main one doesn't work"),
+    })
+  );
+
+  // Record the strategy planning
+  recorder.record("extract", {
+    instruction: "Plan strategy for getting directions",
+    description: "Dynamic strategy planning based on interface discovery",
+    results: strategyPlan,
+  });
+
+  console.log("🎯 Dynamic Strategy Plan:");
+  console.log(`   📋 Recommended approach: ${strategyPlan.recommendedApproach}`);
+  console.log(`   🎯 First action: ${strategyPlan.firstAction}`);
+  console.log("   📝 Expected workflow:");
+  strategyPlan.expectedWorkflow.forEach((step, i) => {
+    console.log(`      ${i + 1}. ${step}`);
+  });
+  console.log("   🔄 Backup plans:");
+  strategyPlan.alternativesIfFailed.forEach((alt, i) => {
+    console.log(`      • ${alt}`);
+  });
+  console.log("");
+
+  return strategyPlan;
+}
+
+/**
+ * Execute the Google Maps directions workflow
+ * @param {object} stagehand - Stagehand instance
+ * @param {object} page - Playwright page instance
+ * @param {PlaywrightRecorder} recorder - Recorder instance
+ * @param {object} strategyPlan - Previously created strategy plan
+ */
+async function executeDirectionsWorkflow(stagehand, page, recorder, strategyPlan) {
+  console.log("🎯 STEP 3: Executing the discovered strategy...");
+  console.log("   (Now we act based on our dynamic discovery)\n");
+
+  // Execute the first action from our plan
+  console.log(`🎯 Executing first action: ${strategyPlan.firstAction}`);
+  await observeAndAct(stagehand, page, recorder, strategyPlan.firstAction, "Execute first planned action", 2000);
+
+  // Check what happened after our first action
+  const { z } = require("zod/v3");
+  const afterFirstAction = await stagehand.extract(
+    "What changed after our action? What new options or input fields are now available?",
+    z.object({
+      newInterface: z.string().describe("Description of the current state"),
+      availableInputs: z.array(z.string()).describe("Input fields or controls now visible"),
+      nextApproach: z.string().describe("What should we do next based on current state"),
+    })
+  );
+
+  // Record the state check
+  recorder.record("extract", {
+    instruction: "Check interface state after first action",
+    description: "Verify that UI changed as expected after first action",
+    results: afterFirstAction,
+  });
+
+  console.log("🔄 Interface After First Action:");  
+  console.log(`   📱 Current state: ${afterFirstAction.newInterface}`);
+  console.log(`   📝 Available inputs: ${afterFirstAction.availableInputs.join(", ")}`);
+  console.log(`   ➡️  Next step: ${afterFirstAction.nextApproach}`);
+  console.log("");
+
+  // Continue with the specific Google Maps workflow
+  await executeGoogleMapsDirectionsSteps(stagehand, page, recorder);
+}
+
+/**
+ * Execute the specific steps for Google Maps directions
+ * @param {object} stagehand - Stagehand instance
+ * @param {object} page - Playwright page instance
+ * @param {PlaywrightRecorder} recorder - Recorder instance
+ */
+async function executeGoogleMapsDirectionsSteps(stagehand, page, recorder) {
+  // Continue with dynamic adaptation using improved approach...
+  console.log("🎯 Clicking starting location field...");
+  await observeAndAct(stagehand, page, recorder, "click on the starting point input field", "Click starting location field first", 500);
+
+  console.log("🎯 Entering starting location...");
+  await observeAndAct(stagehand, page, recorder, `Enter '${GOOGLE_MAPS_CONFIG.locations.start}' in the starting location field`, `Enter starting location: ${GOOGLE_MAPS_CONFIG.locations.start}`, GOOGLE_MAPS_CONFIG.waitTimes.afterAction);
+
+  console.log("🎯 Clicking destination field...");
+  await observeAndAct(stagehand, page, recorder, "click on the destination input field", "Click destination field first", 500);
+
+  console.log("🎯 Entering destination...");
+  await observeAndAct(stagehand, page, recorder, `Enter '${GOOGLE_MAPS_CONFIG.locations.destination}' in the destination field`, `Enter destination: ${GOOGLE_MAPS_CONFIG.locations.destination}`, GOOGLE_MAPS_CONFIG.waitTimes.afterAction);
+
+  console.log("🎯 Searching for directions...");
+  await observeAndAct(stagehand, page, recorder, "Press Enter to search for directions", "Search for directions using Enter key", GOOGLE_MAPS_CONFIG.waitTimes.afterSearch);
+}
+
+/**
+ * Verify and extract the final route results
+ * @param {object} stagehand - Stagehand instance
+ * @param {object} page - Playwright page instance
+ * @param {PlaywrightRecorder} recorder - Recorder instance
+ * @returns {object} Final route results
+ */
+async function verifyAndExtractResults(stagehand, page, recorder) {
+  const { z } = require("zod/v3");
+
+  // Verify we got results
+  const routeCheck = await stagehand.extract(
+    "Are driving directions now displayed? What route information is visible?",
+    z.object({
+      directionsVisible: z.boolean().describe("Whether directions are shown"),
+      routeInfo: z.string().describe("Description of visible route information"),
+      needsAction: z.string().optional().describe("Any additional action needed"),
+    })
+  );
+
+  // Record the route verification
+  recorder.record("extract", {
+    instruction: "Verify that directions are displayed",
+    description: "Check if route search was successful",
+    results: routeCheck,
+  });
+
+  console.log("🔍 Route Check:");
+  console.log(`   ✅ Directions visible: ${routeCheck.directionsVisible}`);
+  console.log(`   📍 Route info: ${routeCheck.routeInfo}`);
+  if (routeCheck.needsAction) {
+    console.log(`   ⚠️  Action needed: ${routeCheck.needsAction}`);
+    await observeAndAct(stagehand, page, recorder, routeCheck.needsAction, "Additional action needed for route display", 3000);
+  }
+
+  // Extract final results
+  console.log("\n📊 Extracting final directions...");
+  const finalResults = await stagehand.extract(
+    "Extract the complete driving directions information including distance, time, and route details",
+    z.object({
+      distance: z.string().describe("Total driving distance"),
+      duration: z.string().describe("Estimated travel time"),
+      route: z.string().describe("Route name or highway information"),
+      via: z.string().optional().describe("Via description if available"),
+      success: z.boolean().describe("Whether we successfully got directions"),
+    })
+  );
+
+  // Record the final extraction
+  recorder.record("extract", {
+    instruction: "Extract complete driving directions information",
+    description: "Final extraction of route details",
+    results: finalResults,
+  });
+
+  return finalResults;
+}
+
+// ── Main Google Maps Function ───────────────────────────────────────────────
+
+// Removing the old PlaywrightRecorder class since it's now in utilities...
 async function searchGoogleMapsDirections() {
   console.log("═══════════════════════════════════════════════════════════════");
-  console.log("  Google Maps Directions: Bellevue Square → Redmond Town Center");
-  console.log("  Recording browser interactions → Python Playwright script");
+  console.log("  Google Maps Directions");
+  console.log("  🔍 Discover the interface dynamically (like a human would)");
+  console.log("  📝 Recording interactions → Python Playwright script");
   console.log("═══════════════════════════════════════════════════════════════\n");
 
   const recorder = new PlaywrightRecorder();
-
-  // ── Step 0: Verify OAuth proxy ──────────────────────────────────────────
-  try {
-    const response = await fetch("http://localhost:3001/health");
-    const health = await response.json();
-    console.log("✅ Proxy health check:", health.status);
-  } catch (error) {
-    console.error("❌ OAuth proxy not running! Start it first:");
-    console.error("   cd my-stagehand-app && node oauth-proxy-server.js");
-    process.exit(1);
-  }
+  const llmClient = setupAzureOpenAI();
 
   let stagehand;
   try {
-    // ── Step 1: Initialize Stagehand ────────────────────────────────────
-    console.log("\n🎭 Initializing Stagehand...");
+    // ── Initialize Stagehand ────────────────────────────────────────────
+    console.log("🎭 Initializing Stagehand...");
     stagehand = new Stagehand({
       env: "LOCAL",
       verbose: 1,
-      model: {
-        modelName: "openai/gpt-4o",
-        apiKey: "oauth-dummy",
-        baseURL: "http://localhost:3001/v1",
-      },
+      llmClient: llmClient,
     });
 
     await stagehand.init();
@@ -308,246 +266,127 @@ async function searchGoogleMapsDirections() {
 
     const page = stagehand.context.pages()[0];
 
-    // ── Step 2: Navigate to Google Maps ─────────────────────────────────
+    // ── Navigate to Google Maps ─────────────────────────────────────────
     console.log("🌐 Navigating to Google Maps...");
-    const mapsUrl = "https://www.google.com/maps";
-    recorder.goto(mapsUrl);
-    await page.goto(mapsUrl);
+    recorder.goto(GOOGLE_MAPS_CONFIG.url);
+    await page.goto(GOOGLE_MAPS_CONFIG.url);
     await page.waitForLoadState("networkidle");
     console.log("✅ Google Maps loaded\n");
 
-    // Small pause to let the page fully render
-    recorder.wait(2000, "Wait for Google Maps to fully render");
-    await page.waitForTimeout(2000);
+    // Wait for page to fully render
+    recorder.wait(GOOGLE_MAPS_CONFIG.waitTimes.pageLoad, "Wait for Google Maps to fully render");
+    await page.waitForTimeout(GOOGLE_MAPS_CONFIG.waitTimes.pageLoad);
 
-    // ── Helper: observe then act, recording actual selectors + ARIA info ─
-    async function observeAndAct(instruction, description, waitAfterMs = 1000) {
-      console.log(`  🔍 Observing: ${instruction}`);
-      const actions = await stagehand.observe(instruction);
-      const action = actions[0];
-      if (action) {
-        console.log(`  🎯 Found: ${action.description} [${action.method || "click"}] → ${action.selector}`);
+    // ══════════════════════════════════════════════════════════════════════
+    // 🔍 Discover what's available first!
+    // ══════════════════════════════════════════════════════════════════════
+    
+    // Step 1: Interface Discovery
+    const interfaceDiscovery = await discoverGoogleMapsInterface(stagehand, recorder);
+    
+    // Step 2: Strategy Planning
+    const strategyPlan = await planDirectionsStrategy(stagehand, recorder, interfaceDiscovery);
+    
+    // Step 3: Execute Workflow
+    await executeDirectionsWorkflow(stagehand, page, recorder, strategyPlan);
+    
+    // Step 4: Verify and Extract Results
+    const finalResults = await verifyAndExtractResults(stagehand, page, recorder);
 
-        // Extract ARIA attributes from the actual DOM element BEFORE acting.
-        // We use page.evaluate() with document.evaluate() to resolve the XPath
-        // directly in the browser, because Stagehand wraps the Playwright page
-        // and its locator API doesn't support waitFor/evaluate reliably.
-        let ariaInfo = null;
-        try {
-          const xpathStr = action.selector.replace(/^xpath=/, "");
-          ariaInfo = await page.evaluate((xpath) => {
-            const node = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-            if (!node) return null;
-            const tagName = node.tagName.toLowerCase();
-            const type = node.getAttribute("type") || null;
-            const role = node.getAttribute("role") || null;
-            const implicitRoles = {
-              button: "button", a: "link",
-              input: type === "submit" ? "button" : "textbox",
-              textarea: "textbox", select: "combobox", img: "img",
-              nav: "navigation", header: "banner", footer: "contentinfo",
-              main: "main", form: "form", table: "table",
-              h1: "heading", h2: "heading", h3: "heading",
-              h4: "heading", h5: "heading", h6: "heading",
-            };
-            const ariaLabel = node.getAttribute("aria-label") || null;
-            const placeholder = node.getAttribute("placeholder") || null;
-            const tooltip = node.getAttribute("data-tooltip") || node.getAttribute("tooltip") || null;
-            const title = node.getAttribute("title") || null;
-            const textContent = (node.textContent || "").trim().substring(0, 100);
-            const bestLabel = ariaLabel || placeholder || tooltip || title || textContent || null;
-
-            // Count how many elements on the page share the same role+label (for disambiguation)
-            const effectiveRole = role || implicitRoles[tagName] || null;
-            let matchCount = 1;
-            if (effectiveRole && bestLabel) {
-              // Use querySelectorAll with matching aria-label or equivalent
-              const allMatches = document.querySelectorAll(
-                `[aria-label="${bestLabel.replace(/"/g, '\\"')}"]`
-              );
-              // Filter to same tag/role
-              matchCount = Array.from(allMatches).filter(el => {
-                const elRole = el.getAttribute("role") || implicitRoles[el.tagName.toLowerCase()] || null;
-                return elRole === effectiveRole;
-              }).length;
-            }
-
-            // Walk up ancestors collecting ARIA-labeled nodes for scoping/disambiguation.
-            // Prefer ancestors with aria-label/role over bare IDs.
-            const ariaAncestors = [];
-            let nearestAncestorId = null;
-            let parent = node.parentElement;
-            while (parent && parent !== document.body && parent !== document.documentElement) {
-              const pAriaLabel = parent.getAttribute("aria-label") || null;
-              const pRole = parent.getAttribute("role") || null;
-              const pId = parent.id || null;
-              const pPlaceholder = parent.getAttribute("placeholder") || null;
-              const pTitle = parent.getAttribute("title") || null;
-              const pTooltip = parent.getAttribute("data-tooltip") || null;
-              // Record this ancestor if it has any useful attribute
-              if (pAriaLabel || pRole || pId) {
-                ariaAncestors.push({
-                  tagName: parent.tagName.toLowerCase(),
-                  ariaLabel: pAriaLabel,
-                  role: pRole,
-                  id: pId,
-                  placeholder: pPlaceholder,
-                  title: pTitle,
-                  tooltip: pTooltip,
-                });
-              }
-              if (!nearestAncestorId && pId) {
-                nearestAncestorId = pId;
-              }
-              parent = parent.parentElement;
-            }
-            return {
-              tagName, type, role,
-              implicitRole: implicitRoles[tagName] || null,
-              ariaLabel, placeholder, title, tooltip, textContent,
-              name: node.getAttribute("name") || null,
-              id: node.getAttribute("id") || null,
-              className: node.getAttribute("class") || null,
-              bestLabel,
-              matchCount,
-              nearestAncestorId,
-              ariaAncestors,
-            };
-          }, xpathStr);
-          if (ariaInfo) {
-            const ancestorSummary = (ariaInfo.ariaAncestors || []).slice(0, 3).map(a => {
-              if (a.ariaLabel) return `[aria-label="${a.ariaLabel}"]`;
-              if (a.role) return `[role="${a.role}"]`;
-              if (a.id) return `#${a.id}`;
-              return a.tagName;
-            }).join(" > ") || "none";
-            console.log(`  📋 ARIA: tag=${ariaInfo.tagName}, role=${ariaInfo.implicitRole || ariaInfo.role}, label="${ariaInfo.bestLabel}", matches=${ariaInfo.matchCount}, ancestors: ${ancestorSummary}`);
-          }
-        } catch (e) {
-          console.log(`  ⚠️  Could not extract ARIA info: ${e.message}`);
-        }
-
-        recorder.record("act", {
-          instruction,
-          description: description || action.description,
-          selector: action.selector,
-          method: action.method || "click",
-          arguments: action.arguments || [],
-          observedDescription: action.description,
-          aria: ariaInfo,
-        });
-
-        // Now perform the actual action
-        await stagehand.act(action);
+    // Locate and extract travel time and distance elements
+    console.log("📍 Locating travel time and distance elements...");
+    
+    // Use observe to find the travel time element
+    console.log("🕒 Finding travel time element...");
+    const travelTimeActions = await stagehand.observe("locate the travel time or duration element that shows how long the trip will take");
+    // Extract ARIA scope info for the observed element's xpath
+    let travelTimeAriaScope = null;
+    if (travelTimeActions[0]?.selector) {
+      travelTimeAriaScope = await extractAriaScopeForXPath(page, travelTimeActions[0].selector);
+      if (travelTimeAriaScope?.ancestor) {
+        const anc = travelTimeAriaScope.ancestor;
+        console.log(`  📋 ARIA Scope: ancestor=${anc.id ? '#' + anc.id : (anc.ariaLabel || anc.role)}, stepsUp=${anc.stepsFromTarget}, textMatches=${travelTimeAriaScope.textMatchCount}, regexMatches=${travelTimeAriaScope.regexMatchCount}, xpathTail=${travelTimeAriaScope.xpathTail}`);
       } else {
-        console.log(`  ⚠️  No element found, falling back to direct act`);
-        recorder.record("act", {
-          instruction,
-          description,
-          selector: null,
-          method: null,
-          arguments: [],
-          aria: null,
-        });
-        await stagehand.act(instruction);
-      }
-      if (waitAfterMs > 0) {
-        recorder.wait(waitAfterMs, `Wait after: ${description}`);
-        await page.waitForTimeout(waitAfterMs);
+        console.log(`  ⚠️  No aria-locatable ancestor found for travel time element`);
       }
     }
+    recorder.record("observe", {
+      instruction: "locate the travel time or duration element that shows how long the trip will take",
+      description: "Find the element displaying travel time/duration",
+      actions: travelTimeActions,
+      ariaScope: travelTimeAriaScope,
+    });
 
-    // ── Step 3: Click Directions button ─────────────────────────────────
-    console.log("🧭 Opening directions panel...");
-    await observeAndAct(
-      "click the Directions button",
-      "Click the Directions button on Google Maps",
-      1500
-    );
-    console.log("✅ Directions panel opened\n");
+    // Use observe to find the distance element  
+    console.log("📏 Finding distance element...");
+    const distanceActions = await stagehand.observe("locate the distance element that shows the total driving distance");
+    // Extract ARIA scope info for the observed element's xpath
+    let distanceAriaScope = null;
+    if (distanceActions[0]?.selector) {
+      distanceAriaScope = await extractAriaScopeForXPath(page, distanceActions[0].selector);
+      if (distanceAriaScope?.ancestor) {
+        const anc = distanceAriaScope.ancestor;
+        console.log(`  📋 ARIA Scope: ancestor=${anc.id ? '#' + anc.id : (anc.ariaLabel || anc.role)}, stepsUp=${anc.stepsFromTarget}, textMatches=${distanceAriaScope.textMatchCount}, regexMatches=${distanceAriaScope.regexMatchCount}, xpathTail=${distanceAriaScope.xpathTail}`);
+      } else {
+        console.log(`  ⚠️  No aria-locatable ancestor found for distance element`);
+      }
+    }
+    recorder.record("observe", {
+      instruction: "locate the distance element that shows the total driving distance", 
+      description: "Find the element displaying total distance",
+      actions: distanceActions,
+      ariaScope: distanceAriaScope,
+    });
 
-    // ── Step 4: Enter starting point ────────────────────────────────────
-    console.log("📍 Entering starting point: Bellevue Square...");
-    await observeAndAct(
-      "click on the starting point input field",
-      "Click the starting point input field",
-      500
-    );
-    await observeAndAct(
-      "type 'Bellevue Square, Bellevue, WA' into the starting point input field",
-      "Type starting location: Bellevue Square, Bellevue, WA",
-      1000
-    );
-    console.log("✅ Starting point entered\n");
-
-    // ── Step 5: Enter destination ───────────────────────────────────────
-    console.log("📍 Entering destination: Redmond Town Center...");
-    await observeAndAct(
-      "click on the destination input field",
-      "Click the destination input field",
-      500
-    );
-    await observeAndAct(
-      "type 'Redmond Town Center, Redmond, WA' into the destination input field",
-      "Type destination: Redmond Town Center, Redmond, WA",
-      1000
-    );
-    console.log("✅ Destination entered\n");
-
-    // ── Step 6: Submit and search for directions ────────────────────────
-    console.log("🔍 Searching for directions...");
-    await observeAndAct(
-      "press Enter to search for directions",
-      "Press Enter to search for directions",
-      5000
-    );
-    console.log("✅ Directions search submitted\n");
-
-    // ── Step 7: Ensure driving mode is selected ─────────────────────────
-    console.log("🚗 Selecting driving mode...");
-    await observeAndAct(
-      "click the driving mode button to select driving directions (the car icon)",
-      "Select driving mode",
-      3000
-    );
-    console.log("✅ Driving mode selected\n");
-
-    // ── Step 8: Take screenshot of results ──────────────────────────────
-    console.log("📸 Taking screenshot of directions...");
-    const screenshotPath = path.join(__dirname, "directions_result.png");
-    recorder.screenshot("directions_result");
-    await page.screenshot({ path: screenshotPath });
-    console.log(`✅ Screenshot saved: ${screenshotPath}\n`);
-
-    // ── Step 9: Extract directions info ─────────────────────────────────
-    console.log("📊 Extracting directions information...");
+    // Extract the actual values from these elements
+    console.log("📊 Extracting travel time and distance values...");
     const { z } = require("zod/v3");
-
-    const directionsData = await stagehand.extract(
-      "Extract the driving directions summary including: the total distance, the estimated travel time, and the route name/highway used for the recommended route",
+    
+    const elementData = await stagehand.extract(
+      "Extract the travel time and distance values from their respective elements on the page",
       z.object({
-        distance: z.string().describe("Total driving distance"),
-        duration: z.string().describe("Estimated travel time"),
-        route: z.string().describe("Route name or highway"),
-        via: z.string().optional().describe("Via description if available"),
+        travelTime: z.string().describe("The travel time/duration value"),
+        distance: z.string().describe("The distance value"),
+        travelTimeElementInfo: z.string().describe("Description of where the travel time element is located"),
+        distanceElementInfo: z.string().describe("Description of where the distance element is located"),
       })
     );
 
-    recorder.extractText(null, "directions_info", `Extracted: distance=${directionsData.distance}, duration=${directionsData.duration}, route=${directionsData.route}`);
+    // Record the element data extraction
+    recorder.record("extract", {
+      instruction: "Extract travel time and distance values from their elements",
+      description: "Get the actual values and element location info for travel time and distance",
+      results: elementData,
+    });
 
-    console.log("✅ Directions extracted:");
-    console.log(`   🚗 Distance: ${directionsData.distance}`);
-    console.log(`   ⏱️  Duration: ${directionsData.duration}`);
-    console.log(`   🛣️  Route: ${directionsData.route}`);
-    if (directionsData.via) {
-      console.log(`   📍 Via: ${directionsData.via}`);
+    console.log("✅ Element data extracted:");
+    console.log(`   🕒 Travel Time: ${elementData.travelTime} (located at: ${elementData.travelTimeElementInfo})`);
+    console.log(`   📏 Distance: ${elementData.distance} (located at: ${elementData.distanceElementInfo})`);
+    
+    // Take a screenshot for reference
+    const screenshotPath = path.join(__dirname, "directions_result.png");
+    recorder.screenshot("directions_result");
+    await page.screenshot({ 
+      path: screenshotPath
+    });
+
+    console.log("\n═══════════════════════════════════════════════════════════");
+    console.log("  ✅ COMPLETE!");
+    console.log("═══════════════════════════════════════════════════════════");
+    console.log(`  🎯 Success: ${finalResults.success}`);
+    console.log(`  🚗 Distance: ${finalResults.distance}`);
+    console.log(`  ⏱️  Duration: ${finalResults.duration}`);
+    console.log(`  🛣️  Route: ${finalResults.route}`);
+    if (finalResults.via) {
+      console.log(`  📍 Via: ${finalResults.via}`);
     }
+    console.log("  📊 Element Data Extracted:");
+    console.log(`     🕒 Travel Time Element: ${elementData.travelTime}`);
+    console.log(`     📏 Distance Element: ${elementData.distance}`);
+    console.log(`  📸 Screenshot: directions_result.png`);
+    console.log("═══════════════════════════════════════════════════════════");
 
-    // ── Step 10: Get the page URL with directions ───────────────────────
-    const finalUrl = page.url();
-    console.log(`\n🔗 Google Maps URL: ${finalUrl}`);
-
-    // ── Step 11: Generate Python Playwright script ──────────────────────
+    // ── Generate Python Playwright script ──────────────────────────────────────────
     console.log("\n═══════════════════════════════════════════════════════════");
     console.log("  Generating Python Playwright script...");
     console.log("═══════════════════════════════════════════════════════════\n");
@@ -562,26 +401,22 @@ async function searchGoogleMapsDirections() {
     fs.writeFileSync(jsonPath, JSON.stringify(recorder.actions, null, 2), "utf-8");
     console.log(`📋 Raw actions log saved: ${jsonPath}`);
 
-    // ── Summary ─────────────────────────────────────────────────────────
-    console.log("\n═══════════════════════════════════════════════════════════");
-    console.log("  ✅ COMPLETE!");
-    console.log("═══════════════════════════════════════════════════════════");
-    console.log(`  📍 From: Bellevue Square, Bellevue, WA`);
-    console.log(`  📍 To:   Redmond Town Center, Redmond, WA`);
-    console.log(`  🚗 Distance: ${directionsData.distance}`);
-    console.log(`  ⏱️  Duration: ${directionsData.duration}`);
-    console.log(`  🛣️  Route: ${directionsData.route}`);
-    console.log(`  📸 Screenshot: directions_result.png`);
-    console.log(`  🐍 Python script: google_maps_directions.py`);
-    console.log(`  📋 Actions log: recorded_actions.json`);
+    console.log("");
+    console.log("🧠 KEY DIFFERENCE FROM PREDETERMINED APPROACH:");
+    console.log("   • We DISCOVERED the interface first (like a human)");
+    console.log("   • We ADAPTED our strategy based on what we found");
+    console.log("   • We VERIFIED each step before proceeding");
+    console.log("   • We can handle UI changes more gracefully");
+    console.log("   • We RECORDED everything → Python Playwright script");
     console.log("═══════════════════════════════════════════════════════════\n");
 
-    return directionsData;
+    return finalResults;
+
   } catch (error) {
     console.error("\n❌ Error:", error.message);
 
     // Still generate whatever we have so far
-    if (recorder.actions.length > 0) {
+    if (recorder && recorder.actions.length > 0) {
       console.log("\n⚠️  Saving partial recording...");
       const pythonScript = recorder.generatePythonScript();
       const pythonPath = path.join(__dirname, "google_maps_directions.py");
@@ -602,18 +437,24 @@ async function searchGoogleMapsDirections() {
   }
 }
 
-
 // ── Entry Point ─────────────────────────────────────────────────────────────
 if (require.main === module) {
   searchGoogleMapsDirections()
     .then(() => {
-      console.log("🎊 Program finished successfully!");
+      console.log("🎊 Completed successfully!");
       process.exit(0);
     })
     .catch((error) => {
-      console.error("💥 Program failed:", error.message);
+      console.error("💥 Failed:", error.message);
       process.exit(1);
     });
 }
 
-module.exports = { searchGoogleMapsDirections, PlaywrightRecorder };
+module.exports = { 
+  searchGoogleMapsDirections,
+  discoverGoogleMapsInterface,
+  planDirectionsStrategy,
+  executeDirectionsWorkflow,
+  executeGoogleMapsDirectionsSteps,
+  verifyAndExtractResults
+};
