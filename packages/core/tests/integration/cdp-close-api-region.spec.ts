@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "../v3.js";
+import { V3 } from "../../lib/v3/v3.js";
 import { getV3TestConfig } from "./v3.config.js";
 import { raceTimeout } from "./testUtils.js";
 

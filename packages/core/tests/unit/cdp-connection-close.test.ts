@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { WebSocketServer, type WebSocket as ServerWebSocket } from "ws";
-import { CdpConnection } from "../lib/v3/understudy/cdp.js";
+import { CdpConnection } from "../../lib/v3/understudy/cdp.js";
 
 /**
  * Races a promise against a timeout. Returns "resolved" if the promise

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import WebSocket from "ws";
-import { V3 } from "../v3.js";
+import { V3 } from "../../lib/v3/v3.js";
 import { v3TestConfig } from "./v3.config.js";
 import { raceTimeout } from "./testUtils.js";
 
