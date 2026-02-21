@@ -75,6 +75,4 @@ async function example() {
   }
 }
 
-(async () => {
-  await example();
-})();
+await example();

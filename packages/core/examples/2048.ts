@@ -89,6 +89,4 @@ async function example() {
     throw error; // Re-throw non-game-over errors
   }
 }
-(async () => {
-  await example();
-})();
+await example();

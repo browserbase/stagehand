@@ -49,17 +49,15 @@ async function recordPlaywrightVideo(stagehand: Stagehand): Promise<void> {
   }
 }
 
-(async () => {
-  const stagehand = new Stagehand({
-    env: "LOCAL",
-    verbose: 1,
-    model: "google/gemini-2.5-flash",
-  });
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  verbose: 1,
+  model: "google/gemini-2.5-flash",
+});
 
-  try {
-    await stagehand.init();
-    await recordPlaywrightVideo(stagehand);
-  } finally {
-    await stagehand.close().catch(() => {});
-  }
-})();
+try {
+  await stagehand.init();
+  await recordPlaywrightVideo(stagehand);
+} finally {
+  await stagehand.close().catch(() => {});
+}

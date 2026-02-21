@@ -30,12 +30,11 @@ async function example(stagehand: Stagehand) {
   console.log(page2Extraction);
 }
 
-(async () => {
-  const stagehand = new Stagehand({
-    env: "BROWSERBASE",
-    verbose: 1,
-    model: "openai/gpt-4.1",
-  });
-  await stagehand.init();
-  await example(stagehand);
-})();
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  verbose: 1,
+  model: "openai/gpt-4.1",
+});
+
+await stagehand.init();
+await example(stagehand);

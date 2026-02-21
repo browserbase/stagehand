@@ -20,18 +20,16 @@ async function example(stagehand: Stagehand) {
   console.log(result);
 }
 
-(async () => {
-  const stagehand = new Stagehand({
-    env: "LOCAL",
-    verbose: 1,
-  });
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  verbose: 1,
+});
 
-  try {
-    await stagehand.init();
-    await example(stagehand);
-  } catch (error) {
-    console.error("Error running example:", error);
-  } finally {
-    await stagehand.close();
-  }
-})();
+try {
+  await stagehand.init();
+  await example(stagehand);
+} catch (error) {
+  console.error("Error running example:", error);
+} finally {
+  await stagehand.close();
+}

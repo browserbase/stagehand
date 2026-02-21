@@ -45,6 +45,4 @@ async function example() {
   await stagehand.close();
 }
 
-(async () => {
-  await example();
-})();
+await example();

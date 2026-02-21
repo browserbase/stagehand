@@ -31,6 +31,4 @@ async function example() {
   await stagehand.act("click the first story");
   await stagehand.close();
 }
-(async () => {
-  await example();
-})();
+await example();

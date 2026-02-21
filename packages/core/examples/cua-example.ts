@@ -65,7 +65,4 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.log(`${chalk.red("✗")} Unhandled error in main function`);
-  console.log(chalk.red(error));
-});
+await main();

@@ -44,4 +44,4 @@ async function main() {
     console.log(`${chalk.red("✗")} Error: ${error}`);
   }
 }
-main();
+await main();

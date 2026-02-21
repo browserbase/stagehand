@@ -22,21 +22,19 @@ async function example(stagehand: Stagehand) {
   console.log(result);
 }
 
-(async () => {
-  const stagehand = new Stagehand({
-    env: "LOCAL",
-    model: "openai/gpt-4.1",
-    verbose: 1,
-    logInferenceToFile: true,
-    experimental: true,
-  });
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  model: "openai/gpt-4.1",
+  verbose: 1,
+  logInferenceToFile: true,
+  experimental: true,
+});
 
-  try {
-    await stagehand.init();
-    await example(stagehand);
-  } catch (error) {
-    console.error("Error running example:", error);
-  } finally {
-    await stagehand.close();
-  }
-})();
+try {
+  await stagehand.init();
+  await example(stagehand);
+} catch (error) {
+  console.error("Error running example:", error);
+} finally {
+  await stagehand.close();
+}

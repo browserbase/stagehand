@@ -16,12 +16,11 @@ async function example(stagehand: Stagehand) {
     });
 }
 
-(async () => {
-  const stagehand = new Stagehand({
-    env: "LOCAL",
-    verbose: 0,
-    model: "google/gemini-2.5-flash",
-  });
-  await stagehand.init();
-  await example(stagehand);
-})();
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  verbose: 0,
+  model: "google/gemini-2.5-flash",
+});
+
+await stagehand.init();
+await example(stagehand);

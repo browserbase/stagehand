@@ -35,6 +35,4 @@ async function example() {
   console.log(`Our favorite contributor is ${contributor.username}`);
 }
 
-(async () => {
-  await example();
-})();
+await example();

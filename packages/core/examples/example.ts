@@ -34,21 +34,20 @@ async function example(stagehand: Stagehand) {
   }
 }
 
-(async () => {
-  const stagehand = new Stagehand({
-    env: "BROWSERBASE",
-    apiKey: process.env.BROWSERBASE_API_KEY,
-    projectId: process.env.BROWSERBASE_PROJECT_ID,
-    model: {
-      modelName: "openai/gpt-5",
-      apiKey: process.env.MODEL_API_KEY,
-    },
-    verbose: 2,
-  });
-  try {
-    await stagehand.init();
-    await example(stagehand);
-  } finally {
-    await stagehand.close();
-  }
-})();
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  projectId: process.env.BROWSERBASE_PROJECT_ID,
+  model: {
+    modelName: "openai/gpt-5",
+    apiKey: process.env.MODEL_API_KEY,
+  },
+  verbose: 2,
+});
+
+try {
+  await stagehand.init();
+  await example(stagehand);
+} finally {
+  await stagehand.close();
+}

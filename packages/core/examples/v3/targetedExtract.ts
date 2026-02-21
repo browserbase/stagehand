@@ -23,13 +23,12 @@ async function example(stagehand: Stagehand) {
   console.log(reason);
 }
 
-(async () => {
-  const stagehand = new Stagehand({
-    env: "LOCAL",
-    verbose: 0,
-    model: "openai/gpt-4.1",
-    logInferenceToFile: true,
-  });
-  await stagehand.init();
-  await example(stagehand);
-})();
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  verbose: 0,
+  model: "openai/gpt-4.1",
+  logInferenceToFile: true,
+});
+
+await stagehand.init();
+await example(stagehand);

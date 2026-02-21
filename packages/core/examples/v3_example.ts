@@ -23,14 +23,13 @@ async function example(v3: V3) {
   console.log(`found ${listings.length} listings`);
 }
 
-(async () => {
-  const v3 = new V3({
-    env: "LOCAL",
-    verbose: 2,
-    logInferenceToFile: false,
-    model: "google/gemini-2.0-flash",
-    cacheDir: "stagehand-extract-cache",
-  });
-  await v3.init();
-  await example(v3);
-})();
+const v3 = new V3({
+  env: "LOCAL",
+  verbose: 2,
+  logInferenceToFile: false,
+  model: "google/gemini-2.0-flash",
+  cacheDir: "stagehand-extract-cache",
+});
+
+await v3.init();
+await example(v3);

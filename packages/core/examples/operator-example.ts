@@ -44,4 +44,4 @@ async function main() {
     // await stagehand.close();
   }
 }
-main();
+await main();
