@@ -144,7 +144,7 @@ const toTestName = (testPath: string, root: string) => {
   return path.basename(abs).replace(/\.test\.js$/i, "");
 };
 
-const rawArgs = process.argv.slice(2).filter((arg) => arg !== "--");
+const rawArgs = process.argv.slice(2);
 const listRequested = rawArgs.includes("--list");
 
 if (listRequested) {
