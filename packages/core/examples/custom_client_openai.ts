@@ -10,39 +10,35 @@ import { z } from "zod";
 import { CustomOpenAIClient } from "./external_clients/customOpenAI.js";
 import OpenAI from "openai";
 
-async function example() {
-  const stagehand = new Stagehand({
-    env: "BROWSERBASE",
-    verbose: 1,
-    llmClient: new CustomOpenAIClient({
-      modelName: "gpt-4o-mini",
-      client: new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  verbose: 1,
+  llmClient: new CustomOpenAIClient({
+    modelName: "gpt-4o-mini",
+    client: new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    }),
+  }),
+});
+await stagehand.init();
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://news.ycombinator.com");
+await stagehand.act("click on the 'new' link");
+
+const headlines = await stagehand.extract(
+  "Extract the top 3 stories from the Hacker News homepage.",
+  z.object({
+    stories: z.array(
+      z.object({
+        title: z.string(),
+        url: z.string(),
+        points: z.number(),
       }),
-    }),
-  });
-  await stagehand.init();
+    ),
+  }),
+);
 
-  const page = stagehand.context.pages()[0];
-  await page.goto("https://news.ycombinator.com");
-  await stagehand.act("click on the 'new' link");
+console.log(headlines);
 
-  const headlines = await stagehand.extract(
-    "Extract the top 3 stories from the Hacker News homepage.",
-    z.object({
-      stories: z.array(
-        z.object({
-          title: z.string(),
-          url: z.string(),
-          points: z.number(),
-        }),
-      ),
-    }),
-  );
-
-  console.log(headlines);
-
-  await stagehand.close();
-}
-
-await example();
+await stagehand.close();

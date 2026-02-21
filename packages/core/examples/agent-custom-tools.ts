@@ -32,73 +32,67 @@ const getWeather = tool({
   },
 });
 
-async function main() {
-  console.log(
-    `\n${chalk.bold("Stagehand 🤘 Computer Use Agent (CUA) Demo")}\n`,
-  );
+console.log(`\n${chalk.bold("Stagehand 🤘 Computer Use Agent (CUA) Demo")}\n`);
 
-  // Initialize Stagehand
-  const stagehand = new Stagehand({
-    env: "LOCAL",
-    verbose: 2,
-    experimental: true, // You must enable experimental mode to use custom tools / MCP integrations
-    model: "anthropic/claude-sonnet-4-5",
+// Initialize Stagehand
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  verbose: 2,
+  experimental: true, // You must enable experimental mode to use custom tools / MCP integrations
+  model: "anthropic/claude-sonnet-4-5",
+});
+await stagehand.init();
+
+try {
+  const page = stagehand.context.pages()[0];
+
+  // Create a computer use agent
+  const agent = stagehand.agent({
+    mode: "cua",
+    model: {
+      modelName: "anthropic/claude-sonnet-4-5-20250929",
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    },
+    systemPrompt: `You are a helpful assistant that can use a web browser.
+    You are currently on the following page: ${page.url()}.
+    Do not ask follow up questions, the user will trust your judgement. Today's date is ${new Date().toLocaleDateString()}.`,
+    tools: {
+      getWeather, // Pass the tools to the agent
+    },
   });
-  await stagehand.init();
 
-  try {
-    const page = stagehand.context.pages()[0];
+  // const agent = stagehand.agent({
+  //   systemPrompt: `You are a helpful assistant that can use a web browser.
+  //   You are currently on the following page: ${page.url()}.
+  //   Do not ask follow up questions, the user will trust your judgement. Today's date is ${new Date().toLocaleDateString()}.`,
+  //   // Pass the tools to the agent
+  //   tools: {
+  //     getWeather: getWeather,
+  //   },
+  // });
 
-    // Create a computer use agent
-    const agent = stagehand.agent({
-      mode: "cua",
-      model: {
-        modelName: "anthropic/claude-sonnet-4-5-20250929",
-        apiKey: process.env.ANTHROPIC_API_KEY,
-      },
-      systemPrompt: `You are a helpful assistant that can use a web browser.
-      You are currently on the following page: ${page.url()}.
-      Do not ask follow up questions, the user will trust your judgement. Today's date is ${new Date().toLocaleDateString()}.`,
-      tools: {
-        getWeather, // Pass the tools to the agent
-      },
-    });
+  // Navigate to the Browserbase careers page
+  await page.goto("https://www.google.com");
 
-    // const agent = stagehand.agent({
-    //   systemPrompt: `You are a helpful assistant that can use a web browser.
-    //   You are currently on the following page: ${page.url()}.
-    //   Do not ask follow up questions, the user will trust your judgement. Today's date is ${new Date().toLocaleDateString()}.`,
-    //   // Pass the tools to the agent
-    //   tools: {
-    //     getWeather: getWeather,
-    //   },
-    // });
+  // Define the instruction for the CUA
+  const instruction = "What's the weather in San Francisco?";
+  console.log(`Instruction: ${chalk.white(instruction)}`);
 
-    // Navigate to the Browserbase careers page
-    await page.goto("https://www.google.com");
+  // Execute the instruction
+  const result = await agent.execute({
+    instruction,
+    maxSteps: 20,
+  });
 
-    // Define the instruction for the CUA
-    const instruction = "What's the weather in San Francisco?";
-    console.log(`Instruction: ${chalk.white(instruction)}`);
-
-    // Execute the instruction
-    const result = await agent.execute({
-      instruction,
-      maxSteps: 20,
-    });
-
-    console.log(`${chalk.green("✓")} Execution complete`);
-    console.log(`${chalk.yellow("⤷")} Result:`);
-    console.log(chalk.white(JSON.stringify(result, null, 2)));
-  } catch (error) {
-    console.log(`${chalk.red("✗")} Error: ${error}`);
-    if (error instanceof Error && error.stack) {
-      console.log(chalk.dim(error.stack.split("\n").slice(1).join("\n")));
-    }
-  } finally {
-    // Close the browser
-    await stagehand.close();
+  console.log(`${chalk.green("✓")} Execution complete`);
+  console.log(`${chalk.yellow("⤷")} Result:`);
+  console.log(chalk.white(JSON.stringify(result, null, 2)));
+} catch (error) {
+  console.log(`${chalk.red("✗")} Error: ${error}`);
+  if (error instanceof Error && error.stack) {
+    console.log(chalk.dim(error.stack.split("\n").slice(1).join("\n")));
   }
+} finally {
+  // Close the browser
+  await stagehand.close();
 }
-
-await main();

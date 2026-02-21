@@ -1,6 +1,19 @@
 import { Stagehand } from "../lib/v3/index.js";
 
-async function example(stagehand: Stagehand) {
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  projectId: process.env.BROWSERBASE_PROJECT_ID,
+  model: {
+    modelName: "openai/gpt-5",
+    apiKey: process.env.MODEL_API_KEY,
+  },
+  verbose: 2,
+});
+
+try {
+  await stagehand.init();
+
   /**
    * Add your code here!
    */
@@ -32,22 +45,6 @@ async function example(stagehand: Stagehand) {
   for (const action of action2) {
     await stagehand.act(action, { page: page2, timeout: 30_000 });
   }
-}
-
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  apiKey: process.env.BROWSERBASE_API_KEY,
-  projectId: process.env.BROWSERBASE_PROJECT_ID,
-  model: {
-    modelName: "openai/gpt-5",
-    apiKey: process.env.MODEL_API_KEY,
-  },
-  verbose: 2,
-});
-
-try {
-  await stagehand.init();
-  await example(stagehand);
 } finally {
   await stagehand.close();
 }
