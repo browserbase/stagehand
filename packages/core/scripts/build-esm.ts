@@ -34,11 +34,11 @@ fs.rmSync(`${repoRoot}/packages/core/dist/esm`, {
 // Core ESM emit includes generated lib/version.ts from gen-version (run in core build).
 run(["exec", "tsc", "-p", "packages/core/tsconfig.json"]);
 // Tests run via node/playwright need JS test files; esbuild emits ESM test JS into dist/esm.
+// Unit tests are in tests/unit/, integration tests are in tests/integration/
 run([
   "exec",
   "esbuild",
   "packages/core/tests/**/*.ts",
-  "packages/core/lib/v3/tests/**/*.ts",
   "--outdir=packages/core/dist/esm",
   "--outbase=packages/core",
   "--format=esm",

@@ -62,11 +62,11 @@ run([
 ]);
 
 // Unit + e2e test scripts can run against dist/cjs when these test files are emitted.
+// Unit tests are in tests/unit/, integration tests are in tests/integration/
 run([
   "exec",
   "esbuild",
   "packages/core/tests/**/*.ts",
-  "packages/core/lib/v3/tests/**/*.ts",
   "--outdir=packages/core/dist/cjs",
   "--outbase=packages/core",
   "--format=cjs",

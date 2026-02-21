@@ -12,6 +12,6 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["**/dist/esm/tests/**/*.test.js"],
+    include: ["**/dist/esm/tests/unit/**/*.test.js"],
   },
 });
