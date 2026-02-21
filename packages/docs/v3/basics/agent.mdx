@@ -255,8 +255,8 @@ Use the `tool` helper from the [Vercel AI SDK](https://ai-sdk.dev/docs/ai-sdk-co
 
 <CodeGroup>
 ```typescript Basic Tool
-import { tool } from "ai";
-import { z } from "zod/v3";
+import { tool } from "@browserbasehq/stagehand";
+import { z } from "zod";
 
 const agent = stagehand.agent({
   model: "openai/gpt-5",
@@ -284,8 +284,8 @@ await agent.execute("What's the weather in San Francisco and should I bring an u
 ```
 
 ```typescript Multiple Tools
-import { tool } from "ai";
-import { z } from "zod/v3";
+import { tool } from "@browserbasehq/stagehand";
+import { z } from "zod";
 
 const agent = stagehand.agent({
   mode: "cua",
@@ -321,8 +321,8 @@ await agent.execute("Find products under $50 and calculate the total with 8% tax
 ```
 
 ```typescript Tool with API Integration
-import { tool } from "ai";
-import { z } from "zod/v3";
+import { tool } from "@browserbasehq/stagehand";
+import { z } from "zod";
 
 const agent = stagehand.agent({
   model: "google/gemini-2.0-flash",
@@ -478,11 +478,13 @@ const result = await agent.execute({
 
 ## Variables
 
-Use variables to pass sensitive data (like passwords, API keys, or personal information) to the agent without exposing the actual values to the LLM. The agent sees only variable names and descriptions, while the actual values are substituted at runtime.
+Use variables to pass sensitive data (like passwords, API keys, or personal information) to the agent without exposing the actual values to the LLM. The agent sees only variable names and descriptions in its system prompt, while the actual values are substituted at runtime.
 
 <Note>**Non-CUA agents only.** Variables require `experimental: true` and are not available with Computer Use Agents.</Note>
 
 ### Basic Usage
+
+Each variable is an object with a `value` and an optional `description`. The description helps the agent understand the purpose of each variable, so it knows when and how to use them.
 
 ```typescript
 const stagehand = new Stagehand({
@@ -514,21 +516,9 @@ const result = await agent.execute({
 });
 ```
 
-Variables use the same type as `act()`. You can pass simple values or rich objects with descriptions:
-
-```typescript
-// Simple values (same format as act)
-variables: {
-  username: "john@example.com",
-  password: "secret123",
-}
-
-// Rich values with descriptions (helps the agent understand context)
-variables: {
-  username: { value: "john@example.com", description: "The login email" },
-  password: { value: "secret123", description: "The login password" },
-}
-```
+<Tip>
+Always provide a `description` for agent variables. The agent relies on the description to understand what each variable is for and when to use it. Without a description, the agent only sees the variable name.
+</Tip>
 
 ### How Variables Work
 
@@ -536,31 +526,6 @@ variables: {
 2. **Placeholder syntax**: The LLM uses `%variableName%` syntax when it needs to use a variable (e.g., "type %password% into the password field")
 3. **Runtime substitution**: Actual values are substituted just before the action executes
 4. **Secure logging**: Variable values are never logged or returned in tool outputs
-
-### Supported Tools
-
-Variables work with the following agent tools:
-
-<Tabs>
-<Tab title="DOM Mode">
-
-| Tool | Usage |
-|------|-------|
-| `act` | Use `%variableName%` in the action description |
-| `fillForm` | Use `%variableName%` in field values |
-
-</Tab>
-
-<Tab title="Hybrid Mode">
-
-| Tool | Usage |
-|------|-------|
-| `type` | Use `%variableName%` in the text to type |
-| `fillFormVision` | Use `%variableName%` in field values |
-| `act` | Use `%variableName%` in the action description |
-
-</Tab>
-</Tabs>
 
 ### Cache Optimization
 
@@ -574,11 +539,15 @@ Variables are cache-friendly by design:
 <Tabs>
 <Tab title="Do this">
 ```typescript
-// Use variables for sensitive data
+// Use variables with descriptions for sensitive data
 variables: {
   apiKey: {
     value: process.env.API_KEY,
     description: "API key for authentication"
+  },
+  accountId: {
+    value: "acct_12345",
+    description: "The target account identifier"
   }
 }
 ```
@@ -588,13 +557,14 @@ variables: {
 ```typescript
 // Don't hardcode sensitive values in instructions
 instruction: "Log in with password 'secret123'"
+
+// Don't omit descriptions — the agent won't know what the variable is for
+variables: {
+  x: "secret123"
+}
 ```
 </Tab>
 </Tabs>
-
-<Tip>
-Use descriptive names and descriptions for variables. The LLM relies on the description to understand when and how to use each variable.
-</Tip>
 
 ## MCP Integrations
 
@@ -952,7 +922,7 @@ Define a Zod schema to receive structured data when the agent completes its task
 
 <CodeGroup>
 ```typescript Basic Usage
-import { z } from "zod/v3";
+import { z } from "zod";
 
 const stagehand = new Stagehand({
   env: "LOCAL",

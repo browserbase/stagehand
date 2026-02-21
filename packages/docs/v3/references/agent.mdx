@@ -159,12 +159,19 @@ interface AgentExecuteOptions {
   maxSteps?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   highlightCursor?: boolean;
+  variables?: Variables; // Secure variable substitution (experimental)
   messages?: ModelMessage[]; // Continue from previous conversation (experimental)
   signal?: AbortSignal; // Cancel execution (experimental)
   excludeTools?: string[]; // Tools to exclude from this execution (experimental)
   output?: ZodObject; // Zod schema for structured output (experimental)
   callbacks?: AgentExecuteCallbacks;
 }
+
+type VariableValue =
+  | string | number | boolean
+  | { value: string | number | boolean; description?: string };
+
+type Variables = Record<string, VariableValue>;
 
 interface AgentExecuteCallbacks {
   prepareStep?: PrepareStepFunction<ToolSet>;
@@ -188,6 +195,7 @@ interface AgentStreamExecuteOptions {
   maxSteps?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   highlightCursor?: boolean;
+  variables?: Variables; // Secure variable substitution (experimental)
   messages?: ModelMessage[]; // Continue from previous conversation (experimental)
   signal?: AbortSignal; // Cancel execution (experimental)
   excludeTools?: string[]; // Tools to exclude from this execution (experimental)
@@ -237,6 +245,44 @@ interface AgentStreamCallbacks {
   **Default:** `false`
 </ParamField>
 
+<ParamField path="variables" type="Variables" optional>
+  Named variables for secure data substitution. The agent sees variable names and descriptions in its system prompt but never the actual values. Values are substituted at runtime using `%variableName%` syntax.
+
+  Each variable should be an object with `value` and `description`. The `description` helps the agent understand the purpose of the variable and when to use it.
+
+  <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `mode: "cua"`.</Warning>
+
+  ```typescript
+  const result = await agent.execute({
+    instruction: "Log into the website using my credentials",
+    variables: {
+      username: {
+        value: "john@example.com",
+        description: "The user's email address for login"
+      },
+      password: {
+        value: process.env.USER_PASSWORD,
+        description: "The user's password for login"
+      }
+    }
+  });
+  ```
+
+  <Expandable title="VariableValue Type">
+    Each variable value can be:
+    - An object with `value` and optional `description` (recommended for agents)
+    - A simple primitive (`string`, `number`, `boolean`)
+
+    ```typescript
+    type VariableValue =
+      | string | number | boolean
+      | { value: string | number | boolean; description?: string };
+
+    type Variables = Record<string, VariableValue>;
+    ```
+  </Expandable>
+</ParamField>
+
 <ParamField path="messages" type="ModelMessage[]" optional>
   Previous conversation messages to continue from. Pass the `messages` from a previous `AgentResult` to continue that conversation.
 
@@ -267,7 +313,7 @@ interface AgentStreamCallbacks {
   <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `mode: "cua"`.</Warning>
 
   ```typescript
-  import { z } from "zod/v3";
+  import { z } from "zod";
 
   const result = await agent.execute({
     instruction: "Find the cheapest flight from NYC to LA",
@@ -782,7 +828,7 @@ console.log("Completed:", result.completed);
 <Tab title="Structured Output">
 
 ```typescript
-import { z } from "zod/v3";
+import { z } from "zod";
 
 const stagehand = new Stagehand({
   env: "LOCAL",
@@ -819,11 +865,50 @@ console.log(`  Arrival: ${result.output?.arrivalTime}`);
 ```
 
 </Tab>
+<Tab title="Variables">
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true, // Required for variables
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+});
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com/login");
+
+const result = await agent.execute({
+  instruction: "Log into the website and navigate to account settings",
+  maxSteps: 15,
+  variables: {
+    username: {
+      value: "john@example.com",
+      description: "The user's email address for login"
+    },
+    password: {
+      value: process.env.USER_PASSWORD,
+      description: "The user's password for login"
+    },
+    totp: {
+      value: generateTOTP(process.env.TOTP_SECRET),
+      description: "One-time 2FA code for the verification step"
+    }
+  }
+});
+
+console.log("Logged in:", result.completed);
+```
+
+</Tab>
 <Tab title="Custom Tools">
 
 ```typescript
-import { tool } from "ai";
-import { z } from "zod/v3";
+import { tool } from "@browserbasehq/stagehand";
+import { z } from "zod";
 
 // Define custom tools using AI SDK format
 const customTools = {
@@ -867,4 +952,4 @@ The following errors may be thrown by the `agent()` method:
 - **StagehandDefaultError** - General execution error with detailed message
 - **AgentAbortError** - Thrown when agent execution is cancelled via an `AbortSignal`
 - **StreamingCallbacksInNonStreamingModeError** - Thrown when streaming-only callbacks (`onChunk`, `onFinish`, `onError`, `onAbort`) are used without `stream: true`
-- **ExperimentalNotConfiguredError** - Thrown when experimental features (callbacks, signal, messages, streaming) are used without `experimental: true` in Stagehand constructor
+- **ExperimentalNotConfiguredError** - Thrown when experimental features (callbacks, signal, messages, streaming, variables) are used without `experimental: true` in Stagehand constructor
