@@ -1,11 +1,11 @@
 /**
  * Core unit tests (Vitest) on dist/esm tests.
  *
- * Prereqs: pnpm run build:esm (packages/core/dist/esm/tests present).
+ * Prereqs: pnpm run build:esm (packages/core/dist/esm/tests/unit present).
  * Args: [test paths...] -- [vitest args...] | --list (prints JSON matrix)
  * Env: NODE_V8_COVERAGE, NODE_OPTIONS, VITEST_CONSOLE_REPORTER;
  *      writes CTRF to ctrf/vitest-core.xml by default.
- * Example: pnpm run test:core -- packages/core/dist/esm/tests/foo.test.js -- --reporter=junit
+ * Example: pnpm run test:core -- packages/core/dist/esm/tests/unit/foo.test.js -- --reporter=junit
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -32,8 +32,8 @@ const repoRoot = (() => {
   return root;
 })();
 
-const sourceTestsDir = `${repoRoot}/packages/core/tests`;
-const testsDir = `${repoRoot}/packages/core/dist/esm/tests`;
+const sourceTestsDir = `${repoRoot}/packages/core/tests/unit`;
+const testsDir = `${repoRoot}/packages/core/dist/esm/tests/unit`;
 const defaultConfigPath = `${repoRoot}/packages/core/vitest.esm.config.mjs`;
 
 const resolveRepoRelative = (value: string) =>
@@ -75,7 +75,7 @@ if (listFlag.list) {
 
 if (!fs.existsSync(testsDir)) {
   console.error(
-    "Missing packages/core/dist/esm/tests. Run pnpm run build:esm first.",
+    "Missing packages/core/dist/esm/tests/unit. Run pnpm run build:esm first.",
   );
   process.exit(1);
 }

@@ -12,6 +12,6 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["**/dist/cjs/tests/**/*.test.js"],
+    include: ["**/dist/cjs/tests/unit/**/*.test.js"],
   },
 });
