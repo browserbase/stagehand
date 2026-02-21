@@ -109,7 +109,7 @@ interface AgentInstance {
 </ParamField>
 
 <ParamField path="tools" type="ToolSet" optional>
-  Custom tool definitions to extend agent capabilities using the AI SDK ToolSet format.
+  Custom tool definitions to extend agent capabilities. Use the `tool` helper exported from `@browserbasehq/stagehand`.
 </ParamField>
 
 <ParamField path="stream" type="boolean" optional>
@@ -907,7 +907,7 @@ console.log("Logged in:", result.completed);
 import { tool } from "@browserbasehq/stagehand";
 import { z } from "zod";
 
-// Define custom tools using AI SDK format
+// Define custom tools using the tool helper
 const customTools = {
   calculateTotal: tool({
     description: "Calculate the total of items in cart",
