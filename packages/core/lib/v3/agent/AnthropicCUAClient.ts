@@ -435,6 +435,23 @@ export class AnthropicCUAClient extends AgentClient {
         ? { type: "enabled" as const, budget_tokens: this.thinkingBudget }
         : undefined;
 
+      // Claude 4.6+ models require the newer computer_20251124 tool version
+      const modelBase = this.modelName.includes("/")
+        ? this.modelName.split("/")[1]
+        : this.modelName;
+      const shouldUseNewToolVersion = [
+        "claude-opus-4-6",
+        "claude-sonnet-4-6",
+        "claude-opus-4-5-20251101",
+      ].includes(modelBase);
+
+      const computerToolType = shouldUseNewToolVersion
+        ? "computer_20251124"
+        : "computer_20250124";
+      const betaFlag = shouldUseNewToolVersion
+        ? "computer-use-2025-11-24"
+        : "computer-use-2025-01-24";
+
       // Create the request parameters
       const requestParams: Record<string, unknown> = {
         model: this.modelName,
@@ -442,14 +459,14 @@ export class AnthropicCUAClient extends AgentClient {
         messages: messages,
         tools: [
           {
-            type: "computer_20250124", // Use the latest version for Claude 3.7 Sonnet
+            type: computerToolType,
             name: "computer",
             display_width_px: this.currentViewport.width,
             display_height_px: this.currentViewport.height,
             display_number: 1,
           },
         ],
-        betas: ["computer-use-2025-01-24"],
+        betas: [betaFlag],
       };
 
       // Add custom tools if available
