@@ -18,7 +18,7 @@
     "test:integration": "pnpm run test:server -- packages/server/dist/tests/integration",
     "test:integration:local": "STAGEHAND_SERVER_TARGET=local pnpm run test:server -- packages/server/dist/tests/integration",
     "test:integration:sea": "STAGEHAND_SERVER_TARGET=sea pnpm run test:server -- packages/server/dist/tests/integration",
-    "gen:openapi": "tsx scripts/gen-openapi.ts && prettier --write openapi.v3.yaml"
+    "gen:openapi": "tsx scripts/gen-openapi.ts"
   },
   "dependencies": {
     "@browserbasehq/sdk": "^2.4.0",
