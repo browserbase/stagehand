@@ -6,7 +6,7 @@ import {
 } from "../lib/v3/dom/locatorScripts/xpathResolver.js";
 
 type DomGlobals = {
-  window: Window;
+  window: Window & typeof globalThis;
   document: Document;
   Node: typeof Node;
   NodeFilter: typeof NodeFilter;
@@ -36,7 +36,7 @@ let dom: JSDOM;
 
 const installDomGlobals = () => {
   const win = dom.window;
-  globalRef.window = win as unknown as Window;
+  globalRef.window = win as unknown as Window & typeof globalThis;
   globalRef.document = win.document;
   globalRef.Node = win.Node as unknown as typeof Node;
   globalRef.NodeFilter = win.NodeFilter as unknown as typeof NodeFilter;

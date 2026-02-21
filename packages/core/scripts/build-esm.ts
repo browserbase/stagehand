@@ -19,8 +19,18 @@ const repoRoot = (() => {
   return root;
 })();
 
+const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+
 const run = (args: string[]) => {
-  const result = spawnSync("pnpm", args, { stdio: "inherit", cwd: repoRoot });
+  const result = spawnSync(pnpmCommand, args, {
+    stdio: "inherit",
+    cwd: repoRoot,
+  });
+  if (result.error) {
+    console.error(`Failed to run ${pnpmCommand} ${args.join(" ")}`);
+    console.error(result.error);
+    process.exit(1);
+  }
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
   }
@@ -54,21 +64,15 @@ fs.writeFileSync(
 );
 fs.writeFileSync(
   `${repoRoot}/packages/core/dist/esm/index.js`,
-  [
-    'import * as Stagehand from "./lib/v3/index.js";',
-    'export * from "./lib/v3/index.js";',
-    "export default Stagehand;",
-    "",
-  ].join("\n"),
+  `export * from "./lib/v3/index.js";
+export { default } from "./lib/v3/index.js";
+`,
 );
 fs.writeFileSync(
   `${repoRoot}/packages/core/dist/esm/index.d.ts`,
-  [
-    'import * as Stagehand from "./lib/v3/index.js";',
-    'export * from "./lib/v3/index.js";',
-    "export default Stagehand;",
-    "",
-  ].join("\n"),
+  `export * from "./lib/v3/index.js";
+export { default } from "./lib/v3/index.js";
+`,
 );
 
 fs.mkdirSync(`${repoRoot}/packages/core/dist/esm/lib/v3/dom/build`, {

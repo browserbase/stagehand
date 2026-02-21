@@ -6,7 +6,7 @@ import {
 
 //useful when resolving a model from string or object formats we accept
 export function extractModelName(
-  model?: string | { modelName: string },
+  model?: string | { modelName: string; [key: string]: unknown },
 ): string | undefined {
   if (!model) return undefined;
   return typeof model === "string" ? model : model.modelName;
