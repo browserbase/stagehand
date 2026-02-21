@@ -134,8 +134,6 @@ interface AgentInstance {
   **Hybrid Mode Model Requirements:** Only use hybrid mode with models that can reliably perform coordinate-based actions:
   - **Google:** `google/gemini-3-flash-preview`
   - **Anthropic:** `anthropic/claude-sonnet-4-20250514`, `anthropic/claude-sonnet-4-5-20250929`, `anthropic/claude-haiku-4-5-20251001`
-  
-  Requires `experimental: true` in Stagehand constructor.
   </Warning>
 </ParamField>
 
@@ -802,7 +800,6 @@ console.log("Completed:", result.completed);
 ```typescript
 const stagehand = new Stagehand({
   env: "LOCAL",
-  experimental: true, // Required for hybrid mode
 });
 await stagehand.init();
 

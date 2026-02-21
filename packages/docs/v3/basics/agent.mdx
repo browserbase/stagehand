@@ -144,13 +144,10 @@ Other models may not reliably produce accurate coordinates for clicking and typi
 
 </Warning>
 
-<Note>Hybrid mode requires `experimental: true` in your Stagehand constructor.</Note>
-
 <CodeGroup>
 ```typescript Hybrid Mode with Google
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
-  experimental: true, // Required for hybrid mode
 });
 await stagehand.init();
 
@@ -171,7 +168,6 @@ await agent.execute({
 ```typescript Hybrid Mode with Anthropic
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
-  experimental: true, // Required for hybrid mode
 });
 await stagehand.init();
 
