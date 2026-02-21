@@ -5,7 +5,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "pnpm run build:esm-tests && pnpm run build:server:dist && pnpm run gen:openapi && pnpm run build:sea:esm",
+    "build": "pnpm --filter @browserbasehq/stagehand-server run --parallel \"/^(build:esm-tests|build:server:dist|gen:openapi|build:sea:esm)$/\"",
     "dev": "tsx watch src/server.ts",
     "build:esm-tests": "pnpm -w --dir ../.. exec tsc -p packages/server/tsconfig.tests.json",
     "build:server:dist": "pnpm -w --dir ../.. exec tsc -p packages/server/tsconfig.json && pnpm -w --dir ../.. exec tsc-alias -p packages/server/tsconfig.json",
