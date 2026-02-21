@@ -15,14 +15,88 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import {
-  ensureParentDir,
-  parseListFlag,
-  splitArgs,
-  collectFiles,
-  toSafeName,
-  writeCtrfFromJunit,
-} from "../../core/scripts/test-utils.js";
+
+const ensureParentDir = (filePath: string) => {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+};
+
+const splitArgs = (args: string[]) => {
+  const tokens = [...args];
+  while (tokens[0] === "--") {
+    tokens.shift();
+  }
+
+  const leadingExtra: string[] = [];
+  while (tokens.length > 0 && tokens[0].startsWith("-")) {
+    const arg = tokens.shift();
+    if (!arg) break;
+    if (arg === "--") break;
+    leadingExtra.push(arg);
+    if (
+      !arg.includes("=") &&
+      tokens[0] &&
+      tokens[0] !== "--" &&
+      !tokens[0].startsWith("-")
+    ) {
+      leadingExtra.push(tokens.shift() as string);
+    }
+  }
+
+  while (tokens[0] === "--") {
+    tokens.shift();
+  }
+
+  const separatorIndex = tokens.indexOf("--");
+  return {
+    paths: separatorIndex === -1 ? tokens : tokens.slice(0, separatorIndex),
+    extra: [
+      ...leadingExtra,
+      ...(separatorIndex === -1 ? [] : tokens.slice(separatorIndex + 1)),
+    ],
+  };
+};
+
+const parseListFlag = (args: string[]) => {
+  const remaining: string[] = [];
+  let value: string | null = null;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--list") {
+      const next = args[i + 1];
+      if (next && !next.startsWith("--")) {
+        value = next;
+        i += 1;
+      } else {
+        value = "";
+      }
+      continue;
+    }
+    if (arg.startsWith("--list=")) {
+      value = arg.slice("--list=".length);
+      continue;
+    }
+    remaining.push(arg);
+  }
+  return { list: value !== null, value: value ?? "", args: remaining };
+};
+
+const toSafeName = (name: string) => name.replace(/[\\/]/g, "-");
+
+const collectFiles = (dir: string, suffix: string) => {
+  const results: string[] = [];
+  const walk = (current: string) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const full = `${current}/${entry.name}`;
+      if (entry.isDirectory()) {
+        walk(full);
+      } else if (entry.isFile() && entry.name.endsWith(suffix)) {
+        results.push(full);
+      }
+    }
+  };
+  if (fs.existsSync(dir)) walk(dir);
+  return results.sort();
+};
 
 const repoRoot = (() => {
   const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
@@ -32,6 +106,23 @@ const repoRoot = (() => {
   }
   return root;
 })();
+
+const writeCtrfFromJunit = (junitPath: string, tool: string) => {
+  if (!fs.existsSync(junitPath)) return;
+  const stat = fs.statSync(junitPath);
+  if (stat.size === 0) return;
+  const ctrfPath = junitPath.match(/\.xml$/i)
+    ? junitPath.replace(/\.xml$/i, ".json")
+    : `${junitPath}.json`;
+  const result = spawnSync(
+    "pnpm",
+    ["exec", "junit-to-ctrf", junitPath, "-o", ctrfPath, "-t", tool],
+    { stdio: "inherit", cwd: repoRoot },
+  );
+  if (result.status !== 0) {
+    console.warn(`CTRF conversion failed for ${junitPath}.`);
+  }
+};
 
 const sourceTestsDir = `${repoRoot}/packages/server/test`;
 const sourceUnitDir = `${sourceTestsDir}/unit`;
