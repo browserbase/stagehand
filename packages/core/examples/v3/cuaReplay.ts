@@ -50,30 +50,29 @@ async function runDemo(runNumber: number) {
   };
 }
 
-async function main() {
-  const metrics1 = await runDemo(1);
+const metrics1 = await runDemo(1);
 
-  v3Logger({
-    level: 1,
-    category: "demo",
-    message: "⏳ Waiting 2 seconds before cached run...",
-  });
-  await new Promise((resolve) => setTimeout(resolve, 2000));
+v3Logger({
+  level: 1,
+  category: "demo",
+  message: "⏳ Waiting 2 seconds before cached run...",
+});
+await new Promise((resolve) => setTimeout(resolve, 2000));
 
-  v3Logger({
-    level: 1,
-    category: "demo",
-    message: "Starting second run with cache...",
-  });
-  const metrics2 = await runDemo(2);
+v3Logger({
+  level: 1,
+  category: "demo",
+  message: "Starting second run with cache...",
+});
+const metrics2 = await runDemo(2);
 
-  const duration1 = `${metrics1.duration.toFixed(2)}s`;
-  const duration2 = `${metrics2.duration.toFixed(2)}s`;
+const duration1 = `${metrics1.duration.toFixed(2)}s`;
+const duration2 = `${metrics2.duration.toFixed(2)}s`;
 
-  v3Logger({
-    level: 1,
-    category: "demo",
-    message: `
+v3Logger({
+  level: 1,
+  category: "demo",
+  message: `
 ╔════════════════════════════════════════════════════════════╗
 ║                  📊 PERFORMANCE COMPARISON                 ║
 ╚════════════════════════════════════════════════════════════╝
@@ -92,7 +91,4 @@ async function main() {
    • First run establishes the CUA action cache
    • Second run reuses cached actions for instant execution
    • Zero LLM tokens used on cached run`,
-  });
-}
-
-main().catch(console.error);
+});

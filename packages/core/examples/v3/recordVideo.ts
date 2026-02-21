@@ -4,7 +4,15 @@ import { Stagehand } from "../../lib/v3/index.js";
 import { chromium } from "playwright-core";
 import { z } from "zod";
 
-async function recordPlaywrightVideo(stagehand: Stagehand): Promise<void> {
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  verbose: 1,
+  model: "google/gemini-2.5-flash",
+});
+
+try {
+  await stagehand.init();
+
   const browser = await chromium.connectOverCDP({
     wsEndpoint: stagehand.connectURL(),
   });
@@ -47,19 +55,6 @@ async function recordPlaywrightVideo(stagehand: Stagehand): Promise<void> {
   } else {
     console.log("Video recording was not enabled for this context.");
   }
+} finally {
+  await stagehand.close().catch(() => {});
 }
-
-(async () => {
-  const stagehand = new Stagehand({
-    env: "LOCAL",
-    verbose: 1,
-    model: "google/gemini-2.5-flash",
-  });
-
-  try {
-    await stagehand.init();
-    await recordPlaywrightVideo(stagehand);
-  } finally {
-    await stagehand.close().catch(() => {});
-  }
-})();
