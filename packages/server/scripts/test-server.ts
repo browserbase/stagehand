@@ -5,7 +5,7 @@
  * - pnpm run build (packages/server/dist/tests + packages/server/dist/server.js).
  * - SEA integration still requires build:sea when STAGEHAND_SERVER_TARGET=sea.
  *
- * Args: [test paths...] -- [node --test args...] | --list [unit|integration] (prints JSON matrix)
+ * Args: [test paths...] -- [node --test args...] | --list (prints JSON matrix)
  * Env: STAGEHAND_SERVER_TARGET=sea|local|remote, STAGEHAND_BASE_URL, SEA_BINARY_NAME,
  *      NODE_TEST_CONSOLE_REPORTER, NODE_TEST_REPORTER, NODE_TEST_REPORTER_DESTINATION,
  *      NODE_V8_COVERAGE; writes CTRF to ctrf/node-test-*.xml by default.
@@ -54,30 +54,6 @@ const splitArgs = (args: string[]) => {
       ...(separatorIndex === -1 ? [] : tokens.slice(separatorIndex + 1)),
     ],
   };
-};
-
-const parseListFlag = (args: string[]) => {
-  const remaining: string[] = [];
-  let value: string | null = null;
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === "--list") {
-      const next = args[i + 1];
-      if (next && !next.startsWith("--")) {
-        value = next;
-        i += 1;
-      } else {
-        value = "";
-      }
-      continue;
-    }
-    if (arg.startsWith("--list=")) {
-      value = arg.slice("--list=".length);
-      continue;
-    }
-    remaining.push(arg);
-  }
-  return { list: value !== null, value: value ?? "", args: remaining };
 };
 
 const toSafeName = (name: string) => name.replace(/[\\/]/g, "-");
@@ -168,17 +144,10 @@ const toTestName = (testPath: string, root: string) => {
   return path.basename(abs).replace(/\.test\.js$/i, "");
 };
 
-const listFlag = parseListFlag(process.argv.slice(2));
-const { paths, extra } = splitArgs(listFlag.args);
-const { filtered: extraArgs, removed: removedReporterOverride } =
-  stripNodeReporterArgs(extra);
-if (removedReporterOverride) {
-  console.warn(
-    "Ignoring node --test reporter overrides to preserve console + JUnit output.",
-  );
-}
+const rawArgs = process.argv.slice(2).filter((arg) => arg !== "--");
+const listRequested = rawArgs.includes("--list");
 
-if (listFlag.list) {
+if (listRequested) {
   const unitTests = collectFiles(sourceUnitDir, ".test.ts").map((file) => {
     const relSource = path.relative(sourceTestsDir, file).replaceAll("\\", "/");
     const distPath = `${repoRoot}/packages/server/dist/tests/${relSource.replace(/\.test\.ts$/, ".test.js")}`;
@@ -206,15 +175,17 @@ if (listFlag.list) {
       };
     },
   );
-  const value = listFlag.value.toLowerCase();
-  if (value === "unit") {
-    console.log(JSON.stringify(unitTests));
-  } else if (value === "integration") {
-    console.log(JSON.stringify(integrationTests));
-  } else {
-    console.log(JSON.stringify([...unitTests, ...integrationTests]));
-  }
+  console.log(JSON.stringify([...unitTests, ...integrationTests]));
   process.exit(0);
+}
+
+const { paths, extra } = splitArgs(rawArgs);
+const { filtered: extraArgs, removed: removedReporterOverride } =
+  stripNodeReporterArgs(extra);
+if (removedReporterOverride) {
+  console.warn(
+    "Ignoring node --test reporter overrides to preserve console + JUnit output.",
+  );
 }
 
 if (!fs.existsSync(allTestsDir)) {
