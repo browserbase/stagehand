@@ -33,6 +33,9 @@ const repoRoot = (() => {
   return root;
 })();
 
+const sourceTestsDir = `${repoRoot}/packages/server/test`;
+const sourceUnitDir = `${sourceTestsDir}/unit`;
+const sourceIntegrationDir = `${sourceTestsDir}/integration`;
 const unitDir = `${repoRoot}/packages/server/dist/tests/unit`;
 const integrationDir = `${repoRoot}/packages/server/dist/tests/integration`;
 const allTestsDir = `${repoRoot}/packages/server/dist/tests`;
@@ -74,13 +77,6 @@ const toTestName = (testPath: string, root: string) => {
   return path.basename(abs).replace(/\.test\.js$/i, "");
 };
 
-if (!fs.existsSync(allTestsDir)) {
-  console.error(
-    "Missing packages/server/dist/tests. Run pnpm run build first.",
-  );
-  process.exit(1);
-}
-
 const listFlag = parseListFlag(process.argv.slice(2));
 const { paths, extra } = splitArgs(listFlag.args);
 const { filtered: extraArgs, removed: removedReporterOverride } =
@@ -92,21 +88,28 @@ if (removedReporterOverride) {
 }
 
 if (listFlag.list) {
-  const unitTests = collectFiles(unitDir, ".test.js").map((file) => {
-    const name = path.basename(file, ".test.js");
+  const unitTests = collectFiles(sourceUnitDir, ".test.ts").map((file) => {
+    const relSource = path.relative(sourceTestsDir, file).replaceAll("\\", "/");
+    const distPath = `${repoRoot}/packages/server/dist/tests/${relSource.replace(/\.test\.ts$/, ".test.js")}`;
+    const name = path.basename(file, ".test.ts");
     return {
-      path: path.relative(repoRoot, file),
+      path: path.relative(repoRoot, distPath).replaceAll("\\", "/"),
       name,
       safe_name: toSafeName(name),
     };
   });
-  const integrationTests = collectFiles(integrationDir, ".test.js").map(
+  const integrationTests = collectFiles(sourceIntegrationDir, ".test.ts").map(
     (file) => {
+      const relSource = path
+        .relative(sourceTestsDir, file)
+        .replaceAll("\\", "/");
+      const distPath = `${repoRoot}/packages/server/dist/tests/${relSource.replace(/\.test\.ts$/, ".test.js")}`;
       const rel = path
-        .relative(integrationDir, file)
-        .replace(/\.test\.js$/, "");
+        .relative(sourceIntegrationDir, file)
+        .replaceAll("\\", "/")
+        .replace(/\.test\.ts$/, "");
       return {
-        path: path.relative(repoRoot, file),
+        path: path.relative(repoRoot, distPath).replaceAll("\\", "/"),
         name: rel,
         safe_name: toSafeName(rel),
       };
@@ -121,6 +124,13 @@ if (listFlag.list) {
     console.log(JSON.stringify([...unitTests, ...integrationTests]));
   }
   process.exit(0);
+}
+
+if (!fs.existsSync(allTestsDir)) {
+  console.error(
+    "Missing packages/server/dist/tests. Run pnpm run build first.",
+  );
+  process.exit(1);
 }
 
 const serverTarget = (

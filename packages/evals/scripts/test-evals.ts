@@ -11,7 +11,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { parseListFlag, toSafeName } from "../../core/scripts/test-utils.js";
 
 type Runtime = "source" | "dist-esm";
 
@@ -25,6 +24,8 @@ type EvalSummary = {
   passed?: EvalSummaryEntry[];
   failed?: EvalSummaryEntry[];
 };
+
+const toSafeName = (name: string) => name.replace(/[\\/]/g, "-");
 
 const readEvalSummary = (summaryPath: string): EvalSummary | null => {
   if (!fs.existsSync(summaryPath)) return null;
@@ -187,7 +188,8 @@ const inferRuntimeFromExecution = () =>
   inferRuntimeFromPath(fileURLToPath(import.meta.url)) ??
   (process.argv[1] ? inferRuntimeFromPath(process.argv[1]) : null) ??
   inferRuntimeFromPath(process.cwd());
-const listFlag = parseListFlag(process.argv.slice(2));
+const rawArgs = process.argv.slice(2).filter((arg) => arg !== "--");
+const listRequested = rawArgs.includes("--list");
 const stripCliArg = (values: string[]) => {
   const filtered: string[] = [];
   let cliPath: string | null = null;
@@ -210,14 +212,14 @@ const stripCliArg = (values: string[]) => {
   }
   return { filtered, cliPath };
 };
-const strippedCli = stripCliArg(listFlag.args.filter((arg) => arg !== "--"));
+const strippedCli = stripCliArg(rawArgs.filter((arg) => arg !== "--list"));
 if (strippedCli.cliPath === "") {
   console.error("Missing value for --cli.");
   process.exit(1);
 }
 const args = strippedCli.filtered;
 
-if (listFlag.list) {
+if (listRequested) {
   const categories = (
     process.env.EVAL_CATEGORIES ??
     "observe,act,combination,extract,targeted_extract,regression,agent"

@@ -31,6 +31,7 @@ const repoRoot = (() => {
   return root;
 })();
 
+const sourceTestsDir = `${repoRoot}/packages/core/lib/v3/tests`;
 const testsDir = `${repoRoot}/packages/core/dist/esm/lib/v3/tests`;
 const defaultConfigPath = `${repoRoot}/packages/core/dist/esm/lib/v3/tests/v3.playwright.config.js`;
 
@@ -83,28 +84,30 @@ const toPlaywrightPath = (testPath: string) => {
   return value.replace(/(\.spec|\.test)\.(ts|js)$/i, "$1");
 };
 
-if (!fs.existsSync(testsDir)) {
-  console.error(
-    "Missing packages/core/dist/esm/lib/v3/tests. Run pnpm run build:esm first.",
-  );
-  process.exit(1);
-}
-
 const listFlag = parseListFlag(process.argv.slice(2));
 const { paths, extra } = splitArgs(listFlag.args);
 
 if (listFlag.list) {
-  const tests = collectFiles(testsDir, ".spec.js");
+  const tests = collectFiles(sourceTestsDir, ".spec.ts");
   const entries = tests.map((file) => {
-    const rel = path.relative(testsDir, file).replace(/\.spec\.js$/, "");
+    const relSource = path.relative(sourceTestsDir, file).replaceAll("\\", "/");
+    const rel = relSource.replace(/\.spec\.ts$/, "");
+    const distPath = `${testsDir}/${relSource.replace(/\.spec\.ts$/, ".spec.js")}`;
     return {
-      path: path.relative(repoRoot, file),
+      path: path.relative(repoRoot, distPath).replaceAll("\\", "/"),
       name: rel,
       safe_name: toSafeName(rel),
     };
   });
   console.log(JSON.stringify(entries));
   process.exit(0);
+}
+
+if (!fs.existsSync(testsDir)) {
+  console.error(
+    "Missing packages/core/dist/esm/lib/v3/tests. Run pnpm run build:esm first.",
+  );
+  process.exit(1);
 }
 
 const { filtered: extraArgs, removed: removedReporterOverride } =
