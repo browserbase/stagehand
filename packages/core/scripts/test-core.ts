@@ -12,7 +12,6 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
-  ensureParentDir,
   parseListFlag,
   splitArgs,
   collectFiles,
@@ -21,7 +20,13 @@ import {
   findJunitPath,
   hasReporterName,
   writeCtrfFromJunit,
-} from "./test-utils.js";
+} from "../../../scripts/test-utils.js";
+import {
+  initCoverageDir,
+  initJunitPath,
+  withCoverageEnv,
+  maybeWriteCtrf,
+} from "../../../scripts/test-artifacts.js";
 
 const repoRoot = (() => {
   const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
@@ -90,41 +95,43 @@ const nodeOptions = [process.env.NODE_OPTIONS, baseNodeOptions]
 
 const relTestName = paths.length === 1 ? toTestName(paths[0]) : null;
 
-const coverageDir = resolveRepoRelative(
-  process.env.NODE_V8_COVERAGE ??
-    (relTestName
-      ? `${repoRoot}/coverage/core-unit/${relTestName}`
-      : `${repoRoot}/coverage/core-unit`),
+const coverageDir = initCoverageDir(
+  resolveRepoRelative(
+    process.env.NODE_V8_COVERAGE ??
+      (relTestName
+        ? `${repoRoot}/coverage/core-unit/${relTestName}`
+        : `${repoRoot}/coverage/core-unit`),
+  ),
+  true,
 );
-fs.mkdirSync(coverageDir, { recursive: true });
 
 const normalizedExtra = normalizeVitestArgs(repoRoot, extra);
-const defaultJunitPath = (() => {
-  if (!relTestName) {
-    return `${repoRoot}/ctrf/core-unit/all.xml`;
-  }
-  return `${repoRoot}/ctrf/core-unit/${relTestName}.xml`;
-})();
+const defaultJunitPath = initJunitPath(
+  relTestName
+    ? `${repoRoot}/ctrf/core-unit/${relTestName}.xml`
+    : `${repoRoot}/ctrf/core-unit/all.xml`,
+  true,
+);
 const hasOutput = Boolean(findJunitPath(normalizedExtra));
 const vitestArgs = [...normalizedExtra];
 const consoleReporter = process.env.VITEST_CONSOLE_REPORTER ?? "default";
 if (!hasReporterName(vitestArgs, consoleReporter)) {
   vitestArgs.push(`--reporter=${consoleReporter}`);
 }
-if (!hasReporterName(vitestArgs, "junit")) {
-  vitestArgs.push("--reporter=junit");
-}
-if (!hasOutput) {
-  ensureParentDir(defaultJunitPath);
-  vitestArgs.push(`--outputFile.junit=${defaultJunitPath}`);
+if (defaultJunitPath !== null || hasOutput) {
+  if (!hasReporterName(vitestArgs, "junit")) {
+    vitestArgs.push("--reporter=junit");
+  }
+  if (!hasOutput && defaultJunitPath) {
+    vitestArgs.push(`--outputFile.junit=${defaultJunitPath}`);
+  }
 }
 const junitPath = findJunitPath(vitestArgs) ?? defaultJunitPath;
 
-const env = {
-  ...process.env,
-  NODE_OPTIONS: nodeOptions,
-  NODE_V8_COVERAGE: coverageDir,
-};
+const env = withCoverageEnv(
+  { ...process.env, NODE_OPTIONS: nodeOptions },
+  coverageDir,
+);
 
 const result = spawnSync(
   "pnpm",
@@ -141,6 +148,6 @@ const result = spawnSync(
   { stdio: "inherit", env },
 );
 
-writeCtrfFromJunit(junitPath, "vitest");
+maybeWriteCtrf(junitPath, writeCtrfFromJunit, "vitest");
 
 process.exit(result.status ?? 1);

@@ -11,6 +11,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { toSafeName } from "../../../scripts/test-utils.js";
+import {
+  initCoverageDir,
+  initJunitPath,
+  withCoverageEnv,
+} from "../../../scripts/test-artifacts.js";
 
 type Runtime = "source" | "dist-esm";
 
@@ -24,8 +30,6 @@ type EvalSummary = {
   passed?: EvalSummaryEntry[];
   failed?: EvalSummaryEntry[];
 };
-
-const toSafeName = (name: string) => name.replace(/[\\/]/g, "-");
 
 const readEvalSummary = (summaryPath: string): EvalSummary | null => {
   if (!fs.existsSync(summaryPath)) return null;
@@ -282,20 +286,23 @@ const nodeOptions = [process.env.NODE_OPTIONS, baseNodeOptions]
   .filter(Boolean)
   .join(" ");
 
-const coverageDir = resolveRepoRelative(
-  process.env.NODE_V8_COVERAGE ?? `${repoRoot}/coverage/evals/${safeTarget}`,
+const coverageDir = initCoverageDir(
+  resolveRepoRelative(
+    process.env.NODE_V8_COVERAGE ?? `${repoRoot}/coverage/evals/${safeTarget}`,
+  ),
+  true,
 );
-fs.mkdirSync(coverageDir, { recursive: true });
 const summaryPath = `${repoRoot}/eval-summary.json`;
-fs.mkdirSync(`${repoRoot}/ctrf/evals`, { recursive: true });
-const junitPath = `${repoRoot}/ctrf/evals/${safeTarget}.xml`;
-const ctrfPath = `${repoRoot}/ctrf/evals/${safeTarget}.json`;
+const junitPath = initJunitPath(
+  `${repoRoot}/ctrf/evals/${safeTarget}.xml`,
+  true,
+);
+const ctrfPath = junitPath ? `${repoRoot}/ctrf/evals/${safeTarget}.json` : null;
 
-const env = {
-  ...process.env,
-  NODE_OPTIONS: nodeOptions,
-  NODE_V8_COVERAGE: coverageDir,
-};
+const env = withCoverageEnv(
+  { ...process.env, NODE_OPTIONS: nodeOptions },
+  coverageDir,
+);
 
 const result = spawnSync(
   process.execPath,
@@ -307,7 +314,7 @@ const result = spawnSync(
   },
 );
 
-writeEvalJunit(summaryPath, junitPath, safeTarget);
-writeEvalCtrf(summaryPath, ctrfPath, safeTarget);
+if (junitPath) writeEvalJunit(summaryPath, junitPath, safeTarget);
+if (ctrfPath) writeEvalCtrf(summaryPath, ctrfPath, safeTarget);
 
 process.exit(result.status ?? 1);
