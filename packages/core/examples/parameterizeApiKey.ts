@@ -11,30 +11,24 @@ import { z } from "zod";
  * unset OPENAI_API_KEY
  */
 
-async function example() {
-  const stagehand = new Stagehand({
-    env: "LOCAL",
-    verbose: 1,
-    model: {
-      modelName: "gpt-4o",
-      apiKey: process.env.USE_OPENAI_API_KEY,
-    },
-  });
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  verbose: 1,
+  model: {
+    modelName: "gpt-4o",
+    apiKey: process.env.USE_OPENAI_API_KEY,
+  },
+});
 
-  await stagehand.init();
-  const page = stagehand.context.pages()[0];
-  await page.goto("https://github.com/browserbase/stagehand");
-  await stagehand.act("click on the contributors");
-  const contributor = await stagehand.extract(
-    "extract the top contributor",
-    z.object({
-      username: z.string(),
-      url: z.string(),
-    }),
-  );
-  console.log(`Our favorite contributor is ${contributor.username}`);
-}
-
-(async () => {
-  await example();
-})();
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+await page.goto("https://github.com/browserbase/stagehand");
+await stagehand.act("click on the contributors");
+const contributor = await stagehand.extract(
+  "extract the top contributor",
+  z.object({
+    username: z.string(),
+    url: z.string(),
+  }),
+);
+console.log(`Our favorite contributor is ${contributor.username}`);
