@@ -199,8 +199,8 @@ const coverageSuffix =
 const coverageRoot = resolveRepoRelative(
   process.env.NODE_V8_COVERAGE ?? `${repoRoot}/coverage/${coverageSuffix}`,
 );
-const testsCoverage = initCoverageDir(`${coverageRoot}/tests`, true);
-const serverCoverage = initCoverageDir(`${coverageRoot}/server`, true);
+const testsCoverage = initCoverageDir(`${coverageRoot}/tests`);
+const serverCoverage = initCoverageDir(`${coverageRoot}/server`);
 
 const consoleReporter = process.env.NODE_TEST_CONSOLE_REPORTER ?? "spec";
 const defaultReporter = process.env.NODE_TEST_REPORTER ?? "junit";
@@ -212,7 +212,6 @@ const reporterArgsFor = (kind: "unit" | "integration", testName?: string) => {
   const destination = initJunitPath(
     envDestination ??
       `${repoRoot}/ctrf/${kind === "unit" ? "server-unit" : "server-integration"}/${testName ? `${testName}.xml` : "all.xml"}`,
-    true,
   );
   return {
     args: [

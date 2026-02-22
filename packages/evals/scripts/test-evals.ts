@@ -290,13 +290,9 @@ const coverageDir = initCoverageDir(
   resolveRepoRelative(
     process.env.NODE_V8_COVERAGE ?? `${repoRoot}/coverage/evals/${safeTarget}`,
   ),
-  true,
 );
 const summaryPath = `${repoRoot}/eval-summary.json`;
-const junitPath = initJunitPath(
-  `${repoRoot}/ctrf/evals/${safeTarget}.xml`,
-  true,
-);
+const junitPath = initJunitPath(`${repoRoot}/ctrf/evals/${safeTarget}.xml`);
 const ctrfPath = junitPath ? `${repoRoot}/ctrf/evals/${safeTarget}.json` : null;
 
 const env = withCoverageEnv(

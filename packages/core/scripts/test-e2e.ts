@@ -143,7 +143,6 @@ const coverageDir = initCoverageDir(
         ? `${repoRoot}/coverage/${useBrowserbase ? "e2e-bb" : "e2e-local"}/${relTestName}`
         : `${repoRoot}/coverage/${useBrowserbase ? "e2e-bb" : "e2e-local"}`),
   ),
-  true,
 );
 
 const defaultJunitPath = relTestName
@@ -153,7 +152,6 @@ const ctrfPath = initJunitPath(
   process.env.CTRF_JUNIT_PATH
     ? resolveRepoRelative(process.env.CTRF_JUNIT_PATH)
     : defaultJunitPath,
-  true,
 );
 
 const baseNodeOptions = "--enable-source-maps";

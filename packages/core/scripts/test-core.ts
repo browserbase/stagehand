@@ -102,7 +102,6 @@ const coverageDir = initCoverageDir(
         ? `${repoRoot}/coverage/core-unit/${relTestName}`
         : `${repoRoot}/coverage/core-unit`),
   ),
-  true,
 );
 
 const normalizedExtra = normalizeVitestArgs(repoRoot, extra);
@@ -110,7 +109,6 @@ const defaultJunitPath = initJunitPath(
   relTestName
     ? `${repoRoot}/ctrf/core-unit/${relTestName}.xml`
     : `${repoRoot}/ctrf/core-unit/all.xml`,
-  true,
 );
 const hasOutput = Boolean(findJunitPath(normalizedExtra));
 const vitestArgs = [...normalizedExtra];
