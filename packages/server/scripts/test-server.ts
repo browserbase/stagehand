@@ -15,64 +15,18 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-
-const ensureParentDir = (filePath: string) => {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-};
-
-const splitArgs = (args: string[]) => {
-  const tokens = [...args];
-  while (tokens[0] === "--") {
-    tokens.shift();
-  }
-
-  const leadingExtra: string[] = [];
-  while (tokens.length > 0 && tokens[0].startsWith("-")) {
-    const arg = tokens.shift();
-    if (!arg) break;
-    if (arg === "--") break;
-    leadingExtra.push(arg);
-    if (
-      !arg.includes("=") &&
-      tokens[0] &&
-      tokens[0] !== "--" &&
-      !tokens[0].startsWith("-")
-    ) {
-      leadingExtra.push(tokens.shift() as string);
-    }
-  }
-
-  while (tokens[0] === "--") {
-    tokens.shift();
-  }
-
-  const separatorIndex = tokens.indexOf("--");
-  return {
-    paths: separatorIndex === -1 ? tokens : tokens.slice(0, separatorIndex),
-    extra: [
-      ...leadingExtra,
-      ...(separatorIndex === -1 ? [] : tokens.slice(separatorIndex + 1)),
-    ],
-  };
-};
-
-const toSafeName = (name: string) => name.replace(/[\\/]/g, "-");
-
-const collectFiles = (dir: string, suffix: string) => {
-  const results: string[] = [];
-  const walk = (current: string) => {
-    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-      const full = `${current}/${entry.name}`;
-      if (entry.isDirectory()) {
-        walk(full);
-      } else if (entry.isFile() && entry.name.endsWith(suffix)) {
-        results.push(full);
-      }
-    }
-  };
-  if (fs.existsSync(dir)) walk(dir);
-  return results.sort();
-};
+import {
+  splitArgs,
+  toSafeName,
+  collectFiles,
+  writeCtrfFromJunit,
+} from "../../../scripts/test-utils.js";
+import {
+  initCoverageDir,
+  initJunitPath,
+  withCoverageEnv,
+  maybeWriteCtrf,
+} from "../../../scripts/test-artifacts.js";
 
 const repoRoot = (() => {
   const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
@@ -82,23 +36,6 @@ const repoRoot = (() => {
   }
   return root;
 })();
-
-const writeCtrfFromJunit = (junitPath: string, tool: string) => {
-  if (!fs.existsSync(junitPath)) return;
-  const stat = fs.statSync(junitPath);
-  if (stat.size === 0) return;
-  const ctrfPath = junitPath.match(/\.xml$/i)
-    ? junitPath.replace(/\.xml$/i, ".json")
-    : `${junitPath}.json`;
-  const result = spawnSync(
-    "pnpm",
-    ["exec", "junit-to-ctrf", junitPath, "-o", ctrfPath, "-t", tool],
-    { stdio: "inherit", cwd: repoRoot },
-  );
-  if (result.status !== 0) {
-    console.warn(`CTRF conversion failed for ${junitPath}.`);
-  }
-};
 
 const sourceTestsDir = `${repoRoot}/packages/server/test`;
 const sourceUnitDir = `${sourceTestsDir}/unit`;
@@ -262,10 +199,8 @@ const coverageSuffix =
 const coverageRoot = resolveRepoRelative(
   process.env.NODE_V8_COVERAGE ?? `${repoRoot}/coverage/${coverageSuffix}`,
 );
-const testsCoverage = `${coverageRoot}/tests`;
-const serverCoverage = `${coverageRoot}/server`;
-fs.mkdirSync(testsCoverage, { recursive: true });
-fs.mkdirSync(serverCoverage, { recursive: true });
+const testsCoverage = initCoverageDir(`${coverageRoot}/tests`);
+const serverCoverage = initCoverageDir(`${coverageRoot}/server`);
 
 const consoleReporter = process.env.NODE_TEST_CONSOLE_REPORTER ?? "spec";
 const defaultReporter = process.env.NODE_TEST_REPORTER ?? "junit";
@@ -274,16 +209,20 @@ const envDestination = process.env.NODE_TEST_REPORTER_DESTINATION
   : null;
 
 const reporterArgsFor = (kind: "unit" | "integration", testName?: string) => {
-  const destination =
+  const destination = initJunitPath(
     envDestination ??
-    `${repoRoot}/ctrf/${kind === "unit" ? "server-unit" : "server-integration"}/${testName ? `${testName}.xml` : "all.xml"}`;
-  ensureParentDir(destination);
+      `${repoRoot}/ctrf/${kind === "unit" ? "server-unit" : "server-integration"}/${testName ? `${testName}.xml` : "all.xml"}`,
+  );
   return {
     args: [
       `--test-reporter=${consoleReporter}`,
-      `--test-reporter=${defaultReporter}`,
       "--test-reporter-destination=stdout",
-      `--test-reporter-destination=${destination}`,
+      ...(destination
+        ? [
+            `--test-reporter=${defaultReporter}`,
+            `--test-reporter-destination=${destination}`,
+          ]
+        : []),
     ],
     destination,
   };
@@ -295,11 +234,10 @@ const runNodeTests = (files: string[], reporterArgs: string[]) =>
     ["--test", ...extraArgs, ...reporterArgs, ...files],
     {
       stdio: "inherit",
-      env: {
-        ...process.env,
-        NODE_OPTIONS: nodeOptions,
-        NODE_V8_COVERAGE: testsCoverage,
-      },
+      env: withCoverageEnv(
+        { ...process.env, NODE_OPTIONS: nodeOptions },
+        testsCoverage,
+      ),
     },
   );
 
@@ -328,12 +266,14 @@ const startServer = async () => {
       [`${repoRoot}/packages/server/dist/server.js`],
       {
         stdio: "inherit",
-        env: {
-          ...process.env,
-          NODE_ENV: "development",
-          NODE_OPTIONS: nodeOptions,
-          NODE_V8_COVERAGE: serverCoverage,
-        },
+        env: withCoverageEnv(
+          {
+            ...process.env,
+            NODE_ENV: "development",
+            NODE_OPTIONS: nodeOptions,
+          },
+          serverCoverage,
+        ),
       },
     );
   }
@@ -348,13 +288,15 @@ const startServer = async () => {
 
   return spawn(seaBinary, ["--node-options=--no-lazy --enable-source-maps"], {
     stdio: "inherit",
-    env: {
-      ...process.env,
-      NODE_ENV: "production",
-      NODE_V8_COVERAGE: serverCoverage,
-      STAGEHAND_SEA_CACHE_DIR:
-        process.env.STAGEHAND_SEA_CACHE_DIR ?? `${repoRoot}/.stagehand-sea`,
-    },
+    env: withCoverageEnv(
+      {
+        ...process.env,
+        NODE_ENV: "production",
+        STAGEHAND_SEA_CACHE_DIR:
+          process.env.STAGEHAND_SEA_CACHE_DIR ?? `${repoRoot}/.stagehand-sea`,
+      },
+      serverCoverage,
+    ),
   });
 };
 
@@ -367,7 +309,7 @@ if (unitPaths.length > 0) {
   const reporter = reporterArgsFor("unit", unitName);
   const result = runNodeTests(unitPaths, reporter.args);
   status = result.status ?? 1;
-  writeCtrfFromJunit(reporter.destination, "node-test");
+  maybeWriteCtrf(reporter.destination, writeCtrfFromJunit, "node-test");
 }
 
 if (status === 0 && integrationPaths.length > 0) {
@@ -384,7 +326,7 @@ if (status === 0 && integrationPaths.length > 0) {
     const reporter = reporterArgsFor("integration", integrationName);
     const result = runNodeTests(integrationPaths, reporter.args);
     status = result.status ?? 1;
-    writeCtrfFromJunit(reporter.destination, "node-test");
+    maybeWriteCtrf(reporter.destination, writeCtrfFromJunit, "node-test");
   }
 }
 

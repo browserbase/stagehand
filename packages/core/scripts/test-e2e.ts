@@ -14,13 +14,19 @@ import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import {
-  ensureParentDir,
   parseListFlag,
   splitArgs,
   collectFiles,
   toSafeName,
   writeCtrfFromJunit,
-} from "./test-utils.js";
+} from "../../../scripts/test-utils.js";
+import {
+  initCoverageDir,
+  initJunitPath,
+  withCoverageEnv,
+  withCtrfEnv,
+  maybeWriteCtrf,
+} from "../../../scripts/test-artifacts.js";
 
 const repoRoot = (() => {
   const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
@@ -130,33 +136,33 @@ const target = (process.env.STAGEHAND_BROWSER_TARGET ?? "local").toLowerCase();
 const useBrowserbase = target === "browserbase";
 const relTestName = paths.length === 1 ? toTestName(paths[0]) : null;
 
-const coverageDir = resolveRepoRelative(
-  process.env.NODE_V8_COVERAGE ??
-    (relTestName
-      ? `${repoRoot}/coverage/${useBrowserbase ? "e2e-bb" : "e2e-local"}/${relTestName}`
-      : `${repoRoot}/coverage/${useBrowserbase ? "e2e-bb" : "e2e-local"}`),
+const coverageDir = initCoverageDir(
+  resolveRepoRelative(
+    process.env.NODE_V8_COVERAGE ??
+      (relTestName
+        ? `${repoRoot}/coverage/${useBrowserbase ? "e2e-bb" : "e2e-local"}/${relTestName}`
+        : `${repoRoot}/coverage/${useBrowserbase ? "e2e-bb" : "e2e-local"}`),
+  ),
 );
-fs.mkdirSync(coverageDir, { recursive: true });
 
 const defaultJunitPath = relTestName
   ? `${repoRoot}/ctrf/${useBrowserbase ? "e2e-bb" : "e2e-local"}/${relTestName}.xml`
   : `${repoRoot}/ctrf/${useBrowserbase ? "e2e-bb" : "e2e-local"}/all.xml`;
-const ctrfPath = process.env.CTRF_JUNIT_PATH
-  ? resolveRepoRelative(process.env.CTRF_JUNIT_PATH)
-  : defaultJunitPath;
-ensureParentDir(ctrfPath);
+const ctrfPath = initJunitPath(
+  process.env.CTRF_JUNIT_PATH
+    ? resolveRepoRelative(process.env.CTRF_JUNIT_PATH)
+    : defaultJunitPath,
+);
 
 const baseNodeOptions = "--enable-source-maps";
 const nodeOptions = [process.env.NODE_OPTIONS, baseNodeOptions]
   .filter(Boolean)
   .join(" ");
 
-const env = {
-  ...process.env,
-  NODE_OPTIONS: nodeOptions,
-  NODE_V8_COVERAGE: coverageDir,
-  CTRF_JUNIT_PATH: ctrfPath,
-};
+const env = withCtrfEnv(
+  withCoverageEnv({ ...process.env, NODE_OPTIONS: nodeOptions }, coverageDir),
+  ctrfPath,
+);
 
 const result = spawnSync(
   process.execPath,
@@ -170,6 +176,6 @@ const result = spawnSync(
   { stdio: "inherit", env, cwd: repoRoot },
 );
 
-writeCtrfFromJunit(ctrfPath, "playwright");
+maybeWriteCtrf(ctrfPath, writeCtrfFromJunit, "playwright");
 
 process.exit(result.status ?? 1);
