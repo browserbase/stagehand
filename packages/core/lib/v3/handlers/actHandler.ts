@@ -470,6 +470,14 @@ function normalizeActInferenceElement(
   const xp = xpathMap[elementId as EncodedId];
   const trimmed = trimTrailingTextNode(xp);
   if (!trimmed) {
+    v3Logger({
+      category: "action",
+      message: `LLM returned ID ${elementId}, there is no xpath keyed by this ID`,
+      level: 0,
+      auxiliary: {
+        elementId: { value: elementId, type: "string" },
+      },
+    });
     return undefined;
   }
 
