@@ -1,7 +1,6 @@
 import { Locator } from "./locator.js";
 import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
-import { v3Logger } from "../logger.js";
 import { FrameLocator, frameLocatorFromFrame } from "./frameLocator.js";
 import { StagehandInvalidArgumentError } from "../types/public/sdkErrors.js";
 
@@ -258,15 +257,6 @@ async function resolveDeepXPathTarget(
   const flushIntoFrameLocator = () => {
     if (!buf.length) return;
     const selectorForIframe = "xpath=" + buildXPathFromSteps(buf);
-    v3Logger({
-      category: "deep-hop",
-      message: "resolving iframe via FrameLocator",
-      level: 2,
-      auxiliary: {
-        selectorForIframe: { value: selectorForIframe, type: "string" },
-        rootFrameId: { value: String(root.frameId), type: "string" },
-      },
-    });
     fl = fl
       ? fl.frameLocator(selectorForIframe)
       : frameLocatorFromFrame(page, root, selectorForIframe);
@@ -280,14 +270,5 @@ async function resolveDeepXPathTarget(
 
   const finalSelector = "xpath=" + buildXPathFromSteps(buf);
   const targetFrame = fl ? await fl.resolveFrame() : root;
-  v3Logger({
-    category: "deep-hop",
-    message: "final tail",
-    level: 2,
-    auxiliary: {
-      frameId: { value: String(targetFrame.frameId), type: "string" },
-      finalSelector: { value: finalSelector, type: "string" },
-    },
-  });
   return { frame: targetFrame, selector: finalSelector };
 }
