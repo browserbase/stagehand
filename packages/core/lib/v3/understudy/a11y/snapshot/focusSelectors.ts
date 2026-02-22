@@ -51,7 +51,7 @@ export function buildXPathFromSteps(steps: ReadonlyArray<Step>): string {
   return out || "/";
 }
 
-const IFRAME_STEP_RE = /^iframe(?:\[\d+])?$/i;
+export const IFRAME_STEP_RE = /^i?frame(?:\[\d+])?$/i;
 
 /**
  * Given a cross-frame XPath, walk iframe steps to resolve:
