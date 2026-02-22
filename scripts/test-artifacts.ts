@@ -28,12 +28,22 @@ export const initJunitPath = (
 export const withCoverageEnv = (
   env: Record<string, string | undefined>,
   coverageDir: string | null,
-) => (coverageDir ? { ...env, NODE_V8_COVERAGE: coverageDir } : env);
+) => {
+  if (coverageDir) return { ...env, NODE_V8_COVERAGE: coverageDir };
+  const cleaned = { ...env };
+  delete cleaned.NODE_V8_COVERAGE;
+  return cleaned;
+};
 
 export const withCtrfEnv = (
   env: Record<string, string | undefined>,
   junitPath: string | null,
-) => (junitPath ? { ...env, CTRF_JUNIT_PATH: junitPath } : env);
+) => {
+  if (junitPath) return { ...env, CTRF_JUNIT_PATH: junitPath };
+  const cleaned = { ...env };
+  delete cleaned.CTRF_JUNIT_PATH;
+  return cleaned;
+};
 
 export const maybeWriteCtrf = (
   junitPath: string | null,
