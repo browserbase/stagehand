@@ -4,11 +4,7 @@ import type { Page } from "./page.js";
 import { v3Logger } from "../logger.js";
 import { FrameLocator, frameLocatorFromFrame } from "./frameLocator.js";
 import { StagehandInvalidArgumentError } from "../types/public/sdkErrors.js";
-
-/**
- * Recognize iframe steps like "iframe" or "iframe[2]" in an XPath.
- */
-const IFRAME_STEP_RE = /^iframe(?:\[\d+])?$/i;
+import { IFRAME_STEP_RE } from "./a11y/snapshot/focusSelectors.js";
 
 type Axis = "child" | "desc";
 type Step = { axis: Axis; raw: string; name: string };
