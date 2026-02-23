@@ -18,6 +18,7 @@ import os from "node:os";
 import path from "node:path";
 import https from "node:https";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import esbuild from "esbuild";
 
 const repoDir = (() => {
   const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
@@ -206,20 +207,15 @@ const buildCjsBundle = () => {
   );
   fs.mkdirSync(`${repoDir}/packages/server/dist/sea`, { recursive: true });
   const bundlePath = `${repoDir}/packages/server/dist/sea/bundle.cjs`;
-  run(
-    pnpmCommand,
-    [
-      "exec",
-      "esbuild",
-      "packages/server/src/sea-entry.ts",
-      "--bundle",
-      "--platform=node",
-      "--format=cjs",
-      `--outfile=${bundlePath}`,
-      "--log-level=warning",
-    ],
-    { cwd: repoDir },
-  );
+  esbuild.buildSync({
+    entryPoints: ["packages/server/src/sea-entry.ts"],
+    bundle: true,
+    platform: "node",
+    format: "cjs",
+    outfile: bundlePath,
+    logLevel: "warning",
+    absWorkingDir: repoDir,
+  });
   return bundlePath;
 };
 
@@ -232,23 +228,25 @@ const buildEsmBundle = () => {
 
   fs.mkdirSync(`${repoDir}/packages/server/dist/sea`, { recursive: true });
   const appBundlePath = `${repoDir}/packages/server/dist/app.mjs`;
-  const esbuildArgs = [
-    "exec",
-    "esbuild",
-    "packages/server/src/sea-entry.ts",
-    "--bundle",
-    "--platform=node",
-    "--format=esm",
-    "--tree-shaking=false",
-    `--outfile=${appBundlePath}`,
-    `--alias:@browserbasehq/stagehand=${repoDir}/packages/core/dist/esm/index.js`,
-    "--sourcemap=inline",
-    "--sources-content",
-    `--source-root=${repoDir}`,
-    '--banner:js=import { createRequire as __createRequire } from "node:module"; const require = __createRequire(import.meta.url);',
-    "--log-level=warning",
-  ];
-  run(pnpmCommand, esbuildArgs, { cwd: repoDir });
+  esbuild.buildSync({
+    entryPoints: ["packages/server/src/sea-entry.ts"],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    treeShaking: false,
+    outfile: appBundlePath,
+    alias: {
+      "@browserbasehq/stagehand": `${repoDir}/packages/core/dist/esm/index.js`,
+    },
+    sourcemap: "inline",
+    sourcesContent: true,
+    sourceRoot: repoDir,
+    banner: {
+      js: 'import { createRequire as __createRequire } from "node:module"; const require = __createRequire(import.meta.url);',
+    },
+    logLevel: "warning",
+    absWorkingDir: repoDir,
+  });
 
   const appSource = fs.readFileSync(appBundlePath, "utf8");
   const mapMatch = appSource.match(
