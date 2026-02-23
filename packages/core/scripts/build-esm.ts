@@ -7,11 +7,12 @@
  * Example: pnpm run build:esm
  */
 import fs from "node:fs";
+import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 
 const repoRoot = (() => {
-  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
+  const scriptPath = path.resolve(process.argv[1] ?? "").replaceAll("\\", "/");
+  const value = scriptPath;
   const root = value.split("/packages/core/")[0];
   if (root === value) {
     throw new Error(`Unable to determine repo root from ${value}`);
@@ -45,21 +46,6 @@ runNodeScript(`${repoRoot}/node_modules/typescript/bin/tsc`, [
   "packages/core/tsconfig.json",
   "--declaration",
 ]);
-// Tests run via node/playwright need JS test files; esbuild emits ESM test JS into dist/esm.
-// Unit tests are in tests/unit/, integration tests are in tests/integration/
-const testEntryPoints = collectTsFiles(`${repoRoot}/packages/core/tests`);
-if (testEntryPoints.length > 0) {
-  esbuild.buildSync({
-    entryPoints: testEntryPoints,
-    outdir: "packages/core/dist/esm",
-    outbase: "packages/core",
-    format: "esm",
-    platform: "node",
-    sourcemap: true,
-    logLevel: "warning",
-    absWorkingDir: repoRoot,
-  });
-}
 
 fs.mkdirSync(`${repoRoot}/packages/core/dist/esm`, { recursive: true });
 fs.writeFileSync(

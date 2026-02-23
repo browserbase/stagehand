@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import Browserbase from "@browserbasehq/sdk";
 import WebSocket from "ws";
 import { v3DynamicTestConfig } from "./v3.dynamic.config.js";
@@ -52,10 +51,30 @@ type Outcome = {
   lastStatus?: string;
 };
 
-const testsDir = path.dirname(fileURLToPath(import.meta.url));
 const findCoreDir = (startDir: string): string => {
   let current = path.resolve(startDir);
   while (true) {
+    const nestedCorePath = path.join(
+      current,
+      "packages",
+      "core",
+      "package.json",
+    );
+    if (fs.existsSync(nestedCorePath)) {
+      try {
+        const nestedPkg = JSON.parse(
+          fs.readFileSync(nestedCorePath, "utf8"),
+        ) as {
+          name?: string;
+        };
+        if (nestedPkg.name === "@browserbasehq/stagehand") {
+          return path.join(current, "packages", "core");
+        }
+      } catch {
+        // keep climbing until we find the core package root
+      }
+    }
+
     const packageJsonPath = path.join(current, "package.json");
     if (fs.existsSync(packageJsonPath)) {
       try {
@@ -72,13 +91,15 @@ const findCoreDir = (startDir: string): string => {
 
     const parent = path.dirname(current);
     if (parent === current) {
-      return path.resolve(startDir, "../../..");
+      throw new Error(
+        `Unable to find @browserbasehq/stagehand from ${startDir}`,
+      );
     }
     current = parent;
   }
 };
 
-const coreDir = findCoreDir(testsDir);
+const coreDir = findCoreDir(process.cwd());
 
 const resolveChildRunner = (): { command: string; args: string[] } | null => {
   const distJsPath = path.join(

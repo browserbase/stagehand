@@ -7,11 +7,12 @@
  * Example: pnpm run build:cjs
  */
 import fs from "node:fs";
+import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 
 const repoRoot = (() => {
-  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
+  const scriptPath = path.resolve(process.argv[1] ?? "").replaceAll("\\", "/");
+  const value = scriptPath;
   const root = value.split("/packages/core/")[0];
   if (root === value) {
     throw new Error(`Unable to determine repo root from ${value}`);
