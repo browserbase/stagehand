@@ -16,6 +16,21 @@ on:
             {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe"},
             {"os":"windows-latest","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe"}
           ]
+      use-prebuilt-artifacts:
+        description: "Whether to download pre-built package artifacts."
+        required: false
+        type: string
+        default: "false"
+      restore-turbo-cache:
+        description: "Whether to restore local .turbo cache."
+        required: false
+        type: string
+        default: "true"
+      node-version:
+        description: "Node.js version for setup."
+        required: false
+        type: string
+        default: "20.x"
       upload-only-binary:
         description: "Upload only this binary (empty => upload all)."
         required: false
@@ -35,6 +50,21 @@ on:
             {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe"},
             {"os":"windows-latest","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe"}
           ]
+      use-prebuilt-artifacts:
+        description: "Whether to download pre-built package artifacts."
+        required: false
+        type: string
+        default: "false"
+      restore-turbo-cache:
+        description: "Whether to restore local .turbo cache."
+        required: false
+        type: string
+        default: "true"
+      node-version:
+        description: "Node.js version for setup."
+        required: false
+        type: string
+        default: "20.x"
       upload-only-binary:
         description: "Upload only this binary (empty => upload all)."
         required: false
@@ -63,8 +93,9 @@ jobs:
           PLAYWRIGHT_SKIP_DOWNLOAD: "1"
           PUPPETEER_SKIP_DOWNLOAD: "1"
         with:
-          use-prebuilt-artifacts: "false"
-          node-version: 20.x
+          use-prebuilt-artifacts: ${{ inputs.use-prebuilt-artifacts }}
+          restore-turbo-cache: ${{ inputs.restore-turbo-cache }}
+          node-version: ${{ inputs.node-version }}
 
       - name: Build SEA binary (ESM)
         env:

@@ -360,6 +360,9 @@ jobs:
           {"os":"windows-latest","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe"},
           {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64-sourcemap"}
         ]
+      use-prebuilt-artifacts: "true"
+      restore-turbo-cache: "false"
+      node-version: "20.x"
       upload-only-binary: stagehand-server-linux-x64-sourcemap
 
   server-integration-tests:
