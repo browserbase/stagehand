@@ -1,5 +1,5 @@
 /**
- * Build canonical dist/esm output for the core package (including test JS).
+ * Build canonical dist/esm output for the core package (including tests).
  *
  * Prereqs: pnpm install; run gen-version + build-dom-scripts first (turbo handles).
  * Args: none.
@@ -7,10 +7,8 @@
  * Example: pnpm run build:esm
  */
 import fs from "node:fs";
-import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import esbuild from "esbuild";
 
 const repoRoot = (() => {
   const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
@@ -20,34 +18,6 @@ const repoRoot = (() => {
   }
   return root;
 })();
-
-const toRepoRelative = (absPath: string) =>
-  path.relative(repoRoot, absPath).replaceAll("\\", "/");
-
-const collectTsFiles = (dir: string): string[] => {
-  const out: string[] = [];
-  if (!fs.existsSync(dir)) return out;
-
-  const entries = fs
-    .readdirSync(dir, { withFileTypes: true })
-    .sort((a, b) => a.name.localeCompare(b.name));
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      out.push(...collectTsFiles(fullPath));
-      continue;
-    }
-    if (
-      entry.isFile() &&
-      fullPath.endsWith(".ts") &&
-      !fullPath.endsWith(".d.ts")
-    ) {
-      out.push(toRepoRelative(fullPath));
-    }
-  }
-
-  return out;
-};
 
 const runNodeScript = (scriptPath: string, args: string[]) => {
   const result = spawnSync(process.execPath, [scriptPath, ...args], {
