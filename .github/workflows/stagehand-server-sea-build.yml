@@ -98,18 +98,11 @@ jobs:
           node-version: ${{ inputs.node-version }}
 
       - name: Build SEA binary (ESM)
-        shell: bash
         env:
           SEA_TARGET_PLATFORM: ${{ matrix.platform }}
           SEA_TARGET_ARCH: ${{ matrix.arch }}
           SEA_BINARY_NAME: ${{ matrix.binary_name }}
-        run: |
-          set -euo pipefail
-          TURBO_ONLY=""
-          if [ "${{ inputs.use-prebuilt-artifacts }}" = "true" ]; then
-            TURBO_ONLY="--only"
-          fi
-          pnpm exec turbo run build:sea:esm --filter=@browserbasehq/stagehand-server ${TURBO_ONLY}
+        run: pnpm exec turbo run build:sea:esm --filter=@browserbasehq/stagehand-server
 
       - name: Verify SEA binary exists
         shell: bash
