@@ -19,10 +19,27 @@ export function rerenderMissingShadowHosts(): void {
 
     for (const host of needsReset) {
       try {
-        const clone = host.cloneNode(true);
-        host.replaceWith(clone);
+        const tag = host.tagName.toLowerCase();
+        // createElement triggers the constructor → attachShadow() → piercer intercepts
+        const fresh = document.createElement(tag);
+
+        // Transfer attributes
+        for (const attr of Array.from(host.attributes)) {
+          try {
+            fresh.setAttribute(attr.name, attr.value);
+          } catch {
+            /* skip */
+          }
+        }
+
+        // Move light DOM children (preserves event listeners on children)
+        while (host.firstChild) {
+          fresh.appendChild(host.firstChild);
+        }
+
+        host.replaceWith(fresh);
       } catch {
-        // ignore individual failures
+        // ignore individual failures (e.g., constructor throws)
       }
     }
 

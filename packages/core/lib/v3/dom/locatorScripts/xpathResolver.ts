@@ -45,14 +45,16 @@ export function resolveXPathAtIndex(
     return resolveNativeAtIndexWithError(xp, targetIndex).value;
   }
 
-  if (!shadowCtx?.hasShadow) {
-    const native = resolveNativeAtIndexWithError(xp, targetIndex);
-    if (!native.error) return native.value;
-    const composed = resolveXPathComposedMatches(xp, shadowCtx?.getClosedRoot);
-    return composed[targetIndex] ?? null;
-  }
+  // Always try native XPath first — it handles flat-DOM and synthetic shadow
+  // XPaths correctly even when real shadow roots exist elsewhere on the page.
+  const native = resolveNativeAtIndexWithError(xp, targetIndex);
+  if (!native.error && native.value) return native.value;
 
-  const composed = resolveXPathComposedMatches(xp, shadowCtx.getClosedRoot);
+  // Fall back to composed resolution for XPaths that cross shadow boundaries.
+  const composed = resolveXPathComposedMatches(
+    xp,
+    shadowCtx?.getClosedRoot ?? null,
+  );
   return composed[targetIndex] ?? null;
 }
 
@@ -194,6 +196,23 @@ function composedChildren(
   }
 
   if (node instanceof Element) {
+    // Handle <slot> elements: return assigned (distributed) content if available,
+    // otherwise fall back to the slot's own children (fallback content).
+    if (node.localName === "slot") {
+      try {
+        const slotEl = node as HTMLSlotElement;
+        if (typeof slotEl.assignedElements === "function") {
+          const assigned = slotEl.assignedElements({ flatten: true });
+          if (assigned.length > 0) {
+            out.push(...assigned);
+            return out;
+          }
+        }
+      } catch {
+        /* fall through to children */
+      }
+    }
+
     out.push(...Array.from(node.children ?? []));
     const open = node.shadowRoot;
     if (open) out.push(...Array.from(open.children ?? []));
