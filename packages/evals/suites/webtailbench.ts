@@ -1,4 +1,3 @@
-import path from "path";
 import type { Testcase, EvalInput } from "../types/evals.js";
 import type { AvailableModel } from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig.js";
@@ -7,13 +6,8 @@ import { readJsonlFile, parseJsonlRows, applySampling } from "../utils.js";
 
 export const buildWebTailBenchTestcases = (models: string[]): Testcase[] => {
   const moduleDir = getCurrentDirPath();
-  const webtailbenchFilePath = path.join(
-    moduleDir,
-    "..",
-    "datasets",
-    "webtailbench",
-    "WebTailBench_data.jsonl",
-  );
+  const webtailbenchFilePath =
+    moduleDir + "/../datasets/webtailbench/WebTailBench_data.jsonl";
 
   const lines = readJsonlFile(webtailbenchFilePath);
 
