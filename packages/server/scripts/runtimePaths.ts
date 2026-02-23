@@ -67,3 +67,9 @@ export const getPackageRootDir = (): string =>
 
 export const createRequireFromCaller = () =>
   createRequire(getCurrentFilePath());
+
+export const isMainModule = (): boolean => {
+  const entryScript = process.argv.at(1);
+  if (!entryScript) return false;
+  return normalizePath(entryScript) === getCurrentFilePath();
+};

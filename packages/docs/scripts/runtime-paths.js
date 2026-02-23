@@ -59,3 +59,9 @@ export const getRepoRootDir = () => {
   }
   return currentFilePath.slice(0, index);
 };
+
+export const isMainModule = () => {
+  const entryScript = process.argv.at(1);
+  if (!entryScript) return false;
+  return normalizePath(entryScript) === getCurrentFilePath();
+};

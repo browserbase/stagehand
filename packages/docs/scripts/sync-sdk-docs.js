@@ -165,13 +165,13 @@ async function syncSdk(language, config) {
     const mdxContent = frontmatter + processedContent;
     
     // Ensure directory exists
-    const outputDir = path.dirname(path.join(currentDir, '..', config.outputPath));
+    const outputDir = path.dirname(`${currentDir}/../${config.outputPath}`);
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
     
     // Write MDX file
-    const outputFile = path.join(currentDir, '..', config.outputPath);
+    const outputFile = `${currentDir}/../${config.outputPath}`;
     fs.writeFileSync(outputFile, mdxContent, 'utf8');
     
     console.log(`✓ ${language} SDK docs written to ${config.outputPath}`);

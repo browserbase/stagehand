@@ -182,7 +182,6 @@ const inferRuntimeFromPath = (value: string) => {
 };
 const inferRuntimeFromExecution = () =>
   inferRuntimeFromPath(getCurrentFilePath()) ??
-  (process.argv[1] ? inferRuntimeFromPath(process.argv[1]) : null) ??
   inferRuntimeFromPath(process.cwd());
 const rawArgs = process.argv.slice(2).filter((arg) => arg !== "--");
 const listRequested = rawArgs.includes("--list");

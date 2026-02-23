@@ -7,18 +7,10 @@
  * Example: pnpm run build:cjs
  */
 import fs from "node:fs";
-import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { getRepoRootDir } from "../lib/v3/runtimePaths.js";
 
-const repoRoot = (() => {
-  const scriptPath = path.resolve(process.argv[1] ?? "").replaceAll("\\", "/");
-  const value = scriptPath;
-  const root = value.split("/packages/core/")[0];
-  if (root === value) {
-    throw new Error(`Unable to determine repo root from ${value}`);
-  }
-  return root;
-})();
+const repoRoot = getRepoRootDir();
 
 const runNodeScript = (scriptPath: string, args: string[]) => {
   const result = spawnSync(process.execPath, [scriptPath, ...args], {

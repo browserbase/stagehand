@@ -69,6 +69,7 @@ export const createRequireFromCaller = () =>
   createRequire(getCurrentFilePath());
 
 export const isMainModule = (): boolean => {
-  if (!process.argv[1]) return false;
-  return normalizePath(process.argv[1]) === getCurrentFilePath();
+  const entryScript = process.argv.at(1);
+  if (!entryScript) return false;
+  return normalizePath(entryScript) === getCurrentFilePath();
 };

@@ -35,7 +35,7 @@ const isSeaRuntime = (): boolean => {
 
 // SEA: re-exec current binary with supervisor args.
 // Non-SEA: execute Stagehand CLI entrypoint with supervisor args.
-const resolveCliPath = (): string => path.join(moduleDir, "../cli.js");
+const resolveCliPath = (): string => `${moduleDir}/../cli.js`;
 
 const resolveSupervisorCommand = (
   config: ShutdownSupervisorConfig,
