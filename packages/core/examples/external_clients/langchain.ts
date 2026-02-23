@@ -3,7 +3,7 @@ import {
   CreateChatCompletionOptions,
   LLMClient,
   AvailableModel,
-} from "../../lib/v3";
+} from "../../lib/v3/index.js";
 import {
   AIMessage,
   BaseMessageLike,
@@ -11,7 +11,7 @@ import {
   SystemMessage,
 } from "@langchain/core/messages";
 import { ChatCompletion } from "openai/resources";
-import { toJsonSchema } from "../../lib/v3/zodCompat";
+import { toJsonSchema } from "../../lib/v3/zodCompat.js";
 
 export class LangchainClient extends LLMClient {
   public type = "langchainClient" as const;

@@ -1,0 +1,223 @@
+name: Verify Chromium launch
+description: Validate that Chromium can start, connect to CDP, and read the page title.
+inputs:
+  chrome-path:
+    description: Path to Chromium/Chrome binary.
+    required: false
+    default: "/usr/bin/chromium"
+  max-attempts:
+    description: Number of launch attempts before failing.
+    required: false
+    default: "3"
+  timeout-ms:
+    description: Milliseconds to wait for DevTools and CDP per attempt.
+    required: false
+    default: "30000"
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        max_attempts="${{ inputs.max-attempts }}"
+        attempt=1
+        while [ "$attempt" -le "$max_attempts" ]; do
+          if [ -n "${{ inputs.chrome-path }}" ]; then
+            pkill -f "${{ inputs.chrome-path }}" >/dev/null 2>&1 || true
+          fi
+          if node - <<'NODE'
+        const { spawn } = require("node:child_process");
+        const workspace = process.env.GITHUB_WORKSPACE;
+        if (workspace) {
+          process.chdir(workspace);
+        }
+
+        const chrome = "${{ inputs.chrome-path }}";
+
+        const timeoutMs = Number("${{ inputs.timeout-ms }}");
+        const wsPrefix = "DevTools listening on ";
+        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+        let proc;
+        let wsUrl;
+
+        const waitForWsUrl = async () => {
+          const deadline = Date.now() + timeoutMs;
+          while (!wsUrl) {
+            if (Date.now() > deadline) {
+              throw new Error(
+                `❌ Chromium did not expose CDP WS URL within timeout (${timeoutMs}ms)`,
+              );
+            }
+            await sleep(250);
+          }
+          return wsUrl;
+        };
+
+        const cleanup = () => {
+          if (proc && !proc.killed) {
+            proc.kill("SIGKILL");
+          }
+        };
+
+        (async () => {
+          try {
+            const startTime = Date.now();
+            const args = [
+              '--ash-no-nudges',
+              '--block-new-web-contents',
+              '--deny-permission-prompts',
+              '--disable-breakpad',
+              '--disable-client-side-phishing-detection',
+              '--disable-component-update',
+              '--disable-components=AcceptCHFrame,OptimizationHints,ProcessPerSiteUpToMainFrameThreshold,InterestFeedContentSuggestions,CalculateNativeWinOcclusion,BackForwardCache,HeavyAdPrivacyMitigations,LazyFrameLoading,ImprovedCookieControls,PrivacySandboxSettings4,AutofillServerCommunication,CertificateTransparencyComponentUpdater,DestroyProfileOnBrowserClose,CrashReporting,OverscrollHistoryNavigation,InfiniteSessionRestore',
+              '--disable-datasaver-prompt',
+              '--disable-default-apps',
+              '--disable-desktop-notifications',
+              '--disable-domain-reliability',
+              '--disable-external-intent-requests',
+              '--disable-hang-monitor',
+              '--disable-infobars',
+              '--disable-notifications',
+              '--disable-popup-blocking',
+              '--disable-print-preview',
+              '--disable-prompt-on-repost',
+              '--disable-search-engine-choice-screen',
+              '--disable-session-crashed-bubble',
+              '--disable-speech-api',
+              '--disable-speech-synthesis-api',
+              '--hide-crash-restore-bubble',
+              '--metrics-recording-only',
+              '--no-default-browser-check',
+              '--no-first-run',
+              '--no-pings',
+              '--noerrdialogs',
+              '--safebrowsing-disable-auto-update',
+              '--silent-debugger-extension-api',
+              '--simulate-outdated-no-au="Tue, 31 Dec 2099 23:59:59 GMT"',
+              '--suppress-message-center-popups',
+              "--disable-background-networking",
+              "--disable-default-apps",
+              "--disable-dev-shm-usage",
+              "--disable-extensions",
+              "--disable-notifications",
+              "--disable-setuid-sandbox",
+              "--disable-site-isolation-trials",
+              "--disable-sync",
+              "--disable-web-security",
+              "--headless=new",
+              "--no-default-browser-check",
+              "--no-first-run",
+              "--no-sandbox",
+              "--no-zygote",
+              "--password-store=basic",
+              "--remote-debugging-port=0",
+              "--test-type=gpu",
+              "--use-mock-keychain",
+              "about:blank",
+            ];
+            proc = spawn(chrome, args, { stdio: ["ignore", "pipe", "pipe"] });
+            const lineBuffers = { stdout: "", stderr: "" };
+            const onData = (stream) => (data) => {
+              const text = data.toString();
+              if (stream === "stderr") {
+                process.stderr.write(text);
+              } else {
+                process.stdout.write(text);
+              }
+              lineBuffers[stream] += text;
+              const lines = lineBuffers[stream].split(/\r?\n/);
+              lineBuffers[stream] = lines.pop() ?? "";
+              for (const line of lines) {
+                const idx = line.indexOf(wsPrefix);
+                if (idx === -1) continue;
+                const rest = line.slice(idx + wsPrefix.length).trim();
+                const candidate = rest.split(/\s+/)[0];
+                if (
+                  candidate.startsWith("ws://") ||
+                  candidate.startsWith("wss://")
+                ) {
+                  wsUrl = candidate;
+                }
+              }
+            };
+            proc.stdout.on("data", onData("stdout"));
+            proc.stderr.on("data", onData("stderr"));
+
+            const url = await waitForWsUrl();
+            const wsFoundMs = Date.now() - startTime;
+            const wsFoundSec = (wsFoundMs / 1000).toFixed(2);
+            const connectStart = Date.now();
+            const path = require("node:path");
+            const workspaceRoot = process.env.GITHUB_WORKSPACE || process.cwd();
+            const playwrightPath = path.join(
+              workspaceRoot,
+              "packages/core/node_modules/playwright",
+            );
+            console.log(
+              `✅ CDP Url found after ${wsFoundSec}s, connecting with playwright...`,
+            );
+            const { chromium } = require(playwrightPath);
+            const browser = await chromium.connectOverCDP(url, {
+              timeout: timeoutMs,
+            });
+            const context = browser.contexts()[0];
+            if (!context) {
+              throw new Error("❌ No browser context available after CDP connect");
+            }
+            const page = context.pages()[0];
+            if (!page) {
+              throw new Error("❌ No page available after CDP connect");
+            }
+            const remainingMs = timeoutMs - (Date.now() - connectStart);
+            if (remainingMs <= 0) {
+              throw new Error(
+                `❌ CDP connect + verify timed out after ${timeoutMs}ms`,
+              );
+            }
+            const sum = await Promise.race([
+              page.evaluate("1 + 1"),
+              new Promise((_, reject) =>
+                setTimeout(
+                  () =>
+                    reject(
+                      new Error(
+                        `❌ CDP connect + verify timed out after ${timeoutMs}ms`,
+                      ),
+                    ),
+                  remainingMs,
+                ),
+              ),
+            ]);
+            if (sum !== 2) {
+              throw new Error(`❌ Unexpected eval result: ${sum}`);
+            }
+            const totalMs = Date.now() - startTime;
+            const connectMs = Date.now() - connectStart;
+            const totalSec = (totalMs / 1000).toFixed(2);
+            const connectSec = (connectMs / 1000).toFixed(2);
+            console.log(
+              `✅ Chromium launched in ${wsFoundSec}s and CDP connected in ${connectSec}s (total: ${totalSec}s)`,
+            );
+            await browser.close();
+            cleanup();
+            process.exit(0);
+          } catch (err) {
+            cleanup();
+            console.error(err instanceof Error ? err.message : String(err));
+            process.exit(1);
+          }
+        })();
+        NODE
+          then
+            if [ "$attempt" -gt 1 ]; then
+              echo "⚠️ Chromium launch succeeded after ${attempt} attempts; GitHub Actions runner may be constrained."
+            fi
+            exit 0
+          fi
+          echo "⚠️ Chromium launch attempt ${attempt} failed."
+          attempt=$((attempt + 1))
+          sleep 2
+        done
+        echo "❌ Failed to launch Chromium before running Stagehand; GitHub Actions runner is likely overloaded."
+        exit 1

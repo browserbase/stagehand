@@ -1,4 +1,4 @@
-import { EvalFunction } from "../types/evals";
+import { EvalFunction } from "../types/evals.js";
 
 export const ionwave: EvalFunction = async ({
   debugUrl,

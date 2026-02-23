@@ -1,11 +1,11 @@
-import { EvalFunction } from "../../types/evals";
+import { EvalFunction } from "../../types/evals.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 
 export const iframe_form: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
@@ -14,7 +14,7 @@ export const iframe_form: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-form-filling/",
     );
 
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction: "Fill in the form name with 'John Smith'",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 5,
     });
@@ -35,7 +35,7 @@ export const iframe_form: EvalFunction = async ({
       };
     }
 
-    const agentResult2 = await v3Agent.execute({
+    const agentResult2 = await agent.execute({
       instruction: "Fill in the form email with 'john.smith@example.com'",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 3,
     });

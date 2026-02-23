@@ -1,4 +1,4 @@
-import { EvalFunction } from "../types/evals";
+import { EvalFunction } from "../types/evals.js";
 
 export const heal_custom_dropdown: EvalFunction = async ({
   debugUrl,

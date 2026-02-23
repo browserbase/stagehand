@@ -3,6 +3,10 @@ title: Stagehand
 description: 'Complete API reference for the Stagehand class'
 icon: 'hand-horns'
 ---
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
 
 <CardGroup cols={1}>
 <Card title="Getting Started" icon="rocket" href="/v3/first-steps/quickstart">
@@ -109,6 +113,12 @@ interface V3Options {
 
     <ParamField path="executablePath" type="string" optional>
       Path to Chrome/Chromium executable.
+    </ParamField>
+
+    <ParamField path="port" type="number" optional>
+      Fixed Chrome DevTools Protocol (CDP) debugging port for external tool connections.
+
+      **Default:** Randomly assigned
     </ParamField>
 
     <ParamField path="args" type="string[]" optional>

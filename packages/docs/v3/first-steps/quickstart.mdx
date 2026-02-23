@@ -2,13 +2,17 @@
 title: Quickstart
 description: 'Stagehand allows you to build web automations with natural language and code.'
 ---
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
 
 If this is your **first time using Stagehand**, you should try [Director](https://director.ai) first. It's an agent that allows you to build Stagehand workflows using natural language. You can also try Stagehand using our [MCP server](/integrations/mcp/introduction) .   
 
 Otherwise, the quickest way to start with Stagehand is with our CLI. It scaffolds a ready‑to‑run Stagehand app with sensible defaults, and an example script.
 
 <Note>
-This quickstart is for **TypeScript**. For **Python**, see the [v2 installation guide](/v2/first-steps/installation).
+This quickstart is for **TypeScript**. For other languages, change the language selector in the top left corner.
 </Note>
 
 ## 1) Create a sample project
@@ -63,7 +67,7 @@ async function main() {
   console.log(`Observe result:\n`, observeResult);
 
   const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: "google/gemini-2.5-computer-use-preview-10-2025",
     systemPrompt: "You're a helpful assistant that can control a web browser.",
   });

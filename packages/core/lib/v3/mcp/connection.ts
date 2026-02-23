@@ -4,7 +4,7 @@ import {
 } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { MCPConnectionError } from "../types/public/sdkErrors";
+import { MCPConnectionError } from "../types/public/sdkErrors.js";
 
 export interface ConnectToMCPServerOptions {
   serverUrl: string | URL;

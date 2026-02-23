@@ -12,12 +12,50 @@ import {
   StreamTextOnChunkCallback,
   StreamTextOnFinishCallback,
 } from "ai";
-import { LogLine } from "./logs";
-import { ClientOptions } from "./model";
+import { LogLine } from "./logs.js";
+import { ClientOptions } from "./model.js";
+import { StagehandZodObject } from "../../zodCompat.js";
+
+// Re-export ModelMessage for consumers who want to use it for conversation continuation
+export type { ModelMessage } from "ai";
+
+// Re-export Tool type for consumers who want to define custom tools
+export type { Tool } from "ai";
 import { Page as PlaywrightPage } from "playwright-core";
 import { Page as PuppeteerPage } from "puppeteer-core";
 import { Page as PatchrightPage } from "patchright-core";
-import { Page } from "../../understudy/page";
+import { Page } from "../../understudy/page.js";
+
+// =============================================================================
+// Variable Types
+// =============================================================================
+
+/**
+ * A variable value can be a simple primitive or a rich object with an optional description.
+ * This unified type is shared across `act`, `agent.execute`, and other methods.
+ *
+ * @example Simple (backward-compatible):
+ * ```typescript
+ * variables: { username: "john@example.com" }
+ * ```
+ *
+ * @example Rich with description (useful for agents):
+ * ```typescript
+ * variables: {
+ *   username: { value: "john@example.com", description: "The login email" }
+ * }
+ * ```
+ */
+export type VariableValue =
+  | string
+  | number
+  | boolean
+  | { value: string | number | boolean; description?: string };
+
+/**
+ * A collection of named variables for use in act, agent, and other methods.
+ */
+export type Variables = Record<string, VariableValue>;
 
 export interface AgentContext {
   options: AgentExecuteOptionsBase;
@@ -63,6 +101,18 @@ export interface AgentResult {
     cached_input_tokens?: number;
     inference_time_ms: number;
   };
+  /**
+   * The conversation messages from this execution.
+   * Pass these to a subsequent execute() call via the `messages` option to continue the conversation.
+   * @experimental
+   */
+  messages?: ModelMessage[];
+  /**
+   * Custom output data extracted based on the `output` schema provided in execute options.
+   * Only populated if an `output` schema was provided.
+   * @experimental
+   */
+  output?: Record<string, unknown>;
 }
 
 export type AgentStreamResult = StreamTextResult<ToolSet, never> & {
@@ -96,6 +146,13 @@ type StreamingCallbackNotAvailable =
   "This callback requires 'stream: true' in AgentConfig. Set stream: true to use streaming callbacks like onChunk, onFinish, onError, and onAbort.";
 
 /**
+ * Error message for safety confirmation callback misuse.
+ * Safety confirmations are only available for non-streaming CUA agent executions.
+ */
+type SafetyConfirmationCallbackNotAvailable =
+  "Safety confirmation callbacks are only available via non-streaming AgentExecuteOptions.callbacks when using mode: 'cua'.";
+
+/**
  * Callbacks specific to the non-streaming execute method.
  */
 export interface AgentExecuteCallbacks extends AgentCallbacks {
@@ -103,6 +160,11 @@ export interface AgentExecuteCallbacks extends AgentCallbacks {
    * Callback called when each step (LLM call) is finished.
    */
   onStepFinish?: GenerateTextOnStepFinishCallback<ToolSet>;
+  /**
+   * Callback for handling safety confirmation requests from CUA providers.
+   * Only available when running an agent configured with mode: "cua".
+   */
+  onSafetyConfirmation?: SafetyConfirmationHandler;
 
   /**
    * NOT AVAILABLE in non-streaming mode.
@@ -197,6 +259,11 @@ export interface AgentStreamCallbacks extends AgentCallbacks {
   onAbort?: (event: {
     steps: Array<StepResult<ToolSet>>;
   }) => PromiseLike<void> | void;
+  /**
+   * NOT AVAILABLE in streaming mode.
+   * Safety confirmations currently require non-streaming execute() on CUA agents.
+   */
+  onSafetyConfirmation?: SafetyConfirmationCallbackNotAvailable;
 }
 
 /**
@@ -207,6 +274,125 @@ export interface AgentExecuteOptionsBase {
   maxSteps?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   highlightCursor?: boolean;
+  /**
+   * Previous conversation messages to continue from.
+   * Pass the `messages` from a previous AgentResult to continue that conversation.
+   * @experimental
+   */
+  messages?: ModelMessage[];
+  /**
+   * An AbortSignal that can be used to cancel the agent execution.
+   * When aborted, the agent will stop and return a partial result.
+   * @experimental
+   *
+   * @example
+   * ```typescript
+   * const controller = new AbortController();
+   * setTimeout(() => controller.abort(), 30000); // 30 second timeout
+   *
+   * const result = await agent.execute({
+   *   instruction: "...",
+   *   signal: controller.signal
+   * });
+   * ```
+   */
+  signal?: AbortSignal;
+  /**
+   * Tools to exclude from this execution.
+   * Pass an array of tool names to prevent the agent from using those tools.
+   *
+   * **Note:** Not supported in CUA mode (`mode: "cua"`).
+   *
+   * **Available tools by mode:**
+   *
+   * **DOM mode (default):**
+   * - `act` - Perform semantic actions (click, type, etc.)
+   * - `fillForm` - Fill form fields using DOM selectors
+   * - `ariaTree` - Get accessibility tree of the page
+   * - `extract` - Extract structured data from page
+   * - `goto` - Navigate to a URL
+   * - `scroll` - Scroll using semantic directions (up/down/left/right)
+   * - `keys` - Press keyboard keys
+   * - `navback` - Navigate back in history
+   * - `screenshot` - Take a screenshot
+   * - `think` - Agent reasoning/planning step
+   * - `wait` - Wait for time or condition
+   * - `done` - Mark task as complete
+   * - `search` - Web search (requires BRAVE_API_KEY)
+   *
+   * **Hybrid mode:**
+   * - `click` - Click at specific coordinates
+   * - `type` - Type text at coordinates
+   * - `dragAndDrop` - Drag from one point to another
+   * - `clickAndHold` - Click and hold at coordinates
+   * - `fillFormVision` - Fill forms using vision/coordinates
+   * - `act` - Perform semantic actions
+   * - `ariaTree` - Get accessibility tree
+   * - `extract` - Extract data from page
+   * - `goto` - Navigate to URL
+   * - `scroll` - Scroll using coordinates
+   * - `keys` - Press keyboard keys
+   * - `navback` - Navigate back
+   * - `screenshot` - Take screenshot
+   * - `think` - Agent reasoning step
+   * - `wait` - Wait for time/condition
+   * - `done` - Mark task complete
+   * - `search` - Web search (requires BRAVE_API_KEY)
+   *
+   * @experimental
+   * @example
+   * ```typescript
+   * // Exclude screenshot and extract tools
+   * const result = await agent.execute({
+   *   instruction: "Click the submit button",
+   *   excludeTools: ["screenshot", "extract"]
+   * });
+   * ```
+   */
+  excludeTools?: string[];
+  /**
+   * A Zod schema defining custom output data to return when the task completes.
+   * The agent will populate this data in the final done tool call.
+   *
+   * @experimental
+   * @example
+   * ```typescript
+   * const result = await agent.execute({
+   *   instruction: "Find the cheapest flight from NYC to LA",
+   *   output: z.object({
+   *     price: z.string().describe("The price of the flight"),
+   *     airline: z.string().describe("The airline name"),
+   *     departureTime: z.string().describe("Departure time"),
+   *   }),
+   * });
+   *
+   * console.log(result.output); // { price: "$199", airline: "Delta", departureTime: "8:00 AM" }
+   * ```
+   */
+  output?: StagehandZodObject;
+  /**
+   * Variables that the agent can use when filling forms or typing text.
+   * The agent will see variable names and descriptions in the system prompt,
+   * and can use them via `%variableName%` syntax in act/type/fillForm tool calls.
+   *
+   * Accepts both simple values and rich objects with descriptions (same type as `act`).
+   *
+   * **Note:** Not supported in CUA mode (`mode: "cua"`). Requires `experimental: true`.
+   *
+   * @experimental
+   * @example
+   * ```typescript
+   * // Simple values
+   * variables: { username: "john@example.com", password: "secret123" }
+   *
+   * // Rich values with descriptions (helps the agent understand context)
+   * variables: {
+   *   username: { value: "john@example.com", description: "The login email" },
+   *   password: { value: "secret123", description: "The login password" },
+   * }
+   * ```
+   */
+  variables?: Variables;
 }
 
 /**
@@ -239,10 +425,14 @@ export const AVAILABLE_CUA_MODELS = [
   "openai/computer-use-preview-2025-03-11",
   "anthropic/claude-3-7-sonnet-latest",
   "anthropic/claude-opus-4-5-20251101",
+  "anthropic/claude-opus-4-6",
+  "anthropic/claude-sonnet-4-6",
   "anthropic/claude-haiku-4-5-20251001",
   "anthropic/claude-sonnet-4-20250514",
   "anthropic/claude-sonnet-4-5-20250929",
   "google/gemini-2.5-computer-use-preview-10-2025",
+  "google/gemini-3-flash-preview",
+  "google/gemini-3-pro-preview",
   "microsoft/fara-7b",
 ] as const;
 export type AvailableCuaModel = (typeof AVAILABLE_CUA_MODELS)[number];
@@ -267,6 +457,57 @@ export interface ActionExecutionResult {
   error?: string;
   data?: unknown;
 }
+
+/**
+ * Represents a safety check that requires user confirmation before proceeding.
+ * These are issued by CUA providers (OpenAI, Google) when the agent attempts
+ * potentially risky actions.
+ */
+export interface SafetyCheck {
+  /** Unique identifier for this safety check */
+  id: string;
+  /** Code identifying the type of safety concern */
+  code: string;
+  /** Human-readable description of the safety concern */
+  message: string;
+}
+
+/**
+ * Response from the user for a safety confirmation request.
+ */
+export interface SafetyConfirmationResponse {
+  /** Whether the user acknowledged/approved the safety checks */
+  acknowledged: boolean;
+}
+
+/**
+ * Callback for handling safety confirmation requests.
+ * Called when the CUA provider issues safety checks that require user confirmation.
+ * The callback should return a promise that resolves when the user has made a decision.
+ *
+ * @param safetyChecks - Array of safety checks requiring confirmation
+ * @returns Promise resolving to the user's response
+ *
+ * @example
+ * ```typescript
+ * const agent = stagehand.agent({
+ *   mode: "cua",
+ * });
+ * await agent.execute({
+ *   instruction: "...",
+ *   callbacks: {
+ *     onSafetyConfirmation: async (checks) => {
+ *       console.log("Safety checks:", checks);
+ *       const userApproved = await showConfirmationDialog(checks);
+ *       return { acknowledged: userApproved };
+ *     },
+ *   },
+ * });
+ * ```
+ */
+export type SafetyConfirmationHandler = (
+  safetyChecks: SafetyCheck[],
+) => Promise<SafetyConfirmationResponse>;
 
 // Anthropic types:
 
@@ -365,6 +606,14 @@ export type AgentModelConfig<TModelName extends string = string> = {
   modelName: TModelName;
 } & Record<string, unknown>;
 
+/**
+ * Agent tool mode determines which set of tools are available to the agent.
+ * - 'dom': Uses DOM-based tools (act, fillForm) - better for structured page interactions
+ * - 'hybrid': Uses coordinate-based tools (click, type, dragAndDrop, etc.) - better for visual/screenshot-based interactions
+ * - 'cua': Uses Computer Use Agent (CUA) providers like Anthropic Claude or Google Gemini for screenshot-based automation
+ */
+export type AgentToolMode = "dom" | "hybrid" | "cua";
+
 export type AgentConfig = {
   /**
    * Custom system prompt to provide to the agent. Overrides the default system prompt.
@@ -379,7 +628,8 @@ export type AgentConfig = {
    */
   tools?: ToolSet;
   /**
-   * Indicates CUA is disabled for this configuration
+   * @deprecated Use `mode: "cua"` instead. This option will be removed in a future version.
+   * Enables Computer Use Agent (CUA) mode.
    */
   cua?: boolean;
   /**
@@ -398,6 +648,14 @@ export type AgentConfig = {
    * When false (default), execute() returns AgentResult after completion.
    */
   stream?: boolean;
+  /**
+   * Tool mode for the agent. Determines which set of tools are available.
+   * - 'dom' (default): Uses DOM-based tools (act, fillForm) for structured interactions
+   * - 'hybrid': Uses coordinate-based tools (click, type, dragAndDrop, clickAndHold, fillFormVision)
+   *             for visual/screenshot-based interactions
+   * - 'cua': Uses Computer Use Agent (CUA) providers for screenshot-based automation
+   */
+  mode?: AgentToolMode;
 };
 
 /**
@@ -420,4 +678,68 @@ export interface NonStreamingAgentInstance {
   execute: (
     instructionOrOptions: string | AgentExecuteOptions,
   ) => Promise<AgentResult>;
+}
+
+// =============================================================================
+// Vision Action Tool Result Types
+// =============================================================================
+
+/**
+ * Content item type for toModelOutput return values.
+ * Used in tool definitions to return text and/or media to the model.
+ */
+export type ModelOutputContentItem =
+  | { type: "text"; text: string }
+  | { type: "media"; mediaType: string; data: string };
+
+export interface ClickToolResult {
+  success: boolean;
+  describe?: string;
+  coordinates?: number[];
+  error?: string;
+  screenshotBase64?: string;
+}
+
+export interface TypeToolResult {
+  success: boolean;
+  describe?: string;
+  text?: string;
+  error?: string;
+  screenshotBase64?: string;
+}
+
+export interface DragAndDropToolResult {
+  success: boolean;
+  describe?: string;
+  error?: string;
+  screenshotBase64?: string;
+}
+
+export interface FillFormField {
+  action: string;
+  value: string;
+  coordinates: { x: number; y: number };
+}
+
+export interface FillFormVisionToolResult {
+  success: boolean;
+  playwrightArguments?: FillFormField[];
+  error?: string;
+  screenshotBase64?: string;
+}
+
+export interface ScrollToolResult {
+  success: boolean;
+  message: string;
+  scrolledPixels: number;
+}
+
+export interface ScrollVisionToolResult extends ScrollToolResult {
+  screenshotBase64?: string;
+}
+
+export interface WaitToolResult {
+  success: boolean;
+  waited: number;
+  screenshotBase64?: string;
 }

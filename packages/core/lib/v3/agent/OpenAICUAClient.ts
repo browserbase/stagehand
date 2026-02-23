@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { LogLine } from "../types/public/logs";
+import { LogLine } from "../types/public/logs.js";
 import {
   AgentAction,
   AgentResult,
@@ -9,11 +9,22 @@ import {
   ResponseItem,
   ComputerCallItem,
   FunctionCallItem,
-} from "../types/public/agent";
-import { ClientOptions } from "../types/public/model";
-import { AgentClient } from "./AgentClient";
-import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
+  SafetyCheck,
+  SafetyConfirmationHandler,
+} from "../types/public/agent.js";
+import { ClientOptions } from "../types/public/model.js";
+import { AgentClient } from "./AgentClient.js";
+import {
+  AgentScreenshotProviderError,
+  StagehandClosedError,
+} from "../types/public/sdkErrors.js";
 import { ToolSet } from "ai";
+import {
+  SessionFileLogger,
+  formatCuaPromptPreview,
+  formatCuaResponsePreview,
+} from "../flowLogger.js";
+import { v7 as uuidv7 } from "uuid";
 
 /**
  * Client for OpenAI's Computer Use Assistant API
@@ -32,6 +43,7 @@ export class OpenAICUAClient extends AgentClient {
   private reasoningItems: Map<string, ResponseItem> = new Map();
   private environment: string = "browser"; // "browser", "mac", "windows", or "ubuntu"
   private tools?: ToolSet;
+  private safetyConfirmationHandler?: SafetyConfirmationHandler;
 
   constructor(
     type: AgentType,
@@ -90,6 +102,10 @@ export class OpenAICUAClient extends AgentClient {
 
   setTools(tools: ToolSet): void {
     this.tools = tools;
+  }
+
+  setSafetyConfirmationHandler(handler?: SafetyConfirmationHandler): void {
+    this.safetyConfirmationHandler = handler;
   }
 
   /**
@@ -339,6 +355,45 @@ export class OpenAICUAClient extends AgentClient {
     );
   }
 
+  private async handleSafetyConfirmation(
+    pendingSafetyChecks: SafetyCheck[],
+    logger: (message: LogLine) => void,
+  ): Promise<SafetyCheck[] | undefined> {
+    if (this.safetyConfirmationHandler) {
+      logger({
+        category: "agent",
+        message: `Requesting safety confirmation for ${pendingSafetyChecks.length} check(s): ${pendingSafetyChecks.map((c) => c.code).join(", ")}`,
+        level: 1,
+      });
+
+      const response =
+        await this.safetyConfirmationHandler(pendingSafetyChecks);
+
+      if (response.acknowledged) {
+        logger({
+          category: "agent",
+          message: `Safety checks acknowledged by user`,
+          level: 1,
+        });
+        return pendingSafetyChecks;
+      } else {
+        logger({
+          category: "agent",
+          message: `Safety checks rejected by user`,
+          level: 1,
+        });
+        return undefined;
+      }
+    }
+
+    logger({
+      category: "agent",
+      message: `Auto-acknowledging ${pendingSafetyChecks.length} safety check(s)`,
+      level: 2,
+    });
+    return pendingSafetyChecks;
+  }
+
   private isFunctionCallItem(item: ResponseItem): item is FunctionCallItem {
     return (
       item.type === "function_call" &&
@@ -409,6 +464,15 @@ export class OpenAICUAClient extends AgentClient {
         requestParams.previous_response_id = previousResponseId;
       }
 
+      // Log LLM request
+      const llmRequestId = uuidv7();
+      SessionFileLogger.logLlmRequest({
+        requestId: llmRequestId,
+        model: this.modelName,
+        operation: "CUA.getAction",
+        prompt: formatCuaPromptPreview(inputItems),
+      });
+
       const startTime = Date.now();
       // Create the response using the OpenAI Responses API
       // @ts-expect-error - Force type to match what the OpenAI SDK expects
@@ -422,6 +486,16 @@ export class OpenAICUAClient extends AgentClient {
         output_tokens: response.usage.output_tokens,
         inference_time_ms: elapsedMs,
       };
+
+      // Log LLM response
+      SessionFileLogger.logLlmResponse({
+        requestId: llmRequestId,
+        model: this.modelName,
+        operation: "CUA.getAction",
+        output: formatCuaResponsePreview(response.output),
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      });
 
       // Store the response ID for future use
       this.lastResponseId = response.id;
@@ -489,39 +563,40 @@ export class OpenAICUAClient extends AgentClient {
                 image_url: string;
                 current_url?: string;
               };
-              acknowledged_safety_checks?: Array<{
-                id: string;
-                code: string;
-                message: string;
-              }>;
+              acknowledged_safety_checks?: SafetyCheck[];
             };
             computerCallOutput.output.current_url = this.currentUrl;
           }
 
-          // Add any safety checks that need to be acknowledged
           if (
             item.pending_safety_checks &&
             item.pending_safety_checks.length > 0
           ) {
-            const computerCallOutput = outputItem as {
-              type: "computer_call_output";
-              call_id: string;
-              output: {
-                type: "input_image";
-                image_url: string;
+            const acknowledgedChecks = await this.handleSafetyConfirmation(
+              item.pending_safety_checks,
+              logger,
+            );
+
+            if (acknowledgedChecks) {
+              const computerCallOutput = outputItem as {
+                type: "computer_call_output";
+                call_id: string;
+                output: {
+                  type: "input_image";
+                  image_url: string;
+                };
+                acknowledged_safety_checks?: SafetyCheck[];
               };
-              acknowledged_safety_checks?: Array<{
-                id: string;
-                code: string;
-                message: string;
-              }>;
-            };
-            computerCallOutput.acknowledged_safety_checks =
-              item.pending_safety_checks;
+              computerCallOutput.acknowledged_safety_checks =
+                acknowledgedChecks;
+            }
           }
 
           nextInputItems.push(outputItem);
         } catch (error) {
+          if (error instanceof StagehandClosedError) {
+            throw error;
+          }
           const errorMessage =
             error instanceof Error ? error.message : String(error);
 
@@ -555,39 +630,40 @@ export class OpenAICUAClient extends AgentClient {
                   image_url: string;
                   current_url?: string;
                 };
-                acknowledged_safety_checks?: Array<{
-                  id: string;
-                  code: string;
-                  message: string;
-                }>;
+                acknowledged_safety_checks?: SafetyCheck[];
               };
               computerCallOutput.output.current_url = this.currentUrl;
             }
 
-            // Add any safety checks that need to be acknowledged
             if (
               item.pending_safety_checks &&
               item.pending_safety_checks.length > 0
             ) {
-              const computerCallOutput = errorOutputItem as {
-                type: "computer_call_output";
-                call_id: string;
-                output: {
-                  type: "input_image";
-                  image_url: string;
+              const acknowledgedChecks = await this.handleSafetyConfirmation(
+                item.pending_safety_checks,
+                logger,
+              );
+
+              if (acknowledgedChecks) {
+                const computerCallOutput = errorOutputItem as {
+                  type: "computer_call_output";
+                  call_id: string;
+                  output: {
+                    type: "input_image";
+                    image_url: string;
+                  };
+                  acknowledged_safety_checks?: SafetyCheck[];
                 };
-                acknowledged_safety_checks?: Array<{
-                  id: string;
-                  code: string;
-                  message: string;
-                }>;
-              };
-              computerCallOutput.acknowledged_safety_checks =
-                item.pending_safety_checks;
+                computerCallOutput.acknowledged_safety_checks =
+                  acknowledgedChecks;
+              }
             }
 
             nextInputItems.push(errorOutputItem);
           } catch (screenshotError) {
+            if (screenshotError instanceof StagehandClosedError) {
+              throw screenshotError;
+            }
             // If we can't capture a screenshot, just send the error
             logger({
               category: "agent",
@@ -663,6 +739,9 @@ export class OpenAICUAClient extends AgentClient {
 
           nextInputItems.push(outputItem);
         } catch (error) {
+          if (error instanceof StagehandClosedError) {
+            throw error;
+          }
           const errorMessage =
             error instanceof Error ? error.message : String(error);
 

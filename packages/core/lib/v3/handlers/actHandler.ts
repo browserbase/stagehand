@@ -1,29 +1,31 @@
 // lib/v3/handlers/actHandler.ts
-import { act as actInference } from "../../inference";
-import { buildActPrompt, buildStepTwoPrompt } from "../../prompt";
-import { trimTrailingTextNode } from "../../utils";
-import { v3Logger } from "../logger";
-import { ActHandlerParams } from "../types/private/handlers";
-import { ActResult, Action, V3FunctionName } from "../types/public/methods";
-import { ActTimeoutError } from "../types/public/sdkErrors";
+import { act as actInference } from "../../inference.js";
+import { buildActPrompt, buildStepTwoPrompt } from "../../prompt.js";
+import { trimTrailingTextNode } from "../../utils.js";
+import { v3Logger } from "../logger.js";
+import { ActHandlerParams } from "../types/private/handlers.js";
+import { ActResult, Action, V3FunctionName } from "../types/public/methods.js";
+import { ActTimeoutError } from "../types/public/sdkErrors.js";
 import {
   captureHybridSnapshot,
   diffCombinedTrees,
-} from "../understudy/a11y/snapshot";
-import { LLMClient } from "../llm/LLMClient";
-import { SupportedPlaywrightAction } from "../types/private";
-import { EncodedId } from "../types/private/internal";
+} from "../understudy/a11y/snapshot/index.js";
+import { LLMClient } from "../llm/LLMClient.js";
+import { SupportedUnderstudyAction } from "../types/private/index.js";
+import { EncodedId } from "../types/private/internal.js";
 import {
   AvailableModel,
   ClientOptions,
   ModelConfiguration,
-} from "../types/public/model";
-import type { Page } from "../understudy/page";
+} from "../types/public/model.js";
+import type { Variables } from "../types/public/agent.js";
+import type { Page } from "../understudy/page.js";
 import {
   performUnderstudyMethod,
   waitForDomNetworkQuiet,
-} from "./handlerUtils/actHandlerUtils";
-import { createTimeoutGuard } from "./handlerUtils/timeoutGuard";
+} from "./handlerUtils/actHandlerUtils.js";
+import { createTimeoutGuard } from "./handlerUtils/timeoutGuard.js";
+import { resolveVariableValue } from "../agent/utils/variables.js";
 
 type ActInferenceElement = {
   elementId?: string;
@@ -97,14 +99,12 @@ export class ActHandler {
     domElements,
     xpathMap,
     llmClient,
-    variables,
     requireMethodAndArguments = true,
   }: {
     instruction: string;
     domElements: string;
     xpathMap: Record<string, string>;
     llmClient: LLMClient;
-    variables?: Record<string, string>;
     requireMethodAndArguments?: boolean;
   }): Promise<{ action?: Action; response: ActInferenceResponse }> {
     const response = await actInference({
@@ -128,16 +128,8 @@ export class ActHandler {
       return { response };
     }
 
-    const action: Action = {
-      ...normalized,
-      arguments: substituteVariablesInArguments(
-        normalized.arguments,
-        variables,
-      ),
-    } as Action;
-
     return {
-      action,
+      action: { ...normalized } as Action,
       response,
     };
   }
@@ -167,7 +159,7 @@ export class ActHandler {
 
     const actInstruction = buildActPrompt(
       instruction,
-      Object.values(SupportedPlaywrightAction),
+      Object.values(SupportedUnderstudyAction),
       variables,
     );
 
@@ -178,7 +170,6 @@ export class ActHandler {
         domElements: combinedTree,
         xpathMap: combinedXpathMap,
         llmClient,
-        variables,
       });
 
     if (!firstAction) {
@@ -203,6 +194,7 @@ export class ActHandler {
       this.defaultDomSettleTimeoutMs,
       llmClient,
       ensureTimeRemaining,
+      variables,
     );
 
     // If not two-step, return the first action result
@@ -228,13 +220,13 @@ export class ActHandler {
     const stepTwoInstructions = buildStepTwoPrompt(
       instruction,
       previousAction,
-      Object.values(SupportedPlaywrightAction).filter(
+      Object.values(SupportedUnderstudyAction).filter(
         (
           action,
         ): action is Exclude<
-          SupportedPlaywrightAction,
-          SupportedPlaywrightAction.SELECT_OPTION_FROM_DROPDOWN
-        > => action !== SupportedPlaywrightAction.SELECT_OPTION_FROM_DROPDOWN,
+          SupportedUnderstudyAction,
+          SupportedUnderstudyAction.SELECT_OPTION_FROM_DROPDOWN
+        > => action !== SupportedUnderstudyAction.SELECT_OPTION_FROM_DROPDOWN,
       ),
       variables,
     );
@@ -245,7 +237,6 @@ export class ActHandler {
       domElements: diffedTree,
       xpathMap: combinedXpathMap2,
       llmClient,
-      variables,
     });
 
     if (!secondAction) {
@@ -260,6 +251,7 @@ export class ActHandler {
       this.defaultDomSettleTimeoutMs,
       llmClient,
       ensureTimeRemaining,
+      variables,
     );
 
     // Combine results
@@ -282,6 +274,7 @@ export class ActHandler {
     domSettleTimeoutMs?: number,
     llmClientOverride?: LLMClient,
     ensureTimeRemaining?: () => void,
+    variables?: Variables,
   ): Promise<ActResult> {
     ensureTimeRemaining?.();
     const settleTimeout = domSettleTimeoutMs ?? this.defaultDomSettleTimeoutMs;
@@ -305,7 +298,11 @@ export class ActHandler {
       };
     }
 
-    const args = Array.isArray(action.arguments) ? action.arguments : [];
+    const placeholderArgs = Array.isArray(action.arguments)
+      ? [...action.arguments]
+      : [];
+    const resolvedArgs =
+      substituteVariablesInArguments(action.arguments, variables) ?? [];
 
     try {
       ensureTimeRemaining?.();
@@ -314,7 +311,7 @@ export class ActHandler {
         page.mainFrame(),
         method,
         action.selector,
-        args,
+        resolvedArgs,
         settleTimeout,
       );
       return {
@@ -326,7 +323,7 @@ export class ActHandler {
             selector: action.selector,
             description: action.description || `action (${method})`,
             method,
-            arguments: args,
+            arguments: placeholderArgs,
           },
         ],
       };
@@ -369,7 +366,7 @@ export class ActHandler {
 
           const instruction = buildActPrompt(
             actCommand,
-            Object.values(SupportedPlaywrightAction),
+            Object.values(SupportedUnderstudyAction),
             {},
           );
 
@@ -406,7 +403,7 @@ export class ActHandler {
             page.mainFrame(),
             method,
             newSelector,
-            args,
+            resolvedArgs,
             settleTimeout,
           );
 
@@ -419,7 +416,7 @@ export class ActHandler {
                 selector: newSelector,
                 description: action.description || `action (${method})`,
                 method,
-                arguments: args,
+                arguments: placeholderArgs,
               },
             ],
           };
@@ -476,17 +473,54 @@ function normalizeActInferenceElement(
     return undefined;
   }
 
+  // For dragAndDrop, convert element ID in arguments to xpath (target element)
+  let resolvedArgs = hasArgs ? args : undefined;
+  if (method === "dragAndDrop" && hasArgs && args.length > 0) {
+    const targetArg = args[0];
+    // Check if argument looks like an element ID (e.g., "1-67")
+    if (typeof targetArg === "string" && /^\d+-\d+$/.test(targetArg)) {
+      const argXpath = xpathMap[targetArg as EncodedId];
+      const trimmedArgXpath = trimTrailingTextNode(argXpath);
+      if (trimmedArgXpath) {
+        resolvedArgs = [`xpath=${trimmedArgXpath}`, ...args.slice(1)];
+      } else {
+        // Target element lookup failed, filter out this action
+        v3Logger({
+          category: "action",
+          message: "dragAndDrop target element lookup failed",
+          level: 1,
+          auxiliary: {
+            targetElementId: { value: targetArg, type: "string" },
+            sourceElementId: { value: elementId, type: "string" },
+          },
+        });
+        return undefined;
+      }
+    } else {
+      v3Logger({
+        category: "action",
+        message: "dragAndDrop target element invalid ID format",
+        level: 0,
+        auxiliary: {
+          targetElementId: { value: String(targetArg), type: "string" },
+          sourceElementId: { value: elementId, type: "string" },
+        },
+      });
+      return undefined;
+    }
+  }
+
   return {
     description,
     method,
-    arguments: hasArgs ? args : undefined,
+    arguments: resolvedArgs,
     selector: `xpath=${trimmed}`,
   } as Action;
 }
 
 function substituteVariablesInArguments(
   args: string[] | undefined,
-  variables?: Record<string, string>,
+  variables?: Variables,
 ): string[] | undefined {
   if (!variables || !Array.isArray(args)) {
     return args;
@@ -494,9 +528,9 @@ function substituteVariablesInArguments(
 
   return args.map((arg: string) => {
     let out = arg;
-    for (const [key, value] of Object.entries(variables)) {
+    for (const [key, v] of Object.entries(variables)) {
       const token = `%${key}%`;
-      out = out.split(token).join(String(value));
+      out = out.split(token).join(resolveVariableValue(v));
     }
     return out;
   });

@@ -1,31 +1,38 @@
-import dotenv from "dotenv";
+import { EventEmitter } from "events";
 import fs from "fs";
 import os from "os";
 import path from "path";
 import process from "process";
+import { v7 as uuidv7 } from "uuid";
 import { z } from "zod";
-import type { InferStagehandSchema, StagehandZodSchema } from "./zodCompat";
-import { loadApiKeyFromEnv } from "../utils";
-import { StagehandLogger, LoggerOptions } from "../logger";
-import { ActCache } from "./cache/ActCache";
-import { AgentCache } from "./cache/AgentCache";
-import { CacheStorage } from "./cache/CacheStorage";
-import { ActHandler } from "./handlers/actHandler";
-import { ExtractHandler } from "./handlers/extractHandler";
-import { ObserveHandler } from "./handlers/observeHandler";
-import { V3AgentHandler } from "./handlers/v3AgentHandler";
-import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler";
-import { createBrowserbaseSession } from "./launch/browserbase";
-import { launchLocalChrome } from "./launch/local";
-import { LLMClient } from "./llm/LLMClient";
-import { LLMProvider } from "./llm/LLMProvider";
+import {
+  InferStagehandSchema,
+  StagehandZodSchema,
+  toJsonSchema,
+} from "./zodCompat.js";
+import { loadApiKeyFromEnv } from "../utils.js";
+import { extractModelName } from "../modelUtils.js";
+import { StagehandLogger, LoggerOptions } from "../logger.js";
+import { ActCache } from "./cache/ActCache.js";
+import { AgentCache } from "./cache/AgentCache.js";
+import { CacheStorage } from "./cache/CacheStorage.js";
+import { ActHandler } from "./handlers/actHandler.js";
+import { ExtractHandler } from "./handlers/extractHandler.js";
+import { ObserveHandler } from "./handlers/observeHandler.js";
+import { V3AgentHandler } from "./handlers/v3AgentHandler.js";
+import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler.js";
+import { createBrowserbaseSession } from "./launch/browserbase.js";
+import { launchLocalChrome } from "./launch/local.js";
+import { LLMClient } from "./llm/LLMClient.js";
+import { LLMProvider } from "./llm/LLMProvider.js";
 import {
   bindInstanceLogger,
   unbindInstanceLogger,
-  v3Logger,
   withInstanceLogContext,
-} from "./logger";
-import { resolveTools } from "./mcp/utils";
+} from "./logger.js";
+import { cleanupLocalBrowser } from "./shutdown/cleanupLocal.js";
+import { startShutdownSupervisor } from "./shutdown/supervisorClient.js";
+import { resolveTools } from "./mcp/utils.js";
 import {
   ActHandlerParams,
   ExtractHandlerParams,
@@ -33,9 +40,14 @@ import {
   AgentReplayStep,
   InitState,
   AgentCacheContext,
-} from "./types/private";
+} from "./types/private/index.js";
+import type {
+  ShutdownSupervisorConfig,
+  ShutdownSupervisorHandle,
+} from "./types/private/shutdown.js";
 import {
   AgentConfig,
+  AgentExecuteCallbacks,
   AgentExecuteOptions,
   AgentStreamExecuteOptions,
   AgentResult,
@@ -60,20 +72,22 @@ import {
   PatchrightPage,
   PlaywrightPage,
   PuppeteerPage,
-  ExperimentalNotConfiguredError,
   CuaModelRequiredError,
   StagehandInvalidArgumentError,
   StagehandNotInitializedError,
   MissingEnvironmentVariableError,
   StagehandInitError,
   AgentStreamResult,
-} from "./types/public";
-import { V3Context } from "./understudy/context";
-import { Page } from "./understudy/page";
-import { resolveModel } from "../modelUtils";
-import { StagehandAPIClient } from "./api";
-import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard";
-import { ActTimeoutError } from "./types/public/sdkErrors";
+} from "./types/public/index.js";
+import { V3Context } from "./understudy/context.js";
+import { Page } from "./understudy/page.js";
+import { resolveModel } from "../modelUtils.js";
+import { StagehandAPIClient } from "./api.js";
+import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures.js";
+import { flattenVariables } from "./agent/utils/variables.js";
+import { SessionFileLogger, logStagehandStep } from "./flowLogger.js";
+import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard.js";
+import { ActTimeoutError } from "./types/public/sdkErrors.js";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
@@ -109,7 +123,6 @@ function resolveModelConfiguration(
 
   return { modelName: DEFAULT_MODEL_NAME };
 }
-dotenv.config({ path: ".env" });
 
 /**
  * V3
@@ -134,6 +147,12 @@ export class V3 {
   private observeHandler: ObserveHandler | null = null;
   private ctx: V3Context | null = null;
   public llmClient!: LLMClient;
+
+  /**
+   * Event bus for internal communication.
+   * Emits events like 'screenshot' when screenshots are captured during agent execution.
+   */
+  public readonly bus: EventEmitter = new EventEmitter();
   private modelName: AvailableModel;
   private modelClientOptions: ClientOptions;
   private llmProvider: LLMProvider;
@@ -152,6 +171,48 @@ export class V3 {
   public get browserbaseDebugURL(): string | undefined {
     return this.browserbaseDebugUrl;
   }
+  /**
+   * Returns true if the browser is running on Browserbase.
+   */
+  public get isBrowserbase(): boolean {
+    return this.state.kind === "BROWSERBASE";
+  }
+
+  /**
+   * Returns true if advancedStealth is enabled in Browserbase settings.
+   */
+  public get isAdvancedStealth(): boolean {
+    return (
+      this.opts.browserbaseSessionCreateParams?.browserSettings
+        ?.advancedStealth === true
+    );
+  }
+
+  /**
+   * Returns the configured viewport dimensions from launch options.
+   * Falls back to default 1288x711 if not configured.
+   */
+  public get configuredViewport(): { width: number; height: number } {
+    const defaultWidth = 1288;
+    const defaultHeight = 711;
+
+    if (this.opts.env === "BROWSERBASE") {
+      const vp =
+        this.opts.browserbaseSessionCreateParams?.browserSettings?.viewport;
+      return {
+        width: vp?.width ?? defaultWidth,
+        height: vp?.height ?? defaultHeight,
+      };
+    }
+
+    // LOCAL env
+    const vp = this.opts.localBrowserLaunchOptions?.viewport;
+    return {
+      width: vp?.width ?? defaultWidth,
+      height: vp?.height ?? defaultHeight,
+    };
+  }
+
   private _onCdpClosed = (why: string) => {
     if (this.state.kind === "BROWSERBASE") {
       void this._logBrowserbaseSessionStatus();
@@ -174,6 +235,8 @@ export class V3 {
   private actCache: ActCache;
   private agentCache: AgentCache;
   private apiClient: StagehandAPIClient | null = null;
+  private keepAlive?: boolean;
+  private shutdownSupervisor: ShutdownSupervisorHandle | null = null;
 
   public stagehandMetrics: StagehandMetrics = {
     actPromptTokens: 0,
@@ -204,12 +267,11 @@ export class V3 {
   };
 
   constructor(opts: V3Options) {
-    V3._installProcessGuards();
     this.externalLogger = opts.logger;
     this.verbose = opts.verbose ?? 1;
-    this.instanceId =
-      (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
-      `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+    this.instanceId = uuidv7();
+    this.keepAlive =
+      opts.keepAlive ?? opts.browserbaseSessionCreateParams?.keepAlive;
 
     // Create per-instance StagehandLogger (handles usePino, verbose, externalLogger)
     // This gives each V3 instance independent logger configuration
@@ -310,6 +372,10 @@ export class V3 {
     });
 
     this.opts = opts;
+
+    // Initialize session file logger
+    SessionFileLogger.init(this.instanceId, opts);
+
     // Track instance for global process guard handling
     V3._instances.add(this);
   }
@@ -526,59 +592,43 @@ export class V3 {
     }
   }
 
-  private static _installProcessGuards(): void {
-    if (V3._processGuardsInstalled) return;
-    V3._processGuardsInstalled = true;
-
-    const shutdownAllImmediate = async (reason: string) => {
-      const instances = Array.from(V3._instances);
-      await Promise.all(instances.map((i) => i._immediateShutdown(reason)));
-    };
-
-    process.once("SIGINT", () => {
-      v3Logger({
-        category: "v3",
-        message: "SIGINT: initiating shutdown",
-        level: 0,
-      });
-      for (const instance of V3._instances) {
-        if (instance.apiClient) {
-          void instance.apiClient.end();
-          return;
+  /** Spawn a crash-only supervisor that cleans up when this process dies. */
+  private startShutdownSupervisor(
+    config: ShutdownSupervisorConfig,
+  ): ShutdownSupervisorHandle | null {
+    if (this.shutdownSupervisor) return this.shutdownSupervisor;
+    this.shutdownSupervisor = startShutdownSupervisor(config, {
+      onError: (error, context) => {
+        try {
+          this.logger({
+            category: "v3",
+            message:
+              "Shutdown supervisor unavailable; crash cleanup disabled. " +
+              "If this process exits unexpectedly, local Chrome or Browserbase " +
+              "sessions may remain running even with keepAlive=false.",
+            level: 0,
+            auxiliary: {
+              context: { value: context, type: "string" },
+              error: { value: error.message, type: "string" },
+            },
+          });
+        } catch {
+          // ignore logging failures
         }
-      }
-      void shutdownAllImmediate("signal SIGINT");
+      },
     });
-    process.once("SIGTERM", () => {
-      v3Logger({
-        category: "v3",
-        message: "SIGTERM: initiating shutdown",
-        level: 0,
-      });
-      for (const instance of V3._instances) {
-        if (instance.apiClient) {
-          void instance.apiClient.end();
-          return;
-        }
-      }
-      void shutdownAllImmediate("signal SIGTERM");
-    });
-    process.once("uncaughtException", (err: unknown) => {
-      v3Logger({
-        category: "v3",
-        message: "uncaughtException",
-        level: 0,
-        auxiliary: { err: { value: String(err), type: "string" } },
-      });
-    });
-    process.once("unhandledRejection", (reason: unknown) => {
-      v3Logger({
-        category: "v3",
-        message: "unhandledRejection",
-        level: 0,
-        auxiliary: { reason: { value: String(reason), type: "string" } },
-      });
-    });
+    return this.shutdownSupervisor;
+  }
+
+  /** Stop the supervisor during a normal shutdown. */
+  private stopShutdownSupervisor(): void {
+    if (!this.shutdownSupervisor) return;
+    try {
+      this.shutdownSupervisor.stop();
+    } catch {
+      // best-effort
+    }
+    this.shutdownSupervisor = null;
   }
 
   /**
@@ -688,6 +738,11 @@ export class V3 {
             this.ctx = await V3Context.create(lbo.cdpUrl, {
               env: "LOCAL",
             });
+            const logCtx = SessionFileLogger.getContext();
+            this.ctx.conn.cdpLogger = (info) =>
+              SessionFileLogger.logCdpCallEvent(info, logCtx);
+            this.ctx.conn.cdpEventLogger = (info) =>
+              SessionFileLogger.logCdpMessageEvent(info, logCtx);
             this.ctx.conn.onTransportClosed(this._onCdpClosed);
             this.state = {
               kind: "LOCAL",
@@ -766,17 +821,32 @@ export class V3 {
           // add user-supplied args last
           if (Array.isArray(lbo.args)) chromeFlags.push(...lbo.args);
 
+          const keepAlive = this.keepAlive === true;
           const { ws, chrome } = await launchLocalChrome({
             chromePath: lbo.executablePath,
             chromeFlags,
+            port: lbo.port,
             headless: lbo.headless,
             userDataDir,
             connectTimeoutMs: lbo.connectTimeoutMs,
+            handleSIGINT: !keepAlive,
           });
+          if (keepAlive) {
+            try {
+              chrome.process?.unref?.();
+            } catch {
+              // best-effort: avoid keeping the event loop alive
+            }
+          }
           this.ctx = await V3Context.create(ws, {
             env: "LOCAL",
             localBrowserLaunchOptions: lbo,
           });
+          const logCtx = SessionFileLogger.getContext();
+          this.ctx.conn.cdpLogger = (info) =>
+            SessionFileLogger.logCdpCallEvent(info, logCtx);
+          this.ctx.conn.cdpEventLogger = (info) =>
+            SessionFileLogger.logCdpMessageEvent(info, logCtx);
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
           this.state = {
             kind: "LOCAL",
@@ -787,6 +857,16 @@ export class V3 {
             preserveUserDataDir: !!lbo.preserveUserDataDir,
           };
           this.resetBrowserbaseSessionMetadata();
+          const chromePid = chrome.process?.pid ?? chrome.pid;
+          if (!keepAlive && chromePid) {
+            this.startShutdownSupervisor({
+              kind: "LOCAL",
+              pid: chromePid,
+              userDataDir,
+              createdTempProfile: createdTemp,
+              preserveUserDataDir: !!lbo.preserveUserDataDir,
+            });
+          }
 
           // Post-connect settings (downloads and viewport) if provided
           await this._applyPostConnectLocalOptions(lbo);
@@ -806,6 +886,14 @@ export class V3 {
             message: "Starting browserbase session",
             level: 1,
           });
+          const baseSessionParams =
+            this.opts.browserbaseSessionCreateParams ?? {};
+          const resolvedKeepAlive = this.keepAlive;
+          const keepAlive = this.keepAlive === true;
+          const effectiveSessionParams =
+            resolvedKeepAlive !== undefined
+              ? { ...baseSessionParams, keepAlive: resolvedKeepAlive }
+              : baseSessionParams;
           if (!this.disableAPI && !this.experimental) {
             this.apiClient = new StagehandAPIClient({
               apiKey,
@@ -813,19 +901,17 @@ export class V3 {
               logger: this.logger,
             });
             const createSessionPayload = {
-              projectId:
-                this.opts.browserbaseSessionCreateParams?.projectId ??
-                projectId,
-              ...this.opts.browserbaseSessionCreateParams,
+              projectId: effectiveSessionParams.projectId ?? projectId,
+              ...effectiveSessionParams,
               browserSettings: {
-                ...(this.opts.browserbaseSessionCreateParams?.browserSettings ??
-                  {}),
-                viewport: this.opts.browserbaseSessionCreateParams
-                  ?.browserSettings?.viewport ?? { width: 1288, height: 711 },
+                ...(effectiveSessionParams.browserSettings ?? {}),
+                viewport: effectiveSessionParams.browserSettings?.viewport ?? {
+                  width: 1288,
+                  height: 711,
+                },
               },
               userMetadata: {
-                ...(this.opts.browserbaseSessionCreateParams?.userMetadata ??
-                  {}),
+                ...(effectiveSessionParams.userMetadata ?? {}),
                 stagehand: "true",
               },
             };
@@ -847,16 +933,29 @@ export class V3 {
           const { ws, sessionId, bb } = await createBrowserbaseSession(
             apiKey,
             projectId,
-            this.opts.browserbaseSessionCreateParams,
+            effectiveSessionParams,
             this.opts.browserbaseSessionID,
           );
           this.ctx = await V3Context.create(ws, {
             env: "BROWSERBASE",
             apiClient: this.apiClient,
           });
+          const logCtx = SessionFileLogger.getContext();
+          this.ctx.conn.cdpLogger = (info) =>
+            SessionFileLogger.logCdpCallEvent(info, logCtx);
+          this.ctx.conn.cdpEventLogger = (info) =>
+            SessionFileLogger.logCdpMessageEvent(info, logCtx);
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
           this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
           this.browserbaseSessionId = sessionId;
+          if (!keepAlive && !this.disableAPI) {
+            this.startShutdownSupervisor({
+              kind: "STAGEHAND_API",
+              sessionId,
+              apiKey,
+              projectId,
+            });
+          }
 
           await this._ensureBrowserbaseDownloadsEnabled();
 
@@ -964,6 +1063,7 @@ export class V3 {
   async act(instruction: string, options?: ActOptions): Promise<ActResult>;
   async act(action: Action, options?: ActOptions): Promise<ActResult>;
 
+  @logStagehandStep("Stagehand.act", "ACT")
   async act(input: string | Action, options?: ActOptions): Promise<ActResult> {
     return await withInstanceLogContext(this.instanceId, async () => {
       if (!this.actHandler) throw new StagehandNotInitializedError("act()");
@@ -997,6 +1097,7 @@ export class V3 {
             this.domSettleTimeoutMs,
             this.resolveLlmClient(options?.model),
             ensureTimeRemaining,
+            options?.variables,
           );
         }
 
@@ -1019,6 +1120,9 @@ export class V3 {
 
       // Resolve page from options or default
       const page = await this.resolvePage(options?.page);
+      const actCacheLlmClient = options?.model
+        ? this.resolveLlmClient(options.model)
+        : undefined;
 
       let actCacheContext: Awaited<
         ReturnType<typeof this.actCache.prepareContext>
@@ -1031,13 +1135,14 @@ export class V3 {
         actCacheContext = await this.actCache.prepareContext(
           input,
           page,
-          options?.variables,
+          flattenVariables(options?.variables),
         );
         if (actCacheContext) {
           const cachedResult = await this.actCache.tryReplay(
             actCacheContext,
             page,
             options?.timeout,
+            actCacheLlmClient,
           );
           if (cachedResult) {
             this.addToHistory(
@@ -1116,6 +1221,7 @@ export class V3 {
     options?: ExtractOptions,
   ): Promise<InferStagehandSchema<T>>;
 
+  @logStagehandStep("Stagehand.extract", "EXTRACT")
   async extract(
     a?: string | ExtractOptions,
     b?: StagehandZodSchema | ExtractOptions,
@@ -1183,6 +1289,19 @@ export class V3 {
         result =
           await this.extractHandler.extract<StagehandZodSchema>(handlerParams);
       }
+      const historySchemaDescriptor = effectiveSchema
+        ? toJsonSchema(effectiveSchema)
+        : undefined;
+      this.addToHistory(
+        "extract",
+        {
+          instruction,
+          selector: options?.selector,
+          timeout: options?.timeout,
+          schema: historySchemaDescriptor,
+        },
+        result,
+      );
       return result;
     });
   }
@@ -1196,6 +1315,7 @@ export class V3 {
     instruction: string,
     options?: ObserveOptions,
   ): Promise<Action[]>;
+  @logStagehandStep("Stagehand.observe", "OBSERVE")
   async observe(
     a?: string | ObserveOptions,
     b?: ObserveOptions,
@@ -1266,51 +1386,62 @@ export class V3 {
 
   /** Best-effort cleanup of context and launched resources. */
   async close(opts?: { force?: boolean }): Promise<void> {
-    if (this.apiClient) {
-      await this.apiClient.end();
-    }
     // If we're already closing and this isn't a forced close, no-op.
     if (this._isClosing && !opts?.force) return;
     this._isClosing = true;
 
+    const keepAlive = this.keepAlive === true;
+
+    // Unhook CDP transport close handler BEFORE ending the API session.
+    // apiClient.end() can cause the hosted API to terminate the Browserbase
+    // session, which closes the CDP WebSocket. If the handler is still
+    // registered, _onCdpClosed fires and re-enters close() with force=true,
+    // causing a double-close cascade.
     try {
-      // Unhook CDP transport close handler if context exists
+      if (this.ctx?.conn && this._onCdpClosed) {
+        this.ctx.conn.offTransportClosed?.(this._onCdpClosed);
+      }
+    } catch {
+      // ignore
+    }
+
+    // End Browserbase session via API when keepAlive is not enabled
+    if (!keepAlive && this.apiClient) {
       try {
-        if (this.ctx?.conn && this._onCdpClosed) {
-          this.ctx.conn.offTransportClosed?.(this._onCdpClosed);
-        }
+        await this.apiClient.end();
       } catch {
-        //
+        // best-effort cleanup
+      }
+    }
+
+    try {
+      // Close session file logger
+      try {
+        await SessionFileLogger.close();
+      } catch {
+        // ignore
       }
 
-      // Best-effort CDP/Context close
+      // Close CDP context
       try {
         await this.ctx?.close();
       } catch {
-        //
+        // ignore
       }
 
-      // Kill local Chrome if present
-      if (this.state.kind === "LOCAL") {
-        try {
-          await this.state.chrome.kill();
-        } catch {
-          //
-        }
-        // cleanup temp user data dir if we created it and not preserved
-        try {
-          if (
-            this.state.createdTempProfile &&
-            !this.state.preserveUserDataDir &&
-            this.state.userDataDir
-          ) {
-            fs.rmSync(this.state.userDataDir, { recursive: true, force: true });
-          }
-        } catch {
-          // ignore cleanup errors
-        }
+      // Kill local Chrome and clean up temp profile when keepAlive is not enabled
+      if (!keepAlive && this.state.kind === "LOCAL") {
+        const localState = this.state;
+        await cleanupLocalBrowser({
+          killChrome: () => localState.chrome.kill(),
+          userDataDir: localState.userDataDir,
+          createdTempProfile: localState.createdTempProfile,
+          preserveUserDataDir: localState.preserveUserDataDir,
+        });
       }
     } finally {
+      this.stopShutdownSupervisor();
+
       // Reset internal state
       this.state = { kind: "UNINITIALIZED" };
       this.ctx = null;
@@ -1321,7 +1452,15 @@ export class V3 {
       } catch {
         // ignore
       }
-      // Remove from global registry
+      try {
+        this.bus.removeAllListeners();
+      } catch {
+        // ignore
+      }
+      this._history = [];
+      this.actHandler = null;
+      this.extractHandler = null;
+      this.observeHandler = null;
       V3._instances.delete(this);
     }
   }
@@ -1331,7 +1470,6 @@ export class V3 {
     let { apiKey, projectId } = this.opts;
 
     // Fall back to environment variables if not explicitly provided
-    // dotenv is already configured at the top of this module
     if (!apiKey)
       apiKey = process.env.BROWSERBASE_API_KEY ?? process.env.BB_API_KEY;
     if (!projectId)
@@ -1392,7 +1530,7 @@ export class V3 {
     }
 
     if (this.isPuppeteerPage(page)) {
-      const cdp = await page.target().createCDPSession();
+      const cdp = await page.createCDPSession();
       const { frameTree } = await cdp.send("Page.getFrameTree");
       this.logger({
         category: "v3",
@@ -1445,7 +1583,7 @@ export class V3 {
   }
 
   private async normalizeToV3Page(input: AnyPage): Promise<Page> {
-    if (input instanceof (await import("./understudy/page")).Page) {
+    if (input instanceof (await import("./understudy/page.js")).Page) {
       return input as Page;
     }
     if (this.isPlaywrightPage(input)) {
@@ -1521,11 +1659,17 @@ export class V3 {
     resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions;
     instruction: string;
     cacheContext: AgentCacheContext | null;
+    llmClient: LLMClient;
   }> {
-    if ((options?.integrations || options?.tools) && !this.experimental) {
-      throw new ExperimentalNotConfiguredError(
-        "MCP integrations and custom tools",
-      );
+    // Note: experimental validation is done at the call site before this method
+    // Warn if mode is not explicitly set (defaults to "dom")
+    if (options?.mode === undefined) {
+      this.logger({
+        category: "agent",
+        message:
+          "Using agent in default DOM mode (legacy). Agent will default to 'hybrid' on an upcoming release for improved performance.\n  → https://docs.stagehand.dev/v3/basics/agent\n",
+        level: 0,
+      });
     }
 
     const tools = options?.integrations
@@ -1536,21 +1680,31 @@ export class V3 {
       ? this.resolveLlmClient(options.model)
       : this.llmClient;
 
+    const resolvedExecutionModel = options?.executionModel ?? options?.model;
+
     const handler = new V3AgentHandler(
       this,
       this.logger,
       agentLlmClient,
-      typeof options?.executionModel === "string"
-        ? options.executionModel
-        : options?.executionModel?.modelName,
+      resolvedExecutionModel,
       options?.systemPrompt,
       tools,
+      options?.mode,
     );
 
     const resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions =
       typeof instructionOrOptions === "string"
         ? { instruction: instructionOrOptions }
         : instructionOrOptions;
+
+    const callbacksWithSafety = resolvedOptions.callbacks as
+      | AgentExecuteCallbacks
+      | undefined;
+    if (callbacksWithSafety?.onSafetyConfirmation) {
+      throw new StagehandInvalidArgumentError(
+        'onSafetyConfirmation callback is only supported when using mode: "cua" agents.',
+      );
+    }
 
     if (resolvedOptions.page) {
       const normalizedPage = await this.normalizeToV3Page(resolvedOptions.page);
@@ -1561,16 +1715,25 @@ export class V3 {
     const sanitizedOptions =
       this.agentCache.sanitizeExecuteOptions(resolvedOptions);
 
+    const cacheVariables = flattenVariables(resolvedOptions.variables);
+
     const cacheContext = this.agentCache.shouldAttemptCache(instruction)
       ? await this.agentCache.prepareContext({
           instruction,
           options: sanitizedOptions,
           configSignature: agentConfigSignature,
           page: await this.ctx!.awaitActivePage(),
+          variables: cacheVariables,
         })
       : null;
 
-    return { handler, resolvedOptions, instruction, cacheContext };
+    return {
+      handler,
+      resolvedOptions,
+      instruction,
+      cacheContext,
+      llmClient: agentLlmClient,
+    };
   }
 
   /**
@@ -1598,17 +1761,36 @@ export class V3 {
         | AgentStreamExecuteOptions,
     ) => Promise<AgentResult | AgentStreamResult>;
   } {
+    // Determine if CUA mode is enabled (via mode: "cua" or deprecated cua: true)
+    const isCuaMode =
+      options?.mode !== undefined
+        ? options.mode === "cua"
+        : options?.cua === true;
+
+    // Emit deprecation warning for cua: true
+    if (options?.cua === true) {
+      this.logger({
+        category: "agent",
+        message:
+          '[DEPRECATED] The "cua: true" option is deprecated. Use "mode: \'cua\'" instead. This option will be removed in a future version.',
+        level: 0,
+      });
+      console.warn(
+        '[Stagehand] DEPRECATED: The "cua: true" option is deprecated. Use "mode: \'cua\'" instead.',
+      );
+    }
+
     this.logger({
       category: "agent",
-      message: `Creating v3 agent instance with options: ${JSON.stringify(options)}`,
+      message: "Creating v3 agent instance",
       level: 1,
       auxiliary: {
-        cua: { value: options?.cua ? "true" : "false", type: "boolean" },
-        model: options?.model
-          ? typeof options?.model === "string"
-            ? { value: options.model, type: "string" }
-            : { value: options.model.modelName, type: "string" }
-          : { value: this.llmClient.modelName, type: "string" },
+        cua: { value: isCuaMode ? "true" : "false", type: "boolean" },
+        mode: { value: options?.mode ?? "dom", type: "string" },
+        model: {
+          value: extractModelName(options?.model) ?? this.llmClient.modelName,
+          type: "string",
+        },
         systemPrompt: { value: options?.systemPrompt ?? "", type: "string" },
         tools: { value: JSON.stringify(options?.tools ?? {}), type: "object" },
         ...(options?.integrations && {
@@ -1620,19 +1802,13 @@ export class V3 {
       },
     });
 
-    // If CUA is enabled, use the computer-use agent path
-    if (options?.cua) {
-      if (options?.stream) {
-        throw new StagehandInvalidArgumentError(
-          "Streaming is not supported with CUA (Computer Use Agent) mode. Remove either 'stream: true' or 'cua: true' from your agent config.",
-        );
-      }
-
-      if ((options?.integrations || options?.tools) && !this.experimental) {
-        throw new ExperimentalNotConfiguredError(
-          "MCP integrations and custom tools",
-        );
-      }
+    // If CUA mode is enabled (via mode: "cua" or deprecated cua: true), use the computer-use agent path
+    if (isCuaMode) {
+      // Validate agent config at creation time (includes CUA+streaming conflict check)
+      validateExperimentalFeatures({
+        isExperimental: this.experimental,
+        agentConfig: options,
+      });
 
       const modelToUse = options?.model || {
         modelName: this.modelName,
@@ -1650,9 +1826,19 @@ export class V3 {
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
           withInstanceLogContext(this.instanceId, async () => {
-            if (options?.integrations && !this.experimental) {
-              throw new ExperimentalNotConfiguredError("MCP integrations");
-            }
+            validateExperimentalFeatures({
+              isExperimental: this.experimental,
+              agentConfig: options,
+              executeOptions:
+                typeof instructionOrOptions === "object"
+                  ? instructionOrOptions
+                  : null,
+            });
+
+            SessionFileLogger.logAgentTaskStarted({
+              invocation: "Agent.execute",
+              args: [instructionOrOptions],
+            });
             const tools = options?.integrations
               ? await resolveTools(options.integrations, options.tools)
               : (options?.tools ?? {});
@@ -1684,6 +1870,8 @@ export class V3 {
             const sanitizedOptions =
               this.agentCache.sanitizeExecuteOptions(resolvedOptions);
 
+            const cacheVariables = flattenVariables(resolvedOptions.variables);
+
             let cacheContext: AgentCacheContext | null = null;
             if (this.agentCache.shouldAttemptCache(instruction)) {
               const startPage = await this.ctx!.awaitActivePage();
@@ -1692,18 +1880,21 @@ export class V3 {
                 options: sanitizedOptions,
                 configSignature: agentConfigSignature,
                 page: startPage,
+                variables: cacheVariables,
               });
               if (cacheContext) {
                 const replayed = await this.agentCache.tryReplay(cacheContext);
                 if (replayed) {
+                  SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
                   return replayed;
                 }
               }
             }
 
             let agentSteps: AgentReplayStep[] = [];
-            const recording = !!cacheContext;
-            if (recording) {
+            const shouldRecordLocally =
+              !!cacheContext && (!this.apiClient || this.experimental);
+            if (shouldRecordLocally) {
               this.beginAgentReplayRecording();
             }
 
@@ -1715,26 +1906,38 @@ export class V3 {
                   options,
                   resolvedOptions,
                   page.mainFrameId(),
+                  !!cacheContext,
                 );
+                if (cacheContext) {
+                  const transferredEntry =
+                    this.apiClient.consumeLatestAgentCacheEntry();
+                  await this.agentCache.storeTransferredEntry(transferredEntry);
+                }
               } else {
                 result = await handler.execute(instructionOrOptions);
               }
-              if (recording) {
+              if (shouldRecordLocally) {
                 agentSteps = this.endAgentReplayRecording();
               }
 
-              if (cacheContext && result.success && agentSteps.length > 0) {
+              if (
+                shouldRecordLocally &&
+                cacheContext &&
+                result.success &&
+                agentSteps.length > 0
+              ) {
                 await this.agentCache.store(cacheContext, agentSteps, result);
               }
 
               return result;
             } catch (err) {
-              if (recording) this.discardAgentReplayRecording();
+              if (shouldRecordLocally) this.discardAgentReplayRecording();
               throw err;
             } finally {
-              if (recording) {
+              if (shouldRecordLocally) {
                 this.discardAgentReplayRecording();
               }
+              SessionFileLogger.logAgentTaskCompleted();
             }
           }),
       };
@@ -1752,53 +1955,64 @@ export class V3 {
           | AgentStreamExecuteOptions,
       ): Promise<AgentResult | AgentStreamResult> =>
         withInstanceLogContext(this.instanceId, async () => {
-          if (
-            typeof instructionOrOptions === "object" &&
-            instructionOrOptions.callbacks &&
-            !this.experimental
-          ) {
-            throw new ExperimentalNotConfiguredError("Agent callbacks");
-          }
+          validateExperimentalFeatures({
+            isExperimental: this.experimental,
+            agentConfig: options,
+            executeOptions:
+              typeof instructionOrOptions === "object"
+                ? instructionOrOptions
+                : null,
+            isStreaming,
+          });
+          SessionFileLogger.logAgentTaskStarted({
+            invocation: "Agent.execute",
+            args: [instructionOrOptions],
+          });
 
           // Streaming mode
           if (isStreaming) {
-            if (!this.experimental) {
-              throw new ExperimentalNotConfiguredError("Agent streaming");
-            }
-
-            const { handler, cacheContext } = await this.prepareAgentExecution(
-              options,
-              instructionOrOptions,
-              agentConfigSignature,
-            );
+            const { handler, resolvedOptions, cacheContext, llmClient } =
+              await this.prepareAgentExecution(
+                options,
+                instructionOrOptions,
+                agentConfigSignature,
+              );
 
             if (cacheContext) {
-              const replayed =
-                await this.agentCache.tryReplayAsStream(cacheContext);
+              const replayed = await this.agentCache.tryReplayAsStream(
+                cacheContext,
+                llmClient,
+              );
               if (replayed) {
+                SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
                 return replayed;
               }
             }
 
             const streamResult = await handler.stream(
-              instructionOrOptions as string | AgentStreamExecuteOptions,
+              resolvedOptions as AgentStreamExecuteOptions,
             );
 
             if (cacheContext) {
-              return this.agentCache.wrapStreamForCaching(
+              const wrappedStream = this.agentCache.wrapStreamForCaching(
                 cacheContext,
                 streamResult,
                 () => this.beginAgentReplayRecording(),
                 () => this.endAgentReplayRecording(),
                 () => this.discardAgentReplayRecording(),
               );
+              // Log completion when stream is returned (stream completes asynchronously)
+              SessionFileLogger.logAgentTaskCompleted();
+              return wrappedStream;
             }
 
+            // Log completion when stream is returned (stream completes asynchronously)
+            SessionFileLogger.logAgentTaskCompleted();
             return streamResult;
           }
 
           // Non-streaming mode (default)
-          const { handler, resolvedOptions, cacheContext } =
+          const { handler, resolvedOptions, cacheContext, llmClient } =
             await this.prepareAgentExecution(
               options,
               instructionOrOptions,
@@ -1806,15 +2020,20 @@ export class V3 {
             );
 
           if (cacheContext) {
-            const replayed = await this.agentCache.tryReplay(cacheContext);
+            const replayed = await this.agentCache.tryReplay(
+              cacheContext,
+              llmClient,
+            );
             if (replayed) {
+              SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
               return replayed;
             }
           }
 
           let agentSteps: AgentReplayStep[] = [];
-          const recording = !!cacheContext;
-          if (recording) {
+          const shouldRecordLocally =
+            !!cacheContext && (!this.apiClient || this.experimental);
+          if (shouldRecordLocally) {
             this.beginAgentReplayRecording();
           }
           let result: AgentResult;
@@ -1826,28 +2045,40 @@ export class V3 {
                 options ?? {},
                 resolvedOptions as AgentExecuteOptions,
                 page.mainFrameId(),
+                !!cacheContext,
               );
+              if (cacheContext) {
+                const transferredEntry =
+                  this.apiClient.consumeLatestAgentCacheEntry();
+                await this.agentCache.storeTransferredEntry(transferredEntry);
+              }
             } else {
               result = await handler.execute(
-                instructionOrOptions as string | AgentExecuteOptions,
+                resolvedOptions as AgentExecuteOptions,
               );
             }
-            if (recording) {
+            if (shouldRecordLocally) {
               agentSteps = this.endAgentReplayRecording();
             }
 
-            if (cacheContext && result.success && agentSteps.length > 0) {
+            if (
+              shouldRecordLocally &&
+              cacheContext &&
+              result.success &&
+              agentSteps.length > 0
+            ) {
               await this.agentCache.store(cacheContext, agentSteps, result);
             }
 
             return result;
           } catch (err) {
-            if (recording) this.discardAgentReplayRecording();
+            if (shouldRecordLocally) this.discardAgentReplayRecording();
             throw err;
           } finally {
-            if (recording) {
+            if (shouldRecordLocally) {
               this.discardAgentReplayRecording();
             }
+            SessionFileLogger.logAgentTaskCompleted();
           }
         }),
     };

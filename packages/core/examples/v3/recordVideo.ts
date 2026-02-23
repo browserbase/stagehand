@@ -1,6 +1,6 @@
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
-import { Stagehand } from "../../lib/v3";
+import { Stagehand } from "../../lib/v3/index.js";
 import { chromium } from "playwright-core";
 import { z } from "zod";
 

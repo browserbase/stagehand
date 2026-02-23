@@ -6,7 +6,7 @@
  * NOTE: YOU MUST CONFIGURE BROWSER DIMENSIONS TO USE COMPUTER USE!
  * Check out stagehand.config.ts for more information.
  */
-import { Stagehand } from "../lib/v3";
+import { Stagehand } from "../lib/v3/index.js";
 import chalk from "chalk";
 
 async function main() {
@@ -33,7 +33,7 @@ async function main() {
 
     // Create a computer use agent
     const agent = stagehand.agent({
-      cua: true,
+      mode: "cua",
       model: {
         modelName: "microsoft/fara-7b",
         apiKey: process.env.AZURE_API_KEY,

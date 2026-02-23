@@ -1,34 +1,46 @@
 import { Protocol } from "devtools-protocol";
 import { promises as fs } from "fs";
-import { v3Logger } from "../logger";
-import type { CDPSessionLike } from "./cdp";
-import { CdpConnection } from "./cdp";
-import { Frame } from "./frame";
-import { FrameLocator } from "./frameLocator";
-import { deepLocatorFromPage } from "./deepLocator";
-import { resolveXpathForLocation } from "./a11y/snapshot";
-import { FrameRegistry } from "./frameRegistry";
-import { executionContexts } from "./executionContextRegistry";
-import { LoadState } from "../types/public/page";
-import { NetworkManager } from "./networkManager";
-import { LifecycleWatcher } from "./lifecycleWatcher";
-import { NavigationResponseTracker } from "./navigationResponseTracker";
-import { Response, isSerializableResponse } from "./response";
-import { ConsoleMessage, ConsoleListener } from "./consoleMessage";
-import type { StagehandAPIClient } from "../api";
-import type { LocalBrowserLaunchOptions } from "../types/public";
-import type { Locator } from "./locator";
+import { v3Logger } from "../logger.js";
+import { logAction } from "../flowLogger.js";
+import type { CDPSessionLike } from "./cdp.js";
+import { CdpConnection } from "./cdp.js";
+import { Frame } from "./frame.js";
+import { FrameLocator } from "./frameLocator.js";
+import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator.js";
+import {
+  captureHybridSnapshot,
+  resolveXpathForLocation,
+} from "./a11y/snapshot/index.js";
+import { FrameRegistry } from "./frameRegistry.js";
+import { executionContexts } from "./executionContextRegistry.js";
+import {
+  LoadState,
+  SnapshotResult,
+  PageSnapshotOptions,
+} from "../types/public/page.js";
+import { NetworkManager } from "./networkManager.js";
+import { LifecycleWatcher } from "./lifecycleWatcher.js";
+import { NavigationResponseTracker } from "./navigationResponseTracker.js";
+import { Response, isSerializableResponse } from "./response.js";
+import { ConsoleMessage, ConsoleListener } from "./consoleMessage.js";
+import type { StagehandAPIClient } from "../api.js";
+import {
+  LocalBrowserLaunchOptions,
+  StagehandSnapshotError,
+} from "../types/public/index.js";
+import type { Locator } from "./locator.js";
 import {
   StagehandInvalidArgumentError,
   StagehandEvalError,
-} from "../types/public/sdkErrors";
-import { normalizeInitScriptSource } from "./initScripts";
+} from "../types/public/sdkErrors.js";
+import { normalizeInitScriptSource } from "./initScripts.js";
+import { buildLocatorInvocation } from "./locatorInvocation.js";
 import type {
   ScreenshotAnimationsOption,
   ScreenshotCaretOption,
   ScreenshotOptions,
   ScreenshotScaleOption,
-} from "../types/public/screenshotTypes";
+} from "../types/public/screenshotTypes.js";
 import {
   applyMaskOverlays,
   applyStyleToFrames,
@@ -41,8 +53,9 @@ import {
   setTransparentBackground,
   withScreenshotTimeout,
   type ScreenshotCleanup,
-} from "./screenshotUtils";
-import { InitScriptSource } from "../types/private";
+} from "./screenshotUtils.js";
+import { InitScriptSource } from "../types/private/index.js";
+
 /**
  * Page
  *
@@ -161,6 +174,12 @@ export class Page {
       installs.push(this.installInitScriptOnSession(session, source));
     }
     await Promise.all(installs);
+  }
+
+  // Seed an init script without re-installing it on the current sessions.
+  public seedInitScript(source: string): void {
+    if (this.initScripts.includes(source)) return;
+    this.initScripts.push(source);
   }
 
   // --- Optional visual cursor overlay management ---
@@ -594,10 +613,7 @@ export class Page {
    *   { expression: "1 + 1" }
    * );
    */
-  public async sendCDP<T = unknown>(
-    method: string,
-    params?: object,
-  ): Promise<T> {
+  public sendCDP<T = unknown>(method: string, params?: object): Promise<T> {
     return this.mainSession.send<T>(method, params);
   }
 
@@ -624,6 +640,7 @@ export class Page {
   /**
    * Close this top-level page (tab). Best-effort via Target.closeTarget.
    */
+  @logAction("Page.close")
   public async close(): Promise<void> {
     try {
       await this.conn.send("Target.closeTarget", { targetId: this._targetId });
@@ -758,6 +775,7 @@ export class Page {
    * Navigate the page; optionally wait for a lifecycle state.
    * Waits on the **current** main frame and follows root swaps during navigation.
    */
+  @logAction("Page.goto")
   async goto(
     url: string,
     options?: { waitUntil?: LoadState; timeoutMs?: number },
@@ -820,6 +838,7 @@ export class Page {
   /**
    * Reload the page; optionally wait for a lifecycle state.
    */
+  @logAction("Page.reload")
   async reload(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
@@ -866,6 +885,7 @@ export class Page {
   /**
    * Navigate back in history if possible; optionally wait for a lifecycle state.
    */
+  @logAction("Page.goBack")
   async goBack(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
@@ -918,6 +938,7 @@ export class Page {
   /**
    * Navigate forward in history if possible; optionally wait for a lifecycle state.
    */
+  @logAction("Page.goForward")
   async goForward(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
@@ -1047,6 +1068,7 @@ export class Page {
    * timeout error is thrown.
    * @param options.type Image format (`"png"` by default).
    */
+  @logAction("Page.screenshot")
   async screenshot(options?: ScreenshotOptions): Promise<Buffer> {
     const opts = options ?? {};
     const type = opts.type ?? "png";
@@ -1169,8 +1191,60 @@ export class Page {
    * Wait until the page reaches a lifecycle state on the current main frame.
    * Mirrors Playwright's API signatures.
    */
+  @logAction("Page.waitForLoadState")
   async waitForLoadState(state: LoadState, timeoutMs?: number): Promise<void> {
     await this.waitForMainLoadState(state, timeoutMs ?? 15000);
+  }
+
+  /**
+   * Wait for a specified amount of time.
+   *
+   * @param ms The number of milliseconds to wait.
+   */
+  async waitForTimeout(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Wait for an element matching the selector to appear in the DOM.
+   * Uses MutationObserver for efficiency
+   * Pierces shadow DOM by default.
+   * Supports iframe hop notation with '>>' (e.g., 'iframe#checkout >> .submit-btn').
+   *
+   * @param selector CSS selector to wait for (supports '>>' for iframe hops)
+   * @param options
+   * @param options.state Element state to wait for: 'attached' | 'detached' | 'visible' | 'hidden' (default: 'visible')
+   * @param options.timeout Maximum time to wait in milliseconds (default: 30000)
+   * @param options.pierceShadow Whether to search inside shadow DOM (default: true)
+   * @returns True when the condition is met
+   * @throws Error if timeout is reached before the condition is met
+   */
+  @logAction("Page.waitForSelector")
+  async waitForSelector(
+    selector: string,
+    options?: {
+      state?: "attached" | "detached" | "visible" | "hidden";
+      timeout?: number;
+      pierceShadow?: boolean;
+    },
+  ): Promise<boolean> {
+    const timeout = options?.timeout ?? 30000;
+    const state = options?.state ?? "visible";
+    const pierceShadow = options?.pierceShadow ?? true;
+    const startTime = Date.now();
+    const root = this.mainFrameWrapper;
+    const { frame: targetFrame, selector: finalSelector } =
+      await resolveLocatorTarget(this, root, selector);
+    const elapsed = Date.now() - startTime;
+    const remainingTimeout = Math.max(0, timeout - elapsed);
+
+    const expression = buildLocatorInvocation("waitForSelector", [
+      JSON.stringify(finalSelector),
+      JSON.stringify(state),
+      String(remainingTimeout),
+      String(pierceShadow),
+    ]);
+    return targetFrame.evaluate(expression);
   }
 
   /**
@@ -1180,6 +1254,7 @@ export class Page {
    * - The return value should be JSON-serializable. Non-serializable objects will
    *   best-effort serialize via JSON.stringify inside the page context.
    */
+  @logAction("Page.evaluate")
   async evaluate<R = unknown, Arg = unknown>(
     pageFunctionOrExpression: string | ((arg: Arg) => R | Promise<R>),
     arg?: Arg,
@@ -1194,19 +1269,17 @@ export class Page {
       expression = String(pageFunctionOrExpression);
     } else {
       const fnSrc = pageFunctionOrExpression.toString();
-      // Build an IIFE that calls the user's function with the argument and
-      // attempts to deep-serialize the result for returnByValue.
       const argJson = JSON.stringify(arg);
       expression = `(() => {
-        const __fn = ${fnSrc};
-        const __arg = ${argJson};
-        try {
-          const __res = __fn(__arg);
-          return Promise.resolve(__res).then(v => {
-            try { return JSON.parse(JSON.stringify(v)); } catch { return v; }
-          });
-        } catch (e) { throw e; }
-      })()`;
+          const __fn = ${fnSrc};
+          const __arg = ${argJson};
+          try {
+            const __res = __fn(__arg);
+            return Promise.resolve(__res).then(v => {
+              try { return JSON.parse(JSON.stringify(v)); } catch { return v; }
+            });
+          } catch (e) { throw e; }
+        })()`;
     }
 
     const { result, exceptionDetails } =
@@ -1235,6 +1308,7 @@ export class Page {
    * Force the page viewport to an exact CSS size and device scale factor.
    * Ensures screenshots match width x height pixels when deviceScaleFactor = 1.
    */
+  // @logAction("Page.setViewportSize")  // disabled because it's pretty noisy, can always re-enable if needed for debugging
   async setViewportSize(
     width: number,
     height: number,
@@ -1267,33 +1341,7 @@ export class Page {
    * on the top-level page target's session. Coordinates are relative to the
    * viewport origin (top-left). Does not scroll.
    */
-  async click(
-    x: number,
-    y: number,
-    options: {
-      button?: "left" | "right" | "middle";
-      clickCount?: number;
-      returnXpath: true;
-    },
-  ): Promise<string>;
-  async click(
-    x: number,
-    y: number,
-    options?: {
-      button?: "left" | "right" | "middle";
-      clickCount?: number;
-      returnXpath?: false;
-    },
-  ): Promise<void>;
-  async click(
-    x: number,
-    y: number,
-    options: {
-      button?: "left" | "right" | "middle";
-      clickCount?: number;
-      returnXpath: boolean;
-    },
-  ): Promise<void | string>;
+  @logAction("Page.click")
   async click(
     x: number,
     y: number,
@@ -1302,7 +1350,7 @@ export class Page {
       clickCount?: number;
       returnXpath?: boolean;
     },
-  ): Promise<void | string> {
+  ): Promise<string> {
     const button = options?.button ?? "left";
     const clickCount = options?.clickCount ?? 1;
 
@@ -1341,7 +1389,90 @@ export class Page {
       }
     }
 
-    // Synthesize a simple mouse move + press + release sequence
+    // Synthesize a simple mouse move + press + release sequence.
+    await this.updateCursor(x, y);
+    // Dispatch click events in a pipelined burst to reduce inter-click delay
+    // from network/CPU jitter between round trips.
+    const dispatches: Array<Promise<unknown>> = [];
+    dispatches.push(
+      this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x,
+        y,
+        button: "none",
+      } as Protocol.Input.DispatchMouseEventRequest),
+    );
+
+    for (let i = 1; i <= clickCount; i++) {
+      dispatches.push(
+        this.mainSession.send<never>("Input.dispatchMouseEvent", {
+          type: "mousePressed",
+          x,
+          y,
+          button,
+          clickCount: i,
+        } as Protocol.Input.DispatchMouseEventRequest),
+      );
+      dispatches.push(
+        this.mainSession.send<never>("Input.dispatchMouseEvent", {
+          type: "mouseReleased",
+          x,
+          y,
+          button,
+          clickCount: i,
+        } as Protocol.Input.DispatchMouseEventRequest),
+      );
+    }
+    await Promise.all(dispatches);
+
+    return xpathResult ?? "";
+  }
+
+  /**
+   * Hover at absolute page coordinates (CSS pixels).
+   * Dispatches mouseMoved via CDP Input domain on the top-level page target's
+   * session.
+   */
+  @logAction("Page.hover")
+  async hover(
+    x: number,
+    y: number,
+    options?: { returnXpath?: boolean },
+  ): Promise<string> {
+    let xpathResult: string | undefined;
+    if (options?.returnXpath) {
+      try {
+        const hit = await resolveXpathForLocation(this, x, y);
+        if (hit) {
+          v3Logger({
+            category: "page",
+            message: "hover resolved hit",
+            level: 2,
+            auxiliary: {
+              frameId: { value: String(hit.frameId), type: "string" },
+              backendNodeId: {
+                value: String(hit.backendNodeId),
+                type: "string",
+              },
+              x: { value: String(x), type: "integer" },
+              y: { value: String(y), type: "integer" },
+            },
+          });
+          xpathResult = hit.absoluteXPath;
+        }
+      } catch {
+        v3Logger({
+          category: "page",
+          message: "Failed to resolve xpath for hover",
+          level: 2,
+          auxiliary: {
+            x: { value: String(x), type: "integer" },
+            y: { value: String(y), type: "integer" },
+          },
+        });
+      }
+    }
+
     await this.updateCursor(x, y);
     await this.mainSession.send<never>("Input.dispatchMouseEvent", {
       type: "mouseMoved",
@@ -1350,53 +1481,17 @@ export class Page {
       button: "none",
     } as Protocol.Input.DispatchMouseEventRequest);
 
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mousePressed",
-      x,
-      y,
-      button,
-      clickCount,
-    } as Protocol.Input.DispatchMouseEventRequest);
-
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseReleased",
-      x,
-      y,
-      button,
-      clickCount,
-    } as Protocol.Input.DispatchMouseEventRequest);
-
-    if (options?.returnXpath) return xpathResult ?? "";
+    return xpathResult ?? "";
   }
 
-  async scroll(
-    x: number,
-    y: number,
-    deltaX: number,
-    deltaY: number,
-    options: { returnXpath: true },
-  ): Promise<string>;
-  async scroll(
-    x: number,
-    y: number,
-    deltaX: number,
-    deltaY: number,
-    options?: { returnXpath?: false },
-  ): Promise<void>;
-  async scroll(
-    x: number,
-    y: number,
-    deltaX: number,
-    deltaY: number,
-    options: { returnXpath: boolean },
-  ): Promise<void | string>;
+  @logAction("Page.scroll")
   async scroll(
     x: number,
     y: number,
     deltaX: number,
     deltaY: number,
     options?: { returnXpath?: boolean },
-  ): Promise<void | string> {
+  ): Promise<string> {
     let xpathResult: string | undefined;
     if (options?.returnXpath) {
       try {
@@ -1425,49 +1520,14 @@ export class Page {
       deltaY,
     } as Protocol.Input.DispatchMouseEventRequest);
 
-    if (options?.returnXpath) return xpathResult ?? "";
+    return xpathResult ?? "";
   }
 
   /**
    * Drag from (fromX, fromY) to (toX, toY) using mouse events.
    * Sends mouseMoved → mousePressed → mouseMoved (steps) → mouseReleased.
    */
-  async dragAndDrop(
-    fromX: number,
-    fromY: number,
-    toX: number,
-    toY: number,
-    options: {
-      button?: "left" | "right" | "middle";
-      steps?: number;
-      delay?: number;
-      returnXpath: true;
-    },
-  ): Promise<[string, string]>;
-  async dragAndDrop(
-    fromX: number,
-    fromY: number,
-    toX: number,
-    toY: number,
-    options?: {
-      button?: "left" | "right" | "middle";
-      steps?: number;
-      delay?: number;
-      returnXpath?: false;
-    },
-  ): Promise<void>;
-  async dragAndDrop(
-    fromX: number,
-    fromY: number,
-    toX: number,
-    toY: number,
-    options: {
-      button?: "left" | "right" | "middle";
-      steps?: number;
-      delay?: number;
-      returnXpath: boolean;
-    },
-  ): Promise<void | [string, string]>;
+  @logAction("Page.dragAndDrop")
   async dragAndDrop(
     fromX: number,
     fromY: number,
@@ -1479,7 +1539,7 @@ export class Page {
       delay?: number;
       returnXpath?: boolean;
     },
-  ): Promise<void | [string, string]> {
+  ): Promise<[string, string]> {
     const button = options?.button ?? "left";
     const steps = Math.max(1, Math.floor(options?.steps ?? 1));
     const delay = Math.max(0, options?.delay ?? 0);
@@ -1563,7 +1623,7 @@ export class Page {
       clickCount: 1,
     } as Protocol.Input.DispatchMouseEventRequest);
 
-    if (options?.returnXpath) return [fromXpath ?? "", toXpath ?? ""];
+    return [fromXpath ?? "", toXpath ?? ""];
   }
 
   /**
@@ -1572,6 +1632,7 @@ export class Page {
    * and never falls back to Input.insertText. Optional delay applies between
    * successive characters.
    */
+  @logAction("Page.type")
   async type(
     text: string,
     options?: { delay?: number; withMistakes?: boolean },
@@ -1605,15 +1666,44 @@ export class Page {
         return;
       }
 
-      // Printable character: use text on keyDown to generate input
+      // Printable character: include key, code, and text for maximum compatibility
+      // Some sites (like Wordle) check event.key rather than relying on text input
+      const isLetter = /^[a-zA-Z]$/.test(ch);
+      const isDigit = /^[0-9]$/.test(ch);
+
+      let key = ch;
+      let code = "";
+      let windowsVirtualKeyCode: number | undefined;
+
+      if (isLetter) {
+        // For letters, key is the character, code is KeyX where X is uppercase
+        key = ch;
+        code = `Key${ch.toUpperCase()}`;
+        windowsVirtualKeyCode = ch.toUpperCase().charCodeAt(0);
+      } else if (isDigit) {
+        key = ch;
+        code = `Digit${ch}`;
+        windowsVirtualKeyCode = ch.charCodeAt(0);
+      } else if (ch === " ") {
+        key = " ";
+        code = "Space";
+        windowsVirtualKeyCode = 32;
+      }
+
       const down: Protocol.Input.DispatchKeyEventRequest = {
         type: "keyDown",
+        key,
+        code: code || undefined,
         text: ch,
         unmodifiedText: ch,
+        windowsVirtualKeyCode,
       };
       await this.mainSession.send("Input.dispatchKeyEvent", down);
       await this.mainSession.send("Input.dispatchKeyEvent", {
         type: "keyUp",
+        key,
+        code: code || undefined,
+        windowsVirtualKeyCode,
       } as Protocol.Input.DispatchKeyEventRequest);
     };
 
@@ -1669,6 +1759,7 @@ export class Page {
    * For printable characters, uses the text path on keyDown; for named keys, sets key/code/VK.
    * Supports key combinations with modifiers like "Cmd+A", "Ctrl+C", "Shift+Tab", etc.
    */
+  @logAction("Page.keyPress")
   async keyPress(key: string, options?: { delay?: number }): Promise<void> {
     const delay = Math.max(0, options?.delay ?? 0);
     const sleep = (ms: number) =>
@@ -1717,6 +1808,25 @@ export class Page {
       // Clear stuck modifiers on error to prevent affecting subsequent keyPress calls
       this._pressedModifiers.clear();
       throw error;
+    }
+  }
+
+  @logAction("Page.snapshot")
+  async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
+    try {
+      const { combinedTree, combinedXpathMap, combinedUrlMap } =
+        await captureHybridSnapshot(this, {
+          pierceShadow: true,
+          includeIframes: options?.includeIframes,
+        });
+
+      return {
+        formattedTree: combinedTree,
+        xpathMap: combinedXpathMap,
+        urlMap: combinedUrlMap,
+      };
+    } catch (err) {
+      throw new StagehandSnapshotError(err);
     }
   }
 
@@ -1854,23 +1964,70 @@ export class Page {
     } as Protocol.Input.DispatchKeyEventRequest);
   }
 
-  /** Normalize modifier key names to match CDP expectations */
+  /** Normalize key names to match CDP expectations */
   private normalizeModifierKey(key: string): string {
-    const normalized = key.toLowerCase();
-    switch (normalized) {
+    const lower = key.toLowerCase();
+    switch (lower) {
+      // Modifier keys
       case "cmd":
       case "command":
+      case "controlormeta":
         // On Mac, Cmd is Meta; elsewhere map to Control for common shortcuts
         return this.isMacOS() ? "Meta" : "Control";
       case "win":
       case "windows":
         return "Meta";
       case "ctrl":
+      case "control":
         return "Control";
       case "option":
+      case "alt":
         return "Alt";
       case "shift":
         return "Shift";
+      case "meta":
+        return "Meta";
+      // Action keys
+      case "enter":
+      case "return":
+        return "Enter";
+      case "esc":
+      case "escape":
+        return "Escape";
+      case "backspace":
+        return "Backspace";
+      case "tab":
+        return "Tab";
+      case "space":
+      case "spacebar":
+        return " ";
+      case "delete":
+      case "del":
+        return "Delete";
+      // Arrow keys
+      case "left":
+      case "arrowleft":
+        return "ArrowLeft";
+      case "right":
+      case "arrowright":
+        return "ArrowRight";
+      case "up":
+      case "arrowup":
+        return "ArrowUp";
+      case "down":
+      case "arrowdown":
+        return "ArrowDown";
+      // Navigation keys
+      case "home":
+        return "Home";
+      case "end":
+        return "End";
+      case "pageup":
+      case "pgup":
+        return "PageUp";
+      case "pagedown":
+      case "pgdn":
+        return "PageDown";
       default:
         return key;
     }
@@ -2005,6 +2162,30 @@ export class Page {
     );
   }
 
+  private async isMainLoadStateReady(
+    state: "domcontentloaded" | "load",
+  ): Promise<boolean> {
+    try {
+      const ctxId = await this.mainWorldExecutionContextId();
+      const { result } =
+        await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
+          "Runtime.evaluate",
+          {
+            expression: "document.readyState",
+            contextId: ctxId,
+            returnByValue: true,
+          },
+        );
+      const readyState = String(result?.value ?? "");
+      if (state === "domcontentloaded") {
+        return readyState === "interactive" || readyState === "complete";
+      }
+      return readyState === "complete";
+    } catch {
+      return false;
+    }
+  }
+
   /**
    * Wait until the **current** main frame reaches a lifecycle state.
    * - Fast path via `document.readyState`.
@@ -2020,38 +2201,30 @@ export class Page {
       .catch(() => {});
 
     // Fast path: check the *current* main frame's readyState.
-    try {
-      const ctxId = await this.mainWorldExecutionContextId();
-      const { result } =
-        await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
-          "Runtime.evaluate",
-          {
-            expression: "document.readyState",
-            contextId: ctxId,
-            returnByValue: true,
-          },
-        );
-      const rs = String(result?.value ?? "");
-      if (
-        (state === "domcontentloaded" &&
-          (rs === "interactive" || rs === "complete")) ||
-        (state === "load" && rs === "complete")
-      ) {
-        return;
-      }
-    } catch {
-      // ignore fast-path failures
+    if (
+      (state === "domcontentloaded" || state === "load") &&
+      (await this.isMainLoadStateReady(state))
+    ) {
+      return;
     }
 
     const wanted = LIFECYCLE_NAME[state];
     return new Promise<void>((resolve, reject) => {
       let done = false;
       let timer: ReturnType<typeof setTimeout> | null = null;
+      let pollTimer: ReturnType<typeof setTimeout> | null = null;
+      let pollInFlight = false;
 
       const off = () => {
         this.mainSession.off("Page.lifecycleEvent", onLifecycle);
         this.mainSession.off("Page.domContentEventFired", onDomContent);
         this.mainSession.off("Page.loadEventFired", onLoad);
+      };
+      const clearPollTimer = () => {
+        if (pollTimer) {
+          clearTimeout(pollTimer);
+          pollTimer = null;
+        }
       };
 
       const finish = () => {
@@ -2061,6 +2234,7 @@ export class Page {
           clearTimeout(timer);
           timer = null;
         }
+        clearPollTimer();
         off();
         resolve();
       };
@@ -2084,9 +2258,36 @@ export class Page {
       this.mainSession.on("Page.domContentEventFired", onDomContent);
       this.mainSession.on("Page.loadEventFired", onLoad);
 
+      // Fallback polling closes lifecycle-event races in remote environments
+      // where readyState has advanced but the corresponding event was missed.
+      const pollReadyState = async () => {
+        if (done || pollInFlight) return;
+        pollInFlight = true;
+        try {
+          if (done) return;
+          if (
+            (state === "domcontentloaded" || state === "load") &&
+            (await this.isMainLoadStateReady(state))
+          ) {
+            finish();
+            return;
+          }
+        } finally {
+          pollInFlight = false;
+        }
+        if (!done) {
+          clearPollTimer();
+          pollTimer = setTimeout(() => {
+            void pollReadyState();
+          }, 100);
+        }
+      };
+      void pollReadyState();
+
       timer = setTimeout(() => {
         if (done) return;
         done = true;
+        clearPollTimer();
         off();
         reject(
           new Error(

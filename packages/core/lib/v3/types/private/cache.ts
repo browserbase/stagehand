@@ -6,11 +6,11 @@ import type {
   AgentResult,
   Action,
   LoadState,
-} from "../public";
-import { CacheStorage } from "../../cache/CacheStorage";
-import type { ActHandler } from "../../handlers/actHandler";
-import type { V3Context } from "../../understudy/context";
-import type { LLMClient } from "../../llm/LLMClient";
+} from "../public/index.js";
+import { CacheStorage } from "../../cache/CacheStorage.js";
+import type { ActHandler } from "../../handlers/actHandler.js";
+import type { V3Context } from "../../understudy/context.js";
+import type { LLMClient } from "../../llm/LLMClient.js";
 
 export type ActFn = (
   instruction: string,
@@ -23,6 +23,14 @@ export type AgentCacheContext = {
   options: SanitizedAgentExecuteOptions;
   configSignature: string;
   cacheKey: string;
+  variableKeys: string[] /** Variable keys used in this execution (for cache key) */;
+  /** Variable values to substitute during replay */
+  variables?: Record<string, string>;
+};
+
+export type AgentCacheTransferPayload = {
+  cacheKey: string;
+  entry: CachedAgentEntry;
 };
 
 export type AgentCacheDeps = {
@@ -35,13 +43,15 @@ export type AgentCacheDeps = {
   getSystemPrompt: () => string | undefined;
   domSettleTimeoutMs?: number;
   act: ActFn;
+  bufferLatestEntry?: boolean;
 };
 
 export type ActCacheContext = {
   instruction: string;
   cacheKey: string;
   pageUrl: string;
-  variables: Record<string, string>;
+  variableKeys: string[];
+  variables?: Record<string, string>;
 };
 
 export type ActCacheDeps = {
@@ -67,7 +77,7 @@ export interface CachedActEntry {
   version: 1;
   instruction: string;
   url: string;
-  variables: Record<string, string>;
+  variableKeys: string[];
   actions: Action[];
   actionDescription?: string;
   message?: string;
@@ -80,6 +90,7 @@ export type AgentReplayStep =
   | AgentReplayScrollStep
   | AgentReplayWaitStep
   | AgentReplayNavBackStep
+  | AgentReplayKeysStep
   | { type: string; [key: string]: unknown };
 
 export interface AgentReplayActStep {
@@ -119,6 +130,17 @@ export interface AgentReplayWaitStep {
 export interface AgentReplayNavBackStep {
   type: "navback";
   waitUntil?: LoadState;
+}
+
+export interface AgentReplayKeysStep {
+  type: "keys";
+  instruction?: string;
+  playwrightArguments: {
+    method: "type" | "press";
+    text?: string;
+    keys?: string;
+    times?: number;
+  };
 }
 
 export interface SanitizedAgentExecuteOptions {

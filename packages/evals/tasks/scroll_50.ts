@@ -1,4 +1,4 @@
-import { EvalFunction } from "../types/evals";
+import { EvalFunction } from "../types/evals.js";
 
 export const scroll_50: EvalFunction = async ({
   debugUrl,

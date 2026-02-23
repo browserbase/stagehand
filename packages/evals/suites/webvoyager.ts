@@ -1,12 +1,14 @@
 import path from "path";
-import type { Testcase, EvalInput } from "../types/evals";
+import { fileURLToPath } from "node:url";
+import type { Testcase, EvalInput } from "../types/evals.js";
 import type { AvailableModel } from "@browserbasehq/stagehand";
-import { tasksConfig } from "../taskConfig";
-import { readJsonlFile, parseJsonlRows, applySampling } from "../utils";
+import { tasksConfig } from "../taskConfig.js";
+import { readJsonlFile, parseJsonlRows, applySampling } from "../utils.js";
 
 export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
+  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
   const voyagerFilePath = path.join(
-    __dirname,
+    moduleDir,
     "..",
     "datasets",
     "webvoyager",
@@ -59,20 +61,23 @@ export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
           web_name: row.web_name,
         },
       };
+      const taskCategories =
+        tasksConfig.find((t) => t.name === input.name)?.categories || [];
       allTestcases.push({
         input,
         name: input.name,
         tags: [
           model,
-          input.name,
-          ...(
-            tasksConfig.find((t) => t.name === input.name)?.categories || []
-          ).map((x) => `category/${x}`),
-          `webvoyager/id/${row.id}`,
+          "webvoyager", // Simple dataset tag
         ],
         metadata: {
           model: model as AvailableModel,
           test: `${input.name}:${row.id}`,
+          category: taskCategories[0] || "agent",
+          categories: taskCategories,
+          dataset: "webvoyager",
+          task_id: row.id,
+          website: row.web_name || row.web,
         },
         expected: true,
       });

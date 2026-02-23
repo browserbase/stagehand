@@ -8,17 +8,25 @@ import {
   AnthropicToolResult,
   AgentExecutionOptions,
   ToolUseItem,
-} from "../types/public/agent";
-import { LogLine } from "../types/public/logs";
-import { ClientOptions } from "../types/public/model";
-import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
+} from "../types/public/agent.js";
+import { LogLine } from "../types/public/logs.js";
+import { ClientOptions } from "../types/public/model.js";
+import {
+  AgentScreenshotProviderError,
+  StagehandClosedError,
+} from "../types/public/sdkErrors.js";
 import Anthropic from "@anthropic-ai/sdk";
 import { ToolSet } from "ai";
-import { AgentClient } from "./AgentClient";
-import { mapKeyToPlaywright } from "./utils/cuaKeyMapping";
-import { compressConversationImages } from "./utils/imageCompression";
-import { toJsonSchema } from "../zodCompat";
-import type { StagehandZodSchema } from "../zodCompat";
+import { AgentClient } from "./AgentClient.js";
+import { compressConversationImages } from "./utils/imageCompression.js";
+import { toJsonSchema } from "../zodCompat.js";
+import type { StagehandZodSchema } from "../zodCompat.js";
+import {
+  SessionFileLogger,
+  formatCuaPromptPreview,
+  formatCuaResponsePreview,
+} from "../flowLogger.js";
+import { v7 as uuidv7 } from "uuid";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
 
@@ -315,6 +323,9 @@ export class AnthropicCUAClient extends AgentClient {
             });
             await this.actionHandler(action);
           } catch (error) {
+            if (error instanceof StagehandClosedError) {
+              throw error;
+            }
             const errorMessage =
               error instanceof Error ? error.message : String(error);
             logger({
@@ -424,6 +435,23 @@ export class AnthropicCUAClient extends AgentClient {
         ? { type: "enabled" as const, budget_tokens: this.thinkingBudget }
         : undefined;
 
+      // Claude 4.6+ models require the newer computer_20251124 tool version
+      const modelBase = this.modelName.includes("/")
+        ? this.modelName.split("/")[1]
+        : this.modelName;
+      const shouldUseNewToolVersion = [
+        "claude-opus-4-6",
+        "claude-sonnet-4-6",
+        "claude-opus-4-5-20251101",
+      ].includes(modelBase);
+
+      const computerToolType = shouldUseNewToolVersion
+        ? "computer_20251124"
+        : "computer_20250124";
+      const betaFlag = shouldUseNewToolVersion
+        ? "computer-use-2025-11-24"
+        : "computer-use-2025-01-24";
+
       // Create the request parameters
       const requestParams: Record<string, unknown> = {
         model: this.modelName,
@@ -431,14 +459,14 @@ export class AnthropicCUAClient extends AgentClient {
         messages: messages,
         tools: [
           {
-            type: "computer_20250124", // Use the latest version for Claude 3.7 Sonnet
+            type: computerToolType,
             name: "computer",
             display_width_px: this.currentViewport.width,
             display_height_px: this.currentViewport.height,
             display_number: 1,
           },
         ],
-        betas: ["computer-use-2025-01-24"],
+        betas: [betaFlag],
       };
 
       // Add custom tools if available
@@ -481,6 +509,15 @@ export class AnthropicCUAClient extends AgentClient {
         requestParams.thinking = thinking;
       }
 
+      // Log LLM request
+      const llmRequestId = uuidv7();
+      SessionFileLogger.logLlmRequest({
+        requestId: llmRequestId,
+        model: this.modelName,
+        operation: "CUA.getAction",
+        prompt: formatCuaPromptPreview(messages),
+      });
+
       const startTime = Date.now();
       // Create the message using the Anthropic Messages API
       // @ts-expect-error - The Anthropic SDK types are stricter than what we need
@@ -492,6 +529,16 @@ export class AnthropicCUAClient extends AgentClient {
         output_tokens: response.usage.output_tokens,
         inference_time_ms: elapsedMs,
       };
+
+      // Log LLM response
+      SessionFileLogger.logLlmResponse({
+        requestId: llmRequestId,
+        model: this.modelName,
+        operation: "CUA.getAction",
+        output: formatCuaResponsePreview(response.content),
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      });
 
       // Store the message ID for future use
       this.lastMessageId = response.id;
@@ -772,17 +819,21 @@ export class AnthropicCUAClient extends AgentClient {
             text: input.text as string,
             ...input,
           };
-        } else if (action === "keypress") {
+        } else if (action === "keypress" || action === "key") {
           return {
             type: "keypress",
-            keys: input.keys as string[],
+            keys: [input.text as string],
             ...input,
           };
         } else if (action === "double_click" || action === "doubleClick") {
           return {
-            type: action,
-            x: input.x as number,
-            y: input.y as number,
+            type: "doubleClick",
+            x:
+              (input.x as number) ||
+              (input.coordinate ? (input.coordinate as number[])[0] : 0),
+            y:
+              (input.y as number) ||
+              (input.coordinate ? (input.coordinate as number[])[1] : 0),
             ...input,
           };
         } else if (action === "scroll") {
@@ -863,15 +914,6 @@ export class AnthropicCUAClient extends AgentClient {
         } else if (action === "wait") {
           return {
             type: "wait",
-            ...input,
-          };
-        } else if (action === "key") {
-          const text = input.text as string;
-          const mappedKey = mapKeyToPlaywright(text);
-
-          return {
-            type: "key",
-            text: mappedKey,
             ...input,
           };
         } else if (action === "left_click") {

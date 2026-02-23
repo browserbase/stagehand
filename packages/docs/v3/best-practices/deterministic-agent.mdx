@@ -3,6 +3,10 @@ title: Deterministic Agent Scripts
 sidebarTitle: Deterministic Agent
 description: Use auto-caching to convert agent workflows into fast, deterministic scripts
 ---
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
 
 Agent workflows are powerful for exploring and automating complex tasks, but they can be slow and non-deterministic. This guide shows you how to use Stagehand's built-in auto-caching to convert agent-discovered workflows into fast, deterministic scripts that run 10-100x faster.
 
@@ -57,7 +61,7 @@ const page = stagehand.context.pages()[0];
 await page.goto("https://example.com");
 
 const agent = stagehand.agent({
-  cua: true,
+  mode: "cua",
   model: {
     modelName: "google/gemini-2.5-computer-use-preview-10-2025",
     apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
@@ -122,7 +126,7 @@ const page = stagehand.context.pages()[0];
 await page.goto("https://github.com");
 
 const agent = stagehand.agent({
-  cua: true,
+  mode: "cua",
   model: {
     modelName: "google/gemini-2.5-computer-use-preview-10-2025",
     apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
@@ -169,7 +173,7 @@ const page = stagehand.context.pages()[0];
 await page.goto("https://github.com");
 
 const agent = stagehand.agent({
-  cua: true,
+  mode: "cua",
   model: {
     modelName: "google/gemini-2.5-computer-use-preview-10-2025",
     apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
@@ -217,7 +221,7 @@ const page = stagehand.context.pages()[0];
 await page.goto("https://example.com");
 
 const agent = stagehand.agent({
-  cua: true,
+  mode: "cua",
   model: {
     modelName: "google/gemini-2.5-computer-use-preview-10-2025",
     apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY

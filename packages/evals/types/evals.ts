@@ -4,7 +4,7 @@ import type { LogLine } from "@browserbasehq/stagehand";
 import type { AgentInstance } from "@browserbasehq/stagehand";
 import type { EvalCase } from "braintrust";
 import type { V3 } from "@browserbasehq/stagehand";
-import { EvalLogger } from "../logger";
+import { EvalLogger } from "../logger.js";
 
 export type StagehandInitResult = {
   v3?: V3;
@@ -53,12 +53,31 @@ export interface Testcase
   extends EvalCase<
     EvalInput,
     unknown,
-    { model: AvailableModel; test: string; categories?: string[] }
+    {
+      model: AvailableModel;
+      test: string;
+      categories?: string[];
+      category?: string;
+      dataset?: string;
+      task_id?: string;
+      website?: string;
+      difficulty?: string;
+    }
   > {
   input: EvalInput;
   name: string;
   tags: string[];
-  metadata: { model: AvailableModel; test: string; categories?: string[] };
+  metadata: {
+    model: AvailableModel;
+    test: string;
+    categories?: string[];
+    category?: string;
+    dataset?: string;
+    task_id?: string;
+    website?: string;
+    difficulty?: string;
+    task_category?: string;
+  };
   expected: unknown;
 }
 

@@ -1,7 +1,7 @@
 import process from "process";
-import { EvalCategorySchema } from "./types/evals";
+import { EvalCategorySchema } from "./types/evals.js";
 import chalk from "chalk";
-import { dedent } from "./utils";
+import { dedent } from "./utils.js";
 
 const HELP_REGEX = /^(?:--?)?(?:h|help)$/i;
 const MAN_REGEX = /^(?:--?)?man$/i;

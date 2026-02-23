@@ -1,16 +1,16 @@
 import { createHash } from "crypto";
-import type { ActHandler } from "../handlers/actHandler";
-import type { LLMClient } from "../llm/LLMClient";
-import type { Action, ActResult, Logger } from "../types/public";
-import type { Page } from "../understudy/page";
-import { CacheStorage } from "./CacheStorage";
-import { safeGetPageUrl } from "./utils";
+import type { ActHandler } from "../handlers/actHandler.js";
+import type { LLMClient } from "../llm/LLMClient.js";
+import type { Action, ActResult, Logger } from "../types/public/index.js";
+import type { Page } from "../understudy/page.js";
+import { CacheStorage } from "./CacheStorage.js";
+import { safeGetPageUrl, waitForCachedSelector } from "./utils.js";
 import {
   ActCacheContext,
   ActCacheDeps,
   CachedActEntry,
-} from "../types/private";
-import { StagehandNotInitializedError } from "../types/public/sdkErrors";
+} from "../types/private/index.js";
+import { StagehandNotInitializedError } from "../types/public/sdkErrors.js";
 
 export class ActCache {
   private readonly storage: CacheStorage;
@@ -44,17 +44,21 @@ export class ActCache {
   ): Promise<ActCacheContext | null> {
     if (!this.enabled) return null;
     const sanitizedInstruction = instruction.trim();
-    const sanitizedVariables = variables ? { ...variables } : {};
+    const sanitizedVariables = variables ? { ...variables } : undefined;
+    const variableKeys = sanitizedVariables
+      ? Object.keys(sanitizedVariables).sort()
+      : [];
     const pageUrl = await safeGetPageUrl(page);
     const cacheKey = this.buildActCacheKey(
       sanitizedInstruction,
       pageUrl,
-      sanitizedVariables,
+      variableKeys,
     );
     return {
       instruction: sanitizedInstruction,
       cacheKey,
       pageUrl,
+      variableKeys,
       variables: sanitizedVariables,
     };
   }
@@ -63,6 +67,7 @@ export class ActCache {
     context: ActCacheContext,
     page: Page,
     timeout?: number,
+    llmClientOverride?: LLMClient,
   ): Promise<ActResult | null> {
     if (!this.enabled) return null;
 
@@ -88,6 +93,31 @@ export class ActCache {
       return null;
     }
 
+    const entryVariableKeys = Array.isArray(entry.variableKeys)
+      ? [...entry.variableKeys].sort()
+      : [];
+    const contextVariableKeys = [...context.variableKeys];
+
+    if (!this.doVariableKeysMatch(entryVariableKeys, contextVariableKeys)) {
+      return null;
+    }
+
+    if (
+      contextVariableKeys.length > 0 &&
+      (!context.variables ||
+        !this.hasAllVariableValues(contextVariableKeys, context.variables))
+    ) {
+      this.logger({
+        category: "cache",
+        message: "act cache miss: missing variables for replay",
+        level: 2,
+        auxiliary: {
+          instruction: { value: context.instruction, type: "string" },
+        },
+      });
+      return null;
+    }
+
     this.logger({
       category: "cache",
       message: "act cache hit",
@@ -101,7 +131,13 @@ export class ActCache {
       },
     });
 
-    return await this.replayCachedActions(context, entry, page, timeout);
+    return await this.replayCachedActions(
+      context,
+      entry,
+      page,
+      timeout,
+      llmClientOverride,
+    );
   }
 
   async store(context: ActCacheContext, result: ActResult): Promise<void> {
@@ -111,7 +147,7 @@ export class ActCache {
       version: 1,
       instruction: context.instruction,
       url: context.pageUrl,
-      variables: context.variables,
+      variableKeys: context.variableKeys,
       actions: result.actions ?? [],
       actionDescription: result.actionDescription,
       message: result.message,
@@ -147,12 +183,12 @@ export class ActCache {
   private buildActCacheKey(
     instruction: string,
     url: string,
-    variables: Record<string, string>,
+    variableKeys: string[],
   ): string {
     const payload = JSON.stringify({
       instruction,
       url,
-      variables,
+      variableKeys,
     });
     return createHash("sha256").update(payload).digest("hex");
   }
@@ -162,20 +198,31 @@ export class ActCache {
     entry: CachedActEntry,
     page: Page,
     timeout?: number,
+    llmClientOverride?: LLMClient,
   ): Promise<ActResult> {
     const handler = this.getActHandler();
     if (!handler) {
       throw new StagehandNotInitializedError("act()");
     }
+    const effectiveClient = llmClientOverride ?? this.getDefaultLlmClient();
 
     const execute = async (): Promise<ActResult> => {
       const actionResults: ActResult[] = [];
       for (const action of entry.actions) {
+        await waitForCachedSelector({
+          page,
+          selector: action.selector,
+          timeout: this.domSettleTimeoutMs,
+          logger: this.logger,
+          context: "act",
+        });
         const result = await handler.takeDeterministicAction(
           action,
           page,
           this.domSettleTimeoutMs,
-          this.getDefaultLlmClient(),
+          effectiveClient,
+          undefined,
+          context.variables,
         );
         actionResults.push(result);
         if (!result.success) {
@@ -278,7 +325,10 @@ export class ActCache {
   ): Promise<void> {
     const { error, path } = await this.storage.writeJson(
       `${context.cacheKey}.json`,
-      entry,
+      {
+        ...entry,
+        variableKeys: context.variableKeys,
+      },
     );
 
     if (error && path) {
@@ -302,6 +352,35 @@ export class ActCache {
         url: { value: context.pageUrl, type: "string" },
       },
     });
+  }
+
+  private doVariableKeysMatch(
+    entryKeys: string[],
+    contextKeys: string[],
+  ): boolean {
+    if (entryKeys.length !== contextKeys.length) {
+      return false;
+    }
+
+    for (let i = 0; i < entryKeys.length; i += 1) {
+      if (entryKeys[i] !== contextKeys[i]) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private hasAllVariableValues(
+    variableKeys: string[],
+    variables: Record<string, string>,
+  ): boolean {
+    for (const key of variableKeys) {
+      if (!(key in variables)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private async runWithTimeout<T>(

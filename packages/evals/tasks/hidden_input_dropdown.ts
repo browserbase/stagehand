@@ -1,4 +1,4 @@
-import { EvalFunction } from "../types/evals";
+import { EvalFunction } from "../types/evals.js";
 
 export const hidden_input_dropdown: EvalFunction = async ({
   debugUrl,

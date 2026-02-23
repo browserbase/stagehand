@@ -1,11 +1,16 @@
 import { ZodError } from "zod";
-// Avoid .js extension so tsup/esbuild resolves TS source
-import { STAGEHAND_VERSION } from "../../../version";
+// Avoid .js extension so bundlers resolve TS source
+import { STAGEHAND_VERSION } from "../../../version.js";
 
 export class StagehandError extends Error {
-  constructor(message: string) {
+  public readonly cause?: unknown;
+
+  constructor(message: string, cause?: unknown) {
     super(message);
     this.name = this.constructor.name;
+    if (cause !== undefined) {
+      this.cause = cause;
+    }
   }
 }
 
@@ -13,7 +18,7 @@ export class StagehandDefaultError extends StagehandError {
   constructor(error?: unknown) {
     if (error instanceof Error || error instanceof StagehandError) {
       super(
-        `\nHey! We're sorry you ran into an error. \nStagehand version: ${STAGEHAND_VERSION} \nIf you need help, please open a Github issue or reach out to us on Slack: https://stagehand.dev/slack\n\nFull error:\n${error.message}`,
+        `\nHey! We're sorry you ran into an error. \nStagehand version: ${STAGEHAND_VERSION} \nIf you need help, please open a Github issue or reach out to us on Discord: https://stagehand.dev/discord\n\nFull error:\n${error.message}`,
       );
     }
   }
@@ -43,11 +48,15 @@ export class MissingEnvironmentVariableError extends StagehandError {
 
 export class UnsupportedModelError extends StagehandError {
   constructor(supportedModels: string[], feature?: string) {
-    super(
-      feature
-        ? `${feature} requires one of the following models: ${supportedModels}`
-        : `please use one of the supported models: ${supportedModels}`,
-    );
+    const message = feature
+      ? `${feature} requires a valid model.`
+      : `Unsupported model.`;
+
+    const guidance =
+      `\n\nPlease use the provider/model format (e.g., "openai/gpt-4o", "anthropic/claude-sonnet-4-5", "google/gemini-3-flash-preview").` +
+      `\n\nFor a complete list of supported models and providers, see: https://docs.stagehand.dev/v3/configuration/models#configuration-setup`;
+
+    super(`${message}${guidance}`);
   }
 }
 
@@ -120,6 +129,18 @@ export class StagehandInvalidArgumentError extends StagehandError {
   }
 }
 
+export class CookieValidationError extends StagehandError {
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+export class CookieSetError extends StagehandError {
+  constructor(message: string) {
+    super(message);
+  }
+}
+
 export class StagehandElementNotFoundError extends StagehandError {
   constructor(xpaths: string[]) {
     super(`Could not find an element for the given xPath(s): ${xpaths}`);
@@ -153,6 +174,14 @@ export class StagehandEvalError extends StagehandError {
 export class StagehandDomProcessError extends StagehandError {
   constructor(message: string) {
     super(`Error Processing Dom: ${message}`);
+  }
+}
+
+export class StagehandLocatorError extends StagehandError {
+  constructor(action: string, selector: string, message: string) {
+    super(
+      `Error ${action} Element with selector: ${selector} Reason: ${message}`,
+    );
   }
 }
 
@@ -194,18 +223,18 @@ export class ExperimentalApiConflictError extends StagehandError {
   constructor() {
     super(
       "`experimental` mode cannot be used together with the Stagehand API. " +
-        "To use experimental features, set experimental: true, and useApi: false in the stagehand constructor. " +
-        "To use the Stagehand API, set experimental: false and useApi: true in the stagehand constructor. ",
+        "To use experimental features, set experimental: true and disableAPI: true in the stagehand constructor. " +
+        "To use the Stagehand API, set experimental: false and disableAPI: false (or omit it) in the stagehand constructor.",
     );
   }
 }
 
 export class ExperimentalNotConfiguredError extends StagehandError {
   constructor(featureName: string) {
-    super(`Feature "${featureName}" is an experimental feature, and cannot be configured when useAPI: true. 
-    Please set experimental: true and useAPI: false in the stagehand constructor to use this feature. 
-    If you wish to use the Stagehand API, please ensure ${featureName} is not defined in your function call, 
-    and set experimental: false, useAPI: true in the Stagehand constructor. `);
+    super(`Feature "${featureName}" is an experimental feature, and cannot be configured when disableAPI: false.
+    Please set experimental: true and disableAPI: true in the stagehand constructor to use this feature.
+    If you wish to use the Stagehand API, please ensure ${featureName} is not defined in your function call,
+    and set experimental: false, disableAPI: false (or omit it) in the Stagehand constructor.`);
   }
 }
 
@@ -350,5 +379,59 @@ export class StreamingCallbacksInNonStreamingModeError extends StagehandError {
         `Set 'stream: true' in AgentConfig to use these callbacks.`,
     );
     this.invalidCallbacks = invalidCallbacks;
+  }
+}
+
+export class AgentAbortError extends StagehandError {
+  public readonly reason: string;
+
+  constructor(reason?: string) {
+    const message = reason
+      ? `Agent execution was aborted: ${reason}`
+      : "Agent execution was aborted";
+    super(message);
+    this.reason = reason || "aborted";
+  }
+}
+
+export class StagehandClosedError extends StagehandError {
+  constructor() {
+    super("Stagehand session was closed");
+  }
+}
+
+export class CdpConnectionClosedError extends StagehandError {
+  constructor(reason: string) {
+    super(`CDP connection closed: ${reason}`);
+  }
+}
+
+export class StagehandSetExtraHTTPHeadersError extends StagehandError {
+  public readonly failures: string[];
+
+  constructor(failures: string[]) {
+    super(
+      `setExtraHTTPHeaders failed for ${failures.length} session(s): ${failures.join(", ")}`,
+    );
+    this.failures = failures;
+  }
+}
+
+export class StagehandSnapshotError extends StagehandError {
+  constructor(cause?: unknown) {
+    const suffix =
+      cause instanceof Error
+        ? `: ${cause.message}`
+        : cause
+          ? `: ${String(cause)}`
+          : "";
+    super(`error taking snapshot${suffix}`, cause);
+  }
+}
+
+export class UnderstudyCommandException extends StagehandError {
+  constructor(message: string, cause?: unknown) {
+    super(message, cause);
+    this.name = "UnderstudyCommandException";
   }
 }

@@ -1,7 +1,11 @@
 ---
 title: Computer Use Agents
-description: Incorporate Computer Use APIs from Google, Anthropic, and OpenAI with one line of code in Stagehand.
+description: Incorporate Computer Use APIs from Google, Anthropic, OpenAI, and Microsoft with one line of code in Stagehand.
 ---
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
 
 ## What is a Computer Use Agent?
 
@@ -18,11 +22,15 @@ You might've heard of [Gemini Computer Use](https://blog.google/technology/googl
 
 These are powerful tools that can convert natural language into actions on the computer. However, you'd otherwise need to write your own code to convert these actions into Playwright commands.
 
-Stagehand not only handles the execution of Computer Use outputs, but also lets you hot-swap between Google, OpenAI, and Anthropic models with one line of code. You can find more information on the performance of different computer use models by visiting our [evals page](https://www.stagehand.dev/agent-evals).
+Stagehand not only handles the execution of Computer Use outputs, but also lets you hot-swap between Google, OpenAI, Anthropic, and Microsoft models with one line of code. You can find more information on the performance of different computer use models by visiting our [evals page](https://www.stagehand.dev/agent-evals).
 
 ## How to use a Computer Use Agent in Stagehand
 
 Stagehand lets you use Computer Use Agents with one line of code:
+
+<Warning>
+**Deprecation Notice:** The `cua: true` option is deprecated and will be removed in a future version. Use `mode: "cua"` instead.
+</Warning>
 
 <Note>
 **IMPORTANT! Configure your browser dimensions**
@@ -89,7 +97,7 @@ Call `execute` on the agent to assign a task to the agent.
 ```typescript Google
 await page.goto("https://www.google.com/");
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "google/gemini-2.5-computer-use-preview-10-2025",
         apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
@@ -107,7 +115,7 @@ await agent.execute({
 ```typescript OpenAI
 await page.goto("https://www.google.com/");
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "openai/computer-use-preview",
         apiKey: process.env.OPENAI_API_KEY
@@ -124,7 +132,7 @@ await agent.execute({
 ```typescript Anthropic
 await page.goto("https://www.google.com/");
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "anthropic/claude-sonnet-4-20250514",
         apiKey: process.env.ANTHROPIC_API_KEY
@@ -151,13 +159,13 @@ await agent.execute({
 
 ### Select Your Computer Use Model
 
-Stagehand supports computer use models from Google, Anthropic, and OpenAI. You can find all supported models on the [models page](/v3/configuration/models#agent-models-with-cua-support).
+Stagehand supports computer use models from Google, Anthropic, OpenAI, and Microsoft. You can find all supported models on the [models page](/v3/configuration/models#agent-models-with-cua-support).
 
 <Tabs>
 <Tab title="Google">
 ```typescript
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: "google/gemini-2.5-computer-use-preview-10-2025",
     // GOOGLE_GENERATIVE_AI_API_KEY is auto-loaded - set in your .env
 });
@@ -166,7 +174,7 @@ const agent = stagehand.agent({
 <Tab title="Anthropic">
 ```typescript
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: "anthropic/claude-sonnet-4-20250514",
     // ANTHROPIC_API_KEY is auto-loaded - set in your .env
 });
@@ -175,7 +183,7 @@ const agent = stagehand.agent({
 <Tab title="OpenAI">
 ```typescript
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: "openai/computer-use-preview",
     // OPENAI_API_KEY is auto-loaded - set in your .env
 });

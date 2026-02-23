@@ -1,4 +1,4 @@
-import { EvalFunction } from "../types/evals";
+import { EvalFunction } from "../types/evals.js";
 import { Action } from "@browserbasehq/stagehand";
 
 export const observe_iframes2: EvalFunction = async ({

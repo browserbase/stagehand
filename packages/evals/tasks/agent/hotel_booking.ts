@@ -1,19 +1,19 @@
 //this eval is expected to fail.
-import { EvalFunction } from "../../types/evals";
+import { EvalFunction } from "../../types/evals.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 
 export const hotel_booking: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   logger,
-  v3Agent,
+  agent,
   v3,
 }) => {
   try {
     const page = v3.context.pages()[0];
     await page.goto("https://www.booking.com/");
 
-    const agentResult = await v3Agent.execute({
+    const agentResult = await agent.execute({
       instruction:
         "Find a hotel in Sydney with a rating of 8 or higher, providing free Wi-Fi and parking, available for a four-night stay starting on December 10, 2025.",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,

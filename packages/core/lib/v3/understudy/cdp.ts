@@ -1,6 +1,8 @@
 // lib/v3/understudy/cdp.ts
 import WebSocket from "ws";
 import type { Protocol } from "devtools-protocol";
+import { STAGEHAND_VERSION } from "../../version.js";
+import { CdpConnectionClosedError } from "../types/public/sdkErrors.js";
 
 /**
  * CDP transport & session multiplexer
@@ -45,8 +47,24 @@ export class CdpConnection implements CDPSessionLike {
   private inflight = new Map<number, Inflight>();
   private eventHandlers = new Map<string, Set<EventHandler>>();
   private sessions = new Map<string, CdpSession>();
+  /** Maps sessionId -> targetId (1:1 mapping) */
+  private sessionToTarget = new Map<string, string>();
   public readonly id: string | null = null; // root
   private transportCloseHandlers = new Set<(why: string) => void>();
+
+  /** Optional CDP logger - set this to receive all outgoing CDP method calls */
+  public cdpLogger?: (info: {
+    method: string;
+    params?: object;
+    targetId?: string | null;
+  }) => void;
+
+  /** Optional CDP event logger - set this to receive all incoming CDP events */
+  public cdpEventLogger?: (info: {
+    method: string;
+    params?: unknown;
+    targetId?: string | null;
+  }) => void;
 
   public onTransportClosed(handler: (why: string) => void): void {
     this.transportCloseHandlers.add(handler);
@@ -70,18 +88,25 @@ export class CdpConnection implements CDPSessionLike {
     this.ws.on("close", (code, reason) => {
       // Reason is a Buffer in ws; stringify defensively
       const why = `socket-close code=${code} reason=${String(reason || "")}`;
+      this.rejectAllInflight(why);
       this.emitTransportClosed(why);
     });
 
     this.ws.on("error", (err) => {
       const why = `socket-error ${err?.message ?? String(err)}`;
+      this.rejectAllInflight(why);
       this.emitTransportClosed(why);
     });
     this.ws.on("message", (data) => this.onMessage(data.toString()));
   }
 
   static async connect(wsUrl: string): Promise<CdpConnection> {
-    const ws = new WebSocket(wsUrl);
+    // Include User-Agent header for server-side observability and version tracking
+    const ws = new WebSocket(wsUrl, {
+      headers: {
+        "User-Agent": `Stagehand/${STAGEHAND_VERSION}`,
+      },
+    });
     await new Promise<void>((resolve, reject) => {
       ws.once("open", () => resolve());
       ws.once("error", (e) => reject(e));
@@ -93,12 +118,7 @@ export class CdpConnection implements CDPSessionLike {
     await this.send("Target.setAutoAttach", {
       autoAttach: true,
       flatten: true,
-      waitForDebuggerOnStart: false,
-      filter: [
-        { type: "worker", exclude: true },
-        { type: "shared_worker", exclude: true },
-        { type: "service_worker", exclude: true },
-      ],
+      waitForDebuggerOnStart: true,
     });
     await this.send("Target.setDiscoverTargets", { discover: true });
   }
@@ -118,6 +138,9 @@ export class CdpConnection implements CDPSessionLike {
         ts: Date.now(),
       });
     });
+    // Prevent unhandledRejection if a session detaches before the caller awaits.
+    void p.catch(() => {});
+    this.cdpLogger?.({ method, params, targetId: null });
     this.ws.send(JSON.stringify(payload));
     return p;
   }
@@ -134,10 +157,18 @@ export class CdpConnection implements CDPSessionLike {
   }
 
   async close(): Promise<void> {
+    if (this.ws.readyState === WebSocket.CLOSED) return;
     await new Promise<void>((resolve) => {
       this.ws.once("close", () => resolve());
       this.ws.close();
     });
+  }
+
+  private rejectAllInflight(why: string): void {
+    for (const [id, entry] of this.inflight.entries()) {
+      entry.reject(new CdpConnectionClosedError(why));
+      this.inflight.delete(id);
+    }
   }
 
   getSession(sessionId: string): CdpSession | undefined {
@@ -155,6 +186,7 @@ export class CdpConnection implements CDPSessionLike {
       session = new CdpSession(this, sessionId);
       this.sessions.set(sessionId, session);
     }
+    this.sessionToTarget.set(sessionId, targetId);
     return session;
   }
 
@@ -189,6 +221,7 @@ export class CdpConnection implements CDPSessionLike {
         if (!this.sessions.has(p.sessionId)) {
           this.sessions.set(p.sessionId, new CdpSession(this, p.sessionId));
         }
+        this.sessionToTarget.set(p.sessionId, p.targetInfo.targetId);
       } else if (msg.method === "Target.detachedFromTarget") {
         const p = (msg as { params: Protocol.Target.DetachedFromTargetEvent })
           .params;
@@ -199,9 +232,24 @@ export class CdpConnection implements CDPSessionLike {
           }
         }
         this.sessions.delete(p.sessionId);
+        this.sessionToTarget.delete(p.sessionId);
+      } else if (msg.method === "Target.targetDestroyed") {
+        const p = (msg as { params: { targetId: string } }).params;
+        // Remove any session mapping for this target
+        for (const [sessionId, targetId] of this.sessionToTarget.entries()) {
+          if (targetId === p.targetId) {
+            this.sessionToTarget.delete(sessionId);
+            break;
+          }
+        }
       }
 
       const { method, params, sessionId } = msg;
+
+      // Log incoming CDP events
+      const targetId = this.sessionToTarget.get(sessionId) || sessionId;
+      this.cdpEventLogger?.({ method, params, targetId });
+
       if (sessionId) {
         const session = this.sessions.get(sessionId);
         session?.dispatch(method, params);
@@ -232,6 +280,10 @@ export class CdpConnection implements CDPSessionLike {
         ts: Date.now(),
       });
     });
+    // Prevent unhandledRejection if a session detaches before the caller awaits.
+    void p.catch(() => {});
+    const targetId = this.sessionToTarget.get(sessionId) ?? null;
+    this.cdpLogger?.({ method, params, targetId });
     this.ws.send(JSON.stringify(payload));
     return p;
   }

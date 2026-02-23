@@ -1,13 +1,14 @@
-import type { LanguageModelV2CallOptions } from "@ai-sdk/provider";
+import type { ModelMessage } from "ai";
 
-export interface CompressionStats {
-  originalSize: number;
-  compressedSize: number;
-  savedChars: number;
-  compressionRatio: number;
-  screenshotCount: number;
-  ariaTreeCount: number;
-}
+// Vision action tools that include screenshots in their results
+const VISION_ACTION_TOOLS = [
+  "click",
+  "type",
+  "dragAndDrop",
+  "wait",
+  "fillFormVision",
+  "scroll",
+];
 
 function isToolMessage(
   message: unknown,
@@ -28,6 +29,16 @@ function isScreenshotPart(part: unknown): boolean {
   );
 }
 
+function isVisionActionPart(part: unknown): boolean {
+  if (!part || typeof part !== "object") return false;
+  const toolName = (part as { toolName?: unknown }).toolName;
+  return typeof toolName === "string" && VISION_ACTION_TOOLS.includes(toolName);
+}
+
+function isVisionPart(part: unknown): boolean {
+  return isScreenshotPart(part) || isVisionActionPart(part);
+}
+
 function isAriaTreePart(part: unknown): boolean {
   return (
     !!part &&
@@ -36,169 +47,176 @@ function isAriaTreePart(part: unknown): boolean {
   );
 }
 
-export function processMessages(params: LanguageModelV2CallOptions): {
-  processedPrompt: LanguageModelV2CallOptions["prompt"];
-  stats: CompressionStats;
-} {
-  // Calculate original content size
-  const originalContentSize = JSON.stringify(params.prompt).length;
-  const screenshotIndices = findToolIndices(params.prompt, "screenshot");
-  const ariaTreeIndices = findToolIndices(params.prompt, "ariaTree");
+/**
+ * Compress old screenshot/ariaTree data in messages in-place.
+ *
+ * Strategy:
+ * - Keep only the 2 most recent vision results (screenshots OR vision action tools like click/type/etc)
+ * - Keep only the 1 most recent ariaTree (replace older ones with placeholder)
+ *
+ * @param messages - The messages array to modify in-place
+ * @returns Number of items compressed
+ */
+export function processMessages(messages: ModelMessage[]): number {
+  let compressedCount = 0;
 
-  // Process messages and compress old screenshots
-  const processedPrompt = params.prompt.map(
-    (message: unknown, index: number) => {
-      if (isToolMessage(message)) {
-        if (
-          (message.content as unknown[]).some((part) => isScreenshotPart(part))
-        ) {
-          const shouldCompress = shouldCompressScreenshot(
-            index,
-            screenshotIndices,
-          );
-          if (shouldCompress) {
-            return compressScreenshotMessage(message);
-          }
-        }
-        if (
-          (message.content as unknown[]).some((part) => isAriaTreePart(part))
-        ) {
-          const shouldCompress = shouldCompressAriaTree(index, ariaTreeIndices);
-          if (shouldCompress) {
-            return compressAriaTreeMessage(message);
-          }
-        }
+  // Find indices of all vision-related tool results (screenshots + vision actions)
+  // and ariaTree results
+  const visionIndices: number[] = [];
+  const ariaTreeIndices: number[] = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    const message = messages[i];
+    if (isToolMessage(message)) {
+      const content = message.content as unknown[];
+      if (content.some(isVisionPart)) {
+        visionIndices.push(i);
       }
+      if (content.some(isAriaTreePart)) {
+        ariaTreeIndices.push(i);
+      }
+    }
+  }
 
-      return message;
-    },
-  );
+  // Compress old vision results (keep 2 most recent across all vision tools)
+  if (visionIndices.length > 2) {
+    const toCompress = visionIndices.slice(0, visionIndices.length - 2);
+    for (const index of toCompress) {
+      const message = messages[index];
+      if (isToolMessage(message)) {
+        // Both functions are safe to call - they only modify their respective part types
+        compressScreenshotMessage(message);
+        compressVisionActionMessage(message);
+        compressedCount++;
+      }
+    }
+  }
 
-  const compressedContentSize = JSON.stringify(processedPrompt).length;
-  const stats = calculateCompressionStats(
-    originalContentSize,
-    compressedContentSize,
-    screenshotIndices.length,
-    ariaTreeIndices.length,
-  );
+  // Compress old ariaTree results (keep 1 most recent)
+  if (ariaTreeIndices.length > 1) {
+    const toCompress = ariaTreeIndices.slice(0, ariaTreeIndices.length - 1);
+    for (const idx of toCompress) {
+      const message = messages[idx];
+      if (isToolMessage(message)) {
+        compressAriaTreeMessage(message);
+        compressedCount++;
+      }
+    }
+  }
 
-  return {
-    processedPrompt: processedPrompt as LanguageModelV2CallOptions["prompt"],
-    stats,
+  return compressedCount;
+}
+
+/**
+ * Tool result part structure from AI SDK.
+ * The output field uses a discriminated union - type determines value format:
+ * - type: "content" -> value: Array<{type: "text", ...} | {type: "media", ...}>
+ * - type: "text" -> value: string
+ * - type: "json" -> value: JSONValue
+ * - type: "error-text" -> value: string
+ * - type: "error-json" -> value: JSONValue
+ */
+interface ToolResultPart {
+  output?: {
+    type: string;
+    value?: unknown;
   };
 }
 
-function findToolIndices(
-  prompt: unknown[],
-  toolName: "screenshot" | "ariaTree",
-): number[] {
-  const screenshotIndices: number[] = [];
-
-  prompt.forEach((message, index) => {
-    if (isToolMessage(message)) {
-      const hasMatch = (message.content as unknown[]).some((part) =>
-        toolName === "screenshot"
-          ? isScreenshotPart(part)
-          : isAriaTreePart(part),
-      );
-      if (hasMatch) {
-        screenshotIndices.push(index);
-      }
-    }
-  });
-
-  return screenshotIndices;
+/**
+ * Check if output has type "content" (array-based value format).
+ * Only outputs with type "content" should have array values.
+ */
+function isContentTypeOutput(output: {
+  type: string;
+  value?: unknown;
+}): boolean {
+  return output.type === "content";
 }
 
-function shouldCompressScreenshot(
-  index: number,
-  screenshotIndices: number[],
-): boolean {
-  const isNewestScreenshot = index === Math.max(...screenshotIndices);
-  const isSecondNewestScreenshot =
-    screenshotIndices.length > 1 &&
-    index === screenshotIndices.sort((a, b) => b - a)[1];
-
-  return !isNewestScreenshot && !isSecondNewestScreenshot;
-}
-
-function shouldCompressAriaTree(
-  index: number,
-  ariaTreeIndices: number[],
-): boolean {
-  const isNewestAriaTree = index === Math.max(...ariaTreeIndices);
-  // Only keep the most recent ARIA tree
-  return !isNewestAriaTree;
-}
-
+/**
+ * Compress screenshot message content in-place.
+ * Only modifies outputs with type "content" to maintain schema validity.
+ * Replaces entire output object to ensure type/value consistency.
+ */
 function compressScreenshotMessage(message: {
   role: "tool";
   content: unknown[];
-}): { role: "tool"; content: unknown[] } {
-  const updatedContent = (message.content as unknown[]).map((part) => {
+}): void {
+  for (const part of message.content) {
     if (isScreenshotPart(part)) {
-      return {
-        ...(part as object),
-        result: [
-          {
-            type: "text",
-            text: "screenshot taken",
-          },
-        ],
-      } as unknown;
+      const typedPart = part as ToolResultPart;
+      // Only compress if output exists and has type "content"
+      if (typedPart.output && isContentTypeOutput(typedPart.output)) {
+        // Replace entire output to ensure type/value consistency
+        typedPart.output = {
+          type: "content",
+          value: [{ type: "text", text: "screenshot taken" }],
+        };
+      }
     }
-    return part;
-  });
-
-  return {
-    ...message,
-    content: updatedContent,
-  } as { role: "tool"; content: unknown[] };
+  }
 }
 
+/**
+ * Compress vision action message content in-place by removing the screenshot
+ * but keeping the action result text.
+ * Only modifies outputs with type "content" to maintain schema validity.
+ */
+function compressVisionActionMessage(message: {
+  role: "tool";
+  content: unknown[];
+}): void {
+  for (const part of message.content) {
+    if (isVisionActionPart(part)) {
+      const typedPart = part as ToolResultPart;
+
+      // Only compress if output is type "content" (array-based value)
+      if (
+        typedPart.output &&
+        isContentTypeOutput(typedPart.output) &&
+        Array.isArray(typedPart.output.value)
+      ) {
+        // Filter out media content but keep text results
+        const filteredValue = (
+          typedPart.output.value as Array<{ type?: string }>
+        ).filter(
+          (item) => item && typeof item === "object" && item.type !== "media",
+        );
+        // Replace entire output to ensure type/value consistency
+        typedPart.output = {
+          type: "content",
+          value: filteredValue,
+        };
+      }
+    }
+  }
+}
+
+/**
+ * Compress ariaTree message content in-place.
+ * Only modifies outputs with type "content" to maintain schema validity.
+ * Replaces entire output object to ensure type/value consistency.
+ */
 function compressAriaTreeMessage(message: {
   role: "tool";
   content: unknown[];
-}): { role: "tool"; content: unknown[] } {
-  const updatedContent = (message.content as unknown[]).map((part) => {
+}): void {
+  for (const part of message.content) {
     if (isAriaTreePart(part)) {
-      return {
-        ...(part as object),
-        result: [
-          {
-            type: "text",
-            text: "ARIA tree extracted for context of page elements",
-          },
-        ],
-      } as unknown;
+      const typedPart = part as ToolResultPart;
+      // Only compress if output exists and has type "content"
+      if (typedPart.output && isContentTypeOutput(typedPart.output)) {
+        typedPart.output = {
+          type: "content",
+          value: [
+            {
+              type: "text",
+              text: "ARIA tree extracted for context of page elements",
+            },
+          ],
+        };
+      }
     }
-    return part;
-  });
-
-  return {
-    ...message,
-    content: updatedContent,
-  } as { role: "tool"; content: unknown[] };
-}
-
-function calculateCompressionStats(
-  originalSize: number,
-  compressedSize: number,
-  screenshotCount: number,
-  ariaTreeCount: number,
-): CompressionStats {
-  const savedChars = originalSize - compressedSize;
-  const compressionRatio =
-    originalSize > 0
-      ? ((originalSize - compressedSize) / originalSize) * 100
-      : 0;
-
-  return {
-    originalSize,
-    compressedSize,
-    savedChars,
-    compressionRatio,
-    screenshotCount,
-    ariaTreeCount,
-  };
+  }
 }

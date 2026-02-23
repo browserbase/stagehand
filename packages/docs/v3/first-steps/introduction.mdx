@@ -3,6 +3,10 @@ title: Introducing Stagehand
 sidebarTitle: Introduction
 description: Developers use Stagehand to reliably automate the web.
 ---
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
 
 Stagehand is a browser automation framework used to control web browsers with natural language and code. By combining the power of AI with the precision of code, Stagehand makes web automation flexible, maintainable, and actually reliable.
 
@@ -48,7 +52,7 @@ const actions = await stagehand.observe("find submit buttons");
 
 // Agent - Automate entire workflows
 const agent = stagehand.agent({
-  cua: true,
+  mode: "cua",
   model: "google/gemini-2.5-computer-use-preview-10-2025",
 });
 await agent.execute("apply for this job");
@@ -106,7 +110,7 @@ Stagehand is designed for developers building production browser automations and
   <Card
     title="Join Discord"
     icon="discord"
-    href="https://discord.gg/stagehand"
+    href="https://stagehand.dev/discord"
   >
     Get help from the community
   </Card>

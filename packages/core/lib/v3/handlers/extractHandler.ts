@@ -1,34 +1,37 @@
 // lib/v3/handlers/extractHandler.ts
-import { extract as runExtract } from "../../inference";
+import { extract as runExtract } from "../../inference.js";
 import {
   getZFactory,
   getZodType,
   injectUrls,
   transformSchema,
-} from "../../utils";
-import { v3Logger } from "../logger";
-import { V3FunctionName } from "../types/public/methods";
-import { captureHybridSnapshot } from "../understudy/a11y/snapshot";
+} from "../../utils.js";
+import { v3Logger } from "../logger.js";
+import { V3FunctionName } from "../types/public/methods.js";
+import { captureHybridSnapshot } from "../understudy/a11y/snapshot/index.js";
 import type { ZodTypeAny } from "zod";
-import { LLMClient } from "../llm/LLMClient";
-import { ExtractHandlerParams } from "../types/private/handlers";
-import { EncodedId, ZodPathSegments } from "../types/private/internal";
-import { defaultExtractSchema, pageTextSchema } from "../types/public/methods";
+import { LLMClient } from "../llm/LLMClient.js";
+import { ExtractHandlerParams } from "../types/private/handlers.js";
+import { EncodedId, ZodPathSegments } from "../types/private/internal.js";
+import {
+  defaultExtractSchema,
+  pageTextSchema,
+} from "../types/public/methods.js";
 import {
   AvailableModel,
   ClientOptions,
   ModelConfiguration,
-} from "../types/public/model";
+} from "../types/public/model.js";
 import {
   StagehandInvalidArgumentError,
   ExtractTimeoutError,
-} from "../types/public/sdkErrors";
-import { createTimeoutGuard } from "./handlerUtils/timeoutGuard";
+} from "../types/public/sdkErrors.js";
+import { createTimeoutGuard } from "./handlerUtils/timeoutGuard.js";
 import type {
   InferStagehandSchema,
   StagehandZodObject,
   StagehandZodSchema,
-} from "../zodCompat";
+} from "../zodCompat.js";
 
 /**
  * Scans the provided Zod schema for any `z.string().url()` fields and
@@ -195,22 +198,6 @@ export class ExtractHandler {
     } = extractionResponse;
     let output = rest as InferStagehandSchema<StagehandZodObject>;
 
-    v3Logger({
-      category: "extraction",
-      message: completed
-        ? "Extraction completed successfully"
-        : "Extraction incomplete after processing all data",
-      level: 1,
-      auxiliary: {
-        prompt_tokens: { value: String(prompt_tokens), type: "string" },
-        completion_tokens: { value: String(completion_tokens), type: "string" },
-        inference_time_ms: {
-          value: String(inference_time_ms),
-          type: "string",
-        },
-      },
-    });
-
     // Update EXTRACT metrics from the LLM calls
     this.onMetrics?.(
       V3FunctionName.EXTRACT,
@@ -233,11 +220,34 @@ export class ExtractHandler {
         idToUrl as unknown as Record<string, string>,
       );
     }
-
     // If we wrapped a non-object schema, unwrap the value
     if (!isObjectSchema && output && typeof output === "object") {
       output = (output as Record<string, unknown>)[WRAP_KEY];
     }
+
+    const resultPreviewLength = 200;
+    const resultString = JSON.stringify(output) ?? "undefined";
+    const resultPreview =
+      resultString.length > resultPreviewLength
+        ? resultString.slice(0, resultPreviewLength) + "..."
+        : resultString;
+
+    v3Logger({
+      category: "extraction",
+      message: completed
+        ? "Extraction completed successfully"
+        : "Extraction incomplete after processing all data",
+      level: 1,
+      auxiliary: {
+        prompt_tokens: { value: String(prompt_tokens), type: "string" },
+        completion_tokens: { value: String(completion_tokens), type: "string" },
+        inference_time_ms: {
+          value: String(inference_time_ms),
+          type: "string",
+        },
+        result: { value: resultPreview, type: "string" },
+      },
+    });
 
     return output as InferStagehandSchema<T>;
   }

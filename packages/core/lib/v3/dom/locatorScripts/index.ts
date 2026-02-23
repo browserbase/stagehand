@@ -1,3 +1,4 @@
-export * from "./scripts";
-export * from "./selectors";
-export * from "./counts";
+export * from "./scripts.js";
+export * from "./selectors.js";
+export * from "./counts.js";
+export * from "./waitForSelector.js";

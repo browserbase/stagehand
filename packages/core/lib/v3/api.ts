@@ -1,24 +1,7 @@
 import makeFetchCookie from "fetch-cookie";
-import { Action } from "./types/public";
-import { STAGEHAND_VERSION } from "../version";
+import { loadApiKeyFromEnv } from "../utils.js";
+import { STAGEHAND_VERSION } from "../version.js";
 import {
-  APIActParameters,
-  APIExtractParameters,
-  APIObserveParameters,
-  ApiResponse,
-  ExecuteActionParams,
-  StagehandAPIConstructorParams,
-  StartSessionParams,
-  StartSessionResult,
-} from "./types/private";
-import {
-  ActResult,
-  AgentConfig,
-  AgentExecuteOptions,
-  AgentResult,
-  ExtractResult,
-  LogLine,
-  StagehandMetrics,
   StagehandAPIError,
   StagehandAPIUnauthorizedError,
   StagehandHttpError,
@@ -26,31 +9,154 @@ import {
   StagehandResponseParseError,
   StagehandServerError,
   ExperimentalNotConfiguredError,
-} from "./types/public";
-import type { SerializableResponse } from "./types/private";
-import { toJsonSchema } from "./zodCompat";
-import type { StagehandZodSchema } from "./zodCompat";
+} from "./types/public/index.js";
+import type {
+  Action,
+  ActResult,
+  AgentConfig,
+  AgentExecuteOptions,
+  AgentResult,
+  ExtractResult,
+  LogLine,
+  StagehandMetrics,
+  BrowserbaseRegion,
+  ActOptions,
+  ExtractOptions,
+  ObserveOptions,
+  Api,
+} from "./types/public/index.js";
+import type {
+  SerializableResponse,
+  AgentCacheTransferPayload,
+} from "./types/private/index.js";
+import type { ModelConfiguration } from "./types/public/model.js";
+import { toJsonSchema } from "./zodCompat.js";
+import type { StagehandZodSchema } from "./zodCompat.js";
+
+// =============================================================================
+// Multi-region API URL mapping
+// =============================================================================
 
 /**
- * API response structure for replay metrics endpoint
+ * Mapping of Browserbase regions to their corresponding Stagehand API base URLs.
+ * Users should configure their client to hit the API endpoint that matches
+ * the region where their browser session is running.
  */
-interface ReplayMetricsResponse {
-  success: boolean;
-  data?: {
-    pages?: Array<{
-      actions?: Array<{
-        method?: string;
-        tokenUsage?: {
-          inputTokens?: number;
-          outputTokens?: number;
-          reasoningTokens?: number;
-          cachedInputTokens?: number;
-          timeMs?: number;
-        };
-      }>;
-    }>;
-  };
-  error?: string;
+export const REGION_API_URLS: Record<BrowserbaseRegion, string> = {
+  "us-west-2": "https://api.stagehand.browserbase.com",
+  "us-east-1": "https://api.use1.stagehand.browserbase.com",
+  "eu-central-1": "https://api.euc1.stagehand.browserbase.com",
+  "ap-southeast-1": "https://api.apse1.stagehand.browserbase.com",
+};
+
+/**
+ * Returns the full API URL (with /v1 suffix) for a given Browserbase region.
+ * If no region is specified or the region is unknown, defaults to us-west-2.
+ *
+ * @param region - The Browserbase region (e.g., "us-west-2", "eu-central-1")
+ * @returns The full API URL including /v1 suffix
+ */
+export function getApiUrlForRegion(
+  region: BrowserbaseRegion | undefined,
+): string {
+  const baseUrl =
+    REGION_API_URLS[region as BrowserbaseRegion] ??
+    REGION_API_URLS["us-west-2"];
+  return `${baseUrl}/v1`;
+}
+
+// =============================================================================
+// Client-specific types (can't be Zod schemas due to functions/Page objects)
+// =============================================================================
+//
+// These types mirror the Api.* schemas from types/public/api.ts but include
+// non-serializable SDK fields (like Page objects) that get stripped before
+// sending requests over the wire.
+//
+// Relationship to wire format:
+// - Client accepts: SDK types (ActOptions, ExtractOptions, etc.) with optional `page`
+// - Wire sends: Api.* types (page stripped, Zod schema converted to JSON schema)
+// - Client returns: SDK result types (ActResult, ExtractResult, etc.)
+// =============================================================================
+
+/**
+ * Constructor parameters for StagehandAPIClient
+ */
+interface StagehandAPIConstructorParams {
+  apiKey: string;
+  projectId: string;
+  logger: (message: LogLine) => void;
+}
+
+/**
+ * Parameters for starting a session via the API client.
+ * Extends Api.SessionStartRequest with client-specific field (modelApiKey).
+ *
+ * Wire format: Api.SessionStartRequest (modelApiKey sent via header, not body)
+ */
+interface ClientSessionStartParams extends Api.SessionStartRequest {
+  /** Model API key - sent via x-model-api-key header, not in request body */
+  modelApiKey: string;
+}
+
+/**
+ * Generic API response wrapper matching Api.*Response schemas
+ */
+type ApiResponse<T> =
+  | { success: true; data: T }
+  | { success: false; message: string };
+
+/**
+ * Union of all API request body types for type-safe execute() calls
+ */
+type ApiRequestBody =
+  | Api.ActRequest
+  | Api.ExtractRequest
+  | Api.ObserveRequest
+  | Api.NavigateRequest
+  | Api.AgentExecuteRequest;
+
+/**
+ * Parameters for executing an action via the streaming API
+ */
+interface ExecuteActionParams {
+  method: "act" | "extract" | "observe" | "navigate" | "end" | "agentExecute";
+  args?: ApiRequestBody;
+  params?: Record<string, string>;
+}
+
+/**
+ * Client parameters for act() method.
+ * Derives structure from Api.ActRequest but uses SDK's ActOptions (which includes `page`).
+ * Before serialization, `page` is stripped to produce Api.ActRequest wire format.
+ */
+interface ClientActParameters {
+  input: Api.ActRequest["input"];
+  options?: ActOptions;
+  frameId?: Api.ActRequest["frameId"];
+}
+
+/**
+ * Client parameters for extract() method.
+ * Derives structure from Api.ExtractRequest but uses SDK's ExtractOptions (which includes `page`)
+ * and accepts Zod schema (converted to JSON schema for wire format).
+ */
+interface ClientExtractParameters {
+  instruction?: Api.ExtractRequest["instruction"];
+  schema?: StagehandZodSchema;
+  options?: ExtractOptions;
+  frameId?: Api.ExtractRequest["frameId"];
+}
+
+/**
+ * Client parameters for observe() method.
+ * Derives structure from Api.ObserveRequest but uses SDK's ObserveOptions (which includes `page`).
+ * Before serialization, `page` is stripped to produce Api.ObserveRequest wire format.
+ */
+interface ClientObserveParameters {
+  instruction?: Api.ObserveRequest["instruction"];
+  options?: ObserveOptions;
+  frameId?: Api.ObserveRequest["frameId"];
 }
 
 export class StagehandAPIClient {
@@ -58,8 +164,12 @@ export class StagehandAPIClient {
   private projectId: string;
   private sessionId?: string;
   private modelApiKey: string;
+  private modelProvider?: string;
+  private region?: BrowserbaseRegion;
   private logger: (message: LogLine) => void;
   private fetchWithCookies;
+  private lastFinishedEventData: Record<string, unknown> | null = null;
+  private latestAgentCacheEntry: AgentCacheTransferPayload | null = null;
 
   constructor({ apiKey, projectId, logger }: StagehandAPIConstructorParams) {
     this.apiKey = apiKey;
@@ -78,32 +188,41 @@ export class StagehandAPIClient {
     selfHeal,
     browserbaseSessionCreateParams,
     browserbaseSessionID,
-  }: StartSessionParams): Promise<StartSessionResult> {
+    // browser,  TODO for local browsers
+  }: ClientSessionStartParams): Promise<Api.SessionStartResult> {
     if (!modelApiKey) {
       throw new StagehandAPIError("modelApiKey is required");
     }
     this.modelApiKey = modelApiKey;
+    // Extract provider from modelName (e.g., "openai/gpt-5-nano" -> "openai")
+    this.modelProvider = modelName?.includes("/")
+      ? modelName.split("/")[0]
+      : undefined;
 
-    const region = browserbaseSessionCreateParams?.region;
-    if (region && region !== "us-west-2") {
-      return { sessionId: browserbaseSessionID ?? null, available: false };
-    }
+    // Store the region for multi-region API URL resolution
+    this.region = browserbaseSessionCreateParams?.region;
+
     this.logger({
       category: "init",
       message: "Creating new browserbase session...",
       level: 1,
     });
+
+    // Build wire-format request body (Api.SessionStartRequest shape)
+    const requestBody: Api.SessionStartRequest = {
+      modelName,
+      domSettleTimeoutMs,
+      verbose,
+      systemPrompt,
+      selfHeal,
+      browserbaseSessionCreateParams,
+      browserbaseSessionID,
+      // browser, TODO: only send when connected to local fastify
+    };
+
     const sessionResponse = await this.request("/sessions/start", {
       method: "POST",
-      body: JSON.stringify({
-        modelName,
-        domSettleTimeoutMs,
-        verbose,
-        systemPrompt,
-        selfHeal,
-        browserbaseSessionCreateParams,
-        browserbaseSessionID,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (sessionResponse.status === 401) {
@@ -121,39 +240,50 @@ export class StagehandAPIClient {
     }
 
     const sessionResponseBody =
-      (await sessionResponse.json()) as ApiResponse<StartSessionResult>;
+      (await sessionResponse.json()) as ApiResponse<Api.SessionStartResult>;
 
     if (sessionResponseBody.success === false) {
       throw new StagehandAPIError(sessionResponseBody.message);
     }
-
-    this.sessionId = sessionResponseBody.data.sessionId;
 
     // Temporary reroute for rollout
     if (!sessionResponseBody.data?.available && browserbaseSessionID) {
       sessionResponseBody.data.sessionId = browserbaseSessionID;
     }
 
+    this.sessionId = sessionResponseBody.data.sessionId;
+
     return sessionResponseBody.data;
   }
 
-  async act({ input, options, frameId }: APIActParameters): Promise<ActResult> {
-    const args: Record<string, unknown> = {
-      input,
-      frameId,
-    };
-    // Only include options if it has properties (excluding page)
+  async act({
+    input,
+    options,
+    frameId,
+  }: ClientActParameters): Promise<ActResult> {
+    // Strip non-serializable `page` from options before wire serialization
+    let wireOptions: Api.ActRequest["options"];
     if (options) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { page: _, ...restOptions } = options;
       if (Object.keys(restOptions).length > 0) {
-        args.options = restOptions;
+        if (restOptions.model) {
+          restOptions.model = this.prepareModelConfig(restOptions.model);
+        }
+        wireOptions = restOptions as unknown as Api.ActRequest["options"];
       }
     }
 
+    // Build wire-format request body
+    const requestBody: Api.ActRequest = {
+      input,
+      options: wireOptions,
+      frameId,
+    };
+
     return this.execute<ActResult>({
       method: "act",
-      args,
+      args: requestBody,
     });
   }
 
@@ -162,26 +292,34 @@ export class StagehandAPIClient {
     schema: zodSchema,
     options,
     frameId,
-  }: APIExtractParameters): Promise<ExtractResult<T>> {
+  }: ClientExtractParameters): Promise<ExtractResult<T>> {
+    // Convert Zod schema to JSON schema for wire format
     const jsonSchema = zodSchema ? toJsonSchema(zodSchema) : undefined;
 
-    const args: Record<string, unknown> = {
-      schema: jsonSchema,
-      instruction,
-      frameId,
-    };
-    // Only include options if it has properties (excluding page)
+    // Strip non-serializable `page` from options before wire serialization
+    let wireOptions: Api.ExtractRequest["options"];
     if (options) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { page: _, ...restOptions } = options;
       if (Object.keys(restOptions).length > 0) {
-        args.options = restOptions;
+        if (restOptions.model) {
+          restOptions.model = this.prepareModelConfig(restOptions.model);
+        }
+        wireOptions = restOptions as unknown as Api.ExtractRequest["options"];
       }
     }
 
+    // Build wire-format request body
+    const requestBody: Api.ExtractRequest = {
+      instruction,
+      schema: jsonSchema,
+      options: wireOptions,
+      frameId,
+    };
+
     return this.execute<ExtractResult<T>>({
       method: "extract",
-      args,
+      args: requestBody,
     });
   }
 
@@ -189,34 +327,43 @@ export class StagehandAPIClient {
     instruction,
     options,
     frameId,
-  }: APIObserveParameters): Promise<Action[]> {
-    const args: Record<string, unknown> = {
-      instruction,
-      frameId,
-    };
-    // Only include options if it has properties (excluding page)
+  }: ClientObserveParameters): Promise<Action[]> {
+    // Strip non-serializable `page` from options before wire serialization
+    let wireOptions: Api.ObserveRequest["options"];
     if (options) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { page: _, ...restOptions } = options;
       if (Object.keys(restOptions).length > 0) {
-        args.options = restOptions;
+        if (restOptions.model) {
+          restOptions.model = this.prepareModelConfig(restOptions.model);
+        }
+        wireOptions = restOptions as unknown as Api.ObserveRequest["options"];
       }
     }
 
+    // Build wire-format request body
+    const requestBody: Api.ObserveRequest = {
+      instruction,
+      options: wireOptions,
+      frameId,
+    };
+
     return this.execute<Action[]>({
       method: "observe",
-      args,
+      args: requestBody,
     });
   }
 
   async goto(
     url: string,
-    options?: { waitUntil?: "load" | "domcontentloaded" | "networkidle" },
+    options?: Api.NavigateRequest["options"],
     frameId?: string,
   ): Promise<SerializableResponse | null> {
+    const requestBody: Api.NavigateRequest = { url, options, frameId };
+
     return this.execute<SerializableResponse | null>({
       method: "navigate",
-      args: { url, options, frameId },
+      args: requestBody,
     });
   }
 
@@ -224,22 +371,63 @@ export class StagehandAPIClient {
     agentConfig: AgentConfig,
     executeOptions: AgentExecuteOptions | string,
     frameId?: string,
+    shouldCache?: boolean,
   ): Promise<AgentResult> {
-    // Check if integrations are being used in API mode
+    // Check if integrations are being used in API mode (not supported)
     if (agentConfig.integrations && agentConfig.integrations.length > 0) {
       throw new ExperimentalNotConfiguredError("MCP integrations");
     }
-    if (typeof executeOptions === "object") {
-      if (executeOptions.page) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { page: _, ...restOptions } = executeOptions;
-        executeOptions = restOptions;
-      }
+
+    // Strip non-serializable `page` from executeOptions before wire serialization
+    let wireExecuteOptions: Api.AgentExecuteRequest["executeOptions"];
+    if (typeof executeOptions === "string") {
+      wireExecuteOptions = { instruction: executeOptions };
+    } else if (executeOptions.page) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { page: _, ...rest } = executeOptions;
+      wireExecuteOptions = rest;
+    } else {
+      wireExecuteOptions = executeOptions;
     }
-    return this.execute<AgentResult>({
+
+    const wireAgentConfig: Api.AgentExecuteRequest["agentConfig"] = {
+      systemPrompt: agentConfig.systemPrompt,
+      mode: agentConfig.mode ?? (agentConfig.cua === true ? "cua" : undefined),
+      cua: agentConfig.mode === undefined ? agentConfig.cua : undefined,
+      model: agentConfig.model
+        ? this.prepareModelConfig(agentConfig.model)
+        : undefined,
+      executionModel: agentConfig.executionModel
+        ? this.prepareModelConfig(agentConfig.executionModel)
+        : undefined,
+    };
+
+    // Build wire-format request body
+    const requestBody: Api.AgentExecuteRequest = {
+      agentConfig: wireAgentConfig,
+      executeOptions: wireExecuteOptions,
+      frameId,
+      shouldCache,
+    };
+
+    const result = await this.execute<AgentResult>({
       method: "agentExecute",
-      args: { agentConfig, executeOptions, frameId },
+      args: requestBody,
     });
+
+    const finishedData =
+      this.consumeFinishedEventData<Api.AgentExecuteResult>() ?? null;
+    this.latestAgentCacheEntry =
+      finishedData?.cacheEntry !== undefined
+        ? (finishedData.cacheEntry as AgentCacheTransferPayload)
+        : null;
+    return result;
+  }
+
+  consumeLatestAgentCacheEntry(): AgentCacheTransferPayload | null {
+    const entry = this.latestAgentCacheEntry;
+    this.latestAgentCacheEntry = null;
+    return entry;
   }
 
   async end(): Promise<Response> {
@@ -271,16 +459,19 @@ export class StagehandAPIClient {
       );
     }
 
-    const data = (await response.json()) as ReplayMetricsResponse;
+    const data = (await response.json()) as
+      | Api.ReplayResponse
+      | { success: false; error?: string };
 
     if (!data.success) {
+      const errorData = data as { success: false; error?: string };
       throw new StagehandAPIError(
-        `Failed to fetch metrics: ${data.error || "Unknown error"}`,
+        `Failed to fetch metrics: ${errorData.error || "Unknown error"}`,
       );
     }
 
     // Parse the API data into StagehandMetrics format
-    const apiData = data.data || {};
+    const apiData = (data as Api.ReplayResponse).data;
     const metrics: StagehandMetrics = {
       actPromptTokens: 0,
       actCompletionTokens: 0,
@@ -310,7 +501,7 @@ export class StagehandAPIClient {
     };
 
     // Parse pages and their actions
-    const pages = apiData.pages || [];
+    const pages = apiData?.pages || [];
     for (const page of pages) {
       const actions = page.actions || [];
       for (const action of actions) {
@@ -321,8 +512,20 @@ export class StagehandAPIClient {
         if (tokenUsage) {
           const inputTokens = tokenUsage.inputTokens || 0;
           const outputTokens = tokenUsage.outputTokens || 0;
-          const reasoningTokens = tokenUsage.reasoningTokens || 0;
-          const cachedInputTokens = tokenUsage.cachedInputTokens || 0;
+          const reasoningTokens =
+            "reasoningTokens" in tokenUsage
+              ? Number(
+                  (tokenUsage as { reasoningTokens?: number })
+                    .reasoningTokens ?? 0,
+                )
+              : 0;
+          const cachedInputTokens =
+            "cachedInputTokens" in tokenUsage
+              ? Number(
+                  (tokenUsage as { cachedInputTokens?: number })
+                    .cachedInputTokens ?? 0,
+                )
+              : 0;
           const timeMs = tokenUsage.timeMs || 0;
 
           // Map method to metrics fields
@@ -365,11 +568,62 @@ export class StagehandAPIClient {
     return metrics;
   }
 
+  /**
+   * Prepares a model configuration for the API payload by ensuring the `apiKey`
+   * is included. If the model is passed as a string, converts it to an object
+   * with `modelName` and `apiKey`.
+   *
+   * In API mode, we only attempt to load an API key from env vars when the
+   * model provider differs from the one used to init the session.
+   */
+  private prepareModelConfig(
+    model: ModelConfiguration,
+  ): { modelName: string; apiKey: string } & Record<string, unknown> {
+    if (typeof model === "string") {
+      // Extract provider from model string (e.g., "openai/gpt-5-nano" -> "openai")
+      const provider = model.includes("/") ? model.split("/")[0] : undefined;
+      const apiKey =
+        provider && provider !== this.modelProvider
+          ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
+          : this.modelApiKey;
+      return {
+        modelName: model,
+        apiKey,
+      };
+    }
+
+    if (!model.apiKey) {
+      const provider = model.modelName?.includes("/")
+        ? model.modelName.split("/")[0]
+        : undefined;
+      const apiKey =
+        provider && provider !== this.modelProvider
+          ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
+          : this.modelApiKey;
+      return {
+        ...model,
+        apiKey,
+      };
+    }
+
+    return model as { modelName: string; apiKey: string } & Record<
+      string,
+      unknown
+    >;
+  }
+
+  private consumeFinishedEventData<T>(): T | null {
+    const data = this.lastFinishedEventData as T | null;
+    this.lastFinishedEventData = null;
+    return data;
+  }
+
   private async execute<T>({
     method,
     args,
     params,
   }: ExecuteActionParams): Promise<T> {
+    this.lastFinishedEventData = null;
     const urlParams = new URLSearchParams(params as Record<string, string>);
     const queryString = urlParams.toString();
     const url = `/sessions/${this.sessionId}/${method}${queryString ? `?${queryString}` : ""}`;
@@ -420,6 +674,7 @@ export class StagehandAPIClient {
               throw new Error(errorMsg);
             }
             if (eventData.data.status === "finished") {
+              this.lastFinishedEventData = eventData.data;
               return eventData.data.result as T;
             }
           } else if (eventData.type === "log") {
@@ -483,7 +738,6 @@ export class StagehandAPIClient {
       // we want real-time logs, so we stream the response
       "x-stream-response": "true",
       "x-model-api-key": this.modelApiKey,
-      "x-sent-at": new Date().toISOString(),
       "x-language": "typescript",
       "x-sdk-version": STAGEHAND_VERSION,
     };
@@ -491,16 +745,24 @@ export class StagehandAPIClient {
       defaultHeaders["Content-Type"] = "application/json";
     }
 
-    const response = await this.fetchWithCookies(
-      `${process.env.STAGEHAND_API_URL ?? "https://api.stagehand.browserbase.com/v1"}${path}`,
-      {
-        ...options,
-        headers: {
-          ...defaultHeaders,
-          ...options.headers,
-        },
+    // Use STAGEHAND_API_URL env var if set, otherwise use region-based URL
+    // Ensure /v1 suffix is present for consistency
+    let baseUrl: string;
+    if (process.env.STAGEHAND_API_URL) {
+      const envUrl = process.env.STAGEHAND_API_URL.replace(/\/+$/, "");
+      // Append /v1 if not already present
+      baseUrl = envUrl.endsWith("/v1") ? envUrl : `${envUrl}/v1`;
+    } else {
+      baseUrl = getApiUrlForRegion(this.region);
+    }
+
+    const response = await this.fetchWithCookies(`${baseUrl}${path}`, {
+      ...options,
+      headers: {
+        ...defaultHeaders,
+        ...options.headers,
       },
-    );
+    });
 
     return response;
   }

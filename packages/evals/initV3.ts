@@ -20,11 +20,8 @@ import {
   modelToAgentProviderMap,
   V3,
 } from "@browserbasehq/stagehand";
-import dotenv from "dotenv";
-import { env } from "./env";
-import { EvalLogger } from "./logger";
-
-dotenv.config();
+import { env } from "./env.js";
+import { EvalLogger } from "./logger.js";
 
 type InitV3Args = {
   llmClient?: LLMClient;

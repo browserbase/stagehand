@@ -198,7 +198,7 @@ For more advanced scenarios using computer-use models:
 
 ```typescript
 const agent = stagehand.agent({
-  cua: true, // Enable Computer Use Agent mode
+  mode: "cua", // Enable Computer Use Agent mode
   model: "anthropic/claude-sonnet-4-20250514",
   // or "google/gemini-2.5-computer-use-preview-10-2025"
   systemPrompt: `You are a helpful assistant that can use a web browser.

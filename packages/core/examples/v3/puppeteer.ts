@@ -1,4 +1,4 @@
-import { Stagehand } from "../../lib/v3";
+import { Stagehand } from "../../lib/v3/index.js";
 import puppeteer from "puppeteer-core";
 
 async function example(stagehand: Stagehand) {

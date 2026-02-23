@@ -3,7 +3,7 @@
  */
 import { z } from "zod";
 import { tool } from "ai";
-import { Stagehand } from "../lib/v3";
+import { Stagehand } from "../lib/v3/index.js";
 import chalk from "chalk";
 
 // Mock weather API, replace with your own API/tool logic
@@ -51,7 +51,7 @@ async function main() {
 
     // Create a computer use agent
     const agent = stagehand.agent({
-      cua: true,
+      mode: "cua",
       model: {
         modelName: "anthropic/claude-sonnet-4-5-20250929",
         apiKey: process.env.ANTHROPIC_API_KEY,

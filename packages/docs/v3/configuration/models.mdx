@@ -3,8 +3,12 @@ title: Models
 sidebarTitle: Models
 description: Use any LLM model with Stagehand for optimal performance
 ---
+import { V3Banner } from '/snippets/v3-banner.mdx';
 
-Understand web pages, plan actions, and interact with complex interfaces with Google, OpenAI, Anthropic, xAI, DeepSeek, Perplexity, Azure, Ollama, or any other LLM model from [the Vercel AI SDK](https://sdk.vercel.ai/providers).
+<V3Banner />
+
+
+Understand web pages, plan actions, and interact with complex interfaces with Google, OpenAI, Anthropic, xAI, DeepSeek, Perplexity, Azure, Ollama, the [Vercel AI Gateway](https://vercel.com/docs/ai-gateway), or any other LLM model from [the Vercel AI SDK](https://sdk.vercel.ai/providers).
 
 ---
 
@@ -58,6 +62,46 @@ await stagehand.init();
 
 </CodeGroup>
 [View all supported Google models →](https://ai.google.dev/gemini-api/docs/models)
+</Tab>
+
+<Tab title="Google Vertex">
+
+<Warning>
+Google Vertex requires `experimental: true` in the Stagehand constructor.
+</Warning>
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  experimental: true, // required for Vertex
+  model: {
+    modelName: "vertex/gemini-3-flash-preview",
+    project: "your-gcp-project-id",
+    location: "us-central1",
+    googleAuthOptions: {
+      credentials: {
+        client_email: "your-sa@project.iam.gserviceaccount.com",
+        private_key: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY,
+      },
+    },
+  },
+});
+
+await stagehand.init();
+```
+
+</CodeGroup>
+
+The `model` object accepts:
+- `modelName` — The Vertex model, prefixed with `vertex/` (e.g. `vertex/gemini-3-flash-preview`)
+- `project` — Your GCP project ID
+- `location` — Your Vertex AI region (e.g. `us-central1`)
+- `googleAuthOptions.credentials` — Service account credentials with `client_email` and `private_key`
+
+[View all supported Vertex AI models →](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models)
 </Tab>
 
 <Tab title="Anthropic">
@@ -490,14 +534,18 @@ const agent = stagehand.agent();
 However, the stagehand agent also accepts a `model` parameter, which accepts any [first class](/v3/configuration/models#first-class-models) model, including [computer use agents (CUA)](/v3/configuration/models#agent-models-with-cua-support). This is useful when you'd like the agent to use a different model than the one passed to Stagehand.
 
 <Tip>
-  To use a cua model, you must pass the `cua` parameter to the `agent()` method. If a non-cua model is used, whether specified in Stagehand or overridden in the `agent()` method, an error will be thrown.
+  To use a CUA model, you must pass the `mode: "cua"` parameter to the `agent()` method. If a non-CUA model is used, whether specified in Stagehand or overridden in the `agent()` method, an error will be thrown.
 </Tip>
+
+<Warning>
+**Deprecation Notice:** The `cua: true` option is deprecated and will be removed in a future version. Use `mode: "cua"` instead.
+</Warning>
 
 <Tabs>
 <Tab title="Google CUA">
 ```typescript
 const agent = stagehand.agent({
-  cua: true,
+  mode: "cua",
   model: "google/gemini-2.5-computer-use-preview-10-2025",
   // GOOGLE_GENERATIVE_AI_API_KEY is auto-loaded from .env
   // ... other agent options
@@ -507,7 +555,7 @@ const agent = stagehand.agent({
 <Tab title="Anthropic CUA">
 ```typescript
 const agent = stagehand.agent({
-  cua: true,
+  mode: "cua",
   model: "anthropic/claude-3-7-sonnet-latest",
   // ANTHROPIC_API_KEY is auto-loaded from .env
   // ... other agent options
@@ -517,7 +565,7 @@ const agent = stagehand.agent({
 <Tab title="OpenAI CUA">
 ```typescript
 const agent = stagehand.agent({
-  cua: true,
+  mode: "cua",
   model: "openai/computer-use-preview",
   // OPENAI_API_KEY is auto-loaded from .env
   // ... other agent options
@@ -540,11 +588,16 @@ const agent = stagehand.agent({
 <Accordion title="All Supported CUA Models">
 | Provider | Model |
 | -------- | ----- |
-| Google   | `google/gemini-2.5-computer-use-preview-10-2025` |
 | Anthropic | `anthropic/claude-3-7-sonnet-latest` |
 | Anthropic | `anthropic/claude-haiku-4-5-20251001` |
 | Anthropic | `anthropic/claude-sonnet-4-20250514` |
 | Anthropic | `anthropic/claude-sonnet-4-5-20250929` |
+| Anthropic | `anthropic/claude-opus-4-5-20251101` |
+| Anthropic | `anthropic/claude-opus-4-6` |
+| Google   | `google/gemini-2.5-computer-use-preview-10-2025` |
+| Google   | `google/gemini-3-flash-preview` |
+| Google   | `google/gemini-3-pro-preview` |
+| Microsoft | `microsoft/fara-7b` |
 | OpenAI   | `openai/computer-use-preview` |
 | OpenAI   | `openai/computer-use-preview-2025-03-11` |
 </Accordion>
@@ -567,7 +620,7 @@ For OpenAI, you can pass configuration directly without using `llmClient` using 
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
   model: {
-    model: "openai/gpt-5",
+    modelName: "openai/gpt-5",
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: "https://custom-openai-endpoint.com/v1"
   }
@@ -584,7 +637,7 @@ For Anthropic, you can pass configuration directly without using `llmClient` usi
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
   model: {
-    model: "anthropic/claude-haiku-4-5",
+    modelName: "anthropic/claude-haiku-4-5",
     apiKey: process.env.ANTHROPIC_API_KEY,
     baseURL: "https://custom-anthropic-endpoint.com",
   },
@@ -618,6 +671,74 @@ const stagehand = new Stagehand({
 
 </Tab>
 </Tabs>
+
+---
+
+### AI Gateway
+
+The [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) lets you access models from multiple providers (OpenAI, Anthropic, Google, and more) through a single API key and interface. No extra provider SDKs or per-provider API keys needed.
+
+<Tip>
+  The AI Gateway is built into the `ai` package that Stagehand already uses -- no additional dependencies required.
+</Tip>
+
+**Key benefits:**
+- Access models from all major providers with a single `AI_GATEWAY_API_KEY`
+- Automatic provider fallback and dynamic routing based on uptime and latency
+- Usage tracking and observability through the Vercel dashboard
+- Bring Your Own Key (BYOK) support for existing provider credentials
+
+<Tabs>
+<Tab title="Simple">
+
+Use the `gateway/` prefix followed by the provider and model name:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "gateway/openai/gpt-5"
+  // API key auto-loads from AI_GATEWAY_API_KEY - set in your .env
+});
+
+await stagehand.init();
+```
+
+Works with any model available on the gateway:
+
+```typescript
+// Anthropic via gateway
+model: "gateway/anthropic/claude-sonnet-4.5"
+
+// Google via gateway
+model: "gateway/google/gemini-3-flash-preview"
+```
+
+</Tab>
+<Tab title="Custom Config">
+
+Pass the API key and optional base URL explicitly using the model object format:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: {
+    modelName: "gateway/openai/gpt-5",
+    apiKey: process.env.AI_GATEWAY_API_KEY,
+    baseURL: "https://ai-gateway.vercel.sh/v3/ai" // optional custom endpoint
+  }
+});
+
+await stagehand.init();
+```
+
+</Tab>
+</Tabs>
+
+[View all available AI Gateway models →](https://vercel.com/docs/ai-gateway/models-and-providers)
 
 ---
 
@@ -731,6 +852,7 @@ The following models work without the `provider/` prefix in the model parameter 
 | Provider   | Environment Variable           |
 | ---------- | ------------------------------ |
 | Google     | `GOOGLE_GENERATIVE_AI_API_KEY` or `GEMINI_API_KEY` |
+| Vertex | Service account credentials (see [setup](#first-class-models)) |
 | Anthropic  | `ANTHROPIC_API_KEY`            |
 | OpenAI     | `OPENAI_API_KEY`               |
 | Azure      | `AZURE_API_KEY`                |
@@ -742,6 +864,7 @@ The following models work without the `provider/` prefix in the model parameter 
 | Perplexity | `PERPLEXITY_API_KEY`           |
 | TogetherAI | `TOGETHER_AI_API_KEY`          |
 | xAI        | `XAI_API_KEY`                  |
+| AI Gateway | `AI_GATEWAY_API_KEY`           |
 
 </Accordion>
 
@@ -773,12 +896,13 @@ The following models work without the `provider/` prefix in the model parameter 
 - Use faster models for simple tasks, powerful ones for complex tasks
 - Implement [caching](/v3/best-practices/caching) for repeated patterns
 </Accordion>
-<Accordion title="Python support for Stagehand v3 or custom models">
-We are working on Python support for Stagehand v3 and custom models.
+<Accordion title="Python SDK or custom models">
+Python is now supported in Stagehand v3! The Python SDK uses a BYOB (Bring Your Own Browser) architecture.
 
 **Solutions:**
 
-- Request updates on Python support from our support team at [support@browserbase.com](mailto:support@browserbase.com)
+- See the [Python SDK documentation](/v3/sdk/python) for installation and usage
+- Check the [Python migration guide](/v3/migrations/python) if upgrading from v2
 </Accordion>
 </AccordionGroup>
 

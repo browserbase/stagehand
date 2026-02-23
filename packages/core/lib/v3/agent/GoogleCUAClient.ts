@@ -8,28 +8,37 @@ import {
   Tool,
   GoogleGenAIOptions,
 } from "@google/genai";
-import { LogLine } from "../types/public/logs";
+import { LogLine } from "../types/public/logs.js";
 import {
   AgentAction,
   AgentResult,
   AgentType,
   AgentExecutionOptions,
-} from "../types/public/agent";
-import { ClientOptions } from "../types/public/model";
-import { AgentClient } from "./AgentClient";
+  SafetyCheck,
+  SafetyConfirmationHandler,
+} from "../types/public/agent.js";
+import { ClientOptions } from "../types/public/model.js";
+import { AgentClient } from "./AgentClient.js";
 import {
   AgentScreenshotProviderError,
   LLMResponseError,
-} from "../types/public/sdkErrors";
-import { buildGoogleCUASystemPrompt } from "../../prompt";
-import { compressGoogleConversationImages } from "./utils/imageCompression";
-import { mapKeyToPlaywright } from "./utils/cuaKeyMapping";
+  StagehandClosedError,
+} from "../types/public/sdkErrors.js";
+import { buildGoogleCUASystemPrompt } from "../../prompt.js";
+import { compressGoogleConversationImages } from "./utils/imageCompression.js";
+import { mapKeyToPlaywright } from "./utils/cuaKeyMapping.js";
 import {
   executeGoogleCustomTool,
   isCustomTool,
   convertToolSetToFunctionDeclarations,
-} from "./utils/googleCustomToolHandler";
+} from "./utils/googleCustomToolHandler.js";
 import { ToolSet } from "ai";
+import {
+  SessionFileLogger,
+  formatCuaPromptPreview,
+  formatCuaResponsePreview,
+} from "../flowLogger.js";
+import { v7 as uuidv7 } from "uuid";
 
 /**
  * Client for Google's Computer Use Assistant API
@@ -48,6 +57,7 @@ export class GoogleCUAClient extends AgentClient {
   private generateContentConfig: GenerateContentConfig;
   private tools?: ToolSet;
   private baseURL?: string;
+  private safetyConfirmationHandler?: SafetyConfirmationHandler;
   constructor(
     type: AgentType,
     modelName: string,
@@ -63,6 +73,7 @@ export class GoogleCUAClient extends AgentClient {
       (clientOptions?.apiKey as string) ||
       process.env.GEMINI_API_KEY ||
       process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
       "";
     this.baseURL = clientOptions?.baseURL as string | undefined;
 
@@ -129,6 +140,61 @@ export class GoogleCUAClient extends AgentClient {
   setTools(tools: ToolSet): void {
     this.tools = tools;
     this.updateGenerateContentConfig();
+  }
+
+  setSafetyConfirmationHandler(handler?: SafetyConfirmationHandler): void {
+    this.safetyConfirmationHandler = handler;
+  }
+
+  private async handleSafetyConfirmation(
+    safetyDecision: unknown,
+    logger: (message: LogLine) => void,
+  ): Promise<string | undefined> {
+    const safetyMessage =
+      typeof safetyDecision === "object"
+        ? JSON.stringify(safetyDecision, null, 2)
+        : String(safetyDecision);
+
+    const safetyChecks: SafetyCheck[] = [
+      {
+        id: "google-safety-decision",
+        code: "safety_decision",
+        message: safetyMessage,
+      },
+    ];
+
+    if (this.safetyConfirmationHandler) {
+      logger({
+        category: "agent",
+        message: `Requesting safety confirmation for Google safety decision: ${safetyMessage}`,
+        level: 1,
+      });
+
+      const response = await this.safetyConfirmationHandler(safetyChecks);
+
+      if (response.acknowledged) {
+        logger({
+          category: "agent",
+          message: `Safety decision acknowledged by user`,
+          level: 1,
+        });
+        return "true";
+      } else {
+        logger({
+          category: "agent",
+          message: `Safety decision rejected by user`,
+          level: 1,
+        });
+        return undefined;
+      }
+    }
+
+    logger({
+      category: "agent",
+      message: `Auto-acknowledging Google safety decision`,
+      level: 2,
+    });
+    return "true";
   }
 
   /**
@@ -300,6 +366,15 @@ export class GoogleCUAClient extends AgentClient {
       let lastError: Error | null = null;
       let response: GenerateContentResponse | null = null;
 
+      // Log LLM request
+      const llmRequestId = uuidv7();
+      SessionFileLogger.logLlmRequest({
+        requestId: llmRequestId,
+        model: this.modelName,
+        operation: "CUA.generateContent",
+        prompt: formatCuaPromptPreview(compressedHistory),
+      });
+
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
           // Add exponential backoff delay for retries
@@ -323,6 +398,15 @@ export class GoogleCUAClient extends AgentClient {
           // Check if we have valid response content
           if (!response.candidates || response.candidates.length === 0) {
             throw new LLMResponseError("agent", "Response has no candidates!");
+          }
+
+          const candidate = response.candidates[0];
+          if (!candidate.content || !candidate.content.parts) {
+            const reason = candidate.finishReason || "unknown";
+            throw new LLMResponseError(
+              "agent",
+              `Response has no content (finish reason: ${reason})`,
+            );
           }
 
           // Success - we have a valid response
@@ -356,6 +440,16 @@ export class GoogleCUAClient extends AgentClient {
       const endTime = Date.now();
       const elapsedMs = endTime - startTime;
       const { usageMetadata } = response;
+
+      // Log LLM response
+      SessionFileLogger.logLlmResponse({
+        requestId: llmRequestId,
+        model: this.modelName,
+        operation: "CUA.generateContent",
+        output: formatCuaResponsePreview(response),
+        inputTokens: usageMetadata?.promptTokenCount,
+        outputTokens: usageMetadata?.candidatesTokenCount,
+      });
 
       // Process the response
       const result = await this.processResponse(response, logger);
@@ -451,6 +545,9 @@ export class GoogleCUAClient extends AgentClient {
                 await new Promise((resolve) => setTimeout(resolve, delay));
               }
             } catch (actionError) {
+              if (actionError instanceof StagehandClosedError) {
+                throw actionError;
+              }
               logger({
                 category: "agent",
                 message: `Error executing action ${action.type}: ${actionError}`,
@@ -487,15 +584,22 @@ export class GoogleCUAClient extends AgentClient {
               // Create one function response for each computer use function call
               // Following Python SDK pattern: FunctionResponse with parts containing inline_data
               for (const functionCall of computerUseFunctionCalls) {
+                let safetyAcknowledgement: string | undefined;
+                if (functionCall.args?.safety_decision) {
+                  safetyAcknowledgement = await this.handleSafetyConfirmation(
+                    functionCall.args.safety_decision,
+                    logger,
+                  );
+                }
+
                 const functionResponsePart: Part = {
                   functionResponse: {
                     name: functionCall.name,
                     response: {
                       url: this.currentUrl || "",
-                      // Acknowledge safety decision for evals
-                      ...(functionCall.args?.safety_decision
+                      ...(safetyAcknowledgement !== undefined
                         ? {
-                            safety_acknowledgement: "true",
+                            safety_acknowledgement: safetyAcknowledgement,
                           }
                         : {}),
                     },
@@ -864,14 +968,14 @@ export class GoogleCUAClient extends AgentClient {
   }
 
   /**
-   * Normalize coordinates from Google's 0-1000 range to actual viewport dimensions
+   * Normalize coordinates from Google's 0-1000 range to viewport dimensions
    */
   private normalizeCoordinates(x: number, y: number): { x: number; y: number } {
-    x = Math.min(999, Math.max(0, x));
-    y = Math.min(999, Math.max(0, y));
+    const clampedX = Math.min(999, Math.max(0, x));
+    const clampedY = Math.min(999, Math.max(0, y));
     return {
-      x: Math.floor((x / 1000) * this.currentViewport.width),
-      y: Math.floor((y / 1000) * this.currentViewport.height),
+      x: Math.floor((clampedX / 1000) * this.currentViewport.width),
+      y: Math.floor((clampedY / 1000) * this.currentViewport.height),
     };
   }
 

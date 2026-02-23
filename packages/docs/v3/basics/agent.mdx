@@ -2,6 +2,10 @@
 title: Agent
 description: 'Automate complex workflows with AI powered browser agents'
 ---
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
 
 ## What is `agent()?`
 
@@ -25,18 +29,44 @@ await agent.execute("apply for a job at browserbase")
 
 ## Using `agent()`
 
-There are two ways to create agents in Stagehand:
-1. Use a Computer Use Agent
-2. Use Agent with any LLM (non-computer-use)
+There are three ways to create agents in Stagehand:
+1. Use a Computer Use Agent (CUA mode)
+2. Use Agent with any LLM (DOM mode)
+3. Use Agent with vision and DOM (Hybrid mode)
+
+### Feature Availability
+
+Some advanced features are only available with certain agent modes:
+
+| Feature                  | CUA | DOM | Hybrid |
+|:-------------------------|:---:|:---:|:------:|
+| Basic execution          | ✅  | ✅  | ✅     |
+| Custom tools             | ✅  | ✅  | ✅     |
+| MCP integrations         | ✅  | ✅  | ✅     |
+| System prompt            | ✅  | ✅  | ✅     |
+| Variables                | ❌  | ✅  | ✅     |
+| Streaming                | ❌  | ✅  | ✅     |
+| Callbacks                | ❌  | ✅  | ✅     |
+| Abort signal             | ❌  | ✅  | ✅     |
+| Message continuation     | ❌  | ✅  | ✅     |
+| Exclude tools            | ❌  | ✅  | ✅     |
+| Structured output        | ❌  | ✅  | ✅     |
+| DOM-based actions        | ❌  | ✅  | ✅     |
+| Coordinate-based actions | ✅  | ❌  | ✅     |
+| Visual cursor highlight  | ✅  | ❌  | ✅     |
 
 ### Computer Use Agents
 
-You can use specialized computer use models from either Google, OpenAI, or Anthropic as shown below, with `cua` set to `true`. To compare the performance of different computer use models, you can visit our [evals page](https://www.stagehand.dev/agent-evals).
+You can use specialized computer use models from Google, OpenAI, Anthropic, or Microsoft as shown below, with `mode` set to `"cua"`. To compare the performance of different computer use models, you can visit our [evals page](https://www.stagehand.dev/agent-evals).
+
+<Warning>
+**Deprecation Notice:** The `cua: true` option is deprecated and will be removed in a future version. Use `mode: "cua"` instead.
+</Warning>
 
 <CodeGroup>
 ```typescript Google
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "google/gemini-2.5-computer-use-preview-10-2025",
         apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
@@ -53,7 +83,7 @@ await agent.execute({
 
 ```typescript OpenAI
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "openai/computer-use-preview",
         apiKey: process.env.OPENAI_API_KEY
@@ -69,7 +99,7 @@ await agent.execute({
 ```
 ```typescript Anthropic
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "anthropic/claude-sonnet-4-20250514",
         apiKey: process.env.ANTHROPIC_API_KEY
@@ -100,6 +130,64 @@ await agent.execute("apply for a job at Browserbase")
 <Card title="Available Agent Models" icon="robot" href="/v3/configuration/models#agent-models-with-cua-support">
   Check out the guide on how to use different models with Stagehand Agent.
 </Card>
+
+### Hybrid Mode
+
+Both DOM and CUA modes have their strengths and weaknesses. Hybrid mode combines them, giving the agent access to both coordinate-based and DOM-based tools to better account for where each may fall short.
+
+<Warning>
+**Model Requirements:** Hybrid mode requires models that can reliably perform coordinate-based actions from screenshots. The following models are recommended:
+- **Google:** `google/gemini-3-flash-preview`
+- **Anthropic:** `anthropic/claude-sonnet-4-20250514`, `anthropic/claude-sonnet-4-5-20250929`, `anthropic/claude-haiku-4-5-20251001`
+
+Other models may not reliably produce accurate coordinates for clicking and typing.
+
+</Warning>
+
+<Note>Hybrid mode requires `experimental: true` in your Stagehand constructor.</Note>
+
+<CodeGroup>
+```typescript Hybrid Mode with Google
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  experimental: true, // Required for hybrid mode
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  mode: "hybrid",
+  model: "google/gemini-3-flash-preview",
+});
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
+
+await agent.execute({
+  instruction: "Click the sign up button and fill out the registration form",
+  maxSteps: 20,
+});
+```
+
+```typescript Hybrid Mode with Anthropic
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  experimental: true, // Required for hybrid mode
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  mode: "hybrid",
+  model: "anthropic/claude-haiku-4-5-20251001",
+  systemPrompt: "You are a helpful assistant that interacts with web pages visually.",
+});
+
+await agent.execute({
+  instruction: "Navigate the page and interact with the form elements",
+  maxSteps: 15,
+  highlightCursor: true, // Enabled by default in hybrid mode
+});
+```
+</CodeGroup>
 
 ### Return value of `agent()`?
 
@@ -136,6 +224,11 @@ When you use `agent()`, Stagehand will return a `Promise<AgentResult>` with the 
     }
   ],
   completed: true,
+  // Only populated when `output` schema is provided (DOM/Hybrid modes only)
+  output: {
+    price: "$199",
+    airline: "Delta"
+  },
   usage: {
     input_tokens: 2040,
     output_tokens: 28,
@@ -146,13 +239,17 @@ When you use `agent()`, Stagehand will return a `Promise<AgentResult>` with the 
 }
 ```
 
-## Custom Tools
+## Customizing Agent Tools
 
-Agents can be enhanced with custom tools for more granular control and better performance. Unlike MCP integrations, custom tools are defined inline and execute directly within your application.
+Stagehand agents come with built-in tools for browser automation, but you can customize the toolset by adding your own custom tools or excluding built-in ones.
+
+### Adding Custom Tools
+
+Custom tools enhance agents with additional capabilities for more granular control and better performance. Unlike MCP integrations, custom tools are defined inline and execute directly within your application.
 
 <Note>Custom tools provide a cleaner, more performant alternative to MCP integrations when you need specific functionality.</Note>
 
-### Defining Custom Tools
+#### Defining Custom Tools
 
 Use the `tool` helper from the [Vercel AI SDK](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling) to define custom tools:
 
@@ -191,7 +288,7 @@ import { tool } from "ai";
 import { z } from "zod/v3";
 
 const agent = stagehand.agent({
-  cua: true,
+  mode: "cua",
   model: "anthropic/claude-sonnet-4-20250514",
   tools: {
     searchDatabase: tool({
@@ -265,7 +362,7 @@ await agent.execute("Fill out the contact form and send me a confirmation email 
 ```
 </CodeGroup>
 
-### Custom Tools vs MCP Integrations
+#### Custom Tools vs MCP Integrations
 
 | Custom Tools                           | MCP Integrations                        |
 |----------------------------------------|-----------------------------------------|
@@ -279,6 +376,226 @@ await agent.execute("Fill out the contact form and send me a confirmation email 
 Use custom tools when you need specific functionality within your application. Use MCP integrations when connecting to external services or when you need standardized cross-application tools.
 </Tip>
 
+### Excluding Built-in Tools
+
+Prevent the agent from using specific built-in tools during execution. This is useful when you want to restrict the agent's capabilities or avoid certain behaviors.
+
+<Note>**Non-CUA agents only.** Requires `experimental: true`. Not available when `cua: true`.</Note>
+
+#### Basic Usage
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true, // Required for excludeTools
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+});
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
+
+// Exclude screenshot and extract tools
+const result = await agent.execute({
+  instruction: "Navigate through the website and click the submit button",
+  maxSteps: 15,
+  excludeTools: ["screenshot", "extract"],
+});
+```
+
+#### Available Tools by Mode
+
+The tools you can exclude depend on the agent mode:
+
+<Tabs>
+<Tab title="DOM Mode (default)">
+
+| Tool | Description |
+|------|-------------|
+| `act` | Perform semantic actions (click, type, etc.) |
+| `fillForm` | Fill form fields using DOM selectors |
+| `ariaTree` | Get accessibility tree of the page |
+| `extract` | Extract structured data from page |
+| `goto` | Navigate to a URL |
+| `scroll` | Scroll using semantic directions (up/down/left/right) |
+| `keys` | Press keyboard keys |
+| `navback` | Navigate back in history |
+| `screenshot` | Take a screenshot |
+| `think` | Agent reasoning/planning step |
+| `wait` | Wait for time or condition |
+| `search` | Web search (requires `BRAVE_API_KEY`) |
+
+</Tab>
+
+<Tab title="Hybrid Mode">
+
+| Tool | Description |
+|------|-------------|
+| `click` | Click at specific coordinates |
+| `type` | Type text at coordinates |
+| `dragAndDrop` | Drag from one point to another |
+| `clickAndHold` | Click and hold at coordinates |
+| `fillFormVision` | Fill forms using vision/coordinates |
+| `act` | Perform semantic actions |
+| `ariaTree` | Get accessibility tree |
+| `extract` | Extract data from page |
+| `goto` | Navigate to URL |
+| `scroll` | Scroll using coordinates |
+| `keys` | Press keyboard keys |
+| `navback` | Navigate back |
+| `screenshot` | Take screenshot |
+| `think` | Agent reasoning step |
+| `wait` | Wait for time/condition |
+| `search` | Web search (requires `BRAVE_API_KEY`) |
+
+</Tab>
+</Tabs>
+
+#### Use Cases
+
+```typescript
+// Prevent the agent from taking screenshots during execution
+const result = await agent.execute({
+  instruction: "Fill out the contact form",
+  excludeTools: ["screenshot"],
+});
+
+// Prevent the agent from extracting data
+const result = await agent.execute({
+  instruction: "Click through the signup flow",
+  excludeTools: ["extract"],
+});
+
+// Disable web search capability
+const result = await agent.execute({
+  instruction: "Find information on the current page",
+  excludeTools: ["search"],
+});
+```
+
+## Variables
+
+Use variables to pass sensitive data (like passwords, API keys, or personal information) to the agent without exposing the actual values to the LLM. The agent sees only variable names and descriptions, while the actual values are substituted at runtime.
+
+<Note>**Non-CUA agents only.** Variables require `experimental: true` and are not available with Computer Use Agents.</Note>
+
+### Basic Usage
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true, // Required for variables
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+});
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com/login");
+
+const result = await agent.execute({
+  instruction: "Log into the website using my credentials",
+  maxSteps: 10,
+  variables: {
+    username: {
+      value: "john@example.com",
+      description: "The user's email address for login"
+    },
+    password: {
+      value: process.env.USER_PASSWORD,
+      description: "The user's password for login"
+    }
+  }
+});
+```
+
+Variables use the same type as `act()`. You can pass simple values or rich objects with descriptions:
+
+```typescript
+// Simple values (same format as act)
+variables: {
+  username: "john@example.com",
+  password: "secret123",
+}
+
+// Rich values with descriptions (helps the agent understand context)
+variables: {
+  username: { value: "john@example.com", description: "The login email" },
+  password: { value: "secret123", description: "The login password" },
+}
+```
+
+### How Variables Work
+
+1. **LLM receives descriptions only**: The agent sees variable names and descriptions in its system prompt, but never the actual values
+2. **Placeholder syntax**: The LLM uses `%variableName%` syntax when it needs to use a variable (e.g., "type %password% into the password field")
+3. **Runtime substitution**: Actual values are substituted just before the action executes
+4. **Secure logging**: Variable values are never logged or returned in tool outputs
+
+### Supported Tools
+
+Variables work with the following agent tools:
+
+<Tabs>
+<Tab title="DOM Mode">
+
+| Tool | Usage |
+|------|-------|
+| `act` | Use `%variableName%` in the action description |
+| `fillForm` | Use `%variableName%` in field values |
+
+</Tab>
+
+<Tab title="Hybrid Mode">
+
+| Tool | Usage |
+|------|-------|
+| `type` | Use `%variableName%` in the text to type |
+| `fillFormVision` | Use `%variableName%` in field values |
+| `act` | Use `%variableName%` in the action description |
+
+</Tab>
+</Tabs>
+
+### Cache Optimization
+
+Variables are cache-friendly by design:
+- Cache keys use only variable names, not values
+- Changing variable values (e.g., different passwords) won't invalidate cached executions
+- This enables efficient replay of the same workflow with different credentials
+
+### Best Practices
+
+<Tabs>
+<Tab title="Do this">
+```typescript
+// Use variables for sensitive data
+variables: {
+  apiKey: {
+    value: process.env.API_KEY,
+    description: "API key for authentication"
+  }
+}
+```
+</Tab>
+
+<Tab title="Don't do this">
+```typescript
+// Don't hardcode sensitive values in instructions
+instruction: "Log in with password 'secret123'"
+```
+</Tab>
+</Tabs>
+
+<Tip>
+Use descriptive names and descriptions for variables. The LLM relies on the description to understand when and how to use each variable.
+</Tip>
+
 ## MCP Integrations
 
 Agents can be enhanced with external tools and services through MCP (Model Context Protocol) integrations. This allows your agent to access external APIs and data sources beyond just browser interactions.
@@ -286,7 +603,7 @@ Agents can be enhanced with external tools and services through MCP (Model Conte
 <CodeGroup>
 ```typescript Pass URL
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "openai/computer-use-preview",
         apiKey: process.env.OPENAI_API_KEY
@@ -308,7 +625,7 @@ const supabaseClient = await connectToMCPServer(
 );
 
 const agent = stagehand.agent({
-    cua: true,
+    mode: "cua",
     model: {
         modelName: "openai/computer-use-preview",
         apiKey: process.env.OPENAI_API_KEY
@@ -324,6 +641,395 @@ await agent.execute("Search for restaurants and save the first result to the dat
 <Tip>
 MCP integrations enable agents to be more powerful by combining browser automation with external APIs, databases, and services. The agent can intelligently decide when to use browser actions versus external tools.
 </Tip>
+
+## Streaming
+
+Enable streaming mode to receive incremental responses from the agent. This is useful for building real-time UIs that show the agent's reasoning as it progresses.
+
+<Warning>
+**Non-CUA agents only.** Streaming, callbacks, abort signals, and message continuation are only available when using the standard agent (without `mode: "cua"`). These features are not supported with Computer Use Agents.
+</Warning>
+
+<Note>These are experimental features. Set `experimental: true` in your Stagehand constructor to enable them.</Note>
+
+### Enabling Streaming Mode
+
+Set `stream: true` in the agent configuration to enable streaming:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true, // Required for streaming
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+  stream: true, // Enable streaming mode
+});
+
+const streamResult = await agent.execute({
+  instruction: "Search for headphones on Amazon",
+  maxSteps: 20,
+});
+
+// Stream the text output incrementally
+for await (const delta of streamResult.textStream) {
+  process.stdout.write(delta);
+}
+
+// Get the final result after streaming completes
+const finalResult = await streamResult.result;
+console.log("Completed:", finalResult.completed);
+```
+
+### Stream Properties
+
+When streaming is enabled, `execute()` returns an `AgentStreamResult` with:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `textStream` | `AsyncIterable<string>` | Incremental text output from the agent |
+| `fullStream` | `AsyncIterable<StreamPart>` | All stream events including tool calls and messages |
+| `result` | `Promise<AgentResult>` | Final result after streaming completes |
+
+```typescript
+// Stream everything (tool calls, messages, etc.)
+for await (const event of streamResult.fullStream) {
+  console.log(event);
+}
+```
+
+## Callbacks
+
+Callbacks let you hook into the agent's execution lifecycle to monitor progress, log events, or modify behavior.
+
+<Note>**Non-CUA agents only.** Callbacks require `experimental: true` and are not available with Computer Use Agents.</Note>
+
+### Available Callbacks
+
+<Tabs>
+<Tab title="Non-Streaming">
+
+When `stream: false` (default), these callbacks are available:
+
+| Callback | Description |
+|----------|-------------|
+| `prepareStep` | Called before each LLM step to modify settings |
+| `onStepFinish` | Called when each step completes |
+
+```typescript
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+});
+
+await agent.execute({
+  instruction: "Fill out the contact form",
+  maxSteps: 10,
+  callbacks: {
+    prepareStep: async (stepContext) => {
+      console.log(`Starting step ${stepContext.stepNumber}`);
+      return stepContext; // Return modified or original context
+    },
+    onStepFinish: async (event) => {
+      console.log(`Step finished: ${event.finishReason}`);
+      if (event.toolCalls) {
+        for (const tc of event.toolCalls) {
+          console.log(`Tool called: ${tc.toolName}`);
+        }
+      }
+    },
+  },
+});
+```
+
+</Tab>
+
+<Tab title="Streaming">
+
+When `stream: true`, additional callbacks are available:
+
+| Callback | Description |
+|----------|-------------|
+| `prepareStep` | Called before each LLM step to modify settings |
+| `onStepFinish` | Called when each step completes |
+| `onChunk` | Called for each stream chunk |
+| `onFinish` | Called when streaming completes |
+| `onError` | Called when an error occurs |
+| `onAbort` | Called when the stream is aborted |
+
+```typescript
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+  stream: true,
+});
+
+const streamResult = await agent.execute({
+  instruction: "Search for products",
+  maxSteps: 15,
+  callbacks: {
+    onChunk: async (chunk) => {
+      // Called for each incremental chunk
+      console.log("Chunk received:", chunk);
+    },
+    onStepFinish: async (event) => {
+      console.log(`Step completed: ${event.finishReason}`);
+    },
+    onFinish: (event) => {
+      console.log("Stream finished!");
+      console.log("Total steps:", event.steps.length);
+    },
+    onError: ({ error }) => {
+      console.error("Stream error:", error);
+    },
+    onAbort: (event) => {
+      console.log("Stream aborted after", event.steps.length, "steps");
+    },
+  },
+});
+
+// Don't forget to consume the stream
+for await (const delta of streamResult.textStream) {
+  process.stdout.write(delta);
+}
+
+await streamResult.result;
+```
+
+</Tab>
+</Tabs>
+
+<Warning>
+Streaming-only callbacks (`onChunk`, `onFinish`, `onError`, `onAbort`) will throw an error if used without `stream: true`. If you need these callbacks, enable streaming in your agent configuration.
+</Warning>
+
+## Abort Signal
+
+Cancel agent execution at any time using an `AbortSignal`. This is useful for implementing timeouts or allowing users to stop long-running tasks.
+
+<Note>**Non-CUA agents only.** Abort signals require `experimental: true` and are not available with Computer Use Agents.</Note>
+
+### Basic Usage
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true, // Required for abort signal
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+});
+
+const controller = new AbortController();
+
+// Set a 30 second timeout
+setTimeout(() => controller.abort(), 30000);
+
+try {
+  const result = await agent.execute({
+    instruction: "Complete a complex multi-step task",
+    maxSteps: 50,
+    signal: controller.signal,
+  });
+} catch (error) {
+  if (error.name === "AgentAbortError") {
+    console.log("Task was cancelled");
+  }
+}
+```
+
+### Abort with Streaming
+
+Abort signals also work with streaming mode:
+
+```typescript
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+  stream: true,
+});
+
+const controller = new AbortController();
+
+const streamResult = await agent.execute({
+  instruction: "Describe every element on the page",
+  maxSteps: 50,
+  signal: controller.signal,
+  callbacks: {
+    onAbort: (event) => {
+      console.log(`Aborted after ${event.steps.length} steps`);
+    },
+  },
+});
+
+// Abort after receiving 10 chunks
+let chunkCount = 0;
+for await (const delta of streamResult.textStream) {
+  process.stdout.write(delta);
+  chunkCount++;
+  if (chunkCount >= 10) {
+    controller.abort();
+    break;
+  }
+}
+
+// The result promise will reject with AgentAbortError
+try {
+  await streamResult.result;
+} catch (error) {
+  console.log("Stream was aborted:", error.message);
+}
+```
+
+### Custom Abort Reasons
+
+You can pass a reason when aborting:
+
+```typescript
+controller.abort("User cancelled the operation");
+
+// The error message will include your reason
+// Error: "User cancelled the operation"
+```
+
+## Message Continuation
+
+Continue a conversation across multiple agent executions by passing the `messages` from a previous result. This is useful for multi-turn interactions or breaking complex tasks into steps while maintaining context.
+
+<Note>**Non-CUA agents only.** Message continuation requires `experimental: true` and is not available with Computer Use Agents.</Note>
+
+### Basic Continuation
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true, // Required for message continuation
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+});
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com/products");
+
+// First execution: search for products
+const firstResult = await agent.execute({
+  instruction: "Search for wireless headphones and note the top 3 results",
+  maxSteps: 10,
+});
+
+console.log("First task:", firstResult.message);
+
+// Continue with the same context: ask follow-up
+const secondResult = await agent.execute({
+  instruction: "Now filter by price under $100 and tell me which of those 3 are still available",
+  maxSteps: 10,
+  messages: firstResult.messages, // Pass previous conversation
+});
+
+console.log("Follow-up:", secondResult.message);
+
+// Continue further: take action based on conversation history
+const thirdResult = await agent.execute({
+  instruction: "Add the cheapest one to the cart",
+  maxSteps: 10,
+  messages: secondResult.messages, // Chain the conversation
+});
+
+console.log("Final action:", thirdResult.message);
+```
+
+## Structured Output
+
+Define a Zod schema to receive structured data when the agent completes its task. This is useful when you need specific information extracted from the agent's execution, such as prices, dates, or other structured data.
+
+<Note>**Non-CUA agents only.** Structured output requires `experimental: true` and is not available with Computer Use Agents.</Note>
+
+<Tip>Use `.describe()` on schema fields to help the agent understand what data to extract.</Tip>
+
+<CodeGroup>
+```typescript Basic Usage
+import { z } from "zod/v3";
+
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true, // Required for structured output
+});
+await stagehand.init();
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+});
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://www.google.com/flights");
+
+const result = await agent.execute({
+  instruction: "Find the cheapest flight from NYC to LA for next week",
+  maxSteps: 20,
+  output: z.object({
+    price: z.string().describe("The price of the flight"),
+    airline: z.string().describe("The airline name"),
+    departureTime: z.string().describe("Departure time"),
+    arrivalTime: z.string().describe("Arrival time"),
+  }),
+});
+
+// Access the structured output
+console.log(result.output);
+// { price: "$199", airline: "Delta", departureTime: "8:00 AM", arrivalTime: "11:30 AM" }
+```
+
+```typescript Complex Schema
+const result = await agent.execute({
+  instruction: "Extract all items from the shopping cart",
+  output: z.object({
+    items: z.array(z.object({
+      name: z.string().describe("Product name"),
+      quantity: z.number().describe("Quantity in cart"),
+      unitPrice: z.string().describe("Price per item"),
+      totalPrice: z.string().describe("Total price for this item"),
+    })).describe("List of items in the cart"),
+    subtotal: z.string().describe("Cart subtotal before tax"),
+    tax: z.string().optional().describe("Tax amount if shown"),
+    total: z.string().describe("Final total"),
+  }),
+});
+
+console.log(`Found ${result.output?.items.length} items in cart`);
+console.log(`Total: ${result.output?.total}`);
+```
+
+```typescript With Streaming
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5-20250929",
+  stream: true,
+});
+
+const streamResult = await agent.execute({
+  instruction: "Find the top 3 search results",
+  output: z.object({
+    results: z.array(z.object({
+      title: z.string().describe("The title of the search result"),
+      url: z.string().url().describe("The URL of the search result"),
+      snippet: z.string().describe("A brief description or snippet"),
+    })).max(3).describe("Top 3 search results"),
+  }),
+});
+
+// Stream the text output
+for await (const delta of streamResult.textStream) {
+  process.stdout.write(delta);
+}
+
+// Get the structured output from the final result
+const finalResult = await streamResult.result;
+console.log(finalResult.output?.results);
+```
+</CodeGroup>
 
 ## Agent Execution Configuration
 

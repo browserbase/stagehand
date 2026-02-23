@@ -1,5 +1,5 @@
-import { EvalFunction } from "../types/evals";
-import { normalizeString } from "../utils";
+import { EvalFunction } from "../types/evals.js";
+import { normalizeString } from "../utils.js";
 import { z } from "zod";
 
 export const ted_talk: EvalFunction = async ({

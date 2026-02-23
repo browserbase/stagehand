@@ -1,3 +1,3 @@
-import { rerenderMissingShadowHosts } from "./rerenderMissingShadows.runtime";
+import { rerenderMissingShadowHosts } from "./rerenderMissingShadows.runtime.js";
 
 rerenderMissingShadowHosts();

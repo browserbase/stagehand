@@ -1,18 +1,24 @@
-import { computeActiveElementXpath } from "../understudy/a11y/snapshot";
-import { V3 } from "../v3";
+import { computeActiveElementXpath } from "../understudy/a11y/snapshot/index.js";
+import { V3 } from "../v3.js";
 import { ToolSet } from "ai";
-import { AgentClient } from "../agent/AgentClient";
-import { AgentProvider } from "../agent/AgentProvider";
-import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping";
+import { AgentClient } from "../agent/AgentClient.js";
+import { AgentProvider } from "../agent/AgentProvider.js";
+import { GoogleCUAClient } from "../agent/GoogleCUAClient.js";
+import { OpenAICUAClient } from "../agent/OpenAICUAClient.js";
+import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping.js";
+import { ensureXPath } from "../agent/utils/xpath.js";
 import {
   ActionExecutionResult,
   AgentAction,
   AgentExecuteOptions,
   AgentHandlerOptions,
   AgentResult,
-} from "../types/public/agent";
-import { LogLine } from "../types/public/logs";
-import { type Action, V3FunctionName } from "../types/public/methods";
+  SafetyConfirmationHandler,
+} from "../types/public/agent.js";
+import { LogLine } from "../types/public/logs.js";
+import { type Action, V3FunctionName } from "../types/public/methods.js";
+import { SessionFileLogger } from "../flowLogger.js";
+import { StagehandClosedError } from "../types/public/sdkErrors.js";
 
 export class V3CuaAgentHandler {
   private v3: V3;
@@ -22,8 +28,6 @@ export class V3CuaAgentHandler {
   private agentClient: AgentClient;
   private options: AgentHandlerOptions;
   private highlightCursor: boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private screenshotCollector?: any;
 
   constructor(
     v3: V3,
@@ -47,16 +51,28 @@ export class V3CuaAgentHandler {
     this.agent = client;
   }
 
+  /**
+   * Ensures the V3 context is still available (not closed).
+   * Throws StagehandClosedError if stagehand.close() was called.
+   */
+  private ensureNotClosed(): void {
+    if (!this.v3.context) {
+      throw new StagehandClosedError();
+    }
+  }
+
   private setupAgentClient(): void {
     // Provide screenshots to the agent client
     this.agentClient.setScreenshotProvider(async () => {
+      this.ensureNotClosed();
       const page = await this.v3.context.awaitActivePage();
-      const base64 = await page.screenshot({ fullPage: false });
-      return base64.toString("base64"); // base64 png
+      const screenshotBuffer = await page.screenshot({ fullPage: false });
+      return screenshotBuffer.toString("base64"); // base64 png
     });
 
     // Provide action executor
     this.agentClient.setActionHandler(async (action) => {
+      this.ensureNotClosed();
       action.pageUrl = (await this.v3.context.awaitActivePage()).url();
 
       const defaultDelay = 500;
@@ -73,7 +89,21 @@ export class V3CuaAgentHandler {
           }
         }
         await new Promise((r) => setTimeout(r, 300));
-        await this.executeAction(action);
+        // Skip logging for screenshot actions - they're no-ops, the actual
+        // Page.screenshot in captureAndSendScreenshot() is logged separately
+        const shouldLog = action.type !== "screenshot";
+        if (shouldLog) {
+          SessionFileLogger.logUnderstudyActionEvent({
+            actionType: `v3CUA.${action.type}`,
+            target: this.computePointerTarget(action),
+            args: [action],
+          });
+        }
+        try {
+          await this.executeAction(action);
+        } finally {
+          if (shouldLog) SessionFileLogger.logUnderstudyActionCompleted();
+        }
 
         action.timestamp = Date.now();
 
@@ -104,6 +134,15 @@ export class V3CuaAgentHandler {
     void this.updateClientUrl();
   }
 
+  setSafetyConfirmationHandler(handler?: SafetyConfirmationHandler): void {
+    if (
+      this.agentClient instanceof GoogleCUAClient ||
+      this.agentClient instanceof OpenAICUAClient
+    ) {
+      this.agentClient.setSafetyConfirmationHandler(handler);
+    }
+  }
+
   async execute(
     optionsOrInstruction: AgentExecuteOptions | string,
   ): Promise<AgentResult> {
@@ -111,6 +150,8 @@ export class V3CuaAgentHandler {
       typeof optionsOrInstruction === "string"
         ? { instruction: optionsOrInstruction }
         : optionsOrInstruction;
+
+    this.setSafetyConfirmationHandler(options.callbacks?.onSafetyConfirmation);
 
     this.highlightCursor = options.highlightCursor !== false;
 
@@ -171,7 +212,7 @@ export class V3CuaAgentHandler {
             clickCount: (clickCount as number) ?? 1,
             returnXpath: true,
           });
-          const normalized = this.ensureXPath(xpath);
+          const normalized = ensureXPath(xpath);
           if (normalized) {
             const stagehandAction: Action = {
               selector: normalized,
@@ -202,7 +243,7 @@ export class V3CuaAgentHandler {
             clickCount: 2,
             returnXpath: true,
           });
-          const normalized = this.ensureXPath(xpath);
+          const normalized = ensureXPath(xpath);
           if (normalized) {
             const stagehandAction: Action = {
               selector: normalized,
@@ -232,7 +273,7 @@ export class V3CuaAgentHandler {
             clickCount: 3,
             returnXpath: true,
           });
-          const normalized = this.ensureXPath(xpath);
+          const normalized = ensureXPath(xpath);
           if (normalized) {
             const stagehandAction: Action = {
               selector: normalized,
@@ -258,7 +299,7 @@ export class V3CuaAgentHandler {
         await page.type(String(text ?? ""));
         if (recording) {
           const xpath = await computeActiveElementXpath(page);
-          const normalized = this.ensureXPath(xpath);
+          const normalized = ensureXPath(xpath);
           if (normalized) {
             const stagehandAction: Action = {
               selector: normalized,
@@ -334,8 +375,8 @@ export class V3CuaAgentHandler {
               returnXpath: true,
             });
             const [fromXpath, toXpath] = (xps as [string, string]) || ["", ""];
-            const from = this.ensureXPath(fromXpath);
-            const to = this.ensureXPath(toXpath);
+            const from = ensureXPath(fromXpath);
+            const to = ensureXPath(toXpath);
             if (from && to) {
               const stagehandAction: Action = {
                 selector: from,
@@ -359,7 +400,28 @@ export class V3CuaAgentHandler {
         return { success: true };
       }
       case "move": {
-        // No direct cursor-only move; rely on overlay to show clicks/scrolls
+        const { x, y } = action;
+        if (typeof x === "number" && typeof y === "number") {
+          if (recording) {
+            const xpath = await page.hover(x, y, { returnXpath: true });
+            const normalized = ensureXPath(xpath);
+            if (normalized) {
+              const stagehandAction: Action = {
+                selector: normalized,
+                description: this.describePointerAction("hover", x, y),
+                method: "hover",
+                arguments: [],
+              };
+              this.recordCuaActStep(
+                action,
+                [stagehandAction],
+                stagehandAction.description,
+              );
+            }
+          } else {
+            await page.hover(x, y);
+          }
+        }
         return { success: true };
       }
       case "wait": {
@@ -371,7 +433,7 @@ export class V3CuaAgentHandler {
         return { success: true };
       }
       case "screenshot": {
-        // Already handled around actions
+        // No-op - screenshot is captured by captureAndSendScreenshot() after all actions
         return { success: true };
       }
       case "goto": {
@@ -424,11 +486,17 @@ export class V3CuaAgentHandler {
     }
   }
 
-  private ensureXPath(value: unknown): string | null {
-    if (typeof value !== "string") return null;
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    return trimmed.startsWith("xpath=") ? trimmed : `xpath=${trimmed}`;
+  // helper to make pointer target human-readable for logging
+  private computePointerTarget(action: AgentAction): string | undefined {
+    return typeof action.x === "number" && typeof action.y === "number"
+      ? `(${action.x}, ${action.y})`
+      : typeof action.selector === "string"
+        ? action.selector
+        : typeof action.input === "string"
+          ? action.input
+          : typeof action.description === "string"
+            ? action.description
+            : undefined;
   }
 
   private describePointerAction(kind: string, x: unknown, y: unknown): string {
@@ -487,12 +555,22 @@ export class V3CuaAgentHandler {
 
   private async updateClientViewport(): Promise<void> {
     try {
-      const page = await this.v3.context.awaitActivePage();
-      const { w, h } = await page.mainFrame().evaluate<{
-        w: number;
-        h: number;
-      }>("({ w: window.innerWidth, h: window.innerHeight })");
-      if (w && h) this.agentClient.setViewport(w, h);
+      // For Google CUA, use configured viewport for coordinate normalization
+      // advancedStealth uses fixed 1288x711, otherwise use configured viewport
+      if (this.agentClient instanceof GoogleCUAClient) {
+        const dims = this.v3.isAdvancedStealth
+          ? { width: 1288, height: 711 }
+          : this.v3.configuredViewport;
+        this.agentClient.setViewport(dims.width, dims.height);
+      } else {
+        // For other clients, use actual window dimensions
+        const page = await this.v3.context.awaitActivePage();
+        const { w, h } = await page.mainFrame().evaluate<{
+          w: number;
+          h: number;
+        }>("({ w: window.innerWidth, h: window.innerHeight })");
+        if (w && h) this.agentClient.setViewport(w, h);
+      }
     } catch {
       //
     }
@@ -516,13 +594,13 @@ export class V3CuaAgentHandler {
     });
     try {
       const page = await this.v3.context.awaitActivePage();
-      const base64Image = await page.screenshot({ fullPage: false });
-      if (this.screenshotCollector) {
-        this.screenshotCollector.addScreenshot(base64Image);
-      }
+      const screenshotBuffer = await page.screenshot({ fullPage: false });
+
+      // Emit screenshot event via the bus
+      this.v3.bus.emit("agent_screenshot_taken_event", screenshotBuffer);
       const currentUrl = page.url();
       return await this.agentClient.captureScreenshot({
-        base64Image,
+        base64Image: screenshotBuffer.toString("base64"),
         currentUrl,
       });
     } catch (e) {
@@ -542,21 +620,5 @@ export class V3CuaAgentHandler {
     } catch {
       // Best-effort only
     }
-  }
-
-  /**
-   * Set the screenshot collector for this agent handler
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  setScreenshotCollector(collector: any): void {
-    this.screenshotCollector = collector;
-  }
-
-  /**
-   * Get the screenshot collector
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  getScreenshotCollector(): any {
-    return this.screenshotCollector;
   }
 }

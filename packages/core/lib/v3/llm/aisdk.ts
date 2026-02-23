@@ -13,9 +13,12 @@ import {
 } from "ai";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { ChatCompletion } from "openai/resources";
-import { LogLine } from "../types/public/logs";
-import { AvailableModel } from "../types/public/model";
-import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
+import { v7 as uuidv7 } from "uuid";
+import { LogLine } from "../types/public/logs.js";
+import { AvailableModel } from "../types/public/model.js";
+import { CreateChatCompletionOptions, LLMClient } from "./LLMClient.js";
+import { SessionFileLogger, formatLlmPromptPreview } from "../flowLogger.js";
+import { toJsonSchema } from "../zodCompat.js";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
@@ -127,24 +130,76 @@ export class AISdkClient extends LLMClient {
 
     let objectResponse: Awaited<ReturnType<typeof generateObject>>;
     const isGPT5 = this.model.modelId.includes("gpt-5");
-    const isGPT51 = this.model.modelId.includes("gpt-5.1");
+    const isCodex = this.model.modelId.includes("codex");
+    const usesLowReasoningEffort =
+      (this.model.modelId.includes("gpt-5.1") ||
+        this.model.modelId.includes("gpt-5.2")) &&
+      !isCodex;
+    // Kimi models only support temperature=1
+    const isKimi = this.model.modelId.includes("kimi");
+    const temperature = isKimi ? 1 : options.temperature;
+
+    // Models that lack native structured-output support need a prompt-based
+    // JSON fallback instead of response_format: { type: "json_schema" }.
+    const PROMPT_JSON_FALLBACK_PATTERNS = ["deepseek", "kimi", "glm"];
+    const needsPromptJsonFallback = PROMPT_JSON_FALLBACK_PATTERNS.some((p) =>
+      this.model.modelId.includes(p),
+    );
+
     if (options.response_model) {
+      // Log LLM request for generateObject (extract)
+      const llmRequestId = uuidv7();
+      const promptPreview = formatLlmPromptPreview(options.messages, {
+        hasSchema: true,
+      });
+      SessionFileLogger.logLlmRequest({
+        requestId: llmRequestId,
+        model: this.model.modelId,
+        operation: "generateObject",
+        prompt: promptPreview,
+      });
+
+      // For models that don't support native structured outputs, add a prompt instruction
+      if (needsPromptJsonFallback) {
+        const parsedSchema = JSON.stringify(
+          toJsonSchema(options.response_model.schema),
+        );
+
+        formattedMessages.push({
+          role: "user",
+          content: `Respond in this zod schema format:\n${parsedSchema}\n
+You must respond in JSON format. respond WITH JSON. Do not include any other text, formatting or markdown in your output. Do not include \`\`\` or \`\`\`json in your response. Only the JSON object itself.`,
+        });
+      }
+
       try {
         objectResponse = await generateObject({
           model: this.model,
           messages: formattedMessages,
           schema: options.response_model.schema,
-          temperature: options.temperature,
+          temperature,
           providerOptions: isGPT5
             ? {
                 openai: {
-                  textVerbosity: "low", // Making these the default for gpt-5 for now
-                  reasoningEffort: isGPT51 ? "low" : "minimal",
+                  textVerbosity: isCodex ? "medium" : "low", // codex models only support 'medium'
+                  reasoningEffort: isCodex
+                    ? "medium"
+                    : usesLowReasoningEffort
+                      ? "low"
+                      : "minimal",
                 },
               }
             : undefined,
         });
       } catch (err) {
+        // Log error response to maintain request/response pairing
+        SessionFileLogger.logLlmResponse({
+          requestId: llmRequestId,
+          model: this.model.modelId,
+          operation: "generateObject",
+          output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
+        });
+
         if (NoObjectGeneratedError.isInstance(err)) {
           this.logger?.({
             category: "AISDK error",
@@ -194,6 +249,16 @@ export class AISdkClient extends LLMClient {
         },
       } as T;
 
+      // Log LLM response for generateObject
+      SessionFileLogger.logLlmResponse({
+        requestId: llmRequestId,
+        model: this.model.modelId,
+        operation: "generateObject",
+        output: JSON.stringify(objectResponse.object),
+        inputTokens: objectResponse.usage.inputTokens,
+        outputTokens: objectResponse.usage.outputTokens,
+      });
+
       this.logger?.({
         category: "aisdk",
         message: "response",
@@ -228,20 +293,45 @@ export class AISdkClient extends LLMClient {
       }
     }
 
-    const textResponse = await generateText({
-      model: this.model,
-      messages: formattedMessages,
-      tools: Object.keys(tools).length > 0 ? tools : undefined,
-      toolChoice:
-        Object.keys(tools).length > 0
-          ? options.tool_choice === "required"
-            ? "required"
-            : options.tool_choice === "none"
-              ? "none"
-              : "auto"
-          : undefined,
-      temperature: options.temperature,
+    // Log LLM request for generateText (act/observe)
+    const llmRequestId = uuidv7();
+    const toolCount = Object.keys(tools).length;
+    const promptPreview = formatLlmPromptPreview(options.messages, {
+      toolCount,
     });
+    SessionFileLogger.logLlmRequest({
+      requestId: llmRequestId,
+      model: this.model.modelId,
+      operation: "generateText",
+      prompt: promptPreview,
+    });
+
+    let textResponse: Awaited<ReturnType<typeof generateText>>;
+    try {
+      textResponse = await generateText({
+        model: this.model,
+        messages: formattedMessages,
+        tools: Object.keys(tools).length > 0 ? tools : undefined,
+        toolChoice:
+          Object.keys(tools).length > 0
+            ? options.tool_choice === "required"
+              ? "required"
+              : options.tool_choice === "none"
+                ? "none"
+                : "auto"
+            : undefined,
+        temperature,
+      });
+    } catch (err) {
+      // Log error response to maintain request/response pairing
+      SessionFileLogger.logLlmResponse({
+        requestId: llmRequestId,
+        model: this.model.modelId,
+        operation: "generateText",
+        output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
+      });
+      throw err;
+    }
 
     // Transform AI SDK response to match LLMResponse format expected by operator handler
     const transformedToolCalls = (textResponse.toolCalls || []).map(
@@ -281,6 +371,20 @@ export class AISdkClient extends LLMClient {
         total_tokens: textResponse.usage.totalTokens ?? 0,
       },
     } as T;
+
+    // Log LLM response for generateText
+    SessionFileLogger.logLlmResponse({
+      requestId: llmRequestId,
+      model: this.model.modelId,
+      operation: "generateText",
+      output:
+        textResponse.text ||
+        (transformedToolCalls.length > 0
+          ? `[${transformedToolCalls.length} tool calls]`
+          : ""),
+      inputTokens: textResponse.usage.inputTokens,
+      outputTokens: textResponse.usage.outputTokens,
+    });
 
     this.logger?.({
       category: "aisdk",

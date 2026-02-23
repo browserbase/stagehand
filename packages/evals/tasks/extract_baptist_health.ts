@@ -1,5 +1,5 @@
-import { EvalFunction } from "../types/evals";
-import { compareStrings } from "../utils";
+import { EvalFunction } from "../types/evals.js";
+import { compareStrings } from "../utils.js";
 import { z } from "zod";
 
 export const extract_baptist_health: EvalFunction = async ({

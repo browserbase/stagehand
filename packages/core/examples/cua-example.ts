@@ -6,7 +6,7 @@
  * NOTE: YOU MUST CONFIGURE BROWSER DIMENSIONS TO USE COMPUTER USE!
  * Check out stagehand.config.ts for more information.
  */
-import { Stagehand } from "../lib/v3";
+import { Stagehand } from "../lib/v3/index.js";
 import chalk from "chalk";
 
 async function main() {
@@ -26,9 +26,9 @@ async function main() {
 
     // Create a computer use agent
     const agent = stagehand.agent({
-      cua: true,
+      mode: "cua",
       model: {
-        modelName: "google/gemini-2.5-computer-use-preview-10-2025",
+        modelName: "google/gemini-3-flash-preview",
         apiKey: process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY,
       },
       systemPrompt: `You are a helpful assistant that can use a web browser.

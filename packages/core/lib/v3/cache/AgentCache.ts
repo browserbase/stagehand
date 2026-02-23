@@ -1,10 +1,11 @@
 import { createHash } from "crypto";
-import type { ActHandler } from "../handlers/actHandler";
-import type { LLMClient } from "../llm/LLMClient";
+import type { ActHandler } from "../handlers/actHandler.js";
+import type { LLMClient } from "../llm/LLMClient.js";
 import type {
   AgentReplayActStep,
   AgentReplayFillFormStep,
   AgentReplayGotoStep,
+  AgentReplayKeysStep,
   AgentReplayNavBackStep,
   AgentReplayScrollStep,
   AgentReplayStep,
@@ -14,19 +15,25 @@ import type {
   ActFn,
   AgentCacheContext,
   AgentCacheDeps,
-} from "../types/private";
+  AgentCacheTransferPayload,
+} from "../types/private/index.js";
 import type {
-  AvailableModel,
+  Action,
   AgentResult,
   AgentStreamResult,
   AgentConfig,
   AgentExecuteOptionsBase,
+  AvailableModel,
   Logger,
-} from "../types/public";
-import type { Page } from "../understudy/page";
-import type { V3Context } from "../understudy/context";
-import { CacheStorage } from "./CacheStorage";
-import { cloneForCache, safeGetPageUrl } from "./utils";
+} from "../types/public/index.js";
+import type { Page } from "../understudy/page.js";
+import type { V3Context } from "../understudy/context.js";
+import { CacheStorage } from "./CacheStorage.js";
+import {
+  cloneForCache,
+  safeGetPageUrl,
+  waitForCachedSelector,
+} from "./utils.js";
 
 const SENSITIVE_CONFIG_KEYS = new Set(["apikey", "api_key", "api-key"]);
 
@@ -40,8 +47,10 @@ export class AgentCache {
   private readonly getSystemPrompt: () => string | undefined;
   private readonly domSettleTimeoutMs?: number;
   private readonly act: ActFn;
+  private readonly bufferLatestEntry: boolean;
 
   private recording: AgentReplayStep[] | null = null;
+  private latestEntry: AgentCacheTransferPayload | null = null;
 
   constructor({
     storage,
@@ -53,6 +62,7 @@ export class AgentCache {
     getSystemPrompt,
     domSettleTimeoutMs,
     act,
+    bufferLatestEntry,
   }: AgentCacheDeps) {
     this.storage = storage;
     this.logger = logger;
@@ -63,6 +73,7 @@ export class AgentCache {
     this.getSystemPrompt = getSystemPrompt;
     this.domSettleTimeoutMs = domSettleTimeoutMs;
     this.act = act;
+    this.bufferLatestEntry = bufferLatestEntry ?? false;
   }
 
   get enabled(): boolean {
@@ -108,13 +119,19 @@ export class AgentCache {
     const serializedExecutionModel = this.serializeAgentModelForCache(
       agentOptions?.executionModel,
     );
+
+    const isCuaMode =
+      agentOptions?.mode !== undefined
+        ? agentOptions.mode === "cua"
+        : agentOptions?.cua === true;
+
     return JSON.stringify({
       v3Model: this.getBaseModelName(),
       systemPrompt: this.getSystemPrompt() ?? "",
       agent: {
-        cua: agentOptions?.cua ?? false,
+        cua: isCuaMode,
         model: serializedModel ?? null,
-        executionModel: agentOptions?.cua ? null : serializedExecutionModel,
+        executionModel: isCuaMode ? null : serializedExecutionModel,
         systemPrompt: agentOptions?.systemPrompt ?? null,
         toolKeys,
         integrations: integrationSignatures,
@@ -127,17 +144,22 @@ export class AgentCache {
     options: SanitizedAgentExecuteOptions;
     configSignature: string;
     page: Page;
+    variables?: Record<string, string>;
   }): Promise<AgentCacheContext | null> {
     if (!this.shouldAttemptCache(params.instruction)) {
       return null;
     }
     const instruction = params.instruction.trim();
     const startUrl = await safeGetPageUrl(params.page);
+    const variableKeys = params.variables
+      ? Object.keys(params.variables).sort()
+      : [];
     const cacheKey = this.buildAgentCacheKey(
       instruction,
       startUrl,
       params.options,
       params.configSignature,
+      variableKeys,
     );
     return {
       instruction,
@@ -145,10 +167,15 @@ export class AgentCache {
       options: params.options,
       configSignature: params.configSignature,
       cacheKey,
+      variableKeys,
+      variables: params.variables,
     };
   }
 
-  async tryReplay(context: AgentCacheContext): Promise<AgentResult | null> {
+  async tryReplay(
+    context: AgentCacheContext,
+    llmClientOverride?: LLMClient,
+  ): Promise<AgentResult | null> {
     if (!this.enabled) return null;
 
     const {
@@ -183,7 +210,7 @@ export class AgentCache {
       },
     });
 
-    return await this.replayAgentCacheEntry(entry);
+    return await this.replayAgentCacheEntry(context, entry, llmClientOverride);
   }
 
   /**
@@ -204,8 +231,9 @@ export class AgentCache {
    */
   async tryReplayAsStream(
     context: AgentCacheContext,
+    llmClientOverride?: LLMClient,
   ): Promise<AgentStreamResult | null> {
-    const result = await this.tryReplay(context);
+    const result = await this.tryReplay(context, llmClientOverride);
     if (!result) return null;
     return this.createCachedStreamResult(result);
   }
@@ -329,7 +357,7 @@ export class AgentCache {
       options: context.options,
       configSignature: context.configSignature,
       steps: cloneForCache(steps),
-      result: cloneForCache(result),
+      result: this.pruneAgentResult(result),
       timestamp: new Date().toISOString(),
     };
 
@@ -358,6 +386,76 @@ export class AgentCache {
         steps: { value: String(steps.length), type: "string" },
       },
     });
+
+    if (this.bufferLatestEntry) {
+      this.latestEntry = {
+        cacheKey: context.cacheKey,
+        entry: cloneForCache(entry),
+      };
+    }
+  }
+
+  consumeBufferedEntry(): AgentCacheTransferPayload | null {
+    if (!this.bufferLatestEntry || !this.latestEntry) {
+      return null;
+    }
+
+    const payload = this.latestEntry;
+    this.latestEntry = null;
+    return payload;
+  }
+
+  async storeTransferredEntry(
+    payload: AgentCacheTransferPayload | null,
+  ): Promise<void> {
+    if (!this.enabled || !payload) return;
+
+    const entry = cloneForCache(payload.entry);
+    const { error, path } = await this.storage.writeJson(
+      `agent-${payload.cacheKey}.json`,
+      entry,
+    );
+    if (error && path) {
+      this.logger({
+        category: "cache",
+        message: "failed to import remote agent cache entry",
+        level: 0,
+        auxiliary: {
+          error: { value: String(error), type: "string" },
+        },
+      });
+      return;
+    }
+
+    this.logger({
+      category: "cache",
+      message: "agent cache imported from server",
+      level: 2,
+      auxiliary: {
+        instruction: { value: entry.instruction, type: "string" },
+        steps: { value: String(entry.steps?.length ?? 0), type: "string" },
+      },
+    });
+  }
+
+  /**
+   * Clone the agent result and prune bulky fields (e.g. screenshot base64 blobs)
+   * before persisting it to disk. This keeps cache entries compact without
+   * mutating the live AgentResult returned to callers.
+   */
+  private pruneAgentResult(result: AgentResult): AgentResult {
+    const cloned = cloneForCache(result);
+    if (!Array.isArray(cloned.actions)) {
+      return cloned;
+    }
+
+    for (const action of cloned.actions) {
+      if (action?.type === "screenshot") {
+        delete action.base64;
+      }
+    }
+
+    return cloned;
   }
 
   beginRecording(): void {
@@ -422,12 +520,14 @@ export class AgentCache {
     startUrl: string,
     options: SanitizedAgentExecuteOptions,
     configSignature: string,
+    variableKeys?: string[],
   ): string {
     const payload = {
       instruction,
       startUrl,
       options,
       configSignature,
+      variableKeys: variableKeys ?? [],
     };
     return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
   }
@@ -470,14 +570,28 @@ export class AgentCache {
   }
 
   private async replayAgentCacheEntry(
+    context: AgentCacheContext,
     entry: CachedAgentEntry,
+    llmClientOverride?: LLMClient,
   ): Promise<AgentResult | null> {
     const ctx = this.getContext();
     const handler = this.getActHandler();
     if (!ctx || !handler) return null;
+    const effectiveClient = llmClientOverride ?? this.getDefaultLlmClient();
     try {
+      const updatedSteps: AgentReplayStep[] = [];
+      let stepsChanged = false;
       for (const step of entry.steps ?? []) {
-        await this.executeAgentReplayStep(step, ctx, handler);
+        const replayedStep =
+          (await this.executeAgentReplayStep(
+            step,
+            ctx,
+            handler,
+            effectiveClient,
+            context.variables,
+          )) ?? step;
+        stepsChanged ||= replayedStep !== step;
+        updatedSteps.push(replayedStep);
       }
       const result = cloneForCache(entry.result);
       result.usage = {
@@ -492,6 +606,9 @@ export class AgentCache {
         cacheHit: true,
         cacheTimestamp: entry.timestamp,
       };
+      if (stepsChanged) {
+        await this.refreshAgentCacheEntry(context, entry, updatedSteps);
+      }
       return result;
     } catch (err) {
       this.logger({
@@ -510,41 +627,53 @@ export class AgentCache {
     step: AgentReplayStep,
     ctx: V3Context,
     handler: ActHandler,
-  ): Promise<void> {
+    llmClient: LLMClient,
+    variables?: Record<string, string>,
+  ): Promise<AgentReplayStep> {
     switch (step.type) {
       case "act":
-        await this.replayAgentActStep(step as AgentReplayActStep, ctx, handler);
-        return;
+        return await this.replayAgentActStep(
+          step as AgentReplayActStep,
+          ctx,
+          handler,
+          llmClient,
+          variables,
+        );
       case "fillForm":
-        await this.replayAgentFillFormStep(
+        return await this.replayAgentFillFormStep(
           step as AgentReplayFillFormStep,
           ctx,
           handler,
+          llmClient,
+          variables,
         );
-        return;
       case "goto":
         await this.replayAgentGotoStep(step as AgentReplayGotoStep, ctx);
-        return;
+        return step;
       case "scroll":
         await this.replayAgentScrollStep(step as AgentReplayScrollStep, ctx);
-        return;
+        return step;
       case "wait":
         await this.replayAgentWaitStep(step as AgentReplayWaitStep);
-        return;
+        return step;
       case "navback":
         await this.replayAgentNavBackStep(step as AgentReplayNavBackStep, ctx);
-        return;
-      case "close":
+        return step;
+      case "keys":
+        await this.replayAgentKeysStep(step as AgentReplayKeysStep, ctx);
+        return step;
+      case "done":
       case "extract":
       case "screenshot":
       case "ariaTree":
-        return;
+        return step;
       default:
         this.logger({
           category: "cache",
           message: `agent cache skipping step type: ${step.type}`,
           level: 2,
         });
+        return step;
     }
   }
 
@@ -552,42 +681,86 @@ export class AgentCache {
     step: AgentReplayActStep,
     ctx: V3Context,
     handler: ActHandler,
-  ): Promise<void> {
+    llmClient: LLMClient,
+    variables?: Record<string, string>,
+  ): Promise<AgentReplayActStep> {
     const actions = Array.isArray(step.actions) ? step.actions : [];
     if (actions.length > 0) {
       const page = await ctx.awaitActivePage();
+      const updatedActions: Action[] = [];
       for (const action of actions) {
-        await handler.takeDeterministicAction(
+        await waitForCachedSelector({
+          page,
+          selector: action.selector,
+          timeout: this.domSettleTimeoutMs,
+          logger: this.logger,
+          context: "agent act",
+        });
+        const result = await handler.takeDeterministicAction(
           action,
           page,
           this.domSettleTimeoutMs,
-          this.getDefaultLlmClient(),
+          llmClient,
+          undefined,
+          variables,
         );
+        if (result.success && Array.isArray(result.actions)) {
+          updatedActions.push(...cloneForCache(result.actions));
+        } else {
+          updatedActions.push(cloneForCache(action));
+        }
       }
-      return;
+      if (this.haveActionsChanged(actions, updatedActions)) {
+        return { ...step, actions: updatedActions };
+      }
+      return step;
     }
-    await this.act(step.instruction, { timeout: step.timeout });
+    await this.act(step.instruction, { timeout: step.timeout, variables });
+    return step;
   }
 
   private async replayAgentFillFormStep(
     step: AgentReplayFillFormStep,
     ctx: V3Context,
     handler: ActHandler,
-  ): Promise<void> {
+    llmClient: LLMClient,
+    variables?: Record<string, string>,
+  ): Promise<AgentReplayFillFormStep> {
     const actions =
       Array.isArray(step.actions) && step.actions.length > 0
         ? step.actions
         : (step.observeResults ?? []);
-    if (!Array.isArray(actions) || actions.length === 0) return;
+    if (!Array.isArray(actions) || actions.length === 0) {
+      return step;
+    }
     const page = await ctx.awaitActivePage();
+    const updatedActions: Action[] = [];
     for (const action of actions) {
-      await handler.takeDeterministicAction(
+      await waitForCachedSelector({
+        page,
+        selector: action.selector,
+        timeout: this.domSettleTimeoutMs,
+        logger: this.logger,
+        context: "fillForm",
+      });
+      const result = await handler.takeDeterministicAction(
         action,
         page,
         this.domSettleTimeoutMs,
-        this.getDefaultLlmClient(),
+        llmClient,
+        undefined, // ensureTimeRemaining is not used in this context
+        variables,
       );
+      if (result.success && Array.isArray(result.actions)) {
+        updatedActions.push(...cloneForCache(result.actions));
+      } else {
+        updatedActions.push(cloneForCache(action));
+      }
     }
+    if (this.haveActionsChanged(actions, updatedActions)) {
+      return { ...step, actions: updatedActions };
+    }
+    return step;
   }
 
   private async replayAgentGotoStep(
@@ -633,5 +806,93 @@ export class AgentCache {
   ): Promise<void> {
     const page = await ctx.awaitActivePage();
     await page.goBack({ waitUntil: step.waitUntil ?? "domcontentloaded" });
+  }
+
+  private async replayAgentKeysStep(
+    step: AgentReplayKeysStep,
+    ctx: V3Context,
+  ): Promise<void> {
+    const page = await ctx.awaitActivePage();
+    const { method, text, keys, times } = step.playwrightArguments;
+    const repeatCount = Math.max(1, times ?? 1);
+
+    if (method === "type" && text) {
+      for (let i = 0; i < repeatCount; i++) {
+        await page.type(text, { delay: 100 });
+      }
+    } else if (method === "press" && keys) {
+      for (let i = 0; i < repeatCount; i++) {
+        await page.keyPress(keys, { delay: 100 });
+      }
+    }
+  }
+
+  private haveActionsChanged(original: Action[], updated: Action[]): boolean {
+    if (original.length !== updated.length) {
+      return true;
+    }
+    for (let i = 0; i < original.length; i += 1) {
+      const orig = original[i];
+      const next = updated[i];
+      if (!orig || !next) {
+        return true;
+      }
+      if (orig.selector !== next.selector) {
+        return true;
+      }
+      if ((orig.description ?? "") !== (next.description ?? "")) {
+        return true;
+      }
+      if ((orig.method ?? "") !== (next.method ?? "")) {
+        return true;
+      }
+      const origArgs = Array.isArray(orig.arguments) ? orig.arguments : [];
+      const nextArgs = Array.isArray(next.arguments) ? next.arguments : [];
+      if (origArgs.length !== nextArgs.length) {
+        return true;
+      }
+      for (let j = 0; j < origArgs.length; j += 1) {
+        if (origArgs[j] !== nextArgs[j]) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private async refreshAgentCacheEntry(
+    context: AgentCacheContext,
+    entry: CachedAgentEntry,
+    updatedSteps: AgentReplayStep[],
+  ): Promise<void> {
+    const updatedEntry: CachedAgentEntry = {
+      ...entry,
+      steps: cloneForCache(updatedSteps),
+      timestamp: new Date().toISOString(),
+    };
+    const { error, path } = await this.storage.writeJson(
+      `agent-${context.cacheKey}.json`,
+      updatedEntry,
+    );
+    if (error && path) {
+      this.logger({
+        category: "cache",
+        message: "failed to update agent cache entry after self-heal",
+        level: 0,
+        auxiliary: {
+          error: { value: String(error), type: "string" },
+        },
+      });
+      return;
+    }
+    this.logger({
+      category: "cache",
+      message: "agent cache entry updated after self-heal",
+      level: 2,
+      auxiliary: {
+        instruction: { value: context.instruction, type: "string" },
+        steps: { value: String(updatedSteps.length), type: "string" },
+      },
+    });
   }
 }

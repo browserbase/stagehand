@@ -1,12 +1,12 @@
-import { ZodSchemaValidationError } from "./v3/types/public/sdkErrors";
+import { ZodSchemaValidationError } from "./v3/types/public/sdkErrors.js";
 import { Schema, Type } from "@google/genai";
 import { z, ZodTypeAny } from "zod";
 import z3 from "zod/v3";
-import { LogLine } from "./v3/types/public/logs";
-import { ModelProvider } from "./v3/types/public/model";
-import { ZodPathSegments } from "./v3/types/private/internal";
-import type { StagehandZodSchema } from "./v3/zodCompat";
-import { isZod4Schema } from "./v3/zodCompat";
+import { LogLine } from "./v3/types/public/logs.js";
+import { ModelProvider } from "./v3/types/public/model.js";
+import { ZodPathSegments } from "./v3/types/private/internal.js";
+import type { StagehandZodSchema } from "./v3/zodCompat.js";
+import { isZod4Schema } from "./v3/zodCompat.js";
 
 const ID_PATTERN = /^\d+-\d+$/;
 
@@ -682,7 +682,7 @@ export const providerEnvVarMap: Partial<
 > = {
   openai: "OPENAI_API_KEY",
   anthropic: "ANTHROPIC_API_KEY",
-  google: ["GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
+  google: ["GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "GOOGLE_API_KEY"],
   vertex: "GOOGLE_VERTEX_AI_API_KEY",
   groq: "GROQ_API_KEY",
   cerebras: "CEREBRAS_API_KEY",
@@ -694,6 +694,8 @@ export const providerEnvVarMap: Partial<
   xai: "XAI_API_KEY",
   google_legacy: "GOOGLE_API_KEY",
 };
+
+const providersWithoutApiKey = new Set(["bedrock", "ollama"]);
 
 /**
  * Loads an API key for a provider, checking environment variables.
@@ -711,11 +713,13 @@ export function loadApiKeyFromEnv(
 
   const envVarName = providerEnvVarMap[provider];
   if (!envVarName) {
-    logger({
-      category: "init",
-      message: `No known environment variable for provider '${provider}'`,
-      level: 0,
-    });
+    if (!providersWithoutApiKey.has(provider)) {
+      logger({
+        category: "init",
+        message: `No known environment variable for provider '${provider}'`,
+        level: 0,
+      });
+    }
     return undefined;
   }
 

@@ -1,4 +1,4 @@
-import { EvalFunction } from "../types/evals";
+import { EvalFunction } from "../types/evals.js";
 
 export const observe_simple_google_search: EvalFunction = async ({
   debugUrl,
@@ -19,14 +19,13 @@ export const observe_simple_google_search: EvalFunction = async ({
       const action1 = observation1[0];
       await v3.act(action1);
     }
-    const observation2 = await v3.observe(
-      "Click the search button in the suggestions dropdown",
-    );
+    const observation2 = await v3.observe("Press enter");
 
     if (observation2.length > 0) {
       const action2 = observation2[0];
       await v3.act(action2);
     }
+    await new Promise((resolve) => setTimeout(resolve, 3000));
 
     const expectedUrl =
       "https://browserbase.github.io/stagehand-eval-sites/sites/google/openai.html";
