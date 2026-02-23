@@ -1,57 +1,7 @@
 import { defineConfig, type ReporterDescription } from "@playwright/test";
-import fs from "node:fs";
-import path from "node:path";
-
-const findCoreDir = (startDir: string): string => {
-  let current = path.resolve(startDir);
-  while (true) {
-    const nestedCorePath = path.join(
-      current,
-      "packages",
-      "core",
-      "package.json",
-    );
-    if (fs.existsSync(nestedCorePath)) {
-      try {
-        const nestedPkg = JSON.parse(
-          fs.readFileSync(nestedCorePath, "utf8"),
-        ) as {
-          name?: string;
-        };
-        if (nestedPkg.name === "@browserbasehq/stagehand") {
-          return path.join(current, "packages", "core");
-        }
-      } catch {
-        // keep climbing until we find the core package root
-      }
-    }
-
-    const packageJsonPath = path.join(current, "package.json");
-    if (fs.existsSync(packageJsonPath)) {
-      try {
-        const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8")) as {
-          name?: string;
-        };
-        if (pkg.name === "@browserbasehq/stagehand") {
-          return current;
-        }
-      } catch {
-        // keep climbing until we find the core package root
-      }
-    }
-
-    const parent = path.dirname(current);
-    if (parent === current) {
-      throw new Error(
-        `Unable to find @browserbasehq/stagehand from ${startDir}`,
-      );
-    }
-    current = parent;
-  }
-};
-
-const coreDir = findCoreDir(process.cwd());
-const testDir = path.join(coreDir, "dist", "esm", "tests", "integration");
+import { getPackageRootDir } from "../../lib/v3/runtimePaths.js";
+const coreDir = getPackageRootDir();
+const testDir = `${coreDir}/dist/esm/tests/integration`;
 
 const browserTarget = (
   process.env.STAGEHAND_BROWSER_TARGET ?? "local"
