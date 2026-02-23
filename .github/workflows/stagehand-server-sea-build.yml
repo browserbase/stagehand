@@ -16,6 +16,11 @@ on:
             {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe"},
             {"os":"windows-latest","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe"}
           ]
+      upload-only-binary:
+        description: "Upload only this binary (empty => upload all)."
+        required: false
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       matrix:
@@ -30,6 +35,11 @@ on:
             {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe"},
             {"os":"windows-latest","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe"}
           ]
+      upload-only-binary:
+        description: "Upload only this binary (empty => upload all)."
+        required: false
+        type: string
+        default: ""
 
 jobs:
   build_binaries:
@@ -71,6 +81,7 @@ jobs:
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
+        if: inputs.upload-only-binary == '' || matrix.binary_name == inputs.upload-only-binary
         with:
           name: ${{ matrix.binary_name }}
           # package.json is included to anchor artifact paths at repo root.
