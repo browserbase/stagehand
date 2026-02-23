@@ -3,7 +3,7 @@
  * Build SEA binary from ESM (test) or CJS (release) bundles.
  *
  * Prereqs:
- * - CJS mode: runs core CJS build via Turbo if dist is missing (pnpm exec turbo run build --filter @browserbasehq/stagehand).
+ * - CJS mode: runs core CJS build via Turbo if dist is missing.
  * - ESM mode: core dist/esm available (pnpm run build:esm).
  * - postject installed; tar available for non-Windows downloads.
  *
@@ -59,8 +59,6 @@ const binaryName =
   process.env.SEA_BINARY_NAME ??
   `stagehand-server-${targetPlatform}-${targetArch}${targetPlatform === "win32" ? ".exe" : ""}`;
 
-const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-
 const run = (cmd: string, args: string[], opts: { cwd?: string } = {}) => {
   const result = spawnSync(cmd, args, { stdio: "inherit", ...opts });
   if (result.error) {
@@ -71,6 +69,19 @@ const run = (cmd: string, args: string[], opts: { cwd?: string } = {}) => {
   if (result.status !== 0) {
     throw new Error(`Command failed: ${cmd} ${args.join(" ")}`);
   }
+};
+
+const runNodeScript = (
+  scriptPath: string,
+  args: string[],
+  opts: { cwd?: string } = {},
+) => run(process.execPath, [scriptPath, ...args], opts);
+
+const resolveFirstExisting = (paths: string[]): string => {
+  for (const candidate of paths) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  throw new Error(`Missing tool script. Tried: ${paths.join(", ")}`);
 };
 
 const runOptional = (
@@ -193,17 +204,15 @@ const writeSeaConfig = (
 };
 
 const buildCjsBundle = () => {
-  run(
-    pnpmCommand,
-    [
-      "exec",
-      "turbo",
-      "run",
-      "build:cjs",
-      "--filter",
-      "@browserbasehq/stagehand",
-    ],
-    { cwd: repoDir },
+  const turboBin = resolveFirstExisting([
+    `${repoDir}/node_modules/turbo/bin/turbo`,
+  ]);
+  runNodeScript(
+    turboBin,
+    ["run", "build:cjs", "--filter", "@browserbasehq/stagehand"],
+    {
+      cwd: repoDir,
+    },
   );
   fs.mkdirSync(`${repoDir}/packages/server/dist/sea`, { recursive: true });
   const bundlePath = `${repoDir}/packages/server/dist/sea/bundle.cjs`;
@@ -428,9 +437,11 @@ const main = async () => {
     runOptional("codesign", ["--remove-signature", outPath]);
   }
 
+  const postjectCliPath = resolveFirstExisting([
+    `${repoDir}/packages/server/node_modules/postject/dist/cli.js`,
+    `${repoDir}/node_modules/postject/dist/cli.js`,
+  ]);
   const postjectArgs = [
-    "exec",
-    "postject",
     outPath,
     "NODE_SEA_BLOB",
     `${repoDir}/packages/server/dist/sea/sea-prep.blob`,
@@ -440,7 +451,9 @@ const main = async () => {
   if (targetPlatform === "darwin") {
     postjectArgs.push("--macho-segment-name", "NODE_SEA");
   }
-  run(pnpmCommand, postjectArgs, { cwd: `${repoDir}/packages/server` });
+  runNodeScript(postjectCliPath, postjectArgs, {
+    cwd: `${repoDir}/packages/server`,
+  });
 
   if (targetPlatform === "darwin") {
     runOptional("codesign", ["--sign", "-", outPath]);

@@ -7,8 +7,10 @@
  * Example: pnpm run build:esm
  */
 import fs from "node:fs";
+import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import esbuild from "esbuild";
 
 const repoRoot = (() => {
   const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
@@ -19,15 +21,41 @@ const repoRoot = (() => {
   return root;
 })();
 
-const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const toRepoRelative = (absPath: string) =>
+  path.relative(repoRoot, absPath).replaceAll("\\", "/");
 
-const run = (args: string[]) => {
-  const result = spawnSync(pnpmCommand, args, {
+const collectTsFiles = (dir: string): string[] => {
+  const out: string[] = [];
+  if (!fs.existsSync(dir)) return out;
+
+  const entries = fs
+    .readdirSync(dir, { withFileTypes: true })
+    .sort((a, b) => a.name.localeCompare(b.name));
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...collectTsFiles(fullPath));
+      continue;
+    }
+    if (
+      entry.isFile() &&
+      fullPath.endsWith(".ts") &&
+      !fullPath.endsWith(".d.ts")
+    ) {
+      out.push(toRepoRelative(fullPath));
+    }
+  }
+
+  return out;
+};
+
+const runNodeScript = (scriptPath: string, args: string[]) => {
+  const result = spawnSync(process.execPath, [scriptPath, ...args], {
     stdio: "inherit",
     cwd: repoRoot,
   });
   if (result.error) {
-    console.error(`Failed to run ${pnpmCommand} ${args.join(" ")}`);
+    console.error(`Failed to run node ${scriptPath} ${args.join(" ")}`);
     console.error(result.error);
     process.exit(1);
   }
@@ -42,20 +70,25 @@ fs.rmSync(`${repoRoot}/packages/core/dist/esm`, {
 });
 
 // Core ESM emit includes generated lib/version.ts from gen-version (run in core build).
-run(["exec", "tsc", "-p", "packages/core/tsconfig.json"]);
+runNodeScript(`${repoRoot}/node_modules/typescript/bin/tsc`, [
+  "-p",
+  "packages/core/tsconfig.json",
+]);
 // Tests run via node/playwright need JS test files; esbuild emits ESM test JS into dist/esm.
 // Unit tests are in tests/unit/, integration tests are in tests/integration/
-run([
-  "exec",
-  "esbuild",
-  "packages/core/tests/**/*.ts",
-  "--outdir=packages/core/dist/esm",
-  "--outbase=packages/core",
-  "--format=esm",
-  "--platform=node",
-  "--sourcemap",
-  "--log-level=warning",
-]);
+const testEntryPoints = collectTsFiles(`${repoRoot}/packages/core/tests`);
+if (testEntryPoints.length > 0) {
+  esbuild.buildSync({
+    entryPoints: testEntryPoints,
+    outdir: "packages/core/dist/esm",
+    outbase: "packages/core",
+    format: "esm",
+    platform: "node",
+    sourcemap: true,
+    logLevel: "warning",
+    absWorkingDir: repoRoot,
+  });
+}
 
 fs.mkdirSync(`${repoRoot}/packages/core/dist/esm`, { recursive: true });
 fs.writeFileSync(

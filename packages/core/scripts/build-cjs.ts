@@ -7,8 +7,10 @@
  * Example: pnpm run build:cjs
  */
 import fs from "node:fs";
+import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import esbuild from "esbuild";
 
 const repoRoot = (() => {
   const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
@@ -19,15 +21,41 @@ const repoRoot = (() => {
   return root;
 })();
 
-const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const toRepoRelative = (absPath: string) =>
+  path.relative(repoRoot, absPath).replaceAll("\\", "/");
 
-const run = (args: string[]) => {
-  const result = spawnSync(pnpmCommand, args, {
+const collectTsFiles = (dir: string): string[] => {
+  const out: string[] = [];
+  if (!fs.existsSync(dir)) return out;
+
+  const entries = fs
+    .readdirSync(dir, { withFileTypes: true })
+    .sort((a, b) => a.name.localeCompare(b.name));
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...collectTsFiles(fullPath));
+      continue;
+    }
+    if (
+      entry.isFile() &&
+      fullPath.endsWith(".ts") &&
+      !fullPath.endsWith(".d.ts")
+    ) {
+      out.push(toRepoRelative(fullPath));
+    }
+  }
+
+  return out;
+};
+
+const runNodeScript = (scriptPath: string, args: string[]) => {
+  const result = spawnSync(process.execPath, [scriptPath, ...args], {
     stdio: "inherit",
     cwd: repoRoot,
   });
   if (result.error) {
-    console.error(`Failed to run ${pnpmCommand} ${args.join(" ")}`);
+    console.error(`Failed to run node ${scriptPath} ${args.join(" ")}`);
     console.error(result.error);
     process.exit(1);
   }
@@ -42,54 +70,56 @@ fs.rmSync(`${repoRoot}/packages/core/dist/cjs`, {
 });
 fs.mkdirSync(`${repoRoot}/packages/core/dist/cjs`, { recursive: true });
 
-run([
-  "exec",
-  "esbuild",
-  "packages/core/lib/v3/index.ts",
-  "--bundle",
-  "--platform=node",
-  "--format=cjs",
-  "--target=node20",
-  "--outfile=packages/core/dist/cjs/index.js",
-  "--sourcemap",
-  "--packages=external",
-  "--log-override:empty-import-meta=silent",
-  "--log-level=warning",
-]);
+esbuild.buildSync({
+  entryPoints: ["packages/core/lib/v3/index.ts"],
+  bundle: true,
+  platform: "node",
+  format: "cjs",
+  target: "node20",
+  outfile: "packages/core/dist/cjs/index.js",
+  sourcemap: true,
+  packages: "external",
+  logOverride: {
+    "empty-import-meta": "silent",
+  },
+  logLevel: "warning",
+  absWorkingDir: repoRoot,
+});
 
-run([
-  "exec",
-  "esbuild",
-  "packages/core/lib/v3/cli.js",
-  "--bundle",
-  "--platform=node",
-  "--format=cjs",
-  "--target=node20",
-  "--outfile=packages/core/dist/cjs/cli.js",
-  "--sourcemap",
-  "--packages=external",
-  "--log-level=warning",
-]);
+esbuild.buildSync({
+  entryPoints: ["packages/core/lib/v3/cli.js"],
+  bundle: true,
+  platform: "node",
+  format: "cjs",
+  target: "node20",
+  outfile: "packages/core/dist/cjs/cli.js",
+  sourcemap: true,
+  packages: "external",
+  logLevel: "warning",
+  absWorkingDir: repoRoot,
+});
 
 // Unit + e2e test scripts can run against dist/cjs when these test files are emitted.
 // Unit tests are in tests/unit/, integration tests are in tests/integration/
-run([
-  "exec",
-  "esbuild",
-  "packages/core/tests/**/*.ts",
-  "--outdir=packages/core/dist/cjs",
-  "--outbase=packages/core",
-  "--format=cjs",
-  "--platform=node",
-  "--target=node20",
-  "--sourcemap",
-  "--log-override:empty-import-meta=silent",
-  "--log-level=warning",
-]);
+const testEntryPoints = collectTsFiles(`${repoRoot}/packages/core/tests`);
+if (testEntryPoints.length > 0) {
+  esbuild.buildSync({
+    entryPoints: testEntryPoints,
+    outdir: "packages/core/dist/cjs",
+    outbase: "packages/core",
+    format: "cjs",
+    platform: "node",
+    target: "node20",
+    sourcemap: true,
+    logOverride: {
+      "empty-import-meta": "silent",
+    },
+    logLevel: "warning",
+    absWorkingDir: repoRoot,
+  });
+}
 
-run([
-  "exec",
-  "tsc",
+runNodeScript(`${repoRoot}/node_modules/typescript/bin/tsc`, [
   "-p",
   "packages/core/tsconfig.json",
   "--declaration",
