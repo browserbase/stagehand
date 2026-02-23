@@ -73,6 +73,7 @@ fs.rmSync(`${repoRoot}/packages/core/dist/esm`, {
 runNodeScript(`${repoRoot}/node_modules/typescript/bin/tsc`, [
   "-p",
   "packages/core/tsconfig.json",
+  "--declaration",
 ]);
 // Tests run via node/playwright need JS test files; esbuild emits ESM test JS into dist/esm.
 // Unit tests are in tests/unit/, integration tests are in tests/integration/
