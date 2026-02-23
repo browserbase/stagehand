@@ -10,10 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import {
-  getCurrentFilePath,
-  getRepoRootDir,
-} from "../runtimePaths.js";
+import { getCurrentFilePath, getRepoRootDir } from "../runtimePaths.js";
 
 type Runtime = "source" | "dist-esm";
 

@@ -14,10 +14,7 @@ import {
   type RawIndexMap,
   type RawSourceMap,
 } from "source-map";
-import {
-  getRepoRootDir,
-  isMainModule,
-} from "../lib/v3/runtimePaths.js";
+import { getRepoRootDir, isMainModule } from "../lib/v3/runtimePaths.js";
 
 type CoverageRange = {
   startOffset: number;

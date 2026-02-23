@@ -20,7 +20,9 @@ const readCallsites = (): NodeJS.CallSite[] => {
   const previousPrepare = Error.prepareStackTrace;
   try {
     Error.prepareStackTrace = (_, stack) => stack;
-    return (new Error().stack as unknown as NodeJS.CallSite[] | undefined) ?? [];
+    return (
+      (new Error().stack as unknown as NodeJS.CallSite[] | undefined) ?? []
+    );
   } finally {
     Error.prepareStackTrace = previousPrepare;
   }
