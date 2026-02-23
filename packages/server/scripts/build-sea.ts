@@ -17,17 +17,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import https from "node:https";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 import esbuild from "esbuild";
+import { getRepoRootDir } from "./runtimePaths.js";
 
-const repoDir = (() => {
-  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
-  const root = value.split("/packages/server/")[0];
-  if (root === value) {
-    throw new Error(`Unable to determine repo root from ${value}`);
-  }
-  return root;
-})();
+const repoDir = getRepoRootDir();
 
 const argValue = (name: string) => {
   const prefix = `--${name}=`;

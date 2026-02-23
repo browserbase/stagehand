@@ -1,16 +1,19 @@
-import { fileURLToPath } from "url";
+import path from "path";
 import type { Testcase, EvalInput } from "../types/evals.js";
 import type { AvailableModel } from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig.js";
+import { getCurrentDirPath } from "../runtimePaths.js";
 import { readJsonlFile, parseJsonlRows, applySampling } from "../utils.js";
 
 export const buildWebTailBenchTestcases = (models: string[]): Testcase[] => {
-  const moduleDir =
-    typeof __dirname === "string"
-      ? __dirname
-      : fileURLToPath(new URL(".", import.meta.url)).replace(/\/$/, "");
-  const webtailbenchFilePath =
-    moduleDir + "/../datasets/webtailbench/WebTailBench_data.jsonl";
+  const moduleDir = getCurrentDirPath();
+  const webtailbenchFilePath = path.join(
+    moduleDir,
+    "..",
+    "datasets",
+    "webtailbench",
+    "WebTailBench_data.jsonl",
+  );
 
   const lines = readJsonlFile(webtailbenchFilePath);
 

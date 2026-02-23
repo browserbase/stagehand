@@ -18,7 +18,11 @@ import {
   ShutdownSupervisorResolveError,
   ShutdownSupervisorSpawnError,
 } from "../types/private/shutdownErrors.js";
-const nodeRequire = createRequire(path.resolve(process.cwd(), "package.json"));
+import { getCurrentFilePath } from "../runtimePaths.js";
+
+const moduleFilename = getCurrentFilePath();
+const moduleDir = path.dirname(moduleFilename);
+const nodeRequire = createRequire(moduleFilename);
 
 const isSeaRuntime = (): boolean => {
   try {
@@ -31,21 +35,7 @@ const isSeaRuntime = (): boolean => {
 
 // SEA: re-exec current binary with supervisor args.
 // Non-SEA: execute Stagehand CLI entrypoint with supervisor args.
-const resolveCliPath = (): string | null => {
-  try {
-    return nodeRequire.resolve("@browserbasehq/stagehand/cli");
-  } catch {
-    const fallbackCandidates = [
-      path.resolve(process.cwd(), "dist/esm/lib/v3/cli.js"),
-      path.resolve(process.cwd(), "lib/v3/cli.js"),
-      path.resolve(process.cwd(), "packages/core/dist/esm/lib/v3/cli.js"),
-      path.resolve(process.cwd(), "packages/core/lib/v3/cli.js"),
-    ];
-    return (
-      fallbackCandidates.find((candidate) => fs.existsSync(candidate)) ?? null
-    );
-  }
-};
+const resolveCliPath = (): string => path.join(moduleDir, "../cli.js");
 
 const resolveSupervisorCommand = (
   config: ShutdownSupervisorConfig,
@@ -60,8 +50,7 @@ const resolveSupervisorCommand = (
   }
 
   const cliPath = resolveCliPath();
-  if (!cliPath) return null;
-  const moduleDir = path.dirname(cliPath);
+  if (!fs.existsSync(cliPath)) return null;
   const needsTsxLoader =
     fs.existsSync(`${moduleDir}/supervisor.ts`) &&
     !fs.existsSync(`${moduleDir}/supervisor.js`);

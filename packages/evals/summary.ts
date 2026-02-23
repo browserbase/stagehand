@@ -1,16 +1,9 @@
 import fs from "fs";
-import { fileURLToPath } from "node:url";
 import { tasksByName } from "./taskConfig.js";
 import type { SummaryResult } from "./types/evals.js";
+import { getRepoRootDir } from "./runtimePaths.js";
 
-const repoRoot = (() => {
-  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
-  const root = value.split("/packages/evals/")[0];
-  if (root === value) {
-    throw new Error(`Unable to determine repo root from ${value}`);
-  }
-  return root;
-})();
+const repoRoot = getRepoRootDir();
 
 export const generateSummary = async (
   results: SummaryResult[],

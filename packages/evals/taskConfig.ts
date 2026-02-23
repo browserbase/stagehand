@@ -12,10 +12,10 @@
 
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "node:url";
 import { AvailableModel } from "@browserbasehq/stagehand";
 import { filterByEvalName } from "./args.js";
 import { AgentModelEntry } from "./types/evals.js";
+import { getCurrentDirPath } from "./runtimePaths.js";
 
 const ALL_EVAL_MODELS = [
   // GOOGLE
@@ -58,7 +58,7 @@ const ALL_EVAL_MODELS = [
 ];
 
 // The configuration file `evals.config.json` contains a list of tasks and their associated categories.
-const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const moduleDir = getCurrentDirPath();
 const configPath = path.join(moduleDir, "evals.config.json");
 const config = JSON.parse(fs.readFileSync(configPath, "utf-8")) satisfies {
   tasks: {

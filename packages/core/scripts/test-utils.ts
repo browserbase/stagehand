@@ -8,16 +8,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { getRepoRootDir } from "../lib/v3/runtimePaths.js";
 
-const workspaceRoot = (() => {
-  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
-  const root = value.split("/packages/core/")[0];
-  if (root === value) {
-    throw new Error(`Unable to determine repo root from ${value}`);
-  }
-  return root;
-})();
+const workspaceRoot = getRepoRootDir();
 
 export const ensureParentDir = (filePath: string) => {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
