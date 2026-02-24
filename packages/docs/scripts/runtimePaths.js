@@ -10,9 +10,14 @@ import { fileURLToPath } from "node:url";
 
 const PACKAGE_SEGMENT = "/packages/docs/";
 const EVAL_FRAMES = new Set(["[eval]", "[eval]-wrapper"]);
-const RUNTIME_PATHS_FILES = new Set([
-  "runtimePaths.ts",
-  "runtimePaths.js",
+const INTERNAL_FRAME_NAMES = new Set([
+  "readCallsites",
+  "readCallsitePath",
+  "resolveCallerFilePath",
+  "getCurrentFilePath",
+  "getCurrentDirPath",
+  "getRepoRootDir",
+  "isMainModule",
 ]);
 
 const normalizePath = (value) => {
@@ -39,21 +44,20 @@ const readCallsitePath = (callsite) => {
   return normalizePath(rawPath);
 };
 
-const isRuntimePathsFile = (value) => RUNTIME_PATHS_FILES.has(path.basename(value));
+const isInternalCallsite = (callsite) => {
+  const functionName = callsite.getFunctionName?.();
+  if (functionName && INTERNAL_FRAME_NAMES.has(functionName)) return true;
 
-const helperFilePath = (() => {
-  for (const callsite of readCallsites()) {
-    const filePath = readCallsitePath(callsite);
-    if (!filePath) continue;
-    if (isRuntimePathsFile(filePath)) return filePath;
+  const methodName = callsite.getMethodName?.();
+  if (methodName && INTERNAL_FRAME_NAMES.has(methodName)) return true;
+
+  const callsiteString = callsite.toString?.() ?? "";
+  for (const frameName of INTERNAL_FRAME_NAMES) {
+    if (callsiteString.includes(`${frameName} (`)) return true;
+    if (callsiteString.includes(`.${frameName} (`)) return true;
   }
-  for (const callsite of readCallsites()) {
-    const filePath = readCallsitePath(callsite);
-    if (!filePath) continue;
-    return filePath;
-  }
-  throw new Error("Unable to resolve runtime-paths helper location.");
-})();
+  return false;
+};
 
 const resolveCallerFilePath = () => {
   const packageCandidates = [];
@@ -62,7 +66,7 @@ const resolveCallerFilePath = () => {
   for (const callsite of readCallsites()) {
     const filePath = readCallsitePath(callsite);
     if (!filePath) continue;
-    if (filePath === helperFilePath) continue;
+    if (isInternalCallsite(callsite)) continue;
     if (filePath.includes(PACKAGE_SEGMENT)) {
       packageCandidates.push(filePath);
       continue;
