@@ -121,29 +121,6 @@ async function main() {
         version: "3.1.0",
         description: `Stagehand SDK for AI browser automation [ALPHA]. This API allows clients to
 execute browser automation tasks remotely on the Browserbase cloud.
-
-## Multi-Region Support
-
-The Stagehand API is available in multiple regions. Choose the API endpoint
-that matches where your browser session is running:
-
-| Region | Endpoint |
-|--------|----------|
-| us-west-2 (default) | https://api.stagehand.browserbase.com |
-| us-east-1 | https://api.use1.stagehand.browserbase.com |
-| eu-central-1 | https://api.euc1.stagehand.browserbase.com |
-| ap-southeast-1 | https://api.apse1.stagehand.browserbase.com |
-
-**Important:** The API endpoint must match your browser session region.
-If there's a mismatch, you'll receive a BAD_REQUEST error:
-\`Session is in region 'X' but this API instance serves 'Y'. Please route
-your request to the X Stagehand API endpoint.\`
-
-To disable API mode and use local browser automation, set \`disableAPI: true\`
-in your Stagehand configuration.
-
-## Authentication and Usage
-
 All endpoints except /sessions/start require an active session ID.
 Responses are streamed using Server-Sent Events (SSE) when the
 \`x-stream-response: true\` header is provided.
@@ -159,19 +136,6 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
       servers: [
         {
           url: "https://api.stagehand.browserbase.com",
-          description: "US West (Oregon) - us-west-2 (Default)",
-        },
-        {
-          url: "https://api.use1.stagehand.browserbase.com",
-          description: "US East (N. Virginia) - us-east-1",
-        },
-        {
-          url: "https://api.euc1.stagehand.browserbase.com",
-          description: "EU Central (Frankfurt) - eu-central-1",
-        },
-        {
-          url: "https://api.apse1.stagehand.browserbase.com",
-          description: "Asia Pacific (Singapore) - ap-southeast-1",
         },
       ],
       components: {
@@ -207,20 +171,9 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
 
   const yaml = app.swagger({ yaml: true });
   // Mintlify expects OpenAPI version fields to be strings, so quote them here.
-  // Also fix markdown table formatting: in folded YAML blocks, table rows must be
-  // on consecutive lines (no blank lines between them) for proper rendering.
   const fixedYaml = yaml
     .replace(/^openapi:\s*(?!['"])([^#\s]+)\s*$/m, 'openapi: "$1"')
-    .replace(/^ {2}version:\s*(?!['"])([^#\s]+)\s*$/m, '  version: "$1"')
-    // Remove blank lines between markdown table rows in folded YAML blocks
-    .replace(/(\| Region \| Endpoint \|)\n\n(\s*\|[-|]+\|)/g, "$1\n$2")
-    .replace(/(\|[-|]+\|)\n\n(\s*\| us-west-2)/g, "$1\n$2")
-    .replace(/(\| us-west-2[^|]+\|[^|]+\|)\n\n(\s*\| us-east-1)/g, "$1\n$2")
-    .replace(/(\| us-east-1[^|]+\|[^|]+\|)\n\n(\s*\| eu-central-1)/g, "$1\n$2")
-    .replace(
-      /(\| eu-central-1[^|]+\|[^|]+\|)\n\n(\s*\| ap-southeast-1)/g,
-      "$1\n$2",
-    );
+    .replace(/^ {2}version:\s*(?!['"])([^#\s]+)\s*$/m, '  version: "$1"');
 
   await writeFile(OUTPUT_PATH, fixedYaml, "utf8");
 
