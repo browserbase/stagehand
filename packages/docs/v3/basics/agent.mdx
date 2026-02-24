@@ -256,7 +256,7 @@ Use the `tool` helper exported from `@browserbasehq/stagehand` to define custom 
 <CodeGroup>
 ```typescript Basic Tool
 import { tool } from "@browserbasehq/stagehand";
-import { z } from "";
+import { z } from "zod";
 
 const agent = stagehand.agent({
   model: "openai/gpt-5",
@@ -285,7 +285,7 @@ await agent.execute("What's the weather in San Francisco and should I bring an u
 
 ```typescript Multiple Tools
 import { tool } from "@browserbasehq/stagehand";
-import { z } from "";
+import { z } from "zod";
 
 const agent = stagehand.agent({
   mode: "cua",
@@ -322,7 +322,7 @@ await agent.execute("Find products under $50 and calculate the total with 8% tax
 
 ```typescript Tool with API Integration
 import { tool } from "@browserbasehq/stagehand";
-import { z } from "";
+import { z } from "zod";
 
 const agent = stagehand.agent({
   model: "google/gemini-2.0-flash",
@@ -952,7 +952,7 @@ Define a Zod schema to receive structured data when the agent completes its task
 
 <CodeGroup>
 ```typescript Basic Usage
-import { z } from "";
+import { z } from "zod";
 
 const stagehand = new Stagehand({
   env: "LOCAL",
