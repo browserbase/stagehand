@@ -309,6 +309,9 @@ async function startSeaServer(
     const tail = logs.slice(-30).join("\n");
     throw new Error(
       `Failed to start SEA server at ${baseUrl}: ${(error as Error).message}\n${tail}`,
+      {
+        cause: error,
+      },
     );
   }
 }
