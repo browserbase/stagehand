@@ -401,6 +401,60 @@ export class V3 {
     return Promise.resolve(this.stagehandMetrics);
   }
 
+  /**
+   * Resolves the effective server cache threshold for a method call.
+   * Method-level serverCache takes precedence over constructor-level serverCache.
+   * Returns the threshold number if the effective serverCache is an object with threshold,
+   * or undefined if it's a boolean or unset (letting LaunchDarkly handle it).
+   */
+  private resolveServerCacheThreshold(
+    method: "act" | "extract" | "observe",
+    methodLevelCache?: boolean | { threshold: number },
+  ): number | undefined {
+    // When serverCache is a boolean it's a global enable/disable flag with no
+    // per-method threshold, so only index into it when it's an object.
+    const constructorMethodCache =
+      typeof this.opts.serverCache === "object"
+        ? this.opts.serverCache[method]
+        : undefined;
+    const effective =
+      methodLevelCache !== undefined ? methodLevelCache : constructorMethodCache;
+
+    if (typeof effective === "object" && effective !== null) {
+      return effective.threshold;
+    }
+    return undefined;
+  }
+
+  /**
+   * Resolves the effective serverCache boolean for the cache-bypass header.
+   * Method-level takes precedence over constructor-level per-method settings.
+   * Returns false when caching should be bypassed, true when it should be
+   * explicitly enabled, or undefined to let the APIClient use its default.
+   */
+  private resolveServerCacheBoolean(
+    method: "act" | "extract" | "observe",
+    methodLevelCache?: boolean | { threshold: number },
+  ): boolean | undefined {
+    // Method-level is always highest priority
+    if (methodLevelCache !== undefined) {
+      // { threshold } means enabled; boolean passes through
+      return typeof methodLevelCache === "object" ? true : methodLevelCache;
+    }
+    // Constructor-level global boolean (stg-1182 use-case: serverCache: false)
+    if (typeof this.opts.serverCache === "boolean") {
+      return this.opts.serverCache;
+    }
+    // Constructor-level per-method object
+    if (typeof this.opts.serverCache === "object") {
+      const methodSetting = this.opts.serverCache[method];
+      if (methodSetting !== undefined) {
+        return typeof methodSetting === "object" ? true : methodSetting;
+      }
+    }
+    return undefined;
+  }
+
   private resolveLlmClient(model?: ModelConfiguration): LLMClient {
     if (!model) {
       return this.llmClient;
@@ -899,6 +953,15 @@ export class V3 {
               apiKey,
               projectId,
               logger: this.logger,
+              // V3Options.serverCache can be boolean | object; APIClient only needs
+              // a boolean (for the global cache-bypass header). When serverCache is
+              // an object (per-method threshold config), pass undefined so the
+              // client defaults to caching enabled; per-method settings are
+              // handled via cacheThreshold in each individual request.
+              serverCache:
+                typeof this.opts.serverCache === "boolean"
+                  ? this.opts.serverCache
+                  : undefined,
             });
             const createSessionPayload = {
               projectId: effectiveSessionParams.projectId ?? projectId,
@@ -1077,10 +1140,21 @@ export class V3 {
         // Use selector as provided to support XPath, CSS, and other engines
         const selector = input.selector;
         if (this.apiClient) {
+          const resolvedServerCache = this.resolveServerCacheBoolean(
+            "act",
+            options?.serverCache,
+          );
           actResult = await this.apiClient.act({
             input,
-            options,
+            options:
+              resolvedServerCache !== undefined
+                ? { ...options, serverCache: resolvedServerCache }
+                : options,
             frameId: v3Page.mainFrameId(),
+            cacheThreshold: this.resolveServerCacheThreshold(
+              "act",
+              options?.serverCache,
+            ),
           });
         } else {
           const effectiveTimeoutMs =
@@ -1169,7 +1243,22 @@ export class V3 {
       };
       if (this.apiClient) {
         const frameId = page.mainFrameId();
-        actResult = await this.apiClient.act({ input, options, frameId });
+        const resolvedServerCache = this.resolveServerCacheBoolean(
+          "act",
+          options?.serverCache,
+        );
+        actResult = await this.apiClient.act({
+          input,
+          options:
+            resolvedServerCache !== undefined
+              ? { ...options, serverCache: resolvedServerCache }
+              : options,
+          frameId,
+          cacheThreshold: this.resolveServerCacheThreshold(
+            "act",
+            options?.serverCache,
+          ),
+        });
       } else {
         actResult = await this.actHandler.act(handlerParams);
       }
@@ -1279,11 +1368,22 @@ export class V3 {
       let result: z.infer<typeof effectiveSchema> | { pageText: string };
       if (this.apiClient) {
         const frameId = page.mainFrameId();
+        const resolvedServerCache = this.resolveServerCacheBoolean(
+          "extract",
+          options?.serverCache,
+        );
         result = await this.apiClient.extract({
           instruction: handlerParams.instruction,
           schema: handlerParams.schema,
-          options,
+          options:
+            resolvedServerCache !== undefined
+              ? { ...options, serverCache: resolvedServerCache }
+              : options,
           frameId,
+          cacheThreshold: this.resolveServerCacheThreshold(
+            "extract",
+            options?.serverCache,
+          ),
         });
       } else {
         result =
@@ -1349,10 +1449,21 @@ export class V3 {
       let results: Action[];
       if (this.apiClient) {
         const frameId = page.mainFrameId();
+        const resolvedServerCache = this.resolveServerCacheBoolean(
+          "observe",
+          options?.serverCache,
+        );
         results = await this.apiClient.observe({
           instruction,
-          options,
+          options:
+            resolvedServerCache !== undefined
+              ? { ...options, serverCache: resolvedServerCache }
+              : options,
           frameId,
+          cacheThreshold: this.resolveServerCacheThreshold(
+            "observe",
+            options?.serverCache,
+          ),
         });
       } else {
         results = await this.observeHandler.observe(handlerParams);

@@ -6,6 +6,13 @@ import { V3Banner } from '/snippets/v3-banner.mdx';
 
 <V3Banner />
 
+<Note>
+**Server-side caching is now available.** 
+
+When running `env: "BROWSERBASE"`, Stagehand automatically caches `act()`, `extract()`, and `observe()` results server-side — repeated calls with the same inputs return instantly without consuming LLM tokens.
+
+Caching is enabled by default and can be disabled via `serverCache: false` on the Stagehand instance or per individual call. Check out the [browserbase blog](https://www.browserbase.com/blog/stagehand-caching) for more details.
+</Note>
 
 Stagehand provides built-in action caching to reduce LLM inference calls and improve performance. Simply specify a `cacheDir` when initializing Stagehand, and actions are automatically cached and reused across runs.
 

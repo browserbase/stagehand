@@ -232,6 +232,18 @@ export class ExtractHandler {
         ? resultString.slice(0, resultPreviewLength) + "..."
         : resultString;
 
+    // When extraction did not fully complete, mark the result so callers
+    // (e.g., the stagehand-api cache layer) can skip persisting it.
+    // The property is non-enumerable so it is invisible to JSON.stringify
+    // and never exposed to clients.
+    if (!completed && output !== null && typeof output === "object") {
+      Object.defineProperty(output, "__extractionIncomplete", {
+        value: true,
+        enumerable: false,
+        configurable: true,
+      });
+    }
+
     v3Logger({
       category: "extraction",
       message: completed

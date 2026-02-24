@@ -54,4 +54,22 @@ export interface V3Options {
   cacheDir?: string;
   domSettleTimeout?: number;
   disableAPI?: boolean;
+  /**
+   * Controls server-side caching for API requests.
+   * - `false` disables caching globally for all methods (sends bypass header).
+   * - `true` enables caching with the default LaunchDarkly threshold.
+   * - An object enables per-method threshold configuration: each method can be
+   *   set to `true` (default threshold), `false` (disabled), or
+   *   `{ threshold: number }` (custom minimum hit count before cached results
+   *   are returned). Method-level serverCache options take precedence over
+   *   these constructor values.
+   * Defaults to `true` (caching enabled).
+   */
+  serverCache?:
+    | boolean
+    | {
+        act?: boolean | { threshold: number };
+        extract?: boolean | { threshold: number };
+        observe?: boolean | { threshold: number };
+      };
 }

@@ -15,6 +15,14 @@ export interface ActOptions {
   variables?: Variables;
   timeout?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  /**
+   * Override the instance-level serverCache setting for this request.
+   * When true, enables server-side caching with the default threshold.
+   * When false, disables server-side caching (bypasses cache).
+   * When an object with a threshold, enables caching and overrides the minimum
+   * hit count required before cached results are returned.
+   */
+  serverCache?: boolean | { threshold: number };
 }
 
 export interface ActResult {
@@ -22,10 +30,13 @@ export interface ActResult {
   message: string;
   actionDescription: string;
   actions: Action[];
+  cacheStatus?: "HIT" | "MISS";
 }
 
 export type ExtractResult<T extends StagehandZodSchema> =
-  InferStagehandSchema<T>;
+  InferStagehandSchema<T> & {
+    cacheStatus?: "HIT" | "MISS";
+  };
 
 export interface Action {
   selector: string;
@@ -46,6 +57,14 @@ export interface ExtractOptions {
   timeout?: number;
   selector?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  /**
+   * Override the instance-level serverCache setting for this request.
+   * When true, enables server-side caching with the default threshold.
+   * When false, disables server-side caching (bypasses cache).
+   * When an object with a threshold, enables caching and overrides the minimum
+   * hit count required before cached results are returned.
+   */
+  serverCache?: boolean | { threshold: number };
 }
 
 export const defaultExtractSchema = z.object({
@@ -61,7 +80,17 @@ export interface ObserveOptions {
   timeout?: number;
   selector?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  /**
+   * Override the instance-level serverCache setting for this request.
+   * When true, enables server-side caching with the default threshold.
+   * When false, disables server-side caching (bypasses cache).
+   * When an object with a threshold, enables caching and overrides the minimum
+   * hit count required before cached results are returned.
+   */
+  serverCache?: boolean | { threshold: number };
 }
+
+export type ObserveResult = Action[] & { cacheStatus?: "HIT" | "MISS" };
 
 export enum V3FunctionName {
   ACT = "ACT",
