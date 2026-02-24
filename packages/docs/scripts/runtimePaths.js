@@ -70,7 +70,13 @@ const resolveCallerFilePath = () => {
     fallbackCandidates.push(filePath);
   }
 
-  return packageCandidates[0] ?? fallbackCandidates[0] ?? helperFilePath;
+  const packageCandidate = packageCandidates[0];
+  if (packageCandidate) return packageCandidate;
+
+  const fallbackCandidate = fallbackCandidates[0];
+  if (fallbackCandidate) return fallbackCandidate;
+
+  throw new Error("Unable to resolve caller file path.");
 };
 
 export const getCurrentFilePath = () => resolveCallerFilePath();
