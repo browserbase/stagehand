@@ -67,7 +67,7 @@ const notionClient = await connectToMCPServer({
   },
 });
 
-// Use the connected client
+// Use the connected clients (example with Supabase + Notion)
 const agent = stagehand.agent({
   provider: "openai", 
   model: "computer-use-preview",
@@ -79,6 +79,23 @@ const agent = stagehand.agent({
 });
 
 await agent.execute("Search for restaurants in New Brunswick, NJ and save the first result to the database");
+```
+
+## Authenticated MCP Servers
+
+Some MCP servers require authentication via HTTP request headers. You can pass request headers through `requestOptions`:
+
+```typescript
+const authenticatedClient = await connectToMCPServer({
+  serverUrl: "https://mcp-server.example.com/mcp",
+  requestOptions: {
+    requestInit: {
+      headers: {
+        Authorization: `Bearer ${process.env.MCP_SERVER_API_KEY}`,
+      },
+    },
+  },
+});
 ```
 
 

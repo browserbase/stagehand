@@ -404,8 +404,8 @@ export class Locator {
       if (!box.model) throw new ElementNotVisibleError(this.selector);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
-      // Dispatch input (from the same session) without waiting between events.
-      // This keeps multi-clicks within tight thresholds on remote browsers.
+      // Dispatch click events in a pipelined burst to reduce inter-click delay
+      // from network/CPU jitter between round trips.
       const dispatches: Array<Promise<unknown>> = [];
       dispatches.push(
         session.send<never>("Input.dispatchMouseEvent", {
@@ -426,7 +426,6 @@ export class Locator {
             clickCount: i,
           } as Protocol.Input.DispatchMouseEventRequest),
         );
-
         dispatches.push(
           session.send<never>("Input.dispatchMouseEvent", {
             type: "mouseReleased",
@@ -437,7 +436,6 @@ export class Locator {
           } as Protocol.Input.DispatchMouseEventRequest),
         );
       }
-
       await Promise.all(dispatches);
     } finally {
       // release the element handle

@@ -10,17 +10,79 @@ import type { StagehandAPIClient } from "../api.js";
 import { LocalBrowserLaunchOptions } from "../types/public/index.js";
 import { InitScriptSource } from "../types/private/index.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
-import { TimeoutError, PageNotFoundError } from "../types/public/sdkErrors.js";
+import {
+  TimeoutError,
+  CookieSetError,
+  PageNotFoundError,
+  StagehandSetExtraHTTPHeadersError,
+} from "../types/public/sdkErrors.js";
 import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig.js";
+import {
+  filterCookies,
+  normalizeCookieParams,
+  cookieMatchesFilter,
+  toCdpCookieParam,
+} from "./cookies.js";
+import {
+  Cookie,
+  ClearCookieOptions,
+  CookieParam,
+} from "../types/public/context.js";
 
 type TargetId = string;
 type SessionId = string;
 
 type TargetType = "page" | "iframe" | string;
 
+/**
+ * Returns true when the target's URL points to a document with a real,
+ * pierceable HTML DOM.  We allowlist the small set of schemes that carry
+ * web content rather than trying to blacklist every internal browser scheme
+ * (chrome://, chrome-extension://, devtools://, brave://, edge://, …).
+ */
+function hasInjectableDOM(url: string | undefined): boolean {
+  if (!url || url === "") return true;
+  if (
+    url === "about:blank" ||
+    url === "about:srcdoc" ||
+    url.startsWith("about:blank#")
+  )
+    return true;
+  if (url.startsWith("http://") || url.startsWith("https://")) return true;
+  if (
+    url.startsWith("data:") ||
+    url.startsWith("blob:") ||
+    url.startsWith("file://") ||
+    url.startsWith("filesystem:")
+  )
+    return true;
+  return false;
+}
+
+function isNonWebTarget(info: Protocol.Target.TargetInfo): boolean {
+  return (
+    (info.type !== "page" && info.type !== "iframe") ||
+    !hasInjectableDOM(info.url)
+  );
+}
+
 function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
   const ti = info as unknown as { subtype?: string };
   return info.type === "page" && ti.subtype !== "iframe";
+}
+
+const DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS = 5000;
+const CI_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS = 30000;
+const FIRST_TOP_LEVEL_PAGE_TIMEOUT_ENV =
+  "STAGEHAND_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS";
+
+function getFirstTopLevelPageTimeoutMs(): number {
+  return (
+    getEnvTimeoutMs(FIRST_TOP_LEVEL_PAGE_TIMEOUT_ENV) ??
+    (process.env.CI
+      ? CI_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS
+      : DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS)
+  );
 }
 
 /**
@@ -58,6 +120,7 @@ export class V3Context {
   private _pageOrder: TargetId[] = [];
   private pendingCreatedTargetUrl = new Map<TargetId, string>();
   private readonly initScripts: string[] = [];
+  private extraHttpHeaders: Record<string, string> | null = null;
 
   private installTargetSessionListeners(session: CDPSessionLike): void {
     const sessionId = session.id;
@@ -105,7 +168,7 @@ export class V3Context {
         opts?.localBrowserLaunchOptions ?? null,
       );
       await ctx.bootstrap();
-      await ctx.waitForFirstTopLevelPage(5000);
+      await ctx.waitForFirstTopLevelPage(getFirstTopLevelPageTimeoutMs());
       return ctx;
     };
 
@@ -272,6 +335,51 @@ export class V3Context {
     this.initScripts.push(source);
     const pages = this.pages();
     await Promise.all(pages.map((page) => page.registerInitScript(source)));
+  }
+
+  public async setExtraHTTPHeaders(
+    headers: Record<string, string>,
+  ): Promise<void> {
+    const nextHeaders = { ...headers };
+    this.extraHttpHeaders = nextHeaders;
+
+    const sessions: CDPSessionLike[] = [];
+    for (const sessionId of this._sessionInit) {
+      const session = this.conn.getSession(sessionId);
+      if (session) sessions.push(session);
+    }
+
+    if (!sessions.length) return;
+
+    const results = await Promise.allSettled(
+      sessions.map(async (session) => {
+        await session.send("Network.enable");
+        await session.send("Network.setExtraHTTPHeaders", {
+          headers: nextHeaders,
+        });
+      }),
+    );
+
+    const failures = results
+      .map((result, index) => ({ result, session: sessions[index] }))
+      .filter(
+        (
+          entry,
+        ): entry is {
+          result: PromiseRejectedResult;
+          session: CDPSessionLike;
+        } => entry.result.status === "rejected",
+      )
+      .map((entry) => {
+        const reason = entry.result.reason as Error;
+        const sid = entry.session.id ?? "unknown";
+        const message = reason?.message ?? String(reason);
+        return `session=${sid} error=${message}`;
+      });
+
+    if (failures.length) {
+      throw new StagehandSetExtraHTTPHeadersError(failures);
+    }
   }
 
   /**
@@ -447,13 +555,11 @@ export class V3Context {
     info: Protocol.Target.TargetInfo,
     sessionId: SessionId,
   ): Promise<void> {
-    // Workers are ignored by Stagehand, but with waitForDebuggerOnStart enabled
-    // they still need to be resumed so we don't leave them paused.
-    if (
-      info.type === "worker" ||
-      info.type === "service_worker" ||
-      info.type === "shared_worker"
-    ) {
+    // Skip non-web targets (workers, chrome extensions, background pages, etc.).
+    // They still need to be resumed so we don't leave them paused by
+    // waitForDebuggerOnStart, but injecting the piercer into these targets
+    // can throw or corrupt their internal state (e.g. Chrome's PDF viewer).
+    if (isNonWebTarget(info)) {
       const session = this.conn.getSession(sessionId);
       if (session) {
         await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
@@ -503,6 +609,11 @@ export class V3Context {
           })
           .catch(() => {}),
       );
+      if (this.extraHttpHeaders) {
+        const headers = { ...this.extraHttpHeaders };
+        installPromises.push(send("Network.enable"));
+        installPromises.push(send("Network.setExtraHTTPHeaders", { headers }));
+      }
       // Send init scripts only after auto-attach has been issued.
       if (this.initScripts.length) {
         for (const source of this.initScripts) {
@@ -822,5 +933,107 @@ export class V3Context {
     }
     if (immediate) return immediate;
     throw new PageNotFoundError("awaitActivePage: no page available");
+  }
+
+  /**
+   * Get all browser cookies, optionally filtered by URL(s).
+   *
+   * When `urls` is omitted or empty every cookie in the browser context is
+   * returned. When one or more URLs are supplied only cookies whose
+   * domain/path/secure attributes match are included.
+   */
+  async cookies(urls?: string | string[]): Promise<Cookie[]> {
+    const urlList = !urls ? [] : typeof urls === "string" ? [urls] : urls;
+
+    const { cookies } = await this.conn.send<{
+      cookies: Protocol.Network.Cookie[];
+    }>("Storage.getCookies");
+
+    const mapped: Cookie[] = cookies.map((c) => ({
+      name: c.name,
+      value: c.value,
+      domain: c.domain,
+      path: c.path,
+      expires: c.expires,
+      httpOnly: c.httpOnly,
+      secure: c.secure,
+      sameSite: (c.sameSite as Cookie["sameSite"]) ?? "Lax",
+    }));
+
+    return filterCookies(mapped, urlList);
+  }
+
+  /**
+   * Add one or more cookies to the browser context.
+   *
+   * Each cookie must specify either a `url` (from which domain/path/secure are
+   * derived) or an explicit `domain` + `path` pair.
+   *
+   * We surface CDP errors if the browser rejects a cookie.
+   */
+  async addCookies(cookies: CookieParam[]): Promise<void> {
+    const normalized = normalizeCookieParams(cookies);
+    if (!normalized.length) return;
+
+    const cdpCookies = normalized.map(toCdpCookieParam);
+
+    try {
+      await this.conn.send("Storage.setCookies", { cookies: cdpCookies });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      const names = normalized.map((c) => `"${c.name}"`).join(", ");
+      throw new CookieSetError(
+        `Failed to set cookies [${names}] — ` +
+          `the browser rejected the batch. Check that the domain, path, and secure/sameSite values are valid.` +
+          (detail ? ` (CDP error: ${detail})` : ""),
+      );
+    }
+  }
+
+  /**
+   * Clear cookies from the browser context.
+   *
+   * - Called with no arguments: clears **all** cookies atomically via
+   *   `Storage.clearCookies`.
+   * - Called with filter options: fetches all cookies, clears everything,
+   *   then re-adds only the cookies that do NOT match the filter via
+   *   `Storage.setCookies`. This is necessary on the browser endpoint because
+   *   the Storage domain does not support targeted deletes.
+   */
+  async clearCookies(options?: ClearCookieOptions): Promise<void> {
+    const hasFilter =
+      options?.name !== undefined ||
+      options?.domain !== undefined ||
+      options?.path !== undefined;
+
+    if (!hasFilter) {
+      // Atomic single-call wipe — no race condition, no O(N) roundtrips.
+      await this.conn.send("Storage.clearCookies");
+      return;
+    }
+
+    const current = await this.cookies();
+    const toKeep = current.filter((c) => !cookieMatchesFilter(c, options!));
+
+    if (toKeep.length === current.length) return;
+
+    // Storage domain doesn't support targeted deletes on the browser endpoint.
+    // Clear everything, then re-add only the cookies we're keeping.
+    await this.conn.send("Storage.clearCookies");
+    if (toKeep.length) {
+      try {
+        await this.conn.send("Storage.setCookies", {
+          cookies: toKeep.map(toCdpCookieParam),
+        });
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        const names = toKeep.map((c) => `"${c.name}"`).join(", ");
+        throw new CookieSetError(
+          `clearCookies: cookies were cleared but failed to re-add the ${toKeep.length} ` +
+            `non-matching cookie(s) [${names}]. The browser cookie jar is now empty. ` +
+            (detail ? `(CDP error: ${detail})` : ""),
+        );
+      }
+    }
   }
 }

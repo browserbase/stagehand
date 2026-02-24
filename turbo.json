@@ -1,14 +1,59 @@
 {
-  "$schema": "https://turborepo.com/schema.json",
+  "$schema": "https://v2-8-10.turborepo.dev/schema.json",
+  "globalEnv": [
+    "CI"
+  ],
   "globalDependencies": [
+    ".github/workflows/ci.yml",
     "package.json",
     "packages/*/package.json",
     "tsconfig.json",
-    "tsconfig.base.json"
+    "tsconfig.base.json",
+    "eslint.config.mjs",
+    ".prettierrc",
+    ".prettierignore"
   ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build", "gen-version", "build-dom-scripts"],
+      "dependsOn": ["^build"],
+      "outputs": [
+        "dist/**"
+      ],
+      "inputs": [
+        "**/*.ts",
+        "**/*.js",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json",
+        "!dist/**"
+      ]
+    },
+    "@browserbasehq/stagehand#build": {
+      "dependsOn": [
+        "^build",
+        "gen-version",
+        "build-dom-scripts:dom",
+        "build-dom-scripts:locator",
+        "build-dom-scripts:screenshot",
+        "build-dom-scripts:a11y"
+      ],
+      "outputs": [
+        "dist/**"
+      ],
+      "inputs": [
+        "**/*.ts",
+        "**/*.js",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json",
+        "!lib/version.ts",
+        "!lib/dom/build/**",
+        "!lib/v3/dom/build/**",
+        "!dist/**"
+      ]
+    },
+    "@browserbasehq/stagehand-server#build": {
+      "dependsOn": ["^build"],
       "outputs": [
         "dist/**",
         "openapi.v3.yaml"
@@ -18,32 +63,20 @@
         "**/*.js",
         "package.json",
         "tsconfig.json",
-        "tsconfig.*.json"
+        "tsconfig.*.json",
+        "!dist/**",
+        "!openapi.v3.yaml"
       ]
     },
-    "gen-version": {
-      "outputs": ["lib/version.ts"],
-      "inputs": [
-        "scripts/gen-version.ts",
-        "package.json",
-        "tsconfig.json",
-        "tsconfig.*.json"
-      ]
-    },
-    "build-dom-scripts": {
-      "outputs": [
-        "lib/dom/build/**",
-        "lib/v3/dom/build/**"
+    "@browserbasehq/stagehand#build:esm": {
+      "dependsOn": [
+        "^build:esm",
+        "gen-version",
+        "build-dom-scripts:dom",
+        "build-dom-scripts:locator",
+        "build-dom-scripts:screenshot",
+        "build-dom-scripts:a11y"
       ],
-      "inputs": [
-        "lib/v3/dom/**/*.ts",
-        "package.json",
-        "tsconfig.json",
-        "tsconfig.*.json"
-      ]
-    },
-    "build:esm": {
-      "dependsOn": ["^build:esm", "gen-version", "build-dom-scripts"],
       "outputs": [
         "dist/esm/**"
       ],
@@ -52,7 +85,114 @@
         "**/*.js",
         "package.json",
         "tsconfig.json",
+        "tsconfig.*.json",
+        "!lib/version.ts",
+        "!lib/dom/build/**",
+        "!lib/v3/dom/build/**",
+        "!dist/**"
+      ]
+    },
+    "@browserbasehq/stagehand#build:cjs": {
+      "dependsOn": [
+        "^build:cjs",
+        "gen-version",
+        "build-dom-scripts:dom",
+        "build-dom-scripts:locator",
+        "build-dom-scripts:screenshot",
+        "build-dom-scripts:a11y"
+      ],
+      "outputs": [
+        "dist/cjs/**"
+      ],
+      "inputs": [
+        "**/*.ts",
+        "**/*.js",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json",
+        "!lib/version.ts",
+        "!lib/dom/build/**",
+        "!lib/v3/dom/build/**",
+        "!dist/**"
+      ]
+    },
+    "gen-version": {
+      "outputs": ["lib/version.ts"],
+      "inputs": [
+        "scripts/gen-version.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json",
+        "!lib/version.ts"
+      ]
+    },
+    "build-dom-scripts:dom": {
+      "outputs": [
+        "lib/v3/dom/build/v3-index.js",
+        "lib/v3/dom/build/scriptV3Content.ts",
+        "lib/v3/dom/build/rerender-index.js",
+        "lib/v3/dom/build/reRenderScriptContent.ts"
+      ],
+      "inputs": [
+        "lib/v3/dom/genDomScripts.ts",
+        "lib/v3/dom/**/*.ts",
+        "!lib/v3/dom/build/**",
+        "package.json",
+        "tsconfig.json",
         "tsconfig.*.json"
+      ]
+    },
+    "build-dom-scripts:locator": {
+      "outputs": [
+        "lib/v3/dom/build/locatorScripts.generated.ts"
+      ],
+      "inputs": [
+        "lib/v3/dom/genLocatorScripts.ts",
+        "lib/v3/dom/locatorScripts/**/*.ts",
+        "!lib/v3/dom/build/**",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "build-dom-scripts:screenshot": {
+      "outputs": [
+        "lib/v3/dom/build/screenshotScripts.generated.ts"
+      ],
+      "inputs": [
+        "lib/v3/dom/genScreenshotScripts.ts",
+        "lib/v3/dom/screenshotScripts/**/*.ts",
+        "!lib/v3/dom/build/**",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "build-dom-scripts:a11y": {
+      "outputs": [
+        "lib/v3/dom/build/a11yScripts.generated.ts"
+      ],
+      "inputs": [
+        "lib/v3/dom/genA11yScripts.ts",
+        "lib/v3/dom/a11yScripts/**/*.ts",
+        "!lib/v3/dom/build/**",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "build:esm": {
+      "dependsOn": ["^build:esm"],
+      "outputs": [
+        "dist/esm/**"
+      ],
+      "inputs": [
+        "**/*.ts",
+        "**/*.js",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json",
+        "!dist/esm/**"
       ]
     },
     "build:esm-tests": {
@@ -62,7 +202,43 @@
         "test/**/*.ts",
         "package.json",
         "tsconfig.json",
-        "tsconfig.*.json"
+        "tsconfig.*.json",
+        "!dist/tests/**"
+      ]
+    },
+    "build:server:dist": {
+      "dependsOn": ["^build:esm"],
+      "outputs": [
+        "dist/lib/**",
+        "dist/routes/**",
+        "dist/types/**",
+        "dist/*.js",
+        "dist/*.js.map",
+        "dist/*.d.ts"
+      ],
+      "inputs": [
+        "src/**/*.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json",
+        "!dist/lib/**",
+        "!dist/routes/**",
+        "!dist/types/**",
+        "!dist/*.js",
+        "!dist/*.js.map",
+        "!dist/*.d.ts"
+      ]
+    },
+    "gen:openapi": {
+      "dependsOn": ["^build:esm"],
+      "outputs": ["openapi.v3.yaml"],
+      "inputs": [
+        "src/**/*.ts",
+        "scripts/gen-openapi.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json",
+        "!openapi.v3.yaml"
       ]
     },
     "build:sea:esm": {
@@ -82,7 +258,9 @@
         "scripts/**/*.ts",
         "package.json",
         "tsconfig.json",
-        "tsconfig.*.json"
+        "tsconfig.*.json",
+        "!dist/sea/**",
+        "!dist/app.mjs"
       ]
     },
     "build:sea:cjs": {
@@ -99,11 +277,12 @@
         "scripts/**/*.ts",
         "package.json",
         "tsconfig.json",
-        "tsconfig.*.json"
+        "tsconfig.*.json",
+        "!dist/sea/**"
       ]
     },
     "build:cjs": {
-      "dependsOn": ["^build:cjs", "gen-version", "build-dom-scripts"],
+      "dependsOn": ["^build:cjs"],
       "outputs": [
         "dist/cjs/**"
       ],
@@ -112,27 +291,42 @@
         "**/*.js",
         "package.json",
         "tsconfig.json",
-        "tsconfig.*.json"
+        "tsconfig.*.json",
+        "!dist/cjs/**"
       ]
     },
     "build:cli": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build:esm"],
       "outputs": ["dist/cli/**"],
       "inputs": [
         "cli.ts",
         "evals.config.json",
-        "scripts/**"
+        "scripts/**",
+        "!dist/cli/**"
       ]
     },
     "lint": {
-      "dependsOn": ["^build:esm"],
+      "dependsOn": ["^build"],
       "outputs": [],
       "inputs": [
         "**/*.ts",
+        "**/*.tsx",
         "**/*.js",
         "**/*.jsx",
-        ".eslintrc*",
-        ".prettierrc*"
+        "**/*.mjs",
+        "**/*.cjs",
+        "**/*.mts",
+        "**/*.cts",
+        "**/*.md",
+        "**/*.mdx",
+        "**/*.yml",
+        "**/*.yaml",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json",
+        "!dist/**",
+        "!node_modules/**",
+        "!.turbo/**"
       ]
     },
     "format": {
@@ -140,7 +334,7 @@
       "cache": false
     },
     "test": {
-      "dependsOn": ["build"],
+      "dependsOn": [],
       "outputs": [],
       "inputs": [
         "**/*.spec.ts",
@@ -152,22 +346,6 @@
       "outputs": [],
       "cache": false,
       "env": [
-        "ANTHROPIC_API_KEY",
-        "BROWSERBASE_API_KEY",
-        "BROWSERBASE_CDP_CONNECT_MAX_MS",
-        "BROWSERBASE_PROJECT_ID",
-        "BROWSERBASE_SESSION_CREATE_MAX_MS",
-        "CHROME_PATH",
-        "CTRF_JUNIT_PATH",
-        "GEMINI_API_KEY",
-        "GOOGLE_GENERATIVE_AI_API_KEY",
-        "HEADLESS",
-        "LLM_MAX_MS",
-        "NODE_OPTIONS",
-        "NODE_V8_COVERAGE",
-        "OPENAI_API_KEY",
-        "STAGEHAND_BROWSER_TARGET",
-        "STAGEHAND_SERVER_TARGET",
         "VITEST_CONSOLE_REPORTER"
       ],
       "inputs": [
@@ -185,12 +363,32 @@
       ],
       "cache": false,
       "env": [
-        "ANTHROPIC_API_KEY",
-        "BROWSERBASE_API_KEY",
-        "BROWSERBASE_PROJECT_ID",
-        "BROWSERBASE_CDP_CONNECT_MAX_MS",
+        "BB_API_KEY",
+        "BB_PROJECT_ID",
         "BROWSERBASE_REGION",
         "BROWSERBASE_SESSION_LIMIT_PER_E2E_TEST",
+        "IFRAME_CHILD_FRAME_TIMEOUT_MS",
+        "IFRAME_DEBUG",
+        "IFRAME_POPUP_TIMEOUT_MS",
+        "IFRAME_POPUP_URL_TIMEOUT_MS",
+        "KEEP_ALIVE_ACTION_EXIT_TIMEOUT_MS",
+        "KEEP_ALIVE_BB_INFO_TIMEOUT_MS",
+        "KEEP_ALIVE_BB_TIMEOUT_MS",
+        "KEEP_ALIVE_DEBUG",
+        "KEEP_ALIVE_LOCAL_INFO_TIMEOUT_MS",
+        "KEEP_ALIVE_LOCAL_TIMEOUT_MS",
+        "KEEP_ALIVE_STAY_OPEN_MS",
+        "KEEP_ALIVE_VIEW_MS",
+        "LOCAL_SESSION_LIMIT_PER_E2E_TEST",
+        "PLAYWRIGHT_CONSOLE_REPORTER",
+        "STAGEHAND_BROWSER_TARGET",
+        "STAGEHAND_API_URL"
+      ],
+      "passThroughEnv": [
+        "ANTHROPIC_API_KEY",
+        "BROWSERBASE_API_KEY",
+        "BROWSERBASE_CDP_CONNECT_MAX_MS",
+        "BROWSERBASE_PROJECT_ID",
         "BROWSERBASE_SESSION_CREATE_MAX_MS",
         "CHROME_PATH",
         "CTRF_JUNIT_PATH",
@@ -198,19 +396,18 @@
         "GOOGLE_GENERATIVE_AI_API_KEY",
         "HEADLESS",
         "LLM_MAX_MS",
-        "LOCAL_SESSION_LIMIT_PER_E2E_TEST",
         "NODE_OPTIONS",
         "NODE_V8_COVERAGE",
         "OPENAI_API_KEY",
-        "PLAYWRIGHT_CONSOLE_REPORTER",
-        "STAGEHAND_BROWSER_TARGET",
         "STAGEHAND_SERVER_TARGET"
       ],
       "inputs": [
         "lib/v3/tests/**/*.ts",
         "package.json",
         "tsconfig.json",
-        "tsconfig.*.json"
+        "tsconfig.*.json",
+        "!playwright-report/**",
+        "!test-results/**"
       ]
     },
     "test:evals": {
@@ -218,25 +415,46 @@
       "outputs": [],
       "cache": false,
       "env": [
-        "ANTHROPIC_API_KEY",
+        "AGENT_EVAL_MAX_STEPS",
         "BRAINTRUST_API_KEY",
-        "BROWSERBASE_API_KEY",
-        "BROWSERBASE_CDP_CONNECT_MAX_MS",
-        "BROWSERBASE_PROJECT_ID",
-        "CHROME_PATH",
-        "EVAL_MAX_CONCURRENCY",
         "EVAL_AGENT_MODELS",
         "EVAL_AGENT_MODELS_CUA",
         "EVAL_CATEGORIES",
+        "EVAL_DATASET",
+        "EVAL_ENV",
+        "EVAL_GAIA_FILE",
+        "EVAL_GAIA_LEVEL",
+        "EVAL_GAIA_LIMIT",
+        "EVAL_GAIA_SAMPLE",
+        "EVAL_MAX_CONCURRENCY",
+        "EVAL_MAX_K",
         "EVAL_MODELS",
+        "EVAL_ONLINEMIND2WEB_LIMIT",
+        "EVAL_ONLINEMIND2WEB_SAMPLE",
+        "EVAL_PROVIDER",
         "EVAL_TRIAL_COUNT",
+        "EVAL_WEBVOYAGER_LIMIT",
+        "EVAL_WEBVOYAGER_SAMPLE",
+        "OP_AUTO_ENV_DISABLE",
+        "OP_ENV_FILE",
+        "STAGEHAND_BROWSER_TARGET",
+        "USE_API"
+      ],
+      "passThroughEnv": [
+        "ANTHROPIC_API_KEY",
+        "BROWSERBASE_API_KEY",
+        "BROWSERBASE_CDP_CONNECT_MAX_MS",
+        "BROWSERBASE_PROJECT_ID",
+        "BROWSERBASE_SESSION_CREATE_MAX_MS",
+        "CHROME_PATH",
+        "CTRF_JUNIT_PATH",
         "GEMINI_API_KEY",
         "GOOGLE_GENERATIVE_AI_API_KEY",
+        "HEADLESS",
         "LLM_MAX_MS",
         "NODE_OPTIONS",
         "NODE_V8_COVERAGE",
         "OPENAI_API_KEY",
-        "STAGEHAND_BROWSER_TARGET",
         "STAGEHAND_SERVER_TARGET"
       ],
       "inputs": [
@@ -253,19 +471,31 @@
       "outputs": [],
       "cache": false,
       "env": [
-        "ANTHROPIC_API_KEY",
         "BB_ENV",
-        "CHROME_PATH",
-        "GEMINI_API_KEY",
-        "GOOGLE_GENERATIVE_AI_API_KEY",
-        "NODE_OPTIONS",
+        "NODE_ENV",
         "NODE_TEST_CONSOLE_REPORTER",
         "NODE_TEST_REPORTER",
         "NODE_TEST_REPORTER_DESTINATION",
-        "NODE_V8_COVERAGE",
-        "OPENAI_API_KEY",
         "SEA_BINARY_NAME",
         "STAGEHAND_BASE_URL",
+        "STAGEHAND_SEA_CACHE_DIR",
+        "STAGEHAND_TEST_LOCAL_CONNECT_TIMEOUT_MS"
+      ],
+      "passThroughEnv": [
+        "ANTHROPIC_API_KEY",
+        "BROWSERBASE_API_KEY",
+        "BROWSERBASE_CDP_CONNECT_MAX_MS",
+        "BROWSERBASE_PROJECT_ID",
+        "BROWSERBASE_SESSION_CREATE_MAX_MS",
+        "CHROME_PATH",
+        "CTRF_JUNIT_PATH",
+        "GEMINI_API_KEY",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        "HEADLESS",
+        "LLM_MAX_MS",
+        "NODE_OPTIONS",
+        "NODE_V8_COVERAGE",
+        "OPENAI_API_KEY",
         "STAGEHAND_BROWSER_TARGET",
         "STAGEHAND_SERVER_TARGET"
       ],

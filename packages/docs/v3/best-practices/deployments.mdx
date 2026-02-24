@@ -58,7 +58,7 @@ touch api/run.ts package.json vercel.json tsconfig.json
 // api/run.ts
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { Stagehand } from "@browserbasehq/stagehand";
-import { z } from "zod/v3";
+import { z } from "zod";
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   try {

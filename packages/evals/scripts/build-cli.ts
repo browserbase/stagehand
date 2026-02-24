@@ -7,14 +7,10 @@
  * Example: pnpm run build:cli
  */
 import fs from "node:fs";
-import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { findRepoRoot } from "../../core/scripts/test-utils.js";
+import { getRepoRootDir } from "../runtimePaths.js";
 
-const repoRoot = findRepoRoot(process.cwd());
-const evalsRoot = path.join(repoRoot, "packages", "evals");
-const distDir = path.join(evalsRoot, "dist", "cli");
-const cliOutfile = path.join(distDir, "cli.js");
+const repoRoot = getRepoRootDir();
 
 const run = (args: string[]) => {
   const result = spawnSync("pnpm", args, { stdio: "inherit", cwd: repoRoot });
@@ -23,7 +19,7 @@ const run = (args: string[]) => {
   }
 };
 
-fs.mkdirSync(distDir, { recursive: true });
+fs.mkdirSync(`${repoRoot}/packages/evals/dist/cli`, { recursive: true });
 
 run([
   "exec",
@@ -32,7 +28,7 @@ run([
   "--bundle",
   "--platform=node",
   "--format=esm",
-  `--outfile=${cliOutfile}`,
+  `--outfile=${repoRoot}/packages/evals/dist/cli/cli.js`,
   "--sourcemap",
   "--packages=external",
   "--banner:js=#!/usr/bin/env node",
@@ -40,11 +36,11 @@ run([
 ]);
 
 fs.copyFileSync(
-  path.join(evalsRoot, "evals.config.json"),
-  path.join(distDir, "evals.config.json"),
+  `${repoRoot}/packages/evals/evals.config.json`,
+  `${repoRoot}/packages/evals/dist/cli/evals.config.json`,
 );
 fs.writeFileSync(
-  path.join(distDir, "package.json"),
+  `${repoRoot}/packages/evals/dist/cli/package.json`,
   '{\n  "type": "module"\n}\n',
 );
-fs.chmodSync(cliOutfile, 0o755);
+fs.chmodSync(`${repoRoot}/packages/evals/dist/cli/cli.js`, 0o755);

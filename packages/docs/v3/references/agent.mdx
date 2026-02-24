@@ -267,7 +267,7 @@ interface AgentStreamCallbacks {
   <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `mode: "cua"`.</Warning>
 
   ```typescript
-  import { z } from "zod/v3";
+  import { z } from "zod";
 
   const result = await agent.execute({
     instruction: "Find the cheapest flight from NYC to LA",
@@ -782,7 +782,7 @@ console.log("Completed:", result.completed);
 <Tab title="Structured Output">
 
 ```typescript
-import { z } from "zod/v3";
+import { z } from "zod";
 
 const stagehand = new Stagehand({
   env: "LOCAL",
@@ -822,10 +822,10 @@ console.log(`  Arrival: ${result.output?.arrivalTime}`);
 <Tab title="Custom Tools">
 
 ```typescript
-import { tool } from "ai";
-import { z } from "zod/v3";
+import { tool } from "@browserbasehq/stagehand";
+import { z } from "zod";
 
-// Define custom tools using AI SDK format
+// Define custom tools using the tool helper from @browserbasehq/stagehand
 const customTools = {
   calculateTotal: tool({
     description: "Calculate the total of items in cart",

@@ -29,6 +29,7 @@ import {
   AgentStreamCallbacks,
   AgentToolMode,
   AgentModelConfig,
+  Variables,
 } from "../types/public/agent.js";
 import { V3FunctionName } from "../types/public/methods.js";
 import { mapToolResultToActions } from "../agent/utils/actionMapping.js";
@@ -114,9 +115,10 @@ export class V3AgentHandler {
         systemInstructions: this.systemInstructions,
         isBrowserbase: this.v3.isBrowserbase,
         excludeTools: options.excludeTools,
+        variables: options.variables,
       });
 
-      const tools = this.createTools(options.excludeTools);
+      const tools = this.createTools(options.excludeTools, options.variables);
       const allTools: ToolSet = { ...tools, ...this.mcpTools };
 
       // Use provided messages for continuation, or start fresh with the instruction
@@ -560,7 +562,7 @@ export class V3AgentHandler {
     };
   }
 
-  private createTools(excludeTools?: string[]) {
+  private createTools(excludeTools?: string[], variables?: Variables) {
     const provider = this.llmClient?.getLanguageModel?.()?.provider;
     return createAgentTools(this.v3, {
       executionModel: this.executionModel,
@@ -568,6 +570,7 @@ export class V3AgentHandler {
       mode: this.mode,
       provider,
       excludeTools,
+      variables,
     });
   }
 

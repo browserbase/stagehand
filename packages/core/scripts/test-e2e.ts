@@ -1,20 +1,17 @@
 /**
- * E2E tests (Playwright) on dist/esm.
+ * E2E tests (Playwright) on dist/esm tests.
  *
- * Prereqs: pnpm run build (dist/esm present), Playwright deps installed.
- * Args: [test paths...] -- [playwright args...] | --list (prints JSON matrix)
+ * Prereqs: pnpm run build:esm (packages/core/dist/esm/tests/integration present).
+ * Args: [test paths...] -- [playwright args...] | --list (prints JSON matrix).
  * Env: STAGEHAND_BROWSER_TARGET=local|browserbase, CHROME_PATH (local),
  *      NODE_V8_COVERAGE, PLAYWRIGHT_CONSOLE_REPORTER;
  *      writes CTRF to ctrf/playwright-*.xml by default.
- * Example: STAGEHAND_BROWSER_TARGET=browserbase pnpm run test:e2e -- lib/v3/tests/foo.spec.ts
+ * Example: STAGEHAND_BROWSER_TARGET=browserbase pnpm run test:e2e -- packages/core/dist/esm/tests/integration/foo.spec.js
  */
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import normalizeV8Coverage from "./normalize-v8-coverage.js";
 import {
-  findRepoRoot,
-  resolveFromRoot,
   ensureParentDir,
   parseListFlag,
   splitArgs,
@@ -22,10 +19,28 @@ import {
   toSafeName,
   writeCtrfFromJunit,
 } from "./test-utils.js";
+import {
+  createRequireFromCaller,
+  getRepoRootDir,
+} from "../lib/v3/runtimePaths.js";
 
-const repoRoot = findRepoRoot(process.cwd());
-const listFlag = parseListFlag(process.argv.slice(2));
-const { paths, extra } = splitArgs(listFlag.args);
+const repoRoot = getRepoRootDir();
+
+const sourceTestsDir = `${repoRoot}/packages/core/tests/integration`;
+const testsDir = `${repoRoot}/packages/core/dist/esm/tests/integration`;
+const defaultConfigPath = `${repoRoot}/packages/core/dist/esm/tests/integration/v3.playwright.config.js`;
+
+const resolveRepoRelative = (value: string) =>
+  path.isAbsolute(value) ? value : path.resolve(repoRoot, value);
+const require = createRequireFromCaller();
+const playwrightCliPath = require.resolve("@playwright/test/cli");
+
+const hasConfigArg = (argsList: string[]) =>
+  argsList.some((arg, i) => {
+    if (arg.startsWith("--config=")) return true;
+    return arg === "--config" && Boolean(argsList[i + 1]);
+  });
+
 const stripReporterArgs = (argsList: string[]) => {
   const filtered: string[] = [];
   let removed = false;
@@ -47,21 +62,34 @@ const stripReporterArgs = (argsList: string[]) => {
   }
   return { filtered, removed };
 };
-const { filtered: extraArgs, removed: removedReporterOverride } =
-  stripReporterArgs(extra);
-if (removedReporterOverride) {
-  console.warn(
-    "Ignoring Playwright --reporter override to preserve console + JUnit output.",
-  );
-}
+
+const toTestName = (testPath: string) => {
+  const abs = resolveRepoRelative(testPath);
+  const rel = path.relative(testsDir, abs).replaceAll("\\", "/");
+  if (!rel.startsWith("..")) {
+    return rel.replace(/\.spec\.(ts|js)$/i, "");
+  }
+  return path.basename(abs).replace(/\.spec\.(ts|js)$/i, "");
+};
+
+const toPlaywrightPath = (testPath: string) => {
+  const abs = resolveRepoRelative(testPath);
+  const rel = path.relative(testsDir, abs).replaceAll("\\", "/");
+  const value = rel.startsWith("..") ? abs : rel;
+  return value.replace(/(\.spec|\.test)\.(ts|js)$/i, "$1");
+};
+
+const listFlag = parseListFlag(process.argv.slice(2));
+const { paths, extra } = splitArgs(listFlag.args);
 
 if (listFlag.list) {
-  const root = path.join(repoRoot, "packages", "core", "lib", "v3", "tests");
-  const tests = collectFiles(root, ".spec.ts");
+  const tests = collectFiles(sourceTestsDir, ".spec.ts");
   const entries = tests.map((file) => {
-    const rel = path.relative(root, file).replace(/\.spec\.ts$/, "");
+    const relSource = path.relative(sourceTestsDir, file).replaceAll("\\", "/");
+    const rel = relSource.replace(/\.spec\.ts$/, "");
+    const distPath = `${testsDir}/${relSource.replace(/\.spec\.ts$/, ".spec.js")}`;
     return {
-      path: path.relative(repoRoot, file),
+      path: path.relative(repoRoot, distPath).replaceAll("\\", "/"),
       name: rel,
       safe_name: toSafeName(rel),
     };
@@ -70,105 +98,53 @@ if (listFlag.list) {
   process.exit(0);
 }
 
-const distRoot = path.join(repoRoot, "packages", "core", "dist", "esm");
-if (!fs.existsSync(distRoot)) {
-  console.error("Missing packages/core/dist/esm. Run pnpm run build first.");
+if (!fs.existsSync(testsDir)) {
+  console.error(
+    "Missing packages/core/dist/esm/tests/integration. Run pnpm run build:esm first.",
+  );
   process.exit(1);
 }
+
+const { filtered: extraArgs, removed: removedReporterOverride } =
+  stripReporterArgs(extra);
+if (removedReporterOverride) {
+  console.warn(
+    "Ignoring Playwright --reporter override to preserve console + JUnit output.",
+  );
+}
+
+const hasUserConfig = hasConfigArg(extraArgs);
+if (!hasUserConfig && !fs.existsSync(defaultConfigPath)) {
+  console.error(`Missing Playwright config at ${defaultConfigPath}.`);
+  process.exit(1);
+}
+
+const playwrightPaths = paths.map(toPlaywrightPath);
 
 const target = (process.env.STAGEHAND_BROWSER_TARGET ?? "local").toLowerCase();
 const useBrowserbase = target === "browserbase";
-const configPath = path.join(
-  distRoot,
-  "lib",
-  "v3",
-  "tests",
-  "v3.playwright.config.js",
+const relTestName = paths.length === 1 ? toTestName(paths[0]) : null;
+
+const coverageDir = resolveRepoRelative(
+  process.env.NODE_V8_COVERAGE ??
+    (relTestName
+      ? `${repoRoot}/coverage/${useBrowserbase ? "e2e-bb" : "e2e-local"}/${relTestName}`
+      : `${repoRoot}/coverage/${useBrowserbase ? "e2e-bb" : "e2e-local"}`),
 );
-if (!fs.existsSync(configPath)) {
-  console.error(`Missing Playwright config at ${configPath}.`);
-  process.exit(1);
-}
+fs.mkdirSync(coverageDir, { recursive: true });
 
-const coreRoot = path.join(repoRoot, "packages", "core");
-const escapeRegex = (value: string) =>
-  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-const toPlaywrightFilter = (testPath: string) => {
-  const absolute = path.isAbsolute(testPath)
-    ? testPath
-    : path.resolve(repoRoot, testPath);
-  const relFromCore = path.relative(coreRoot, absolute).replace(/\\/g, "/");
-  const relFromDist = path.relative(distRoot, absolute).replace(/\\/g, "/");
-  const candidates = [relFromCore, relFromDist, path.basename(absolute)].filter(
-    (candidate) => candidate && !candidate.startsWith(".."),
-  );
-  const preferred =
-    candidates.find((candidate) => candidate.startsWith("lib/v3/tests/")) ??
-    candidates[0] ??
-    testPath.replace(/\\/g, "/");
-  const sourceMappedPath = preferred.endsWith(".spec.js")
-    ? `${preferred.slice(0, -".spec.js".length)}.spec.ts`
-    : preferred;
-  return `${escapeRegex(sourceMappedPath)}$`;
-};
-
-const playwrightFilters = paths.map(toPlaywrightFilter);
+const defaultJunitPath = relTestName
+  ? `${repoRoot}/ctrf/${useBrowserbase ? "e2e-bb" : "e2e-local"}/${relTestName}.xml`
+  : `${repoRoot}/ctrf/${useBrowserbase ? "e2e-bb" : "e2e-local"}/all.xml`;
+const ctrfPath = process.env.CTRF_JUNIT_PATH
+  ? resolveRepoRelative(process.env.CTRF_JUNIT_PATH)
+  : defaultJunitPath;
+ensureParentDir(ctrfPath);
 
 const baseNodeOptions = "--enable-source-maps";
 const nodeOptions = [process.env.NODE_OPTIONS, baseNodeOptions]
   .filter(Boolean)
   .join(" ");
-
-const testRoot = path.join(repoRoot, "packages", "core", "lib", "v3", "tests");
-const relTestName =
-  paths.length === 1
-    ? (() => {
-        const abs = path.isAbsolute(paths[0])
-          ? paths[0]
-          : path.resolve(repoRoot, paths[0]);
-        const rel = path
-          .relative(testRoot, abs)
-          .replace(/\.spec\.ts$/, "")
-          .replace(/\.js$/, "");
-        return rel && !rel.startsWith("..") ? rel : null;
-      })()
-    : null;
-
-const coverageDir = resolveFromRoot(
-  repoRoot,
-  process.env.NODE_V8_COVERAGE ??
-    (relTestName
-      ? path.join(
-          repoRoot,
-          "coverage",
-          useBrowserbase ? "e2e-bb" : "e2e-local",
-          relTestName,
-        )
-      : path.join(
-          repoRoot,
-          "coverage",
-          useBrowserbase ? "e2e-bb" : "e2e-local",
-        )),
-);
-fs.mkdirSync(coverageDir, { recursive: true });
-const defaultJunitPath = (() => {
-  const baseDir = path.join(
-    repoRoot,
-    "ctrf",
-    useBrowserbase ? "e2e-bb" : "e2e-local",
-  );
-  if (!relTestName) {
-    return path.join(baseDir, "all.xml");
-  }
-  return path.join(baseDir, `${relTestName}.xml`);
-})();
-const ctrfPath = process.env.CTRF_JUNIT_PATH
-  ? resolveFromRoot(repoRoot, process.env.CTRF_JUNIT_PATH)
-  : defaultJunitPath;
-if (ctrfPath) {
-  ensureParentDir(ctrfPath);
-}
 
 const env = {
   ...process.env,
@@ -178,24 +154,16 @@ const env = {
 };
 
 const result = spawnSync(
-  "pnpm",
+  process.execPath,
   [
-    "--filter",
-    "@browserbasehq/stagehand",
-    "exec",
-    "playwright",
+    playwrightCliPath,
     "test",
-    "--config",
-    configPath,
+    ...(hasUserConfig ? [] : ["--config", defaultConfigPath]),
     ...extraArgs,
-    ...playwrightFilters,
+    ...playwrightPaths,
   ],
-  { stdio: "inherit", env },
+  { stdio: "inherit", env, cwd: repoRoot },
 );
-
-if (coverageDir) {
-  await normalizeV8Coverage(coverageDir);
-}
 
 writeCtrfFromJunit(ctrfPath, "playwright");
 

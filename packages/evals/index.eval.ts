@@ -15,7 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 import {
   DEFAULT_EVAL_CATEGORIES,
   filterByCategory,
@@ -50,11 +50,12 @@ import { buildWebVoyagerTestcases } from "./suites/webvoyager.js";
 import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web.js";
 import { endBrowserbaseSession } from "./browserbaseCleanup.js";
 import { buildWebTailBenchTestcases } from "./suites/webtailbench.js";
+import { getCurrentDirPath } from "./runtimePaths.js";
 
 import dotenv from "dotenv";
 dotenv.config();
 
-const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const moduleDir = getCurrentDirPath();
 
 /**
  * Read max concurrency and trial count from environment variables set in args.ts.

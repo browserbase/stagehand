@@ -1,5 +1,5 @@
 /**
- * Build canonical dist/ (CJS) output for the core package, including types.
+ * Build canonical dist/ (CJS) output for the core package (including tests).
  *
  * Prereqs: pnpm install; run gen-version + build-dom-scripts first (turbo handles).
  * Args: none.
@@ -7,84 +7,77 @@
  * Example: pnpm run build:cjs
  */
 import fs from "node:fs";
-import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { findRepoRoot } from "./test-utils.js";
+import { getRepoRootDir } from "../lib/v3/runtimePaths.js";
 
-const repoRoot = findRepoRoot(process.cwd());
-const coreRoot = path.join(repoRoot, "packages", "core");
-const distRoot = path.join(coreRoot, "dist");
-const cjsDist = path.join(distRoot, "cjs");
+const repoRoot = getRepoRootDir();
 
-const run = (args: string[]) => {
-  const result = spawnSync("pnpm", args, { stdio: "inherit", cwd: repoRoot });
+const runNodeScript = (scriptPath: string, args: string[]) => {
+  const result = spawnSync(process.execPath, [scriptPath, ...args], {
+    stdio: "inherit",
+    cwd: repoRoot,
+  });
+  if (result.error) {
+    console.error(`Failed to run node ${scriptPath} ${args.join(" ")}`);
+    console.error(result.error);
+    process.exit(1);
+  }
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
   }
 };
 
-fs.rmSync(cjsDist, { recursive: true, force: true });
-fs.mkdirSync(cjsDist, { recursive: true });
+fs.rmSync(`${repoRoot}/packages/core/dist/cjs`, {
+  recursive: true,
+  force: true,
+});
+fs.mkdirSync(`${repoRoot}/packages/core/dist/cjs`, { recursive: true });
 
-run([
-  "exec",
-  "esbuild",
-  "packages/core/lib/v3/index.ts",
-  "--bundle",
-  "--platform=node",
-  "--format=cjs",
-  "--target=node20",
-  "--outfile=packages/core/dist/cjs/index.js",
-  "--sourcemap",
-  "--packages=external",
-  "--log-level=warning",
-]);
-
-// Runtime crash-cleanup supervisor is spawned as a separate Node process
-// from supervisorClient, so it must exist as a standalone CJS file.
-run([
-  "exec",
-  "esbuild",
-  "packages/core/lib/v3/shutdown/supervisor.ts",
-  "--bundle",
-  "--platform=node",
-  "--format=cjs",
-  "--target=node20",
-  "--outfile=packages/core/dist/cjs/supervisor.js",
-  "--sourcemap",
-  "--packages=external",
-  "--log-level=warning",
-]);
-
-run([
-  "exec",
-  "tsc",
+runNodeScript(`${repoRoot}/node_modules/typescript/bin/tsc`, [
   "-p",
   "packages/core/tsconfig.json",
+  "--module",
+  "commonjs",
   "--declaration",
-  "--emitDeclarationOnly",
   "--outDir",
   "packages/core/dist/cjs",
 ]);
 
 fs.writeFileSync(
-  path.join(cjsDist, "index.d.ts"),
-  'export * from "./lib/v3/index";\n',
+  `${repoRoot}/packages/core/dist/cjs/index.js`,
+  `"use strict";
+module.exports = require("./lib/v3/index.js");
+`,
 );
 fs.writeFileSync(
-  path.join(cjsDist, "package.json"),
+  `${repoRoot}/packages/core/dist/cjs/cli.js`,
+  `#!/usr/bin/env node
+"use strict";
+require("./lib/v3/cli.js");
+`,
+);
+fs.writeFileSync(
+  `${repoRoot}/packages/core/dist/cjs/index.d.ts`,
+  `export * from "./lib/v3/index";
+export { default } from "./lib/v3/index";
+`,
+);
+fs.writeFileSync(
+  `${repoRoot}/packages/core/dist/cjs/package.json`,
   '{\n  "type": "commonjs"\n}\n',
 );
 
-const coreBuildSrc = path.join(coreRoot, "lib", "v3", "dom", "build");
-const coreBuildDest = path.join(cjsDist, "lib", "v3", "dom", "build");
-fs.mkdirSync(coreBuildDest, { recursive: true });
-if (fs.existsSync(coreBuildSrc)) {
-  for (const file of fs.readdirSync(coreBuildSrc)) {
+fs.mkdirSync(`${repoRoot}/packages/core/dist/cjs/lib/v3/dom/build`, {
+  recursive: true,
+});
+if (fs.existsSync(`${repoRoot}/packages/core/lib/v3/dom/build`)) {
+  for (const file of fs.readdirSync(
+    `${repoRoot}/packages/core/lib/v3/dom/build`,
+  )) {
     if (file.endsWith(".js")) {
       fs.copyFileSync(
-        path.join(coreBuildSrc, file),
-        path.join(coreBuildDest, file),
+        `${repoRoot}/packages/core/lib/v3/dom/build/${file}`,
+        `${repoRoot}/packages/core/dist/cjs/lib/v3/dom/build/${file}`,
       );
     }
   }

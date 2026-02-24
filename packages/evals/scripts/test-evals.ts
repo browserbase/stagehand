@@ -1,8 +1,8 @@
 /**
- * Eval runs via the evals CLI (packages/evals/dist/cli/cli.js).
+ * Eval runs via the evals CLI from source or dist/esm.
  *
- * Prereqs: pnpm run build:cli (packages/evals/dist/cli/cli.js present).
- * Args: [target] [options...] (passed to evals run) | --list (prints JSON matrix).
+ * Prereqs: source mode uses tsx loader; dist mode requires compiled CLI output.
+ * Args: [target] [options...] (passed to evals run) | --cli <path> [target] [options...] | --list (prints JSON matrix).
  * Env: STAGEHAND_BROWSER_TARGET=local|browserbase, NODE_V8_COVERAGE, NODE_OPTIONS;
  *      writes JUnit to ctrf/evals/<target>.xml and CTRF to ctrf/evals/<target>.json.
  * Example: STAGEHAND_BROWSER_TARGET=browserbase pnpm run test:evals -- act -t 3 -c 10
@@ -10,13 +10,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import normalizeV8Coverage from "../../core/scripts/normalize-v8-coverage.js";
-import {
-  findRepoRoot,
-  resolveFromRoot,
-  parseListFlag,
-  toSafeName,
-} from "../../core/scripts/test-utils.js";
+import { getCurrentFilePath, getRepoRootDir } from "../runtimePaths.js";
+
+type Runtime = "source" | "dist-esm";
 
 type EvalSummaryEntry = {
   eval: string;
@@ -28,6 +24,8 @@ type EvalSummary = {
   passed?: EvalSummaryEntry[];
   failed?: EvalSummaryEntry[];
 };
+
+const toSafeName = (name: string) => name.replace(/[\\/]/g, "-");
 
 const readEvalSummary = (summaryPath: string): EvalSummary | null => {
   if (!fs.existsSync(summaryPath)) return null;
@@ -168,11 +166,52 @@ const writeEvalCtrf = (
   fs.writeFileSync(outputPath, JSON.stringify(missingReport, null, 2));
 };
 
-const repoRoot = findRepoRoot(process.cwd());
-const listFlag = parseListFlag(process.argv.slice(2));
-const args = listFlag.args.filter((arg) => arg !== "--");
+const repoRoot = getRepoRootDir();
+const toPosix = (value: string) => value.replaceAll("\\", "/");
+const resolveRepoRelative = (value: string) =>
+  path.isAbsolute(value) ? value : path.resolve(repoRoot, value);
+const inferRuntimeFromPath = (value: string) => {
+  const normalized = toPosix(value);
+  if (normalized.includes("/dist/cli/") || normalized.includes("/dist/esm/")) {
+    return "dist-esm" as const;
+  }
+  return null;
+};
+const inferRuntimeFromExecution = () =>
+  inferRuntimeFromPath(getCurrentFilePath()) ??
+  inferRuntimeFromPath(process.cwd());
+const rawArgs = process.argv.slice(2).filter((arg) => arg !== "--");
+const listRequested = rawArgs.includes("--list");
+const stripCliArg = (values: string[]) => {
+  const filtered: string[] = [];
+  let cliPath: string | null = null;
+  for (let i = 0; i < values.length; i++) {
+    const arg = values[i];
+    if (arg === "--cli") {
+      if (values[i + 1] && !values[i + 1].startsWith("--")) {
+        cliPath = values[i + 1];
+        i += 1;
+      } else {
+        cliPath = "";
+      }
+      continue;
+    }
+    if (arg.startsWith("--cli=")) {
+      cliPath = arg.slice("--cli=".length);
+      continue;
+    }
+    filtered.push(arg);
+  }
+  return { filtered, cliPath };
+};
+const strippedCli = stripCliArg(rawArgs.filter((arg) => arg !== "--list"));
+if (strippedCli.cliPath === "") {
+  console.error("Missing value for --cli.");
+  process.exit(1);
+}
+const args = strippedCli.filtered;
 
-if (listFlag.list) {
+if (listRequested) {
   const categories = (
     process.env.EVAL_CATEGORIES ??
     "observe,act,combination,extract,targeted_extract,regression,agent"
@@ -186,26 +225,40 @@ if (listFlag.list) {
   process.exit(0);
 }
 
-const cliPath = path.join(
-  repoRoot,
-  "packages",
-  "evals",
-  "dist",
-  "cli",
-  "cli.js",
-);
+if (
+  strippedCli.cliPath &&
+  toPosix(resolveRepoRelative(strippedCli.cliPath)).includes("/dist/cjs/")
+) {
+  console.error("CJS eval runtime is not supported. Use source or dist/cli.");
+  process.exit(1);
+}
+
+const runtime: Runtime =
+  (strippedCli.cliPath
+    ? inferRuntimeFromPath(resolveRepoRelative(strippedCli.cliPath))
+    : null) ??
+  inferRuntimeFromExecution() ??
+  "source";
+
+const cliPath = strippedCli.cliPath
+  ? resolveRepoRelative(strippedCli.cliPath)
+  : runtime === "source"
+    ? `${repoRoot}/packages/evals/cli.ts`
+    : `${repoRoot}/packages/evals/dist/cli/cli.js`;
 if (!fs.existsSync(cliPath)) {
-  console.error(
-    "Missing packages/evals/dist/cli/cli.js. Run pnpm run build:cli first.",
-  );
+  console.error(`Missing ${cliPath}.`);
   process.exit(1);
 }
 
 if (args.includes("--help") || args.includes("-h") || args[0] === "help") {
-  const result = spawnSync(process.execPath, [cliPath, "--help"], {
-    stdio: "inherit",
-    cwd: repoRoot,
-  });
+  const result = spawnSync(
+    process.execPath,
+    [...(runtime === "source" ? ["--import", "tsx"] : []), cliPath, "--help"],
+    {
+      stdio: "inherit",
+      cwd: repoRoot,
+    },
+  );
   process.exit(result.status ?? 0);
 }
 
@@ -221,17 +274,14 @@ const nodeOptions = [process.env.NODE_OPTIONS, baseNodeOptions]
   .filter(Boolean)
   .join(" ");
 
-const coverageDir = resolveFromRoot(
-  repoRoot,
-  process.env.NODE_V8_COVERAGE ??
-    path.join(repoRoot, "coverage", "evals", safeTarget),
+const coverageDir = resolveRepoRelative(
+  process.env.NODE_V8_COVERAGE ?? `${repoRoot}/coverage/evals/${safeTarget}`,
 );
 fs.mkdirSync(coverageDir, { recursive: true });
-const summaryPath = path.join(repoRoot, "eval-summary.json");
-const ctrfDir = path.join(repoRoot, "ctrf", "evals");
-fs.mkdirSync(ctrfDir, { recursive: true });
-const junitPath = path.join(ctrfDir, `${safeTarget}.xml`);
-const ctrfPath = path.join(ctrfDir, `${safeTarget}.json`);
+const summaryPath = `${repoRoot}/eval-summary.json`;
+fs.mkdirSync(`${repoRoot}/ctrf/evals`, { recursive: true });
+const junitPath = `${repoRoot}/ctrf/evals/${safeTarget}.xml`;
+const ctrfPath = `${repoRoot}/ctrf/evals/${safeTarget}.json`;
 
 const env = {
   ...process.env,
@@ -239,15 +289,15 @@ const env = {
   NODE_V8_COVERAGE: coverageDir,
 };
 
-const result = spawnSync(process.execPath, [cliPath, ...cliArgs], {
-  stdio: "inherit",
-  env,
-  cwd: repoRoot,
-});
-
-if (coverageDir) {
-  await normalizeV8Coverage(coverageDir);
-}
+const result = spawnSync(
+  process.execPath,
+  [...(runtime === "source" ? ["--import", "tsx"] : []), cliPath, ...cliArgs],
+  {
+    stdio: "inherit",
+    env,
+    cwd: repoRoot,
+  },
+);
 
 writeEvalJunit(summaryPath, junitPath, safeTarget);
 writeEvalCtrf(summaryPath, ctrfPath, safeTarget);
