@@ -90,6 +90,8 @@ export interface ObserveOptions {
   serverCache?: boolean | { threshold: number };
 }
 
+export type ObserveResult = Action[] & { cacheStatus?: "HIT" | "MISS" };
+
 export enum V3FunctionName {
   ACT = "ACT",
   EXTRACT = "EXTRACT",

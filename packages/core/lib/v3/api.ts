@@ -17,6 +17,7 @@ import type {
   AgentExecuteOptions,
   AgentResult,
   ExtractResult,
+  ObserveResult,
   LogLine,
   StagehandMetrics,
   BrowserbaseRegion,
@@ -372,7 +373,7 @@ export class StagehandAPIClient {
     options,
     frameId,
     cacheThreshold,
-  }: ClientObserveParameters): Promise<Action[]> {
+  }: ClientObserveParameters): Promise<ObserveResult> {
     // Strip non-serializable `page` and client-only `serverCache` from options before wire serialization
     let wireOptions: Api.ObserveRequest["options"];
     let serverCache: boolean | undefined;
@@ -399,7 +400,7 @@ export class StagehandAPIClient {
       cacheThreshold,
     };
 
-    return this.execute<Action[]>({
+    return this.execute<ObserveResult>({
       method: "observe",
       args: requestBody,
       serverCache,
@@ -835,10 +836,11 @@ export class StagehandAPIClient {
       finalCacheStatus &&
       result &&
       typeof result === "object" &&
-      (method === "act" || method === "extract")
+      (method === "act" || method === "extract" || method === "observe")
     ) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (result as ActResult | ExtractResult<any>).cacheStatus = finalCacheStatus;
+      (result as ActResult | ExtractResult<any> | ObserveResult).cacheStatus =
+        finalCacheStatus;
     }
     return result;
   }

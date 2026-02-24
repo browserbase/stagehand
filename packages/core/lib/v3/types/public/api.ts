@@ -435,7 +435,7 @@ export const ActRequestSchema = z
     }),
     cacheThreshold: z.number().optional().meta({
       description:
-        "Custom cache threshold override. When provided, this value is used instead of the LaunchDarkly flag to determine the minimum hit count before cached results are returned.",
+        "Custom cache threshold override. Minimum hit count required before cached results are returned.",
       example: 5,
     }),
   })
@@ -514,7 +514,7 @@ export const ExtractRequestSchema = z
     }),
     cacheThreshold: z.number().optional().meta({
       description:
-        "Custom cache threshold override. When provided, this value is used instead of the LaunchDarkly flag to determine the minimum hit count before cached results are returned.",
+        "Custom cache threshold override. Minimum hit count required before cached results are returned.",
       example: 5,
     }),
   })
@@ -577,7 +577,7 @@ export const ObserveRequestSchema = z
     }),
     cacheThreshold: z.number().optional().meta({
       description:
-        "Custom cache threshold override. When provided, this value is used instead of the LaunchDarkly flag to determine the minimum hit count before cached results are returned.",
+        "Custom cache threshold override. Minimum hit count required before cached results are returned.",
       example: 5,
     }),
   })

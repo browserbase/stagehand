@@ -25,6 +25,7 @@ type ExpectedExportedTypes = {
   HistoryEntry: Stagehand.HistoryEntry;
   ExtractOptions: Stagehand.ExtractOptions;
   ObserveOptions: Stagehand.ObserveOptions;
+  ObserveResult: Stagehand.ObserveResult;
   V3FunctionName: Stagehand.V3FunctionName;
   // Types from agent.ts
   Tool: Stagehand.Tool;
@@ -124,7 +125,7 @@ describe("Stagehand public API types", () => {
       variables?: Stagehand.Variables;
       timeout?: number;
       page?: Stagehand.AnyPage;
-      serverCache?: boolean;
+      serverCache?: boolean | { threshold: number };
     };
 
     it("matches expected type shape", () => {
@@ -152,7 +153,7 @@ describe("Stagehand public API types", () => {
       timeout?: number;
       selector?: string;
       page?: Stagehand.AnyPage;
-      serverCache?: boolean;
+      serverCache?: boolean | { threshold: number };
     };
 
     it("matches expected type shape", () => {
@@ -166,11 +167,21 @@ describe("Stagehand public API types", () => {
       timeout?: number;
       selector?: string;
       page?: Stagehand.AnyPage;
-      serverCache?: boolean;
+      serverCache?: boolean | { threshold: number };
     };
 
     it("matches expected type shape", () => {
       expectTypeOf<Stagehand.ObserveOptions>().toEqualTypeOf<ExpectedObserveOptions>();
+    });
+  });
+
+  describe("ObserveResult", () => {
+    type ExpectedObserveResult = Stagehand.Action[] & {
+      cacheStatus?: "HIT" | "MISS";
+    };
+
+    it("matches expected type shape", () => {
+      expectTypeOf<Stagehand.ObserveResult>().toEqualTypeOf<ExpectedObserveResult>();
     });
   });
 
