@@ -3,12 +3,17 @@
  * - /Users/squash/Code/bb/stagehand/packages/core/lib/v3/runtimePaths.ts
  * - /Users/squash/Code/bb/stagehand/packages/server/scripts/runtimePaths.ts
  * - /Users/squash/Code/bb/stagehand/packages/evals/runtimePaths.ts
- * - /Users/squash/Code/bb/stagehand/packages/docs/scripts/runtime-paths.js
+ * - /Users/squash/Code/bb/stagehand/packages/docs/scripts/runtimePaths.js
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PACKAGE_SEGMENT = "/packages/docs/";
+const EVAL_FRAMES = new Set(["[eval]", "[eval]-wrapper"]);
+const RUNTIME_PATHS_FILES = new Set([
+  "runtimePaths.ts",
+  "runtimePaths.js",
+]);
 
 const normalizePath = (value) => {
   const input = value.startsWith("file://") ? fileURLToPath(value) : value;
@@ -25,24 +30,47 @@ const readCallsites = () => {
   }
 };
 
+const readCallsitePath = (callsite) => {
+  const rawPath =
+    callsite.getFileName?.() ?? callsite.getScriptNameOrSourceURL?.();
+  if (!rawPath) return null;
+  if (rawPath.startsWith("node:")) return null;
+  if (EVAL_FRAMES.has(rawPath)) return null;
+  return normalizePath(rawPath);
+};
+
+const isRuntimePathsFile = (value) => RUNTIME_PATHS_FILES.has(path.basename(value));
+
 const helperFilePath = (() => {
   for (const callsite of readCallsites()) {
-    const fileName = callsite.getFileName?.();
-    if (!fileName || fileName.startsWith("node:")) continue;
-    return normalizePath(fileName);
+    const filePath = readCallsitePath(callsite);
+    if (!filePath) continue;
+    if (isRuntimePathsFile(filePath)) return filePath;
+  }
+  for (const callsite of readCallsites()) {
+    const filePath = readCallsitePath(callsite);
+    if (!filePath) continue;
+    return filePath;
   }
   throw new Error("Unable to resolve runtime-paths helper location.");
 })();
 
 const resolveCallerFilePath = () => {
+  const packageCandidates = [];
+  const fallbackCandidates = [];
+
   for (const callsite of readCallsites()) {
-    const fileName = callsite.getFileName?.();
-    if (!fileName || fileName.startsWith("node:")) continue;
-    const normalized = normalizePath(fileName);
-    if (normalized === helperFilePath) continue;
-    return normalized;
+    const filePath = readCallsitePath(callsite);
+    if (!filePath) continue;
+    if (filePath === helperFilePath) continue;
+    if (filePath.includes(PACKAGE_SEGMENT)) {
+      packageCandidates.push(filePath);
+      continue;
+    }
+    fallbackCandidates.push(filePath);
   }
-  throw new Error("Unable to resolve caller file path.");
+
+  return packageCandidates[0] ?? fallbackCandidates[0] ?? helperFilePath;
 };
 
 export const getCurrentFilePath = () => resolveCallerFilePath();

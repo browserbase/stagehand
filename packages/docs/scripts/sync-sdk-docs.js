@@ -12,7 +12,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import https from "node:https";
-import { getCurrentDirPath } from "./runtime-paths.js";
+import { getCurrentDirPath } from "./runtimePaths.js";
 
 const currentDir = getCurrentDirPath();
 
