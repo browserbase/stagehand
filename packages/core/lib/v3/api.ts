@@ -12,7 +12,6 @@ import {
 } from "./types/public/index.js";
 import type {
   ActResult,
-  Action,
   AgentConfig,
   AgentExecuteOptions,
   AgentResult,
