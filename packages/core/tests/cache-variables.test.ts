@@ -29,7 +29,7 @@ describe("ActCache variable handling", () => {
       storage,
       logger: vi.fn(),
       getActHandler: () => null as unknown as ActHandler,
-      getDefaultLlmClient: () => ({} as LLMClient),
+      getDefaultLlmClient: () => ({}) as LLMClient,
       domSettleTimeoutMs: undefined,
     });
 
@@ -41,21 +41,21 @@ describe("ActCache variable handling", () => {
     const context1 = await cache.prepareContext(
       "type %username% into the email field",
       fakePage,
-      { username: "user1@example.com" }
+      { username: "user1@example.com" },
     );
 
     // Second context with username="user2@example.com"
     const context2 = await cache.prepareContext(
       "type %username% into the email field",
       fakePage,
-      { username: "user2@example.com" }
+      { username: "user2@example.com" },
     );
 
     // Third context with different variable key name
     const context3 = await cache.prepareContext(
       "type %email% into the email field",
       fakePage,
-      { email: "user3@example.com" }
+      { email: "user3@example.com" },
     );
 
     // Same instruction + same variable keys = same cache key
@@ -98,17 +98,19 @@ describe("ActCache variable handling", () => {
     // Track what variables are passed to takeDeterministicAction
     const capturedVariables: Record<string, string>[] = [];
     const handler = {
-      takeDeterministicAction: vi.fn().mockImplementation(
-        async (_action, _page, _timeout, _client, _ensure, variables) => {
-          capturedVariables.push(variables || {});
-          return {
-            success: true,
-            message: "ok",
-            actionDescription: "type username",
-            actions: [action],
-          };
-        }
-      ),
+      takeDeterministicAction: vi
+        .fn()
+        .mockImplementation(
+          async (_action, _page, _timeout, _client, _ensure, variables) => {
+            capturedVariables.push(variables || {});
+            return {
+              success: true,
+              message: "ok",
+              actionDescription: "type username",
+              actions: [action],
+            };
+          },
+        ),
     } as unknown as ActHandler;
 
     const defaultClient = {} as LLMClient;
@@ -178,7 +180,7 @@ describe("ActCache variable handling", () => {
       storage,
       logger: vi.fn(),
       getActHandler: () => null as unknown as ActHandler,
-      getDefaultLlmClient: () => ({} as LLMClient),
+      getDefaultLlmClient: () => ({}) as LLMClient,
       domSettleTimeoutMs: undefined,
     });
 
@@ -219,7 +221,7 @@ describe("ActCache variable handling", () => {
       storage,
       logger,
       getActHandler: () => null as unknown as ActHandler,
-      getDefaultLlmClient: () => ({} as LLMClient),
+      getDefaultLlmClient: () => ({}) as LLMClient,
       domSettleTimeoutMs: undefined,
     });
 
@@ -243,7 +245,7 @@ describe("ActCache variable handling", () => {
         category: "cache",
         message: "act cache miss: missing variables for replay",
         level: 2,
-      })
+      }),
     );
   });
 
@@ -259,7 +261,7 @@ describe("ActCache variable handling", () => {
       storage,
       logger: vi.fn(),
       getActHandler: () => null as unknown as ActHandler,
-      getDefaultLlmClient: () => ({} as LLMClient),
+      getDefaultLlmClient: () => ({}) as LLMClient,
       domSettleTimeoutMs: undefined,
     });
 
@@ -271,13 +273,13 @@ describe("ActCache variable handling", () => {
     const context1 = await cache.prepareContext(
       "fill %username% and %password%",
       fakePage,
-      { username: "user1", password: "pass1" }
+      { username: "user1", password: "pass1" },
     );
 
     const context2 = await cache.prepareContext(
       "fill %username% and %password%",
       fakePage,
-      { username: "user2", password: "pass2" }
+      { username: "user2", password: "pass2" },
     );
 
     // Same cache key despite different values
