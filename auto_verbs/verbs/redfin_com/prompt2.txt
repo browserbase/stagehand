@@ -1,0 +1,21 @@
+Please read auto_verbs\verbs\SystemPrompt.txt
+
+* The target website
+https://www.redfin.com/rentals
+
+* Concrete task
+Search Redfin for apartments for rent in "Redmond, WA" and price range ($1500, $3000). The actions are:
+
+- Enter "Redmond, WA" into the search box.
+- Click the "price" dropdown
+- enter the price range ($1500, $3000)
+
+* Generalize the concrete task into a function with the following input parameters and return value.
+
+** Input parameters
+- the city or area to search
+- min of the price range
+- max of the price range
+
+** Return value
+a list of apartments (at most 5 apartments)

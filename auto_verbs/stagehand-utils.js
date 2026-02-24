@@ -1,6 +1,10 @@
 const { AzureOpenAI } = require("openai");
 const { getBearerTokenProvider, AzureCliCredential, DefaultAzureCredential, ChainedTokenCredential } = require("@azure/identity");
 const { CustomOpenAIClient } = require("@browserbasehq/stagehand");
+const { spawn } = require("child_process");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
 
 /**
  * Stagehand Utilities
@@ -68,16 +72,29 @@ class PlaywrightRecorder {
       `"""`,
       ``,
       `import re`,
+      `import os`,
       `from playwright.sync_api import Playwright, sync_playwright, expect`,
       ``,
       ``,
       `def run(playwright: Playwright) -> None:`,
-      `    browser = playwright.chromium.launch(headless=False, channel="chrome")`,
-      `    context = browser.new_context(`,
-      `        viewport={"width": 1280, "height": 720},`,
-      `        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",`,
+      `    user_data_dir = os.path.join(`,
+      `        os.environ["USERPROFILE"],`,
+      `        "AppData", "Local", "Google", "Chrome", "User Data", "Default",`,
       `    )`,
-      `    page = context.new_page()`,
+      ``,
+      `    context = playwright.chromium.launch_persistent_context(`,
+      `        user_data_dir,`,
+      `        channel="chrome",`,
+      `        headless=False,`,
+      `        viewport=None,`,
+      `        args=[`,
+      `            "--disable-blink-features=AutomationControlled",`,
+      `            "--disable-infobars",`,
+      `            "--disable-extensions",`,
+      `            "--start-maximized",`,
+      `        ],`,
+      `    )`,
+      `    page = context.pages[0] if context.pages else context.new_page()`,
       ``,
     ];
 
@@ -349,7 +366,6 @@ class PlaywrightRecorder {
     lines.push(`    # Cleanup`);
     lines.push(`    # ---------------------`);
     lines.push(`    context.close()`);
-    lines.push(`    browser.close()`);
     lines.push(``);
     lines.push(``);
     lines.push(`with sync_playwright() as playwright:`);
@@ -449,6 +465,375 @@ function setupAzureOpenAI() {
   });
   console.log("✅ Azure OAuth ready\n");
   return llmClient;
+}
+
+// ── Copilot CLI Setup ───────────────────────────────────────────────────────
+/**
+ * LLM client that uses Copilot CLI under the hood
+ * Compatible with OpenAI client interface but can use any model
+ */
+class CopilotCliClient {
+  constructor(modelName = "copilot-cli") {
+    this.modelName = modelName;
+    
+    // Initialize chat object directly in constructor to ensure it exists
+    this.chat = {
+      completions: {
+        create: async (params) => {
+          const prompt = this.buildPromptFromMessages(params.messages);
+          const response = await this.callCopilotCli(prompt);
+          
+          return {
+            id: `copilot-${Date.now()}`,
+            object: 'chat.completion',
+            created: Math.floor(Date.now() / 1000),
+            model: this.modelName,
+            choices: [{
+              index: 0,
+              message: {
+                role: 'assistant',
+                content: response
+              },
+              finish_reason: 'stop'
+            }],
+            usage: {
+              prompt_tokens: prompt.length,
+              completion_tokens: response.length,
+              total_tokens: prompt.length + response.length
+            }
+          };
+        }
+      }
+    };
+  }
+
+  buildPromptFromMessages(messages) {
+    // Combine messages into a single prompt, adding JSON instruction
+    // to ensure Copilot CLI returns structured output
+    const combined = messages
+      .map(msg => `${msg.role}: ${msg.content}`)
+      .join('\n\n');
+    
+    return combined + '\n\nIMPORTANT: You MUST respond with ONLY raw JSON. No markdown, no code blocks, no ``` fences, no explanation text before or after. Just the pure JSON object.';
+  }
+
+  /**
+   * Strip markdown code fences, conversational preamble, and Copilot CLI
+   * metadata from output. Copilot CLI often:
+   *   1. Wraps responses in ```json ... ``` blocks
+   *   2. Prepends conversational text like "I'll open the temp file..." before JSON
+   *   3. Appends usage metadata lines
+   */
+  cleanResponse(raw) {
+    let cleaned = raw.trim();
+    
+    // Remove markdown code fences: ```json ... ``` or ``` ... ```
+    const codeBlockMatch = cleaned.match(/```(?:json|\w*)?\s*\n?([\s\S]*?)\n?```/);
+    if (codeBlockMatch) {
+      cleaned = codeBlockMatch[1].trim();
+    }
+    
+    // Remove Copilot CLI metadata lines that may leak into stdout
+    const metadataPatterns = [
+      /^Total usage est:.*$/gm,
+      /^API time spent:.*$/gm,
+      /^Total session time:.*$/gm,
+      /^Total code changes:.*$/gm,
+      /^Breakdown by AI model:.*$/gm,
+      /^\s*claude-[\w.-]+\s+.*$/gm,
+      /^\s*gpt-[\w.-]+\s+.*$/gm,
+      /^● Read .*$/gm,
+      /^\s*└.*$/gm,
+    ];
+    for (const pattern of metadataPatterns) {
+      cleaned = cleaned.replace(pattern, '');
+    }
+    
+    // Remove leading/trailing whitespace from cleanup
+    cleaned = cleaned.trim();
+    
+    // If the result is not valid JSON, try to extract JSON object/array
+    // from within conversational preamble text. Copilot CLI often prepends
+    // text like "I'll open the temp file to see..." before the actual JSON.
+    if (cleaned && !this._isJsonLike(cleaned)) {
+      // Try to find a JSON object {...} or array [...]
+      const jsonObjMatch = cleaned.match(/(\{[\s\S]*\})\s*$/);
+      const jsonArrMatch = cleaned.match(/(\[[\s\S]*\])\s*$/);
+      
+      if (jsonObjMatch && this._isJsonLike(jsonObjMatch[1])) {
+        cleaned = jsonObjMatch[1].trim();
+      } else if (jsonArrMatch && this._isJsonLike(jsonArrMatch[1])) {
+        cleaned = jsonArrMatch[1].trim();
+      }
+    }
+    
+    return cleaned;
+  }
+
+  /**
+   * Quick check if a string looks like valid JSON (starts with { or [).
+   * Does a tentative parse to confirm.
+   */
+  _isJsonLike(str) {
+    const trimmed = str.trim();
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return false;
+    try {
+      JSON.parse(trimmed);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async callCopilotCli(prompt, timeoutMs = 120000) {
+    return new Promise((resolve, reject) => {
+      // Always use temp file for reliability: avoids escaping issues,
+      // command-line length limits, and encoding problems
+      const tmpDir = os.tmpdir();
+      const tmpFile = path.join(tmpDir, `copilot-${Date.now()}.txt`);
+      let settled = false;
+      let timer = null;
+      
+      const cleanup = () => {
+        if (timer) { clearTimeout(timer); timer = null; }
+        try {
+          if (fs.existsSync(tmpFile)) {
+            fs.unlinkSync(tmpFile);
+          }
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+      };
+      
+      try {
+        fs.writeFileSync(tmpFile, prompt, 'utf-8');
+        
+        // Use PowerShell to invoke copilot.ps1 with file-based prompt
+        // Wrap the command to capture only Output stream, not host/information
+        const psCommand = `$result = copilot --prompt "@${tmpFile}"; $result`;
+        const args = ['-NoProfile', '-Command', psCommand];
+        
+        console.log(`🤖 Calling Copilot CLI via PowerShell (prompt: ${prompt.length} chars)...`);
+        
+        const proc = spawn('powershell', args, {
+          stdio: ['pipe', 'pipe', 'pipe']
+        });
+        
+        let output = '';
+        let errorOutput = '';
+        
+        // Set timeout to kill hung processes
+        timer = setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            console.error(`⏱️ Copilot CLI timed out after ${timeoutMs / 1000}s (prompt: ${prompt.length} chars)`);
+            try { proc.kill('SIGTERM'); } catch (e) {}
+            cleanup();
+            reject(new Error(`Copilot CLI timed out after ${timeoutMs / 1000}s`));
+          }
+        }, timeoutMs);
+        
+        proc.stdout.on('data', (data) => {
+          output += data.toString();
+        });
+        
+        proc.stderr.on('data', (data) => {
+          errorOutput += data.toString();
+        });
+        
+        proc.on('close', (code) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          
+          if (code !== 0) {
+            console.error(`Copilot CLI error (code ${code}): ${errorOutput}`);
+            reject(new Error(`Copilot CLI failed: ${errorOutput}`));
+          } else {
+            const cleaned = this.cleanResponse(output);
+            console.log(`✅ Copilot CLI responded (${cleaned.length} chars, raw: ${output.length})`);
+            resolve(cleaned);
+          }
+        });
+        
+        proc.on('error', (err) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          console.error(`Copilot CLI process error: ${err.message}`);
+          reject(err);
+        });
+        
+      } catch (err) {
+        if (!settled) {
+          settled = true;
+          cleanup();
+          console.error(`Copilot CLI setup error: ${err.message}`);
+          reject(err);
+        }
+      }
+    });
+  }
+}
+
+/**
+ * Setup Copilot CLI as LLM client (avoids rate limits)
+ * @param {string} modelName - Model name for identification
+ * @returns {CustomOpenAIClient} Configured client for Stagehand
+ */
+function setupCopilotCli(modelName = "copilot-cli") {
+  console.log("🤖 Setting up Copilot CLI...");
+  const copilotClient = new CopilotCliClient(modelName);
+  const llmClient = new CustomOpenAIClient({
+    modelName: modelName,
+    client: copilotClient,
+  });
+  console.log("✅ Copilot CLI ready\n");
+  return llmClient;
+}
+
+// ── Hybrid Client (trapi-first, Copilot CLI fallback) ───────────────────────
+/**
+ * LLM client that uses Azure OpenAI (trapi) as primary endpoint for speed,
+ * and automatically falls back to Copilot CLI when rate-limited (429).
+ *
+ * This gives the best of both worlds:
+ * - Fast responses (~2-5s) when trapi quota is available
+ * - Unlimited fallback via Copilot CLI (~17-24s) when rate-limited
+ */
+class HybridClient {
+  constructor(modelName = "gpt-4o_2024-11-20") {
+    this.modelName = modelName;
+    this._rateLimitedUntil = 0; // timestamp when rate limit expires
+    this._consecutiveFallbacks = 0;
+
+    // Setup Azure OpenAI client
+    const scope = "api://trapi/.default";
+    const credential = getBearerTokenProvider(
+      new ChainedTokenCredential(
+        new AzureCliCredential(),
+        new DefaultAzureCredential()
+      ),
+      scope
+    );
+    this._azureClient = new AzureOpenAI({
+      endpoint: "https://trapi.research.microsoft.com/redmond/interactive",
+      azureADTokenProvider: credential,
+      apiVersion: "2024-10-21",
+    });
+
+    // Setup Copilot CLI fallback
+    this._copilotClient = new CopilotCliClient("copilot-cli");
+
+    // Expose chat.completions.create interface
+    this.chat = {
+      completions: {
+        create: async (params) => {
+          return this._createWithFallback(params);
+        }
+      }
+    };
+  }
+
+  async _createWithFallback(params) {
+    const now = Date.now();
+
+    // If we're still within a known rate-limit window, skip trapi
+    if (now < this._rateLimitedUntil) {
+      const waitSec = Math.round((this._rateLimitedUntil - now) / 1000);
+      console.log(`⏳ trapi rate-limited for ~${waitSec}s more, using Copilot CLI`);
+      return this._callCopilotFallback(params);
+    }
+
+    // Try trapi first
+    try {
+      const response = await this._azureClient.chat.completions.create({
+        ...params,
+        model: this.modelName,
+      });
+      // Success — reset fallback counter
+      if (this._consecutiveFallbacks > 0) {
+        console.log(`🔄 trapi recovered after ${this._consecutiveFallbacks} fallback(s)`);
+        this._consecutiveFallbacks = 0;
+      }
+      return response;
+    } catch (err) {
+      if (this._isRateLimitError(err)) {
+        // Parse retry-after header if available
+        const retryAfterSec = this._parseRetryAfter(err) || 60;
+        this._rateLimitedUntil = Date.now() + retryAfterSec * 1000;
+        this._consecutiveFallbacks++;
+        console.warn(`⚠️  trapi 429 rate-limited (retry after ${retryAfterSec}s). Falling back to Copilot CLI [#${this._consecutiveFallbacks}]`);
+        return this._callCopilotFallback(params);
+      }
+      // Non-rate-limit error — still try Copilot CLI as last resort
+      console.warn(`⚠️  trapi error: ${err.message}. Falling back to Copilot CLI`);
+      return this._callCopilotFallback(params);
+    }
+  }
+
+  async _callCopilotFallback(params) {
+    // Route through the CopilotCliClient's chat.completions.create
+    return this._copilotClient.chat.completions.create(params);
+  }
+
+  _isRateLimitError(err) {
+    // Check HTTP status code
+    if (err.status === 429 || err.statusCode === 429) return true;
+    // Check error message patterns
+    const msg = (err.message || '').toLowerCase();
+    if (msg.includes('429') || msg.includes('rate limit') || msg.includes('too many requests')) return true;
+    // Check error code
+    if (err.code === 'rate_limit_exceeded' || err.code === '429') return true;
+    return false;
+  }
+
+  _parseRetryAfter(err) {
+    // Try to extract retry-after from error headers or message
+    if (err.headers && err.headers['retry-after']) {
+      const val = parseInt(err.headers['retry-after'], 10);
+      if (!isNaN(val)) return val;
+    }
+    // Try to extract from error message like "retry after X seconds"
+    const match = (err.message || '').match(/retry\s+after\s+(\d+)/i);
+    if (match) return parseInt(match[1], 10);
+    return null;
+  }
+}
+
+/**
+ * Setup hybrid LLM client (trapi-first, Copilot CLI fallback on 429)
+ * @param {string} modelName - Azure model deployment name
+ * @returns {CustomOpenAIClient} Configured client for Stagehand
+ */
+function setupHybrid(modelName = "gpt-4o_2024-11-20") {
+  console.log("🔀 Setting up Hybrid LLM (trapi → Copilot CLI fallback)...");
+  const hybridClient = new HybridClient(modelName);
+  const llmClient = new CustomOpenAIClient({
+    modelName: modelName,
+    client: hybridClient,
+  });
+  console.log("✅ Hybrid LLM ready (trapi primary, Copilot CLI fallback)\n");
+  return llmClient;
+}
+
+/**
+ * Setup LLM client (hybrid by default: trapi-first with Copilot CLI fallback)
+ * @param {string} provider - "hybrid", "copilot", or "azure"
+ * @param {string} modelName - Model name
+ * @returns {CustomOpenAIClient} Configured client for Stagehand
+ */
+function setupLLMClient(provider = "hybrid", modelName) {
+  if (provider === "hybrid") {
+    return setupHybrid(modelName);
+  } else if (provider === "copilot") {
+    return setupCopilotCli(modelName);
+  } else if (provider === "azure") {
+    return setupAzureOpenAI();
+  } else {
+    console.warn(`Unknown provider "${provider}", defaulting to Hybrid`);
+    return setupHybrid(modelName);
+  }
 }
 
 // ── Generic Observe and Act Helper ──────────────────────────────────────────
@@ -740,6 +1125,9 @@ async function extractAriaScopeForXPath(page, fullXPath) {
 module.exports = {
   PlaywrightRecorder,
   setupAzureOpenAI,
+  setupCopilotCli,
+  setupHybrid,
+  setupLLMClient,
   observeAndAct,
   extractAriaScopeForXPath,
 };

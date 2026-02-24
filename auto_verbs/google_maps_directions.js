@@ -1,7 +1,8 @@
 const { Stagehand } = require("@browserbasehq/stagehand");
-const { PlaywrightRecorder, setupAzureOpenAI, observeAndAct, extractAriaScopeForXPath } = require("./stagehand-utils");
+const { PlaywrightRecorder, setupLLMClient, observeAndAct, extractAriaScopeForXPath } = require("./stagehand-utils");
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 
 /**
  * Google Maps Directions
@@ -249,7 +250,7 @@ async function searchGoogleMapsDirections() {
   console.log("═══════════════════════════════════════════════════════════════\n");
 
   const recorder = new PlaywrightRecorder();
-  const llmClient = setupAzureOpenAI();
+  const llmClient = setupLLMClient(); // Uses Copilot CLI by default (no rate limits)
 
   let stagehand;
   try {
@@ -259,6 +260,16 @@ async function searchGoogleMapsDirections() {
       env: "LOCAL",
       verbose: 1,
       llmClient: llmClient,
+      localBrowserLaunchOptions: {
+        userDataDir: path.join(os.homedir(), "AppData", "Local", "Google", "Chrome", "User Data", "Default"),
+        headless: false,
+        args: [
+          "--disable-blink-features=AutomationControlled",
+          "--disable-infobars",
+          "--disable-extensions",
+          "--start-maximized",
+        ],
+      },
     });
 
     await stagehand.init();

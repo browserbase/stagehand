@@ -27,6 +27,10 @@ import {
 } from "@azure/identity";
 import { CustomOpenAIClient } from "@browserbasehq/stagehand";
 import http from "http";
+import { spawn } from "child_process";
+import fs from "fs";
+import path from "path";
+import os from "os";
 
 // ---------- Configuration ----------
 
@@ -45,6 +49,11 @@ const DEPLOYMENT_MAP: Record<string, string> = {
 };
 
 const DEFAULT_DEPLOYMENT = "gpt-4o_2024-11-20";
+
+// ---------- Copilot CLI Configuration ----------
+
+const USE_COPILOT_CLI = true; // Enable Copilot CLI by default
+const COPILOT_MODEL = "copilot-cli";
 
 // ---------- Helpers ----------
 
@@ -74,6 +83,138 @@ function getCredential() {
     );
   }
   return cachedCredential;
+}
+
+// ---------- Copilot CLI Implementation ----------
+
+/**
+ * LLM client that uses Copilot CLI under the hood
+ * Compatible with OpenAI client interface but can use any model
+ */
+class CopilotCliClient {
+  constructor(public modelName: string = COPILOT_MODEL) {}
+
+  get chat() {
+    return {
+      completions: {
+        create: async (params: any) => {
+          const prompt = this.buildPromptFromMessages(params.messages);
+          const response = await this.callCopilotCli(prompt);
+          
+          return {
+            id: `copilot-${Date.now()}`,
+            object: 'chat.completion',
+            created: Math.floor(Date.now() / 1000),
+            model: this.modelName,
+            choices: [{
+              index: 0,
+              message: {
+                role: 'assistant',
+                content: response
+              },
+              finish_reason: 'stop'
+            }],
+            usage: {
+              prompt_tokens: prompt.length,
+              completion_tokens: response.length,
+              total_tokens: prompt.length + response.length
+            }
+          };
+        }
+      }
+    };
+  }
+
+  private buildPromptFromMessages(messages: any[]): string {
+    return messages
+      .map(msg => `${msg.role}: ${msg.content}`)
+      .join('\n\n');
+  }
+
+  private async callCopilotCli(prompt: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      // Write prompt to temporary file to avoid newline/escaping issues
+      const tmpDir = os.tmpdir();
+      const tmpFile = path.join(tmpDir, `copilot-${Date.now()}.txt`);
+      
+      try {
+        fs.writeFileSync(tmpFile, prompt, 'utf-8');
+        
+        const cmd = `copilot --prompt "@${tmpFile}"`;
+        const process = spawn(cmd, [], {
+          shell: true,
+          stdio: ['pipe', 'pipe', 'pipe']
+        });
+        
+        let output = '';
+        let errorOutput = '';
+        
+        process.stdout.on('data', (data) => {
+          output += data.toString();
+        });
+        
+        process.stderr.on('data', (data) => {
+          errorOutput += data.toString();
+        });
+        
+        process.on('close', (code) => {
+          // Clean up temporary file
+          try {
+            if (fs.existsSync(tmpFile)) {
+              fs.unlinkSync(tmpFile);
+            }
+          } catch (e) {
+            // Ignore cleanup errors
+          }
+          
+          if (code !== 0) {
+            console.error(`Copilot CLI error (code ${code}): ${errorOutput}`);
+            reject(new Error(`Copilot CLI failed: ${errorOutput}`));
+          } else {
+            resolve(output.trim());
+          }
+        });
+        
+        process.on('error', (err) => {
+          // Clean up temporary file
+          try {
+            if (fs.existsSync(tmpFile)) {
+              fs.unlinkSync(tmpFile);
+            }
+          } catch (e) {
+            // Ignore cleanup errors
+          }
+          reject(err);
+        });
+        
+      } catch (err) {
+        // Clean up temporary file
+        try {
+          if (fs.existsSync(tmpFile)) {
+            fs.unlinkSync(tmpFile);
+          }
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+        reject(err);
+      }
+    });
+  }
+}
+
+/**
+ * Creates a Stagehand-compatible LLM client backed by Copilot CLI.
+ * Use this as the `llmClient` option in the Stagehand constructor.
+ */
+export function createCopilotCliClient(modelName: string = COPILOT_MODEL): CustomOpenAIClient {
+  const copilotClient = new CopilotCliClient(modelName);
+  
+  console.log(`🤖 Copilot CLI LLM client: "${modelName}"`);
+  
+  return new CustomOpenAIClient({
+    modelName: modelName,
+    client: copilotClient as any,
+  });
 }
 
 // ---------- Direct LLM Client (for act / extract / observe) ----------
@@ -203,7 +344,7 @@ async function startCuaBridge(): Promise<{
 
 // ---------- Unified setup ----------
 
-export interface AzureOAuthSetup {
+export interface LLMSetup {
   /** LLM client for act/extract/observe – pass as `llmClient` to Stagehand */
   llmClient: CustomOpenAIClient;
 
@@ -214,49 +355,117 @@ export interface AzureOAuthSetup {
   cleanup: () => Promise<void>;
 }
 
+// Legacy type alias for backward compatibility
+export type AzureOAuthSetup = LLMSetup;
+
 /**
- * One-call setup for Azure OAuth with Stagehand.
+ * Setup LLM client with Copilot CLI (default) or Azure OAuth.
  *
  * ```ts
- * const oauth = await setupAzureOAuth();
- * const stagehand = new Stagehand({ env: "LOCAL", llmClient: oauth.llmClient });
- * const agent = stagehand.agent({ mode: "cua", model: oauth.cuaModel });
+ * const setup = await setupLLMClient();
+ * const stagehand = new Stagehand({ env: "LOCAL", llmClient: setup.llmClient });
+ * const agent = stagehand.agent({ mode: "cua", model: setup.cuaModel });
  * await agent.execute({ instruction: "...", maxSteps: 20 });
  * await stagehand.close();
- * await oauth.cleanup();
+ * await setup.cleanup();
  * ```
+ */
+export async function setupLLMClient(
+  options: {
+    useCopilotCli?: boolean;
+    chatModel?: string;
+    cuaModelName?: string;
+  } = {}
+): Promise<LLMSetup> {
+  const {
+    useCopilotCli = USE_COPILOT_CLI,
+    chatModel = useCopilotCli ? COPILOT_MODEL : "gpt-4o",
+    cuaModelName = "openai/computer-use-preview"
+  } = options;
+
+  if (useCopilotCli) {
+    // 1. Copilot CLI client for act/extract/observe
+    const llmClient = createCopilotCliClient(chatModel);
+
+    // 2. For CUA, still use Azure bridge (computer-use-preview unchanged as requested)
+    const { server, port } = await startCuaBridge();
+
+    const cuaModel = {
+      modelName: cuaModelName,
+      apiKey: "azure-oauth", // dummy – bridge handles real auth
+      baseURL: `http://127.0.0.1:${port}/v1`,
+    };
+
+    console.log(`✅ Copilot CLI setup complete`);
+    console.log(`   LLM client: Copilot CLI`);
+    console.log(`   CUA bridge: http://127.0.0.1:${port}/v1`);
+
+    return {
+      llmClient,
+      cuaModel,
+      cleanup: () =>
+        new Promise<void>((resolve) => {
+          server.close(() => {
+            console.log("🛑 CUA bridge stopped");
+            resolve();
+          });
+        }),
+    };
+  } else {
+    // Azure OAuth path (existing functionality)
+    const llmClient = createAzureOAuthClient(chatModel);
+    const { server, port } = await startCuaBridge();
+
+    const cuaModel = {
+      modelName: cuaModelName,
+      apiKey: "azure-oauth",
+      baseURL: `http://127.0.0.1:${port}/v1`,
+    };
+
+    console.log(`✅ Azure OAuth setup complete`);
+    console.log(`   LLM client: Azure OAuth`);
+    console.log(`   CUA bridge: http://127.0.0.1:${port}/v1`);
+
+    return {
+      llmClient,
+      cuaModel,
+      cleanup: () =>
+        new Promise<void>((resolve) => {
+          server.close(() => {
+            console.log("🛑 CUA bridge stopped");
+            resolve();
+          });
+        }),
+    };
+  }
+}
+
+/**
+ * Legacy function for backward compatibility - now uses Azure OAuth specifically.
  */
 export async function setupAzureOAuth(
   chatModel: string = "gpt-4o",
   cuaModelName: string = "openai/computer-use-preview"
 ): Promise<AzureOAuthSetup> {
-  // 1. Direct client for act/extract/observe
-  const llmClient = createAzureOAuthClient(chatModel);
+  return setupLLMClient({
+    useCopilotCli: false,
+    chatModel,
+    cuaModelName
+  });
+}
 
-  // 2. In-process bridge for CUA
-  const { server, port } = await startCuaBridge();
-
-  const cuaModel = {
-    modelName: cuaModelName,
-    apiKey: "azure-oauth", // dummy – bridge handles real auth
-    baseURL: `http://127.0.0.1:${port}/v1`,
-  };
-
-  console.log(`✅ Azure OAuth setup complete`);
-  console.log(`   LLM client: direct`);
-  console.log(`   CUA bridge: http://127.0.0.1:${port}/v1`);
-
-  return {
-    llmClient,
-    cuaModel,
-    cleanup: () =>
-      new Promise<void>((resolve) => {
-        server.close(() => {
-          console.log("🛑 CUA bridge stopped");
-          resolve();
-        });
-      }),
-  };
+/**
+ * Setup with Copilot CLI (convenience function).
+ */
+export async function setupCopilotCli(
+  chatModel: string = COPILOT_MODEL,
+  cuaModelName: string = "openai/computer-use-preview"
+): Promise<LLMSetup> {
+  return setupLLMClient({
+    useCopilotCli: true,
+    chatModel,
+    cuaModelName
+  });
 }
 
 export {

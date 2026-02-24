@@ -1,18 +1,18 @@
 [
   {
-    "timestamp": 1400,
+    "timestamp": 1383,
     "type": "goto",
     "url": "https://www.google.com/maps",
     "description": "Navigate to https://www.google.com/maps"
   },
   {
-    "timestamp": 3382,
+    "timestamp": 4968,
     "type": "wait",
     "ms": 3000,
     "description": "Wait for Google Maps to fully render"
   },
   {
-    "timestamp": 13056,
+    "timestamp": 14709,
     "type": "extract",
     "instruction": "Analyze the current Google Maps interface",
     "description": "Interface discovery analysis",
@@ -20,6 +20,9 @@
       "availableOptions": [
         "Search",
         "Directions",
+        "Set location",
+        "Delete",
+        "More from recent history",
         "Restaurants",
         "Hotels",
         "Things to do",
@@ -27,10 +30,11 @@
         "Transit",
         "Pharmacies",
         "ATMs",
-        "Next page",
         "Menu",
         "Saved",
         "Recents",
+        "4 places Redmond & Bellevue",
+        "10 places Anchorage",
         "Get app",
         "Google apps",
         "Show Your Location",
@@ -49,16 +53,23 @@
         "Directions"
       ],
       "searchFeatures": [
-        "Search Google Maps"
+        "Search Google Maps",
+        "Search"
       ],
       "otherControls": [
-        "Light traffic in this area Typical conditions",
+        "Add your business",
+        "Learn more",
+        "Dismiss",
+        "Heavy traffic in this area",
+        "Slower than usual",
+        "Redmond weather",
+        "Reply to reviews, manage your business info, post offers and more!",
         "Imagery ©2026 , Map data ©2026 Google"
       ]
     }
   },
   {
-    "timestamp": 15613,
+    "timestamp": 17573,
     "type": "extract",
     "instruction": "Plan strategy for getting directions",
     "description": "Dynamic strategy planning based on interface discovery",
@@ -69,17 +80,17 @@
         "Click the 'Directions' button.",
         "Enter 'Bellevue Square, Bellevue, WA' as the starting point.",
         "Enter 'Redmond Town Center, Redmond, WA' as the destination.",
-        "Confirm the route and review the driving directions provided."
+        "Confirm the route and review the suggested directions."
       ],
       "alternativesIfFailed": [
-        "Use the 'Search' button to look up 'Bellevue Square, Bellevue, WA' and 'Redmond Town Center, Redmond, WA' separately, then use the 'Directions' feature from one of the locations.",
-        "Manually pan the map to locate both places and use the 'Directions' button to set the route.",
-        "Consult another mapping service or application to get the driving directions."
+        "Use the 'Search' button to locate 'Bellevue Square, Bellevue, WA' and 'Redmond Town Center, Redmond, WA' individually, then look for a 'Get Directions' option.",
+        "Manually pan the map to locate both places and use the context menu to find directions between them.",
+        "Search for driving directions using another mapping tool or application."
       ]
     }
   },
   {
-    "timestamp": 16348,
+    "timestamp": 18451,
     "type": "act",
     "instruction": "Click the 'Directions' button.",
     "description": "Execute first planned action",
@@ -126,27 +137,29 @@
     }
   },
   {
-    "timestamp": 16442,
+    "timestamp": 18574,
     "type": "wait",
     "ms": 2000,
     "description": "Wait after: Execute first planned action"
   },
   {
-    "timestamp": 19918,
+    "timestamp": 22714,
     "type": "extract",
     "instruction": "Check interface state after first action",
     "description": "Verify that UI changed as expected after first action",
     "results": {
-      "newInterface": "Directions interface with travel mode options and input fields for starting point and destination.",
+      "newInterface": "Directions interface with travel mode options, starting point and destination inputs, and recently viewed places.",
       "availableInputs": [
         "Choose starting point, or click on the map...",
-        "Choose destination..."
+        "Choose destination...",
+        "Search",
+        "Reverse starting point and destination"
       ],
-      "nextApproach": "Select a starting point and destination, then choose the preferred travel mode to get directions."
+      "nextApproach": "Set the starting point and destination, select a travel mode, and review the suggested routes."
     }
   },
   {
-    "timestamp": 20693,
+    "timestamp": 23872,
     "type": "act",
     "instruction": "click on the starting point input field",
     "description": "Click starting location field first",
@@ -220,13 +233,13 @@
     }
   },
   {
-    "timestamp": 20734,
+    "timestamp": 23918,
     "type": "wait",
     "ms": 500,
     "description": "Wait after: Click starting location field first"
   },
   {
-    "timestamp": 22112,
+    "timestamp": 25457,
     "type": "act",
     "instruction": "Enter 'Bellevue Square, Bellevue, WA' in the starting location field",
     "description": "Enter starting location: Bellevue Square, Bellevue, WA",
@@ -235,7 +248,7 @@
     "arguments": [
       "Bellevue Square, Bellevue, WA"
     ],
-    "observedDescription": "textbox: Choose starting point, or click on the map...",
+    "observedDescription": "Textbox for entering the starting location",
     "aria": {
       "tagName": "input",
       "type": null,
@@ -302,20 +315,20 @@
     }
   },
   {
-    "timestamp": 22161,
+    "timestamp": 25499,
     "type": "wait",
     "ms": 1000,
     "description": "Wait after: Enter starting location: Bellevue Square, Bellevue, WA"
   },
   {
-    "timestamp": 24068,
+    "timestamp": 27509,
     "type": "act",
     "instruction": "click on the destination input field",
     "description": "Click destination field first",
     "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/div[9]/div[3]/div[1]/div[2]/div[1]/div[2]/div[1]/div[2]/div[2]/div[1]/div[1]/input[1]",
     "method": "click",
     "arguments": [],
-    "observedDescription": "textbox for entering the destination, labeled as 'Choose destination, or click on the map...'",
+    "observedDescription": "textbox for choosing the destination, labeled 'Choose destination, or click on the map...'",
     "aria": {
       "tagName": "input",
       "type": null,
@@ -382,13 +395,13 @@
     }
   },
   {
-    "timestamp": 24096,
+    "timestamp": 27537,
     "type": "wait",
     "ms": 500,
     "description": "Wait after: Click destination field first"
   },
   {
-    "timestamp": 25402,
+    "timestamp": 29094,
     "type": "act",
     "instruction": "Enter 'Redmond Town Center, Redmond, WA' in the destination field",
     "description": "Enter destination: Redmond Town Center, Redmond, WA",
@@ -397,7 +410,7 @@
     "arguments": [
       "Redmond Town Center, Redmond, WA"
     ],
-    "observedDescription": "textbox for entering the destination",
+    "observedDescription": "textbox for entering the destination field",
     "aria": {
       "tagName": "input",
       "type": null,
@@ -464,17 +477,17 @@
     }
   },
   {
-    "timestamp": 25436,
+    "timestamp": 29129,
     "type": "wait",
     "ms": 1000,
     "description": "Wait after: Enter destination: Redmond Town Center, Redmond, WA"
   },
   {
-    "timestamp": 27269,
+    "timestamp": 31042,
     "type": "act",
     "instruction": "Press Enter to search for directions",
     "description": "Search for directions using Enter key",
-    "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/div[9]/div[3]/div[1]/div[2]/div[1]/div[2]/div[1]/div[2]/div[2]/button[1]",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/div[9]/div[3]/div[1]/div[2]/div[1]/div[2]/div[1]/div[1]/div[2]/button[1]",
     "method": "press",
     "arguments": [
       "Enter"
@@ -495,13 +508,13 @@
       "className": "mL3xi",
       "bestLabel": "Search",
       "matchCount": 3,
-      "nearestAncestorId": "directions-searchbox-1",
+      "nearestAncestorId": "directions-searchbox-0",
       "ariaAncestors": [
         {
           "tagName": "div",
           "ariaLabel": null,
           "role": null,
-          "id": "directions-searchbox-1",
+          "id": "directions-searchbox-0",
           "placeholder": null,
           "title": null,
           "tooltip": null
@@ -537,86 +550,86 @@
     }
   },
   {
-    "timestamp": 27295,
+    "timestamp": 31067,
     "type": "wait",
     "ms": 5000,
     "description": "Wait after: Search for directions using Enter key"
   },
   {
-    "timestamp": 34484,
+    "timestamp": 38294,
     "type": "extract",
     "instruction": "Verify that directions are displayed",
     "description": "Check if route search was successful",
     "results": {
       "directionsVisible": true,
-      "routeInfo": "Driving 19 min 9.9 miles via WA-520 E Fastest route now due to traffic conditions\nDriving 20 min 7.9 miles via NE 10th St and WA-520 E Some traffic, as usual\nTransit 35 min Warning 5:14 PM—5:49 PM Walk , then Light rail 2 Line",
+      "routeInfo": "Driving 18 min 7.9 miles via WA-520 E Fastest route, despite the usual traffic\nDriving 18 min 9.9 miles via 92nd Ave NE and WA-520 E\nDriving 22 min 8.8 miles via WA-520 E and 148th Ave NE Some traffic, as usual",
       "needsAction": ""
     }
   },
   {
-    "timestamp": 35796,
+    "timestamp": 39661,
     "type": "extract",
     "instruction": "Extract complete driving directions information",
     "description": "Final extraction of route details",
     "results": {
-      "distance": "9.9 miles",
-      "duration": "19 min",
+      "distance": "7.9 miles",
+      "duration": "18 min",
       "route": "WA-520 E",
-      "via": "Fastest route now due to traffic conditions",
+      "via": "Fastest route, despite the usual traffic",
       "success": true
     }
   },
   {
-    "timestamp": 39249,
+    "timestamp": 43688,
     "type": "observe",
     "instruction": "locate the travel time or duration element that shows how long the trip will take",
     "description": "Find the element displaying travel time/duration",
     "actions": [
       {
-        "description": "StaticText element displaying the travel time for driving: 19 min",
+        "description": "StaticText element showing the travel time for Driving mode: 18 min",
         "method": "scrollTo",
         "arguments": [],
         "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/div[9]/div[3]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/button[1]/div[2]"
       },
       {
-        "description": "StaticText element displaying the travel time for transit: 35 min",
+        "description": "StaticText element showing the travel time for Transit mode: 34 min",
         "method": "scrollTo",
         "arguments": [],
         "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/div[9]/div[3]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/button[1]/div[2]"
       },
       {
-        "description": "StaticText element displaying the travel time for walking: 2h 36m",
+        "description": "StaticText element showing the travel time for Walking mode: 2h 36m",
         "method": "scrollTo",
         "arguments": [],
         "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/div[9]/div[3]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[1]/div[4]/button[1]/div[2]"
       },
       {
-        "description": "StaticText element displaying the travel time for cycling: 49 min",
+        "description": "StaticText element showing the travel time for Cycling mode: 49 min",
         "method": "scrollTo",
         "arguments": [],
         "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/div[9]/div[3]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/button[1]/div[2]"
       },
       {
-        "description": "StaticText element displaying the travel time for driving via WA-520 E: 19 min",
+        "description": "StaticText element showing the travel time for the fastest driving route: 18 min",
         "method": "scrollTo",
         "arguments": [],
         "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/div[9]/div[8]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[1]"
       },
       {
-        "description": "StaticText element displaying the travel time for driving via NE 10th St and WA-520 E: 20 min",
+        "description": "StaticText element showing the travel time for an alternative driving route: 18 min",
         "method": "scrollTo",
         "arguments": [],
         "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/div[9]/div[8]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[5]/div[2]/div[1]/div[1]/div[1]/div[1]"
       },
       {
-        "description": "StaticText element displaying the travel time for transit: 35 min",
+        "description": "StaticText element showing the travel time for another driving route: 22 min",
         "method": "scrollTo",
         "arguments": [],
         "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/div[9]/div[8]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[1]/div[1]"
       }
     ],
     "ariaScope": {
-      "targetText": "19 min",
+      "targetText": "18 min",
       "targetTag": "div",
       "ancestor": {
         "tagName": "div",
@@ -625,26 +638,26 @@
         "id": null,
         "stepsFromTarget": 12
       },
-      "textMatchCount": 3,
+      "textMatchCount": 4,
       "regexMatchCount": 7,
       "xpathTail": "div[9]/div[3]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/button[1]/div[2]"
     }
   },
   {
-    "timestamp": 40168,
+    "timestamp": 46061,
     "type": "observe",
     "instruction": "locate the distance element that shows the total driving distance",
     "description": "Find the element displaying total distance",
     "actions": [
       {
-        "description": "StaticText element displaying the total driving distance of 9.9 miles for the fastest route.",
+        "description": "StaticText element displaying the total driving distance of 7.9 miles for the fastest route.",
         "method": "scrollTo",
         "arguments": [],
         "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/div[9]/div[8]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]"
       }
     ],
     "ariaScope": {
-      "targetText": "9.9 miles",
+      "targetText": "7.9 miles",
       "targetTag": "div",
       "ancestor": {
         "tagName": "div",
@@ -654,24 +667,24 @@
         "stepsFromTarget": 7
       },
       "textMatchCount": 1,
-      "regexMatchCount": 2,
+      "regexMatchCount": 3,
       "xpathTail": "div[5]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]"
     }
   },
   {
-    "timestamp": 41782,
+    "timestamp": 48422,
     "type": "extract",
     "instruction": "Extract travel time and distance values from their elements",
     "description": "Get the actual values and element location info for travel time and distance",
     "results": {
-      "travelTime": "19 min",
-      "distance": "9.9 miles",
-      "travelTimeElementInfo": "[1-1647] StaticText: 19 min",
-      "distanceElementInfo": "[1-1648] StaticText: 9.9 miles"
+      "travelTime": "18 min",
+      "distance": "7.9 miles",
+      "travelTimeElementInfo": "[4-3188] StaticText: 18 min",
+      "distanceElementInfo": "[4-3189] StaticText: 7.9 miles"
     }
   },
   {
-    "timestamp": 41783,
+    "timestamp": 48423,
     "type": "screenshot",
     "name": "directions_result",
     "description": "Take screenshot: directions_result"
