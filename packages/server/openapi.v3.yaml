@@ -2154,7 +2154,7 @@ servers:
   - url: https://api.stagehand.browserbase.com
     description: Production Browserbase Cloud API
   - url: https://api.use1.stagehand.browserbase.com
-    description: Production Browserbase Cloud API (us-east-1)
+    description: US East (N. Virginia) - us-east-1
   - url: https://api.euc1.stagehand.browserbase.com
     description: Production Browserbase Cloud API (eu-central-1)
   - url: https://api.apse1.stagehand.browserbase.com
