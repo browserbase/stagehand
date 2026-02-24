@@ -191,9 +191,14 @@ jobs:
       - name: Run Lint
         run: pnpm exec turbo run lint
 
-      - name: Cancel workflow if lint fails
-        if: failure()
-        continue-on-error: true
+  cancel-after-lint-failure:
+    name: Cancel after lint failure
+    runs-on: ubuntu-latest
+    needs: [run-lint]
+    if: ${{ always() && needs.run-lint.result == 'failure' }}
+    continue-on-error: true
+    steps:
+      - name: Cancel workflow run
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
