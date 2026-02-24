@@ -52,6 +52,25 @@ function getNetworkDir(session: string): string {
   return path.join(SOCKET_DIR, `browse-${session}-network`);
 }
 
+function getModePath(session: string): string {
+  return path.join(SOCKET_DIR, `browse-${session}.mode`);
+}
+
+/** Explicit mode override set by `browse mode local|remote`. Takes precedence over env var detection. */
+function getModeOverridePath(session: string): string {
+  return path.join(SOCKET_DIR, `browse-${session}.mode-override`);
+}
+
+/** Determine desired mode: explicit override > env var detection */
+async function getDesiredMode(session: string): Promise<"browserbase" | "local"> {
+  try {
+    const override = (await fs.readFile(getModeOverridePath(session), "utf-8")).trim();
+    if (override === "browserbase" || override === "local") return override;
+  } catch {}
+  return (process.env.BROWSERBASE_API_KEY && process.env.BROWSERBASE_PROJECT_ID)
+    ? "browserbase" : "local";
+}
+
 async function isDaemonRunning(session: string): Promise<boolean> {
   try {
     const pidFile = getPidPath(session);
@@ -79,6 +98,9 @@ async function cleanupStaleFiles(session: string): Promise<void> {
   } catch {}
   try {
     await fs.unlink(getChromePidPath(session));
+  } catch {}
+  try {
+    await fs.unlink(getModePath(session));
   } catch {}
 }
 
@@ -130,16 +152,34 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
   // Write daemon PID file
   await fs.writeFile(getPidPath(session), String(process.pid));
 
-  // Create Stagehand instance with dummy model (never used for CLI operations)
+  // Determine mode: explicit override (from `browse mode`) > env var detection
+  const desiredMode = await getDesiredMode(session);
+  const apiKey = process.env.BROWSERBASE_API_KEY;
+  const projectId = process.env.BROWSERBASE_PROJECT_ID;
+  const useBrowserbase = desiredMode === "browserbase" && !!(apiKey && projectId);
+
+  // Create Stagehand instance — uses Browserbase when credentials are set,
+  // otherwise launches a local Chrome instance.
+  // In Browserbase mode we pass disableAPI + a dummy model key since the CLI
+  // only uses raw browser automation, not AI orchestration.
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env: useBrowserbase ? "BROWSERBASE" : "LOCAL",
     verbose: 0,
     disablePino: true,
-    localBrowserLaunchOptions: {
-      headless,
-      viewport: DEFAULT_VIEWPORT,
-    },
+    ...(useBrowserbase
+      ? {
+          disableAPI: true,
+          model: { modelName: "openai/gpt-4o" as const, apiKey: "unused" },
+        }
+      : { localBrowserLaunchOptions: { headless, viewport: DEFAULT_VIEWPORT } }
+    ),
   });
+
+  // Persist mode so status command can report it
+  await fs.writeFile(
+    getModePath(session),
+    useBrowserbase ? "browserbase" : "local",
+  );
 
   // Initialize browser
   await stagehand.init();
@@ -1066,7 +1106,21 @@ async function sendCommand(
 
 async function ensureDaemon(session: string, headless: boolean): Promise<void> {
   if (await isDaemonRunning(session)) {
-    return;
+    // Check if the running daemon's mode matches the desired mode.
+    // Desired mode = explicit override (from `browse mode`) > env var detection.
+    const wantMode = await getDesiredMode(session);
+    let currentMode: string | null = null;
+    try {
+      currentMode = (await fs.readFile(getModePath(session), "utf-8")).trim();
+    } catch {}
+    if (currentMode && currentMode !== wantMode) {
+      try { await sendCommandOnce(session, "stop", []); } catch {}
+      // Give the daemon a moment to shut down and release the socket
+      await new Promise((r) => setTimeout(r, 500));
+      await cleanupStaleFiles(session);
+    } else {
+      return;
+    }
   }
 
   const args = ["--session", session, "daemon"];
@@ -1209,6 +1263,8 @@ program
   .action(async (cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     const session = getSession(opts);
+    // Clear any explicit mode override so next start uses env var detection
+    try { await fs.unlink(getModeOverridePath(session)); } catch {}
     try {
       await sendCommand(session, "stop", []);
       console.log(JSON.stringify({ status: "stopped", session }));
@@ -1231,12 +1287,74 @@ program
     const session = getSession(opts);
     const running = await isDaemonRunning(session);
     let wsUrl = null;
+    let mode = null;
     if (running) {
       try {
         wsUrl = await fs.readFile(getWsPath(session), "utf-8");
       } catch {}
+      try {
+        mode = await fs.readFile(getModePath(session), "utf-8");
+      } catch {}
     }
-    console.log(JSON.stringify({ running, session, wsUrl }));
+    console.log(JSON.stringify({ running, session, wsUrl, mode }));
+  });
+
+program
+  .command("mode [target]")
+  .description("Show or switch daemon mode (local | remote)")
+  .action(async (target?: string) => {
+    const opts = program.opts<GlobalOpts>();
+    const session = getSession(opts);
+
+    // No argument → print current mode
+    if (!target) {
+      let mode: string | null = null;
+      if (await isDaemonRunning(session)) {
+        try {
+          mode = (await fs.readFile(getModePath(session), "utf-8")).trim();
+        } catch {}
+      }
+      console.log(JSON.stringify({ mode: mode ?? "not running", session }));
+      return;
+    }
+
+    // Normalize "remote" → "browserbase" for internal use
+    const modeMap: Record<string, string> = { local: "local", remote: "browserbase" };
+    const mapped = modeMap[target];
+    if (!mapped) {
+      console.error('Usage: browse mode [local|remote]');
+      process.exit(1);
+    }
+
+    if (mapped === "browserbase") {
+      if (!process.env.BROWSERBASE_API_KEY || !process.env.BROWSERBASE_PROJECT_ID) {
+        console.error("Cannot switch to remote: BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID must be set.");
+        process.exit(1);
+      }
+    }
+
+    // Write the override file — ensureDaemon and runDaemon will read this
+    await fs.writeFile(getModeOverridePath(session), mapped);
+
+    // If the daemon is already in the desired mode, no restart needed
+    let currentMode: string | null = null;
+    if (await isDaemonRunning(session)) {
+      try {
+        currentMode = (await fs.readFile(getModePath(session), "utf-8")).trim();
+      } catch {}
+      if (currentMode === mapped) {
+        console.log(JSON.stringify({ mode: target, session, restarted: false }));
+        return;
+      }
+      // Mode mismatch — stop and let ensureDaemon restart
+      try { await sendCommandOnce(session, "stop", []); } catch {}
+      await new Promise((r) => setTimeout(r, 500));
+      await cleanupStaleFiles(session);
+    }
+
+    await ensureDaemon(session, isHeadless(opts));
+
+    console.log(JSON.stringify({ mode: target, session, restarted: true }));
   });
 
 program
