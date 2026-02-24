@@ -2158,7 +2158,7 @@ servers:
   - url: https://api.euc1.stagehand.browserbase.com
     description: EU Central (Frankfurt) - eu-central-1
   - url: https://api.apse1.stagehand.browserbase.com
-    description: Production Browserbase Cloud API (ap-southeast-1)
+    description: Asia Pacific (Singapore) - ap-southeast-1
 security:
   - BrowserbaseApiKey: []
     BrowserbaseProjectId: []
