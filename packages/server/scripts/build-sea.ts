@@ -58,8 +58,15 @@ const binaryName =
   process.env.SEA_BINARY_NAME ??
   `stagehand-server-${targetPlatform}-${targetArch}${targetPlatform === "win32" ? ".exe" : ""}`;
 
+const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+
 const run = (cmd: string, args: string[], opts: { cwd?: string } = {}) => {
   const result = spawnSync(cmd, args, { stdio: "inherit", ...opts });
+  if (result.error) {
+    throw new Error(
+      `Command failed to start: ${cmd} ${args.join(" ")}\n${String(result.error)}`,
+    );
+  }
   if (result.status !== 0) {
     throw new Error(`Command failed: ${cmd} ${args.join(" ")}`);
   }
@@ -186,7 +193,7 @@ const writeSeaConfig = (
 
 const buildCjsBundle = () => {
   run(
-    "pnpm",
+    pnpmCommand,
     [
       "exec",
       "turbo",
@@ -200,7 +207,7 @@ const buildCjsBundle = () => {
   fs.mkdirSync(`${repoDir}/packages/server/dist/sea`, { recursive: true });
   const bundlePath = `${repoDir}/packages/server/dist/sea/bundle.cjs`;
   run(
-    "pnpm",
+    pnpmCommand,
     [
       "exec",
       "esbuild",
@@ -241,7 +248,7 @@ const buildEsmBundle = () => {
     '--banner:js=import { createRequire as __createRequire } from "node:module"; const require = __createRequire(import.meta.url);',
     "--log-level=warning",
   ];
-  run("pnpm", esbuildArgs, { cwd: repoDir });
+  run(pnpmCommand, esbuildArgs, { cwd: repoDir });
 
   const appSource = fs.readFileSync(appBundlePath, "utf8");
   const mapMatch = appSource.match(
@@ -435,7 +442,7 @@ const main = async () => {
   if (targetPlatform === "darwin") {
     postjectArgs.push("--macho-segment-name", "NODE_SEA");
   }
-  run("pnpm", postjectArgs, { cwd: `${repoDir}/packages/server` });
+  run(pnpmCommand, postjectArgs, { cwd: `${repoDir}/packages/server` });
 
   if (targetPlatform === "darwin") {
     runOptional("codesign", ["--sign", "-", outPath]);

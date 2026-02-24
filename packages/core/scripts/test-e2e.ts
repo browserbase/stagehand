@@ -1,12 +1,12 @@
 /**
  * E2E tests (Playwright) on dist/esm tests.
  *
- * Prereqs: pnpm run build:esm (packages/core/dist/esm/lib/v3/tests present).
+ * Prereqs: pnpm run build:esm (packages/core/dist/esm/tests/integration present).
  * Args: [test paths...] -- [playwright args...] | --list (prints JSON matrix).
  * Env: STAGEHAND_BROWSER_TARGET=local|browserbase, CHROME_PATH (local),
  *      NODE_V8_COVERAGE, PLAYWRIGHT_CONSOLE_REPORTER;
  *      writes CTRF to ctrf/playwright-*.xml by default.
- * Example: STAGEHAND_BROWSER_TARGET=browserbase pnpm run test:e2e -- packages/core/dist/esm/lib/v3/tests/foo.spec.js
+ * Example: STAGEHAND_BROWSER_TARGET=browserbase pnpm run test:e2e -- packages/core/dist/esm/tests/integration/foo.spec.js
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -31,8 +31,9 @@ const repoRoot = (() => {
   return root;
 })();
 
-const testsDir = `${repoRoot}/packages/core/dist/esm/lib/v3/tests`;
-const defaultConfigPath = `${repoRoot}/packages/core/dist/esm/lib/v3/tests/v3.playwright.config.js`;
+const sourceTestsDir = `${repoRoot}/packages/core/tests/integration`;
+const testsDir = `${repoRoot}/packages/core/dist/esm/tests/integration`;
+const defaultConfigPath = `${repoRoot}/packages/core/dist/esm/tests/integration/v3.playwright.config.js`;
 
 const resolveRepoRelative = (value: string) =>
   path.isAbsolute(value) ? value : path.resolve(repoRoot, value);
@@ -83,28 +84,30 @@ const toPlaywrightPath = (testPath: string) => {
   return value.replace(/(\.spec|\.test)\.(ts|js)$/i, "$1");
 };
 
-if (!fs.existsSync(testsDir)) {
-  console.error(
-    "Missing packages/core/dist/esm/lib/v3/tests. Run pnpm run build:esm first.",
-  );
-  process.exit(1);
-}
-
 const listFlag = parseListFlag(process.argv.slice(2));
 const { paths, extra } = splitArgs(listFlag.args);
 
 if (listFlag.list) {
-  const tests = collectFiles(testsDir, ".spec.js");
+  const tests = collectFiles(sourceTestsDir, ".spec.ts");
   const entries = tests.map((file) => {
-    const rel = path.relative(testsDir, file).replace(/\.spec\.js$/, "");
+    const relSource = path.relative(sourceTestsDir, file).replaceAll("\\", "/");
+    const rel = relSource.replace(/\.spec\.ts$/, "");
+    const distPath = `${testsDir}/${relSource.replace(/\.spec\.ts$/, ".spec.js")}`;
     return {
-      path: path.relative(repoRoot, file),
+      path: path.relative(repoRoot, distPath).replaceAll("\\", "/"),
       name: rel,
       safe_name: toSafeName(rel),
     };
   });
   console.log(JSON.stringify(entries));
   process.exit(0);
+}
+
+if (!fs.existsSync(testsDir)) {
+  console.error(
+    "Missing packages/core/dist/esm/tests/integration. Run pnpm run build:esm first.",
+  );
+  process.exit(1);
 }
 
 const { filtered: extraArgs, removed: removedReporterOverride } =

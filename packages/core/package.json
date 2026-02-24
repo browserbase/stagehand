@@ -12,7 +12,11 @@
       "import": "./dist/esm/index.js",
       "require": "./dist/cjs/index.js"
     },
-    "./cli": "./dist/esm/lib/v3/cli.js",
+    "./cli": {
+      "types": "./dist/esm/lib/v3/cli.d.ts",
+      "import": "./dist/esm/lib/v3/cli.js",
+      "require": "./dist/cjs/cli.js"
+    },
     "./*.js": {
       "types": "./dist/esm/*.d.ts",
       "import": "./dist/esm/*.js"
@@ -28,10 +32,10 @@
   },
   "scripts": {
     "gen-version": "tsx scripts/gen-version.ts",
-    "build-dom-scripts": "tsx lib/v3/dom/genDomScripts.ts && tsx lib/v3/dom/genLocatorScripts.ts && tsx lib/v3/dom/genScreenshotScripts.ts && tsx lib/v3/dom/genA11yScripts.ts",
+    "build-dom-scripts": "set -e; tsx lib/v3/dom/genDomScripts.ts & p1=$!; tsx lib/v3/dom/genLocatorScripts.ts & p2=$!; tsx lib/v3/dom/genScreenshotScripts.ts & p3=$!; tsx lib/v3/dom/genA11yScripts.ts & p4=$!; wait $p1; wait $p2; wait $p3; wait $p4",
     "build:cjs": "tsx scripts/build-cjs.ts",
     "build:esm": "tsx scripts/build-esm.ts",
-    "build": "pnpm run build:esm && pnpm run build:cjs",
+    "build": "pnpm --filter @browserbasehq/stagehand run --parallel \"/^build:(esm|cjs)$/\"",
     "example": "node --import tsx -e \"const args=process.argv.slice(1).filter(a=>a!=='--'); const [p]=args; const n=(p||'example').replace(/^\\.\\//,'').replace(/\\.ts$/i,''); import('node:path').then(path=>import(new URL(path.resolve('examples', n + '.ts'), 'file:')));\" --",
     "test": "pnpm -w --dir ../.. exec turbo run test:core test:e2e --filter=@browserbasehq/stagehand --",
     "test:core": "tsx scripts/test-core.ts",
@@ -60,7 +64,6 @@
   },
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",
-    "uuid": "^11.1.0",
     "@anthropic-ai/sdk": "0.39.0",
     "@browserbasehq/sdk": "^2.4.0",
     "@google/genai": "^1.22.0",
@@ -72,6 +75,7 @@
     "openai": "^4.87.1",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
+    "uuid": "^11.1.0",
     "ws": "^8.18.0",
     "zod-to-json-schema": "^3.25.0"
   },
@@ -99,11 +103,12 @@
     "puppeteer-core": "^22.8.0"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.0.8",
     "@playwright/test": "^1.42.1",
     "@types/adm-zip": "^0.5.7",
+    "@types/jsdom": "^27.0.0",
     "@types/node": "^20.11.30",
     "@types/ws": "^8.5.13",
+    "@vitest/coverage-v8": "^4.0.8",
     "adm-zip": "^0.5.16",
     "chalk": "^5.4.1",
     "eslint": "^9.16.0",

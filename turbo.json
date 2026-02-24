@@ -8,7 +8,10 @@
     "package.json",
     "packages/*/package.json",
     "tsconfig.json",
-    "tsconfig.base.json"
+    "tsconfig.base.json",
+    "eslint.config.mjs",
+    ".prettierrc",
+    ".prettierignore"
   ],
   "tasks": {
     "build": {
@@ -245,10 +248,23 @@
       "outputs": [],
       "inputs": [
         "**/*.ts",
+        "**/*.tsx",
         "**/*.js",
         "**/*.jsx",
-        ".eslintrc*",
-        ".prettierrc*"
+        "**/*.mjs",
+        "**/*.cjs",
+        "**/*.mts",
+        "**/*.cts",
+        "**/*.md",
+        "**/*.mdx",
+        "**/*.yml",
+        "**/*.yaml",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json",
+        "!dist/**",
+        "!node_modules/**",
+        "!.turbo/**"
       ]
     },
     "format": {

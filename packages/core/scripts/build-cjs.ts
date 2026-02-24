@@ -19,8 +19,18 @@ const repoRoot = (() => {
   return root;
 })();
 
+const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+
 const run = (args: string[]) => {
-  const result = spawnSync("pnpm", args, { stdio: "inherit", cwd: repoRoot });
+  const result = spawnSync(pnpmCommand, args, {
+    stdio: "inherit",
+    cwd: repoRoot,
+  });
+  if (result.error) {
+    console.error(`Failed to run ${pnpmCommand} ${args.join(" ")}`);
+    console.error(result.error);
+    process.exit(1);
+  }
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
   }
@@ -62,11 +72,11 @@ run([
 ]);
 
 // Unit + e2e test scripts can run against dist/cjs when these test files are emitted.
+// Unit tests are in tests/unit/, integration tests are in tests/integration/
 run([
   "exec",
   "esbuild",
   "packages/core/tests/**/*.ts",
-  "packages/core/lib/v3/tests/**/*.ts",
   "--outdir=packages/core/dist/cjs",
   "--outbase=packages/core",
   "--format=cjs",
@@ -90,7 +100,9 @@ run([
 
 fs.writeFileSync(
   `${repoRoot}/packages/core/dist/cjs/index.d.ts`,
-  'export * from "./lib/v3/index";\n',
+  `export * from "./lib/v3/index";
+export { default } from "./lib/v3/index";
+`,
 );
 fs.writeFileSync(
   `${repoRoot}/packages/core/dist/cjs/package.json`,
