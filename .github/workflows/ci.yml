@@ -15,6 +15,7 @@ permissions:
   actions: write
 
 env:
+  TEST_COVERAGE: "1"
   LLM_MAX_MS: "15000"
   EVAL_MODELS: "openai/gpt-4.1,google/gemini-2.0-flash,anthropic/claude-haiku-4-5"
   EVAL_AGENT_MODELS: "computer-use-preview-2025-03-11,claude-3-7-sonnet-latest"
@@ -617,8 +618,6 @@ jobs:
 
       - name: Run Evals - ${{ matrix.category }}
         id: run-evals
-        env:
-          NODE_V8_COVERAGE: coverage/evals/${{ matrix.category }}
         run: |
           log_file="$(mktemp)"
           set +e

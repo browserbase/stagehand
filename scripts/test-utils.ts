@@ -10,14 +10,10 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-const workspaceRoot = (() => {
-  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
-  const root = value.split("/packages/core/")[0];
-  if (root === value) {
-    throw new Error(`Unable to determine repo root from ${value}`);
-  }
-  return root;
-})();
+const workspaceRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+);
 
 export const ensureParentDir = (filePath: string) => {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
