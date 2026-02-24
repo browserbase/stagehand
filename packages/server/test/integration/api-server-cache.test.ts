@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { StagehandAPIClient } from "../../lib/v3/api.js";
-import type { Action } from "../../lib/v3/types/public/methods.js";
+import { StagehandAPIClient } from "../../../core/lib/v3/api.js";
+import type { Action } from "../../../core/lib/v3/types/public/methods.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -200,6 +200,17 @@ describe("StagehandAPIClient – serverCache flag", () => {
       );
 
       const result = await client.extract({ instruction: "get the title" });
+
+      expect(result.cacheStatus).toBe("HIT");
+    });
+
+    it("attaches HIT to ObserveResult", async () => {
+      const { client, fetchSpy } = await buildClient(true);
+      fetchSpy.mockResolvedValueOnce(
+        sseResponse(OBSERVE_RESULT, { "browserbase-cache-status": "HIT" }),
+      );
+
+      const result = await client.observe({ instruction: "find all buttons" });
 
       expect(result.cacheStatus).toBe("HIT");
     });

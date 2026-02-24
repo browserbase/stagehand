@@ -84,6 +84,14 @@ export interface ObserveOptions {
   serverCache?: boolean;
 }
 
+/**
+ * Observe returns an array of candidate actions. The optional `cacheStatus`
+ * property is attached when the server responds with a
+ * `browserbase-cache-status` header so callers can tell whether the result
+ * was served from the server-side cache.
+ */
+export type ObserveResult = Action[] & { cacheStatus?: "HIT" | "MISS" };
+
 export enum V3FunctionName {
   ACT = "ACT",
   EXTRACT = "EXTRACT",

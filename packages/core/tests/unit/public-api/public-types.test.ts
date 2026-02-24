@@ -25,6 +25,7 @@ type ExpectedExportedTypes = {
   HistoryEntry: Stagehand.HistoryEntry;
   ExtractOptions: Stagehand.ExtractOptions;
   ObserveOptions: Stagehand.ObserveOptions;
+  ObserveResult: Stagehand.ObserveResult;
   V3FunctionName: Stagehand.V3FunctionName;
   // Types from agent.ts
   Tool: Stagehand.Tool;
@@ -171,6 +172,15 @@ describe("Stagehand public API types", () => {
 
     it("matches expected type shape", () => {
       expectTypeOf<Stagehand.ObserveOptions>().toEqualTypeOf<ExpectedObserveOptions>();
+    });
+  });
+
+  describe("ObserveResult", () => {
+    it("is an Action array with optional cacheStatus", () => {
+      expectTypeOf<Stagehand.ObserveResult>().toExtend<Stagehand.Action[]>();
+      expectTypeOf<Stagehand.ObserveResult["cacheStatus"]>().toEqualTypeOf<
+        "HIT" | "MISS" | undefined
+      >();
     });
   });
 

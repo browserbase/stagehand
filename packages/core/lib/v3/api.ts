@@ -17,6 +17,7 @@ import type {
   AgentExecuteOptions,
   AgentResult,
   ExtractResult,
+  ObserveResult,
   LogLine,
   StagehandMetrics,
   BrowserbaseRegion,
@@ -353,7 +354,7 @@ export class StagehandAPIClient {
     instruction,
     options,
     frameId,
-  }: ClientObserveParameters): Promise<Action[]> {
+  }: ClientObserveParameters): Promise<ObserveResult> {
     // Strip non-serializable `page` and SDK-only fields from options before wire serialization
     let wireOptions: Api.ObserveRequest["options"];
     let serverCache: boolean | undefined;
@@ -376,7 +377,7 @@ export class StagehandAPIClient {
       frameId,
     };
 
-    return this.execute<Action[]>({
+    return this.execute<ObserveResult>({
       method: "observe",
       args: requestBody,
       serverCache,
@@ -716,11 +717,14 @@ export class StagehandAPIClient {
             if (eventData.data.status === "finished") {
               this.lastFinishedEventData = eventData.data;
 
+              // If caching was bypassed for this request, suppress cache status
+              // so we don't log or surface a MISS that the server emits anyway.
+              const cacheEnabled = this.shouldUseCache(serverCache);
               return this.attachCacheStatus(
                 eventData.data.result as T,
                 method,
-                cacheStatus,
-                eventData,
+                cacheEnabled ? cacheStatus : null,
+                cacheEnabled ? eventData : { data: {} },
               );
             }
           } else if (eventData.type === "log") {
@@ -812,10 +816,11 @@ export class StagehandAPIClient {
       finalCacheStatus &&
       result &&
       typeof result === "object" &&
-      (method === "act" || method === "extract")
+      (method === "act" || method === "extract" || method === "observe")
     ) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (result as ActResult | ExtractResult<any>).cacheStatus = finalCacheStatus;
+      (result as ActResult | ExtractResult<any> | ObserveResult).cacheStatus =
+        finalCacheStatus;
     }
     return result;
   }
@@ -876,19 +881,6 @@ export class StagehandAPIClient {
         ...options.headers,
       },
     });
-
-    // Log cache status if present in response headers
-    const cacheStatus = response.headers.get("browserbase-cache-status");
-    if (cacheStatus) {
-      this.logger({
-        category: "api",
-        message: `server cache ${cacheStatus.toLowerCase()}`,
-        level: 2,
-        auxiliary: {
-          "cache-status": { value: cacheStatus, type: "string" },
-        },
-      });
-    }
 
     return response;
   }
