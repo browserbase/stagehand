@@ -58,18 +58,6 @@ const supabaseClient = await connectToMCPServer(
   `https://server.smithery.ai/@supabase-community/supabase-mcp/mcp?api_key=${process.env.SMITHERY_API_KEY}`
 );
 
-// When setting the API key required for authentication in the request header
-const deepWikiClient = await connectToMCPServer({
-  serverUrl: "https://mcp.devin.ai/mcp",
-  requestOptions: {
-    requestInit: {
-      headers: {
-        Authorization: `Bearer ${process.env.DEEP_WIKI_API_KEY}`,
-      },
-    },
-  },
-});
-
 // You can also pass the config to start a local MCP server
 const notionClient = await connectToMCPServer({
   command: "npx",
@@ -79,11 +67,11 @@ const notionClient = await connectToMCPServer({
   },
 });
 
-// Use the connected client
+// Use the connected clients (example with Supabase + Notion)
 const agent = stagehand.agent({
   provider: "openai", 
   model: "computer-use-preview",
-  integrations: [supabaseClient, deepWikiClient, notionClient],
+  integrations: [supabaseClient, notionClient],
   systemPrompt: `You can interact with Supabase databases and Notion. Use these tools to store and retrieve data.`,
   options: {
     apiKey: process.env.OPENAI_API_KEY,
@@ -91,6 +79,23 @@ const agent = stagehand.agent({
 });
 
 await agent.execute("Search for restaurants in New Brunswick, NJ and save the first result to the database");
+```
+
+## Authenticated MCP Servers
+
+Some MCP servers require authentication via HTTP request headers. You can pass request headers through `requestOptions`:
+
+```typescript
+const authenticatedClient = await connectToMCPServer({
+  serverUrl: "https://mcp-server.example.com/mcp",
+  requestOptions: {
+    requestInit: {
+      headers: {
+        Authorization: `Bearer ${process.env.MCP_SERVER_API_KEY}`,
+      },
+    },
+  },
+});
 ```
 
 
