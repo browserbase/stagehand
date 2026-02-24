@@ -7,7 +7,6 @@ info:
 
     execute browser automation tasks remotely on the Browserbase cloud.
 
-
     All endpoints except /sessions/start require an active session ID.
 
     Responses are streamed using Server-Sent Events (SSE) when the
@@ -80,8 +79,7 @@ components:
       type: object
       properties:
         cacheKey:
-          description:
-            Opaque cache identifier computed from instruction, URL, options,
+          description: Opaque cache identifier computed from instruction, URL, options,
             and config
           type: string
         entry:
@@ -452,8 +450,7 @@ components:
           example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
           type: string
         cdpUrl:
-          description:
-            CDP WebSocket URL for connecting to the Browserbase cloud browser
+          description: CDP WebSocket URL for connecting to the Browserbase cloud browser
             (present when available)
           example: wss://connect.browserbase.com/?signingKey=abc123
           anyOf:
@@ -646,8 +643,7 @@ components:
       type: object
       properties:
         provider:
-          description:
-            "AI provider for the agent (legacy, use model: openai/gpt-5-nano
+          description: "AI provider for the agent (legacy, use model: openai/gpt-5-nano
             instead)"
           example: openai
           type: string
@@ -666,8 +662,7 @@ components:
           description: Custom system prompt for the agent
           type: string
         cua:
-          description:
-            "Deprecated. Use mode: 'cua' instead. If both are provided, mode
+          description: "Deprecated. Use mode: 'cua' instead. If both are provided, mode
             takes precedence."
           example: true
           type: boolean
@@ -769,8 +764,7 @@ components:
       properties:
         instruction:
           description: Natural language instruction for the agent
-          example:
-            Log in with username 'demo' and password 'test123', then navigate to
+          example: Log in with username 'demo' and password 'test123', then navigate to
             settings
           type: string
         maxSteps:
@@ -800,8 +794,7 @@ components:
           example: true
           type: boolean
         shouldCache:
-          description:
-            If true, the server captures a cache entry and returns it to the
+          description: If true, the server captures a cache entry and returns it to the
             client
           type: boolean
       required:
@@ -1071,8 +1064,7 @@ components:
       type: object
       properties:
         cacheKey:
-          description:
-            Opaque cache identifier computed from instruction, URL, options,
+          description: Opaque cache identifier computed from instruction, URL, options,
             and config
           type: string
         entry:
@@ -1408,8 +1400,7 @@ components:
           example: c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123
           type: string
         cdpUrl:
-          description:
-            CDP WebSocket URL for connecting to the Browserbase cloud browser
+          description: CDP WebSocket URL for connecting to the Browserbase cloud browser
             (present when available)
           example: wss://connect.browserbase.com/?signingKey=abc123
           anyOf:
@@ -1546,8 +1537,7 @@ components:
       type: object
       properties:
         provider:
-          description:
-            "AI provider for the agent (legacy, use model: openai/gpt-5-nano
+          description: "AI provider for the agent (legacy, use model: openai/gpt-5-nano
             instead)"
           example: openai
           type: string
@@ -1566,8 +1556,7 @@ components:
           description: Custom system prompt for the agent
           type: string
         cua:
-          description:
-            "Deprecated. Use mode: 'cua' instead. If both are provided, mode
+          description: "Deprecated. Use mode: 'cua' instead. If both are provided, mode
             takes precedence."
           example: true
           type: boolean
@@ -1646,8 +1635,7 @@ components:
       properties:
         instruction:
           description: Natural language instruction for the agent
-          example:
-            Log in with username 'demo' and password 'test123', then navigate to
+          example: Log in with username 'demo' and password 'test123', then navigate to
             settings
           type: string
         maxSteps:
@@ -1842,8 +1830,7 @@ components:
       properties: {}
       additionalProperties: false
     StreamEvent:
-      description:
-        "Server-Sent Event emitted during streaming responses. Events are
+      description: "Server-Sent Event emitted during streaming responses. Events are
         sent as `data: <JSON>\\n\\n`. Key order: data (with status first), type,
         id."
       type: object
@@ -1870,8 +1857,7 @@ paths:
     post:
       operationId: SessionAct
       summary: Perform an action
-      description:
-        Executes a browser action using natural language instructions or a
+      description: Executes a browser action using natural language instructions or a
         predefined Action object.
       requestBody:
         content:
@@ -2014,8 +2000,7 @@ paths:
     post:
       operationId: SessionObserve
       summary: Observe available actions
-      description:
-        Identifies and returns available actions on the current page that
+      description: Identifies and returns available actions on the current page that
         match the given instruction.
       requestBody:
         content:
@@ -2084,8 +2069,7 @@ paths:
     post:
       operationId: SessionStart
       summary: Start a new browser session
-      description:
-        Creates a new browser session with the specified configuration.
+      description: Creates a new browser session with the specified configuration.
         Returns a session ID used for all subsequent operations.
       requestBody:
         content:
@@ -2115,8 +2099,7 @@ paths:
     post:
       operationId: SessionAgentExecute
       summary: Execute an AI agent
-      description:
-        Runs an autonomous AI agent that can perform complex multi-step
+      description: Runs an autonomous AI agent that can perform complex multi-step
         browser tasks.
       requestBody:
         content:
@@ -2152,13 +2135,6 @@ paths:
                 $ref: "#/components/schemas/AgentExecuteResponse"
 servers:
   - url: https://api.stagehand.browserbase.com
-    description: US West (Oregon) - us-west-2 (Default)
-  - url: https://api.use1.stagehand.browserbase.com
-    description: US East (N. Virginia) - us-east-1
-  - url: https://api.euc1.stagehand.browserbase.com
-    description: EU Central (Frankfurt) - eu-central-1
-  - url: https://api.apse1.stagehand.browserbase.com
-    description: Asia Pacific (Singapore) - ap-southeast-1
 security:
   - BrowserbaseApiKey: []
     BrowserbaseProjectId: []
