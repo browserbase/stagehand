@@ -70,7 +70,7 @@ Stagehand works great with multiple Playwright pages:
 ```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 import { chromium } from "playwright-core";
-import { z } from "zod/v3";
+import { z } from "zod";
 
 // Initialize Stagehand
 const stagehand = new Stagehand({
@@ -120,7 +120,7 @@ Here's a full working example:
 ```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 import { chromium } from "playwright-core";
-import { z } from "zod/v3";
+import { z } from "zod";
 
 async function main() {
   // Initialize Stagehand
