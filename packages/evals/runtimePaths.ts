@@ -1,9 +1,9 @@
 /**
  * Keep this file in sync with:
- * - /Users/squash/Code/bb/stagehand/packages/core/lib/v3/runtimePaths.ts
- * - /Users/squash/Code/bb/stagehand/packages/server/scripts/runtimePaths.ts
- * - /Users/squash/Code/bb/stagehand/packages/evals/runtimePaths.ts
- * - /Users/squash/Code/bb/stagehand/packages/docs/scripts/runtimePaths.js
+ * - /packages/core/lib/v3/runtimePaths.ts
+ * - /packages/server/scripts/runtimePaths.ts
+ * - /packages/evals/runtimePaths.ts
+ * - /packages/docs/scripts/runtimePaths.js
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";
