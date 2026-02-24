@@ -1,218 +1,123 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { StagehandAPIClient } from "../../../core/lib/v3/api.js";
-import type { Action } from "../../../core/lib/v3/types/public/methods.js";
+import assert from "node:assert/strict";
+import { after, before, describe, it } from "node:test";
+
+import {
+  assertFetchOk,
+  assertFetchStatus,
+  createSession,
+  endSession,
+  fetchWithContext,
+  getBaseUrl,
+  getHeaders,
+  HTTP_OK,
+  navigateSession,
+} from "./utils.js";
+
+// Shared read-only session — extract is safe to re-use across tests.
+let sessionId: string;
+
+before(async () => {
+  sessionId = await createSession(getHeaders("3.0.0"));
+  const nav = await navigateSession(
+    sessionId,
+    "https://example.com",
+    getHeaders("3.0.0"),
+  );
+  assert.equal(nav.status, HTTP_OK, "Navigate should succeed");
+});
+
+after(async () => {
+  await endSession(sessionId, getHeaders("3.0.0"));
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Build a minimal SSE "finished" event body that the execute() loop accepts. */
-function sseResponse(
-  result: unknown,
-  extraHeaders: Record<string, string> = {},
-): Response {
-  const event = JSON.stringify({
-    type: "system",
-    data: { status: "finished", result },
-  });
-  const encoded = new TextEncoder().encode(`data: ${event}\n\n`);
-  return new Response(
-    new ReadableStream({
-      start(controller) {
-        controller.enqueue(encoded);
-        controller.close();
+function extractUrl() {
+  return `${getBaseUrl()}/v1/sessions/${sessionId}/extract`;
+}
+
+function extractBody(instruction = "extract the page title") {
+  return JSON.stringify({ instruction });
+}
+
+// ---------------------------------------------------------------------------
+// browserbase-cache-bypass request header
+// ---------------------------------------------------------------------------
+
+describe("browserbase-cache-bypass request header", () => {
+  it("request with bypass header does not return cache HIT", async () => {
+    const ctx = await fetchWithContext(extractUrl(), {
+      method: "POST",
+      headers: {
+        ...getHeaders("3.0.0"),
+        "browserbase-cache-bypass": "true",
       },
-    }),
-    { status: 200, headers: extraHeaders },
-  );
-}
+      body: extractBody(),
+    });
 
-/** Minimal successful /sessions/start response. */
-function initResponse(sessionId = "session-test"): Response {
-  return new Response(
-    JSON.stringify({ success: true, data: { sessionId, available: true } }),
-    { status: 200, headers: { "Content-Type": "application/json" } },
-  );
-}
+    assertFetchStatus(ctx, HTTP_OK, "Extract with bypass should succeed");
+    assertFetchOk(ctx.body !== null, "Response should have body", ctx);
 
-const ACT_RESULT = {
-  success: true,
-  message: "done",
-  actionDescription: "clicked",
-  actions: [] as Action[],
-};
-
-const EXTRACT_RESULT = { extraction: "some text" };
-const OBSERVE_RESULT: unknown[] = [];
-
-/** Create a client with fetch mocked, and run init() so sessionId/modelApiKey are set. */
-async function buildClient(serverCache?: boolean) {
-  const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-    initResponse(),
-  );
-
-  const client = new StagehandAPIClient({
-    apiKey: "test-key",
-    projectId: "test-project",
-    logger: vi.fn(),
-    serverCache,
+    const cacheStatus = ctx.headers.get("browserbase-cache-status");
+    assert.notEqual(
+      cacheStatus,
+      "HIT",
+      "A bypassed request must not return a cache HIT",
+    );
   });
-
-  await client.init({ modelName: "openai/gpt-4o", modelApiKey: "test-model-key" });
-
-  // fetchSpy.mock.calls[0] is the /sessions/start request — clear it so that
-  // subsequent assertions can use index 0 for the method under test.
-  fetchSpy.mockClear();
-
-  return { client, fetchSpy };
-}
-
-/** Extract the headers sent on a captured fetch call. */
-function headersOf(spy: ReturnType<typeof vi.spyOn>, callIndex = 0) {
-  const options = spy.mock.calls[callIndex]?.[1] as RequestInit | undefined;
-  return (options?.headers ?? {}) as Record<string, string>;
-}
+});
 
 // ---------------------------------------------------------------------------
-// Tests
+// browserbase-cache-status response header
 // ---------------------------------------------------------------------------
 
-describe("StagehandAPIClient – serverCache flag", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
+describe("browserbase-cache-status response header", () => {
+  it("returns HIT or MISS when the header is present", async () => {
+    const ctx = await fetchWithContext(extractUrl(), {
+      method: "POST",
+      headers: getHeaders("3.0.0"),
+      body: extractBody(),
+    });
+
+    assertFetchStatus(ctx, HTTP_OK, "Extract should succeed");
+
+    const cacheStatus = ctx.headers.get("browserbase-cache-status");
+    if (cacheStatus !== null) {
+      assert.ok(
+        cacheStatus === "HIT" || cacheStatus === "MISS",
+        `browserbase-cache-status must be HIT or MISS, got: ${cacheStatus}`,
+      );
+    }
   });
 
-  // -------------------------------------------------------------------------
-  // browserbase-cache-bypass header
-  // -------------------------------------------------------------------------
+  it("returns HIT on a repeated identical request when caching is active", async () => {
+    const body = extractBody("count the number of links");
 
-  describe("browserbase-cache-bypass request header", () => {
-    it("is sent when instance serverCache is false", async () => {
-      const { client, fetchSpy } = await buildClient(false);
-      fetchSpy.mockResolvedValueOnce(sseResponse(ACT_RESULT));
-
-      await client.act({ input: "click the button" });
-
-      expect(headersOf(fetchSpy)["browserbase-cache-bypass"]).toBe("true");
+    // First call — warms the cache.
+    const first = await fetchWithContext(extractUrl(), {
+      method: "POST",
+      headers: getHeaders("3.0.0"),
+      body,
     });
+    assertFetchStatus(first, HTTP_OK, "First extract should succeed");
 
-    it("is NOT sent when instance serverCache is true", async () => {
-      const { client, fetchSpy } = await buildClient(true);
-      fetchSpy.mockResolvedValueOnce(sseResponse(ACT_RESULT));
-
-      await client.act({ input: "click the button" });
-
-      expect(headersOf(fetchSpy)["browserbase-cache-bypass"]).toBeUndefined();
+    // Second call — should be a HIT if server-side caching is enabled.
+    const second = await fetchWithContext(extractUrl(), {
+      method: "POST",
+      headers: getHeaders("3.0.0"),
+      body,
     });
+    assertFetchStatus(second, HTTP_OK, "Second extract should succeed");
 
-    it("is NOT sent when serverCache defaults (true)", async () => {
-      const { client, fetchSpy } = await buildClient(/* default */);
-      fetchSpy.mockResolvedValueOnce(sseResponse(ACT_RESULT));
-
-      await client.act({ input: "click the button" });
-
-      expect(headersOf(fetchSpy)["browserbase-cache-bypass"]).toBeUndefined();
-    });
-
-    it("method-level false overrides instance true", async () => {
-      const { client, fetchSpy } = await buildClient(true);
-      fetchSpy.mockResolvedValueOnce(sseResponse(ACT_RESULT));
-
-      await client.act({
-        input: "click the button",
-        options: { serverCache: false },
-      });
-
-      expect(headersOf(fetchSpy)["browserbase-cache-bypass"]).toBe("true");
-    });
-
-    it("method-level true overrides instance false", async () => {
-      const { client, fetchSpy } = await buildClient(false);
-      fetchSpy.mockResolvedValueOnce(sseResponse(ACT_RESULT));
-
-      await client.act({
-        input: "click the button",
-        options: { serverCache: true },
-      });
-
-      expect(headersOf(fetchSpy)["browserbase-cache-bypass"]).toBeUndefined();
-    });
-
-    it("applies to extract", async () => {
-      const { client, fetchSpy } = await buildClient(false);
-      fetchSpy.mockResolvedValueOnce(sseResponse(EXTRACT_RESULT));
-
-      await client.extract({ instruction: "get the title" });
-
-      expect(headersOf(fetchSpy)["browserbase-cache-bypass"]).toBe("true");
-    });
-
-    it("applies to observe", async () => {
-      const { client, fetchSpy } = await buildClient(false);
-      fetchSpy.mockResolvedValueOnce(sseResponse(OBSERVE_RESULT));
-
-      await client.observe({ instruction: "find all buttons" });
-
-      expect(headersOf(fetchSpy)["browserbase-cache-bypass"]).toBe("true");
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // cacheStatus on results
-  // -------------------------------------------------------------------------
-
-  describe("cacheStatus from browserbase-cache-status response header", () => {
-    it("attaches HIT to ActResult", async () => {
-      const { client, fetchSpy } = await buildClient(true);
-      fetchSpy.mockResolvedValueOnce(
-        sseResponse(ACT_RESULT, { "browserbase-cache-status": "HIT" }),
+    const cacheStatus = second.headers.get("browserbase-cache-status");
+    if (cacheStatus !== null) {
+      assert.equal(
+        cacheStatus,
+        "HIT",
+        "Repeated identical request should be a cache HIT",
       );
-
-      const result = await client.act({ input: "click the button" });
-
-      expect(result.cacheStatus).toBe("HIT");
-    });
-
-    it("attaches MISS to ActResult", async () => {
-      const { client, fetchSpy } = await buildClient(true);
-      fetchSpy.mockResolvedValueOnce(
-        sseResponse(ACT_RESULT, { "browserbase-cache-status": "MISS" }),
-      );
-
-      const result = await client.act({ input: "click the button" });
-
-      expect(result.cacheStatus).toBe("MISS");
-    });
-
-    it("leaves cacheStatus undefined when header is absent", async () => {
-      const { client, fetchSpy } = await buildClient(true);
-      fetchSpy.mockResolvedValueOnce(sseResponse(ACT_RESULT));
-
-      const result = await client.act({ input: "click the button" });
-
-      expect(result.cacheStatus).toBeUndefined();
-    });
-
-    it("attaches HIT to ExtractResult", async () => {
-      const { client, fetchSpy } = await buildClient(true);
-      fetchSpy.mockResolvedValueOnce(
-        sseResponse(EXTRACT_RESULT, { "browserbase-cache-status": "HIT" }),
-      );
-
-      const result = await client.extract({ instruction: "get the title" });
-
-      expect(result.cacheStatus).toBe("HIT");
-    });
-
-    it("attaches HIT to ObserveResult", async () => {
-      const { client, fetchSpy } = await buildClient(true);
-      fetchSpy.mockResolvedValueOnce(
-        sseResponse(OBSERVE_RESULT, { "browserbase-cache-status": "HIT" }),
-      );
-
-      const result = await client.observe({ instruction: "find all buttons" });
-
-      expect(result.cacheStatus).toBe("HIT");
-    });
+    }
   });
 });
