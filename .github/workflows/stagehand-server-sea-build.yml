@@ -9,12 +9,12 @@ on:
         type: string
         default: |
           [
-            {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64"},
-            {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","binary_name":"stagehand-server-linux-arm64"},
-            {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-darwin-arm64"},
-            {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-darwin-x64"},
-            {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe"},
-            {"os":"windows-11-arm","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe"}
+            {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64","include_sourcemaps":false},
+            {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","binary_name":"stagehand-server-linux-arm64","include_sourcemaps":false},
+            {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-darwin-arm64","include_sourcemaps":false},
+            {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-darwin-x64","include_sourcemaps":false},
+            {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe","include_sourcemaps":false},
+            {"os":"windows-11-arm","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe","include_sourcemaps":false}
           ]
       use-prebuilt-artifacts:
         description: "Whether to download pre-built package artifacts."
@@ -43,12 +43,12 @@ on:
         required: false
         default: |
           [
-            {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64"},
-            {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","binary_name":"stagehand-server-linux-arm64"},
-            {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-darwin-arm64"},
-            {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-darwin-x64"},
-            {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe"},
-            {"os":"windows-11-arm","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe"}
+            {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64","include_sourcemaps":false},
+            {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","binary_name":"stagehand-server-linux-arm64","include_sourcemaps":false},
+            {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-darwin-arm64","include_sourcemaps":false},
+            {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-darwin-x64","include_sourcemaps":false},
+            {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe","include_sourcemaps":false},
+            {"os":"windows-11-arm","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe","include_sourcemaps":false}
           ]
       use-prebuilt-artifacts:
         description: "Whether to download pre-built package artifacts."
@@ -102,6 +102,7 @@ jobs:
           SEA_TARGET_PLATFORM: ${{ matrix.platform }}
           SEA_TARGET_ARCH: ${{ matrix.arch }}
           SEA_BINARY_NAME: ${{ matrix.binary_name }}
+          SEA_INCLUDE_SOURCEMAPS: ${{ matrix.include_sourcemaps && '1' || '0' }}
         run: pnpm exec turbo run build:sea:esm --filter=@browserbasehq/stagehand-server
 
       - name: Verify SEA binary exists
