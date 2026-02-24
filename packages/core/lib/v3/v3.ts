@@ -781,7 +781,7 @@ export class V3 {
             "--disable-dev-shm-usage",
             "--site-per-process",
           ];
-          let chromeFlags: string[] = [];
+          let chromeFlags: string[];
           const ignore = lbo.ignoreDefaultArgs;
           if (ignore === true) {
             // drop defaults

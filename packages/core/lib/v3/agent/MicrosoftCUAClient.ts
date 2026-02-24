@@ -857,7 +857,7 @@ For each function call, return a json object with function name and arguments wi
     let completed = false;
     const actions: AgentAction[] = [];
     const messageList: string[] = [];
-    let finalMessage = "";
+    let finalMessage: string;
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
     let totalInferenceTime = 0;
