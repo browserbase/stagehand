@@ -202,7 +202,7 @@ export async function createSessionWithCdp(
   });
 
   const responseText = await response.text();
-  let parsedBody: unknown = null;
+  let parsedBody: unknown;
   try {
     parsedBody = responseText ? JSON.parse(responseText) : null;
   } catch {

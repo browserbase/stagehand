@@ -344,13 +344,11 @@ async function resolveMaskRects(
 } | null> {
   const frame = locator.getFrame();
   const session = frame.session;
-  let resolved: Array<{
-    objectId: Protocol.Runtime.RemoteObjectId;
-    nodeId: Protocol.DOM.NodeId | null;
-  }> = [];
-
   try {
-    resolved = await locator.resolveNodesForMask();
+    const resolved: Array<{
+      objectId: Protocol.Runtime.RemoteObjectId;
+      nodeId: Protocol.DOM.NodeId | null;
+    }> = await locator.resolveNodesForMask();
     const rects: Array<ScreenshotClip & { rootToken?: string | null }> = [];
 
     for (const { objectId } of resolved) {

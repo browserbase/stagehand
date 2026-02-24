@@ -244,7 +244,7 @@ async function waitForChildExit(
 }
 
 async function checkLocalAlive(connectURL: string): Promise<CheckResult> {
-  let port = "";
+  let port: string;
   try {
     port = new URL(connectURL).port;
   } catch {

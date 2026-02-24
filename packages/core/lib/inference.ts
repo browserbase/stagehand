@@ -105,7 +105,7 @@ export async function extract<T extends StagehandZodObject>({
 
   const { data: extractedData, usage: extractUsage } = extractionResponse;
 
-  let extractResponseFile = "";
+  let extractResponseFile: string;
   if (logInferenceToFile) {
     const { fileName } = writeTimestampedTxtFile(
       "extract_summary",
@@ -178,7 +178,7 @@ export async function extract<T extends StagehandZodObject>({
     usage: metadataResponseUsage,
   } = metadataResponse;
 
-  let metadataResponseFile = "";
+  let metadataResponseFile: string;
   if (logInferenceToFile) {
     const { fileName } = writeTimestampedTxtFile(
       "extract_summary",
@@ -338,7 +338,7 @@ export async function observe({
   const reasoningTokens = observeUsage?.reasoning_tokens ?? 0;
   const cachedInputTokens = observeUsage?.cached_input_tokens ?? 0;
 
-  let responseFile = "";
+  let responseFile: string;
   if (logInferenceToFile) {
     const { fileName: responseFileName } = writeTimestampedTxtFile(
       `observe_summary`,
@@ -478,7 +478,7 @@ export async function act({
   const reasoningTokens = actUsage?.reasoning_tokens ?? 0;
   const cachedInputTokens = actUsage?.cached_input_tokens ?? 0;
 
-  let responseFile = "";
+  let responseFile: string;
   if (logInferenceToFile) {
     const { fileName: responseFileName } = writeTimestampedTxtFile(
       `act_summary`,

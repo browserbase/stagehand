@@ -159,7 +159,7 @@ export function sampleUniform<T>(arr: T[], k: number): T[] {
 }
 
 export function readJsonlFile(filePath: string): string[] {
-  let lines: string[] = [];
+  let lines: string[];
   try {
     const content = fs.readFileSync(filePath, "utf-8");
     lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);

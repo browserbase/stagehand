@@ -88,7 +88,7 @@ export class Frame implements FrameManager {
     withFrames = false,
   ): Promise<Protocol.Accessibility.AXNode[]> {
     await this.session.send("Accessibility.enable");
-    let nodes: Protocol.Accessibility.AXNode[] = [];
+    let nodes: Protocol.Accessibility.AXNode[];
     try {
       ({ nodes } = await this.session.send<{
         nodes: Protocol.Accessibility.AXNode[];
