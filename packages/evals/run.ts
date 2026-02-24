@@ -1,10 +1,9 @@
 import { spawnSync } from "node:child_process";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
+import { getCurrentDirPath } from "./runtimePaths.js";
 
 const args: readonly string[] = process.argv.slice(2);
-const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const moduleDir = getCurrentDirPath();
 
 const wantsHelp: boolean = args.some((a) => /^(?:--?)?(?:h|help)$/i.test(a));
 const wantsMan: boolean = args.some((a) => /^(?:--?)?man$/i.test(a));

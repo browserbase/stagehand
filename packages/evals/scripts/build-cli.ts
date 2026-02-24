@@ -8,16 +8,9 @@
  */
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { getRepoRootDir } from "../runtimePaths.js";
 
-const repoRoot = (() => {
-  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
-  const root = value.split("/packages/evals/")[0];
-  if (root === value) {
-    throw new Error(`Unable to determine repo root from ${value}`);
-  }
-  return root;
-})();
+const repoRoot = getRepoRootDir();
 
 const run = (args: string[]) => {
   const result = spawnSync("pnpm", args, { stdio: "inherit", cwd: repoRoot });

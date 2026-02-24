@@ -9,13 +9,33 @@ on:
         type: string
         default: |
           [
-            {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64"},
-            {"os":"ubuntu-latest","platform":"linux","arch":"arm64","binary_name":"stagehand-server-linux-arm64"},
-            {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-darwin-arm64"},
-            {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-darwin-x64"},
-            {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe"},
-            {"os":"windows-latest","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe"}
+            {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64","include_sourcemaps":false},
+            {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","binary_name":"stagehand-server-linux-arm64","include_sourcemaps":false},
+            {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-darwin-arm64","include_sourcemaps":false},
+            {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-darwin-x64","include_sourcemaps":false},
+            {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe","include_sourcemaps":false},
+            {"os":"windows-11-arm","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe","include_sourcemaps":false}
           ]
+      use-prebuilt-artifacts:
+        description: "Whether to download pre-built package artifacts."
+        required: false
+        type: string
+        default: "false"
+      restore-turbo-cache:
+        description: "Whether to restore local .turbo cache."
+        required: false
+        type: string
+        default: "true"
+      node-version:
+        description: "Node.js version for setup."
+        required: false
+        type: string
+        default: "20.x"
+      upload-only-binary:
+        description: "Upload only this binary (empty => upload all)."
+        required: false
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       matrix:
@@ -23,13 +43,33 @@ on:
         required: false
         default: |
           [
-            {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64"},
-            {"os":"ubuntu-latest","platform":"linux","arch":"arm64","binary_name":"stagehand-server-linux-arm64"},
-            {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-darwin-arm64"},
-            {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-darwin-x64"},
-            {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe"},
-            {"os":"windows-latest","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe"}
+            {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64","include_sourcemaps":false},
+            {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","binary_name":"stagehand-server-linux-arm64","include_sourcemaps":false},
+            {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-darwin-arm64","include_sourcemaps":false},
+            {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-darwin-x64","include_sourcemaps":false},
+            {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe","include_sourcemaps":false},
+            {"os":"windows-11-arm","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe","include_sourcemaps":false}
           ]
+      use-prebuilt-artifacts:
+        description: "Whether to download pre-built package artifacts."
+        required: false
+        type: string
+        default: "false"
+      restore-turbo-cache:
+        description: "Whether to restore local .turbo cache."
+        required: false
+        type: string
+        default: "true"
+      node-version:
+        description: "Node.js version for setup."
+        required: false
+        type: string
+        default: "20.x"
+      upload-only-binary:
+        description: "Upload only this binary (empty => upload all)."
+        required: false
+        type: string
+        default: ""
 
 jobs:
   build_binaries:
@@ -53,24 +93,84 @@ jobs:
           PLAYWRIGHT_SKIP_DOWNLOAD: "1"
           PUPPETEER_SKIP_DOWNLOAD: "1"
         with:
-          use-prebuilt-artifacts: "false"
-          node-version: 20.x
+          use-prebuilt-artifacts: ${{ inputs.use-prebuilt-artifacts }}
+          restore-turbo-cache: ${{ inputs.restore-turbo-cache }}
+          node-version: ${{ inputs.node-version }}
 
       - name: Build SEA binary (ESM)
         env:
           SEA_TARGET_PLATFORM: ${{ matrix.platform }}
           SEA_TARGET_ARCH: ${{ matrix.arch }}
           SEA_BINARY_NAME: ${{ matrix.binary_name }}
-        run: |
-          pnpm exec turbo run build:sea:esm --filter=@browserbasehq/stagehand-server
+          SEA_INCLUDE_SOURCEMAPS: ${{ matrix.include_sourcemaps && '1' || '0' }}
+        run: pnpm exec turbo run build:sea:esm --filter=@browserbasehq/stagehand-server
 
       - name: Verify SEA binary exists
         shell: bash
         run: |
           test -f "packages/server/dist/sea/${{ matrix.binary_name }}"
 
+      - name: Verify SEA binary launches cleanly
+        shell: bash
+        env:
+          RUNNER_ARCH: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+
+          binary="packages/server/dist/sea/${{ matrix.binary_name }}"
+          matrix_arch="${{ matrix.arch }}"
+          runner_arch="$(echo "${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')"
+
+          if [[ "${matrix_arch}" != "${runner_arch}" ]]; then
+            echo "Runner arch (${runner_arch}) does not match matrix arch (${matrix_arch})."
+            echo "Launch verification must run on same-arch runners."
+            exit 1
+          fi
+
+          if [[ "${{ matrix.platform }}" != "win32" ]]; then
+            chmod +x "${binary}"
+          fi
+
+          port="$((30000 + RANDOM % 10000))"
+          log_file="$(mktemp)"
+          launched="false"
+
+          cleanup() {
+            if [[ -n "${pid:-}" ]] && kill -0 "${pid}" 2>/dev/null; then
+              kill "${pid}" 2>/dev/null || true
+              wait "${pid}" 2>/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+
+          PORT="${port}" "${binary}" >"${log_file}" 2>&1 &
+          pid=$!
+
+          for _ in {1..30}; do
+            if ! kill -0 "${pid}" 2>/dev/null; then
+              wait "${pid}" 2>/dev/null || true
+              echo "SEA binary exited before becoming healthy."
+              cat "${log_file}"
+              exit 1
+            fi
+
+            if curl --silent --show-error --fail "http://127.0.0.1:${port}/healthz" >/dev/null; then
+              launched="true"
+              break
+            fi
+
+            sleep 1
+          done
+
+          if [[ "${launched}" != "true" ]]; then
+            echo "SEA binary did not become healthy within 30 seconds."
+            cat "${log_file}"
+            exit 1
+          fi
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
+        if: ${{ inputs.upload-only-binary == '' || matrix.binary_name == inputs.upload-only-binary }}
         with:
           name: ${{ matrix.binary_name }}
           # package.json is included to anchor artifact paths at repo root.

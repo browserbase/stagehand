@@ -11,8 +11,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
 import {
   ensureParentDir,
   parseListFlag,
@@ -21,15 +19,12 @@ import {
   toSafeName,
   writeCtrfFromJunit,
 } from "./test-utils.js";
+import {
+  createRequireFromCaller,
+  getRepoRootDir,
+} from "../lib/v3/runtimePaths.js";
 
-const repoRoot = (() => {
-  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
-  const root = value.split("/packages/core/")[0];
-  if (root === value) {
-    throw new Error(`Unable to determine repo root from ${value}`);
-  }
-  return root;
-})();
+const repoRoot = getRepoRootDir();
 
 const sourceTestsDir = `${repoRoot}/packages/core/tests/integration`;
 const testsDir = `${repoRoot}/packages/core/dist/esm/tests/integration`;
@@ -37,7 +32,7 @@ const defaultConfigPath = `${repoRoot}/packages/core/dist/esm/tests/integration/
 
 const resolveRepoRelative = (value: string) =>
   path.isAbsolute(value) ? value : path.resolve(repoRoot, value);
-const require = createRequire(import.meta.url);
+const require = createRequireFromCaller();
 const playwrightCliPath = require.resolve("@playwright/test/cli");
 
 const hasConfigArg = (argsList: string[]) =>

@@ -1,6 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { getCurrentDirPath } from "./runtimePaths.js";
 
 import fastify from "fastify";
 import fastifySwagger from "@fastify/swagger";
@@ -25,8 +25,7 @@ import startRoute from "../src/routes/v1/sessions/start.js";
 import healthcheckRoute from "../src/routes/healthcheck.js";
 import readinessRoute from "../src/routes/readiness.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const OUTPUT_PATH = path.resolve(__dirname, "../openapi.v3.yaml");
+const OUTPUT_PATH = path.resolve(getCurrentDirPath(), "../openapi.v3.yaml");
 
 async function main() {
   const app = fastify({

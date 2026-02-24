@@ -8,17 +8,10 @@
  */
 import fs from "node:fs";
 import { spawn, type ChildProcess } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import normalizeV8Coverage from "./normalize-v8-coverage.js";
+import { getRepoRootDir } from "../lib/v3/runtimePaths.js";
 
-const repoRoot = (() => {
-  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
-  const root = value.split("/packages/core/")[0];
-  if (root === value) {
-    throw new Error(`Unable to determine repo root from ${value}`);
-  }
-  return root;
-})();
+const repoRoot = getRepoRootDir();
 const command = process.argv[2];
 const terminationSignals: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
 const log = (message: string) => console.log(`[coverage:merge] ${message}`);

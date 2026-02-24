@@ -1,9 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 import esbuild from "esbuild";
+import { getCurrentDirPath } from "../runtimePaths.js";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
+const here = getCurrentDirPath();
 const outDir = path.join(here, "./build");
 const entry = path.join(here, "./locatorScripts/index.ts");
 const moduleOutfile = path.join(outDir, "locatorScripts.mjs");

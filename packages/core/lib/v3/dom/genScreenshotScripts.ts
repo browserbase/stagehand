@@ -1,9 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 import esbuild from "esbuild";
+import { getCurrentDirPath } from "../runtimePaths.js";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
+const here = getCurrentDirPath();
 const srcDir = path.join(here, "./screenshotScripts");
 const outDir = path.join(here, "./build");
 const entry = path.join(srcDir, "index.ts");

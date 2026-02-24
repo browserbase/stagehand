@@ -109,6 +109,16 @@ jobs:
     needs: detect
     if: needs.detect.outputs.release == 'true'
     uses: ./.github/workflows/stagehand-server-sea-build.yml
+    with:
+      matrix: |
+        [
+          {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64","include_sourcemaps":false},
+          {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","binary_name":"stagehand-server-linux-arm64","include_sourcemaps":false},
+          {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-darwin-arm64","include_sourcemaps":false},
+          {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-darwin-x64","include_sourcemaps":false},
+          {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe","include_sourcemaps":false},
+          {"os":"windows-11-arm","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe","include_sourcemaps":false}
+        ]
 
   release:
     name: Publish GitHub Release

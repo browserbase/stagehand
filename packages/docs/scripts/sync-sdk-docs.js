@@ -12,9 +12,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import https from "node:https";
-import { fileURLToPath } from "node:url";
+import { getCurrentDirPath } from "./runtimePaths.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const currentDir = getCurrentDirPath();
 
 // SDK repos configuration
 const SDK_REPOS = {
@@ -165,13 +165,13 @@ async function syncSdk(language, config) {
     const mdxContent = frontmatter + processedContent;
     
     // Ensure directory exists
-    const outputDir = path.dirname(path.join(__dirname, '..', config.outputPath));
+    const outputDir = path.dirname(`${currentDir}/../${config.outputPath}`);
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
     
     // Write MDX file
-    const outputFile = path.join(__dirname, '..', config.outputPath);
+    const outputFile = `${currentDir}/../${config.outputPath}`;
     fs.writeFileSync(outputFile, mdxContent, 'utf8');
     
     console.log(`✓ ${language} SDK docs written to ${config.outputPath}`);

@@ -347,40 +347,23 @@ jobs:
 
   build-server-sea:
     name: Build SEA binary (tests)
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/stagehand-server-sea-build.yml
     needs: [run-build]
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - uses: ./.github/actions/setup-node-pnpm-turbo
-        with:
-          use-prebuilt-artifacts: "true"
-          restore-turbo-cache: "false"
-
-      - name: Build SEA binary (ESM)
-        env:
-          SEA_TARGET_PLATFORM: linux
-          SEA_TARGET_ARCH: x64
-          SEA_BINARY_NAME: stagehand-server-linux-x64-sourcemap
-        run: |
-          pnpm exec turbo run build:sea:esm
-
-      - name: Verify SEA binary exists
-        run: |
-          test -f packages/server/dist/sea/stagehand-server-linux-x64-sourcemap
-
-      - name: Upload SEA binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: stagehand-server-linux-x64-sourcemap
-          # package.json is included to anchor artifact paths at repo root.
-          path: |
-            package.json
-            packages/server/dist/sea/stagehand-server-linux-x64-sourcemap
-          retention-days: 1
+    with:
+      matrix: |
+        [
+          {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64","include_sourcemaps":false},
+          {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","binary_name":"stagehand-server-linux-arm64","include_sourcemaps":false},
+          {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-darwin-arm64","include_sourcemaps":false},
+          {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-darwin-x64","include_sourcemaps":false},
+          {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe","include_sourcemaps":false},
+          {"os":"windows-11-arm","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe","include_sourcemaps":false},
+          {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64-sourcemap","include_sourcemaps":true}
+        ]
+      use-prebuilt-artifacts: "true"
+      restore-turbo-cache: "false"
+      node-version: "20.x"
+      upload-only-binary: stagehand-server-linux-x64-sourcemap
 
   server-integration-tests:
     name: server/integration/${{ matrix.test.name }}

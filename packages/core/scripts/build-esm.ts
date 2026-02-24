@@ -1,5 +1,5 @@
 /**
- * Build canonical dist/esm output for the core package (including test JS).
+ * Build canonical dist/esm output for the core package (including tests).
  *
  * Prereqs: pnpm install; run gen-version + build-dom-scripts first (turbo handles).
  * Args: none.
@@ -8,26 +8,17 @@
  */
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { getRepoRootDir } from "../lib/v3/runtimePaths.js";
 
-const repoRoot = (() => {
-  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
-  const root = value.split("/packages/core/")[0];
-  if (root === value) {
-    throw new Error(`Unable to determine repo root from ${value}`);
-  }
-  return root;
-})();
+const repoRoot = getRepoRootDir();
 
-const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-
-const run = (args: string[]) => {
-  const result = spawnSync(pnpmCommand, args, {
+const runNodeScript = (scriptPath: string, args: string[]) => {
+  const result = spawnSync(process.execPath, [scriptPath, ...args], {
     stdio: "inherit",
     cwd: repoRoot,
   });
   if (result.error) {
-    console.error(`Failed to run ${pnpmCommand} ${args.join(" ")}`);
+    console.error(`Failed to run node ${scriptPath} ${args.join(" ")}`);
     console.error(result.error);
     process.exit(1);
   }
@@ -42,19 +33,10 @@ fs.rmSync(`${repoRoot}/packages/core/dist/esm`, {
 });
 
 // Core ESM emit includes generated lib/version.ts from gen-version (run in core build).
-run(["exec", "tsc", "-p", "packages/core/tsconfig.json"]);
-// Tests run via node/playwright need JS test files; esbuild emits ESM test JS into dist/esm.
-// Unit tests are in tests/unit/, integration tests are in tests/integration/
-run([
-  "exec",
-  "esbuild",
-  "packages/core/tests/**/*.ts",
-  "--outdir=packages/core/dist/esm",
-  "--outbase=packages/core",
-  "--format=esm",
-  "--platform=node",
-  "--sourcemap",
-  "--log-level=warning",
+runNodeScript(`${repoRoot}/node_modules/typescript/bin/tsc`, [
+  "-p",
+  "packages/core/tsconfig.json",
+  "--declaration",
 ]);
 
 fs.mkdirSync(`${repoRoot}/packages/core/dist/esm`, { recursive: true });

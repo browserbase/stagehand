@@ -32,7 +32,11 @@
   },
   "scripts": {
     "gen-version": "tsx scripts/gen-version.ts",
-    "build-dom-scripts": "set -e; tsx lib/v3/dom/genDomScripts.ts & p1=$!; tsx lib/v3/dom/genLocatorScripts.ts & p2=$!; tsx lib/v3/dom/genScreenshotScripts.ts & p3=$!; tsx lib/v3/dom/genA11yScripts.ts & p4=$!; wait $p1; wait $p2; wait $p3; wait $p4",
+    "build-dom-scripts": "pnpm run --parallel \"/^build-dom-scripts:(dom|locator|screenshot|a11y)$/\"",
+    "build-dom-scripts:dom": "tsx lib/v3/dom/genDomScripts.ts",
+    "build-dom-scripts:locator": "tsx lib/v3/dom/genLocatorScripts.ts",
+    "build-dom-scripts:screenshot": "tsx lib/v3/dom/genScreenshotScripts.ts",
+    "build-dom-scripts:a11y": "tsx lib/v3/dom/genA11yScripts.ts",
     "build:cjs": "tsx scripts/build-cjs.ts",
     "build:esm": "tsx scripts/build-esm.ts",
     "build": "pnpm --filter @browserbasehq/stagehand run --parallel \"/^build:(esm|cjs)$/\"",
