@@ -45,7 +45,7 @@ if (fs.existsSync(distConfigPath)) {
   try {
     const existing = JSON.parse(fs.readFileSync(distConfigPath, "utf-8"));
     if (existing.defaults) {
-      sourceConfig.defaults = existing.defaults;
+      sourceConfig.defaults = { ...sourceConfig.defaults, ...existing.defaults };
     }
   } catch {
     // invalid existing config – overwrite entirely
