@@ -473,69 +473,81 @@ export class V3AgentHandler {
       rejectResult(error);
     };
 
-    const streamResult = this.llmClient.streamText({
-      model: wrappedModel,
-      messages: prependSystemMessage(systemPrompt, messages),
-      tools: allTools,
-      stopWhen: (result) => this.handleStop(result, maxSteps),
-      temperature: 1,
-      toolChoice: "auto",
-      prepareStep: this.createPrepareStep(callbacks?.prepareStep, captchaSolver),
-      onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
-      onError: (event) => {
-        captchaSolver?.dispose();
-        if (callbacks?.onError) {
-          callbacks.onError(event);
-        }
-        handleError(event.error);
-      },
-      onChunk: callbacks?.onChunk,
-      onFinish: (event) => {
-        captchaSolver?.dispose();
-        if (callbacks?.onFinish) {
-          callbacks.onFinish(event);
-        }
-
-        const allMessages = [...messages, ...(event.response?.messages || [])];
-        this.ensureDone(
-          state,
-          wrappedModel,
-          allMessages,
-          options.instruction,
-          options.output,
-          this.logger,
-        ).then((doneResult) => {
-          const result = this.consolidateMetricsAndResult(
-            startTime,
-            state,
-            doneResult.messages,
-            event,
-            maxSteps,
-            doneResult.output,
-          );
-          resolveResult(result);
-        });
-      },
-      onAbort: (event) => {
-        captchaSolver?.dispose();
-        if (callbacks?.onAbort) {
-          callbacks.onAbort(event);
-        }
-        // Reject the result promise with AgentAbortError when stream is aborted
-        const reason = options.signal?.reason
-          ? String(options.signal.reason)
-          : "Stream was aborted";
-        rejectResult(new AgentAbortError(reason));
-      },
-      abortSignal: options.signal,
-      providerOptions: wrappedModel.modelId.includes("gemini-3")
-        ? {
-            google: {
-              mediaResolution: "MEDIA_RESOLUTION_HIGH",
-            },
+    let streamResult: ReturnType<typeof this.llmClient.streamText>;
+    try {
+      streamResult = this.llmClient.streamText({
+        model: wrappedModel,
+        messages: prependSystemMessage(systemPrompt, messages),
+        tools: allTools,
+        stopWhen: (result) => this.handleStop(result, maxSteps),
+        temperature: 1,
+        toolChoice: "auto",
+        prepareStep: this.createPrepareStep(
+          callbacks?.prepareStep,
+          captchaSolver,
+        ),
+        onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
+        onError: (event) => {
+          captchaSolver?.dispose();
+          if (callbacks?.onError) {
+            callbacks.onError(event);
           }
-        : undefined,
-    });
+          handleError(event.error);
+        },
+        onChunk: callbacks?.onChunk,
+        onFinish: (event) => {
+          captchaSolver?.dispose();
+          if (callbacks?.onFinish) {
+            callbacks.onFinish(event);
+          }
+
+          const allMessages = [
+            ...messages,
+            ...(event.response?.messages || []),
+          ];
+          this.ensureDone(
+            state,
+            wrappedModel,
+            allMessages,
+            options.instruction,
+            options.output,
+            this.logger,
+          ).then((doneResult) => {
+            const result = this.consolidateMetricsAndResult(
+              startTime,
+              state,
+              doneResult.messages,
+              event,
+              maxSteps,
+              doneResult.output,
+            );
+            resolveResult(result);
+          });
+        },
+        onAbort: (event) => {
+          captchaSolver?.dispose();
+          if (callbacks?.onAbort) {
+            callbacks.onAbort(event);
+          }
+          // Reject the result promise with AgentAbortError when stream is aborted
+          const reason = options.signal?.reason
+            ? String(options.signal.reason)
+            : "Stream was aborted";
+          rejectResult(new AgentAbortError(reason));
+        },
+        abortSignal: options.signal,
+        providerOptions: wrappedModel.modelId.includes("gemini-3")
+          ? {
+              google: {
+                mediaResolution: "MEDIA_RESOLUTION_HIGH",
+              },
+            }
+          : undefined,
+      });
+    } catch (error) {
+      captchaSolver?.dispose();
+      throw error;
+    }
 
     const agentStreamResult = streamResult as AgentStreamResult;
     agentStreamResult.result = resultPromise;
