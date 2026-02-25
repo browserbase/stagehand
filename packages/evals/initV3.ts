@@ -110,6 +110,7 @@ export async function initV3({
     selfHeal: true,
     disablePino: true,
     disableAPI: process.env.USE_API !== "true", // Negate: USE_API=true → disableAPI=false
+    serverCache: false,
     logger: logger.log.bind(logger),
   };
 
