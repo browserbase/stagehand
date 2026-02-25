@@ -78,12 +78,6 @@ const FIRST_TOP_LEVEL_PAGE_TIMEOUT_ENV =
 const WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION =
   "waitForFirstTopLevelPage (no top-level Page)";
 
-class WaitForFirstTopLevelPageTimeoutError extends TimeoutError {
-  constructor(timeoutMs: number) {
-    super(WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION, timeoutMs);
-  }
-}
-
 function getFirstTopLevelPageTimeoutMs(): number {
   return (
     getEnvTimeoutMs(FIRST_TOP_LEVEL_PAGE_TIMEOUT_ENV) ??
@@ -223,13 +217,13 @@ export class V3Context {
       await this.waitForFirstTopLevelPage(timeoutMs);
       return;
     } catch (err) {
-      if (!(err instanceof WaitForFirstTopLevelPageTimeoutError)) {
+      if (!(err instanceof TimeoutError)) {
         throw err;
       }
       v3Logger({
         category: "ctx",
         message:
-          "No top-level page found after connect; creating recovery page target",
+          "No open browser pages found after connect; creating an initial about:blank page",
         level: 1,
       });
     }
@@ -254,7 +248,7 @@ export class V3Context {
       }
       await new Promise((r) => setTimeout(r, 25));
     }
-    throw new WaitForFirstTopLevelPageTimeoutError(timeoutMs);
+    throw new TimeoutError(WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION, timeoutMs);
   }
 
   private async waitForInitialTopLevelTargets(
