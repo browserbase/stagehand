@@ -36,6 +36,41 @@ function getSocketPath(session: string): string {
   return path.join(SOCKET_DIR, `browse-${session}.sock`);
 }
 
+function getLockPath(session: string): string {
+  return path.join(SOCKET_DIR, `browse-${session}.lock`);
+}
+
+async function acquireLock(session: string, timeoutMs: number = 10000): Promise<boolean> {
+  const lockPath = getLockPath(session);
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < timeoutMs) {
+    try {
+      const handle = await fs.open(lockPath, "wx");
+      await handle.write(String(process.pid));
+      await handle.close();
+      return true;
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === "EEXIST") {
+        try {
+          const holderPid = parseInt(await fs.readFile(lockPath, "utf-8"));
+          process.kill(holderPid, 0);
+          await new Promise(r => setTimeout(r, 100));
+        } catch {
+          try { await fs.unlink(lockPath); } catch {}
+        }
+        continue;
+      }
+      throw err;
+    }
+  }
+  return false;
+}
+
+async function releaseLock(session: string): Promise<void> {
+  try { await fs.unlink(getLockPath(session)); } catch {}
+}
+
 function getPidPath(session: string): string {
   return path.join(SOCKET_DIR, `browse-${session}.pid`);
 }
@@ -118,6 +153,9 @@ async function cleanupStaleFiles(session: string): Promise<void> {
   } catch {}
   try {
     await fs.unlink(getChromePidPath(session));
+  } catch {}
+  try {
+    await fs.unlink(getLockPath(session));
   } catch {}
 }
 
@@ -1108,54 +1146,68 @@ async function ensureDaemon(session: string, headless: boolean): Promise<void> {
     return;
   }
 
-  const args = ["--session", session, "daemon"];
-  if (headless) args.push("--headless");
+  const locked = await acquireLock(session);
+  if (!locked) {
+    throw new Error(`Timeout acquiring lock for session ${session}`);
+  }
 
-  const child = spawn(process.argv[0], [process.argv[1], ...args], {
-    detached: true,
-    stdio: ["ignore", "pipe", "ignore"],
-  });
+  try {
+    // Re-check after acquiring lock (another process may have started daemon)
+    if (await isDaemonRunning(session)) {
+      return;
+    }
 
-  return new Promise((resolve, reject) => {
-    let done = false;
+    const args = ["--session", session, "daemon"];
+    if (headless) args.push("--headless");
 
-    const cleanup = () => {
-      if (!done) {
-        done = true;
-        rl.close();
-        child.stdout?.destroy();
-        child.unref();
-      }
-    };
+    const child = spawn(process.argv[0], [process.argv[1], ...args], {
+      detached: true,
+      stdio: ["ignore", "pipe", "ignore"],
+    });
 
-    const timeout = setTimeout(() => {
-      cleanup();
-      reject(new Error("Timeout waiting for daemon to start"));
-    }, 30000);
+    await new Promise<void>((resolve, reject) => {
+      let done = false;
 
-    const rl = readline.createInterface({ input: child.stdout! });
-    rl.on("line", async (line) => {
-      try {
-        const data = JSON.parse(line);
-        if (data.daemon === "started") {
-          clearTimeout(timeout);
-          cleanup();
-          try {
-            await waitForSocketReady(getSocketPath(session), 5000);
-            resolve();
-          } catch (err) {
-            reject(err);
-          }
+      const cleanup = () => {
+        if (!done) {
+          done = true;
+          rl.close();
+          child.stdout?.destroy();
+          child.unref();
         }
-      } catch {}
-    });
+      };
 
-    child.on("error", (err) => {
-      clearTimeout(timeout);
-      cleanup();
-      reject(err);
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error("Timeout waiting for daemon to start"));
+      }, 30000);
+
+      const rl = readline.createInterface({ input: child.stdout! });
+      rl.on("line", async (line) => {
+        try {
+          const data = JSON.parse(line);
+          if (data.daemon === "started") {
+            clearTimeout(timeout);
+            cleanup();
+            try {
+              await waitForSocketReady(getSocketPath(session), 5000);
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          }
+        } catch {}
+      });
+
+      child.on("error", (err) => {
+        clearTimeout(timeout);
+        cleanup();
+        reject(err);
+      });
     });
-  });
+  } finally {
+    await releaseLock(session);
+  }
 }
 
 // ==================== CLI INTERFACE ====================
