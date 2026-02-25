@@ -59,6 +59,7 @@ interface V3Options {
   experimental?: boolean;
   domSettleTimeout?: number;
   cacheDir?: string;
+  serverCache?: boolean;
 
   // Logging options
   verbose?: 0 | 1 | 2;
@@ -209,6 +210,12 @@ interface V3Options {
 
 <ParamField path="cacheDir" type="string" optional>
   Directory path for caching action observations to improve performance.
+</ParamField>
+
+<ParamField path="serverCache" type="boolean" optional>
+  Enable server-side caching for `act()`, `extract()`, and `observe()` operations.
+
+  **Default:** `true`
 </ParamField>
 
 #### Logging Options
