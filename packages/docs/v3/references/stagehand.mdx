@@ -60,6 +60,7 @@ interface V3Options {
   domSettleTimeout?: number;
   cacheDir?: string;
   keepAlive?: boolean;
+  serverCache?: boolean;
 
   // Logging options
   verbose?: 0 | 1 | 2;
@@ -221,6 +222,16 @@ interface V3Options {
   When set, this overrides any value in `browserbaseSessionCreateParams.keepAlive`.
 
   **Default:** `false`
+</ParamField>
+
+<ParamField path="serverCache" type="boolean" optional>
+  Enable or disable server-side caching for `act()`, `extract()`, and `observe()` requests. When enabled, repeated calls with the same inputs return instantly without consuming LLM tokens.
+
+  <Note>Only applies when `env` is `"BROWSERBASE"`. Has no effect in local environments.</Note>
+
+  Can be overridden per-call via the `serverCache` option on `act()`, `extract()`, and `observe()`.
+
+  **Default:** `true`
 </ParamField>
 
 #### Logging Options
