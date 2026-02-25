@@ -75,6 +75,8 @@ const DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS = 5000;
 const CI_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS = 30000;
 const FIRST_TOP_LEVEL_PAGE_TIMEOUT_ENV =
   "STAGEHAND_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS";
+const WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION =
+  "waitForFirstTopLevelPage (no top-level Page)";
 
 function getFirstTopLevelPageTimeoutMs(): number {
   return (
@@ -168,7 +170,7 @@ export class V3Context {
         opts?.localBrowserLaunchOptions ?? null,
       );
       await ctx.bootstrap();
-      await ctx.waitForFirstTopLevelPage(getFirstTopLevelPageTimeoutMs());
+      await ctx.ensureFirstTopLevelPage(getFirstTopLevelPageTimeoutMs());
       return ctx;
     };
 
@@ -199,6 +201,36 @@ export class V3Context {
     return await connectTask();
   }
 
+  private hasTopLevelPage(): boolean {
+    for (const [targetId, targetType] of this.typeByTarget) {
+      if (targetType === "page" && this.pagesByTarget.has(targetId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private async ensureFirstTopLevelPage(timeoutMs: number): Promise<void> {
+    if (this.hasTopLevelPage()) return;
+
+    try {
+      await this.waitForFirstTopLevelPage(timeoutMs);
+      return;
+    } catch (err) {
+      if (!(err instanceof TimeoutError)) {
+        throw err;
+      }
+      v3Logger({
+        category: "ctx",
+        message:
+          "No open browser pages found after connect; creating an initial about:blank page",
+        level: 1,
+      });
+    }
+
+    await this.newPage("about:blank");
+  }
+
   /**
    * Wait until at least one top-level Page has been created and registered.
    * We poll internal maps that bootstrap/onAttachedToTarget populate.
@@ -216,10 +248,7 @@ export class V3Context {
       }
       await new Promise((r) => setTimeout(r, 25));
     }
-    throw new TimeoutError(
-      "waitForFirstTopLevelPage (no top-level Page)",
-      timeoutMs,
-    );
+    throw new TimeoutError(WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION, timeoutMs);
   }
 
   private async waitForInitialTopLevelTargets(

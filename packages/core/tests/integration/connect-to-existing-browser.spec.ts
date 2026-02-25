@@ -67,4 +67,54 @@ test.describe("connect to existing Browserbase session", () => {
       await closeV3(initialStagehand);
     }
   });
+
+  test("new Stagehand instance initializes when existing browser has zero pages", async () => {
+    const browserTarget = (
+      process.env.STAGEHAND_BROWSER_TARGET ?? "local"
+    ).toLowerCase();
+    const isLocal = browserTarget !== "browserbase";
+    test.skip(!isLocal, "Requires STAGEHAND_BROWSER_TARGET=local");
+
+    const initialStagehand = new V3({
+      ...v3DynamicTestConfig,
+      disableAPI: true,
+      env: "LOCAL",
+    });
+    await initialStagehand.init();
+
+    let resumedStagehand: V3 | null = null;
+
+    try {
+      const ctx = initialStagehand.context;
+      const pages = ctx.pages();
+      for (const page of pages) {
+        await page.close();
+      }
+
+      await expect.poll(() => ctx.pages().length, { timeout: 15_000 }).toBe(0);
+
+      const sessionUrl = initialStagehand.connectURL();
+      resumedStagehand = new V3({
+        env: "LOCAL",
+        verbose: 0,
+        disablePino: true,
+        disableAPI: true,
+        logger: v3DynamicTestConfig.logger,
+        localBrowserLaunchOptions: {
+          cdpUrl: sessionUrl,
+        },
+      });
+
+      await resumedStagehand.init();
+
+      await expect
+        .poll(() => resumedStagehand!.context.pages().length, {
+          timeout: 15_000,
+        })
+        .toBeGreaterThan(0);
+    } finally {
+      await closeV3(resumedStagehand);
+      await closeV3(initialStagehand);
+    }
+  });
 });
