@@ -3,11 +3,13 @@ import { z } from "zod";
 import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
 import type { AgentModelConfig, Variables } from "../../types/public/agent.js";
+import { withTimeout, DEFAULT_TOOL_TIMEOUT_MS } from "../utils/toolTimeout.js";
 
 export const actTool = (
   v3: V3,
   executionModel?: string | AgentModelConfig,
   variables?: Variables,
+  toolTimeout?: number,
 ) => {
   const hasVariables = variables && Object.keys(variables).length > 0;
   const actionDescription = hasVariables
@@ -36,7 +38,10 @@ export const actTool = (
         const options = executionModel
           ? { model: executionModel, variables }
           : { variables };
-        const result = await v3.act(action, options);
+
+        const timeoutMs = toolTimeout ?? DEFAULT_TOOL_TIMEOUT_MS;
+        const result = await withTimeout(v3.act(action, options), timeoutMs);
+
         const actions = (result.actions as Action[] | undefined) ?? [];
         v3.recordAgentReplayStep({
           type: "act",

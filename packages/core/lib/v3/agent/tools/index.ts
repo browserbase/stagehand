@@ -48,6 +48,10 @@ export interface V3AgentToolOptions {
    * When provided, these tools will have an optional useVariable field.
    */
   variables?: Variables;
+  /**
+   * Timeout in milliseconds for tool calls. Defaults to 45000 (45s).
+   */
+  toolTimeout?: number;
 }
 
 /**
@@ -90,9 +94,10 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const provider = options?.provider;
   const excludeTools = options?.excludeTools;
   const variables = options?.variables;
+  const toolTimeout = options?.toolTimeout;
 
   const allTools: ToolSet = {
-    act: actTool(v3, executionModel, variables),
+    act: actTool(v3, executionModel, variables, toolTimeout),
     ariaTree: ariaTreeTool(v3),
     click: clickTool(v3, provider),
     clickAndHold: clickAndHoldTool(v3, provider),

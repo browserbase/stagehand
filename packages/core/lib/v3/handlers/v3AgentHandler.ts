@@ -118,7 +118,11 @@ export class V3AgentHandler {
         variables: options.variables,
       });
 
-      const tools = this.createTools(options.excludeTools, options.variables);
+      const tools = this.createTools(
+        options.excludeTools,
+        options.variables,
+        options.toolTimeout,
+      );
       const allTools: ToolSet = { ...tools, ...this.mcpTools };
 
       // Use provided messages for continuation, or start fresh with the instruction
@@ -562,7 +566,11 @@ export class V3AgentHandler {
     };
   }
 
-  private createTools(excludeTools?: string[], variables?: Variables) {
+  private createTools(
+    excludeTools?: string[],
+    variables?: Variables,
+    toolTimeout?: number,
+  ) {
     const provider = this.llmClient?.getLanguageModel?.()?.provider;
     return createAgentTools(this.v3, {
       executionModel: this.executionModel,
@@ -571,6 +579,7 @@ export class V3AgentHandler {
       provider,
       excludeTools,
       variables,
+      toolTimeout,
     });
   }
 

@@ -393,6 +393,13 @@ export interface AgentExecuteOptionsBase {
    * ```
    */
   variables?: Variables;
+  /**
+   * Timeout in milliseconds for each tool call (e.g. act, extract, fillForm).
+   * If a tool call exceeds this duration, it will be aborted and
+   * reported back to the LLM.
+   * @default 45000 (45 seconds)
+   */
+  toolTimeout?: number;
 }
 
 /**
