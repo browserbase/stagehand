@@ -136,6 +136,123 @@ await context.addInitScript(() => {
  });
 ```
 
+### cookies()
+
+Retrieve browser cookies, optionally filtered by URL(s).
+
+```typescript
+await context.cookies(urls?: string | string[]): Promise<Cookie[]>
+```
+
+<ParamField path="urls" type="string | string[]" optional>
+  A single URL or array of URLs to filter cookies by. When provided, only cookies that match the domain, path, and secure requirements of the given URLs are returned.
+
+  **Default:** Returns all cookies when omitted.
+</ParamField>
+
+**Returns:** `Promise<Cookie[]>` - Array of cookie objects.
+
+```typescript
+// Get all cookies
+const allCookies = await context.cookies();
+
+// Get cookies for a specific URL
+const siteCookies = await context.cookies("https://example.com");
+
+// Get cookies for multiple URLs
+const cookies = await context.cookies([
+  "https://example.com",
+  "https://api.example.com",
+]);
+```
+
+### addCookies()
+
+Set one or more cookies in the browser context.
+
+```typescript
+await context.addCookies(cookies: CookieParam[]): Promise<void>
+```
+
+<ParamField path="cookies" type="CookieParam[]" required>
+  Array of cookie parameters to set. Each cookie must provide either `url` or both `domain` and `path` — providing both `url` and `domain` (or `url` and `path`) will throw a validation error.
+</ParamField>
+
+<Note>
+Cookies set via `context.addCookies()` are shared across all pages in the context, scoped by domain and path.
+</Note>
+
+```typescript
+// Set a cookie using a URL
+await context.addCookies([
+  {
+    name: "session",
+    value: "abc123",
+    url: "https://example.com",
+  },
+]);
+
+// Set a cookie using domain and path
+await context.addCookies([
+  {
+    name: "token",
+    value: "xyz789",
+    domain: ".example.com",
+    path: "/",
+    secure: true,
+    httpOnly: true,
+    sameSite: "Strict",
+  },
+]);
+```
+
+<Warning>
+Setting `sameSite: "None"` requires `secure: true`. Stagehand will throw a validation error if this requirement is not met.
+</Warning>
+
+### clearCookies()
+
+Clear cookies from the browser context. Can clear all cookies or selectively filter by name, domain, or path.
+
+```typescript
+await context.clearCookies(options?: ClearCookieOptions): Promise<void>
+```
+
+<ParamField path="options" type="ClearCookieOptions" optional>
+  Filter options to selectively clear cookies. When omitted, all cookies are cleared.
+
+  <Expandable title="ClearCookieOptions">
+    <ParamField path="name" type="string | RegExp" optional>
+      Match cookies by name. Supports exact string match or RegExp.
+    </ParamField>
+
+    <ParamField path="domain" type="string | RegExp" optional>
+      Match cookies by domain. Supports exact string match or RegExp.
+    </ParamField>
+
+    <ParamField path="path" type="string | RegExp" optional>
+      Match cookies by path. Supports exact string match or RegExp.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+```typescript
+// Clear all cookies
+await context.clearCookies();
+
+// Clear cookies by exact name
+await context.clearCookies({ name: "session" });
+
+// Clear cookies by domain pattern
+await context.clearCookies({ domain: /\.example\.com$/ });
+
+// Combine filters (a cookie must match ALL provided filters to be cleared)
+await context.clearCookies({
+  name: "token",
+  domain: ".example.com",
+});
+```
+
 ### close()
 
 Close the browser context and all associated pages.
@@ -309,6 +426,45 @@ await stagehand.close();
 ```
 
 </Tab>
+<Tab title="Cookie Management">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const context = stagehand.context;
+const page = context.pages()[0];
+
+await page.goto("https://example.com");
+
+// Set authentication cookies
+await context.addCookies([
+  {
+    name: "session_id",
+    value: "abc123",
+    domain: ".example.com",
+    path: "/",
+    httpOnly: true,
+    secure: true,
+    sameSite: "Lax",
+  },
+]);
+
+// Read cookies back
+const cookies = await context.cookies("https://example.com");
+console.log("Cookies:", cookies);
+
+// Clear specific cookies
+await context.clearCookies({ name: "session_id" });
+
+// Clear all cookies
+await context.clearCookies();
+
+await stagehand.close();
+```
+
+</Tab>
 </Tabs>
 
 ## Working with Active Pages
@@ -436,6 +592,41 @@ interface V3Context {
   pages(): Page[];
   activePage(): Page | undefined;
   setActivePage(page: Page): void;
+  cookies(urls?: string | string[]): Promise<Cookie[]>;
+  addCookies(cookies: CookieParam[]): Promise<void>;
+  clearCookies(options?: ClearCookieOptions): Promise<void>;
   close(): Promise<void>;
+}
+
+interface Cookie {
+  name: string;
+  value: string;
+  domain: string;
+  path: string;
+  /** Unix time in seconds. -1 means session cookie. */
+  expires: number;
+  httpOnly: boolean;
+  secure: boolean;
+  sameSite: "Strict" | "Lax" | "None";
+}
+
+interface CookieParam {
+  name: string;
+  value: string;
+  /** If provided, domain/path/secure are derived from this URL. */
+  url?: string;
+  domain?: string;
+  path?: string;
+  /** Unix timestamp in seconds. -1 or omitted = session cookie. */
+  expires?: number;
+  httpOnly?: boolean;
+  secure?: boolean;
+  sameSite?: "Strict" | "Lax" | "None";
+}
+
+interface ClearCookieOptions {
+  name?: string | RegExp;
+  domain?: string | RegExp;
+  path?: string | RegExp;
 }
 ```
