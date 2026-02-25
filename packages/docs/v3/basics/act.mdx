@@ -140,7 +140,7 @@ await stagehand.act("click the login button", { serverCache: false });
 
 // Check whether a result was served from cache
 const result = await stagehand.act("click the login button");
-console.log(result.cacheStatus); // "HIT" or "MISS"
+console.log(result.cacheStatus); // "HIT", "MISS", or undefined
 ```
 
 ### Using with Custom Pages
