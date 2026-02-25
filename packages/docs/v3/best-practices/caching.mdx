@@ -1,7 +1,8 @@
 ---
-title: Caching Actions
-description: Cache actions automatically to reduce costs and improve performance
+title: "Caching Actions"
+description: "Cache actions automatically to reduce costs and improve performance"
 ---
+
 import { V3Banner } from '/snippets/v3-banner.mdx';
 
 <V3Banner />
@@ -13,7 +14,7 @@ Stagehand supports two caching strategies: server-side caching managed by Browse
 ## Server-side Caching
 
 <Note>
-Server-side caching only works when running with `env: "BROWSERBASE"`. It has no effect in local environments.
+  Server-side caching only works when running with `env: "BROWSERBASE"`. It has no effect in local environments.
 </Note>
 
 When running on Browserbase, Stagehand automatically caches `act()`, `extract()`, and `observe()` results on the server. Repeated calls with the same inputs return instantly without consuming LLM tokens. Check out the [Browserbase blog](https://www.browserbase.com/blog/stagehand-caching) for more details on how it works under the hood.
@@ -78,10 +79,9 @@ console.log(actResult.cacheStatus); // "HIT" or "MISS"
 
 ### Limitations
 
-* Server-side caching does **not** apply to `agent()` at the moment. Use local caching (below) if you need caching for agent workflows.
-* The page URL factors in to the cache key. If the action is being made on a page with a dynamic URL, caching may not work as expected. We do filter out certain query parameters like referral trackers and analytics, but we don't catch everything just yet.
-* If the page content or structure changes, the action won't get a cache HIT and the LLM will be called. The subsequent actions will attempt to hit the resulting cache entry.
-
+- Server-side caching does **not** apply to `agent()` at the moment. Use local caching (below) if you need caching for agent workflows.
+- The page URL factors in to the cache key. If the action is being made on a page with a dynamic URL, caching may not work as expected. We do filter out certain query parameters like referral trackers and analytics, but we don't catch everything just yet.
+- If the page content or structure changes, the action won't get a cache `HIT` and the LLM will be called. The subsequent actions will attempt to hit the resulting cache entry.
 
 ---
 
@@ -177,55 +177,51 @@ const checkoutStagehand = new Stagehand({
 ### Best Practices
 
 <AccordionGroup>
+  <Accordion title="Use descriptive cache directories">
+    Organize caches by workflow or feature for easier management:
 
-<Accordion title="Use descriptive cache directories">
-Organize caches by workflow or feature for easier management:
+    ```typescript
+    // Good: descriptive cache names
+    cacheDir: "cache/login-actions"
+    cacheDir: "cache/search-actions"
+    cacheDir: "cache/form-submissions"
+    
+    // Avoid: generic cache names
+    cacheDir: "cache"
+    cacheDir: "my-cache"
+    ```
+  </Accordion>
+  <Accordion title="Clear cache when the DOM changes">
+    If the website structure changes significantly, clear your cache directory to force fresh inference:
 
-```typescript
-// Good: descriptive cache names
-cacheDir: "cache/login-actions"
-cacheDir: "cache/search-actions"
-cacheDir: "cache/form-submissions"
+    ```bash
+    rm -rf cache/login-actions
+    ```
 
-// Avoid: generic cache names
-cacheDir: "cache"
-cacheDir: "my-cache"
-```
-</Accordion>
+    Or programmatically:
 
-<Accordion title="Clear cache when the DOM changes">
-If the website structure changes significantly, clear your cache directory to force fresh inference:
+    ```typescript
+    import { rmSync } from 'fs';
+    
+    if (shouldClearCache) {
+      rmSync('cache/login-actions', { recursive: true, force: true });
+    }
+    
+    const stagehand = new Stagehand({
+      env: "BROWSERBASE",
+      cacheDir: "cache/login-actions",
+    });
+    ```
+  </Accordion>
+  <Accordion title="Commit cache for CI/CD">
+    Consider committing your cache directory to version control for consistent behavior across environments:
 
-```bash
-rm -rf cache/login-actions
-```
+    ```gitignore
+    # .gitignore
+    # Don't ignore cache directories
+    !cache/
+    ```
 
-Or programmatically:
-
-```typescript
-import { rmSync } from 'fs';
-
-if (shouldClearCache) {
-  rmSync('cache/login-actions', { recursive: true, force: true });
-}
-
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  cacheDir: "cache/login-actions",
-});
-```
-</Accordion>
-
-<Accordion title="Commit cache for CI/CD">
-Consider committing your cache directory to version control for consistent behavior across environments:
-
-```gitignore
-# .gitignore
-# Don't ignore cache directories
-!cache/
-```
-
-This ensures your CI/CD pipelines use the same cached results without needing to run inference on first execution.
-</Accordion>
-
+    This ensures your CI/CD pipelines use the same cached results without needing to run inference on first execution.
+  </Accordion>
 </AccordionGroup>
