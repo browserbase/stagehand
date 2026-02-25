@@ -118,6 +118,7 @@ export class V3AgentHandler {
         mode: this.mode,
         systemInstructions: this.systemInstructions,
         isBrowserbase: this.v3.isBrowserbase,
+        captchaSolverEnabled: this.captchaSolverEnabled,
         excludeTools: options.excludeTools,
         variables: options.variables,
       });
@@ -312,8 +313,7 @@ export class V3AgentHandler {
       // Set up captcha solver for Browserbase environments
       if (this.captchaSolverEnabled) {
         captchaSolver = new CaptchaSolver();
-        const page = await this.v3.context.awaitActivePage();
-        captchaSolver.attach(page);
+        captchaSolver.init(() => this.v3.context.awaitActivePage());
       }
 
       messages = preparedMessages;
@@ -439,8 +439,7 @@ export class V3AgentHandler {
     let captchaSolver: CaptchaSolver | undefined;
     if (this.captchaSolverEnabled) {
       captchaSolver = new CaptchaSolver();
-      const page = await this.v3.context.awaitActivePage();
-      captchaSolver.attach(page);
+      captchaSolver.init(() => this.v3.context.awaitActivePage());
     }
 
     const callbacks = (instructionOrOptions as AgentStreamExecuteOptions)
