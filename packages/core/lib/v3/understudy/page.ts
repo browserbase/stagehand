@@ -302,8 +302,12 @@ export class Page {
     localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null,
     browserIsRemote = false,
   ): Promise<Page> {
-    await session.send("Page.enable").catch(() => {});
-    await session
+    // Context already issues Page.enable + lifecycle enable before resume.
+    // Re-issue here only as best-effort and do not block page registration on
+    // their acknowledgements; some remote CDP backends can delay these replies
+    // long after the target is otherwise ready.
+    void session.send("Page.enable").catch(() => {});
+    void session
       .send("Page.setLifecycleEventsEnabled", { enabled: true })
       .catch(() => {});
     const { frameTree } = await session.send<{
