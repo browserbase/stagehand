@@ -173,6 +173,7 @@ components:
             - anthropic
             - google
             - microsoft
+            - bedrock
         modelName:
           description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
           example: openai/gpt-5-nano
@@ -652,6 +653,7 @@ components:
             - anthropic
             - google
             - microsoft
+            - bedrock
         model:
           description: Model configuration object or model name string (e.g.,
             'openai/gpt-5-nano')
@@ -1154,6 +1156,7 @@ components:
             - anthropic
             - google
             - microsoft
+            - bedrock
         modelName:
           description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
           example: openai/gpt-5-nano
@@ -1546,6 +1549,7 @@ components:
             - anthropic
             - google
             - microsoft
+            - bedrock
         model:
           description: Model configuration object or model name string (e.g.,
             'openai/gpt-5-nano')
