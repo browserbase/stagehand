@@ -197,7 +197,7 @@ export function buildAgentSystemPrompt(
   const roadblocksSection = isBrowserbase
     ? `<roadblocks>
     <note>captchas, popups, etc.</note>
-    <captcha>If you see a captcha, use the wait tool. It will automatically be solved by our internal solver.</captcha>
+    <captcha>Captchas are automatically detected and solved by the Browserbase captcha solver. Do NOT attempt to solve or interact with captchas yourself — they will be handled transparently without any action from you. Your execution will be paused automatically while a captcha is being solved and will resume once it is complete.</captcha>
   </roadblocks>`
     : "";
 

@@ -179,6 +179,18 @@ export class V3 {
   }
 
   /**
+   * Returns true if captcha solving is enabled on Browserbase.
+   * Defaults to true when not explicitly set to false.
+   */
+  public get isCaptchaSolverEnabled(): boolean {
+    return (
+      this.isBrowserbase &&
+      this.opts.browserbaseSessionCreateParams?.browserSettings
+        ?.solveCaptchas !== false
+    );
+  }
+
+  /**
    * Returns true if advancedStealth is enabled in Browserbase settings.
    */
   public get isAdvancedStealth(): boolean {
@@ -1691,6 +1703,7 @@ export class V3 {
       options?.systemPrompt,
       tools,
       options?.mode,
+      this.isCaptchaSolverEnabled,
     );
 
     const resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions =
