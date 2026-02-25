@@ -12,6 +12,9 @@ const SOLVE_TIMEOUT_MS = 90_000;
  * Tracks Browserbase captcha solver state via console messages and provides
  * a blocking `waitIfSolving()` that agents call before each step/action.
  *
+ * Accepts a page-provider callback so the listener is automatically
+ * re-attached when the active page changes (e.g. popup / new tab).
+ *
  * All concurrent callers of `waitIfSolving()` share the same underlying
  * promise, so multiple waiters are safely resolved together.
  */
@@ -19,7 +22,8 @@ export class CaptchaSolver {
   private solving = false;
   private _lastSolveErrored = false;
   private listener: ((msg: ConsoleMessage) => void) | null = null;
-  private page: Page | null = null;
+  private attachedPage: Page | null = null;
+  private pageProvider: (() => Promise<Page>) | null = null;
 
   /** Shared promise that all concurrent waitIfSolving() callers await. */
   private waitPromise: Promise<void> | null = null;
@@ -29,13 +33,27 @@ export class CaptchaSolver {
   private waitTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
-   * Attach console listener to the given page. Only one page can be
-   * attached at a time — call `dispose()` first to switch pages.
+   * Initialise with a callback that returns the current active page.
+   * The listener is lazily (re-)attached whenever the active page changes.
    */
-  attach(page: Page): void {
-    this.dispose();
-    this.page = page;
+  init(pageProvider: () => Promise<Page>): void {
+    this.pageProvider = pageProvider;
+  }
 
+  /**
+   * Ensure the console listener is attached to the current active page.
+   * If the active page has changed since the last call, the old listener
+   * is removed and a new one is installed.
+   */
+  async ensureAttached(): Promise<void> {
+    if (!this.pageProvider) return;
+    const page = await this.pageProvider();
+    if (page === this.attachedPage) return;
+
+    // Detach from the old page
+    this.detachListener();
+
+    this.attachedPage = page;
     this.listener = (msg: ConsoleMessage) => {
       const text = msg.text();
       if (text === SOLVING_STARTED) {
@@ -51,7 +69,6 @@ export class CaptchaSolver {
         this.settle();
       }
     };
-
     page.on("console", this.listener);
   }
 
@@ -60,11 +77,16 @@ export class CaptchaSolver {
    * solved, or blocks until the solver finishes, errors, or the 90s
    * timeout is reached.
    *
+   * Also re-attaches the listener to the current active page if it has
+   * changed since the last call.
+   *
    * All concurrent callers share the same promise, so no waiter is
    * orphaned.
    */
-  waitIfSolving(): Promise<void> {
-    if (!this.solving) return Promise.resolve();
+  async waitIfSolving(): Promise<void> {
+    await this.ensureAttached();
+
+    if (!this.solving) return;
 
     // Return the existing shared promise if one is already pending
     if (this.waitPromise) return this.waitPromise;
@@ -97,22 +119,30 @@ export class CaptchaSolver {
   }
 
   /**
-   * Remove the console listener and reset state.
+   * Remove the console listener and reset all state.
    */
   dispose(): void {
-    if (this.page && this.listener) {
-      this.page.off("console", this.listener);
-    }
-    this.listener = null;
-    this.page = null;
+    this.detachListener();
+    this.attachedPage = null;
+    this.pageProvider = null;
     this.solving = false;
     this._lastSolveErrored = false;
     this.settle();
   }
 
-  /**
-   * Resolve the shared wait promise and clear the timeout.
-   */
+  // ------------------------------------------------------------------
+  // Internal helpers
+  // ------------------------------------------------------------------
+
+  /** Remove the console listener from the currently attached page. */
+  private detachListener(): void {
+    if (this.attachedPage && this.listener) {
+      this.attachedPage.off("console", this.listener);
+    }
+    this.listener = null;
+  }
+
+  /** Resolve the shared wait promise and clear the timeout. */
   private settle(): void {
     if (this.waitTimer) {
       clearTimeout(this.waitTimer);

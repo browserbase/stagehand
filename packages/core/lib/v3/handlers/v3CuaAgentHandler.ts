@@ -186,9 +186,7 @@ export class V3CuaAgentHandler {
     // Set up captcha solver for Browserbase environments
     if (this.v3.isCaptchaSolverEnabled) {
       this.captchaSolver = new CaptchaSolver();
-      this.captchaSolver.attach(
-        await this.v3.context.awaitActivePage(),
-      );
+      this.captchaSolver.init(() => this.v3.context.awaitActivePage());
     }
 
     if (this.highlightCursor) {
