@@ -40,7 +40,7 @@ export const actTool = (
           : { variables };
 
         const timeoutMs = toolTimeout ?? DEFAULT_TOOL_TIMEOUT_MS;
-        const result = await withTimeout(v3.act(action, options), timeoutMs);
+        const result = await withTimeout(v3.act(action, options), timeoutMs, "act");
 
         const actions = (result.actions as Action[] | undefined) ?? [];
         v3.recordAgentReplayStep({
