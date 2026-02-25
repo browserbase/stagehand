@@ -59,6 +59,7 @@ interface V3Options {
   experimental?: boolean;
   domSettleTimeout?: number;
   cacheDir?: string;
+  keepAlive?: boolean;
 
   // Logging options
   verbose?: 0 | 1 | 2;
@@ -211,6 +212,17 @@ interface V3Options {
   Directory path for caching action observations to improve performance.
 </ParamField>
 
+<ParamField path="keepAlive" type="boolean" optional>
+  Controls whether the browser remains running after `stagehand.close()` is called or the parent process exits unexpectedly.
+
+  - **`true`** - Browser continues running independently. On Browserbase, the session stays active. Locally, the Chrome process is kept alive.
+  - **`false`** - Browser is terminated and resources are cleaned up on close or crash.
+
+  When set, this overrides any value in `browserbaseSessionCreateParams.keepAlive`.
+
+  **Default:** `false`
+</ParamField>
+
 #### Logging Options
 
 <ParamField path="verbose" type="0 | 1 | 2" optional>
@@ -264,6 +276,10 @@ await stagehand.close(options?: { force?: boolean }): Promise<void>
 
   **Default:** `false`
 </ParamField>
+
+<Note>
+When `keepAlive` is `true`, calling `close()` disconnects Stagehand from the browser without terminating it. The browser session continues running independently and can be reconnected to later using `browserbaseSessionID`. When `keepAlive` is `false` (the default), `close()` fully terminates the browser and cleans up all resources.
+</Note>
 
 ### agent()
 
