@@ -104,7 +104,7 @@ type ModelConfiguration =
 
 ### Returns `Promise<Action[]>`
 
-Array of discovered actionable elements, ordered by relevance. The array also carries an optional `cacheStatus` property (`"HIT"` or `"MISS"`) indicating whether the result was served from the server-side cache. Only present when running with `env: "BROWSERBASE"` and server-side caching is enabled.
+Array of discovered actionable elements, ordered by relevance.
 
 <ResponseField name="selector" type="string">
   XPath selector that precisely locates the element on the page.
