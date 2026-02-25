@@ -207,161 +207,181 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
   // Write daemon PID file
   await fs.writeFile(getPidPath(session), String(process.pid));
 
-  // Create Stagehand instance with dummy model (never used for CLI operations)
-  const stagehand = new Stagehand({
-    env: "LOCAL",
-    verbose: 0,
-    disablePino: true,
-    localBrowserLaunchOptions: {
-      headless,
-      viewport: DEFAULT_VIEWPORT,
-    },
-  });
+  // Browser state (initialized lazily on first command)
+  let stagehand: Stagehand | null = null;
+  let context: BrowseContext | null = null;
+  let isInitializing = false;
 
-  // Initialize browser
-  await stagehand.init();
+  /**
+   * Lazy browser initialization — called on first command.
+   * Allows daemon to signal "started" immediately without waiting for Chrome.
+   */
+  async function ensureBrowserInitialized(): Promise<{ stagehand: Stagehand; context: BrowseContext }> {
+    if (stagehand && context) {
+      return { stagehand, context };
+    }
 
-  const context = stagehand.context;
-
-  // Try to save Chrome info for reference (best effort)
-  try {
-    // Get WebSocket URL from context connection
-    const wsUrl = (context as any).conn?.wsUrl || "unknown";
-    await fs.writeFile(getWsPath(session), wsUrl);
-  } catch {}
-
-  // Store session name for network capture
-  networkSession = session;
-
-  // Setup network capture helpers (called when network is enabled)
-  const setupNetworkCapture = async (targetPage: BrowsePage) => {
-    const cdpSession = targetPage.mainFrame().session;
-
-    // Track request start times for duration calculation
-    const requestStartTimes = new Map<string, number>();
-    const requestDirs = new Map<string, string>();
-
-    cdpSession.on("Network.requestWillBeSent", async (params: any) => {
-      if (!networkEnabled || !networkDir) return;
-
-      const request: PendingRequest = {
-        id: params.requestId,
-        timestamp: new Date().toISOString(),
-        method: params.request.method,
-        url: params.request.url,
-        headers: params.request.headers || {},
-        body: params.request.postData || null,
-        resourceType: params.type || "Other",
-      };
-
-      pendingRequests.set(params.requestId, request);
-      requestStartTimes.set(params.requestId, Date.now());
-
-      // Write request immediately
-      const requestDir = await writeRequestToFs(request);
-      if (requestDir) {
-        requestDirs.set(params.requestId, requestDir);
+    if (isInitializing) {
+      while (isInitializing) {
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
-    });
+      if (stagehand && context) {
+        return { stagehand, context };
+      }
+      throw new Error("Browser initialization failed");
+    }
 
-    cdpSession.on("Network.responseReceived", async (params: any) => {
-      if (!networkEnabled) return;
+    isInitializing = true;
 
-      const requestDir = requestDirs.get(params.requestId);
-      if (!requestDir) return;
+    try {
+      stagehand = new Stagehand({
+        env: "LOCAL",
+        verbose: 0,
+        disablePino: true,
+        localBrowserLaunchOptions: {
+          headless,
+          viewport: DEFAULT_VIEWPORT,
+        },
+      });
 
-      // Store response info for when we get the body
-      const startTime = requestStartTimes.get(params.requestId) || Date.now();
-      const duration = Date.now() - startTime;
+      await stagehand.init();
 
-      // Response info without body (body comes later)
-      const responseInfo = {
-        id: params.requestId,
-        status: params.response.status,
-        statusText: params.response.statusText || "",
-        headers: params.response.headers || {},
-        mimeType: params.response.mimeType || "",
-        body: null as string | null,
-        duration,
-      };
+      context = stagehand.context;
 
-      // Store for body retrieval
-      (params as any)._responseInfo = responseInfo;
-      (params as any)._requestDir = requestDir;
-    });
-
-    cdpSession.on("Network.loadingFinished", async (params: any) => {
-      if (!networkEnabled) return;
-
-      const requestDir = requestDirs.get(params.requestId);
-      const pending = pendingRequests.get(params.requestId);
-      if (!requestDir || !pending) return;
-
-      const startTime = requestStartTimes.get(params.requestId) || Date.now();
-      const duration = Date.now() - startTime;
-
-      let body: string | null = null;
+      // Try to save Chrome info for reference (best effort)
       try {
-        const result = await cdpSession.send("Network.getResponseBody", {
-          requestId: params.requestId,
+        const wsUrl = (context as any).conn?.wsUrl || "unknown";
+        await fs.writeFile(getWsPath(session), wsUrl);
+      } catch {}
+
+      // Store session name for network capture
+      networkSession = session;
+
+      // Setup network capture helpers (called when network is enabled)
+      const setupNetworkCapture = async (targetPage: BrowsePage) => {
+        const cdpSession = targetPage.mainFrame().session;
+
+        const requestStartTimes = new Map<string, number>();
+        const requestDirs = new Map<string, string>();
+
+        cdpSession.on("Network.requestWillBeSent", async (params: any) => {
+          if (!networkEnabled || !networkDir) return;
+
+          const request: PendingRequest = {
+            id: params.requestId,
+            timestamp: new Date().toISOString(),
+            method: params.request.method,
+            url: params.request.url,
+            headers: params.request.headers || {},
+            body: params.request.postData || null,
+            resourceType: params.type || "Other",
+          };
+
+          pendingRequests.set(params.requestId, request);
+          requestStartTimes.set(params.requestId, Date.now());
+
+          const requestDir = await writeRequestToFs(request);
+          if (requestDir) {
+            requestDirs.set(params.requestId, requestDir);
+          }
         });
-        body = (result as any).body || null;
-        if ((result as any).base64Encoded && body) {
-          body = `[base64] ${body.slice(0, 100)}...`;
-        }
-      } catch {
-        // Body not available (e.g., for redirects)
-      }
 
-      const responseData = {
-        id: params.requestId,
-        status: 0,
-        statusText: "",
-        headers: {} as Record<string, string>,
-        mimeType: "",
-        body,
-        duration,
+        cdpSession.on("Network.responseReceived", async (params: any) => {
+          if (!networkEnabled) return;
+
+          const requestDir = requestDirs.get(params.requestId);
+          if (!requestDir) return;
+
+          const startTime = requestStartTimes.get(params.requestId) || Date.now();
+          const duration = Date.now() - startTime;
+
+          const responseInfo = {
+            id: params.requestId,
+            status: params.response.status,
+            statusText: params.response.statusText || "",
+            headers: params.response.headers || {},
+            mimeType: params.response.mimeType || "",
+            body: null as string | null,
+            duration,
+          };
+
+          (params as any)._responseInfo = responseInfo;
+          (params as any)._requestDir = requestDir;
+        });
+
+        cdpSession.on("Network.loadingFinished", async (params: any) => {
+          if (!networkEnabled) return;
+
+          const requestDir = requestDirs.get(params.requestId);
+          const pending = pendingRequests.get(params.requestId);
+          if (!requestDir || !pending) return;
+
+          const startTime = requestStartTimes.get(params.requestId) || Date.now();
+          const duration = Date.now() - startTime;
+
+          let body: string | null = null;
+          try {
+            const result = await cdpSession.send("Network.getResponseBody", {
+              requestId: params.requestId,
+            });
+            body = (result as any).body || null;
+            if ((result as any).base64Encoded && body) {
+              body = `[base64] ${body.slice(0, 100)}...`;
+            }
+          } catch {}
+
+          const responseData = {
+            id: params.requestId,
+            status: 0,
+            statusText: "",
+            headers: {} as Record<string, string>,
+            mimeType: "",
+            body,
+            duration,
+          };
+
+          await writeResponseToFs(requestDir, responseData);
+
+          pendingRequests.delete(params.requestId);
+          requestStartTimes.delete(params.requestId);
+          requestDirs.delete(params.requestId);
+        });
+
+        cdpSession.on("Network.loadingFailed", async (params: any) => {
+          if (!networkEnabled) return;
+
+          const requestDir = requestDirs.get(params.requestId);
+          if (!requestDir) return;
+
+          const startTime = requestStartTimes.get(params.requestId) || Date.now();
+          const duration = Date.now() - startTime;
+
+          const responseData = {
+            id: params.requestId,
+            status: 0,
+            statusText: "Failed",
+            headers: {},
+            mimeType: "",
+            body: null,
+            duration,
+            error: params.errorText || "Unknown error",
+          };
+
+          await writeResponseToFs(requestDir, responseData);
+
+          pendingRequests.delete(params.requestId);
+          requestStartTimes.delete(params.requestId);
+          requestDirs.delete(params.requestId);
+        });
       };
 
-      await writeResponseToFs(requestDir, responseData);
+      (context as any)._setupNetworkCapture = setupNetworkCapture;
 
-      // Cleanup
-      pendingRequests.delete(params.requestId);
-      requestStartTimes.delete(params.requestId);
-      requestDirs.delete(params.requestId);
-    });
-
-    cdpSession.on("Network.loadingFailed", async (params: any) => {
-      if (!networkEnabled) return;
-
-      const requestDir = requestDirs.get(params.requestId);
-      if (!requestDir) return;
-
-      const startTime = requestStartTimes.get(params.requestId) || Date.now();
-      const duration = Date.now() - startTime;
-
-      const responseData = {
-        id: params.requestId,
-        status: 0,
-        statusText: "Failed",
-        headers: {},
-        mimeType: "",
-        body: null,
-        duration,
-        error: params.errorText || "Unknown error",
-      };
-
-      await writeResponseToFs(requestDir, responseData);
-
-      // Cleanup
-      pendingRequests.delete(params.requestId);
-      requestStartTimes.delete(params.requestId);
-      requestDirs.delete(params.requestId);
-    });
-  };
-
-  // Store the setup function for use when network is enabled
-  (context as any)._setupNetworkCapture = setupNetworkCapture;
+      return { stagehand, context };
+    } finally {
+      isInitializing = false;
+    }
+  }
 
   // Create Unix socket server
   const socketPath = getSocketPath(session);
@@ -372,8 +392,9 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
       let response: DaemonResponse;
       try {
         const request: DaemonRequest = JSON.parse(line);
+        const { context: ctx } = await ensureBrowserInitialized();
         const result = await executeCommand(
-          context,
+          ctx,
           request.command,
           request.args,
         );
@@ -403,7 +424,7 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
     server.close();
 
     try {
-      await stagehand.close();
+      if (stagehand) await stagehand.close();
     } catch {}
 
     await cleanupStaleFiles(session);
