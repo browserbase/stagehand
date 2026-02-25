@@ -64,8 +64,8 @@ await page.goto("https://example.com");
 await stagehand.act("click the login button", { serverCache: false });
 
 // These calls use the cache as normal
-await stagehand.extract("extract the page title", { serverCache: false });
-await stagehand.observe("find the nav links", { serverCache: false });
+await stagehand.extract("extract the page title");
+await stagehand.observe("find the nav links");
 ```
 
 ### Inspecting Cache Status
