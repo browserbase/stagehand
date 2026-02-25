@@ -129,10 +129,6 @@ const stagehand = new Stagehand({
 
 // Or disable it for a single call
 const actions = await stagehand.observe("find the login button", { serverCache: false });
-
-// Check whether a result was served from cache
-const result = await stagehand.observe("find the login button");
-console.log(result.cacheStatus); // "HIT" or "MISS"
 ```
 
 ### Using with Custom Pages
