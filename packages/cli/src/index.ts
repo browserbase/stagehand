@@ -52,16 +52,55 @@ function getNetworkDir(session: string): string {
   return path.join(SOCKET_DIR, `browse-${session}-network`);
 }
 
+/**
+ * Check if a socket is actually connectable (not just exists on disk).
+ */
+async function isSocketConnectable(socketPath: string, timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const client = net.createConnection(socketPath);
+    const timeout = setTimeout(() => {
+      client.destroy();
+      resolve(false);
+    }, timeoutMs);
+
+    client.on("connect", () => {
+      clearTimeout(timeout);
+      client.destroy();
+      resolve(true);
+    });
+
+    client.on("error", () => {
+      clearTimeout(timeout);
+      resolve(false);
+    });
+  });
+}
+
+/**
+ * Wait for socket to become connectable with exponential backoff.
+ */
+async function waitForSocketReady(socketPath: string, timeoutMs: number): Promise<void> {
+  const startTime = Date.now();
+  let delay = 50;
+
+  while (Date.now() - startTime < timeoutMs) {
+    if (await isSocketConnectable(socketPath, 500)) return;
+    await new Promise(r => setTimeout(r, delay));
+    delay = Math.min(delay * 1.5, 500);
+  }
+  throw new Error(`Socket not ready after ${timeoutMs}ms`);
+}
+
 async function isDaemonRunning(session: string): Promise<boolean> {
   try {
     const pidFile = getPidPath(session);
     const pid = parseInt(await fs.readFile(pidFile, "utf-8"));
     process.kill(pid, 0); // Check if process exists
 
-    // Also verify socket exists and is connectable
+    // Verify socket exists and is actually connectable (not just on disk)
     const socketPath = getSocketPath(session);
     await fs.access(socketPath);
-    return true;
+    return await isSocketConnectable(socketPath, 500);
   } catch {
     return false;
   }
@@ -1095,13 +1134,18 @@ async function ensureDaemon(session: string, headless: boolean): Promise<void> {
     }, 30000);
 
     const rl = readline.createInterface({ input: child.stdout! });
-    rl.on("line", (line) => {
+    rl.on("line", async (line) => {
       try {
         const data = JSON.parse(line);
         if (data.daemon === "started") {
           clearTimeout(timeout);
           cleanup();
-          setTimeout(() => resolve(), 50);
+          try {
+            await waitForSocketReady(getSocketPath(session), 5000);
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
         }
       } catch {}
     });
