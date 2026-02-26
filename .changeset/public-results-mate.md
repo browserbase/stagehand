@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-Add configurable timeout to act tool in agent
+Add configurable timeout to tools in agent
