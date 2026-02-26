@@ -24,7 +24,7 @@ When running on Browserbase, Stagehand automatically caches `act()`, `extract()`
 - **Enabled by default** — no configuration needed to start benefiting
 - **Keyed on inputs** — the instruction, page content, and options are used to generate a cache key
 - **Zero token cost on hits** — cached responses bypass the LLM entirely
-- **`cacheStatus`** — every `act()`, `extract()`, and `observe()` result includes a `cacheStatus` field (`"HIT"` or `"MISS"`) so you can observe cache behavior
+- **`cacheStatus`** — every `act()` and `extract()` result includes a `cacheStatus` field (`"HIT"` or `"MISS"`) so you can observe cache behavior
 
 ### Disabling on the Constructor
 
@@ -70,7 +70,7 @@ await stagehand.observe("find the nav links");
 
 ### Inspecting Cache Status
 
-All three methods return a `cacheStatus` field you can use to verify whether a result was served from cache:
+Both `act()` and `extract()` return a `cacheStatus` field you can use to verify whether a result was served from cache:
 
 ```typescript
 const actResult = await stagehand.act("click the login button");
