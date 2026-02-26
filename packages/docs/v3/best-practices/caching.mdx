@@ -77,6 +77,10 @@ const actResult = await stagehand.act("click the login button");
 console.log(actResult.cacheStatus); // "HIT" or "MISS"
 ```
 
+<Note>
+  `observe()` does not currently expose a `cacheStatus` field. To check whether an `observe()` call was served from cache, use the [Browserbase session replay dashboard](https://www.browserbase.com/sessions) or inspect the session logs.
+</Note>
+
 ### Limitations
 
 - Server-side caching does **not** apply to `agent()` at the moment. Use local caching (below) if you need caching for agent workflows.
