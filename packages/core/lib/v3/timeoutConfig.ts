@@ -50,10 +50,10 @@ export function wrapToolWithTimeout<T extends Record<string, any>>(
       try {
         return await withTimeout(originalExecute(...args), timeoutMs, toolName);
       } catch (error) {
-        return {
-          success: false,
-          error: (error as Error)?.message ?? String(error),
-        };
+        if (error instanceof TimeoutError) {
+          return { success: false, error: error.message };
+        }
+        throw error;
       }
     },
   } as T;
