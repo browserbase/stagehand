@@ -394,9 +394,11 @@ export interface AgentExecuteOptionsBase {
    */
   variables?: Variables;
   /**
-   * Timeout in milliseconds for the act tool call.
-   * If an act call exceeds this duration, it will be aborted and
+   * Timeout in milliseconds for each agent tool call.
+   * If a tool call exceeds this duration, it will be aborted and
    * reported back to the LLM as a timeout error so it can retry or adjust.
+   * For tools that call v3 methods (act, extract, fillForm, ariaTree), the
+   * timeout is also forwarded to the underlying v3 call for true cancellation.
    * @default 45000 (45 seconds)
    */
   toolTimeout?: number;

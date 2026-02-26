@@ -8,6 +8,7 @@ export const fillFormTool = (
   v3: V3,
   executionModel?: string | AgentModelConfig,
   variables?: Variables,
+  toolTimeout?: number,
 ) => {
   const hasVariables = variables && Object.keys(variables).length > 0;
   const valueDescription = hasVariables
@@ -47,14 +48,16 @@ export const fillFormTool = (
         .join(", ")}`;
 
       const observeOptions = executionModel
-        ? { model: executionModel }
-        : undefined;
+        ? { model: executionModel, timeout: toolTimeout }
+        : { timeout: toolTimeout };
       const observeResults = await v3.observe(instruction, observeOptions);
 
       const completed = [] as unknown[];
       const replayableActions: Action[] = [];
       for (const res of observeResults) {
-        const actOptions = variables ? { variables } : undefined;
+        const actOptions = variables
+          ? { variables, timeout: toolTimeout }
+          : { timeout: toolTimeout };
         const actResult = await v3.act(res, actOptions);
         completed.push(actResult);
         if (Array.isArray(actResult.actions)) {

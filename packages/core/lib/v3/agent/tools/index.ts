@@ -24,6 +24,10 @@ import type {
   AgentModelConfig,
   Variables,
 } from "../../types/public/agent.js";
+import {
+  wrapToolWithTimeout,
+  DEFAULT_TOOL_TIMEOUT_MS,
+} from "../../timeoutConfig.js";
 
 export interface V3AgentToolOptions {
   executionModel?: string | AgentModelConfig;
@@ -96,28 +100,69 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const variables = options?.variables;
   const toolTimeout = options?.toolTimeout;
 
+  const timeoutMs = toolTimeout ?? DEFAULT_TOOL_TIMEOUT_MS;
+
   const allTools: ToolSet = {
-    act: actTool(v3, executionModel, variables, toolTimeout),
-    ariaTree: ariaTreeTool(v3),
-    click: clickTool(v3, provider),
-    clickAndHold: clickAndHoldTool(v3, provider),
-    dragAndDrop: dragAndDropTool(v3, provider),
-    extract: extractTool(v3, executionModel),
-    fillForm: fillFormTool(v3, executionModel, variables),
-    fillFormVision: fillFormVisionTool(v3, provider, variables),
-    goto: gotoTool(v3),
-    keys: keysTool(v3),
-    navback: navBackTool(v3),
-    screenshot: screenshotTool(v3),
-    scroll: mode === "hybrid" ? scrollVisionTool(v3, provider) : scrollTool(v3),
+    act: wrapToolWithTimeout(
+      actTool(v3, executionModel, variables, toolTimeout),
+      timeoutMs,
+      "act",
+    ),
+    ariaTree: wrapToolWithTimeout(
+      ariaTreeTool(v3, toolTimeout),
+      timeoutMs,
+      "ariaTree",
+    ),
+    click: wrapToolWithTimeout(clickTool(v3, provider), timeoutMs, "click"),
+    clickAndHold: wrapToolWithTimeout(
+      clickAndHoldTool(v3, provider),
+      timeoutMs,
+      "clickAndHold",
+    ),
+    dragAndDrop: wrapToolWithTimeout(
+      dragAndDropTool(v3, provider),
+      timeoutMs,
+      "dragAndDrop",
+    ),
+    extract: wrapToolWithTimeout(
+      extractTool(v3, executionModel, toolTimeout),
+      timeoutMs,
+      "extract",
+    ),
+    fillForm: wrapToolWithTimeout(
+      fillFormTool(v3, executionModel, variables, toolTimeout),
+      timeoutMs,
+      "fillForm",
+    ),
+    fillFormVision: wrapToolWithTimeout(
+      fillFormVisionTool(v3, provider, variables),
+      timeoutMs,
+      "fillFormVision",
+    ),
+    goto: wrapToolWithTimeout(gotoTool(v3), timeoutMs, "goto"),
+    keys: wrapToolWithTimeout(keysTool(v3), timeoutMs, "keys"),
+    navback: wrapToolWithTimeout(navBackTool(v3), timeoutMs, "navback"),
+    screenshot: wrapToolWithTimeout(
+      screenshotTool(v3),
+      timeoutMs,
+      "screenshot",
+    ),
+    scroll: wrapToolWithTimeout(
+      mode === "hybrid" ? scrollVisionTool(v3, provider) : scrollTool(v3),
+      timeoutMs,
+      "scroll",
+    ),
     think: thinkTool(),
-    type: typeTool(v3, provider, variables),
-    wait: waitTool(v3, mode),
+    type: wrapToolWithTimeout(
+      typeTool(v3, provider, variables),
+      timeoutMs,
+      "type",
+    ),
+    wait: wrapToolWithTimeout(waitTool(v3, mode), timeoutMs, "wait"),
   };
 
-  // Only include search tool if BRAVE_API_KEY is configured
   if (process.env.BRAVE_API_KEY) {
-    allTools.search = searchTool(v3);
+    allTools.search = wrapToolWithTimeout(searchTool(v3), timeoutMs, "search");
   }
 
   return filterTools(allTools, mode, excludeTools);

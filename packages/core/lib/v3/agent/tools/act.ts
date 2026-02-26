@@ -3,7 +3,6 @@ import { z } from "zod";
 import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
 import type { AgentModelConfig, Variables } from "../../types/public/agent.js";
-import { withTimeout, DEFAULT_TOOL_TIMEOUT_MS } from "../utils/toolTimeout.js";
 
 export const actTool = (
   v3: V3,
@@ -36,16 +35,10 @@ export const actTool = (
           },
         });
         const options = executionModel
-          ? { model: executionModel, variables }
-          : { variables };
+          ? { model: executionModel, variables, timeout: toolTimeout }
+          : { variables, timeout: toolTimeout };
 
-        const timeoutMs = toolTimeout ?? DEFAULT_TOOL_TIMEOUT_MS;
-        const result = await withTimeout(
-          v3.act(action, options),
-          timeoutMs,
-          "act",
-        );
-
+        const result = await v3.act(action, options);
         const actions = (result.actions as Action[] | undefined) ?? [];
         v3.recordAgentReplayStep({
           type: "act",
@@ -69,7 +62,10 @@ export const actTool = (
         }
         return response;
       } catch (error) {
-        return { success: false, error: error?.message ?? String(error) };
+        return {
+          success: false,
+          error: (error as Error)?.message ?? String(error),
+        };
       }
     },
   });
