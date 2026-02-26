@@ -1,0 +1,12 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.amazon.com
+
+* Concrete task
+- Search "travel adapter worldwide"
+- sort the list by "best sellers" 
+- add the first item into the shopping cart, and print the name and price of this item.
+
+
+

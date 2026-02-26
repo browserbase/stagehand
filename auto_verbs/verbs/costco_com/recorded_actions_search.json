@@ -1,0 +1,269 @@
+[
+  {
+    "timestamp": 1330,
+    "type": "goto",
+    "url": "https://www.costco.com",
+    "description": "Navigate to https://www.costco.com"
+  },
+  {
+    "timestamp": 7289,
+    "type": "wait",
+    "ms": 3000,
+    "description": "Wait for Costco to fully render"
+  },
+  {
+    "timestamp": 18388,
+    "type": "extract",
+    "instruction": "Analyze the current Costco homepage interface",
+    "description": "Interface discovery analysis",
+    "results": {
+      "availableOptions": [
+        "Skip to Main Content",
+        "While Supplies Last",
+        "Online-Only",
+        "Treasure Hunt",
+        "What's New",
+        "Member Favorites",
+        "Recommendations for You",
+        "Customer Service",
+        "US, Country/Region US United States",
+        "Sign In / Register",
+        "Shop",
+        "Grocery",
+        "Same Day",
+        "Savings",
+        "Business Delivery",
+        "Optical",
+        "Pharmacy",
+        "Services",
+        "Travel",
+        "Membership",
+        "Locations",
+        "Redmond, current warehouse",
+        "ZIP Code 98052, current delivery location",
+        "Previous promo",
+        "Next promo",
+        "Promo 1 of 2",
+        "Promo 2 of 2",
+        "Previous promo",
+        "Next promo",
+        "Promo 1 of 5",
+        "Promo 2 of 5",
+        "Promo 3 of 5",
+        "Promo 4 of 5",
+        "Promo 5 of 5",
+        "Previous promo",
+        "Next promo",
+        "Promo 1 of 2",
+        "Promo 2 of 2",
+        "Previous promo",
+        "Next promo",
+        "Promo 1 of 4",
+        "Promo 2 of 4",
+        "Promo 3 of 4",
+        "Promo 4 of 4",
+        "Pause",
+        "Sign In for Details",
+        "Add to List LG Counter-Depth MAX with Zero Clearance 3-Door French Door Refrigerator",
+        "Sign In for Details",
+        "Add to List Samsung 23 cu. ft. Bespoke Counter Depth 4-Door French Door Refrigerator with Family Hub",
+        "Sign In for Details",
+        "Add to List Whirlpool 30 cu. ft. French Door Refrigerator with Dual Ice Makers in Fingerprint Resistant Stainless Steel",
+        "Sign In for Details",
+        "Add to List GE Profile 4.8 cu. ft. ELECTRIC Front Load All-in-One Washer Dryer with Ventless Heat Pump, Sanitize Cycle",
+        "Sign In for Details",
+        "Add to List Bosch 500 Series Top Control Pocket Handle Dishwasher, Stainless Steel Tub, PureDry Technology, Ultra Quiet 44 dBa",
+        "Find a Warehouse",
+        "Cookie Settings",
+        "Feedback"
+      ],
+      "searchRelated": [
+        "Type and press the down arrow to browse search suggestions",
+        "Search Costco",
+        "Search"
+      ],
+      "otherControls": [
+        "Redmond, current warehouse",
+        "ZIP Code 98052, current delivery location",
+        "Sign In / Register",
+        "Cart",
+        "Shop",
+        "Grocery",
+        "Same Day",
+        "Savings",
+        "Business Delivery",
+        "Optical",
+        "Pharmacy",
+        "Services",
+        "Travel",
+        "Membership",
+        "Locations",
+        "Lists",
+        "Buy Again",
+        "Find a Warehouse"
+      ]
+    }
+  },
+  {
+    "timestamp": 19845,
+    "type": "act",
+    "instruction": "Click on the main 'Search Costco' input field in the header",
+    "description": "Click search input",
+    "selector": "xpath=/html[1]/body[1]/div[2]/header[1]/div[1]/div[1]/div[1]/div[3]/div[3]/div[1]/div[2]/div[1]/div[1]/input[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Main 'Search Costco' input field (combobox) in the header for entering search queries",
+    "aria": {
+      "tagName": "input",
+      "type": "text",
+      "role": "combobox",
+      "implicitRole": "textbox",
+      "ariaLabel": "Search Costco",
+      "placeholder": "Search Costco",
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": null,
+      "id": ":r22:",
+      "className": "MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused mui-s43tfo",
+      "bestLabel": "Search Costco",
+      "matchCount": 1,
+      "nearestAncestorId": "header-content",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "header-content",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 19919,
+    "type": "wait",
+    "ms": 500,
+    "description": "Wait after: Click search input"
+  },
+  {
+    "timestamp": 22203,
+    "type": "act",
+    "instruction": "Type 'kids winter jacket' into the currently focused search input field",
+    "description": "Type search query: kids winter jacket",
+    "selector": "xpath=/html[1]/body[1]/div[2]/header[1]/div[1]/div[1]/div[1]/div[3]/div[3]/div[1]/div[2]/div[1]/div[1]/input[1]",
+    "method": "type",
+    "arguments": [
+      "kids winter jacket"
+    ],
+    "observedDescription": "Search Costco combobox input; currently focused search input field.",
+    "aria": {
+      "tagName": "input",
+      "type": "text",
+      "role": "combobox",
+      "implicitRole": "textbox",
+      "ariaLabel": "Search Costco",
+      "placeholder": "Search Costco",
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": null,
+      "id": ":r22:",
+      "className": "MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused mui-s43tfo",
+      "bestLabel": "Search Costco",
+      "matchCount": 1,
+      "nearestAncestorId": "header-content",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "header-content",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 22231,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Type search query: kids winter jacket"
+  },
+  {
+    "timestamp": 25163,
+    "type": "act",
+    "instruction": "Click the 'Search' button to submit the search query",
+    "description": "Click Search button",
+    "selector": "xpath=/html[1]/body[1]/div[2]/header[1]/div[1]/div[1]/div[1]/div[3]/div[3]/div[1]/div[2]/div[1]/div[2]/button[2]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Search button in the search bar section to submit the search query.",
+    "aria": {
+      "tagName": "button",
+      "type": "button",
+      "role": null,
+      "implicitRole": "button",
+      "ariaLabel": "Search",
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": null,
+      "id": "Button_button-default",
+      "className": "MuiButtonBase-root MuiButton-root MuiButton-tertiary MuiButton-tertiaryPrimary MuiButton-sizeStandard MuiButton-tertiarySizeStandard MuiButton-colorPrimary MuiButton-root MuiButton-tertiary MuiButton-tertiaryPrimary MuiButton-sizeStandard MuiButton-tertiarySizeStandard MuiButton-colorPrimary mui-15sk66n",
+      "bestLabel": "Search",
+      "matchCount": 1,
+      "nearestAncestorId": "header-content",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "header-content",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 25772,
+    "type": "wait",
+    "ms": 5000,
+    "description": "Wait after: Click Search button"
+  },
+  {
+    "timestamp": 30775,
+    "type": "wait",
+    "ms": 5000,
+    "description": "Wait for search results to load"
+  },
+  {
+    "timestamp": 39095,
+    "type": "extract",
+    "instruction": "Extract product search results",
+    "description": "Extract up to 5 product listings with name and price",
+    "results": {
+      "products": [
+        {
+          "name": "Carter's Kids' Jacket",
+          "price": "$9.97"
+        },
+        {
+          "name": "Draper James Kids' Dress Coat",
+          "price": "$9.97"
+        },
+        {
+          "name": "Character Kids' Rain Jacket",
+          "price": "$16.99"
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.youtube.com
+
+* Concrete task
+- Search YouTube using a query "anchorage museums"
+- return the top 5 video results as a list of (url, title, duration) tuples.
+
+

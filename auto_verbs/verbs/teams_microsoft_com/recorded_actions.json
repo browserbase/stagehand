@@ -1,0 +1,498 @@
+[
+  {
+    "timestamp": 1350,
+    "type": "goto",
+    "url": "https://teams.microsoft.com/v2/",
+    "description": "Navigate to https://teams.microsoft.com/v2/"
+  },
+  {
+    "timestamp": 10757,
+    "type": "wait",
+    "ms": 5000,
+    "description": "Wait for Teams to fully render"
+  },
+  {
+    "timestamp": 41641,
+    "type": "extract",
+    "instruction": "Analyze the current Teams interface",
+    "description": "Interface discovery analysis",
+    "results": {
+      "availableOptions": [
+        "Open office app launcher",
+        "Settings and more",
+        "Your profile, status Available for shuochen@microsoft.com in Microsoft",
+        "Turn on",
+        "Close",
+        "Activity (Ctrl+Shift+1)",
+        "Chat (Ctrl+Shift+2)",
+        "Calendar (Ctrl+Shift+3)",
+        "Calls (Ctrl+Shift+4)",
+        "OneDrive (Ctrl+Shift+5)",
+        "Copilot (Ctrl+Shift+6)",
+        "View more apps",
+        "Apps",
+        "More list options",
+        "Show filter text box (Ctrl+Shift+F)",
+        "New message (Alt+Shift+N)",
+        "New items",
+        "Unread (Ctrl+Alt+U)",
+        "Channels (Ctrl+Alt+A)",
+        "Chats (Ctrl+Alt+C)",
+        "More filters",
+        "Unread Teams and channels Has context menu",
+        "Audio call",
+        "More call options",
+        "Open Copilot",
+        "Open Agents and bots",
+        "Find in chat (Ctrl+F)",
+        "More chat options",
+        "Close notification",
+        "Delete this message",
+        "More message options",
+        "Send (Ctrl+Enter)"
+      ],
+      "chatRelated": [
+        "New message (Alt+Shift+N)",
+        "Chats (Ctrl+Alt+C)",
+        "Send (Ctrl+Enter)"
+      ],
+      "otherControls": [
+        "Audio call",
+        "More call options",
+        "Open Copilot",
+        "Open Agents and bots",
+        "Find in chat (Ctrl+F)",
+        "More chat options",
+        "Show filter text box (Ctrl+Shift+F)",
+        "Unread (Ctrl+Alt+U)",
+        "Channels (Ctrl+Alt+A)",
+        "More filters",
+        "Delete this message",
+        "More message options"
+      ]
+    }
+  },
+  {
+    "timestamp": 44815,
+    "type": "act",
+    "instruction": "Click the 'New chat' button to start a new conversation. Look for a button with a compose/new chat icon, typically at the top of the chat list or in the toolbar.",
+    "description": "Click New Chat button",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[1]/div[1]/div[1]/div[4]/div[1]/div[1]/div[1]/div[1]/button[3]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Button labeled 'New message' (Alt+Shift+N), located in the Rail actions toolbar at the top of the Chat section. This likely starts a new chat or conversation.",
+    "aria": {
+      "tagName": "button",
+      "type": "button",
+      "role": null,
+      "implicitRole": "button",
+      "ariaLabel": "New message (Alt+Shift+N)",
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": null,
+      "id": null,
+      "className": "fui-Button r1alrhcs ___1soh6ez f1c21dwh f1p3nwhy f11589ue f1q5o8ev f1pdflbu fkfq4zb fjxutwb f1s2uweq fr80ssc f1ukrpxl fecsdlb f139oj5f ft1hn21 fuxngvv fwiml72 f1h0usnq fs4ktlq f16h9ulv fx2bmrt f1fg1p5m f1dfjoow f1j98vj9 f1tme0vf f4xjyn1 f18onu3q f9ddjv3 f1a8nydr f2bo7k7 f44c6la f1ir9xal",
+      "bestLabel": "New message (Alt+Shift+N)",
+      "matchCount": 1,
+      "nearestAncestorId": "app",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": "Rail actions",
+          "role": "toolbar",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "app",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 45508,
+    "type": "wait",
+    "ms": 2000,
+    "description": "Wait after: Click New Chat button"
+  },
+  {
+    "timestamp": 49060,
+    "type": "act",
+    "instruction": "Click on the 'To' input field where you can type the recipient's name or email address",
+    "description": "Click To field",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[1]/div[1]/div[1]/div[8]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/input[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "The 'To' input textbox field where you can type the recipient's name or email address for a new message.",
+    "aria": {
+      "tagName": "input",
+      "type": "text",
+      "role": null,
+      "implicitRole": "textbox",
+      "ariaLabel": "Enter name, chat, channel, email or tag",
+      "placeholder": "Enter name, chat, channel, email or tag",
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": null,
+      "id": "people-picker-input",
+      "className": "ui-box ca jg jh ha hb hc hd cb ai aj ak al bw bx by bz ji bb jj bd jk m jl jm jn jo jp jq jr js jt c ju jv jw jx jy jz ka kb ui-input__input ui-dropdown__searchinput__input",
+      "bestLabel": "Enter name, chat, channel, email or tag",
+      "matchCount": 1,
+      "nearestAncestorId": "message-pane-layout-a11y",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "combobox",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "message-pane-layout-a11y",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "app",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 49079,
+    "type": "wait",
+    "ms": 500,
+    "description": "Wait after: Click To field"
+  },
+  {
+    "timestamp": 51442,
+    "type": "act",
+    "instruction": "Type 'johndoe@contoso.com' into the currently focused 'To' input field",
+    "description": "Type recipient: johndoe@contoso.com",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[1]/div[1]/div[1]/div[8]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/input[1]",
+    "method": "type",
+    "arguments": [
+      "johndoe@contoso.com"
+    ],
+    "observedDescription": "The currently focused input field for the 'To' recipient in a new message composition area",
+    "aria": {
+      "tagName": "input",
+      "type": "text",
+      "role": null,
+      "implicitRole": "textbox",
+      "ariaLabel": "Enter name, chat, channel, email or tag",
+      "placeholder": "Enter name, chat, channel, email or tag",
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": null,
+      "id": "people-picker-input",
+      "className": "ui-box ca jg jh ha hb hc hd cb ai aj ak al bw bx by bz ji bb jj bd jk m jl jm jn jo jp jq jr js jt c ju jv jw jx jy jz ka kb ui-input__input ui-dropdown__searchinput__input",
+      "bestLabel": "Enter name, chat, channel, email or tag",
+      "matchCount": 1,
+      "nearestAncestorId": "message-pane-layout-a11y",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "combobox",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "message-pane-layout-a11y",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "app",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 51483,
+    "type": "wait",
+    "ms": 2000,
+    "description": "Wait after: Type recipient: johndoe@contoso.com"
+  },
+  {
+    "timestamp": 55594,
+    "type": "act",
+    "instruction": "Select the suggestion that matches 'johndoe@contoso.com' from the dropdown list. Click on the matching person/contact.",
+    "description": "Select recipient from suggestions",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[1]/div[1]/div[1]/div[8]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/ul[1]/li[1]",
+    "method": "selectOptionFromDropdown",
+    "arguments": [
+      "johndoe@contoso.com"
+    ],
+    "observedDescription": "Dropdown list option for johndoe@contoso.com External unfamiliar, JOHNDOE",
+    "aria": {
+      "tagName": "li",
+      "type": "Federated",
+      "role": "option",
+      "implicitRole": null,
+      "ariaLabel": "johndoe@contoso.com External unfamiliar, JOHNDOE",
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "johndoe@contoso.comExternalJOHNDOE",
+      "name": null,
+      "id": "downshift-0-item-0",
+      "className": "ui-dropdown__item a au f lj lk ll lm ln ae af ag ah ai aj ak al ha hb hc hd mi m jh mj lt lu lv lw mk lx ly lz ma lo lp lq lr ls mb mc",
+      "bestLabel": "johndoe@contoso.com External unfamiliar, JOHNDOE",
+      "matchCount": 1,
+      "nearestAncestorId": "downshift-0-menu",
+      "ariaAncestors": [
+        {
+          "tagName": "ul",
+          "ariaLabel": null,
+          "role": "listbox",
+          "id": "downshift-0-menu",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "message-pane-layout-a11y",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "app",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 55605,
+    "type": "wait",
+    "ms": 2000,
+    "description": "Wait after: Select recipient from suggestions"
+  },
+  {
+    "timestamp": 60563,
+    "type": "act",
+    "instruction": "Click on the message compose box / text input area where you type the message content. It's usually at the bottom of the chat window with placeholder like 'Type a new message'.",
+    "description": "Click message compose box",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[1]/div[1]/div[1]/div[8]/div[1]/div[1]/div[4]/div[1]/div[4]/div[1]/div[2]/div[1]/div[2]/div[1]/div[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Message compose textbox area where you type the message content, labeled 'Type a message'. Located at the bottom of the chat window, typically for composing new messages.",
+    "aria": {
+      "tagName": "div",
+      "type": null,
+      "role": "textbox",
+      "implicitRole": null,
+      "ariaLabel": "Type a message",
+      "placeholder": "Type a message",
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": null,
+      "id": "new-message-68c88dfc-c6be-42ae-9927-8df3a35405b7",
+      "className": "ck-blurred fui-Primitive ___1czdayc f1poobt0 f1cktdmf f13htf1t f1ubnyt4 f1couhl3 f1ahpp82 f11qra4b f6dzj5z f1p9o1ba fokg9q4 ck ck-content ck-editor__editable ck-rounded-corners ck-editor__editable_inline",
+      "bestLabel": "Type a message",
+      "matchCount": 1,
+      "nearestAncestorId": "message-pane-layout-a11y",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "message-pane-layout-a11y",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "app",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 60611,
+    "type": "wait",
+    "ms": 500,
+    "description": "Wait after: Click message compose box"
+  },
+  {
+    "timestamp": 62922,
+    "type": "act",
+    "instruction": "Type 'Hello John' into the currently focused message compose box",
+    "description": "Type message: Hello John",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[1]/div[1]/div[1]/div[8]/div[1]/div[1]/div[4]/div[1]/div[4]/div[1]/div[2]/div[1]/div[2]/div[1]/div[1]",
+    "method": "type",
+    "arguments": [
+      "Hello John"
+    ],
+    "observedDescription": "textbox labeled 'Type a message' where you compose the message currently in focus",
+    "aria": {
+      "tagName": "div",
+      "type": null,
+      "role": "textbox",
+      "implicitRole": null,
+      "ariaLabel": "Type a message",
+      "placeholder": "Type a message",
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": null,
+      "id": "new-message-68c88dfc-c6be-42ae-9927-8df3a35405b7",
+      "className": "fui-Primitive ___1czdayc f1poobt0 f1cktdmf f13htf1t f1ubnyt4 f1couhl3 f1ahpp82 f11qra4b f6dzj5z f1p9o1ba fokg9q4 ck ck-content ck-editor__editable ck-rounded-corners ck-editor__editable_inline ck-focused",
+      "bestLabel": "Type a message",
+      "matchCount": 1,
+      "nearestAncestorId": "message-pane-layout-a11y",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "message-pane-layout-a11y",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "app",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 62944,
+    "type": "wait",
+    "ms": 2000,
+    "description": "Wait after: Type message: Hello John"
+  },
+  {
+    "timestamp": 66394,
+    "type": "act",
+    "instruction": "Click the 'Send' button to send the message. It's usually an arrow/send icon button near the compose box.",
+    "description": "Click Send button",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[1]/div[1]/div[1]/div[8]/div[1]/div[1]/div[4]/div[1]/div[4]/div[1]/div[2]/div[1]/div[2]/div[2]/div[1]/button[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Send button located near the compose box, labeled 'Send (Ctrl+Enter)'. Used to send the message.",
+    "aria": {
+      "tagName": "button",
+      "type": null,
+      "role": null,
+      "implicitRole": "button",
+      "ariaLabel": "Send (Ctrl+Enter)",
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": "send",
+      "id": null,
+      "className": "ui-toolbar__item m ca av aw ax ay ai aj ak al ha hb hc hd cb he hf bt bc bu bv bi cf w dz hg hh cl cm ea eb ec ed ei ej ek el em en eo hi hj hk hl hm eu ev ew ex ey hn ho hp hq ff fg fh fi fj fk fl hr hs ht hu hv fr fs ft fu fv hw hx hy hz ga gb gc gd ge gf gg gh ia ___hir5vg0 f3rmtva f1cio4g9 fvaszet",
+      "bestLabel": "Send (Ctrl+Enter)",
+      "matchCount": 1,
+      "nearestAncestorId": "message-pane-layout-a11y",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": "Actions for new message",
+          "role": "toolbar",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "message-pane-layout-a11y",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "app",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 66425,
+    "type": "wait",
+    "ms": 3000,
+    "description": "Wait after: Click Send button"
+  },
+  {
+    "timestamp": 71750,
+    "type": "extract",
+    "instruction": "Verify message was sent",
+    "description": "Check if message appears in chat",
+    "results": {
+      "messageSent": false,
+      "messageVisible": "not found"
+    }
+  }
+]

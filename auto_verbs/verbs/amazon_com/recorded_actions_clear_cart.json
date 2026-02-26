@@ -1,0 +1,30 @@
+[
+  {
+    "timestamp": 1336,
+    "type": "goto",
+    "url": "https://www.amazon.com/gp/cart/view.html",
+    "description": "Navigate to https://www.amazon.com/gp/cart/view.html"
+  },
+  {
+    "timestamp": 5850,
+    "type": "wait",
+    "ms": 3000,
+    "description": "Wait for cart page to fully render"
+  },
+  {
+    "timestamp": 13142,
+    "type": "extract",
+    "instruction": "Analyze Amazon cart interface",
+    "description": "Cart interface discovery",
+    "results": {
+      "isEmpty": true,
+      "itemCount": 0,
+      "items": [],
+      "availableActions": [
+        "Continue shopping",
+        "Wish List",
+        "Buy it again"
+      ]
+    }
+  }
+]

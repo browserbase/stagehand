@@ -374,13 +374,6 @@ async function searchGoogleMapsDirections() {
     console.log(`   🕒 Travel Time: ${elementData.travelTime} (located at: ${elementData.travelTimeElementInfo})`);
     console.log(`   📏 Distance: ${elementData.distance} (located at: ${elementData.distanceElementInfo})`);
     
-    // Take a screenshot for reference
-    const screenshotPath = path.join(__dirname, "directions_result.png");
-    recorder.screenshot("directions_result");
-    await page.screenshot({ 
-      path: screenshotPath
-    });
-
     console.log("\n═══════════════════════════════════════════════════════════");
     console.log("  ✅ COMPLETE!");
     console.log("═══════════════════════════════════════════════════════════");
@@ -394,7 +387,6 @@ async function searchGoogleMapsDirections() {
     console.log("  📊 Element Data Extracted:");
     console.log(`     🕒 Travel Time Element: ${elementData.travelTime}`);
     console.log(`     📏 Distance Element: ${elementData.distance}`);
-    console.log(`  📸 Screenshot: directions_result.png`);
     console.log("═══════════════════════════════════════════════════════════");
 
     // ── Generate Python Playwright script ──────────────────────────────────────────

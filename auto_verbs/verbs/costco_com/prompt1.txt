@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.costco.com
+
+* Concrete task
+- set the preferred warehouse to "redmond, WA"
+- return boolean for success or not
+
+

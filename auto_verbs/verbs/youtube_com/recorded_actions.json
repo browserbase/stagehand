@@ -1,0 +1,392 @@
+[
+  {
+    "timestamp": 1398,
+    "type": "goto",
+    "url": "https://www.youtube.com",
+    "description": "Navigate to https://www.youtube.com"
+  },
+  {
+    "timestamp": 5544,
+    "type": "wait",
+    "ms": 3000,
+    "description": "Wait for YouTube to fully render"
+  },
+  {
+    "timestamp": 35599,
+    "type": "extract",
+    "instruction": "Analyze the current YouTube homepage interface",
+    "description": "Interface discovery analysis",
+    "results": {
+      "availableOptions": [
+        "Guide",
+        "Skip navigation",
+        "Search",
+        "Search with your voice",
+        "Create",
+        "Notifications",
+        "Account menu",
+        "Home",
+        "Shorts",
+        "Subscriptions",
+        "You",
+        "Next",
+        "Poulsbo RVs",
+        "My Ad Center",
+        "Tap to watch live, Nashville Bird Cam channel",
+        "More actions",
+        "Go to channel Team USA",
+        "Shorts - More actions",
+        "Tap to watch live, Tim Janis channel",
+        "Go to channel Living In Seattle - Bryce Greenleaf",
+        "Tap to watch live, Babergh and Mid Suffolk District Councils channel",
+        "Tap to watch live, CNN-News18 channel",
+        "Go to channel Red Bull",
+        "Tap to watch live, Nashville Bird Cam channel",
+        "Go to channel Gravity",
+        "Tap to watch live, MGA - EEE channel",
+        "Go to channel Cozy Cup Melodies",
+        "Go to channel The Detour Duo",
+        "Go to channel WorkRhythm Mussic",
+        "Go to channel Fox News",
+        "Tap to watch live, Nerd Odyssey channel",
+        "Go to channel Flashback Grooves",
+        "Tap to watch live, StreamTime Live channel",
+        "Go to channel MrBeast",
+        "Go to channel Quantum Tech HD",
+        "Go to channel A FUSCO - Classic TV",
+        "Tap to watch live, BCP Council channel",
+        "Go to channel NBA",
+        "Go to channel Geography By Geoff",
+        "Unmute",
+        "Subtitles/CC turned on"
+      ],
+      "searchRelated": [
+        "Search",
+        "Search with your voice",
+        "Search"
+      ],
+      "otherControls": [
+        "Guide",
+        "Skip navigation",
+        "Create",
+        "Notifications",
+        "Account menu",
+        "Next",
+        "Unmute",
+        "Subtitles/CC turned on"
+      ]
+    }
+  },
+  {
+    "timestamp": 37460,
+    "type": "act",
+    "instruction": "Click on the YouTube 'Search' input field at the top of the page",
+    "description": "Click search input",
+    "selector": "xpath=/html[1]/body[1]/ytd-app[1]/div[1]/div[2]/ytd-masthead[1]/div[4]/div[2]/yt-searchbox[1]/div[1]/div[1]/form[1]/input[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "The search input field at the top of the YouTube page, labeled 'Search', used to enter queries.",
+    "aria": {
+      "tagName": "input",
+      "type": "text",
+      "role": "combobox",
+      "implicitRole": "textbox",
+      "ariaLabel": null,
+      "placeholder": "Search",
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": "search_query",
+      "id": null,
+      "className": "ytSearchboxComponentInput yt-searchbox-input title",
+      "bestLabel": "Search",
+      "matchCount": 0,
+      "nearestAncestorId": "center",
+      "ariaAncestors": [
+        {
+          "tagName": "yt-searchbox",
+          "ariaLabel": null,
+          "role": "search",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "center",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "container",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "ytd-masthead",
+          "ariaLabel": null,
+          "role": "banner",
+          "id": "masthead",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "masthead-container",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "content",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 37498,
+    "type": "wait",
+    "ms": 500,
+    "description": "Wait after: Click search input"
+  },
+  {
+    "timestamp": 39864,
+    "type": "act",
+    "instruction": "Type 'anchorage museums' into the currently focused search input field",
+    "description": "Type search query: anchorage museums",
+    "selector": "xpath=/html[1]/body[1]/ytd-app[1]/div[1]/div[2]/ytd-masthead[1]/div[4]/div[2]/yt-searchbox[1]/div[1]/div[1]/form[1]/input[1]",
+    "method": "type",
+    "arguments": [
+      "anchorage museums"
+    ],
+    "observedDescription": "Search input field within the Search combobox, currently focused for typing.",
+    "aria": {
+      "tagName": "input",
+      "type": "text",
+      "role": "combobox",
+      "implicitRole": "textbox",
+      "ariaLabel": null,
+      "placeholder": "Search",
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": "search_query",
+      "id": null,
+      "className": "ytSearchboxComponentInput yt-searchbox-input title",
+      "bestLabel": "Search",
+      "matchCount": 0,
+      "nearestAncestorId": "center",
+      "ariaAncestors": [
+        {
+          "tagName": "yt-searchbox",
+          "ariaLabel": null,
+          "role": "search",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "center",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "container",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "ytd-masthead",
+          "ariaLabel": null,
+          "role": "banner",
+          "id": "masthead",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "masthead-container",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "content",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 39885,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Type search query: anchorage museums"
+  },
+  {
+    "timestamp": 42673,
+    "type": "act",
+    "instruction": "Press Enter key to submit the search query",
+    "description": "Submit search with Enter",
+    "selector": "xpath=/html[1]/body[1]/ytd-app[1]/div[1]/div[2]/ytd-masthead[1]/div[4]/div[2]/yt-searchbox[1]/div[1]/div[1]/form[1]/input[1]",
+    "method": "press",
+    "arguments": [
+      "Enter"
+    ],
+    "observedDescription": "Search combobox where users enter a search query, pressing Enter will submit the search",
+    "aria": {
+      "tagName": "input",
+      "type": "text",
+      "role": "combobox",
+      "implicitRole": "textbox",
+      "ariaLabel": null,
+      "placeholder": "Search",
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": "search_query",
+      "id": null,
+      "className": "ytSearchboxComponentInput yt-searchbox-input title",
+      "bestLabel": "Search",
+      "matchCount": 0,
+      "nearestAncestorId": "center",
+      "ariaAncestors": [
+        {
+          "tagName": "yt-searchbox",
+          "ariaLabel": null,
+          "role": "search",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "center",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "container",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "ytd-masthead",
+          "ariaLabel": null,
+          "role": "banner",
+          "id": "masthead",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "masthead-container",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "content",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 42731,
+    "type": "wait",
+    "ms": 5000,
+    "description": "Wait after: Submit search with Enter"
+  },
+  {
+    "timestamp": 47736,
+    "type": "wait",
+    "ms": 5000,
+    "description": "Wait for search results to load"
+  },
+  {
+    "timestamp": 61946,
+    "type": "extract",
+    "instruction": "Extract video search results",
+    "description": "Extract up to 5 video results with URL, title, and duration",
+    "results": {
+      "videos": [
+        {
+          "url": "https://www.youtube.com/watch?v=[2-6807]",
+          "title": "I Explored the Anchorage Alaska Museum – Here's What I Found!",
+          "duration": "19:00"
+        },
+        {
+          "url": "https://www.youtube.com/watch?v=[2-6902]",
+          "title": "Top 10 Best Things to Do in Anchorage, Alaska [Anchorage Travel Guide 2025]",
+          "duration": "8:44"
+        },
+        {
+          "url": "https://www.youtube.com/watch?v=[2-8150]",
+          "title": "Things to Do in Anchorage Alaska | Anchorage Museum",
+          "duration": "15:00"
+        },
+        {
+          "url": "https://www.youtube.com/watch?v=[2-8330]",
+          "title": "Anchorage Museum – Anchorage, Alaska (TRAVEL GUIDE) | Episode# 4",
+          "duration": "6:20"
+        },
+        {
+          "url": "https://www.youtube.com/watch?v=[2-9032]",
+          "title": "New Anchorage Museum exhibit transports visitors to Alaska's arctic landscape.",
+          "duration": "1:55"
+        }
+      ]
+    }
+  }
+]

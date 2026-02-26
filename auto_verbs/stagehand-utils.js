@@ -2,9 +2,6 @@ const { AzureOpenAI } = require("openai");
 const { getBearerTokenProvider, AzureCliCredential, DefaultAzureCredential, ChainedTokenCredential } = require("@azure/identity");
 const { CustomOpenAIClient } = require("@browserbasehq/stagehand");
 const { spawn } = require("child_process");
-const fs = require("fs");
-const path = require("path");
-const os = require("os");
 
 /**
  * Stagehand Utilities
@@ -467,39 +464,42 @@ function setupAzureOpenAI() {
   return llmClient;
 }
 
-// ── Copilot CLI Setup ───────────────────────────────────────────────────────
+// ── GitHub Models API Setup ──────────────────────────────────────────────────
 /**
- * LLM client that uses Copilot CLI under the hood
- * Compatible with OpenAI client interface but can use any model
+ * LLM client that uses the GitHub Models API (models.inference.ai.azure.com)
+ * authenticated via `gh auth token`. This bypasses the Copilot CLI's ~10-15K
+ * prompt size limit by calling the HTTP API directly with standard
+ * OpenAI-format chat completions.
+ *
+ * Endpoint: https://models.inference.ai.azure.com/chat/completions
+ * Auth:     Bearer <gh auth token>
  */
 class CopilotCliClient {
-  constructor(modelName = "copilot-cli") {
+  constructor(modelName = "gpt-4.1") {
     this.modelName = modelName;
-    
+    this._ghToken = null;     // cached GitHub auth token
+    this._tokenExpiry = 0;    // refresh token periodically
+
     // Initialize chat object directly in constructor to ensure it exists
     this.chat = {
       completions: {
         create: async (params) => {
-          const prompt = this.buildPromptFromMessages(params.messages);
-          const response = await this.callCopilotCli(prompt);
-          
+          const response = await this.callModelsApi(params.messages);
+
           return {
-            id: `copilot-${Date.now()}`,
+            id: response.id || `ghmodels-${Date.now()}`,
             object: 'chat.completion',
-            created: Math.floor(Date.now() / 1000),
-            model: this.modelName,
-            choices: [{
+            created: response.created || Math.floor(Date.now() / 1000),
+            model: response.model || this.modelName,
+            choices: response.choices || [{
               index: 0,
-              message: {
-                role: 'assistant',
-                content: response
-              },
+              message: { role: 'assistant', content: response },
               finish_reason: 'stop'
             }],
-            usage: {
-              prompt_tokens: prompt.length,
-              completion_tokens: response.length,
-              total_tokens: prompt.length + response.length
+            usage: response.usage || {
+              prompt_tokens: 0,
+              completion_tokens: 0,
+              total_tokens: 0
             }
           };
         }
@@ -507,199 +507,321 @@ class CopilotCliClient {
     };
   }
 
-  buildPromptFromMessages(messages) {
-    // Combine messages into a single prompt, adding JSON instruction
-    // to ensure Copilot CLI returns structured output
-    const combined = messages
-      .map(msg => `${msg.role}: ${msg.content}`)
-      .join('\n\n');
-    
-    return combined + '\n\nIMPORTANT: You MUST respond with ONLY raw JSON. No markdown, no code blocks, no ``` fences, no explanation text before or after. Just the pure JSON object.';
+  /**
+   * Get (or refresh) the GitHub auth token via `gh auth token`.
+   * Caches for 30 minutes to avoid repeated process spawns.
+   */
+  async _getGhToken() {
+    const now = Date.now();
+    if (this._ghToken && now < this._tokenExpiry) {
+      return this._ghToken;
+    }
+
+    return new Promise((resolve, reject) => {
+      const proc = spawn('gh', ['auth', 'token'], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: true,
+      });
+      let stdout = '';
+      let stderr = '';
+      proc.stdout.on('data', (d) => { stdout += d.toString(); });
+      proc.stderr.on('data', (d) => { stderr += d.toString(); });
+      proc.on('close', (code) => {
+        if (code !== 0) {
+          reject(new Error(`gh auth token failed (code ${code}): ${stderr}`));
+        } else {
+          this._ghToken = stdout.trim();
+          this._tokenExpiry = now + 30 * 60 * 1000; // 30 min cache
+          resolve(this._ghToken);
+        }
+      });
+      proc.on('error', (err) => reject(err));
+    });
   }
 
   /**
-   * Strip markdown code fences, conversational preamble, and Copilot CLI
-   * metadata from output. Copilot CLI often:
-   *   1. Wraps responses in ```json ... ``` blocks
-   *   2. Prepends conversational text like "I'll open the temp file..." before JSON
-   *   3. Appends usage metadata lines
+   * Strip markdown code fences and extract JSON from the response.
+   * The API usually returns clean JSON, but just in case.
    */
   cleanResponse(raw) {
     let cleaned = raw.trim();
-    
+
     // Remove markdown code fences: ```json ... ``` or ``` ... ```
     const codeBlockMatch = cleaned.match(/```(?:json|\w*)?\s*\n?([\s\S]*?)\n?```/);
     if (codeBlockMatch) {
       cleaned = codeBlockMatch[1].trim();
     }
-    
-    // Remove Copilot CLI metadata lines that may leak into stdout
-    const metadataPatterns = [
-      /^Total usage est:.*$/gm,
-      /^API time spent:.*$/gm,
-      /^Total session time:.*$/gm,
-      /^Total code changes:.*$/gm,
-      /^Breakdown by AI model:.*$/gm,
-      /^\s*claude-[\w.-]+\s+.*$/gm,
-      /^\s*gpt-[\w.-]+\s+.*$/gm,
-      /^● Read .*$/gm,
-      /^\s*└.*$/gm,
-    ];
-    for (const pattern of metadataPatterns) {
-      cleaned = cleaned.replace(pattern, '');
-    }
-    
-    // Remove leading/trailing whitespace from cleanup
-    cleaned = cleaned.trim();
-    
-    // If the result is not valid JSON, try to extract JSON object/array
-    // from within conversational preamble text. Copilot CLI often prepends
-    // text like "I'll open the temp file to see..." before the actual JSON.
+
+    // If not valid JSON, try to extract JSON object/array from the tail
     if (cleaned && !this._isJsonLike(cleaned)) {
-      // Try to find a JSON object {...} or array [...]
       const jsonObjMatch = cleaned.match(/(\{[\s\S]*\})\s*$/);
       const jsonArrMatch = cleaned.match(/(\[[\s\S]*\])\s*$/);
-      
+
       if (jsonObjMatch && this._isJsonLike(jsonObjMatch[1])) {
         cleaned = jsonObjMatch[1].trim();
       } else if (jsonArrMatch && this._isJsonLike(jsonArrMatch[1])) {
         cleaned = jsonArrMatch[1].trim();
       }
     }
-    
+
     return cleaned;
   }
 
-  /**
-   * Quick check if a string looks like valid JSON (starts with { or [).
-   * Does a tentative parse to confirm.
-   */
   _isJsonLike(str) {
     const trimmed = str.trim();
     if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return false;
-    try {
-      JSON.parse(trimmed);
-      return true;
-    } catch {
-      return false;
-    }
+    try { JSON.parse(trimmed); return true; } catch { return false; }
   }
 
-  async callCopilotCli(prompt, timeoutMs = 120000) {
-    return new Promise((resolve, reject) => {
-      // Always use temp file for reliability: avoids escaping issues,
-      // command-line length limits, and encoding problems
-      const tmpDir = os.tmpdir();
-      const tmpFile = path.join(tmpDir, `copilot-${Date.now()}.txt`);
-      let settled = false;
-      let timer = null;
-      
-      const cleanup = () => {
-        if (timer) { clearTimeout(timer); timer = null; }
-        try {
-          if (fs.existsSync(tmpFile)) {
-            fs.unlinkSync(tmpFile);
-          }
-        } catch (e) {
-          // Ignore cleanup errors
-        }
-      };
-      
-      try {
-        fs.writeFileSync(tmpFile, prompt, 'utf-8');
-        
-        // Use PowerShell to invoke copilot.ps1 with file-based prompt
-        // Wrap the command to capture only Output stream, not host/information
-        const psCommand = `$result = copilot --prompt "@${tmpFile}"; $result`;
-        const args = ['-NoProfile', '-Command', psCommand];
-        
-        console.log(`🤖 Calling Copilot CLI via PowerShell (prompt: ${prompt.length} chars)...`);
-        
-        const proc = spawn('powershell', args, {
-          stdio: ['pipe', 'pipe', 'pipe']
-        });
-        
-        let output = '';
-        let errorOutput = '';
-        
-        // Set timeout to kill hung processes
-        timer = setTimeout(() => {
-          if (!settled) {
-            settled = true;
-            console.error(`⏱️ Copilot CLI timed out after ${timeoutMs / 1000}s (prompt: ${prompt.length} chars)`);
-            try { proc.kill('SIGTERM'); } catch (e) {}
-            cleanup();
-            reject(new Error(`Copilot CLI timed out after ${timeoutMs / 1000}s`));
-          }
-        }, timeoutMs);
-        
-        proc.stdout.on('data', (data) => {
-          output += data.toString();
-        });
-        
-        proc.stderr.on('data', (data) => {
-          errorOutput += data.toString();
-        });
-        
-        proc.on('close', (code) => {
-          if (settled) return;
-          settled = true;
-          cleanup();
-          
-          if (code !== 0) {
-            console.error(`Copilot CLI error (code ${code}): ${errorOutput}`);
-            reject(new Error(`Copilot CLI failed: ${errorOutput}`));
-          } else {
-            const cleaned = this.cleanResponse(output);
-            console.log(`✅ Copilot CLI responded (${cleaned.length} chars, raw: ${output.length})`);
-            resolve(cleaned);
-          }
-        });
-        
-        proc.on('error', (err) => {
-          if (settled) return;
-          settled = true;
-          cleanup();
-          console.error(`Copilot CLI process error: ${err.message}`);
-          reject(err);
-        });
-        
-      } catch (err) {
-        if (!settled) {
-          settled = true;
-          cleanup();
-          console.error(`Copilot CLI setup error: ${err.message}`);
-          reject(err);
-        }
+  // ── Token limit constants ──────────────────────────────────────────────────
+  // GitHub Models API enforces a hard 16K token input limit for gpt-4.1/gpt-4o.
+  // We target ~12K tokens for content to leave room for system prompt + response.
+  // Rough heuristic: 1 token ≈ 4 chars.
+  static MAX_INPUT_TOKENS = 12000;
+  static CHARS_PER_TOKEN = 4;
+  static MAX_INPUT_CHARS = CopilotCliClient.MAX_INPUT_TOKENS * CopilotCliClient.CHARS_PER_TOKEN; // ~48K
+
+  /**
+   * Truncate messages to fit within the GitHub Models API input token limit.
+   *
+   * Strategy (applied to each message that has content):
+   *  1. If total chars is under MAX_INPUT_CHARS → return as-is.
+   *  2. Identify the largest message (usually the one with the ARIA tree).
+   *  3. Apply smart ARIA tree truncation:
+   *     a. Remove decorative lines (box-drawing chars like ΓöüΓöü, ΓöÇΓöÇ)
+   *     b. Remove consecutive LineBreak nodes
+   *     c. Truncate long StaticText content to 80 chars
+   *     d. Remove duplicate/redundant StaticText nodes
+   *     e. If still too large, keep only actionable elements (button, textbox,
+   *        link, input, select, combobox, heading, toolbar, menu, tab, checkbox,
+   *        radio) and drop StaticText/LineBreak/generic divs
+   *  4. If still over limit, hard-truncate the biggest message from the middle,
+   *     preserving the first and last portions.
+   *
+   * @param {Array} messages - OpenAI messages array [{role, content}, ...]
+   * @returns {Array} - Truncated messages array
+   */
+  truncateMessages(messages) {
+    const totalChars = messages.reduce((sum, m) => sum + (m.content || '').length, 0);
+
+    if (totalChars <= CopilotCliClient.MAX_INPUT_CHARS) {
+      return messages; // fits fine
+    }
+
+    console.log(`✂️  Messages too large (${totalChars} chars, ~${Math.round(totalChars / CopilotCliClient.CHARS_PER_TOKEN)} tokens). Truncating...`);
+
+    // Work on a deep copy so we don't mutate the original
+    const truncated = messages.map(m => ({ ...m }));
+
+    // Find the largest message (the one most likely containing the ARIA tree)
+    let largestIdx = 0;
+    let largestLen = 0;
+    for (let i = 0; i < truncated.length; i++) {
+      const len = (truncated[i].content || '').length;
+      if (len > largestLen) {
+        largestLen = len;
+        largestIdx = i;
       }
+    }
+
+    let content = truncated[largestIdx].content || '';
+    const originalLen = content.length;
+
+    // ── Phase 1: Remove decorative/noise lines ─────────────────────────────
+    // Remove box-drawing decorative lines (ΓöüΓöü... and ΓöÇΓöÇ... patterns)
+    content = content.replace(/\[[\d-]+\] StaticText: [ΓöüΓöÇ≡ƒ─═╦╗╔╚╝╩╬╠╣║│┌┐└┘├┤┬┴┼▀▄█▐░▒▓■□▪▫●○◆◇★☆]{5,}[^\n]*/g, '');
+
+    // Remove consecutive LineBreak entries — keep max 1 between content nodes
+    content = content.replace(/(\[[\d-]+\] LineBreak: \\n\s*\n?\s*){2,}/g, (match) => {
+      // Keep just the first LineBreak
+      const first = match.match(/\[[\d-]+\] LineBreak: \\n/);
+      return first ? first[0] + '\n' : '';
     });
+
+    // Remove standalone LineBreak lines that are just whitespace padding
+    content = content.replace(/^\s*\[[\d-]+\] LineBreak: \\n\s*$/gm, '');
+
+    // ── Phase 2: Truncate long StaticText content ──────────────────────────
+    content = content.replace(/(\[[\d-]+\] StaticText: )(.{80,})/g, (match, prefix, text) => {
+      return prefix + text.substring(0, 80) + '…';
+    });
+
+    // Remove empty/whitespace-only StaticText nodes
+    content = content.replace(/\[[\d-]+\] StaticText:\s*\\n\s*/g, '');
+
+    // Collapse multiple blank lines into one
+    content = content.replace(/\n{3,}/g, '\n\n');
+
+    const afterPhase2 = content.length;
+    const otherChars = totalChars - originalLen;
+    let currentTotal = otherChars + content.length;
+
+    if (currentTotal <= CopilotCliClient.MAX_INPUT_CHARS) {
+      console.log(`✂️  Phase 1-2 sufficient: ${originalLen} → ${content.length} chars (removed ${originalLen - content.length})`);
+      truncated[largestIdx].content = content;
+      return truncated;
+    }
+
+    // ── Phase 3: Keep only actionable elements ─────────────────────────────
+    // Parse lines, keep those with actionable roles/types
+    const actionableRoles = new Set([
+      'button', 'textbox', 'link', 'input', 'select', 'combobox', 'checkbox',
+      'radio', 'tab', 'tablist', 'menu', 'menuitem', 'menubar', 'toolbar',
+      'heading', 'navigation', 'search', 'dialog', 'alertdialog', 'tree',
+      'treeitem', 'listbox', 'option', 'slider', 'switch', 'spinbutton',
+      'img', 'group', 'banner', 'main', 'form', 'editor-aria-handler',
+    ]);
+
+    const actionablePatterns = /\b(button|textbox|link|input|select|combobox|checkbox|radio|tab|menu|menuitem|toolbar|heading|navigation|search|dialog|tree|treeitem|listbox|option|slider|switch|img|group|form|editor|paragraph)\b/i;
+
+    const lines = content.split('\n');
+    const filteredLines = [];
+    let keptActionable = 0;
+    let droppedNoise = 0;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      // Always keep non-ARIA lines (system prompt text, instructions, etc.)
+      if (!trimmed.match(/^\[[\d-]+\]/)) {
+        filteredLines.push(line);
+        continue;
+      }
+      // Keep lines with actionable roles
+      if (actionablePatterns.test(trimmed)) {
+        filteredLines.push(line);
+        keptActionable++;
+      } else {
+        droppedNoise++;
+      }
+    }
+
+    content = filteredLines.join('\n');
+    // Collapse multiple blank lines again
+    content = content.replace(/\n{3,}/g, '\n\n');
+
+    currentTotal = otherChars + content.length;
+    console.log(`✂️  Phase 3: kept ${keptActionable} actionable nodes, dropped ${droppedNoise} noise nodes (${afterPhase2} → ${content.length} chars)`);
+
+    if (currentTotal <= CopilotCliClient.MAX_INPUT_CHARS) {
+      truncated[largestIdx].content = content;
+      return truncated;
+    }
+
+    // ── Phase 4: Hard truncation — keep first and last portions ────────────
+    const budget = CopilotCliClient.MAX_INPUT_CHARS - otherChars;
+    const keepFront = Math.floor(budget * 0.6); // 60% from start (system-level context)
+    const keepBack = budget - keepFront;         // 40% from end (usually the actionable area)
+
+    const marker = `\n\n[... TRUNCATED ${content.length - budget} chars to fit 16K token limit ...]\n\n`;
+    content = content.substring(0, keepFront) + marker + content.substring(content.length - keepBack);
+
+    console.log(`✂️  Phase 4: hard-truncated to ${content.length} chars (budget: ${budget})`);
+    truncated[largestIdx].content = content;
+    return truncated;
+  }
+
+  /**
+   * Call the GitHub Models API with the given messages array.
+   * Uses standard OpenAI chat completions format.
+   * Automatically truncates messages if they exceed the 16K token input limit.
+   */
+  async callModelsApi(messages, timeoutMs = 120000) {
+    const token = await this._getGhToken();
+    const url = 'https://models.inference.ai.azure.com/chat/completions';
+
+    // Apply smart truncation if messages are too large for the API
+    const truncatedMessages = this.truncateMessages(messages);
+
+    const body = JSON.stringify({
+      model: this.modelName,
+      messages: truncatedMessages,
+    });
+
+    const totalChars = truncatedMessages.reduce((sum, m) => sum + (m.content || '').length, 0);
+    console.log(`🤖 Calling GitHub Models API (model: ${this.modelName}, ${truncatedMessages.length} messages, ~${totalChars} chars)...`);
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: body,
+          signal: controller.signal,
+        });
+
+        clearTimeout(timer);
+
+        if (resp.status === 429) {
+          const errBody = await resp.text();
+          if (attempt < maxRetries) {
+            console.log(`⏳ Rate limited (429). Waiting 70 seconds before retry (attempt ${attempt}/${maxRetries})...`);
+            console.log(`   Error: ${errBody.substring(0, 200)}`);
+            for (let s = 70; s > 0; s -= 10) {
+              console.log(`   ⏳ ${s} seconds remaining...`);
+              await new Promise(resolve => setTimeout(resolve, Math.min(10000, s * 1000)));
+            }
+            continue;
+          }
+          throw new Error(`GitHub Models API error 429 after ${maxRetries} retries: ${errBody}`);
+        }
+
+        if (!resp.ok) {
+          const errBody = await resp.text();
+          throw new Error(`GitHub Models API error ${resp.status}: ${errBody}`);
+        }
+
+        const data = await resp.json();
+        const content = data.choices?.[0]?.message?.content || '';
+        const cleaned = this.cleanResponse(content);
+        const tokens = data.usage?.total_tokens || 0;
+        console.log(`✅ GitHub Models API responded (${cleaned.length} chars, ${tokens} tokens)`);
+
+        // Return the full response object with cleaned content
+        data.choices[0].message.content = cleaned;
+        return data;
+      } catch (err) {
+        clearTimeout(timer);
+        if (err.name === 'AbortError') {
+          throw new Error(`GitHub Models API timed out after ${timeoutMs / 1000}s`);
+        }
+        throw err;
+      }
+    }
   }
 }
 
 /**
- * Setup Copilot CLI as LLM client (avoids rate limits)
- * @param {string} modelName - Model name for identification
+ * Setup GitHub Models API as LLM client (free, no rate limits on prompts)
+ * Uses `gh auth token` for authentication.
+ * @param {string} modelName - Model name (e.g. "gpt-4.1", "gpt-4o")
  * @returns {CustomOpenAIClient} Configured client for Stagehand
  */
-function setupCopilotCli(modelName = "copilot-cli") {
-  console.log("🤖 Setting up Copilot CLI...");
+function setupCopilotCli(modelName = "gpt-4.1") {
+  console.log("🤖 Setting up GitHub Models API...");
   const copilotClient = new CopilotCliClient(modelName);
   const llmClient = new CustomOpenAIClient({
     modelName: modelName,
     client: copilotClient,
   });
-  console.log("✅ Copilot CLI ready\n");
+  console.log("✅ GitHub Models API ready\n");
   return llmClient;
 }
 
-// ── Hybrid Client (trapi-first, Copilot CLI fallback) ───────────────────────
+// ── Hybrid Client (trapi-first, GitHub Models API fallback) ─────────────────
 /**
  * LLM client that uses Azure OpenAI (trapi) as primary endpoint for speed,
- * and automatically falls back to Copilot CLI when rate-limited (429).
+ * and automatically falls back to GitHub Models API when rate-limited (429).
  *
  * This gives the best of both worlds:
  * - Fast responses (~2-5s) when trapi quota is available
- * - Unlimited fallback via Copilot CLI (~17-24s) when rate-limited
+ * - Unlimited fallback via GitHub Models API when rate-limited
  */
 class HybridClient {
   constructor(modelName = "gpt-4o_2024-11-20") {
@@ -722,8 +844,8 @@ class HybridClient {
       apiVersion: "2024-10-21",
     });
 
-    // Setup Copilot CLI fallback
-    this._copilotClient = new CopilotCliClient("copilot-cli");
+    // Setup GitHub Models API fallback
+    this._copilotClient = new CopilotCliClient("gpt-4.1");
 
     // Expose chat.completions.create interface
     this.chat = {
@@ -741,7 +863,7 @@ class HybridClient {
     // If we're still within a known rate-limit window, skip trapi
     if (now < this._rateLimitedUntil) {
       const waitSec = Math.round((this._rateLimitedUntil - now) / 1000);
-      console.log(`⏳ trapi rate-limited for ~${waitSec}s more, using Copilot CLI`);
+      console.log(`⏳ trapi rate-limited for ~${waitSec}s more, using GitHub Models API`);
       return this._callCopilotFallback(params);
     }
 
@@ -763,11 +885,11 @@ class HybridClient {
         const retryAfterSec = this._parseRetryAfter(err) || 60;
         this._rateLimitedUntil = Date.now() + retryAfterSec * 1000;
         this._consecutiveFallbacks++;
-        console.warn(`⚠️  trapi 429 rate-limited (retry after ${retryAfterSec}s). Falling back to Copilot CLI [#${this._consecutiveFallbacks}]`);
+        console.warn(`⚠️  trapi 429 rate-limited (retry after ${retryAfterSec}s). Falling back to GitHub Models API [#${this._consecutiveFallbacks}]`);
         return this._callCopilotFallback(params);
       }
       // Non-rate-limit error — still try Copilot CLI as last resort
-      console.warn(`⚠️  trapi error: ${err.message}. Falling back to Copilot CLI`);
+      console.warn(`⚠️  trapi error: ${err.message}. Falling back to GitHub Models API`);
       return this._callCopilotFallback(params);
     }
   }
@@ -802,28 +924,28 @@ class HybridClient {
 }
 
 /**
- * Setup hybrid LLM client (trapi-first, Copilot CLI fallback on 429)
+ * Setup hybrid LLM client (trapi-first, GitHub Models API fallback on 429)
  * @param {string} modelName - Azure model deployment name
  * @returns {CustomOpenAIClient} Configured client for Stagehand
  */
 function setupHybrid(modelName = "gpt-4o_2024-11-20") {
-  console.log("🔀 Setting up Hybrid LLM (trapi → Copilot CLI fallback)...");
+  console.log("🔀 Setting up Hybrid LLM (trapi → GitHub Models API fallback)...");
   const hybridClient = new HybridClient(modelName);
   const llmClient = new CustomOpenAIClient({
     modelName: modelName,
     client: hybridClient,
   });
-  console.log("✅ Hybrid LLM ready (trapi primary, Copilot CLI fallback)\n");
+  console.log("✅ Hybrid LLM ready (trapi primary, GitHub Models API fallback)\n");
   return llmClient;
 }
 
 /**
- * Setup LLM client (hybrid by default: trapi-first with Copilot CLI fallback)
- * @param {string} provider - "hybrid", "copilot", or "azure"
+ * Setup LLM client (copilot CLI by default)
+ * @param {string} provider - "copilot", "hybrid", or "azure"
  * @param {string} modelName - Model name
  * @returns {CustomOpenAIClient} Configured client for Stagehand
  */
-function setupLLMClient(provider = "hybrid", modelName) {
+function setupLLMClient(provider = "copilot", modelName) {
   if (provider === "hybrid") {
     return setupHybrid(modelName);
   } else if (provider === "copilot") {

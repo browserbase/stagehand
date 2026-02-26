@@ -1,0 +1,223 @@
+[
+  {
+    "timestamp": 1328,
+    "type": "goto",
+    "url": "https://www.booking.com",
+    "description": "Navigate to https://www.booking.com"
+  },
+  {
+    "timestamp": 2340,
+    "type": "wait",
+    "ms": 3000,
+    "description": "Initial page load"
+  },
+  {
+    "timestamp": 9357,
+    "type": "act",
+    "instruction": "Click the destination search input field",
+    "description": "Click destination input",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[1]/div[2]/div[1]/main[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/form[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/input[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Combobox input field labeled 'Where are you going?' used for searching destination properties.",
+    "aria": {
+      "tagName": "input",
+      "type": null,
+      "role": "combobox",
+      "implicitRole": "textbox",
+      "ariaLabel": "Where are you going?",
+      "placeholder": "Where are you going?",
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": "ss",
+      "id": ":R19amr5:",
+      "className": "b915b8dc0b",
+      "bestLabel": "Where are you going?",
+      "matchCount": 1,
+      "nearestAncestorId": "main",
+      "ariaAncestors": [
+        {
+          "tagName": "form",
+          "ariaLabel": "Search properties",
+          "role": "region",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "main",
+          "ariaLabel": null,
+          "role": null,
+          "id": "main",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 9402,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Click destination input"
+  },
+  {
+    "timestamp": 14043,
+    "type": "act",
+    "instruction": "Type 'Chicago' into search",
+    "description": "Fill destination: Chicago",
+    "method": "type"
+  },
+  {
+    "timestamp": 19378,
+    "type": "act",
+    "instruction": "Click the autocomplete suggestion that represents the city of Chicago (prefer the city option, not an airport)",
+    "description": "Select destination autocomplete suggestion",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[1]/div[2]/div[1]/main[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/form[1]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/ul[2]/li[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Option in autocomplete listbox for 'Chicago Jun 26 – Jun 27 , 2 adults' in 'Your recent searches' group, representing the city of Chicago.",
+    "aria": null
+  },
+  {
+    "timestamp": 20085,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Select destination autocomplete suggestion"
+  },
+  {
+    "timestamp": 28768,
+    "type": "act",
+    "instruction": "Click the check-in date field to open the calendar",
+    "description": "Open calendar",
+    "selector": null,
+    "method": null,
+    "arguments": [],
+    "aria": null
+  },
+  {
+    "timestamp": 36337,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Open calendar"
+  },
+  {
+    "timestamp": 54285,
+    "type": "act",
+    "instruction": "Select check-in date 2026-04-26",
+    "description": "Click check-in date",
+    "method": "click"
+  },
+  {
+    "timestamp": 54799,
+    "type": "act",
+    "instruction": "Select check-out date 2026-04-28",
+    "description": "Click check-out date",
+    "method": "click"
+  },
+  {
+    "timestamp": 62274,
+    "type": "act",
+    "instruction": "Click the Search button to search for hotels",
+    "description": "Click Search button",
+    "selector": "xpath=/html[1]/body[1]/div[4]/div[1]/div[3]/div[1]/div[1]/div[1]/form[1]/div[1]/div[4]/button[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Search button to search for hotels",
+    "aria": {
+      "tagName": "button",
+      "type": "submit",
+      "role": null,
+      "implicitRole": "button",
+      "ariaLabel": null,
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "Search",
+      "name": null,
+      "id": null,
+      "className": "de576f5064 b46cd7aad7 ced67027e5 dda427e6b5 f3e59d528f ca8e0b9533 cfd71fb584 a9d40b8d51",
+      "bestLabel": "Search",
+      "matchCount": 0,
+      "nearestAncestorId": "bodyconstraint-inner",
+      "ariaAncestors": [
+        {
+          "tagName": "form",
+          "ariaLabel": "Search properties",
+          "role": "region",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "bodyconstraint-inner",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "bodyconstraint",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 62881,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Click Search button"
+  },
+  {
+    "timestamp": 82461,
+    "type": "extract",
+    "instruction": "Extract hotel search results",
+    "description": "Extract up to 5 hotels",
+    "results": {
+      "hotels": [
+        {
+          "name": "Hilton Garden Inn Chicago Downtown/Magnificent Mile Opens in new window",
+          "totalPrice": "$152",
+          "perNightPrice": "$76",
+          "rawTotal": 152
+        },
+        {
+          "name": "DoubleTree by Hilton Chicago Magnificent Mile Opens in new window",
+          "totalPrice": "$179",
+          "perNightPrice": "$89",
+          "rawTotal": 179
+        },
+        {
+          "name": "Sonesta ES Suites Chicago Downtown Magnificent Mile Medical Opens in new window",
+          "totalPrice": "$267",
+          "perNightPrice": "$133",
+          "rawTotal": 267
+        },
+        {
+          "name": "River Hotel Opens in new window",
+          "totalPrice": "$188",
+          "perNightPrice": "$94",
+          "rawTotal": 188
+        },
+        {
+          "name": "Godfrey Hotel Chicago Opens in new window",
+          "totalPrice": "$182",
+          "perNightPrice": "$91",
+          "rawTotal": 182
+        }
+      ]
+    }
+  }
+]

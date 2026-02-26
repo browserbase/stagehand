@@ -1,0 +1,504 @@
+[
+  {
+    "timestamp": 1311,
+    "type": "goto",
+    "url": "https://www.google.com/travel/flights",
+    "description": "Navigate to https://www.google.com/travel/flights"
+  },
+  {
+    "timestamp": 1906,
+    "type": "wait",
+    "ms": 3000,
+    "description": "Initial page load"
+  },
+  {
+    "timestamp": 8068,
+    "type": "act",
+    "instruction": "Check the trip type selector. If it does not say \"Round trip\", click it and select \"Round trip\" from the dropdown.",
+    "description": "Ensure Round Trip selected",
+    "selector": "xpath=/html[1]/body[1]/c-wiz[2]/div[1]/div[2]/c-wiz[1]/div[1]/c-wiz[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Trip type selector combobox, currently labeled 'Change ticket type. Round trip'",
+    "aria": {
+      "tagName": "div",
+      "type": null,
+      "role": "combobox",
+      "implicitRole": null,
+      "ariaLabel": null,
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "Round trip",
+      "name": null,
+      "id": null,
+      "className": "VfPpkd-TkwUic",
+      "bestLabel": "Round trip",
+      "matchCount": 0,
+      "nearestAncestorId": null,
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": "Flight",
+          "role": "search",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 8115,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Ensure Round Trip selected"
+  },
+  {
+    "timestamp": 11004,
+    "type": "act",
+    "instruction": "Click the \"Where from?\" origin input field",
+    "description": "Click origin input",
+    "selector": null,
+    "method": null,
+    "arguments": [],
+    "aria": null
+  },
+  {
+    "timestamp": 14836,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Click origin input"
+  },
+  {
+    "timestamp": 18581,
+    "type": "act",
+    "instruction": "Type 'Seattle' into origin",
+    "description": "Fill origin: Seattle",
+    "method": "type"
+  },
+  {
+    "timestamp": 22194,
+    "type": "act",
+    "instruction": "Click the first autocomplete suggestion for the city \"Seattle\" from the dropdown list",
+    "description": "Select origin suggestion",
+    "selector": "xpath=/html[1]/body[1]/c-wiz[2]/div[1]/div[2]/c-wiz[1]/div[1]/c-wiz[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[6]/div[3]/ul[1]/li[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "The first autocomplete suggestion for Seattle from the dropdown list: 'Seattle, Washington'",
+    "aria": {
+      "tagName": "li",
+      "type": null,
+      "role": "option",
+      "implicitRole": null,
+      "ariaLabel": "Seattle, Washington",
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "Seattle, WashingtonCity in Washington State.Showing 1 nearby location.",
+      "name": null,
+      "id": "c34",
+      "className": "n4HaVc sMVRZe pIWVuc",
+      "bestLabel": "Seattle, Washington",
+      "matchCount": 1,
+      "nearestAncestorId": "h0T7hb-9",
+      "ariaAncestors": [
+        {
+          "tagName": "ul",
+          "ariaLabel": null,
+          "role": "listbox",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "h0T7hb-9",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": "Enter your destination",
+          "role": "dialog",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "i23",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": "Flight",
+          "role": "search",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 22292,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Select origin suggestion"
+  },
+  {
+    "timestamp": 27225,
+    "type": "act",
+    "instruction": "Type 'Chicago' into destination",
+    "description": "Fill destination: Chicago",
+    "method": "type"
+  },
+  {
+    "timestamp": 30308,
+    "type": "act",
+    "instruction": "Click the first autocomplete suggestion for the city \"Chicago\" from the dropdown list",
+    "description": "Select destination suggestion",
+    "selector": "xpath=/html[1]/body[1]/c-wiz[2]/div[1]/div[2]/c-wiz[1]/div[1]/c-wiz[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[6]/div[3]/ul[1]/li[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Option in dropdown list for 'Chicago, Illinois', representing the first autocomplete suggestion.",
+    "aria": {
+      "tagName": "li",
+      "type": null,
+      "role": "option",
+      "implicitRole": null,
+      "ariaLabel": "Chicago, Illinois",
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "Chicago, IllinoisCity in Illinois.Showing 2 nearby locations.",
+      "name": null,
+      "id": "c55",
+      "className": "n4HaVc sMVRZe pIWVuc",
+      "bestLabel": "Chicago, Illinois",
+      "matchCount": 1,
+      "nearestAncestorId": "h0T7hb-9",
+      "ariaAncestors": [
+        {
+          "tagName": "ul",
+          "ariaLabel": null,
+          "role": "listbox",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "h0T7hb-9",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": "Enter your destination",
+          "role": "dialog",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "i23",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": "Flight",
+          "role": "search",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 30357,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Select destination suggestion"
+  },
+  {
+    "timestamp": 40160,
+    "type": "act",
+    "instruction": "Click the departure date field to open the date picker",
+    "description": "Open departure date picker",
+    "selector": "xpath=/html[1]/body[1]/c-wiz[2]/div[1]/div[2]/c-wiz[1]/div[1]/c-wiz[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[2]/div[2]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/input[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Textbox labeled 'Departure' for selecting the departure date field; clicking this will open the date picker.",
+    "aria": {
+      "tagName": "input",
+      "type": "text",
+      "role": null,
+      "implicitRole": "textbox",
+      "ariaLabel": "Departure",
+      "placeholder": "Departure",
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": null,
+      "id": null,
+      "className": "TP4Lpb eoY5cb j0Ppje",
+      "bestLabel": "Departure",
+      "matchCount": 2,
+      "nearestAncestorId": null,
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": "Flight",
+          "role": "search",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 40252,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Open departure date picker"
+  },
+  {
+    "timestamp": 44404,
+    "type": "act",
+    "instruction": "Enter departure date 2026/04/26",
+    "description": "Type departure date",
+    "method": "type"
+  },
+  {
+    "timestamp": 48732,
+    "type": "act",
+    "instruction": "Click the return date field to enter the return date",
+    "description": "Click return date field",
+    "selector": "xpath=/html[1]/body[1]/c-wiz[2]/div[1]/div[2]/c-wiz[1]/div[1]/c-wiz[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[2]/div[2]/div[1]/div[1]/div[2]/div[2]/div[2]/div[1]/div[1]/div[2]/div[1]/input[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Textbox labeled 'Return' for entering the return date",
+    "aria": {
+      "tagName": "input",
+      "type": "text",
+      "role": null,
+      "implicitRole": "textbox",
+      "ariaLabel": "Return",
+      "placeholder": "Return",
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": null,
+      "id": null,
+      "className": "TP4Lpb eoY5cb j0Ppje",
+      "bestLabel": "Return",
+      "matchCount": 2,
+      "nearestAncestorId": "ow13",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "dialog",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "ow13",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": "Flight",
+          "role": "search",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 48854,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Click return date field"
+  },
+  {
+    "timestamp": 52437,
+    "type": "act",
+    "instruction": "Enter return date 2026/04/30",
+    "description": "Type return date",
+    "method": "type"
+  },
+  {
+    "timestamp": 54523,
+    "type": "act",
+    "instruction": "Click the \"Done\" button if it is visible on the date picker",
+    "description": "Click Done on calendar",
+    "selector": "xpath=/html[1]/body[1]/c-wiz[2]/div[1]/div[2]/c-wiz[1]/div[1]/c-wiz[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[2]/div[2]/div[1]/div[1]/div[2]/div[2]/div[3]/div[3]/div[1]/button[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Done button on the date picker to confirm date selection and search for one-way flights, departing on April 26, 2026",
+    "aria": {
+      "tagName": "button",
+      "type": null,
+      "role": null,
+      "implicitRole": "button",
+      "ariaLabel": "Done. Search for one-way flights, departing on April 26, 2026",
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "Done",
+      "name": null,
+      "id": null,
+      "className": "VfPpkd-LgbsSe VfPpkd-LgbsSe-OWXEXe-k8QpJ VfPpkd-LgbsSe-OWXEXe-dgl2Hf nCP5yc AjY5Oe DuMIQc LQeN7 z18xM rtW97 Q74FEc dAwNDc",
+      "bestLabel": "Done. Search for one-way flights, departing on April 26, 2026",
+      "matchCount": 1,
+      "nearestAncestorId": "ow13",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "dialog",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "ow13",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": "Flight",
+          "role": "search",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 54573,
+    "type": "wait",
+    "ms": 2000,
+    "description": "Wait after: Click Done on calendar"
+  },
+  {
+    "timestamp": 59244,
+    "type": "act",
+    "instruction": "Click the Search button to search for flights",
+    "description": "Click Search button",
+    "selector": "xpath=/html[1]/body[1]/c-wiz[2]/div[1]/div[2]/c-wiz[1]/div[1]/c-wiz[1]/div[2]/div[1]/div[1]/div[2]/div[1]/button[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Search button in the main flight search section, used to search for flights",
+    "aria": {
+      "tagName": "button",
+      "type": null,
+      "role": null,
+      "implicitRole": "button",
+      "ariaLabel": "Search",
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "Search",
+      "name": null,
+      "id": null,
+      "className": "VfPpkd-LgbsSe VfPpkd-LgbsSe-OWXEXe-k8QpJ VfPpkd-LgbsSe-OWXEXe-Bz112c-M1Soyc nCP5yc AjY5Oe LQeN7 TUT4y zlyfOd",
+      "bestLabel": "Search",
+      "matchCount": 1,
+      "nearestAncestorId": null,
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": "Flight",
+          "role": "search",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 59292,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Click Search button"
+  },
+  {
+    "timestamp": 75923,
+    "type": "extract",
+    "instruction": "Extract flight search results",
+    "description": "Extract up to 5 flights",
+    "results": {
+      "flights": [
+        {
+          "itinerary": "Nonstop flight with Alaska. Leaves Seattle-Tacoma International Airport at 12:29 AM on Sunday, April 26 and arrives at Chicago O'Hare International Airport at 6:40 AM on Sunday, April 26. Total duration 4 hr 11 min.",
+          "price": "From 197 US dollars round trip total."
+        },
+        {
+          "itinerary": "Nonstop flight with United. Leaves Seattle-Tacoma International Airport at 7:00 AM on Sunday, April 26 and arrives at Chicago O'Hare International Airport at 1:12 PM on Sunday, April 26. Total duration 4 hr 12 min.",
+          "price": "From 197 US dollars round trip total."
+        },
+        {
+          "itinerary": "Nonstop flight with Delta. Leaves Seattle-Tacoma International Airport at 7:15 AM on Sunday, April 26 and arrives at Chicago O'Hare International Airport at 1:23 PM on Sunday, April 26. Total duration 4 hr 8 min.",
+          "price": "From 197 US dollars round trip total."
+        },
+        {
+          "itinerary": "Nonstop flight with Delta. Leaves Seattle-Tacoma International Airport at 10:35 AM on Sunday, April 26 and arrives at Chicago O'Hare International Airport at 4:39 PM on Sunday, April 26. Total duration 4 hr 4 min.",
+          "price": "From 197 US dollars round trip total."
+        },
+        {
+          "itinerary": "Nonstop flight with Delta. Leaves Seattle-Tacoma International Airport at 5:59 PM on Sunday, April 26 and arrives at Chicago O'Hare International Airport at 11:58 PM on Sunday, April 26. Total duration 3 hr 59 min.",
+          "price": "From 197 US dollars round trip total."
+        }
+      ]
+    }
+  }
+]

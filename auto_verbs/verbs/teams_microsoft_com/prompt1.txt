@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://teams.microsoft.com/v2/
+
+* Concrete task
+- send a message "Hello John" to johndoe@contoso.com
+- return boolean for success or not.
+
+

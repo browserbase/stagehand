@@ -1,0 +1,106 @@
+[
+  {
+    "timestamp": 1399,
+    "type": "goto",
+    "url": "https://www.alaskaair.com",
+    "description": "Navigate to https://www.alaskaair.com"
+  },
+  {
+    "timestamp": 8886,
+    "type": "wait",
+    "ms": 5000,
+    "description": "Initial page load"
+  },
+  {
+    "timestamp": 14927,
+    "type": "act",
+    "instruction": "Select Round trip",
+    "description": "Select Round Trip",
+    "method": "click"
+  },
+  {
+    "timestamp": 16544,
+    "type": "act",
+    "instruction": "Type 'Seattle' into From",
+    "description": "Fill origin: Seattle",
+    "method": "type"
+  },
+  {
+    "timestamp": 18593,
+    "type": "act",
+    "instruction": "Select suggestion for Seattle",
+    "description": "Select origin",
+    "method": "click"
+  },
+  {
+    "timestamp": 21167,
+    "type": "act",
+    "instruction": "Type 'Chicago' into To",
+    "description": "Fill destination: Chicago",
+    "method": "type"
+  },
+  {
+    "timestamp": 23216,
+    "type": "act",
+    "instruction": "Select suggestion for Chicago",
+    "description": "Select destination",
+    "method": "click"
+  },
+  {
+    "timestamp": 26238,
+    "type": "act",
+    "instruction": "Type departure: 04/26/2026",
+    "description": "Fill departure date",
+    "method": "type"
+  },
+  {
+    "timestamp": 28788,
+    "type": "act",
+    "instruction": "Type return: 04/30/2026",
+    "description": "Fill return date",
+    "method": "type"
+  },
+  {
+    "timestamp": 30914,
+    "type": "act",
+    "instruction": "Click Search flights",
+    "description": "Click Search flights",
+    "method": "click"
+  },
+  {
+    "timestamp": 33915,
+    "type": "wait",
+    "ms": 12000,
+    "description": "Wait for results"
+  },
+  {
+    "timestamp": 49600,
+    "type": "extract",
+    "instruction": "Extract flight results",
+    "description": "Extract up to 5 flights",
+    "results": {
+      "flights": [
+        {
+          "itinerary": "AS 328\n4h 11m\n12:29 am\nNonstop\n6:40 am\nSEA\nORD",
+          "economyPrice": "$197"
+        },
+        {
+          "itinerary": "AS 265\n4h 26m\n8:30 am\nNonstop\n2:56 pm\nSEA\nORD",
+          "economyPrice": "$267"
+        },
+        {
+          "itinerary": "AS 429\n4h 24m\n10:32 am\nNonstop\n4:56 pm\nSEA\nORD",
+          "economyPrice": "$267"
+        },
+        {
+          "itinerary": "AS 410\n4h 24m\n1:28 pm\nNonstop\n7:52 pm\nSEA\nORD",
+          "economyPrice": "$267"
+        },
+        {
+          "itinerary": "AS 538\n4h 17m\n5:42 pm\nNonstop\n11:59 pm\nSEA\nORD",
+          "economyPrice": "$237"
+        }
+      ]
+    }
+  }
+]

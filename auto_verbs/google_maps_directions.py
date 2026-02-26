@@ -139,9 +139,6 @@ def run(playwright: Playwright) -> None:
     # AI extraction: Extract travel time and distance values from their elements
     # Results: {"travelTime":"18 min","distance":"7.9 miles","travelTimeElementInfo":"[4-3188] StaticText: 18 min","distanceElementInfo":"[4-3189] StaticText: 7.9 miles"}
 
-    # Take screenshot: directions_result
-    page.screenshot(path="directions_result.png")
-
     # ---------------------
     # Cleanup
     # ---------------------

@@ -1,0 +1,11 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.amazon.com
+
+* Concrete task
+- clear the shopping cart
+- return boolean for success or not
+
+
+

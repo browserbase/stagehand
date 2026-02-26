@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.costco.com
+
+* Concrete task
+- search "kids winter jacket"
+- return a list of results (up to 5 items), each with the name and the price.
+
+

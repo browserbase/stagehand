@@ -1,0 +1,529 @@
+[
+  {
+    "timestamp": 1408,
+    "type": "goto",
+    "url": "https://www.costco.com",
+    "description": "Navigate to https://www.costco.com"
+  },
+  {
+    "timestamp": 6479,
+    "type": "wait",
+    "ms": 3000,
+    "description": "Wait for Costco to fully render"
+  },
+  {
+    "timestamp": 20717,
+    "type": "extract",
+    "instruction": "Analyze the current Costco homepage interface",
+    "description": "Interface discovery analysis",
+    "results": {
+      "availableOptions": [
+        "Skip to Main Content",
+        "While Supplies Last",
+        "Online-Only",
+        "Treasure Hunt",
+        "What's New",
+        "Member Favorites",
+        "Recommendations for You",
+        "Customer Service",
+        "US, Country/Region US United States",
+        "Sign In / Register",
+        "Orders & Returns",
+        "Cart",
+        "Shop",
+        "Grocery",
+        "Same Day",
+        "Savings",
+        "Business Delivery",
+        "Optical",
+        "Pharmacy",
+        "Services",
+        "Photo",
+        "Travel",
+        "Membership",
+        "Locations",
+        "Redmond, current warehouse",
+        "ZIP Code 98052, current delivery location",
+        "Lists",
+        "Buy Again",
+        "Search",
+        "Promo 1 of 2",
+        "Promo 2 of 2",
+        "Previous promo",
+        "Next promo",
+        "Sign In for Details",
+        "Add to List LG Counter-Depth MAX with Zero Clearance 3-Door French Door Refrigerator",
+        "Add to List Samsung 23 cu. ft. Bespoke Counter Depth 4-Door French Door Refrigerator with Family Hub",
+        "Add to List Whirlpool 30 cu. ft. French Door Refrigerator with Dual Ice Makers in Fingerprint Resistant Stainless Steel",
+        "Add to List GE Profile 4.8 cu. ft. ELECTRIC Front Load All-in-One Washer Dryer with Ventless Heat Pump, Sanitize Cycle",
+        "Add to List Bosch 500 Series Top Control Pocket Handle Dishwasher, Stainless Steel Tub, PureDry Technology, Ultra Quiet 44 dBa",
+        "Cookie Settings",
+        "Feedback",
+        "Find a Warehouse"
+      ],
+      "warehouseRelated": [
+        "Locations",
+        "Redmond, current warehouse",
+        "ZIP Code 98052, current delivery location",
+        "Find a Warehouse"
+      ],
+      "navigationLinks": [
+        "Featured Structures, Sheds, Spas and Playsets - $60-$2,000 OFF",
+        "While Supplies Last",
+        "Online-Only",
+        "Treasure Hunt",
+        "What's New",
+        "Member Favorites",
+        "Recommendations for You",
+        "Customer Service",
+        "Costco US homepage",
+        "Orders & Returns",
+        "Cart",
+        "Grocery",
+        "Same Day",
+        "Savings",
+        "Business Delivery",
+        "Optical",
+        "Pharmacy",
+        "Services",
+        "Photo",
+        "Travel",
+        "Membership",
+        "Locations",
+        "Lists",
+        "Buy Again",
+        "This week's featured items at your local warehouse",
+        "Shop what's new on Costco.com!",
+        "Shop select items, while supplies last!",
+        "Shop new lower prices on Costco.com!",
+        "Shop Costco Grocery With SameDay Delivery!",
+        "Appliance Savings",
+        "LG Counter-Depth MAX with Zero Clearance 3-Door French Door Refrigerator",
+        "Costco Direct",
+        "Online Only",
+        "Qualifying LG Products",
+        "Samsung 23 cu. ft. Bespoke Counter Depth 4-Door French Door Refrigerator with Family Hub",
+        "Costco Direct",
+        "Online Only",
+        "Qualifying Samsung Products",
+        "Whirlpool 30 cu. ft. French Door Refrigerator with Dual Ice Makers in Fingerprint Resistant Stainless Steel",
+        "Costco Direct",
+        "Online Only",
+        "GE Profile 4.8 cu. ft. ELECTRIC Front Load All-in-One Washer Dryer with Ventless Heat Pump, Sanitize Cycle",
+        "Costco Direct",
+        "Online Only",
+        "Bosch 500 Series Top Control Pocket Handle Dishwasher, Stainless Steel Tub, PureDry Technology, Ultra Quiet 44 dBa",
+        "Online Only",
+        "Costco Direct",
+        "Whirlpool",
+        "Samsung",
+        "LG",
+        "GE Appliances",
+        "Frigidaire",
+        "Shop February Online Savings!",
+        "Get Help",
+        "Get To Know Costco",
+        "Charitable Contributions",
+        "Company Information",
+        "Sustainability Commitment",
+        "Investor Relations",
+        "Careers",
+        "Kirkland Signature",
+        "Logo and Media Requests",
+        "The Costco Connection",
+        "Digital Connection",
+        "Quick & Easy Recipe Videos",
+        "Employee Site",
+        "Membership Benefits",
+        "Executive Member Benefits",
+        "Join Now",
+        "Member Privileges",
+        "Executive Membership Terms",
+        "Refer a Friend",
+        "Sign In or Register",
+        "Credit Card",
+        "Vendor Inquiries",
+        "Supply Chain Disclosure",
+        "Ethics Hotline for Suppliers",
+        "Supplier Inclusion",
+        "Explore Our Brands",
+        "Costco Customer Service",
+        "Costco Shop Card Balance",
+        "Order By Item Number",
+        "Concierge Tech Support & Warranty",
+        "Volume Sales: Export & Domestic",
+        "Order Status",
+        "Preventing Fraud",
+        "Shipping",
+        "Rebates",
+        "Recalls & Product Notices",
+        "Returns and Exchanges",
+        "Returns Policy",
+        "Accessibility",
+        "Find a Warehouse",
+        "Locations Coming Soon",
+        "Hours and Holiday Closures",
+        "Gasoline",
+        "Hearing Aid Center",
+        "Optical",
+        "Special Events",
+        "CostcoGrocery",
+        "Grocery by Instacart",
+        "Product Collections",
+        "Site Map",
+        "Terms and Conditions",
+        "Your Privacy Rights",
+        "CA Notice",
+        "CA Social Compliance",
+        "California Consumer Privacy Act (CCPA) Opt-Out Icon Your Privacy Choices",
+        "Consumer Health Data",
+        "Costco Facebook",
+        "Costco Pinterest",
+        "Costco Instagram",
+        "Costco App"
+      ],
+      "otherControls": [
+        "Search Costco",
+        "Cookie Settings",
+        "Feedback",
+        "Sign In / Register",
+        "Cart",
+        "Orders & Returns"
+      ]
+    }
+  },
+  {
+    "timestamp": 24126,
+    "type": "act",
+    "instruction": "Click on the 'Find a Warehouse' link or any warehouse/location selector on the page. Look in the header or navigation area.",
+    "description": "Click warehouse selector link",
+    "selector": "xpath=/html[1]/body[1]/div[2]/header[1]/div[1]/div[2]/div[1]/nav[1]/ul[1]/li[12]/div[1]/a[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Locations link in the main navigation header, likely a warehouse/location selector",
+    "aria": {
+      "tagName": "a",
+      "type": null,
+      "role": null,
+      "implicitRole": "link",
+      "ariaLabel": "Locations",
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "Locations",
+      "name": null,
+      "id": "Button_button-default",
+      "className": "MuiButtonBase-root MuiButton-root MuiButton-text-button MuiButton-text-buttonPrimary MuiButton-sizeStandard MuiButton-text-buttonSizeStandard MuiButton-colorPrimary MuiButton-root MuiButton-text-button MuiButton-text-buttonPrimary MuiButton-sizeStandard MuiButton-text-buttonSizeStandard MuiButton-colorPrimary mui-cwjik7",
+      "bestLabel": "Locations",
+      "matchCount": 1,
+      "nearestAncestorId": "header-content",
+      "ariaAncestors": [
+        {
+          "tagName": "ul",
+          "ariaLabel": null,
+          "role": "list",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "nav",
+          "ariaLabel": "Main",
+          "role": null,
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "header-content",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 26080,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Click warehouse selector link"
+  },
+  {
+    "timestamp": 27094,
+    "type": "wait",
+    "ms": 3000,
+    "description": "Wait for warehouse locator page to load"
+  },
+  {
+    "timestamp": 34642,
+    "type": "act",
+    "instruction": "Click on the 'City, State, or Zip' input field inside the 'Find a Warehouse' form (NOT the Costco product search box in the header)",
+    "description": "Click warehouse search input",
+    "selector": "xpath=/html[1]/body[1]/div[3]/div[1]/main[1]/div[2]/div[1]/div[1]/div[1]/form[1]/div[1]/div[1]/div[1]/input[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Combobox input field labeled 'City, State, or Zip' inside the 'Find a Warehouse' form in the main content area (not the header product search box)",
+    "aria": {
+      "tagName": "input",
+      "type": "text",
+      "role": "combobox",
+      "implicitRole": "textbox",
+      "ariaLabel": null,
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": "City, State, or Zip",
+      "id": ":R1399j6kvfff9uamkvfa:",
+      "className": "MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused mui-s43tfo",
+      "bestLabel": null,
+      "matchCount": 1,
+      "nearestAncestorId": "warehouse-locations-page",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "warehouse-locations-page",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "mainContent",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 34695,
+    "type": "wait",
+    "ms": 500,
+    "description": "Wait after: Click warehouse search input"
+  },
+  {
+    "timestamp": 37650,
+    "type": "act",
+    "instruction": "Type 'Redmond, WA' into the currently focused 'City, State, or Zip' input field",
+    "description": "Type warehouse location: Redmond, WA",
+    "selector": "xpath=/html[1]/body[1]/div[3]/div[1]/main[1]/div[2]/div[1]/div[1]/div[1]/form[1]/div[1]/div[1]/div[1]/input[1]",
+    "method": "type",
+    "arguments": [
+      "Redmond, WA"
+    ],
+    "observedDescription": "Input field (combobox) labeled 'City, State, or Zip' in the Find a Warehouse form. Likely currently focused for search input.",
+    "aria": {
+      "tagName": "input",
+      "type": "text",
+      "role": "combobox",
+      "implicitRole": "textbox",
+      "ariaLabel": null,
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": "City, State, or Zip",
+      "id": ":R1399j6kvfff9uamkvfa:",
+      "className": "MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused mui-s43tfo",
+      "bestLabel": null,
+      "matchCount": 1,
+      "nearestAncestorId": "warehouse-locations-page",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "warehouse-locations-page",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "mainContent",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 37687,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Type warehouse location: Redmond, WA"
+  },
+  {
+    "timestamp": 38698,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait for autocomplete to appear"
+  },
+  {
+    "timestamp": 41358,
+    "type": "act",
+    "instruction": "Click the 'Find' button that is inside the 'Find a Warehouse' section (NOT the header Search button). It is right next to the 'City, State, or Zip' input field.",
+    "description": "Click warehouse Find button",
+    "selector": "xpath=/html[1]/body[1]/div[3]/div[1]/main[1]/div[2]/div[1]/div[1]/div[1]/form[1]/div[1]/div[1]/div[1]/button[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "The 'Find' button located inside the 'Find a Warehouse' section, next to the 'City, State, or Zip' input field.",
+    "aria": {
+      "tagName": "button",
+      "type": "button",
+      "role": null,
+      "implicitRole": "button",
+      "ariaLabel": null,
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "Find",
+      "name": null,
+      "id": "Button_warehousedrawer-submit",
+      "className": "MuiButtonBase-root MuiButton-root MuiButton-primary MuiButton-primaryPrimary MuiButton-sizeStandard MuiButton-primarySizeStandard MuiButton-colorPrimary MuiButton-root MuiButton-primary MuiButton-primaryPrimary MuiButton-sizeStandard MuiButton-primarySizeStandard MuiButton-colorPrimary mui-zvign9",
+      "bestLabel": "Find",
+      "matchCount": 0,
+      "nearestAncestorId": "warehouse-locations-page",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "warehouse-locations-page",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "mainContent",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 41482,
+    "type": "wait",
+    "ms": 3000,
+    "description": "Wait after: Click warehouse Find button"
+  },
+  {
+    "timestamp": 44490,
+    "type": "wait",
+    "ms": 3000,
+    "description": "Wait for warehouse search results"
+  },
+  {
+    "timestamp": 54522,
+    "type": "extract",
+    "instruction": "Extract warehouse search results",
+    "description": "Extract warehouse locations from search results",
+    "results": {
+      "warehouses": [
+        {
+          "name": "Redmond",
+          "address": "",
+          "hasSetButton": false
+        },
+        {
+          "name": "Kirkland",
+          "address": "",
+          "hasSetButton": true
+        },
+        {
+          "name": "Woodinville",
+          "address": "",
+          "hasSetButton": true
+        },
+        {
+          "name": "Issaquah",
+          "address": "",
+          "hasSetButton": true
+        },
+        {
+          "name": "Seattle",
+          "address": "",
+          "hasSetButton": true
+        },
+        {
+          "name": "Aurora Village",
+          "address": "",
+          "hasSetButton": true
+        },
+        {
+          "name": "Lynnwood",
+          "address": "",
+          "hasSetButton": true
+        },
+        {
+          "name": "Lynnwood Business Center",
+          "address": "",
+          "hasSetButton": false
+        },
+        {
+          "name": "Everett WA",
+          "address": "",
+          "hasSetButton": true
+        },
+        {
+          "name": "Tukwila",
+          "address": "",
+          "hasSetButton": true
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 56172,
+    "type": "act",
+    "instruction": "Click the 'Set as My Warehouse' button that is associated with the warehouse closest to 'Redmond, WA'. Look for a warehouse with 'Redmond' in its name. Do NOT click the button for the currently set 'My Warehouse' — pick one from the search results below it.",
+    "description": "Set preferred warehouse to Redmond",
+    "selector": null,
+    "method": null,
+    "arguments": [],
+    "aria": null
+  },
+  {
+    "timestamp": 60274,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Set preferred warehouse to Redmond"
+  },
+  {
+    "timestamp": 61290,
+    "type": "wait",
+    "ms": 2000,
+    "description": "Wait for warehouse to be confirmed"
+  },
+  {
+    "timestamp": 66204,
+    "type": "extract",
+    "instruction": "Verify warehouse was set successfully",
+    "description": "Check for confirmation of warehouse selection",
+    "results": {
+      "isSet": true,
+      "warehouseName": "Kirkland",
+      "confirmationMessage": "Warehouse results updated"
+    }
+  }
+]

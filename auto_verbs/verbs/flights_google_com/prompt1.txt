@@ -1,0 +1,14 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.google.com/travel/flights
+
+* Concrete task
+- Search round trip flights from seattle to chicago. 
+- The departure date is 2 months from today. The return date is 4 days after the departure date. 
+- The dates can be entered as yyyy/mm/dd <enter>, which will be reformatted by the webpage automatically.
+- compose a list of the flights list (up to 5 flights). Each flight has its itinerary and its economy class price.
+- print the list.
+
+
+

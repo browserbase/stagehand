@@ -1,0 +1,12 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.booking.com
+
+* Concrete task
+- Search hotels in chicago. 
+- The check-in date is 2 months from today. It is for 2 nights.
+- compose a list of the hotels list (up to 5 hotels). Each hotel has its name and its per-night price.
+- print the list.
+
+
