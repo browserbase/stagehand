@@ -136,6 +136,46 @@ await context.addInitScript(() => {
  });
 ```
 
+### setExtraHTTPHeaders()
+
+Set HTTP headers that will be included in every request made by all pages in the browser context.
+
+```typescript
+await context.setExtraHTTPHeaders(headers: Record<string, string>): Promise<void>
+```
+
+<ParamField path="headers" type="Record<string, string>" required>
+  A plain object of header name–value pairs. All values must be strings.
+</ParamField>
+
+This method:
+- Applies the headers to all existing pages in the context immediately
+- Automatically applies the same headers to any pages created after calling `setExtraHTTPHeaders()`
+- Calling it again replaces all previously set extra headers (it does not merge)
+- To clear all extra headers, pass an empty object: `await context.setExtraHTTPHeaders({})`
+
+<Note>
+Headers set via `context.setExtraHTTPHeaders()` are context-wide. They apply to every network request from every page in the context, including navigation requests, XHR/fetch calls, and subresource loads.
+</Note>
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const context = stagehand.context;
+
+// Set custom headers for all requests
+await context.setExtraHTTPHeaders({
+  "X-Custom-Token": "my-secret-token",
+  "Accept-Language": "en-US",
+});
+
+// All subsequent requests from any page in this context
+// will include these headers
+const page = await context.newPage("https://example.com");
+```
+
 ### cookies()
 
 Retrieve browser cookies, optionally filtered by URL(s).
@@ -426,6 +466,37 @@ await stagehand.close();
 ```
 
 </Tab>
+<Tab title="Custom HTTP Headers">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const context = stagehand.context;
+
+// Set authorization headers for all requests
+await context.setExtraHTTPHeaders({
+  Authorization: "Bearer my-api-token",
+});
+
+// Navigate — the headers are sent with every request
+const page = context.pages()[0];
+await page.goto("https://api.example.com/dashboard");
+
+// Headers also apply to new pages
+const page2 = await context.newPage("https://api.example.com/settings");
+
+// Replace headers (previous headers are removed)
+await context.setExtraHTTPHeaders({
+  Authorization: "Bearer refreshed-token",
+  "X-Request-Id": "abc-123",
+});
+
+await stagehand.close();
+```
+
+</Tab>
 <Tab title="Cookie Management">
 
 ```typescript
@@ -573,6 +644,7 @@ Context methods may throw the following errors:
 - **Timeout errors** - `newPage()` timeout waiting for page to attach
 - **CDP errors** - Connection errors with Chrome DevTools Protocol
 - **Invalid page errors** - Attempting to set an active page that doesn't exist in the context
+- **StagehandSetExtraHTTPHeadersError** - `setExtraHTTPHeaders()` failed to apply headers to one or more sessions. The error includes a `failures` array with per-session details
 
 Always handle errors appropriately:
 
@@ -592,6 +664,7 @@ interface V3Context {
   pages(): Page[];
   activePage(): Page | undefined;
   setActivePage(page: Page): void;
+  setExtraHTTPHeaders(headers: Record<string, string>): Promise<void>;
   cookies(urls?: string | string[]): Promise<Cookie[]>;
   addCookies(cookies: CookieParam[]): Promise<void>;
   clearCookies(options?: ClearCookieOptions): Promise<void>;
