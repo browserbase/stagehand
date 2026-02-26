@@ -98,7 +98,11 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const provider = options?.provider;
   const excludeTools = options?.excludeTools;
   const variables = options?.variables;
-  const toolTimeout = options?.toolTimeout;
+  // the check for > 0 is probably overkill, but it's a good sanity check
+  const toolTimeout =
+    options?.toolTimeout != null && options.toolTimeout > 0
+      ? options.toolTimeout
+      : undefined;
 
   const timeoutMs = toolTimeout ?? DEFAULT_TOOL_TIMEOUT_MS;
 
@@ -115,8 +119,7 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     keys: keysTool(v3),
     navback: navBackTool(v3),
     screenshot: screenshotTool(v3),
-    scroll:
-      mode === "hybrid" ? scrollVisionTool(v3, provider) : scrollTool(v3),
+    scroll: mode === "hybrid" ? scrollVisionTool(v3, provider) : scrollTool(v3),
     think: thinkTool(),
     type: typeTool(v3, provider, variables),
     wait: waitTool(v3, mode),
