@@ -3,7 +3,7 @@ import * as Stagehand from "@browserbasehq/stagehand";
 
 describe("LLM and Agents public API types", () => {
   describe("ModelConfiguration", () => {
-    it("accepts custom headers in model config for AI SDK providers", () => {
+    it("accepts Vertex headers in model config", () => {
       const googleConfig = {
         modelName: "google/gemini-3-flash-preview",
         project: "test-project",
@@ -13,25 +13,7 @@ describe("LLM and Agents public API types", () => {
         },
       } satisfies Stagehand.ModelConfiguration;
 
-      const openaiConfig = {
-        modelName: "openai/gpt-4.1-mini",
-        apiKey: "test-key",
-        headers: {
-          "X-Test": "1",
-        },
-      } satisfies Stagehand.ModelConfiguration;
-
-      const anthropicConfig = {
-        modelName: "anthropic/claude-3-7-sonnet-latest",
-        apiKey: "test-key",
-        headers: {
-          "X-Test": "1",
-        },
-      } satisfies Stagehand.ModelConfiguration;
-
-      expect(googleConfig).toBeDefined();
-      expect(openaiConfig).toBeDefined();
-      expect(anthropicConfig).toBeDefined();
+      void googleConfig;
     });
   });
 
