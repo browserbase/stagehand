@@ -111,10 +111,10 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       bbApiKey = getOptionalHeader(request, "x-bb-api-key");
       bbProjectId = getOptionalHeader(request, "x-bb-project-id");
 
-      if (!bbApiKey || !bbProjectId) {
+      if (!bbApiKey) {
         return error(
           reply,
-          "Missing required headers for browserbase sessions",
+          "Missing required x-bb-api-key header for browserbase sessions",
         );
       }
 

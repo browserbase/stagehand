@@ -8,7 +8,7 @@ import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig.js";
 
 export async function createBrowserbaseSession(
   apiKey: string,
-  projectId: string,
+  projectId?: string,
   params?: BrowserbaseSessionCreateParams,
   resumeSessionId?: string,
 ): Promise<{ ws: string; sessionId: string; bb: Browserbase }> {
