@@ -30,7 +30,7 @@ export interface GoogleServiceAccountCredentials {
 
 export type GoogleVertexProviderSettings = Pick<
   GoogleVertexProviderSettingsBase,
-  "project" | "location"
+  "project" | "location" | "headers"
 > & {
   googleAuthOptions?: {
     credentials?: GoogleServiceAccountCredentials;

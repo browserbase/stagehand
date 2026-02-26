@@ -2,6 +2,39 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import * as Stagehand from "@browserbasehq/stagehand";
 
 describe("LLM and Agents public API types", () => {
+  describe("ModelConfiguration", () => {
+    it("accepts custom headers in model config for AI SDK providers", () => {
+      const googleConfig = {
+        modelName: "google/gemini-3-flash-preview",
+        project: "test-project",
+        location: "global",
+        headers: {
+          "X-Goog-Priority": "high",
+        },
+      } satisfies Stagehand.ModelConfiguration;
+
+      const openaiConfig = {
+        modelName: "openai/gpt-4.1-mini",
+        apiKey: "test-key",
+        headers: {
+          "X-Test": "1",
+        },
+      } satisfies Stagehand.ModelConfiguration;
+
+      const anthropicConfig = {
+        modelName: "anthropic/claude-3-7-sonnet-latest",
+        apiKey: "test-key",
+        headers: {
+          "X-Test": "1",
+        },
+      } satisfies Stagehand.ModelConfiguration;
+
+      expect(googleConfig).toBeDefined();
+      expect(openaiConfig).toBeDefined();
+      expect(anthropicConfig).toBeDefined();
+    });
+  });
+
   describe("AISdkClient", () => {
     type AISdkClientInstance = InstanceType<typeof Stagehand.AISdkClient>;
 
