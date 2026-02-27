@@ -127,6 +127,7 @@ export class ExtractHandler {
         experimental: this.experimental,
         focusSelector: focusSelector || undefined,
       });
+      ensureTimeRemaining();
 
       const result = { pageText: snap.combinedTree };
       // Validate via the same schema used in v2
