@@ -38,12 +38,15 @@ export const ariaTreeTool = (v3: V3, toolTimeout?: number) =>
       } catch (error) {
         if (error instanceof TimeoutError) {
           return {
-            content: `ariaTree timed out — the page may be too large, try using extract with a targeted selector instead`,
+            content: "",
+            error: `ariaTree timed out — the page may be too large, try using extract with fewer schema fields instead`,
+            success: false,
             pageUrl: "",
           };
         }
         return {
           content: `Error: ${error?.message ?? String(error)}`,
+          error: error?.message ?? String(error),
           pageUrl: "",
         };
       }
