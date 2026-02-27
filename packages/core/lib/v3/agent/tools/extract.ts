@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z, ZodTypeAny } from "zod";
 import type { V3 } from "../../v3.js";
 import type { AgentModelConfig } from "../../types/public/agent.js";
+import { TimeoutError } from "../../types/public/sdkErrors.js";
 
 interface JsonSchema {
   type?: string;
@@ -99,8 +100,13 @@ export const extractTool = (
         });
         return { success: true, result };
       } catch (error) {
-        const err = error as Error;
-        return { success: false, error: err?.message ?? String(error) };
+        if (error instanceof TimeoutError) {
+          return {
+            success: false,
+            error: `extract timed out — try using a smaller or simpler schema`,
+          };
+        }
+        return { success: false, error: error?.message ?? String(error) };
       }
     },
   });
