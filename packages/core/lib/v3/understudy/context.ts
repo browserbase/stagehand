@@ -675,12 +675,15 @@ export class V3Context {
     if (this.initScripts.length) {
       for (const source of this.initScripts) {
         initScriptOps.push(
-          queuePreResume("Page.addScriptToEvaluateOnNewDocument", {
-            source,
-            runImmediately: true,
-          },
-          (sentParams) =>
-            (sentParams as { source?: string } | undefined)?.source === source,
+          queuePreResume(
+            "Page.addScriptToEvaluateOnNewDocument",
+            {
+              source,
+              runImmediately: true,
+            },
+            (sentParams) =>
+              (sentParams as { source?: string } | undefined)?.source ===
+              source,
           ),
         );
       }
