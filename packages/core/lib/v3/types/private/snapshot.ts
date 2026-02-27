@@ -20,12 +20,6 @@ export type SnapshotOptions = {
    * Optional feature flag that surfaces experimental traversal tweaks in the Accessibility layer.
    */
   experimental?: boolean;
-  /**
-   * When true, return only the combined tree string instead of the full
-   * HybridSnapshot object. Intended for callers that only need the text
-   * outline (e.g. DOM hashing, cache keys).
-   */
-  treeOnly?: boolean;
 };
 
 /**
