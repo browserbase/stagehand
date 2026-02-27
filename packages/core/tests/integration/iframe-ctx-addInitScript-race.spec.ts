@@ -235,7 +235,11 @@ test.describe("repro: popup iframe addInitScript race under delayed CDP send", (
     const popup = await waitForPopupPage(ctx, knownTargetIds);
     await popup.waitForLoadState("domcontentloaded", 15_000);
     await waitForPageUrl(popup, POPUP_URL, 15_000);
-    const iframe = await waitForChildFrame(popup, POPUP_CHILD_FRAME_URL, 15_000);
+    const iframe = await waitForChildFrame(
+      popup,
+      POPUP_CHILD_FRAME_URL,
+      15_000,
+    );
 
     const popupDomContentLoadedMarker = await popup
       .mainFrame()
