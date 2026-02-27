@@ -81,7 +81,7 @@ export const fillFormTool = (
         if (error instanceof TimeoutError) {
           return {
             success: false,
-            error: `fillForm timed out — try filling fewer fields at once or use a different tool`,
+            error: `TimeoutError: fillForm() timed out — try filling fewer fields at once or use a different tool`,
           };
         }
         return {

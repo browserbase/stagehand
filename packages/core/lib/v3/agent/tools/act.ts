@@ -66,7 +66,7 @@ export const actTool = (
         if (error instanceof TimeoutError) {
           return {
             success: false,
-            error: `act timed out — try using a different description for the action`,
+            error: `TimeoutError: act() timed out — try using a different description for the action`,
           };
         }
         return {

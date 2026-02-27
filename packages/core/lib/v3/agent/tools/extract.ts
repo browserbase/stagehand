@@ -103,7 +103,7 @@ export const extractTool = (
         if (error instanceof TimeoutError) {
           return {
             success: false,
-            error: `extract timed out — try using a smaller or simpler schema`,
+            error: `TimeoutError: extract() timed out — try using a smaller or simpler schema`,
           };
         }
         return { success: false, error: error?.message ?? String(error) };
