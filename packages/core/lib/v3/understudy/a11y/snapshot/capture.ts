@@ -44,8 +44,16 @@ import { normalizeXPath, prefixXPath } from "./xpathUtils.js";
  */
 export async function captureHybridSnapshot(
   page: Page,
+  options: SnapshotOptions & { treeOnly: true },
+): Promise<string>;
+export async function captureHybridSnapshot(
+  page: Page,
   options?: SnapshotOptions,
-): Promise<HybridSnapshot> {
+): Promise<HybridSnapshot>;
+export async function captureHybridSnapshot(
+  page: Page,
+  options?: SnapshotOptions,
+): Promise<HybridSnapshot | string> {
   const pierce = options?.pierceShadow ?? true;
   const includeIframes = options?.includeIframes !== false;
 
@@ -57,7 +65,10 @@ export async function captureHybridSnapshot(
     context,
     pierce,
   );
-  if (scopedSnapshot) return scopedSnapshot;
+  if (scopedSnapshot) {
+    if (options?.treeOnly) return scopedSnapshot.combinedTree;
+    return scopedSnapshot;
+  }
 
   const framesInScope = includeIframes ? [...context.frames] : [context.rootId];
   if (!framesInScope.includes(context.rootId)) {
@@ -80,7 +91,7 @@ export async function captureHybridSnapshot(
     framesInScope,
   );
 
-  return mergeFramesIntoSnapshot(
+  const result = mergeFramesIntoSnapshot(
     context,
     perFrameMaps,
     perFrameOutlines,
@@ -88,6 +99,8 @@ export async function captureHybridSnapshot(
     iframeHostEncByChild,
     framesInScope,
   );
+  if (options?.treeOnly) return result.combinedTree;
+  return result;
 }
 
 /**
