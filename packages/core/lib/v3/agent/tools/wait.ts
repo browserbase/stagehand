@@ -41,6 +41,13 @@ export const waitTool = (v3: V3, mode?: AgentToolMode) =>
       return { success: true, waited: timeMs };
     },
     toModelOutput: (result) => {
+      if (result.success === false || result.error !== undefined) {
+        return {
+          type: "content",
+          value: [{ type: "text", text: JSON.stringify(result) }],
+        };
+      }
+
       const content: ModelOutputContentItem[] = [
         {
           type: "text",

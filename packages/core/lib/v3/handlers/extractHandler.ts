@@ -113,10 +113,8 @@ export class ExtractHandler {
 
     const llmClient = this.resolveLlmClient(model);
 
-    const effectiveTimeoutMs =
-      typeof timeout === "number" && timeout > 0 ? timeout : undefined;
     const ensureTimeRemaining = createTimeoutGuard(
-      effectiveTimeoutMs,
+      timeout,
       (ms) => new ExtractTimeoutError(ms),
     );
 

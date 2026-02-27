@@ -34,7 +34,7 @@ export const ariaTreeTool = (v3: V3, toolTimeout?: number) =>
             "\n\n[CONTENT TRUNCATED: Exceeded 70,000 token limit]";
         }
 
-        return { content, pageUrl };
+        return { success: true, content, pageUrl };
       } catch (error) {
         if (error instanceof TimeoutError) {
           return {
@@ -52,8 +52,19 @@ export const ariaTreeTool = (v3: V3, toolTimeout?: number) =>
         };
       }
     },
-    toModelOutput: (result) => ({
-      type: "content",
-      value: [{ type: "text", text: `Accessibility Tree:\n${result.content}` }],
-    }),
+    toModelOutput: (result) => {
+      if (result.success === false || result.error !== undefined) {
+        return {
+          type: "content",
+          value: [{ type: "text", text: JSON.stringify(result) }],
+        };
+      }
+
+      return {
+        type: "content",
+        value: [
+          { type: "text", text: `Accessibility Tree:\n${result.content}` },
+        ],
+      };
+    },
   });

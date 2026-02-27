@@ -1083,12 +1083,8 @@ export class V3 {
             frameId: v3Page.mainFrameId(),
           });
         } else {
-          const effectiveTimeoutMs =
-            typeof options?.timeout === "number" && options.timeout > 0
-              ? options.timeout
-              : undefined;
           const ensureTimeRemaining = createTimeoutGuard(
-            effectiveTimeoutMs,
+            options?.timeout,
             (ms) => new ActTimeoutError(ms),
           );
           actResult = await this.actHandler.takeDeterministicAction(

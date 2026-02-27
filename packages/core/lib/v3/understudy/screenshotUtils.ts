@@ -440,23 +440,3 @@ export async function runScreenshotCleanups(
     }
   }
 }
-
-export async function withScreenshotTimeout<T>(
-  timeoutMs: number | undefined,
-  task: () => Promise<T>,
-): Promise<T> {
-  if (!timeoutMs || timeoutMs <= 0) return task();
-
-  let timer: NodeJS.Timeout | null = null;
-  const timeoutPromise = new Promise<T>((_, reject) => {
-    timer = setTimeout(() => {
-      reject(new Error(`screenshot: timeout of ${timeoutMs}ms exceeded`));
-    }, timeoutMs);
-  });
-
-  try {
-    return await Promise.race([task(), timeoutPromise]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}

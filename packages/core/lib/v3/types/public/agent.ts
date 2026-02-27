@@ -741,6 +741,7 @@ export interface ScrollToolResult {
   success: boolean;
   message: string;
   scrolledPixels: number;
+  error?: string;
 }
 
 export interface ScrollVisionToolResult extends ScrollToolResult {
@@ -751,4 +752,5 @@ export interface WaitToolResult {
   success: boolean;
   waited: number;
   screenshotBase64?: string;
+  error?: string;
 }

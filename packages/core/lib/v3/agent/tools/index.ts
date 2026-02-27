@@ -95,10 +95,7 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const provider = options?.provider;
   const excludeTools = options?.excludeTools;
   const variables = options?.variables;
-  const toolTimeout =
-    options?.toolTimeout != null && options.toolTimeout > 0
-      ? options.toolTimeout
-      : undefined;
+  const toolTimeout = options?.toolTimeout;
 
   const allTools: ToolSet = {
     act: actTool(v3, executionModel, variables, toolTimeout),
