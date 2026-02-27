@@ -24,10 +24,6 @@ import type {
   AgentModelConfig,
   Variables,
 } from "../../types/public/agent.js";
-import {
-  wrapToolWithTimeout,
-  DEFAULT_TOOL_TIMEOUT_MS,
-} from "../../timeoutConfig.js";
 
 export interface V3AgentToolOptions {
   executionModel?: string | AgentModelConfig;
@@ -53,7 +49,8 @@ export interface V3AgentToolOptions {
    */
   variables?: Variables;
   /**
-   * Timeout in milliseconds for tool calls. Defaults to 45000 (45s).
+   * Timeout in milliseconds for tool calls that invoke v3 methods (act, extract, fillForm, ariaTree).
+   * Forwarded to the underlying v3 call's `timeout` option.
    */
   toolTimeout?: number;
 }
@@ -98,15 +95,12 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const provider = options?.provider;
   const excludeTools = options?.excludeTools;
   const variables = options?.variables;
-  // the check for > 0 is probably overkill, but it's a good sanity check
   const toolTimeout =
     options?.toolTimeout != null && options.toolTimeout > 0
       ? options.toolTimeout
       : undefined;
 
-  const timeoutMs = toolTimeout ?? DEFAULT_TOOL_TIMEOUT_MS;
-
-  const unwrappedTools: ToolSet = {
+  const allTools: ToolSet = {
     act: actTool(v3, executionModel, variables, toolTimeout),
     ariaTree: ariaTreeTool(v3, toolTimeout),
     click: clickTool(v3, provider),
@@ -119,22 +113,16 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     keys: keysTool(v3),
     navback: navBackTool(v3),
     screenshot: screenshotTool(v3),
-    scroll: mode === "hybrid" ? scrollVisionTool(v3, provider) : scrollTool(v3),
+    scroll:
+      mode === "hybrid" ? scrollVisionTool(v3, provider) : scrollTool(v3),
     think: thinkTool(),
     type: typeTool(v3, provider, variables),
     wait: waitTool(v3, mode),
   };
 
   if (process.env.BRAVE_API_KEY) {
-    unwrappedTools.search = searchTool(v3);
+    allTools.search = searchTool(v3);
   }
-
-  const allTools: ToolSet = Object.fromEntries(
-    Object.entries(unwrappedTools).map(([name, t]) => [
-      name,
-      wrapToolWithTimeout(t, timeoutMs, name),
-    ]),
-  );
 
   return filterTools(allTools, mode, excludeTools);
 }
