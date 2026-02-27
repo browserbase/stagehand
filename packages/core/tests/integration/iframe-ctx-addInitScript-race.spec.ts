@@ -69,17 +69,15 @@ async function closeAllPages(ctx: V3Context): Promise<void> {
 
 async function waitForPopupPage(
   ctx: V3Context,
-  opener: Page,
+  knownTargetIds: Set<string>,
   timeoutMs = 15_000,
 ): Promise<Page> {
-  const openerMainFrameId = opener.mainFrame().frameId;
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const pages = ctx.pages();
-    const popup = pages.find((candidate) => {
-      return candidate.mainFrame().frameId !== openerMainFrameId;
-    });
+    const popup = ctx
+      .pages()
+      .find((candidate) => !knownTargetIds.has(candidate.targetId()));
     if (popup) return popup;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
@@ -190,9 +188,10 @@ test.describe("repro: popup iframe addInitScript race under delayed CDP send", (
 
     const page = await ctx.newPage();
     await page.goto(OPENER_URL, { waitUntil: "domcontentloaded" });
+    const knownTargetIds = new Set(ctx.pages().map((p) => p.targetId()));
     await page.locator("#open-popup").click();
 
-    const popup = await waitForPopupPage(ctx, page);
+    const popup = await waitForPopupPage(ctx, knownTargetIds);
     await popup.waitForLoadState("domcontentloaded", 15_000);
     await popup.mainFrame().evaluate(() => {
       const iframe = document.createElement("iframe");

@@ -148,15 +148,33 @@ export class Frame implements FrameManager {
       })()`;
     }
 
-    const res = await this.session.send<Protocol.Runtime.EvaluateResponse>(
-      "Runtime.evaluate",
-      {
-        expression,
-        contextId,
-        awaitPromise: true,
-        returnByValue: true,
-      },
-    );
+    let res: Protocol.Runtime.EvaluateResponse;
+    try {
+      res = await this.session.send<Protocol.Runtime.EvaluateResponse>(
+        "Runtime.evaluate",
+        {
+          expression,
+          contextId,
+          awaitPromise: true,
+          returnByValue: true,
+        },
+      );
+    } catch (error) {
+      // Execution contexts can be recreated between context lookup and
+      // Runtime.evaluate during popup/navigate churn. Retry once with a fresh id.
+      const msg = error instanceof Error ? error.message : String(error);
+      if (!msg.includes("Cannot find context with specified id")) throw error;
+      const freshContextId = await this.getMainWorldExecutionContextId();
+      res = await this.session.send<Protocol.Runtime.EvaluateResponse>(
+        "Runtime.evaluate",
+        {
+          expression,
+          contextId: freshContextId,
+          awaitPromise: true,
+          returnByValue: true,
+        },
+      );
+    }
     if (res.exceptionDetails) {
       throw new StagehandEvalError(
         res.exceptionDetails.text ?? "Evaluation failed",
