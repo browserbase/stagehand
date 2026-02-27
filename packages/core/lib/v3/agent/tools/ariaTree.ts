@@ -45,8 +45,9 @@ export const ariaTreeTool = (v3: V3, toolTimeout?: number) =>
           };
         }
         return {
-          content: `Error: ${error?.message ?? String(error)}`,
+          content: "",
           error: error?.message ?? String(error),
+          success: false,
           pageUrl: "",
         };
       }
