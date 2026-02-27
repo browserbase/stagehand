@@ -16,6 +16,7 @@ const INIT_SCRIPT_DELAY_MS = (() => {
 
 const RACE_INIT_SCRIPT_SENTINEL = "__stagehand_init_script_race_sentinel__";
 const INIT_SCRIPT_MARKER_KEY = "__stagehand_init_script_domcontentloaded__";
+const POPUP_URL = "https://example.com/";
 
 const OPENER_HTML = `<!doctype html>
 <html>
@@ -25,7 +26,7 @@ const OPENER_HTML = `<!doctype html>
     <script>
       document.getElementById("open-popup").addEventListener("click", (event) => {
         event.preventDefault();
-        window.open("about:blank", "_blank");
+        window.open("${POPUP_URL}", "_blank");
       });
     </script>
   </body>

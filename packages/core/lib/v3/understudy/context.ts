@@ -622,23 +622,36 @@ export class V3Context {
     // 1) while paused, enable domains + child auto-attach and register init scripts;
     // 2) resume target execution;
     // 3) build/adopt Page ownership and frame bridges.
-    // Some CDP backends defer *.enable() responses until after resume. Queue
-    // all pre-resume commands first, queue resume last, then await them
-    // together. This keeps ordering deterministic without deadlocking on any
-    // single *.enable() await before resume.
-    const queuePreResume = (method: string, params?: object) => {
-      return session
+    // Some CDP backends defer *.enable() responses until after resume, so we
+    // cannot await those responses before resuming. Instead we:
+    // - wait for transport-level dispatch of required pre-resume commands;
+    // - then dispatch resume;
+    // - then await responses.
+    const queuePreResume = (
+      method: string,
+      params?: object,
+      match?: (sentParams?: object) => boolean,
+    ) => {
+      const dispatched = this.conn
+        .waitForSessionDispatch(sessionId, method, match)
+        .then(() => true)
+        .catch(() => false);
+      const response = session
         .send(method, params)
         .then(() => true)
         .catch(() => false);
+      return { dispatched, response };
     };
-    const initScriptOps: Array<Promise<boolean>> = [];
+    const initScriptOps: Array<{
+      dispatched: Promise<boolean>;
+      response: Promise<boolean>;
+    }> = [];
     // Pre-resume ordering matters:
     // - enable domains;
     // - enable child auto-attach with waitForDebuggerOnStart;
     // - register init scripts.
     // Commands are sent in-order on the same session before resume.
-    const corePreResumeOps: Array<Promise<boolean>> = [
+    const corePreResumeOps = [
       queuePreResume("Page.enable"),
       queuePreResume("Runtime.enable"),
       queuePreResume("Target.setAutoAttach", {
@@ -647,7 +660,10 @@ export class V3Context {
         flatten: true,
       }),
     ];
-    const headerPreResumeOps: Array<Promise<boolean>> = [];
+    const headerPreResumeOps: Array<{
+      dispatched: Promise<boolean>;
+      response: Promise<boolean>;
+    }> = [];
     if (this.extraHttpHeaders) {
       const headers = { ...this.extraHttpHeaders };
       headerPreResumeOps.push(queuePreResume("Network.enable"));
@@ -662,7 +678,10 @@ export class V3Context {
           queuePreResume("Page.addScriptToEvaluateOnNewDocument", {
             source,
             runImmediately: true,
-          }),
+          },
+          (sentParams) =>
+            (sentParams as { source?: string } | undefined)?.source === source,
+          ),
         );
       }
     }
@@ -672,37 +691,55 @@ export class V3Context {
         source: v3ScriptContent,
         runImmediately: true,
       },
+      (sentParams) =>
+        (sentParams as { source?: string } | undefined)?.source ===
+        v3ScriptContent,
     );
-    // Queue resume as the last pre-resume command so Chrome processes all
-    // registrations before execution continues.
+    const preResumeDispatched = (
+      await Promise.all([
+        ...corePreResumeOps.map((op) => op.dispatched),
+        ...headerPreResumeOps.map((op) => op.dispatched),
+        ...initScriptOps.map((op) => op.dispatched),
+        piercerPreloadOp.dispatched,
+      ])
+    ).every(Boolean);
+    const [initScriptResults, piercerPreRegistered] = await Promise.all([
+      Promise.all(initScriptOps.map((op) => op.response)),
+      piercerPreloadOp.response,
+    ]);
+    // Dispatch resume only after pre-resume setup has actually been sent.
     const resumeOp = queuePreResume("Runtime.runIfWaitingForDebugger");
-    const [
-      coreResults,
-      headerResults,
-      initScriptResults,
-      piercerPreRegistered,
-      resumedOk,
-    ] = await Promise.all([
-      Promise.all(corePreResumeOps),
-      Promise.all(headerPreResumeOps),
-      Promise.all(initScriptOps),
-      piercerPreloadOp,
-      resumeOp,
+    const [resumedDispatched, resumedOk] = await Promise.all([
+      resumeOp.dispatched,
+      resumeOp.response,
+    ]);
+    const [coreResults, headerResults] = await Promise.all([
+      Promise.all(corePreResumeOps.map((op) => op.response)),
+      Promise.all(headerPreResumeOps.map((op) => op.response)),
     ]);
     // Header propagation is independent of init-script determinism but still
     // part of pre-resume attach setup; awaited above for ordering/lifecycle.
     void headerResults;
-    if (!resumedOk) {
+    if (!preResumeDispatched || !resumedDispatched || !resumedOk) {
       // Short-lived child targets can detach before resume is acknowledged.
       // Keep this noisy only for top-level pages where missing attach is fatal.
       if (isTopLevelPage(info)) {
         v3Logger({
           category: "ctx",
-          message: "Failed to resume target after pre-resume setup",
+          message: "Failed target pre-resume setup ordering",
           level: 2,
           auxiliary: {
             targetId: { value: String(info.targetId), type: "string" },
             targetType: { value: String(info.type), type: "string" },
+            preResumeDispatched: {
+              value: String(preResumeDispatched),
+              type: "string",
+            },
+            resumedDispatched: {
+              value: String(resumedDispatched),
+              type: "string",
+            },
+            resumedOk: { value: String(resumedOk), type: "string" },
           },
         });
       }

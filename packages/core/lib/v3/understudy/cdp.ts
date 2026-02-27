@@ -31,6 +31,13 @@ type Inflight = {
 };
 
 type EventHandler = (params: unknown) => void;
+type SessionDispatchWaiter = {
+  sessionId: string;
+  method: string;
+  match?: (params?: object) => boolean;
+  resolve: () => void;
+  reject: (error: Error) => void;
+};
 
 type RawMessage =
   | {
@@ -49,6 +56,7 @@ export class CdpConnection implements CDPSessionLike {
   private sessions = new Map<string, CdpSession>();
   /** Maps sessionId -> targetId (1:1 mapping) */
   private sessionToTarget = new Map<string, string>();
+  private sessionDispatchWaiters = new Set<SessionDispatchWaiter>();
   public readonly id: string | null = null; // root
   private transportCloseHandlers = new Set<(why: string) => void>();
 
@@ -169,10 +177,36 @@ export class CdpConnection implements CDPSessionLike {
       entry.reject(new CdpConnectionClosedError(why));
       this.inflight.delete(id);
     }
+    for (const waiter of Array.from(this.sessionDispatchWaiters)) {
+      waiter.reject(new CdpConnectionClosedError(why));
+    }
   }
 
   getSession(sessionId: string): CdpSession | undefined {
     return this.sessions.get(sessionId);
+  }
+
+  waitForSessionDispatch(
+    sessionId: string,
+    method: string,
+    match?: (params?: object) => boolean,
+  ): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const waiter: SessionDispatchWaiter = {
+        sessionId,
+        method,
+        match,
+        resolve: () => {
+          this.sessionDispatchWaiters.delete(waiter);
+          resolve();
+        },
+        reject: (error: Error) => {
+          this.sessionDispatchWaiters.delete(waiter);
+          reject(error);
+        },
+      };
+      this.sessionDispatchWaiters.add(waiter);
+    });
   }
 
   async attachToTarget(targetId: string): Promise<CdpSession> {
@@ -229,6 +263,11 @@ export class CdpConnection implements CDPSessionLike {
           if (entry.sessionId === p.sessionId) {
             entry.reject(new Error("CDP session detached"));
             this.inflight.delete(id);
+          }
+        }
+        for (const waiter of Array.from(this.sessionDispatchWaiters)) {
+          if (waiter.sessionId === p.sessionId) {
+            waiter.reject(new Error("CDP session detached before send"));
           }
         }
         this.sessions.delete(p.sessionId);
@@ -292,6 +331,13 @@ export class CdpConnection implements CDPSessionLike {
     void p.catch(() => {});
     const targetId = this.sessionToTarget.get(sessionId) ?? null;
     this.cdpLogger?.({ method, params, targetId });
+    for (const waiter of Array.from(this.sessionDispatchWaiters)) {
+      if (waiter.sessionId !== sessionId) continue;
+      if (waiter.method !== method) continue;
+      if (waiter.match && !waiter.match(params)) continue;
+      waiter.resolve();
+      break;
+    }
     this.ws.send(JSON.stringify(payload));
     return p;
   }
