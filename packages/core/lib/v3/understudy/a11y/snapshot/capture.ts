@@ -57,6 +57,11 @@ export async function captureHybridSnapshot(
   const pierce = options?.pierceShadow ?? true;
   const includeIframes = options?.includeIframes !== false;
 
+  // Strip [encodedId] prefixes that were kept during formatting solely so
+  // injectSubtrees could locate iframe injection points. One regex pass over
+  // the final combined string is far cheaper than post-processing in the caller.
+  const stripIds = (tree: string) => tree.replace(/\[[^\]]+\] /g, "");
+
   const context = buildFrameContext(page);
 
   const scopedSnapshot = await tryScopedSnapshot(
@@ -66,7 +71,7 @@ export async function captureHybridSnapshot(
     pierce,
   );
   if (scopedSnapshot) {
-    if (options?.treeOnly) return scopedSnapshot.combinedTree;
+    if (options?.treeOnly) return stripIds(scopedSnapshot.combinedTree);
     return scopedSnapshot;
   }
 
@@ -99,7 +104,7 @@ export async function captureHybridSnapshot(
     iframeHostEncByChild,
     framesInScope,
   );
-  if (options?.treeOnly) return result.combinedTree;
+  if (options?.treeOnly) return stripIds(result.combinedTree);
   return result;
 }
 
@@ -344,6 +349,7 @@ export async function collectPerFrameMaps(
       tagNameMap,
       scrollableMap,
       encode: (backendNodeId) => `${page.getOrdinal(frameId)}-${backendNodeId}`,
+      hashMode: options?.treeOnly,
     });
 
     perFrameOutlines.push({ frameId, outline });

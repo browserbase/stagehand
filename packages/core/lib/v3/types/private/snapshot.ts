@@ -114,6 +114,8 @@ export type A11yOptions = {
   tagNameMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
   encode: (backendNodeId: number) => string;
+  /** When true, use hash-friendly formatting (quote names, normalize structural roles). */
+  hashMode?: boolean;
 };
 
 export type AccessibilityTreeResult = {

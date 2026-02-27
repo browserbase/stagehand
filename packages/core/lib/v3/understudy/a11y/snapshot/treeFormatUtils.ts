@@ -15,6 +15,43 @@ export function formatTreeLine(node: A11yNode, level = 0): string {
 }
 
 /**
+ * Roles that are purely structural HTML containers — no semantic meaning for
+ * the purpose of action caching. Swapping one for another (e.g. div → span)
+ * should be invisible to the hash, so they are all normalised to "none".
+ * Nodes with a "scrollable, X" role are intentionally excluded — scrollability
+ * is meaningful for actions.
+ */
+export const HASH_STRUCTURAL_ROLES = new Set([
+  "none",
+  "generic",
+  "presentation",
+  "div",
+  "span",
+  "html",
+  "body",
+]);
+
+/**
+ * Hash-friendly variant of formatTreeLine.
+ * Differences from the standard formatter:
+ *  - Structural roles (div, span, etc.) are normalised to "none"
+ *  - Names use double-quote style: `role "name"` instead of `role: name`
+ *  - [encodedId] is kept so injectSubtrees can still find iframe injection
+ *    points; the caller strips them in one pass after frame combining.
+ */
+export function formatTreeLineForHash(node: A11yNode, level = 0): string {
+  const indent = "  ".repeat(level);
+  const labelId = node.encodedId ?? node.nodeId;
+  const role = HASH_STRUCTURAL_ROLES.has(node.role) ? "none" : node.role;
+  const label = `[${labelId}] ${role}${node.name ? ` "${cleanText(node.name)}"` : ""}`;
+  const kids =
+    node.children
+      ?.map((c) => formatTreeLineForHash(c, level + 1))
+      .join("\n") ?? "";
+  return kids ? `${indent}${label}\n${kids}` : `${indent}${label}`;
+}
+
+/**
  * Inject each child frame outline under the parent's iframe node line.
  * Keys in `idToTree` are the parent's iframe encoded ids.
  */
