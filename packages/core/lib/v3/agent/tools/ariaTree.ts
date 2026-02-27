@@ -39,7 +39,7 @@ export const ariaTreeTool = (v3: V3, toolTimeout?: number) =>
         if (error instanceof TimeoutError) {
           return {
             content: "",
-            error: `ariaTree timed out — the page may be too large, try using extract with fewer schema fields instead`,
+            error: `TimeoutError: ariaTree() timed out — the page may be too large`,
             success: false,
             pageUrl: "",
           };
