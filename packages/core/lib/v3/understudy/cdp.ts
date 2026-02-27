@@ -2,7 +2,10 @@
 import WebSocket from "ws";
 import type { Protocol } from "devtools-protocol";
 import { STAGEHAND_VERSION } from "../../version.js";
-import { CdpConnectionClosedError } from "../types/public/sdkErrors.js";
+import {
+  CdpConnectionClosedError,
+  PageNotFoundError,
+} from "../types/public/sdkErrors.js";
 
 /**
  * CDP transport & session multiplexer
@@ -261,13 +264,21 @@ export class CdpConnection implements CDPSessionLike {
           .params;
         for (const [id, entry] of this.inflight.entries()) {
           if (entry.sessionId === p.sessionId) {
-            entry.reject(new Error("CDP session detached"));
+            entry.reject(
+              new PageNotFoundError(
+                `target closed before CDP response (sessionId=${p.sessionId}, targetId=${p.targetId})`,
+              ),
+            );
             this.inflight.delete(id);
           }
         }
         for (const waiter of Array.from(this.sessionDispatchWaiters)) {
           if (waiter.sessionId === p.sessionId) {
-            waiter.reject(new Error("CDP session detached before send"));
+            waiter.reject(
+              new PageNotFoundError(
+                `target closed before CDP send (sessionId=${p.sessionId}, targetId=${p.targetId})`,
+              ),
+            );
           }
         }
         this.sessions.delete(p.sessionId);

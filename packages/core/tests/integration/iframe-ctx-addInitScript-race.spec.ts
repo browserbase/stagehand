@@ -16,7 +16,10 @@ const INIT_SCRIPT_DELAY_MS = (() => {
 
 const RACE_INIT_SCRIPT_SENTINEL = "__stagehand_init_script_race_sentinel__";
 const INIT_SCRIPT_MARKER_KEY = "__stagehand_init_script_domcontentloaded__";
-const POPUP_URL = "https://example.com/";
+const POPUP_URL =
+  "https://browserbase.github.io/stagehand-eval-sites/sites/oopif-in-closed-shadow-dom/";
+const POPUP_CHILD_FRAME_URL =
+  "https://seanmcguire12.github.io/stagehand-oopif-sites/sites/form-filling/";
 
 const OPENER_HTML = `<!doctype html>
 <html>
@@ -38,10 +41,15 @@ const INIT_SCRIPT_SOURCE = `
 (() => {
   const markerKey = "${INIT_SCRIPT_MARKER_KEY}";
   /* ${RACE_INIT_SCRIPT_SENTINEL} */
-  document.addEventListener("DOMContentLoaded", () => {
+  const applyMarker = () => {
     window[markerKey] = true;
     document.documentElement.style.backgroundColor = "red";
-  });
+  };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", applyMarker, { once: true });
+  } else {
+    applyMarker();
+  }
 })();
 `;
 
@@ -85,24 +93,57 @@ async function waitForPopupPage(
   throw new Error("Timed out waiting for popup page");
 }
 
+async function waitForPageUrl(
+  page: Page,
+  expectedUrlSubstring: string,
+  timeoutMs = 15_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    let url = page.url();
+    if (!url) {
+      try {
+        url = await page.mainFrame().evaluate(() => window.location.href);
+      } catch {
+        // Main-world context may not exist yet while the target is booting.
+      }
+    }
+    if (url.includes(expectedUrlSubstring)) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  throw new Error(
+    `Timed out waiting for popup url to contain ${expectedUrlSubstring}`,
+  );
+}
+
 async function waitForChildFrame(
   page: Page,
+  expectedUrl: string,
   timeoutMs = 15_000,
 ): Promise<ReturnType<Page["frames"]>[number]> {
   const mainFrameId = page.mainFrame().frameId;
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const frames = page
-      .frames()
-      .filter((frame) => frame.frameId !== mainFrameId);
-    if (frames.length) {
-      return frames[0]!;
+    for (const frame of page.frames()) {
+      if (frame.frameId === mainFrameId) continue;
+      let frameUrl = "";
+      try {
+        frameUrl = await frame.evaluate(() => window.location.href);
+      } catch {
+        // Frame can appear before Runtime.executionContextCreated.
+        continue;
+      }
+      if (frameUrl === expectedUrl) {
+        return frame;
+      }
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
 
-  throw new Error("Timed out waiting for child frame");
+  throw new Error(`Timed out waiting for child frame ${expectedUrl}`);
 }
 
 test.describe("repro: popup iframe addInitScript race under delayed CDP send", () => {
@@ -193,13 +234,8 @@ test.describe("repro: popup iframe addInitScript race under delayed CDP send", (
 
     const popup = await waitForPopupPage(ctx, knownTargetIds);
     await popup.waitForLoadState("domcontentloaded", 15_000);
-    await popup.mainFrame().evaluate(() => {
-      const iframe = document.createElement("iframe");
-      iframe.id = "race-child-iframe";
-      iframe.src = "about:blank";
-      document.body.appendChild(iframe);
-    });
-    const iframe = await waitForChildFrame(popup);
+    await waitForPageUrl(popup, POPUP_URL, 15_000);
+    const iframe = await waitForChildFrame(popup, POPUP_CHILD_FRAME_URL, 15_000);
 
     const popupDomContentLoadedMarker = await popup
       .mainFrame()
