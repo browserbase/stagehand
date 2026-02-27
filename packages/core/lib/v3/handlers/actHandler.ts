@@ -313,6 +313,7 @@ export class ActHandler {
         action.selector,
         resolvedArgs,
         settleTimeout,
+        placeholderArgs,
       );
       return {
         success: true,
@@ -405,6 +406,7 @@ export class ActHandler {
             newSelector,
             resolvedArgs,
             settleTimeout,
+            placeholderArgs,
           );
 
           return {

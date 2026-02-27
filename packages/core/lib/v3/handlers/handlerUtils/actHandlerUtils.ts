@@ -38,6 +38,7 @@ export async function performUnderstudyMethod(
   rawXPath: string,
   args: ReadonlyArray<unknown>,
   domSettleTimeoutMs?: number,
+  loggableArgs?: ReadonlyArray<unknown>,
 ): Promise<void> {
   const selectorRaw = normalizeRootXPath(rawXPath);
   // Unified resolver: supports '>>' hops and XPath across iframes
@@ -74,7 +75,7 @@ export async function performUnderstudyMethod(
   SessionFileLogger.logUnderstudyActionEvent({
     actionType: `Understudy.${method}`,
     target: selectorRaw,
-    args: Array.from(args),
+    args: Array.from(loggableArgs ?? args),
   });
 
   try {
@@ -120,7 +121,7 @@ export async function performUnderstudyMethod(
         trace: { value: stack ?? "", type: "string" },
         method: { value: method, type: "string" },
         xpath: { value: selectorRaw, type: "string" },
-        args: { value: JSON.stringify(args), type: "object" },
+        args: { value: JSON.stringify(loggableArgs ?? args), type: "object" },
       },
     });
     if (e instanceof UnderstudyCommandException) {
