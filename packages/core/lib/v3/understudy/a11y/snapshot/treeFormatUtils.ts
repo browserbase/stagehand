@@ -45,9 +45,8 @@ export function formatTreeLineForHash(node: A11yNode, level = 0): string {
   const role = HASH_STRUCTURAL_ROLES.has(node.role) ? "none" : node.role;
   const label = `[${labelId}] ${role}${node.name ? ` "${cleanText(node.name)}"` : ""}`;
   const kids =
-    node.children
-      ?.map((c) => formatTreeLineForHash(c, level + 1))
-      .join("\n") ?? "";
+    node.children?.map((c) => formatTreeLineForHash(c, level + 1)).join("\n") ??
+    "";
   return kids ? `${indent}${label}\n${kids}` : `${indent}${label}`;
 }
 

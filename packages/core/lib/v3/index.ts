@@ -66,7 +66,11 @@ export { maybeRunShutdownSupervisorFromArgv as __internalMaybeRunShutdownSupervi
 export type { ServerAgentCacheHandle } from "./cache/serverAgentCache.js";
 
 export { captureHybridSnapshot } from "./understudy/a11y/snapshot/index.js";
-export type { SnapshotOptions, HybridSnapshot, PerFrameSnapshot } from "./types/private/snapshot.js";
+export type {
+  SnapshotOptions,
+  HybridSnapshot,
+  PerFrameSnapshot,
+} from "./types/private/snapshot.js";
 
 export type {
   ChatMessage,
