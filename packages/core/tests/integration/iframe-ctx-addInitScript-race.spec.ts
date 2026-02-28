@@ -129,7 +129,7 @@ async function waitForChildFrame(
   while (Date.now() < deadline) {
     for (const frame of page.frames()) {
       if (frame.frameId === mainFrameId) continue;
-      let frameUrl = "";
+      let frameUrl;
       try {
         frameUrl = await frame.evaluate(() => window.location.href);
       } catch {
