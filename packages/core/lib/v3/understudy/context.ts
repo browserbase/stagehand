@@ -706,19 +706,22 @@ export class V3Context {
         piercerPreloadOp.dispatched,
       ])
     ).every(Boolean);
-    const [initScriptResults, piercerPreRegistered] = await Promise.all([
-      Promise.all(initScriptOps.map((op) => op.response)),
-      piercerPreloadOp.response,
-    ]);
     // Dispatch resume only after pre-resume setup has actually been sent.
     const resumeOp = queuePreResume("Runtime.runIfWaitingForDebugger");
     const [resumedDispatched, resumedOk] = await Promise.all([
       resumeOp.dispatched,
       resumeOp.response,
     ]);
-    const [coreResults, headerResults] = await Promise.all([
+    const [
+      coreResults,
+      headerResults,
+      initScriptResults,
+      piercerPreRegistered,
+    ] = await Promise.all([
       Promise.all(corePreResumeOps.map((op) => op.response)),
       Promise.all(headerPreResumeOps.map((op) => op.response)),
+      Promise.all(initScriptOps.map((op) => op.response)),
+      piercerPreloadOp.response,
     ]);
     // Header propagation is independent of init-script determinism but still
     // part of pre-resume attach setup; awaited above for ordering/lifecycle.

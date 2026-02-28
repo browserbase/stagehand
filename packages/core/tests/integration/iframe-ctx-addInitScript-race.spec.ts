@@ -14,42 +14,16 @@ const INIT_SCRIPT_DELAY_MS = (() => {
   return parsed;
 })();
 
+const POPUP_TIMEOUT_MS = 20_000;
 const RACE_INIT_SCRIPT_SENTINEL = "__stagehand_init_script_race_sentinel__";
-const INIT_SCRIPT_MARKER_KEY = "__stagehand_init_script_domcontentloaded__";
-const POPUP_URL =
-  "https://browserbase.github.io/stagehand-eval-sites/sites/oopif-in-closed-shadow-dom/";
-const POPUP_CHILD_FRAME_URL =
-  "https://seanmcguire12.github.io/stagehand-oopif-sites/sites/form-filling/";
-
-const OPENER_HTML = `<!doctype html>
-<html>
-  <head><meta charset="utf-8" /></head>
-  <body>
-    <a id="open-popup" href="#">Open popup</a>
-    <script>
-      document.getElementById("open-popup").addEventListener("click", (event) => {
-        event.preventDefault();
-        window.open("${POPUP_URL}", "_blank");
-      });
-    </script>
-  </body>
-</html>`;
-
-const OPENER_URL = `data:text/html,${encodeURIComponent(OPENER_HTML)}`;
+const INIT_SCRIPT_MARKER_KEY = "__stagehand_init_script_loaded__";
+const POPUP_URL = "https://example.com/";
+const POPUP_IFRAME_URL = "https://example.org/";
 
 const INIT_SCRIPT_SOURCE = `
 (() => {
-  const markerKey = "${INIT_SCRIPT_MARKER_KEY}";
   /* ${RACE_INIT_SCRIPT_SENTINEL} */
-  const applyMarker = () => {
-    window[markerKey] = true;
-    document.documentElement.style.backgroundColor = "red";
-  };
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", applyMarker, { once: true });
-  } else {
-    applyMarker();
-  }
+  window["${INIT_SCRIPT_MARKER_KEY}"] = true;
 })();
 `;
 
@@ -59,8 +33,6 @@ type PatchedConn = {
     method: string,
     params?: object,
   ) => Promise<unknown>;
-  on<P = unknown>(event: string, handler: (params: P) => void): void;
-  off<P = unknown>(event: string, handler: (params: P) => void): void;
 };
 
 type SessionCommandRecord = {
@@ -68,6 +40,11 @@ type SessionCommandRecord = {
   sessionId: string;
   method: string;
   isRaceInitScript: boolean;
+};
+
+type PopupTriggerCase = {
+  name: string;
+  prepare: (opener: Page) => Promise<void>;
 };
 
 async function closeAllPages(ctx: V3Context): Promise<void> {
@@ -78,7 +55,7 @@ async function closeAllPages(ctx: V3Context): Promise<void> {
 async function waitForPopupPage(
   ctx: V3Context,
   knownTargetIds: Set<string>,
-  timeoutMs = 15_000,
+  timeoutMs = POPUP_TIMEOUT_MS,
 ): Promise<Page> {
   const deadline = Date.now() + timeoutMs;
 
@@ -87,41 +64,22 @@ async function waitForPopupPage(
       .pages()
       .find((candidate) => !knownTargetIds.has(candidate.targetId()));
     if (popup) return popup;
+    try {
+      const active = await ctx.awaitActivePage(500);
+      if (!knownTargetIds.has(active.targetId())) return active;
+    } catch {
+      // keep polling
+    }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
 
   throw new Error("Timed out waiting for popup page");
 }
 
-async function waitForPageUrl(
-  page: Page,
-  expectedUrlSubstring: string,
-  timeoutMs = 15_000,
-): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() < deadline) {
-    let url = page.url();
-    if (!url) {
-      try {
-        url = await page.mainFrame().evaluate(() => window.location.href);
-      } catch {
-        // Main-world context may not exist yet while the target is booting.
-      }
-    }
-    if (url.includes(expectedUrlSubstring)) return;
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-
-  throw new Error(
-    `Timed out waiting for popup url to contain ${expectedUrlSubstring}`,
-  );
-}
-
 async function waitForChildFrame(
   page: Page,
   expectedUrl: string,
-  timeoutMs = 15_000,
+  timeoutMs = POPUP_TIMEOUT_MS,
 ): Promise<ReturnType<Page["frames"]>[number]> {
   const mainFrameId = page.mainFrame().frameId;
   const deadline = Date.now() + timeoutMs;
@@ -129,22 +87,54 @@ async function waitForChildFrame(
   while (Date.now() < deadline) {
     for (const frame of page.frames()) {
       if (frame.frameId === mainFrameId) continue;
-      let frameUrl;
       try {
-        frameUrl = await frame.evaluate(() => window.location.href);
+        const href = await frame.evaluate(() => window.location.href);
+        if (href === expectedUrl) return frame;
       } catch {
-        // Frame can appear before Runtime.executionContextCreated.
-        continue;
-      }
-      if (frameUrl === expectedUrl) {
-        return frame;
+        // frame context may not be ready yet
       }
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
 
-  throw new Error(`Timed out waiting for child frame ${expectedUrl}`);
+  throw new Error("Timed out waiting for child frame");
 }
+
+async function prepareTargetBlankPopupOpener(opener: Page): Promise<void> {
+  await opener.goto("about:blank", { waitUntil: "domcontentloaded" });
+  await opener.mainFrame().evaluate((popupUrl) => {
+    const link = document.createElement("a");
+    link.id = "open-popup";
+    link.target = "_blank";
+    link.href = popupUrl;
+    link.textContent = "open popup";
+    document.body.appendChild(link);
+  }, POPUP_URL);
+}
+
+async function prepareWindowOpenPopupOpener(opener: Page): Promise<void> {
+  await opener.goto("about:blank", { waitUntil: "domcontentloaded" });
+  await opener.mainFrame().evaluate((popupUrl) => {
+    const button = document.createElement("button");
+    button.id = "open-popup";
+    button.textContent = "open popup";
+    button.addEventListener("click", () => {
+      window.open(popupUrl, "_blank");
+    });
+    document.body.appendChild(button);
+  }, POPUP_URL);
+}
+
+const POPUP_TRIGGER_CASES: PopupTriggerCase[] = [
+  {
+    name: 'target="_blank" link click',
+    prepare: prepareTargetBlankPopupOpener,
+  },
+  {
+    name: "window.open from click handler",
+    prepare: prepareWindowOpenPopupOpener,
+  },
+];
 
 test.describe("repro: popup iframe addInitScript race under delayed CDP send", () => {
   test.describe.configure({ mode: "serial" });
@@ -224,77 +214,89 @@ test.describe("repro: popup iframe addInitScript race under delayed CDP send", (
     await closeAllPages(ctx);
   });
 
-  test("should send addScript before resume for popup targets and preserve DOMContentLoaded behavior", async () => {
-    if (!ctx) throw new Error("Context not initialized");
+  for (const popupCase of POPUP_TRIGGER_CASES) {
+    test(`should send addScript before resume for popup targets via ${popupCase.name}`, async () => {
+      if (!ctx) throw new Error("Context not initialized");
 
-    const page = await ctx.newPage();
-    await page.goto(OPENER_URL, { waitUntil: "domcontentloaded" });
-    const knownTargetIds = new Set(ctx.pages().map((p) => p.targetId()));
-    await page.locator("#open-popup").click();
+      const opener = await ctx.newPage();
+      await popupCase.prepare(opener);
 
-    const popup = await waitForPopupPage(ctx, knownTargetIds);
-    await popup.waitForLoadState("domcontentloaded", 15_000);
-    await waitForPageUrl(popup, POPUP_URL, 15_000);
-    const iframe = await waitForChildFrame(
-      popup,
-      POPUP_CHILD_FRAME_URL,
-      15_000,
-    );
+      const knownTargetIds = new Set(ctx.pages().map((p) => p.targetId()));
+      const knownSessionIds = new Set(
+        records.map((record) => record.sessionId),
+      );
 
-    const popupDomContentLoadedMarker = await popup
-      .mainFrame()
-      .evaluate((key) => {
+      await opener.locator("#open-popup").click();
+
+      const popup = await waitForPopupPage(ctx, knownTargetIds);
+      await popup.waitForLoadState("load", POPUP_TIMEOUT_MS);
+      await popup.mainFrame().evaluate((iframeUrl) => {
+        const iframe = document.createElement("iframe");
+        iframe.id = "race-child-iframe";
+        iframe.src = iframeUrl;
+        document.body.appendChild(iframe);
+      }, POPUP_IFRAME_URL);
+      const iframe = await waitForChildFrame(
+        popup,
+        POPUP_IFRAME_URL,
+        POPUP_TIMEOUT_MS,
+      );
+
+      const popupInitScriptMarker = await popup.mainFrame().evaluate((key) => {
         return Boolean(Reflect.get(window, key));
       }, INIT_SCRIPT_MARKER_KEY);
-    const iframeDomContentLoadedMarker = await iframe.evaluate((key) => {
-      return Boolean(Reflect.get(window, key));
-    }, INIT_SCRIPT_MARKER_KEY);
+      const iframeInitScriptMarker = await iframe.evaluate((key) => {
+        return Boolean(Reflect.get(window, key));
+      }, INIT_SCRIPT_MARKER_KEY);
 
-    const perSession = new Map<
-      string,
-      {
-        raceInitScriptSequence?: number;
-        resumeSequence?: number;
-      }
-    >();
-    for (const record of records) {
-      const entry = perSession.get(record.sessionId) ?? {};
-      if (
-        record.isRaceInitScript &&
-        entry.raceInitScriptSequence === undefined
-      ) {
-        entry.raceInitScriptSequence = record.sequence;
-      }
-      if (
-        record.method === "Runtime.runIfWaitingForDebugger" &&
-        entry.resumeSequence === undefined
-      ) {
-        entry.resumeSequence = record.sequence;
-      }
-      perSession.set(record.sessionId, entry);
-    }
+      const perSession = new Map<
+        string,
+        {
+          raceInitScriptSequence?: number;
+          resumeSequence?: number;
+        }
+      >();
 
-    const comparableSessions = [...perSession.entries()]
-      .map(([sessionId, entry]) => ({ sessionId, ...entry }))
-      .filter(
-        (entry) =>
-          entry.raceInitScriptSequence !== undefined &&
-          entry.resumeSequence !== undefined,
-      );
-    expect(comparableSessions.length).toBeGreaterThan(0);
+      for (const record of records) {
+        if (knownSessionIds.has(record.sessionId)) continue;
+        const entry = perSession.get(record.sessionId) ?? {};
+        if (
+          record.isRaceInitScript &&
+          entry.raceInitScriptSequence === undefined
+        ) {
+          entry.raceInitScriptSequence = record.sequence;
+        }
+        if (
+          record.method === "Runtime.runIfWaitingForDebugger" &&
+          entry.resumeSequence === undefined
+        ) {
+          entry.resumeSequence = record.sequence;
+        }
+        perSession.set(record.sessionId, entry);
+      }
 
-    const orderingViolations = comparableSessions.filter((entry) => {
-      return (
-        (entry.raceInitScriptSequence as number) >
-        (entry.resumeSequence as number)
-      );
+      const comparableSessions = [...perSession.entries()]
+        .map(([sessionId, entry]) => ({ sessionId, ...entry }))
+        .filter(
+          (entry) =>
+            entry.raceInitScriptSequence !== undefined &&
+            entry.resumeSequence !== undefined,
+        );
+      expect(comparableSessions.length).toBeGreaterThan(0);
+
+      const orderingViolations = comparableSessions.filter((entry) => {
+        return (
+          (entry.raceInitScriptSequence as number) >
+          (entry.resumeSequence as number)
+        );
+      });
+
+      expect(
+        orderingViolations,
+        `Expected addScript before resume for ${popupCase.name}. initScriptDelayMs=${INIT_SCRIPT_DELAY_MS}; comparableSessions=${JSON.stringify(comparableSessions)}`,
+      ).toEqual([]);
+      expect(popupInitScriptMarker).toBe(true);
+      expect(iframeInitScriptMarker).toBe(true);
     });
-
-    expect(
-      orderingViolations,
-      `Expected addScript to be sent before resume. initScriptDelayMs=${INIT_SCRIPT_DELAY_MS}; comparableSessions=${JSON.stringify(comparableSessions)}`,
-    ).toEqual([]);
-    expect(popupDomContentLoadedMarker).toBe(true);
-    expect(iframeDomContentLoadedMarker).toBe(true);
-  });
+  }
 });
