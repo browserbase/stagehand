@@ -66,6 +66,7 @@ export { maybeRunShutdownSupervisorFromArgv as __internalMaybeRunShutdownSupervi
 export type { ServerAgentCacheHandle } from "./cache/serverAgentCache.js";
 
 export { captureHybridSnapshot } from "./understudy/a11y/snapshot/index.js";
+import { captureHybridSnapshot } from "./understudy/a11y/snapshot/index.js";
 export type {
   SnapshotOptions,
   HybridSnapshot,
@@ -114,6 +115,7 @@ const StagehandDefault = {
   isZod4Schema,
   isZod3Schema,
   toJsonSchema,
+  captureHybridSnapshot,
   connectToMCPServer,
   V3Evaluator,
   tool,

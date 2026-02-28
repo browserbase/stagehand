@@ -32,6 +32,7 @@ const publicApiShape = {
   V3: Stagehand.V3,
   V3Evaluator: Stagehand.V3Evaluator,
   V3FunctionName: Stagehand.V3FunctionName,
+  captureHybridSnapshot: Stagehand.captureHybridSnapshot,
   connectToMCPServer: Stagehand.connectToMCPServer,
   default: StagehandDefaultExport,
   defaultExtractSchema: Stagehand.defaultExtractSchema,
