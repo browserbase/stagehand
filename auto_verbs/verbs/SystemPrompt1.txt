@@ -4,3 +4,7 @@ The workflow is the following. The generated files should be saved in the case f
 1. consult auto_verbs\verbs\booking_com\booking_search.js to understand how to generate a similar js program for the task
 2. The putpose of the js program is to generate a python program, which executes the concrete task using playwright. Make sure that the browser is opened using the user's profile.
 3. Do not take any screenshot.
+
+Important suggestions:
+1. If you have succeeded in certain steps, please generate a new version of the js file, which concretizes these steps using playwright functions so that you don't need to use AI to explore them again. 
+2. When entering a string into an input box, please always press ctrl-a first so that the existing content will be completely replaced by the new string.

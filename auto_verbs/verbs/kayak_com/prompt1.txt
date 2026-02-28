@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.kayak.com/flights
+
+* Concrete task
+- Search round trip flights from Boston to Miami.
+- The departure date is 2 months from today. The return date is 4 days after the departure date.
+- compose a list of the top 5 cheapest flights. Each flight has its airline, itinerary, and price.
+- print the list.

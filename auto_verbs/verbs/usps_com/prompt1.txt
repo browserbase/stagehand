@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.usps.com
+
+* Concrete task
+- Navigate to the package tracking page.
+- Enter tracking number "9400111899223456789012" in the tracking input field.
+- Extract the tracking status, last status update, expected delivery date, and delivery location.
+- print the results.

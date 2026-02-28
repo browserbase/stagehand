@@ -1,0 +1,9 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.irs.gov
+
+* Concrete task
+- Navigate to "Where's My Refund?" tool.
+- Extract the page instructions, required information fields, and any helpful links or notices on the page.
+- print the results.

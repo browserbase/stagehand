@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.homedepot.com
+
+* Concrete task
+- Search "cordless drill".
+- Sort by "Top Rated".
+- compose a list of the top 5 products. Each product has its name, price, and rating.
+- print the list.

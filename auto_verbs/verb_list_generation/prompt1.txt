@@ -1,0 +1,6 @@
+Please visit every folder in auto_verbs\verbs\*. In each folder, read the prompt1.txt file to understand how to write the prompt to generate a verb for a website.
+
+Please think of 50 useful websites that are meaningful for verb generation. 
+Please generate folders for them. Each folder has a prompt1.txt file to describe a verb.
+
+

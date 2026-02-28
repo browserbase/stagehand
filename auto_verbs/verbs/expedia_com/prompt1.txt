@@ -1,0 +1,11 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.expedia.com
+
+* Concrete task
+- Search hotels in San Diego, CA.
+- The check-in date is 2 months from today. The check-out date is 3 nights later.
+- Filter by "Guest rating 4.0+".
+- compose a list of the top 5 hotels. Each hotel has its name and per-night price.
+- print the list.

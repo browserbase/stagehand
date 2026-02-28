@@ -1,0 +1,11 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.ebay.com
+
+* Concrete task
+- Search "vintage mechanical keyboard".
+- Filter by "Buy It Now" listing type.
+- Sort by "Price + Shipping: lowest first".
+- compose a list of the top 5 results. Each has its title, price, and shipping cost.
+- print the list.

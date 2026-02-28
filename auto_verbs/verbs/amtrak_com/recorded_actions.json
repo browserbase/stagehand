@@ -1,0 +1,88 @@
+[
+  {
+    "timestamp": 1447,
+    "type": "goto",
+    "url": "https://www.amtrak.com",
+    "description": "Navigate to https://www.amtrak.com"
+  },
+  {
+    "timestamp": 2732,
+    "type": "wait",
+    "ms": 5000,
+    "description": "Initial load"
+  },
+  {
+    "timestamp": 13510,
+    "type": "act",
+    "instruction": "Select One-Way"
+  },
+  {
+    "timestamp": 21894,
+    "type": "act",
+    "instruction": "Origin (From): Seattle, WA"
+  },
+  {
+    "timestamp": 30347,
+    "type": "act",
+    "instruction": "Destination (To): Portland, OR"
+  },
+  {
+    "timestamp": 35381,
+    "type": "act",
+    "instruction": "Set date to 04/27/2026"
+  },
+  {
+    "timestamp": 59496,
+    "type": "act",
+    "instruction": "Click FIND TRAINS"
+  },
+  {
+    "timestamp": 63114,
+    "type": "extract",
+    "instruction": "Extract trains",
+    "results": {
+      "trains": [
+        {
+          "trainNumber": "503",
+          "trainName": "Amtrak Cascades",
+          "departure": "7:10am",
+          "arrival": "10:35am",
+          "duration": "3h 25m",
+          "price": "$27"
+        },
+        {
+          "trainNumber": "505",
+          "trainName": "Amtrak Cascades",
+          "departure": "8:55am",
+          "arrival": "12:20pm",
+          "duration": "3h 25m",
+          "price": "$27"
+        },
+        {
+          "trainNumber": "11",
+          "trainName": "Coast Starlight",
+          "departure": "9:55am",
+          "arrival": "1:55pm",
+          "duration": "4h 0m",
+          "price": "$38"
+        },
+        {
+          "trainNumber": "517",
+          "trainName": "Amtrak Cascades",
+          "departure": "12:10pm",
+          "arrival": "3:35pm",
+          "duration": "3h 25m",
+          "price": "$27"
+        },
+        {
+          "trainNumber": "507",
+          "trainName": "Amtrak Cascades",
+          "departure": "2:20pm",
+          "arrival": "5:45pm",
+          "duration": "3h 25m",
+          "price": "$27"
+        }
+      ]
+    }
+  }
+]

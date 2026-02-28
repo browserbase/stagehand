@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.bestbuy.com
+
+* Concrete task
+- Search "4K monitor".
+- Sort by "Customer Rating".
+- compose a list of the top 5 products. Each product has its name, price, and customer rating.
+- print the list.

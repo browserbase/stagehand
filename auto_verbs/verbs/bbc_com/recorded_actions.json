@@ -1,0 +1,44 @@
+[
+  {
+    "timestamp": 1458,
+    "type": "goto",
+    "url": "https://www.bbc.com/news",
+    "description": "Navigate to https://www.bbc.com/news"
+  },
+  {
+    "timestamp": 2051,
+    "type": "wait",
+    "ms": 5000,
+    "description": "Initial page load"
+  },
+  {
+    "timestamp": 20949,
+    "type": "extract",
+    "instruction": "Extract top headline news stories",
+    "description": "Extract up to 5 headlines with URLs",
+    "results": {
+      "stories": [
+        {
+          "headline": "Trump 'not thrilled' with Iran after latest talks on nuclear programme",
+          "url": "https://www.bbc.com/news/articles/c309vz0z893o"
+        },
+        {
+          "headline": "Anxious days inside Iran as speculation grows of US strikes",
+          "url": ""
+        },
+        {
+          "headline": "Trump orders government to stop using Anthropic in battle over AI use",
+          "url": "https://www.bbc.com/news/articles/cn48jj3y8ezo"
+        },
+        {
+          "headline": "What the Warner Bros deal could mean for streaming, cinemas and news",
+          "url": "https://www.bbc.com/news/articles/c20j5n2w4q6o"
+        },
+        {
+          "headline": "Bill Clinton asked about hot tub photo and testifies he knew 'nothing' of Epstein crimes",
+          "url": ""
+        }
+      ]
+    }
+  }
+]

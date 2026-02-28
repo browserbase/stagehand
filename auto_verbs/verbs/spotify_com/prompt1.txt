@@ -1,0 +1,9 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://open.spotify.com
+
+* Concrete task
+- Search for "jazz playlist".
+- compose a list of the top 5 playlists. Each has its name, creator, number of songs, and total duration.
+- print the list.

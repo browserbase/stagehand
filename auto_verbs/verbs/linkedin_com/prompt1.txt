@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.linkedin.com/jobs
+
+* Concrete task
+- Search for "Software Engineer" jobs in "Seattle, WA".
+- Filter by "Past week" date posted.
+- compose a list of the top 5 job postings. Each has its title, company name, location, and posted date.
+- print the list.

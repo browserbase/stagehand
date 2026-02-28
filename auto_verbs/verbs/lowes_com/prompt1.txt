@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.lowes.com
+
+* Concrete task
+- Search "refrigerator".
+- Filter by "In Stock" and "4 Stars & Up".
+- compose a list of the top 5 products. Each product has its name, price, and rating.
+- print the list.

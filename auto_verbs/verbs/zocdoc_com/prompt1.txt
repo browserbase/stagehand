@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.zocdoc.com
+
+* Concrete task
+- Search for "dentist" near "San Francisco, CA".
+- Filter by "Highly Rated".
+- compose a list of the top 5 doctors. Each has the doctor's name, specialty, rating, and earliest available appointment date.
+- print the list.

@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.khanacademy.org
+
+* Concrete task
+- Search for "calculus" topics.
+- Navigate to the first course result.
+- Extract the course title, description, and the list of unit/section names.
+- print the results.

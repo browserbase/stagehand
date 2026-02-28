@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.nytimes.com
+
+* Concrete task
+- Search for articles about "artificial intelligence".
+- Sort by "Newest".
+- compose a list of the top 5 articles. Each has its headline, author, and publication date.
+- print the list.

@@ -1,0 +1,9 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.bankofamerica.com/locator/
+
+* Concrete task
+- Search for Bank of America branches and ATMs near "Redmond, WA 98052".
+- compose a list of up to 5 results. Each has its name/type, address, and distance.
+- print the list.

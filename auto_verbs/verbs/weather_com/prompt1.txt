@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://weather.com
+
+* Concrete task
+- Search for the weather forecast in "Seattle, WA".
+- Extract the current temperature, conditions, and the 5-day forecast.
+- Each forecast day has its day name, high/low temperatures, and conditions.
+- print the results.

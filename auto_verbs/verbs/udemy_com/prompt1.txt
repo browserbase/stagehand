@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.udemy.com
+
+* Concrete task
+- Search for "Python programming" courses.
+- Sort by "Highest Rated".
+- compose a list of the top 5 courses. Each has its title, instructor, rating, and price.
+- print the list.

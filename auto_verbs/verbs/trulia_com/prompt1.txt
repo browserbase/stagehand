@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.trulia.com
+
+* Concrete task
+- Search homes for rent in "San Jose, CA".
+- Filter by 2+ bedrooms.
+- compose a list of the top 5 listings. Each has its address, monthly rent, bedrooms, and bathrooms.
+- print the list.

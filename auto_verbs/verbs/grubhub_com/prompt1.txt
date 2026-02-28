@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.grubhub.com
+
+* Concrete task
+- Set delivery address to "Chicago, IL 60601".
+- Search for "Thai food" restaurants.
+- compose a list of the top 5 restaurants. Each has its name, rating, and estimated delivery time.
+- print the list.

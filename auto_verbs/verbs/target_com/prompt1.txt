@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.target.com
+
+* Concrete task
+- Search "coffee maker".
+- Filter by "Guest Rating 4 & up".
+- compose a list of the top 5 products. Each product has its name, price, and rating.
+- print the list.

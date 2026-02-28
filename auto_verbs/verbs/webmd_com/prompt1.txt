@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.webmd.com
+
+* Concrete task
+- Navigate to the Symptom Checker tool.
+- Select "headache" as a symptom.
+- Extract the list of possible conditions associated with headache, including condition name and brief description.
+- print the top 5 conditions.

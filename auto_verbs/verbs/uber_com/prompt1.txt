@@ -1,0 +1,9 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.uber.com/us/en/price-estimate/
+
+* Concrete task
+- Get a ride price estimate from "Seattle-Tacoma International Airport" to "Downtown Seattle".
+- extract the estimated price range for UberX and UberXL.
+- print the results.

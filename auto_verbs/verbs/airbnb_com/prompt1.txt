@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.airbnb.com
+
+* Concrete task
+- Search for vacation rentals in "Lake Tahoe" for 2 guests.
+- The check-in date is 2 months from today. The check-out date is 3 nights later.
+- compose a list of the top 5 listings. Each listing has its title, price per night, and rating.
+- print the list.

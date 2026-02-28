@@ -1,0 +1,85 @@
+[
+  {
+    "timestamp": 1394,
+    "type": "goto",
+    "url": "https://www.airbnb.com",
+    "description": "Navigate to https://www.airbnb.com"
+  },
+  {
+    "timestamp": 3426,
+    "type": "wait",
+    "ms": 4000,
+    "description": "Initial page load"
+  },
+  {
+    "timestamp": 14025,
+    "type": "act",
+    "instruction": "Type destination: Lake Tahoe",
+    "description": "Typed Lake Tahoe"
+  },
+  {
+    "timestamp": 16051,
+    "type": "act",
+    "instruction": "Select suggestion",
+    "description": "Selected Lake Tahoe from suggestions"
+  },
+  {
+    "timestamp": 17560,
+    "type": "act",
+    "instruction": "Set dates 2026-04-27 to 2026-04-30",
+    "description": "Dates to be set via URL params"
+  },
+  {
+    "timestamp": 19243,
+    "type": "act",
+    "instruction": "Set 2 guests",
+    "description": "Set guests to 2"
+  },
+  {
+    "timestamp": 35868,
+    "type": "act",
+    "instruction": "Click Search",
+    "description": "Searched"
+  },
+  {
+    "timestamp": 43005,
+    "type": "act",
+    "instruction": "Inject dates via URL: 2026-04-27 to 2026-04-30",
+    "description": "URL param injection"
+  },
+  {
+    "timestamp": 48097,
+    "type": "extract",
+    "instruction": "Extract listings",
+    "description": "Extract up to 5 Airbnb listings",
+    "results": {
+      "listings": [
+        {
+          "title": "Hotel in South Lake Tahoe",
+          "price": "$182",
+          "rating": "4.74"
+        },
+        {
+          "title": "Guesthouse in Kings Beach",
+          "price": "$702",
+          "rating": "5.0"
+        },
+        {
+          "title": "Apartment in South Lake Tahoe",
+          "price": "$276",
+          "rating": "4.65"
+        },
+        {
+          "title": "Townhouse in South Lake Tahoe",
+          "price": "$408",
+          "rating": "4.68"
+        },
+        {
+          "title": "Condo in South Lake Tahoe",
+          "price": "$599",
+          "rating": "4.72"
+        }
+      ]
+    }
+  }
+]

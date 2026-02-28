@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.ubereats.com
+
+* Concrete task
+- Set delivery address to "Seattle, WA 98101".
+- Search for "sushi" restaurants.
+- compose a list of the top 5 restaurants. Each has its name, rating, delivery fee, and estimated delivery time.
+- print the list.

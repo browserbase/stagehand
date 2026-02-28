@@ -1,0 +1,9 @@
+You have done a good job generating auto_verbs\verbs\flights_google_com\flights_search.js. It is able to generate correct py file. 
+
+However, my initial instruction was not perfect. Please generate another js file, which:
+(1) performs step1 to step5 in flights_search.py. Please do not explore. These steps are known to be good.
+(2) starting from step6 in flights_search.py, explore the algorithm to find the flight number, the itinerary and the price of each flight. The flight numbers need to be otained by expanding each card.
+(3) find the top 5 flights and return the list.
+
+
+

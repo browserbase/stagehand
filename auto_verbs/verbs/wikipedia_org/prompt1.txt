@@ -1,0 +1,9 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://en.wikipedia.org
+
+* Concrete task
+- Search for the article "Space Needle".
+- Extract the first paragraph of the article summary, and the key facts from the infobox (location, height, opened date).
+- print the results.

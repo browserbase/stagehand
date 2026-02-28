@@ -1,0 +1,84 @@
+[
+  {
+    "timestamp": 1543,
+    "type": "goto",
+    "url": "https://www.google.com/travel/flights",
+    "description": "Navigate to https://www.google.com/travel/flights"
+  },
+  {
+    "timestamp": 2265,
+    "type": "wait",
+    "ms": 3000,
+    "description": "Initial page load"
+  },
+  {
+    "timestamp": 5856,
+    "type": "act",
+    "instruction": "Ensure Round Trip",
+    "description": "Trip type verified",
+    "method": "click"
+  },
+  {
+    "timestamp": 14630,
+    "type": "act",
+    "instruction": "Set origin: Seattle",
+    "description": "Origin: Seattle",
+    "method": "type"
+  },
+  {
+    "timestamp": 23385,
+    "type": "act",
+    "instruction": "Set destination: Chicago",
+    "description": "Destination: Chicago",
+    "method": "type"
+  },
+  {
+    "timestamp": 28135,
+    "type": "act",
+    "instruction": "Set dates: dep=04/26/2026 ret=04/30/2026",
+    "description": "Set departure and return dates",
+    "method": "calendar"
+  },
+  {
+    "timestamp": 48267,
+    "type": "act",
+    "instruction": "Click Search",
+    "description": "Search flights",
+    "method": "click"
+  },
+  {
+    "timestamp": 76186,
+    "type": "extract",
+    "instruction": "AI extraction: expanded each card for flight numbers",
+    "description": "Extracted 5 flights with flight numbers",
+    "results": {
+      "flights": [
+        {
+          "flightNumber": "AS 328",
+          "itinerary": "Alaska · 12:29 AM – 6:40 AM · 4 hr 11 min · Nonstop",
+          "price": "$197"
+        },
+        {
+          "flightNumber": "UA 2618",
+          "itinerary": "United · 7:00 AM – 1:12 PM · 4 hr 12 min · Nonstop",
+          "price": "$197"
+        },
+        {
+          "flightNumber": "DL 2055",
+          "itinerary": "Delta · 7:15 AM – 1:23 PM · 4 hr 8 min · Nonstop",
+          "price": "$197"
+        },
+        {
+          "flightNumber": "DL 637",
+          "itinerary": "Delta · 10:35 AM – 4:39 PM · 4 hr 4 min · Nonstop",
+          "price": "$197"
+        },
+        {
+          "flightNumber": "DL 2108",
+          "itinerary": "Delta · 5:59 PM – 11:58 PM · 3 hr 59 min · Nonstop",
+          "price": "$197"
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.hertz.com
+
+* Concrete task
+- Search for a car rental at "Los Angeles International Airport (LAX)".
+- Pick-up date is 2 months from today. Drop-off date is 5 days later.
+- compose a list of available cars (up to 5). Each has the car name/class and daily price.
+- print the list.

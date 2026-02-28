@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.opentable.com
+
+* Concrete task
+- Search for restaurants in "Seattle, WA".
+- Set the date to 2 months from today, party size 2, time 7:00 PM.
+- compose a list of the top 5 restaurants. Each has its name, cuisine type, rating, and available reservation times.
+- print the list.

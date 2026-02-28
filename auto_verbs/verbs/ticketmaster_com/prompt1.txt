@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.ticketmaster.com
+
+* Concrete task
+- Search for "concerts" in "Los Angeles, CA".
+- Filter by "This Weekend".
+- compose a list of the top 5 events. Each has its name, venue, date/time, and starting price.
+- print the list.

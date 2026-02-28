@@ -1,0 +1,104 @@
+[
+  {
+    "timestamp": 1431,
+    "type": "goto",
+    "url": "https://www.delta.com",
+    "description": "Navigate to https://www.delta.com"
+  },
+  {
+    "timestamp": 2313,
+    "type": "wait",
+    "ms": 5000,
+    "description": "Initial page load"
+  },
+  {
+    "timestamp": 11380,
+    "type": "act",
+    "instruction": "Select Book tab",
+    "description": "Clicked Book tab"
+  },
+  {
+    "timestamp": 14405,
+    "type": "act",
+    "instruction": "Ensure Round Trip",
+    "description": "Round Trip already selected"
+  },
+  {
+    "timestamp": 18003,
+    "type": "act",
+    "instruction": "Fill origin: Seattle",
+    "description": "Typed Seattle"
+  },
+  {
+    "timestamp": 21029,
+    "type": "act",
+    "instruction": "Select origin",
+    "description": "SEA Seattle"
+  },
+  {
+    "timestamp": 25503,
+    "type": "act",
+    "instruction": "Fill destination: Chicago",
+    "description": "Typed Chicago"
+  },
+  {
+    "timestamp": 28534,
+    "type": "act",
+    "instruction": "Select destination",
+    "description": "CHI Chicago"
+  },
+  {
+    "timestamp": 32162,
+    "type": "act",
+    "instruction": "Select departure: 04/27/2026",
+    "description": "Selected departure"
+  },
+  {
+    "timestamp": 34596,
+    "type": "act",
+    "instruction": "Select return: 05/01/2026",
+    "description": "Selected return"
+  },
+  {
+    "timestamp": 36221,
+    "type": "act",
+    "instruction": "Click Search/Submit",
+    "description": "Click Search"
+  },
+  {
+    "timestamp": 54353,
+    "type": "wait",
+    "ms": 12000,
+    "description": "Wait for results"
+  },
+  {
+    "timestamp": 59477,
+    "type": "extract",
+    "instruction": "Extract flight results",
+    "description": "Extract up to 5 flights",
+    "results": {
+      "flights": [
+        {
+          "itinerary": "7:15am | 1:23pm | Nonstop | 4h 8m | DL2055",
+          "economyPrice": "$197"
+        },
+        {
+          "itinerary": "10:35am | 4:39pm | Nonstop | 4h 4m | DL637",
+          "economyPrice": "$277"
+        },
+        {
+          "itinerary": "5:59pm | 11:58pm | Nonstop | 3h 59m | DL2108",
+          "economyPrice": "$197"
+        },
+        {
+          "itinerary": "9:50am | 6:04pm | 1 Stop | 6h 14m | DL1016",
+          "economyPrice": "$507"
+        },
+        {
+          "itinerary": "8:20am | 6:13pm | 1 Stop | 7h 53m | DL536",
+          "economyPrice": "$337"
+        }
+      ]
+    }
+  }
+]

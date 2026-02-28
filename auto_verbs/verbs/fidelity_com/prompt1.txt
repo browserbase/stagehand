@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.fidelity.com
+
+* Concrete task
+- Navigate to the stock quote lookup page.
+- Search for the stock symbol "MSFT".
+- Extract the current price, day change, 52-week high, and 52-week low.
+- print the results.

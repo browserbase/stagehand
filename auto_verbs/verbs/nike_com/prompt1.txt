@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.nike.com
+
+* Concrete task
+- Search "running shoes men".
+- Sort by "Price: Low-High".
+- compose a list of the top 5 shoes. Each has its name, price, and available colors.
+- print the list.

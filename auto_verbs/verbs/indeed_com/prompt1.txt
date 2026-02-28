@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.indeed.com
+
+* Concrete task
+- Search for "Data Analyst" jobs in "Remote".
+- Sort by "Date".
+- compose a list of the top 5 job postings. Each has its title, company name, salary (if listed), and posted date.
+- print the list.

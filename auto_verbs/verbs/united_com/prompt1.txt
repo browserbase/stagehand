@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.united.com
+
+* Concrete task
+- Search round trip flights from San Francisco to New York.
+- The departure date is 2 months from today. The return date is 3 days after the departure date.
+- compose a list of the flights list (up to 5 flights). Each flight has its itinerary and its economy class price.
+- print the list.

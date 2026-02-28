@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.apartments.com
+
+* Concrete task
+- Search for apartments in "Austin, TX".
+- Filter by price range $1,000 to $2,000 per month.
+- compose a list of the top 5 listings. Each has its name, address, price range, and number of beds/baths.
+- print the list.

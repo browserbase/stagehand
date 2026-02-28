@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.imdb.com
+
+* Concrete task
+- Search for "Christopher Nolan" in the search bar.
+- Navigate to his director filmography page.
+- compose a list of his top 5 rated films. Each has its title, year, and IMDb rating.
+- print the list.

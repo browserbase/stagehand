@@ -1,0 +1,9 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.glassdoor.com
+
+* Concrete task
+- Search for company reviews for "Microsoft".
+- Extract the overall rating, CEO approval, and the top 3 pros and cons from recent reviews.
+- print the results.

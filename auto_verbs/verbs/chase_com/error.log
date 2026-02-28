@@ -1,0 +1,6 @@
+2026-02-28T04:16:16.986Z
+Cannot read properties of undefined (reading 'press')
+
+TypeError: Cannot read properties of undefined (reading 'press')
+    at searchLocation (D:\repos\stagehand\auto_verbs\verbs\chase_com\chase_search.js:293:23)
+    at async main (D:\repos\stagehand\auto_verbs\verbs\chase_com\chase_search.js:417:5)

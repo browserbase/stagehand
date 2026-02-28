@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://github.com
+
+* Concrete task
+- Search for repositories matching "browser automation".
+- Sort by "Most stars".
+- compose a list of the top 5 repositories. Each has the repo name, owner, star count, language, and description.
+- print the list.

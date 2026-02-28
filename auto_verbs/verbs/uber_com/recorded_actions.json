@@ -1,0 +1,148 @@
+[
+  {
+    "timestamp": 1381,
+    "type": "goto",
+    "url": "https://www.uber.com/us/en/price-estimate/",
+    "description": "Navigate to https://www.uber.com/us/en/price-estimate/"
+  },
+  {
+    "timestamp": 2216,
+    "type": "wait",
+    "ms": 5000,
+    "description": "Initial page load"
+  },
+  {
+    "timestamp": 9769,
+    "type": "act",
+    "instruction": "Click the pickup location input field",
+    "description": "Click Pickup input",
+    "selector": "input[aria-label=\"Pickup location\"]",
+    "method": "click"
+  },
+  {
+    "timestamp": 9770,
+    "type": "wait",
+    "ms": 500,
+    "description": "Wait after: Click Pickup input"
+  },
+  {
+    "timestamp": 13029,
+    "type": "act",
+    "instruction": "Type 'Seattle-Tacoma International Airport' into Pickup",
+    "description": "Fill Pickup: Seattle-Tacoma International Airport",
+    "method": "type"
+  },
+  {
+    "timestamp": 16058,
+    "type": "act",
+    "instruction": "Click the first autocomplete suggestion that matches \"Seattle-Tacoma International Airport\"",
+    "description": "Select Pickup suggestion",
+    "selector": "[aria-label=\"pickup location dropdown\"] li[role=\"option\"]",
+    "method": "click"
+  },
+  {
+    "timestamp": 16058,
+    "type": "wait",
+    "ms": 2000,
+    "description": "Wait after: Select Pickup suggestion"
+  },
+  {
+    "timestamp": 18078,
+    "type": "act",
+    "instruction": "Click the dropoff location input field",
+    "description": "Click Dropoff input",
+    "selector": "input[aria-label=\"Dropoff location\"]",
+    "method": "click"
+  },
+  {
+    "timestamp": 18079,
+    "type": "wait",
+    "ms": 500,
+    "description": "Wait after: Click Dropoff input"
+  },
+  {
+    "timestamp": 19982,
+    "type": "act",
+    "instruction": "Type 'Downtown Seattle' into Dropoff",
+    "description": "Fill Dropoff: Downtown Seattle",
+    "method": "type"
+  },
+  {
+    "timestamp": 23003,
+    "type": "act",
+    "instruction": "Click the first autocomplete suggestion that matches \"Downtown Seattle\"",
+    "description": "Select Dropoff suggestion",
+    "selector": "[aria-label=\"destination location dropdown\"] li[role=\"option\"]",
+    "method": "click"
+  },
+  {
+    "timestamp": 23003,
+    "type": "wait",
+    "ms": 2000,
+    "description": "Wait after: Select Dropoff suggestion"
+  },
+  {
+    "timestamp": 25027,
+    "type": "act",
+    "instruction": "Click the button to see prices or get an estimate",
+    "description": "Click estimate button",
+    "selector": "a[aria-label=\"See prices\"]",
+    "method": "click"
+  },
+  {
+    "timestamp": 25027,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Click estimate button"
+  },
+  {
+    "timestamp": 45115,
+    "type": "extract",
+    "instruction": "Extract ride prices",
+    "description": "Extract ride estimates",
+    "results": {
+      "rides": [
+        {
+          "rideType": "UberX",
+          "priceRange": "$84.50-$88.95"
+        },
+        {
+          "rideType": "UberXL",
+          "priceRange": "$95.47-$100.50"
+        },
+        {
+          "rideType": "Comfort",
+          "priceRange": "$88.10-$92.74"
+        },
+        {
+          "rideType": "UberXXL",
+          "priceRange": "$112.52-$118.44"
+        },
+        {
+          "rideType": "Comfort Electric",
+          "priceRange": "$95.54-$100.57"
+        },
+        {
+          "rideType": "Electric",
+          "priceRange": "$84.50-$88.95"
+        },
+        {
+          "rideType": "Pet",
+          "priceRange": "$87.87-$92.49"
+        },
+        {
+          "rideType": "Black",
+          "priceRange": "$106.41-$112.01"
+        },
+        {
+          "rideType": "Black SUV",
+          "priceRange": "$125.88-$132.51"
+        },
+        {
+          "rideType": "WAV",
+          "priceRange": "Unavailable"
+        }
+      ]
+    }
+  }
+]

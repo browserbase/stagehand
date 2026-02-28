@@ -1,0 +1,9 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://locator.chase.com
+
+* Concrete task
+- Search for Chase bank branches and ATMs near "Seattle, WA 98101".
+- compose a list of up to 5 results. Each has its name, address, and hours.
+- print the list.

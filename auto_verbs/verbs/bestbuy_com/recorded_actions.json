@@ -1,0 +1,49 @@
+[
+  {
+    "timestamp": 1485,
+    "type": "goto",
+    "url": "https://www.bestbuy.com/site/searchpage.jsp?st=4K%20monitor&sp=%2Bcustomerrating",
+    "description": "Navigate to https://www.bestbuy.com/site/searchpage.jsp?st=4K%20monitor&sp=%2Bcustomerrating"
+  },
+  {
+    "timestamp": 5000,
+    "type": "wait",
+    "ms": 5000,
+    "description": "Wait for search results"
+  },
+  {
+    "timestamp": 13924,
+    "type": "extract",
+    "instruction": "Extract top products via DOM selectors",
+    "description": "Extract up to 5 products with name, price, and rating",
+    "results": {
+      "products": [
+        {
+          "name": "Dell - S3225QS 31.5\" VA LED 4K UHD 120Hz FreeSync Premium Monitor with HDR (HDMI, DisplayPort) - Ash White",
+          "price": "$379.99",
+          "rating": "4.6 out of 5 (61 reviews)"
+        },
+        {
+          "name": "Acer - KA272K 27\" 4K FHD 3840 x 2160 IPS , 144Hz, 0.5ms AMD FreeSync Gaming Monitor with HDR10 (DisplayPort, HDMI) - Black",
+          "price": "$179.99",
+          "rating": "5 out of 5 (4 reviews)"
+        },
+        {
+          "name": "Dell - S2725QC 27\" IPS LED 4K UHD 120Hz FreeSync Premium Monitor (USB-C, HDMI) - Ash White",
+          "price": "$299.99",
+          "rating": "4.7 out of 5 (243 reviews)"
+        },
+        {
+          "name": "ViewSonic - VX3276-4K-MHD 31.5\" LCD 4K UHD Monitor (DisplayPort and HDMI) - Silver",
+          "price": "$299.99",
+          "rating": "4.3 out of 5 (14 reviews)"
+        },
+        {
+          "name": "Acer - Predator XB273K 27\" 4K UHD IPS Up to 320Hz Up to 0.5ms FreeSync Premium Gaming Monitor with HDR400 (DisplayPort, HDMI) - Black",
+          "price": "$299.99",
+          "rating": "4.8 out of 5 (63 reviews)"
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://maps.google.com
+
+* Concrete task
+- Search for directions from "Space Needle, Seattle, WA" to "Pike Place Market, Seattle, WA".
+- Select "Driving" mode.
+- Extract the recommended route name, estimated travel time, distance, and step-by-step directions.
+- print the results.

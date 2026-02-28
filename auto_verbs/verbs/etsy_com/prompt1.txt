@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.etsy.com
+
+* Concrete task
+- Search "handmade ceramic mug".
+- Sort by "Top Customer Reviews".
+- compose a list of the top 5 items. Each item has its title, price, and seller name.
+- print the list.

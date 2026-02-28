@@ -1,0 +1,198 @@
+[
+  {
+    "timestamp": 1349,
+    "type": "goto",
+    "url": "https://locator.chase.com",
+    "description": "Navigate to https://locator.chase.com"
+  },
+  {
+    "timestamp": 1939,
+    "type": "wait",
+    "ms": 5000,
+    "description": "Wait for page load"
+  },
+  {
+    "timestamp": 10811,
+    "type": "act",
+    "instruction": "Click the search input field where you can type an address, city, or ZIP code",
+    "description": "Click search input",
+    "selector": "xpath=/html[1]/body[1]/div[2]/div[1]/span[1]/main[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/form[1]/div[1]/div[2]/div[1]/div[1]/div[1]/input[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Textbox input field for searching by address, city, or ZIP code, suggestions appear as you type",
+    "aria": {
+      "tagName": "input",
+      "type": "text",
+      "role": null,
+      "implicitRole": "textbox",
+      "ariaLabel": "Search, suggestions appear as you type",
+      "placeholder": "Search",
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": null,
+      "id": "search-input-input",
+      "className": "f18b4mh1dfccoro brh4er81dfccorq pac-target-input",
+      "bestLabel": "Search, suggestions appear as you type",
+      "matchCount": 1,
+      "nearestAncestorId": "search-input",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "search-input",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "chase-locator",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "main",
+          "ariaLabel": null,
+          "role": null,
+          "id": "main",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "__next",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 10835,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Click search input"
+  },
+  {
+    "timestamp": 19398,
+    "type": "fill",
+    "selector": "search input",
+    "value": "Seattle, WA 98101",
+    "description": "Type \"Seattle, WA 98101\" in the search box"
+  },
+  {
+    "timestamp": 23142,
+    "type": "act",
+    "instruction": "Click the Search button or submit button to search for locations",
+    "description": "Click search button",
+    "selector": "xpath=/html[1]/body[1]/div[2]/div[1]/span[1]/main[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/form[1]/div[1]/div[2]/div[1]/div[2]/button[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Search button used to submit search queries for locations such as addresses, cities, or ZIP codes.",
+    "aria": {
+      "tagName": "button",
+      "type": "button",
+      "role": null,
+      "implicitRole": "button",
+      "ariaLabel": "Search",
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": null,
+      "id": "search-button",
+      "className": "kj72dur1oxozd10 vom668j1oxozd17 yj4rlmk1oxozd18 qp20mbk1oxozd12 n16pl1d1oxozd1c o2s2qde1oxozd13 b9gbs6t1oxozd1p liq2ft12wd0qq0 ",
+      "bestLabel": "Search",
+      "matchCount": 1,
+      "nearestAncestorId": "search-input",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "search-input",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "chase-locator",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "main",
+          "ariaLabel": null,
+          "role": null,
+          "id": "main",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "__next",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 23165,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Click search button"
+  },
+  {
+    "timestamp": 40418,
+    "type": "extract",
+    "instruction": "Extract location results via AI",
+    "description": "Extract up to 5 locations with name, address, hours",
+    "results": {
+      "locations": [
+        {
+          "name": "Fourth and Seneca",
+          "address": "1215 4th Ave Seattle, WA 98161",
+          "hours": "Closed until 9:00 AM Monday"
+        },
+        {
+          "name": "Chase Center Seattle",
+          "address": "1301 2nd Ave Seattle, WA 98101",
+          "hours": "Closed until 9:00 AM Monday"
+        },
+        {
+          "name": "Westlake Ave and 6th Ave",
+          "address": "1950 6th Ave Seattle, WA 98101",
+          "hours": "Closed until 9:00 AM Saturday\nATM open 24 hours"
+        },
+        {
+          "name": "First Hill Seattle",
+          "address": "1200 Madison St Seattle, WA 98104",
+          "hours": "Closed until 9:00 AM Monday\nATM open 24 hours"
+        },
+        {
+          "name": "Belltown",
+          "address": "2701 1st Ave Seattle, WA 98121",
+          "hours": "Closed until 9:00 AM Monday"
+        }
+      ]
+    }
+  }
+]

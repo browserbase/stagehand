@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.coursera.org
+
+* Concrete task
+- Search for "machine learning" courses.
+- Filter by "Free" availability.
+- compose a list of the top 5 courses. Each has its title, provider (university), rating, and enrollment count.
+- print the list.

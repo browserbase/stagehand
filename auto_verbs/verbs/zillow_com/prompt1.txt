@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.zillow.com
+
+* Concrete task
+- Search homes for sale in "Bellevue, WA".
+- Filter by price range $500,000 to $1,000,000 and 3+ bedrooms.
+- compose a list of the top 5 listings. Each has its address, price, bedrooms, bathrooms, and square footage.
+- print the list.

@@ -1,0 +1,162 @@
+[
+  {
+    "timestamp": 1452,
+    "type": "goto",
+    "url": "https://www.bankofamerica.com/locator/",
+    "description": "Navigate to https://www.bankofamerica.com/locator/"
+  },
+  {
+    "timestamp": 3083,
+    "type": "wait",
+    "ms": 5000,
+    "description": "Initial page load"
+  },
+  {
+    "timestamp": 13673,
+    "type": "act",
+    "instruction": "Click the search input field where I can type a location, address, city, or zip code to search for nearby branches and ATMs",
+    "description": "Click search input",
+    "selector": "xpath=/html[1]/body[1]/div[6]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/form[1]/input[2]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Search input field where the user can type a location, address, city, or zip code to search for nearby branches and ATMs",
+    "aria": {
+      "tagName": "input",
+      "type": "text",
+      "role": null,
+      "implicitRole": "textbox",
+      "ariaLabel": "Enter address, ZIP code or landmark",
+      "placeholder": "Enter address, ZIP code or landmark",
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": "locator-search-value",
+      "id": "q",
+      "className": "ui-autocomplete-input",
+      "bestLabel": "Enter address, ZIP code or landmark",
+      "matchCount": 1,
+      "nearestAncestorId": "map-search-form",
+      "ariaAncestors": [
+        {
+          "tagName": "form",
+          "ariaLabel": null,
+          "role": "form",
+          "id": "map-search-form",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "main-container",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 13716,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Click search input"
+  },
+  {
+    "timestamp": 16493,
+    "type": "act",
+    "instruction": "Type \"Redmond, WA 98052\" into search",
+    "description": "Fill search: Redmond, WA 98052",
+    "method": "type"
+  },
+  {
+    "timestamp": 20575,
+    "type": "act",
+    "instruction": "Click the Search button or submit button to search for nearby branches and ATMs",
+    "description": "Click Search button",
+    "selector": "xpath=/html[1]/body[1]/div[6]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/form[1]/button[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Button to submit the search form for finding nearby branches and ATMs",
+    "aria": {
+      "tagName": "button",
+      "type": "submit",
+      "role": null,
+      "implicitRole": "button",
+      "ariaLabel": "Click to submit search form",
+      "placeholder": null,
+      "title": "Search Nearby Locations",
+      "tooltip": null,
+      "textContent": "Search",
+      "name": null,
+      "id": "search-button",
+      "className": "ga-link",
+      "bestLabel": "Click to submit search form",
+      "matchCount": 2,
+      "nearestAncestorId": "map-search-form",
+      "ariaAncestors": [
+        {
+          "tagName": "form",
+          "ariaLabel": null,
+          "role": "form",
+          "id": "map-search-form",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "main-container",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 20667,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Click Search button"
+  },
+  {
+    "timestamp": 36792,
+    "type": "extract",
+    "instruction": "Extract branch/ATM locations",
+    "description": "Extract up to 5 locations",
+    "results": {
+      "locations": [
+        {
+          "name": "Redmond Financial Center & ATM",
+          "address": "7450 170th Ave NE, Redmond, WA 98052",
+          "distance": "0.3 mi"
+        },
+        {
+          "name": "The Commons Financial Center & ATM",
+          "address": "15253 NE 40th St, Redmond, WA 98052",
+          "distance": "2.0 mi"
+        },
+        {
+          "name": "Overlake Park Financial Center & ATM",
+          "address": "2400 148th Ave NE, Redmond, WA 98052",
+          "distance": "2.9 mi"
+        },
+        {
+          "name": "Crossroads Bellevue Financial Center & ATM",
+          "address": "15600 NE 8th St STE A9, Bellevue, WA 98008",
+          "distance": "3.7 mi"
+        },
+        {
+          "name": "Redmond Ridge Financial Center & ATM",
+          "address": "22340 NE Marketplace Dr, Redmond, WA 98053",
+          "distance": "4.0 mi"
+        }
+      ]
+    }
+  }
+]

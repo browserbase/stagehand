@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.reddit.com
+
+* Concrete task
+- Search for "best budget laptop 2026" in the subreddit r/laptops.
+- Sort by "Top".
+- compose a list of the top 5 posts. Each has its title, upvote count, and number of comments.
+- print the list.

@@ -1,0 +1,9 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.bbc.com
+
+* Concrete task
+- Navigate to the BBC News homepage.
+- Extract the top 5 headline news stories. Each has its headline and url.
+- print the list.

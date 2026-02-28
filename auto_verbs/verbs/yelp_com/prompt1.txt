@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.yelp.com
+
+* Concrete task
+- Search for "best coffee shops" in "Portland, OR".
+- Sort by "Highest Rated".
+- compose a list of the top 5 results. Each has its name, rating, number of reviews, and price range (e.g. $$).
+- print the list.
