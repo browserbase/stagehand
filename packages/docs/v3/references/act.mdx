@@ -48,6 +48,7 @@ interface ActOptions {
   variables?: Record<string, VariableValue>;
   timeout?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  serverCache?: boolean;
 }
 
 // VariableValue can be a simple primitive or a rich object:
@@ -149,6 +150,14 @@ type ModelConfiguration =
   If not specified, defaults to the current "active" page in your Stagehand instance.
 </ParamField>
 
+<ParamField path="serverCache" type="boolean" optional>
+  Override the instance-level `serverCache` setting for this request. When `true`, enables server-side caching. When `false`, disables it.
+
+  <Note>Only applies when `env` is `"BROWSERBASE"`. Has no effect in local environments.</Note>
+
+  Defaults to the value set on the Stagehand constructor (which itself defaults to `true`).
+</ParamField>
+
 ### Returns `Promise<ActResult>`
 
 <ResponseField name="success" type="boolean" required>
@@ -180,6 +189,13 @@ type ModelConfiguration =
       Arguments passed to the method
     </ResponseField>
   </Expandable>
+</ResponseField>
+
+<ResponseField name="cacheStatus" type='"HIT" | "MISS"' optional>
+  Indicates whether the result was served from the server-side cache. Only present when running with `env: "BROWSERBASE"` and server-side caching is enabled.
+
+  - **`"HIT"`** - Result was served from cache; no LLM tokens were consumed
+  - **`"MISS"`** - Result was computed fresh and cached for future calls
 </ResponseField>
 
 **Example Response:**

@@ -120,6 +120,29 @@ await stagehand.act("choose 'Peach' from the favorite color dropdown", {
 });
 ```
 
+### Server-side Caching
+
+<Note>
+`serverCache` only works when running with `env: "BROWSERBASE"`. It has no effect in local environments.
+</Note>
+
+When running on Browserbase, Stagehand automatically caches `act()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Caching is enabled by default and can be controlled globally on the constructor or overridden per call:
+
+```typescript
+// Disable server-side caching for the entire instance
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  serverCache: false,
+});
+
+// Or disable it for a single call
+await stagehand.act("click the login button", { serverCache: false });
+
+// Check whether a result was served from cache
+const result = await stagehand.act("click the login button");
+console.log(result.cacheStatus); // "HIT", "MISS", or undefined
+```
+
 ### Using with Custom Pages
 
 You can use `act()` with pages from other browser automation libraries like Puppeteer, Playwright, or Patchright by passing the `page` option:

@@ -2,21 +2,98 @@
 title: Caching Actions
 description: Cache actions automatically to reduce costs and improve performance
 ---
+
 import { V3Banner } from '/snippets/v3-banner.mdx';
 
 <V3Banner />
 
+Stagehand supports two caching strategies: server-side caching managed by Browserbase, and local file-based caching.
+
+---
+
+## Server-side Caching
+
 <Note>
-**Server-side caching is now available.** 
-
-When running `env: "BROWSERBASE"`, Stagehand automatically caches `act()`, `extract()`, and `observe()` results server-side — repeated calls with the same inputs return instantly without consuming LLM tokens.
-
-Caching is enabled by default and can be disabled via `serverCache: false` on the Stagehand instance or per individual call. Check out the [browserbase blog](https://www.browserbase.com/blog/stagehand-caching) for more details.
+  Server-side caching only works when running with `env: "BROWSERBASE"`. It has no effect in local environments.
 </Note>
 
-Stagehand provides built-in action caching to reduce LLM inference calls and improve performance. Simply specify a `cacheDir` when initializing Stagehand, and actions are automatically cached and reused across runs.
+When running on Browserbase, Stagehand automatically caches `act()`, `extract()`, and `observe()` results on the server. Repeated calls with the same inputs return instantly without consuming LLM tokens. Check out the [Browserbase blog](https://www.browserbase.com/blog/stagehand-caching) for more details on how it works under the hood.
 
-## How Caching Works
+### How It Works
+
+- **Enabled by default** — no configuration needed to start benefiting
+- **Keyed on inputs** — the instruction, page content, and options are used to generate a cache key
+- **Zero token cost on hits** — cached responses bypass the LLM entirely
+- **`cacheStatus`** — every `act()` and `extract()` result includes a `cacheStatus` field (`"HIT"` or `"MISS"`) so you can observe cache behavior
+
+### Disabling on the Constructor
+
+Pass `serverCache: false` to disable caching for all requests made by that instance:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  serverCache: false,
+});
+
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+
+await page.goto("https://example.com");
+
+// Cache is disabled — always hits the LLM
+await stagehand.act("click the login button");
+```
+
+### Disabling per Call
+
+Override the instance setting for a single call by passing `serverCache: false` in the options:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "BROWSERBASE" }); // caching on by default
+
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
+
+// This call skips the cache
+await stagehand.act("click the login button", { serverCache: false });
+
+// These calls use the cache as normal
+await stagehand.extract("extract the page title");
+await stagehand.observe("find the nav links");
+```
+
+### Inspecting Cache Status
+
+Both `act()` and `extract()` return a `cacheStatus` field you can use to verify whether a result was served from cache:
+
+```typescript
+const actResult = await stagehand.act("click the login button");
+console.log(actResult.cacheStatus); // "HIT" or "MISS"
+```
+
+<Note>
+  `observe()` does not currently expose a `cacheStatus` field. To check whether an `observe()` call was served from cache, use the [Browserbase session replay dashboard](https://docs.browserbase.com/features/observability#stagehand) or inspect the session logs.
+</Note>
+
+### Limitations
+
+- Server-side caching does **not** apply to `agent()` at the moment. Use local caching (below) if you need caching for agent workflows.
+- The page URL factors in to the cache key. If the action is being made on a page with a dynamic URL, caching may not work as expected. We do filter out certain query parameters like referral trackers and analytics, but we don't catch everything just yet.
+- If the page content or structure changes, the action won't get a cache `HIT` and the LLM will be called. The subsequent actions will attempt to hit the resulting cache entry.
+
+---
+
+## Local Caching
+
+Local caching writes results to your filesystem using a `cacheDir`. It works in both `LOCAL` and `BROWSERBASE` environments and is useful for `act()` and `agent()` workflows where you want caching to persist across machines or CI runs.
+
+### How It Works
 
 When you specify a `cacheDir`:
 1. **First run**: Actions use LLM inference and results are cached to a local file
@@ -24,7 +101,7 @@ When you specify a `cacheDir`:
 3. **Cost savings**: Eliminate redundant inference calls for repeated actions
 4. **Performance**: Faster execution by skipping LLM inference
 
-## Caching with `act()`
+### Caching with `act()`
 
 Cache actions from `act()` by specifying a cache directory in your Stagehand constructor.
 
@@ -53,7 +130,7 @@ await stagehand.act("fill the username field with %username%", {
 });
 ```
 
-## Caching with `agent()`
+### Caching with `agent()`
 
 Cache agent actions (including Computer Use Agent actions) the same way - just specify a `cacheDir`. The cache key is automatically generated based on the instruction, start URL, agent execution options, and agent configuration - subsequent runs with the same parameters will reuse cached actions.
 
@@ -84,14 +161,14 @@ await page.goto("https://play2048.co/");
 // First run: uses LLM inference and caches
 // Subsequent runs: reuses cached actions
 const result = await agent.execute({
-  instruction: "play a gane of 2048",
+  instruction: "play a game of 2048",
   maxSteps: 20,
 });
 
 console.log(JSON.stringify(result, null, 2));
 ```
 
-## Cache Directory Organization
+### Cache Directory Organization
 
 You can organize your caches by using different directory names for different workflows:
 
@@ -113,7 +190,7 @@ const dataExtractionStagehand = new Stagehand({
 });
 ```
 
-## Best Practices
+### Best Practices
 
 <AccordionGroup>
 
