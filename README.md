@@ -162,3 +162,5 @@ We'd like to thank the following people for their major contributions to Stageha
 Licensed under the MIT License.
 
 Copyright 2025 Browserbase, Inc.
+
+- [Anchor Browser](https://anchorbrowser.io) - Cloud browser infrastructure for AI agents with built-in stealth, proxies, and CDP/Playwright/Puppeteer support
