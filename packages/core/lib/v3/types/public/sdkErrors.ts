@@ -129,6 +129,18 @@ export class StagehandInvalidArgumentError extends StagehandError {
   }
 }
 
+export class CookieValidationError extends StagehandError {
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+export class CookieSetError extends StagehandError {
+  constructor(message: string) {
+    super(message);
+  }
+}
+
 export class StagehandElementNotFoundError extends StagehandError {
   constructor(xpaths: string[]) {
     super(`Could not find an element for the given xPath(s): ${xpaths}`);
@@ -385,6 +397,23 @@ export class AgentAbortError extends StagehandError {
 export class StagehandClosedError extends StagehandError {
   constructor() {
     super("Stagehand session was closed");
+  }
+}
+
+export class CdpConnectionClosedError extends StagehandError {
+  constructor(reason: string) {
+    super(`CDP connection closed: ${reason}`);
+  }
+}
+
+export class StagehandSetExtraHTTPHeadersError extends StagehandError {
+  public readonly failures: string[];
+
+  constructor(failures: string[]) {
+    super(
+      `setExtraHTTPHeaders failed for ${failures.length} session(s): ${failures.join(", ")}`,
+    );
+    this.failures = failures;
   }
 }
 

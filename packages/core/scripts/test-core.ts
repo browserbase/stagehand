@@ -1,16 +1,15 @@
 /**
  * Core unit tests (Vitest) on dist/esm tests.
  *
- * Prereqs: pnpm run build:esm (packages/core/dist/esm/tests present).
+ * Prereqs: pnpm run build:esm (packages/core/dist/esm/tests/unit present).
  * Args: [test paths...] -- [vitest args...] | --list (prints JSON matrix)
  * Env: NODE_V8_COVERAGE, NODE_OPTIONS, VITEST_CONSOLE_REPORTER;
  *      writes CTRF to ctrf/vitest-core.xml by default.
- * Example: pnpm run test:core -- packages/core/dist/esm/tests/foo.test.js -- --reporter=junit
+ * Example: pnpm run test:core -- packages/core/dist/esm/tests/unit/foo.test.js -- --reporter=junit
  */
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import {
   ensureParentDir,
   parseListFlag,
@@ -22,17 +21,12 @@ import {
   hasReporterName,
   writeCtrfFromJunit,
 } from "./test-utils.js";
+import { getRepoRootDir } from "../lib/v3/runtimePaths.js";
 
-const repoRoot = (() => {
-  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
-  const root = value.split("/packages/core/")[0];
-  if (root === value) {
-    throw new Error(`Unable to determine repo root from ${value}`);
-  }
-  return root;
-})();
+const repoRoot = getRepoRootDir();
 
-const testsDir = `${repoRoot}/packages/core/dist/esm/tests`;
+const sourceTestsDir = `${repoRoot}/packages/core/tests/unit`;
+const testsDir = `${repoRoot}/packages/core/dist/esm/tests/unit`;
 const defaultConfigPath = `${repoRoot}/packages/core/vitest.esm.config.mjs`;
 
 const resolveRepoRelative = (value: string) =>
@@ -53,28 +47,30 @@ const toTestName = (testPath: string) => {
   return path.basename(abs).replace(/\.test\.(ts|js)$/i, "");
 };
 
-if (!fs.existsSync(testsDir)) {
-  console.error(
-    "Missing packages/core/dist/esm/tests. Run pnpm run build:esm first.",
-  );
-  process.exit(1);
-}
-
 const listFlag = parseListFlag(process.argv.slice(2));
 const { paths, extra } = splitArgs(listFlag.args);
 
 if (listFlag.list) {
-  const tests = collectFiles(testsDir, ".test.js");
+  const tests = collectFiles(sourceTestsDir, ".test.ts");
   const entries = tests.map((file) => {
-    const rel = path.relative(testsDir, file).replace(/\.test\.js$/, "");
+    const relSource = path.relative(sourceTestsDir, file).replaceAll("\\", "/");
+    const rel = relSource.replace(/\.test\.ts$/, "");
+    const distPath = `${testsDir}/${relSource.replace(/\.test\.ts$/, ".test.js")}`;
     return {
-      path: path.relative(repoRoot, file),
+      path: path.relative(repoRoot, distPath).replaceAll("\\", "/"),
       name: rel,
       safe_name: toSafeName(rel),
     };
   });
   console.log(JSON.stringify(entries));
   process.exit(0);
+}
+
+if (!fs.existsSync(testsDir)) {
+  console.error(
+    "Missing packages/core/dist/esm/tests/unit. Run pnpm run build:esm first.",
+  );
+  process.exit(1);
 }
 
 const runtimePaths = paths.map(resolveRepoRelative);

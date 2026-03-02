@@ -45,10 +45,18 @@ interface Action {
 ```typescript
 interface ActOptions {
   model?: ModelConfiguration;
-  variables?: Record<string, string>;
+  variables?: Record<string, VariableValue>;
   timeout?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  serverCache?: boolean;
 }
+
+// VariableValue can be a simple primitive or a rich object:
+type VariableValue =
+  | string
+  | number
+  | boolean
+  | { value: string | number | boolean; description?: string };
 
 // ModelConfiguration can be either a string or an object
 type ModelConfiguration =
@@ -104,13 +112,26 @@ type ModelConfiguration =
   </Expandable>
 </ParamField>
 
-<ParamField path="variables" type="Record<string, string>" optional>
+<ParamField path="variables" type="Record<string, VariableValue>" optional>
   Key-value pairs for variable substitution using `%variableName%` syntax in your instruction. Variables are **not shared with LLM providers**, making them ideal for sensitive data like passwords and API keys.
+
+  Values can be simple primitives (`string`, `number`, `boolean`) or rich objects with an optional description (`{ value, description? }`).
 
   **Example:**
   ```typescript
+  // Simple values
   await stagehand.act("type %password% into the password field", {
     variables: { password: process.env.USER_PASSWORD }
+  });
+
+  // Rich values with descriptions
+  await stagehand.act("type %password% into the password field", {
+    variables: {
+      password: {
+        value: process.env.USER_PASSWORD,
+        description: "The user's login password"
+      }
+    }
   });
   ```
 </ParamField>
@@ -127,6 +148,14 @@ type ModelConfiguration =
   - **Stagehand Page**: Stagehand's wrapped Page object
 
   If not specified, defaults to the current "active" page in your Stagehand instance.
+</ParamField>
+
+<ParamField path="serverCache" type="boolean" optional>
+  Override the instance-level `serverCache` setting for this request. When `true`, enables server-side caching. When `false`, disables it.
+
+  <Note>Only applies when `env` is `"BROWSERBASE"`. Has no effect in local environments.</Note>
+
+  Defaults to the value set on the Stagehand constructor (which itself defaults to `true`).
 </ParamField>
 
 ### Returns `Promise<ActResult>`
@@ -160,6 +189,13 @@ type ModelConfiguration =
       Arguments passed to the method
     </ResponseField>
   </Expandable>
+</ResponseField>
+
+<ResponseField name="cacheStatus" type='"HIT" | "MISS"' optional>
+  Indicates whether the result was served from the server-side cache. Only present when running with `env: "BROWSERBASE"` and server-side caching is enabled.
+
+  - **`"HIT"`** - Result was served from cache; no LLM tokens were consumed
+  - **`"MISS"`** - Result was computed fresh and cached for future calls
 </ResponseField>
 
 **Example Response:**

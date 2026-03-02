@@ -265,6 +265,70 @@ await stagehand.init();
 
 ## Advanced Configuration
 
+### Keep Alive
+
+The `keepAlive` option controls whether the browser remains running after `stagehand.close()` is called or when the parent process exits unexpectedly (e.g., crash, `SIGTERM`, `SIGINT`).
+
+By default, Stagehand terminates the browser and cleans up all resources when it shuts down. Setting `keepAlive: true` keeps the browser running independently so you can reconnect to it later.
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  keepAlive: true,
+});
+
+await stagehand.init();
+
+// The browser session continues running after close()
+await stagehand.close();
+
+// Later, reconnect to the same session
+const stagehand2 = new Stagehand({
+  env: "BROWSERBASE",
+  browserbaseSessionID: stagehand.browserbaseSessionID,
+});
+await stagehand2.init();
+```
+
+#### Behavior by Environment
+
+| Behavior | `keepAlive: true` | `keepAlive: false` (default) |
+| --- | --- | --- |
+| **Browserbase** | Session stays active after `close()` | Session is terminated via API |
+| **Local** | Chrome process continues running | Chrome process is killed and temp profile is removed |
+| **On crash/signal** | Browser is left running | Browser is automatically cleaned up |
+
+#### Local Environment
+
+When running locally with `keepAlive: true`, the Chrome process is detached from the Node.js event loop, allowing your script to exit while the browser stays open. This is useful for debugging or for handing off a browser session to another process.
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  keepAlive: true,
+  localBrowserLaunchOptions: {
+    headless: false,
+  },
+});
+
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
+
+// Browser window stays open after the script exits
+await stagehand.close();
+```
+
+#### Browserbase Environment
+
+On Browserbase, `keepAlive: true` keeps the cloud session active so you can reconnect later using `browserbaseSessionID`. This is useful for long-running workflows that span multiple script executions.
+
+<Note>
+The top-level `keepAlive` option overrides `browserbaseSessionCreateParams.keepAlive` when both are provided.
+</Note>
+
 ### Fixed CDP Debugging Port
 
 Specify a fixed Chrome DevTools Protocol (CDP) debugging port instead of using a randomly assigned one.

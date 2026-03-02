@@ -42,6 +42,7 @@ export default [
       "no-implied-eval": "error",
       "no-new-func": "error",
       "security/detect-eval-with-expression": "error",
+      "preserve-caught-error": "error",
       "no-restricted-syntax": [
         "error",
         {

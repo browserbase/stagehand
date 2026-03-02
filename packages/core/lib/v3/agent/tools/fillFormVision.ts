@@ -5,13 +5,24 @@ import type { Action } from "../../types/public/methods.js";
 import type {
   FillFormVisionToolResult,
   ModelOutputContentItem,
+  Variables,
 } from "../../types/public/agent.js";
 import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { ensureXPath } from "../utils/xpath.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
+import { substituteVariables } from "../utils/variables.js";
 
-export const fillFormVisionTool = (v3: V3, provider?: string) =>
-  tool({
+export const fillFormVisionTool = (
+  v3: V3,
+  provider?: string,
+  variables?: Variables,
+) => {
+  const hasVariables = variables && Object.keys(variables).length > 0;
+  const valueDescription = hasVariables
+    ? `Text to type into the target field. Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}`
+    : "Text to type into the target field";
+
+  return tool({
     description: `FORM FILL - SPECIALIZED MULTI-FIELD INPUT TOOL
 
 CRITICAL: Use this for ANY form with 2+ input fields (text inputs, textareas, etc.)
@@ -38,7 +49,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
               .describe(
                 "Description of the typing action, e.g. 'type foo into the bar field'",
               ),
-            value: z.string().describe("Text to type into the target field"),
+            value: z.string().describe(valueDescription),
             coordinates: z
               .object({
                 x: z.number(),
@@ -53,7 +64,8 @@ MANDATORY USE CASES (always use fillFormVision for these):
       try {
         const page = await v3.context.awaitActivePage();
 
-        // Process coordinates for each field
+        // Process coordinates and substitute variables for each field
+        // Keep original values (with %tokens%) for logging/caching, substituted values for typing
         const processedFields = fields.map((field) => {
           const processed = processCoordinates(
             field.coordinates.x,
@@ -63,6 +75,8 @@ MANDATORY USE CASES (always use fillFormVision for these):
           );
           return {
             ...field,
+            originalValue: field.value, // Keep original with %tokens% for cache
+            value: substituteVariables(field.value, variables),
             coordinates: { x: processed.x, y: processed.y },
           };
         });
@@ -73,7 +87,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
           level: 1,
           auxiliary: {
             arguments: {
-              value: JSON.stringify({ fields, processedFields }),
+              value: JSON.stringify({ fields }), // Don't log substituted values
               type: "object",
             },
           },
@@ -95,6 +109,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
           await page.type(field.value);
 
           // Build Action with XPath for deterministic replay (only when caching)
+          // Use originalValue (with %tokens%) so cache stores references, not sensitive values
           if (shouldCollectXpath) {
             const normalizedXpath = ensureXPath(xpath);
             if (normalizedXpath) {
@@ -102,7 +117,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
                 selector: normalizedXpath,
                 description: field.action,
                 method: "type",
-                arguments: [field.value],
+                arguments: [field.originalValue],
               });
             }
           }
@@ -169,3 +184,4 @@ MANDATORY USE CASES (always use fillFormVision for these):
       };
     },
   });
+};

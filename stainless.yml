@@ -33,14 +33,16 @@ targets:
     package_name: stagehand
     production_repo: browserbase/stagehand-java
     publish:
-      maven: true
+      maven:
+        sonatype_platform: portal
   kotlin:
     edition: kotlin.2025-10-08
     reverse_domain: com.browserbase.api
     package_name: stagehand
     production_repo: browserbase/stagehand-kotlin
     publish:
-      maven: true
+      maven:
+        sonatype_platform: portal
   ruby:
     edition: ruby.2025-10-08
     gem_name: stagehand

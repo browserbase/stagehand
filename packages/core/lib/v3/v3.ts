@@ -84,6 +84,7 @@ import { Page } from "./understudy/page.js";
 import { resolveModel } from "../modelUtils.js";
 import { StagehandAPIClient } from "./api.js";
 import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures.js";
+import { flattenVariables } from "./agent/utils/variables.js";
 import { SessionFileLogger, logStagehandStep } from "./flowLogger.js";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard.js";
 import { ActTimeoutError } from "./types/public/sdkErrors.js";
@@ -780,7 +781,7 @@ export class V3 {
             "--disable-dev-shm-usage",
             "--site-per-process",
           ];
-          let chromeFlags: string[] = [];
+          let chromeFlags: string[];
           const ignore = lbo.ignoreDefaultArgs;
           if (ignore === true) {
             // drop defaults
@@ -898,6 +899,7 @@ export class V3 {
               apiKey,
               projectId,
               logger: this.logger,
+              serverCache: this.opts.serverCache,
             });
             const createSessionPayload = {
               projectId: effectiveSessionParams.projectId ?? projectId,
@@ -1134,7 +1136,7 @@ export class V3 {
         actCacheContext = await this.actCache.prepareContext(
           input,
           page,
-          options?.variables,
+          flattenVariables(options?.variables),
         );
         if (actCacheContext) {
           const cachedResult = await this.actCache.tryReplay(
@@ -1391,6 +1393,19 @@ export class V3 {
 
     const keepAlive = this.keepAlive === true;
 
+    // Unhook CDP transport close handler BEFORE ending the API session.
+    // apiClient.end() can cause the hosted API to terminate the Browserbase
+    // session, which closes the CDP WebSocket. If the handler is still
+    // registered, _onCdpClosed fires and re-enters close() with force=true,
+    // causing a double-close cascade.
+    try {
+      if (this.ctx?.conn && this._onCdpClosed) {
+        this.ctx.conn.offTransportClosed?.(this._onCdpClosed);
+      }
+    } catch {
+      // ignore
+    }
+
     // End Browserbase session via API when keepAlive is not enabled
     if (!keepAlive && this.apiClient) {
       try {
@@ -1404,15 +1419,6 @@ export class V3 {
       // Close session file logger
       try {
         await SessionFileLogger.close();
-      } catch {
-        // ignore
-      }
-
-      // Unhook CDP transport close handler
-      try {
-        if (this.ctx?.conn && this._onCdpClosed) {
-          this.ctx.conn.offTransportClosed?.(this._onCdpClosed);
-        }
       } catch {
         // ignore
       }
@@ -1710,12 +1716,15 @@ export class V3 {
     const sanitizedOptions =
       this.agentCache.sanitizeExecuteOptions(resolvedOptions);
 
+    const cacheVariables = flattenVariables(resolvedOptions.variables);
+
     const cacheContext = this.agentCache.shouldAttemptCache(instruction)
       ? await this.agentCache.prepareContext({
           instruction,
           options: sanitizedOptions,
           configSignature: agentConfigSignature,
           page: await this.ctx!.awaitActivePage(),
+          variables: cacheVariables,
         })
       : null;
 
@@ -1862,6 +1871,8 @@ export class V3 {
             const sanitizedOptions =
               this.agentCache.sanitizeExecuteOptions(resolvedOptions);
 
+            const cacheVariables = flattenVariables(resolvedOptions.variables);
+
             let cacheContext: AgentCacheContext | null = null;
             if (this.agentCache.shouldAttemptCache(instruction)) {
               const startPage = await this.ctx!.awaitActivePage();
@@ -1870,6 +1881,7 @@ export class V3 {
                 options: sanitizedOptions,
                 configSignature: agentConfigSignature,
                 page: startPage,
+                variables: cacheVariables,
               });
               if (cacheContext) {
                 const replayed = await this.agentCache.tryReplay(cacheContext);

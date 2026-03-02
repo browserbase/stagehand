@@ -9,6 +9,10 @@ inputs:
     description: Whether to download pre-built package from build artifacts.
     required: false
     default: "true"
+  restore-turbo-cache:
+    description: Whether to restore the local .turbo cache.
+    required: false
+    default: "true"
 
 runs:
   using: composite
@@ -23,6 +27,7 @@ runs:
         cache-dependency-path: '**/pnpm-lock.yaml'
 
     - name: Restore Turbo cache
+      if: ${{ inputs.restore-turbo-cache == 'true' }}
       uses: actions/cache/restore@v4
       with:
         path: .turbo

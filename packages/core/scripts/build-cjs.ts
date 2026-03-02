@@ -1,5 +1,5 @@
 /**
- * Build canonical dist/ (CJS) output for the core package, including types & sourcemaps.
+ * Build canonical dist/ (CJS) output for the core package (including tests).
  *
  * Prereqs: pnpm install; run gen-version + build-dom-scripts first (turbo handles).
  * Args: none.
@@ -8,19 +8,20 @@
  */
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { getRepoRootDir } from "../lib/v3/runtimePaths.js";
 
-const repoRoot = (() => {
-  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
-  const root = value.split("/packages/core/")[0];
-  if (root === value) {
-    throw new Error(`Unable to determine repo root from ${value}`);
+const repoRoot = getRepoRootDir();
+
+const runNodeScript = (scriptPath: string, args: string[]) => {
+  const result = spawnSync(process.execPath, [scriptPath, ...args], {
+    stdio: "inherit",
+    cwd: repoRoot,
+  });
+  if (result.error) {
+    console.error(`Failed to run node ${scriptPath} ${args.join(" ")}`);
+    console.error(result.error);
+    process.exit(1);
   }
-  return root;
-})();
-
-const run = (args: string[]) => {
-  const result = spawnSync("pnpm", args, { stdio: "inherit", cwd: repoRoot });
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
   }
@@ -32,65 +33,34 @@ fs.rmSync(`${repoRoot}/packages/core/dist/cjs`, {
 });
 fs.mkdirSync(`${repoRoot}/packages/core/dist/cjs`, { recursive: true });
 
-run([
-  "exec",
-  "esbuild",
-  "packages/core/lib/v3/index.ts",
-  "--bundle",
-  "--platform=node",
-  "--format=cjs",
-  "--target=node20",
-  "--outfile=packages/core/dist/cjs/index.js",
-  "--sourcemap",
-  "--packages=external",
-  "--log-override:empty-import-meta=silent",
-  "--log-level=warning",
-]);
-
-run([
-  "exec",
-  "esbuild",
-  "packages/core/lib/v3/cli.js",
-  "--bundle",
-  "--platform=node",
-  "--format=cjs",
-  "--target=node20",
-  "--outfile=packages/core/dist/cjs/cli.js",
-  "--sourcemap",
-  "--packages=external",
-  "--log-level=warning",
-]);
-
-// Unit + e2e test scripts can run against dist/cjs when these test files are emitted.
-run([
-  "exec",
-  "esbuild",
-  "packages/core/tests/**/*.ts",
-  "packages/core/lib/v3/tests/**/*.ts",
-  "--outdir=packages/core/dist/cjs",
-  "--outbase=packages/core",
-  "--format=cjs",
-  "--platform=node",
-  "--target=node20",
-  "--sourcemap",
-  "--log-override:empty-import-meta=silent",
-  "--log-level=warning",
-]);
-
-run([
-  "exec",
-  "tsc",
+runNodeScript(`${repoRoot}/node_modules/typescript/bin/tsc`, [
   "-p",
   "packages/core/tsconfig.json",
+  "--module",
+  "commonjs",
   "--declaration",
-  "--emitDeclarationOnly",
   "--outDir",
   "packages/core/dist/cjs",
 ]);
 
 fs.writeFileSync(
+  `${repoRoot}/packages/core/dist/cjs/index.js`,
+  `"use strict";
+module.exports = require("./lib/v3/index.js");
+`,
+);
+fs.writeFileSync(
+  `${repoRoot}/packages/core/dist/cjs/cli.js`,
+  `#!/usr/bin/env node
+"use strict";
+require("./lib/v3/cli.js");
+`,
+);
+fs.writeFileSync(
   `${repoRoot}/packages/core/dist/cjs/index.d.ts`,
-  'export * from "./lib/v3/index";\n',
+  `export * from "./lib/v3/index";
+export { default } from "./lib/v3/index";
+`,
 );
 fs.writeFileSync(
   `${repoRoot}/packages/core/dist/cjs/package.json`,

@@ -10,6 +10,10 @@ on:
     paths-ignore:
       - "packages/docs/**"
 
+permissions:
+  contents: read
+  actions: write
+
 env:
   LLM_MAX_MS: "15000"
   EVAL_MODELS: "openai/gpt-4.1,google/gemini-2.0-flash,anthropic/claude-haiku-4-5"
@@ -170,8 +174,42 @@ jobs:
           fi
           emit_categories
       
+  run-lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    needs: [run-build]
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+        with:
+          use-prebuilt-artifacts: "true"
+          restore-turbo-cache: "false"
+          node-version: 20.x
+
+      - name: Run Lint
+        run: pnpm exec turbo run lint
+
+  cancel-after-lint-failure:
+    name: Cancel after lint failure
+    runs-on: ubuntu-latest
+    needs: [run-lint]
+    if: ${{ always() && needs.run-lint.result == 'failure' }}
+    continue-on-error: true
+    steps:
+      - name: Cancel workflow run
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -sSfL -X POST \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/cancel"
+
   run-build:
-    name: Lint & Build
+    name: Build
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository code
@@ -184,9 +222,6 @@ jobs:
 
       - name: Run Build
         run: pnpm exec turbo run build
-
-      - name: Run Lint
-        run: pnpm exec turbo run lint
 
       - name: Save Turbo cache
         if: always()
@@ -214,7 +249,7 @@ jobs:
 
   discover-core-tests:
     runs-on: ubuntu-latest
-    needs: [determine-changes, run-build]
+    needs: [determine-changes]
     if: needs.determine-changes.outputs.core == 'true'
     outputs:
       core-tests: ${{ steps.set-matrix.outputs.core-tests }}
@@ -227,7 +262,8 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
-          use-prebuilt-artifacts: "true"
+          use-prebuilt-artifacts: "false"
+          restore-turbo-cache: "false"
 
       - name: Discover core test files
         id: set-matrix
@@ -266,6 +302,7 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
           use-prebuilt-artifacts: "true"
+          restore-turbo-cache: "false"
 
       - name: Run Vitest - ${{ matrix.test.name }}
         run: |
@@ -283,7 +320,7 @@ jobs:
 
   discover-server-tests:
     runs-on: ubuntu-latest
-    needs: [determine-changes, run-build]
+    needs: [determine-changes]
     if: needs.determine-changes.outputs.server == 'true'
     outputs:
       integration-tests: ${{ steps.set-matrix.outputs.integration-tests }}
@@ -296,7 +333,8 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
-          use-prebuilt-artifacts: "true"
+          use-prebuilt-artifacts: "false"
+          restore-turbo-cache: "false"
 
       - name: Discover server test files
         id: set-matrix
@@ -314,39 +352,23 @@ jobs:
 
   build-server-sea:
     name: Build SEA binary (tests)
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/stagehand-server-sea-build.yml
     needs: [run-build]
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - uses: ./.github/actions/setup-node-pnpm-turbo
-        with:
-          use-prebuilt-artifacts: "true"
-
-      - name: Build SEA binary (ESM)
-        env:
-          SEA_TARGET_PLATFORM: linux
-          SEA_TARGET_ARCH: x64
-          SEA_BINARY_NAME: stagehand-server-linux-x64-sourcemap
-        run: |
-          pnpm exec turbo run build:sea:esm
-
-      - name: Verify SEA binary exists
-        run: |
-          test -f packages/server/dist/sea/stagehand-server-linux-x64-sourcemap
-
-      - name: Upload SEA binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: stagehand-server-linux-x64-sourcemap
-          # package.json is included to anchor artifact paths at repo root.
-          path: |
-            package.json
-            packages/server/dist/sea/stagehand-server-linux-x64-sourcemap
-          retention-days: 1
+    with:
+      matrix: |
+        [
+          {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64","include_sourcemaps":false},
+          {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","binary_name":"stagehand-server-linux-arm64","include_sourcemaps":false},
+          {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-darwin-arm64","include_sourcemaps":false},
+          {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-darwin-x64","include_sourcemaps":false},
+          {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe","include_sourcemaps":false},
+          {"os":"windows-11-arm","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe","include_sourcemaps":false},
+          {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64-sourcemap","include_sourcemaps":true}
+        ]
+      use-prebuilt-artifacts: "true"
+      restore-turbo-cache: "false"
+      node-version: "20.x"
+      upload-only-binary: stagehand-server-linux-x64-sourcemap
 
   server-integration-tests:
     name: server/integration/${{ matrix.test.name }}
@@ -379,6 +401,7 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
           use-prebuilt-artifacts: "true"
+          restore-turbo-cache: "false"
 
       - name: Download SEA binary
         uses: actions/download-artifact@v4
@@ -411,7 +434,7 @@ jobs:
 
   discover-e2e-tests:
     runs-on: ubuntu-latest
-    needs: [determine-changes, run-build]
+    needs: [determine-changes]
     if: needs.determine-changes.outputs.core == 'true'
     outputs:
       e2e-tests: ${{ steps.set-matrix.outputs.e2e-tests }}
@@ -424,7 +447,8 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
-          use-prebuilt-artifacts: "true"
+          use-prebuilt-artifacts: "false"
+          restore-turbo-cache: "false"
 
       - name: Discover e2e test files
         id: set-matrix
@@ -469,6 +493,7 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
           use-prebuilt-artifacts: "true"
+          restore-turbo-cache: "false"
 
       - uses: ./.github/actions/verify-chromium-launch
 
@@ -515,6 +540,7 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
           use-prebuilt-artifacts: "true"
+          restore-turbo-cache: "false"
 
       - name: Select Browserbase region
         uses: ./.github/actions/select-browserbase-region
@@ -570,6 +596,7 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
           use-prebuilt-artifacts: "true"
+          restore-turbo-cache: "false"
 
       - name: Select Browserbase region
         uses: ./.github/actions/select-browserbase-region
@@ -658,6 +685,7 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
           use-prebuilt-artifacts: "true"
+          restore-turbo-cache: "false"
 
       - name: Download V8 coverage artifacts
         uses: actions/download-artifact@v4

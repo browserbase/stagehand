@@ -1,13 +1,13 @@
 {
   "name": "@browserbasehq/stagehand-evals",
-  "version": "1.1.7",
+  "version": "1.1.8",
   "private": true,
   "description": "Evaluation suite for Stagehand",
   "type": "module",
   "main": "./",
   "scripts": {
     "typecheck": "pnpm -w --dir ../.. exec tsc -p packages/evals/tsconfig.json --noEmit",
-    "build": "pnpm run build:esm && pnpm run build:cli",
+    "build": "pnpm --filter @browserbasehq/stagehand-evals run --parallel \"/^build:(esm|cli)$/\"",
     "build:esm": "tsx scripts/build-esm.ts",
     "build:cli": "tsx scripts/build-cli.ts",
     "test": "pnpm -w --dir ../.. exec turbo run test:evals --filter=@browserbasehq/stagehand-evals --",
