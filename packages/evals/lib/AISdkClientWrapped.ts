@@ -216,6 +216,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       const result = {
         data: objectResponse.output,
         usage: {
+          ...usage,
           prompt_tokens: usage.inputTokens ?? 0,
           completion_tokens: usage.outputTokens ?? 0,
           reasoning_tokens:
@@ -312,6 +313,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       usage: (() => {
         const usage = textResponse.usage;
         return {
+          ...usage,
           prompt_tokens: usage.inputTokens ?? 0,
           completion_tokens: usage.outputTokens ?? 0,
           reasoning_tokens:

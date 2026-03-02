@@ -1117,14 +1117,8 @@ export class SessionFileLogger {
             model: modelId,
             operation: "generateText",
             output: outputPreview || "[empty]",
-            inputTokens:
-              typeof result.usage.inputTokens === "number"
-                ? result.usage.inputTokens
-                : (result.usage.inputTokens?.total ?? 0),
-            outputTokens:
-              typeof result.usage.outputTokens === "number"
-                ? result.usage.outputTokens
-                : (result.usage.outputTokens?.total ?? 0),
+            inputTokens: result.usage.inputTokens.total ?? 0,
+            outputTokens: result.usage.outputTokens.total ?? 0,
           },
           ctx,
         );
