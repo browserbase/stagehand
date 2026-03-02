@@ -60,8 +60,7 @@ export async function captureHybridSnapshot(
   // Strip [encodedId] prefixes that were kept during formatting solely so
   // injectSubtrees could locate iframe injection points. One regex pass over
   // the final combined string is far cheaper than post-processing in the caller.
-  const stripIds = (tree: string) =>
-    tree.replace(/^(\s*)\[[^\]]+\] /gm, "$1");
+  const stripIds = (tree: string) => tree.replace(/^(\s*)\[[^\]]+\] /gm, "$1");
 
   const context = buildFrameContext(page);
 
