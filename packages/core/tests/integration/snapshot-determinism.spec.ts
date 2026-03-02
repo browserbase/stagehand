@@ -78,6 +78,32 @@ test.describe("captureHybridSnapshot determinism", () => {
     expect(snap1.combinedTree).toBe(snap2.combinedTree);
   });
 
+  test("hashMode: true returns a string with no encoded IDs that is deterministic across sessions", async () => {
+    const pageA = v3a.context.pages()[0];
+    const pageB = v3b.context.pages()[0];
+    await Promise.all([
+      pageA.goto("https://example.com"),
+      pageB.goto("https://example.com"),
+    ]);
+
+    const [treeA, treeB] = await Promise.all([
+      captureHybridSnapshot(pageA, { hashMode: true }),
+      captureHybridSnapshot(pageB, { hashMode: true }),
+    ]);
+
+    // Must return a plain string, not a HybridSnapshot object
+    expect(typeof treeA).toBe("string");
+    expect(typeof treeB).toBe("string");
+
+    // No [encodedId] prefixes — backendNodeIds are session-specific and must
+    // be stripped before hashing so two sessions on the same page hash identically
+    expect(treeA).not.toMatch(/^\s*\[\d+-\d+\]/m);
+    expect(treeB).not.toMatch(/^\s*\[\d+-\d+\]/m);
+
+    // Identical content across independent sessions
+    expect(treeA).toBe(treeB);
+  });
+
   test("two separate sessions without iframes produce identical trees", async () => {
     const pageA = v3a.context.pages()[0];
     const pageB = v3b.context.pages()[0];

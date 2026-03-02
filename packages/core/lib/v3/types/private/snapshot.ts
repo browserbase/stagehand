@@ -25,7 +25,7 @@ export type SnapshotOptions = {
    * HybridSnapshot object. Intended for callers that only need the text
    * outline (e.g. DOM hashing, cache keys).
    */
-  treeOnly?: boolean;
+  hashMode?: boolean;
 };
 
 /**

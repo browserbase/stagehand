@@ -44,7 +44,7 @@ import { normalizeXPath, prefixXPath } from "./xpathUtils.js";
  */
 export async function captureHybridSnapshot(
   page: Page,
-  options: SnapshotOptions & { treeOnly: true },
+  options: SnapshotOptions & { hashMode: true },
 ): Promise<string>;
 export async function captureHybridSnapshot(
   page: Page,
@@ -60,7 +60,8 @@ export async function captureHybridSnapshot(
   // Strip [encodedId] prefixes that were kept during formatting solely so
   // injectSubtrees could locate iframe injection points. One regex pass over
   // the final combined string is far cheaper than post-processing in the caller.
-  const stripIds = (tree: string) => tree.replace(/\[[^\]]+\] /g, "");
+  const stripIds = (tree: string) =>
+    tree.replace(/^(\s*)\[[^\]]+\] /gm, "$1");
 
   const context = buildFrameContext(page);
 
@@ -71,7 +72,7 @@ export async function captureHybridSnapshot(
     pierce,
   );
   if (scopedSnapshot) {
-    if (options?.treeOnly) return stripIds(scopedSnapshot.combinedTree);
+    if (options?.hashMode) return stripIds(scopedSnapshot.combinedTree);
     return scopedSnapshot;
   }
 
@@ -104,7 +105,7 @@ export async function captureHybridSnapshot(
     iframeHostEncByChild,
     framesInScope,
   );
-  if (options?.treeOnly) return stripIds(result.combinedTree);
+  if (options?.hashMode) return stripIds(result.combinedTree);
   return result;
 }
 
@@ -209,6 +210,7 @@ export async function tryScopedSnapshot(
         scrollableMap,
         encode: (backendNodeId) =>
           `${page.getOrdinal(targetFrameId)}-${backendNodeId}`,
+        hashMode: options?.hashMode,
       },
     );
 
@@ -349,7 +351,7 @@ export async function collectPerFrameMaps(
       tagNameMap,
       scrollableMap,
       encode: (backendNodeId) => `${page.getOrdinal(frameId)}-${backendNodeId}`,
-      hashMode: options?.treeOnly,
+      hashMode: options?.hashMode,
     });
 
     perFrameOutlines.push({ frameId, outline });
