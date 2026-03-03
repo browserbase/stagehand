@@ -26,6 +26,7 @@ import { ConsoleMessage, ConsoleListener } from "./consoleMessage.js";
 import type { StagehandAPIClient } from "../api.js";
 import {
   LocalBrowserLaunchOptions,
+  StagehandSetExtraHTTPHeadersError,
   StagehandSnapshotError,
 } from "../types/public/index.js";
 import type { Locator } from "./locator.js";
@@ -1149,6 +1150,49 @@ export class Page {
     };
 
     return withScreenshotTimeout(opts.timeout, exec);
+  }
+
+  async setExtraHTTPHeaders(headers: Record<string, string>): Promise<void> {
+    const headersCopy = { ...headers };
+
+    // get the session(s) for this page:
+    const sessions: CDPSessionLike[] = [];
+    for (const session of this.sessions.values()) {
+      sessions.push(session);
+    }
+
+    if (!sessions.length) return;
+
+    const results = await Promise.allSettled(
+      sessions.map(async (session) => {
+        await session.send("Network.enable");
+        await session.send("Network.setExtraHTTPHeaders", {
+          headers: headersCopy,
+        });
+      }),
+    );
+
+    // get list of objects containing results & corresponding session IDs
+    const pairs = results.map((result, index) => ({
+      result,
+      id: sessions[index].id,
+    }));
+
+    const filtered = pairs.filter(
+      (pair): pair is { result: PromiseRejectedResult; id: string } =>
+        pair.result.status === "rejected",
+    );
+
+    const errors = filtered.map((pair) => {
+      const reason = pair.result.reason;
+      const sessId = pair.id;
+      const message = reason?.message ?? String(reason);
+      return `session=${sessId} error=${message}`;
+    });
+
+    if (errors.length > 0) {
+      throw new StagehandSetExtraHTTPHeadersError(errors);
+    }
   }
 
   /**
