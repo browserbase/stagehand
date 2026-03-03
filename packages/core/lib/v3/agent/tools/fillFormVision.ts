@@ -154,7 +154,15 @@ MANDATORY USE CASES (always use fillFormVision for these):
       if (result.success === false || result.error !== undefined) {
         return {
           type: "content",
-        value: [{ type: "text", text: JSON.stringify({ success: result.success, error: result.error }) }],
+          value: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: result.success,
+                error: result.error,
+              }),
+            },
+          ],
         };
       }
 
