@@ -441,7 +441,7 @@ export class Page {
     if (childSession.id) this.sessions.set(childSession.id, childSession);
 
     this.networkManager.trackSession(childSession);
-    void this.applyExtraHTTPHeadersToSession(childSession);
+    void this.applyExtraHTTPHeadersToSession(childSession).catch(() => {});
 
     void this.applyInitScriptsToSession(childSession).catch(() => {});
 
