@@ -19,7 +19,6 @@ import { LogLine } from "../types/public/logs.js";
 import { type Action, V3FunctionName } from "../types/public/methods.js";
 import { SessionFileLogger } from "../flowLogger.js";
 import { StagehandClosedError } from "../types/public/sdkErrors.js";
-import { CaptchaSolver } from "../agent/utils/captchaSolver.js";
 
 export class V3CuaAgentHandler {
   private v3: V3;
@@ -29,7 +28,6 @@ export class V3CuaAgentHandler {
   private agentClient: AgentClient;
   private options: AgentHandlerOptions;
   private highlightCursor: boolean;
-  private captchaSolver: CaptchaSolver | null = null;
 
   constructor(
     v3: V3,
@@ -75,20 +73,6 @@ export class V3CuaAgentHandler {
     // Provide action executor
     this.agentClient.setActionHandler(async (action) => {
       this.ensureNotClosed();
-
-      // Wait for captcha solver to finish before executing action
-      if (this.captchaSolver) {
-        await this.captchaSolver.waitIfSolving();
-        const { errored } = this.captchaSolver.consumeSolveResult();
-        if (errored) {
-          this.logger({
-            category: "agent",
-            message: "Captcha solver failed or errored",
-            level: 1,
-          });
-        }
-      }
-
       action.pageUrl = (await this.v3.context.awaitActivePage()).url();
 
       const defaultDelay = 500;
@@ -183,12 +167,6 @@ export class V3CuaAgentHandler {
       await page.goto("https://www.google.com", { waitUntil: "load" });
     }
 
-    // Set up captcha solver for Browserbase environments
-    if (this.v3.isCaptchaSolverEnabled) {
-      this.captchaSolver = new CaptchaSolver();
-      this.captchaSolver.init(() => this.v3.context.awaitActivePage());
-    }
-
     if (this.highlightCursor) {
       try {
         await this.injectCursor();
@@ -205,13 +183,7 @@ export class V3CuaAgentHandler {
     }
 
     const start = Date.now();
-    let result: AgentResult;
-    try {
-      result = await this.agent.execute({ options, logger: this.logger });
-    } finally {
-      this.captchaSolver?.dispose();
-      this.captchaSolver = null;
-    }
+    const result = await this.agent.execute({ options, logger: this.logger });
     const inferenceTimeMs = Date.now() - start;
     if (result.usage) {
       this.v3.updateMetrics(
