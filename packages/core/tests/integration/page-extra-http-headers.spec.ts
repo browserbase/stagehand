@@ -83,11 +83,11 @@ test.describe("page.setExtraHTTPHeaders", () => {
     await internal.mainSession.send("Network.enable");
 
     // Set initial headers and navigate
-    await page.setExtraHTTPHeaders({ "x-round": "first" });
+    await page.setExtraHTTPHeaders({ "x-first": "yes" });
     await page.goto(TEST_URL, { waitUntil: "domcontentloaded" });
 
     // Update headers
-    await page.setExtraHTTPHeaders({ "x-round": "second" });
+    await page.setExtraHTTPHeaders({ "x-second": "yes" });
 
     const requestPromise = new Promise<Protocol.Network.RequestWillBeSentEvent>(
       (resolve, reject) => {
@@ -119,6 +119,7 @@ test.describe("page.setExtraHTTPHeaders", () => {
       ]),
     );
 
-    expect(headers["x-round"]).toBe("second");
+    expect(headers["x-second"]).toBe("yes");
+    expect(headers["x-first"]).toBeUndefined();
   });
 });
