@@ -1198,7 +1198,7 @@ export class Page {
 
     const filtered = pairs.filter(
       (pair): pair is { result: PromiseRejectedResult; id: string } =>
-        pair.result.status === "rejected",
+        pair.result.status === "rejected" && pair.id !== null,
     );
 
     const errors = filtered.map((pair) => {
