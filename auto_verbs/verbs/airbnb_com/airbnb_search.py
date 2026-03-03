@@ -14,6 +14,12 @@ from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 from playwright.sync_api import Playwright, sync_playwright
 
+import sys as _sys
+import os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
+import shutil
+
 
 MONTH_NAMES = [
     "January", "February", "March", "April", "May", "June",
@@ -44,24 +50,12 @@ def run(
     print(f"  Destination: {destination}")
     print(f"  Check-in: {checkin_display}  Check-out: {checkout_display}  ({nights} nights, {num_guests} guests)\n")
 
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
-
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport={"width": 1920, "height": 1080},
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--start-maximized",
-            "--window-size=1920,1080",
-        ],
-    )
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("airbnb_com")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
     results = []
 
@@ -83,7 +77,7 @@ def run(
             try:
                 btn = page.locator(selector).first
                 if btn.is_visible(timeout=1500):
-                    btn.click()
+                    btn.evaluate("el => el.click()")
                     page.wait_for_timeout(500)
             except Exception:
                 pass
@@ -96,17 +90,17 @@ def run(
         ).first
         try:
             search_input.wait_for(state="visible", timeout=5000)
-            search_input.click()
+            search_input.evaluate("el => el.click()")
         except Exception:
             page.locator(
                 '[data-testid="structured-search-input-field-query"], '
                 'button:has-text("Anywhere")'
-            ).first.click()
+            ).first.evaluate("el => el.click()")
             page.wait_for_timeout(1000)
             search_input = page.locator(
                 'input[name="query"], input[placeholder*="Search"]'
             ).first
-            search_input.click()
+            search_input.evaluate("el => el.click()")
         page.wait_for_timeout(500)
 
         page.keyboard.press("Control+a")
@@ -122,7 +116,7 @@ def run(
                 '[role="option"]'
             ).first
             suggestion.wait_for(state="visible", timeout=5000)
-            suggestion.click()
+            suggestion.evaluate("el => el.click()")
             print("  Selected first suggestion")
         except Exception:
             page.keyboard.press("Enter")
@@ -146,7 +140,7 @@ def run(
             try:
                 el = page.locator(sel).first
                 if el.is_visible(timeout=2000):
-                    el.click()
+                    el.evaluate("el => el.click()")
                     guest_opened = True
                     break
             except Exception:
@@ -171,7 +165,7 @@ def run(
                     '[data-testid="stepper-adults-increase-button"], '
                     'button[aria-label*="increase" i][aria-label*="adult" i]'
                 ).first
-                inc.click()
+                inc.evaluate("el => el.click()")
                 page.wait_for_timeout(300)
             except Exception:
                 print("  WARNING: could not click adults increase button")
@@ -190,7 +184,7 @@ def run(
             try:
                 btn = page.locator(sel).first
                 if btn.is_visible(timeout=2000):
-                    btn.click()
+                    btn.evaluate("el => el.click()")
                     search_clicked = True
                     break
             except Exception:
@@ -342,7 +336,12 @@ def run(
         print(f"Error: {e}")
         traceback.print_exc()
     finally:
-        context.close()
+        try:
+            browser.close()
+        except Exception:
+            pass
+        chrome_proc.terminate()
+        shutil.rmtree(profile_dir, ignore_errors=True)
 
     return results
 

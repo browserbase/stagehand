@@ -12,6 +12,12 @@ import sys
 import os
 from playwright.sync_api import Playwright, sync_playwright
 
+import sys as _sys
+import os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
+import shutil
+
 
 def clear_cart(playwright: Playwright) -> bool:
     """Clear all items from the Amazon shopping cart.
@@ -20,23 +26,12 @@ def clear_cart(playwright: Playwright) -> bool:
         True if the cart was successfully cleared (or was already empty),
         False if something went wrong.
     """
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
-
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport=None,
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--start-maximized",
-        ],
-    )
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("amazon_com")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
 
     success = False
@@ -73,7 +68,7 @@ def clear_cart(playwright: Playwright) -> bool:
 
             # Click the first delete button
             try:
-                delete_btns.first.click(timeout=5000)
+                delete_btns.first.evaluate("el => el.click()")
                 page.wait_for_timeout(2000)
                 # Wait for the page to update
                 page.wait_for_load_state("domcontentloaded")
@@ -103,7 +98,12 @@ def clear_cart(playwright: Playwright) -> bool:
         success = False
 
     finally:
-        context.close()
+        try:
+            browser.close()
+        except Exception:
+            pass
+        chrome_proc.terminate()
+        shutil.rmtree(profile_dir, ignore_errors=True)
 
     return success
 

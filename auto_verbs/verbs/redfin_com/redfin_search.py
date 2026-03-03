@@ -5,11 +5,25 @@ Redfin Rental Search: Redmond, WA with price filter ($1500-$3000)
 Generated on: 2026-02-24T17:54:17.204Z
 Recorded 22 browser interactions
 Note: This script was generated using AI-driven discovery patterns
+
+Uses Playwright persistent context with real Chrome Default profile.
+IMPORTANT: Close ALL Chrome windows before running!
 """
 
 import re
 import os
 from playwright.sync_api import Playwright, sync_playwright, expect
+
+
+def get_chrome_default_profile() -> str:
+    """Get the Chrome Default profile path (not User Data, but Default subfolder)."""
+    user_data_dir = os.path.join(
+        os.environ["USERPROFILE"],
+        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
+    )
+    if os.path.isdir(user_data_dir):
+        return user_data_dir
+    raise FileNotFoundError("Could not find Chrome Default profile")
 
 
 def extract_listings(page, max_listings=5):
@@ -116,16 +130,16 @@ def extract_listings(page, max_listings=5):
 
 
 def run(playwright: Playwright) -> None:
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
-
+    # Use REAL Chrome Default profile (Chrome must be closed first!)
+    user_data_dir = get_chrome_default_profile()
+    print(f"Using Chrome profile: {user_data_dir}")
+    print("NOTE: Close ALL Chrome windows before running!\n")
+    
     context = playwright.chromium.launch_persistent_context(
         user_data_dir,
         channel="chrome",
         headless=False,
-        viewport=None,
+        viewport={"width": 1280, "height": 900},
         args=[
             "--disable-blink-features=AutomationControlled",
             "--disable-infobars",
@@ -134,44 +148,103 @@ def run(playwright: Playwright) -> None:
         ],
     )
     page = context.pages[0] if context.pages else context.new_page()
-
-    # Navigate to Redfin Rentals
-    page.goto("https://www.redfin.com/rentals")
-    page.wait_for_load_state("domcontentloaded")
+    
+    # Navigate to Redfin rentals page and search (like the JS version)
+    print("STEP 1: Navigate to Redfin rentals...")
+    page.goto("https://www.redfin.com/rentals", wait_until="domcontentloaded")
     page.wait_for_timeout(3000)
-
-    # Click main search input field
-    page.get_by_role("searchbox", name=re.compile(r"Search for properties", re.IGNORECASE)).first.click()
-    page.wait_for_timeout(500)
-
-    # Type location
-    search_box = page.get_by_role("searchbox", name=re.compile(r"Search for properties", re.IGNORECASE)).first
-    search_box.fill("Redmond, WA")
-
-    # Wait for autocomplete suggestions
-    page.wait_for_timeout(2000)
-
-    # Select autocomplete suggestion; fallback to Enter
+    
+    # Dismiss any popups first
+    for sel in ["button:has-text('Accept')", "button:has-text('Got It')",
+                 "[aria-label='Close']", "button:has-text('No Thanks')",
+                 "#onetrust-accept-btn-handler"]:
+        try:
+            loc = page.locator(sel).first
+            if loc.is_visible(timeout=800):
+                loc.evaluate("el => el.click()")
+                page.wait_for_timeout(500)
+        except Exception:
+            pass
+    
+    # Find and click the search box
+    print("STEP 2: Search for Redmond, WA...")
+    search_box = None
+    
+    # Find the best visible search box (there are multiple, pick one with valid bounding box)
     try:
-        page.locator("[data-rf-test-id='search-input-menu'] a, .SearchInputHome_suggestionItem__lRJk6, [class*='suggestion'] a").first.click(timeout=5000)
-    except Exception:
-        search_box.press("Enter")
-
-    page.wait_for_timeout(1000)
-
-    # Wait for search results page to load
-    page.wait_for_timeout(3000)
-    page.wait_for_load_state("domcontentloaded")
-    page.wait_for_timeout(2000)
-
-    # Ensure we are on the rental results page
-    # Autocomplete suggestions redirect to "For Sale" — rewrite URL to /apartments-for-rent
+        all_search = page.locator("#search-box-input").all()
+        best_sb = None
+        best_width = 0
+        for sb in all_search:
+            try:
+                if sb.is_visible(timeout=500):
+                    bb = sb.bounding_box()
+                    if bb and bb['y'] >= 0 and bb['width'] > best_width:
+                        best_width = bb['width']
+                        best_sb = sb
+            except:
+                continue
+        if best_sb:
+            search_box = best_sb
+    except Exception as e:
+        print(f"   Search box lookup error: {e}")
+    
+    # Fallback: try other selectors
+    if not search_box:
+        for sel in ["input.search-input-box", "input[type='search']"]:
+            try:
+                sb = page.locator(sel).first
+                if sb.is_visible(timeout=500):
+                    search_box = sb
+                    break
+            except:
+                continue
+    
+    if search_box:
+        search_box.click()
+        page.wait_for_timeout(500)
+        search_box.fill("Redmond, WA")
+        page.wait_for_timeout(2000)
+        
+        # Click autocomplete suggestion or press Enter
+        suggestion_clicked = False
+        suggestion_selectors = [
+            "[data-rf-test-id='search-input-menu'] a",
+            "[class*='suggestion'] a",
+            "[class*='autocomplete'] a",
+            "li[role='option']",
+        ]
+        for sel in suggestion_selectors:
+            try:
+                sug = page.locator(sel).first
+                if sug.is_visible(timeout=2000):
+                    sug.click()
+                    suggestion_clicked = True
+                    break
+            except Exception:
+                continue
+        
+        if not suggestion_clicked:
+            search_box.press("Enter")
+        
+        page.wait_for_timeout(5000)
+    else:
+        print("   Could not find search box - trying direct URL...")
+        page.goto("https://www.redfin.com/city/15285/WA/Redmond/apartments-for-rent")
+        page.wait_for_timeout(5000)
+    
+    # Ensure we're on the rentals page (not for sale)
     current_url = page.url
-    if "/apartments-for-rent" not in current_url and "rent" not in current_url.lower():
-        rental_url = current_url.rstrip("/") + "/apartments-for-rent"
-        page.goto(rental_url)
-        page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(3000)
+    print(f"   URL: {current_url}")
+    
+    if "/apartments-for-rent" not in current_url and "/rentals" not in current_url.lower():
+        # Rewrite URL to rentals
+        if "/WA/Redmond" in current_url or "/city/" in current_url:
+            rental_url = re.sub(r"(/WA/Redmond).*", r"\1/apartments-for-rent", current_url)
+            if rental_url != current_url:
+                print(f"   Redirecting to rentals: {rental_url}")
+                page.goto(rental_url)
+                page.wait_for_timeout(3000)
 
     # Click Price filter button (with fallbacks)
     price_clicked = False
@@ -181,7 +254,7 @@ def run(playwright: Playwright) -> None:
         ("button", re.compile(r"\\$", re.IGNORECASE)),
     ]:
         try:
-            page.get_by_role(price_selector[0], name=price_selector[1]).first.click(timeout=5000)
+            page.get_by_role(price_selector[0], name=price_selector[1]).first.evaluate("el => el.click()")
             price_clicked = True
             break
         except Exception:
@@ -192,35 +265,44 @@ def run(playwright: Playwright) -> None:
             try:
                 el = page.locator(css).first
                 if el.is_visible(timeout=3000):
-                    el.click()
+                    el.evaluate("el => el.click()")
                     price_clicked = True
                     break
             except Exception:
                 continue
 
-    # Wait for price filter dropdown
-    page.wait_for_timeout(2000)
+    # Try to set price filter (optional - skip if UI changed)
+    price_filtered = False
+    if price_clicked:
+        page.wait_for_timeout(2000)
+        try:
+            # Enter min price
+            min_input = page.get_by_placeholder(re.compile(r"min", re.IGNORECASE)).first
+            if min_input.is_visible(timeout=3000):
+                min_input.evaluate("el => el.click()")
+                min_input.fill("1500")
+                page.wait_for_timeout(500)
 
-    # Enter min price
-    min_input = page.get_by_placeholder(re.compile(r"min", re.IGNORECASE)).first
-    min_input.click()
-    min_input.fill("1500")
-    page.wait_for_timeout(500)
+                # Enter max price
+                max_input = page.get_by_placeholder(re.compile(r"max", re.IGNORECASE)).first
+                max_input.evaluate("el => el.click()")
+                max_input.fill("3000")
+                page.wait_for_timeout(500)
 
-    # Enter max price
-    max_input = page.get_by_placeholder(re.compile(r"max", re.IGNORECASE)).first
-    max_input.click()
-    max_input.fill("3000")
-    page.wait_for_timeout(500)
-
-    # Apply the price filter
-    try:
-        page.get_by_role("button", name=re.compile(r"Apply|Done|Update", re.IGNORECASE)).first.click(timeout=5000)
-    except Exception:
-        max_input.press("Enter")
-
-    # Wait for filtered results to load
-    page.wait_for_timeout(3000)
+                # Apply the price filter
+                try:
+                    page.get_by_role("button", name=re.compile(r"Apply|Done|Update", re.IGNORECASE)).first.evaluate("el => el.click()")
+                except Exception:
+                    max_input.press("Enter")
+                
+                price_filtered = True
+                page.wait_for_timeout(3000)
+        except Exception as e:
+            print(f"   Note: Price filter not applied ({e})")
+    
+    if not price_filtered:
+        print("   Showing results without price filter")
+        page.wait_for_timeout(2000)
 
     # Extract apartment listings from the page
     listings = extract_listings(page, max_listings=5)
@@ -239,7 +321,10 @@ def run(playwright: Playwright) -> None:
     # ---------------------
     # Cleanup
     # ---------------------
-    context.close()
+    try:
+        context.close()
+    except Exception:
+        pass
 
 
 with sync_playwright() as playwright:

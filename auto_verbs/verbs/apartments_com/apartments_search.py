@@ -4,8 +4,8 @@ Apartments.com - Apartment Search
 Location: Austin, TX
 Price range: $1000 - $2000 / month
 
-Generated on: 2026-02-28T02:07:10.014Z
-Recorded 5 browser interactions
+Generated on: 2026-03-01T04:17:18.429Z
+Recorded 10 browser interactions
 
 Uses homepage search bar for location (works with any free-form location).
 Uses Playwright's native locator API with the user's Chrome profile.
@@ -13,9 +13,31 @@ Uses Playwright's native locator API with the user's Chrome profile.
 
 import re
 import json
-import os
+import os, sys, shutil
+import subprocess
+import time
 import traceback
 from playwright.sync_api import Playwright, sync_playwright, TimeoutError as PwTimeout
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
+
+
+def _kill_chrome():
+    """Kill all Chrome processes to release the profile lock."""
+    try:
+        result = subprocess.run(
+            ["taskkill", "/f", "/im", "chrome.exe"],
+            capture_output=True, text=True, timeout=10
+        )
+        if "SUCCESS" in result.stdout:
+            killed = result.stdout.count("SUCCESS")
+            print(f"  Killed {killed} Chrome process(es)")
+            time.sleep(3)  # wait for file locks to release
+        else:
+            print("  No Chrome processes found")
+    except Exception:
+        print("  Could not check for Chrome processes")
 
 
 def run(
@@ -31,23 +53,31 @@ def run(
     print(f"  Location:    {location}")
     print("  Price range: $" + format(price_min, ",") + " - $" + format(price_max, ",") + " / month\n")
 
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
+    # Kill any running Chrome to release the profile lock
+    print("  Ensuring Chrome is closed...")
+    _kill_chrome()
+
+    port = get_free_port()
+    # Use the real Chrome Default profile as user-data-dir.
+    # Chrome creates its own nested Default/ subfolder inside this, but
+    # the cookies, localStorage, etc. from the real profile are accessible.
+    # Make sure Chrome is fully closed before running this script.
+    real_profile = os.path.join(
+        os.environ.get("LOCALAPPDATA", ""),
+        "Google", "Chrome", "User Data", "Default",
     )
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport={"width": 1920, "height": 1080},
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--start-maximized",
-            "--window-size=1920,1080",
-        ],
-    )
+    if os.path.isdir(real_profile):
+        profile_dir = real_profile
+        print(f"  Using real Chrome profile: {profile_dir}")
+        using_real_profile = True
+    else:
+        profile_dir = get_temp_profile_dir("apartments_com")
+        print(f"  Using temp profile (real not found)")
+        using_real_profile = False
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
     results = []
 
@@ -71,100 +101,216 @@ def run(
             try:
                 btn = page.locator(selector).first
                 if btn.is_visible(timeout=1500):
-                    btn.click()
+                    btn.evaluate("el => el.click()")
                     page.wait_for_timeout(500)
             except Exception:
                 pass
 
-        # ── STEP 0: Search for location ───────────────────────────────────
+        # ── STEP 0: Search for location ─────────────────────────────────
+        # The homepage uses a custom div.smart-search-input widget (not a
+        # real <input>).  We click it to activate, type via keyboard,
+        # handle autocomplete, and then click the Search button.
         print(f"STEP 0: Search for '{location}'...")
-        # The homepage uses a custom div.smart-search-input widget.
-        # Click the search area, then look for a real input to type into.
-        search_area = page.locator(".smart-search-input, #heroSearchInput, #quickSearchLookup, input[type='search'], input[placeholder*='search' i]").first
+
+        # Click the search widget to activate it
+        search_div = page.locator("div.smart-search-input").first
         try:
-            search_area.wait_for(state="visible", timeout=5000)
-            search_area.click()
-            page.wait_for_timeout(1000)
+            search_div.wait_for(state="visible", timeout=8000)
+            # Use dispatchEvent to focus it properly
+            search_div.evaluate("""el => {
+                el.click();
+                el.dispatchEvent(new MouseEvent('mousedown', {bubbles:true}));
+                el.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+            }""")
+            print("  Activated search widget")
         except Exception:
-            # Fallback: just click the center of the hero section
-            page.locator("section").first.click()
-            page.wait_for_timeout(1000)
-        # After clicking, check if a standard input appeared
-        search_input = None
-        for sel in ["input[type='text']:visible", "input[type='search']:visible", "input:not([type]):visible", "#quickSearchLookup", "#heroSearchInput"]:
-            try:
-                candidate = page.locator(sel).first
-                if candidate.is_visible(timeout=2000):
-                    search_input = candidate
-                    break
-            except Exception:
-                pass
-        if search_input:
-            search_input.click()
+            print("  Could not find div.smart-search-input, clicking by coordinate")
+            page.mouse.click(620, 344)
+        page.wait_for_timeout(1500)
+
+        # After clicking, a real <input> may have appeared
+        real_input = page.evaluate("""(() => {
+            const candidates = document.querySelectorAll(
+                'input[type="text"], input[type="search"], input:not([type]), input[placeholder]'
+            );
+            for (const inp of candidates) {
+                if (inp.offsetParent !== null || inp.getClientRects().length > 0) {
+                    inp.focus();
+                    inp.click();
+                    return { id: inp.id, placeholder: inp.placeholder || '' };
+                }
+            }
+            return null;
+        })()""")
+
+        if real_input:
+            print(f"  Found input: id=\"{real_input['id']}\" placeholder=\"{real_input['placeholder']}\"")
+            inp = page.locator(f"#{real_input['id']}").first if real_input['id'] else page.locator("input:visible").first
+            inp.evaluate("el => { el.focus(); el.click(); }")
             page.keyboard.press("Control+a")
             page.keyboard.press("Backspace")
-            search_input.type(location, delay=80)
+            inp.type(location, delay=60)
         else:
-            # Type directly — the active element may accept keystrokes
-            page.keyboard.type(location, delay=80)
-        page.wait_for_timeout(2500)  # wait for autocomplete
-        # Try clicking first autocomplete suggestion
-        suggestion_clicked = False
-        for sel in [".autocompleteList li", "[role='option']", "[role='listbox'] li"]:
+            print("  No standard input — typing via keyboard into focused widget")
+            page.keyboard.type(location, delay=60)
+        print(f'  Typed "{location}"')
+        page.wait_for_timeout(3000)  # wait for autocomplete
+
+        # Try to click the first autocomplete suggestion (JS click on visible items)
+        suggestion = page.evaluate("""(() => {
+            // Apartments.com autocomplete suggestions
+            const selectors = [
+                '#defined-location-list li',
+                '.autocompleteList li',
+                '.suggestItem',
+                '[class*="suggestion"] li',
+                '[class*="autocomplete"] li',
+                'li[role="option"]',
+                '[role="listbox"] li',
+            ];
+            for (const sel of selectors) {
+                const items = document.querySelectorAll(sel);
+                for (const item of items) {
+                    if (item.offsetParent !== null || item.getClientRects().length > 0) {
+                        item.click();
+                        return item.textContent.trim().substring(0, 80);
+                    }
+                }
+            }
+            return null;
+        })()""")
+
+        if suggestion:
+            print(f"  Clicked autocomplete: \"{suggestion}\"")
+            page.wait_for_timeout(1000)
+        else:
+            print("  No autocomplete suggestion found")
+
+        # Click the Search button (the homepage has a submit button near the search bar)
+        search_clicked = False
+        for sel in [
+            'button[type="submit"]',
+            'button:has-text("Search")',
+            'button[aria-label*="earch"]',
+            '#searchBar button',
+            '.searchBarContainer button',
+        ]:
             try:
-                sug = page.locator(sel).first
-                if sug.is_visible(timeout=1500):
-                    sug.click()
-                    suggestion_clicked = True
-                    print(f"  Clicked autocomplete suggestion")
+                btn = page.locator(sel).first
+                if btn.is_visible(timeout=2000):
+                    btn.evaluate("el => el.click()")
+                    search_clicked = True
+                    print(f"  Clicked Search button ({sel})")
                     break
             except Exception:
                 pass
-        if not suggestion_clicked:
+        if not search_clicked:
+            # Fallback: press Enter
             page.keyboard.press("Enter")
             print("  Pressed Enter to search")
-        page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(5000)
-        print(f"  Searched. URL: {page.url}")
 
-        # ── STEP 1: Open price filter dropdown ────────────────────────────
-        print("STEP 1: Open price filter...")
-        price_link = page.locator("#rentRangeLink").first
-        price_link.wait_for(state="visible", timeout=5000)
-        price_link.click()
-        page.wait_for_timeout(1000)
-        print("  Opened price dropdown")
-
-        # ── STEP 2: Set minimum price ─────────────────────────────────────
-        print("STEP 2: Set min price = $" + format(price_min, ",") + "...")
-        min_input = page.locator("#min-input").first
-        min_input.wait_for(state="visible", timeout=3000)
-        min_input.click()
-        page.keyboard.press("Control+a")
-        page.keyboard.press("Backspace")
-        min_input.type(str(price_min), delay=50)
-        page.wait_for_timeout(500)
-        print(f"  Typed {price_min}")
-
-        # ── STEP 3: Set maximum price ─────────────────────────────────────
-        print("STEP 3: Set max price = $" + format(price_max, ",") + "...")
-        max_input = page.locator("#max-input").first
-        max_input.wait_for(state="visible", timeout=3000)
-        max_input.click()
-        page.keyboard.press("Control+a")
-        page.keyboard.press("Backspace")
-        max_input.type(str(price_max), delay=50)
-        page.wait_for_timeout(500)
-        print(f"  Typed {price_max}")
-
-        # ── STEP 4: Click Done to apply filter ────────────────────────────
-        print("STEP 4: Apply filter...")
-        done_btn = page.locator(".done-btn").first
-        done_btn.click()
-        print("  Clicked Done")
         page.wait_for_load_state("domcontentloaded")
         page.wait_for_timeout(5000)
         print(f"  URL: {page.url}")
+        print(f"  Title: {page.title()}")
+
+        # Handle Access Denied / Cloudflare challenge
+        if "access denied" in (page.title() or "").lower() or "denied" in (page.title() or "").lower():
+            print("  ⚠ Access Denied — waiting for challenge to resolve...")
+            page.wait_for_timeout(10000)
+            print(f"  Title after wait: {page.title()}")
+            if "access denied" in (page.title() or "").lower():
+                print("  Refreshing...")
+                try:
+                    page.reload()
+                    page.wait_for_load_state("domcontentloaded")
+                    page.wait_for_timeout(8000)
+                    print(f"  Title after refresh: {page.title()}")
+                except Exception as e:
+                    print(f"  Refresh failed: {e}")
+            if "access denied" in (page.title() or "").lower():
+                # Last resort: try the results URL directly (may work now
+                # that Cloudflare cookies are set from the first attempt)
+                try:
+                    slug = location.lower().replace(",", "").replace(" ", "-").strip("-")
+                    direct_url = f"https://www.apartments.com/{slug}/"
+                    print(f"  Retrying direct URL: {direct_url}")
+                    page.goto(direct_url)
+                    page.wait_for_load_state("domcontentloaded")
+                    page.wait_for_timeout(8000)
+                    print(f"  Title after retry: {page.title()}")
+                except Exception as e:
+                    print(f"  Retry failed: {e}")
+
+        # Verify we're on results page
+        on_results = ("apartments.com" in page.url
+                      and page.url.rstrip("/") != "https://www.apartments.com"
+                      and "access denied" not in (page.title() or "").lower())
+        if on_results:
+            print("  ✓ On results page")
+        else:
+            print("  ⚠ Not on results page — will attempt extraction anyway")
+            print(f"  URL: {page.url}")
+
+        # ── STEP 1: Open price filter dropdown ────────────────────────────
+        print("STEP 1: Open price filter...")
+        try:
+            price_link = page.locator("#rentRangeLink").first
+            price_link.wait_for(state="visible", timeout=5000)
+            price_link.evaluate("el => el.click()")
+            page.wait_for_timeout(1000)
+            print("  Opened price dropdown")
+
+            # ── STEP 2: Set minimum price ─────────────────────────────────
+            print("STEP 2: Set min price = $" + format(price_min, ",") + "...")
+            min_input = page.locator("#min-input").first
+            min_input.wait_for(state="visible", timeout=3000)
+            min_input.fill(str(price_min))
+            min_input.evaluate("""el => {
+                el.dispatchEvent(new Event('input', {bubbles: true}));
+                el.dispatchEvent(new Event('change', {bubbles: true}));
+            }""")
+            page.wait_for_timeout(500)
+            actual_min = min_input.input_value()
+            print(f"  Set min to {actual_min} (wanted {price_min})")
+
+            # ── STEP 3: Set maximum price ─────────────────────────────────
+            print("STEP 3: Set max price = $" + format(price_max, ",") + "...")
+            max_input = page.locator("#max-input").first
+            max_input.wait_for(state="visible", timeout=3000)
+            # Click to focus first (site may have shifted focus after min)
+            max_input.click()
+            page.wait_for_timeout(300)
+            max_input.fill(str(price_max))
+            max_input.evaluate("""el => {
+                el.dispatchEvent(new Event('input', {bubbles: true}));
+                el.dispatchEvent(new Event('change', {bubbles: true}));
+            }""")
+            page.wait_for_timeout(500)
+            actual_max = max_input.input_value()
+            if not actual_max:
+                # Fallback: set value via JS directly
+                print("  fill() didn't stick, setting via JS...")
+                max_input.evaluate(f"""el => {{
+                    el.focus();
+                    el.value = '{price_max}';
+                    el.dispatchEvent(new Event('input', {{bubbles: true}}));
+                    el.dispatchEvent(new Event('change', {{bubbles: true}}));
+                }}""")
+                page.wait_for_timeout(300)
+                actual_max = max_input.input_value()
+            print(f"  Set max to {actual_max} (wanted {price_max})")
+
+            # ── STEP 4: Click Done to apply filter ────────────────────────
+            print("STEP 4: Apply filter...")
+            done_btn = page.locator(".done-btn").first
+            done_btn.evaluate("el => el.click()")
+            print("  Clicked Done")
+            page.wait_for_load_state("domcontentloaded")
+            page.wait_for_timeout(5000)
+            print(f"  URL: {page.url}")
+        except Exception as e:
+            print(f"  Price filter skipped (not on results page or element missing): {e}")
 
         # ── STEP 5: Extract listings ──────────────────────────────────────
         print(f"STEP 5: Extract up to {max_results} listings...")
@@ -327,7 +473,14 @@ def run(
         print(f"\nError: {e}")
         traceback.print_exc()
     finally:
-        context.close()
+        try:
+            browser.close()
+        except Exception:
+            pass
+        chrome_proc.terminate()
+        # Only delete temp profiles, never the real Chrome profile
+        if not using_real_profile:
+            shutil.rmtree(profile_dir, ignore_errors=True)
     return results
 
 

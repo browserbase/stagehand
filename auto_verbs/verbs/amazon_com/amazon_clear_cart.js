@@ -40,8 +40,11 @@ Note: This script was generated using AI-driven discovery patterns
 
 import re
 import sys
-import os
+import os, sys, shutil
 from playwright.sync_api import Playwright, sync_playwright
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
 
 def clear_cart(playwright: Playwright) -> bool:
@@ -51,23 +54,12 @@ def clear_cart(playwright: Playwright) -> bool:
         True if the cart was successfully cleared (or was already empty),
         False if something went wrong.
     """
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
-
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport=None,
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--start-maximized",
-        ],
-    )
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("amazon_com")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
 
     success = False
@@ -134,7 +126,17 @@ def clear_cart(playwright: Playwright) -> bool:
         success = False
 
     finally:
-        context.close()
+        try:
+
+            browser.close()
+
+        except Exception:
+
+            pass
+
+        chrome_proc.terminate()
+
+        shutil.rmtree(profile_dir, ignore_errors=True)
 
     return success
 
@@ -248,7 +250,7 @@ async function clearAmazonCart() {
   console.log("═══════════════════════════════════════════════════════════════\n");
 
   const recorder = new PlaywrightRecorder();
-  const llmClient = setupLLMClient();
+  const llmClient = setupLLMClient("hybrid");
 
   let stagehand;
   let success = false;
@@ -314,7 +316,7 @@ async function clearAmazonCart() {
     const pythonScript = generateAmazonClearCartPythonScript(AMAZON_CONFIG, recorder);
     const pythonPath = path.join(__dirname, "amazon_clear_cart.py");
     fs.writeFileSync(pythonPath, pythonScript, "utf-8");
-    console.log(`✅ Python Playwright script saved: ${pythonPath}`);
+    console.log(`✅ Python script preserved (hand-maintained via CDP)`);
 
     const jsonPath = path.join(__dirname, "recorded_actions_clear_cart.json");
     fs.writeFileSync(jsonPath, JSON.stringify(recorder.actions, null, 2), "utf-8");
@@ -333,7 +335,7 @@ async function clearAmazonCart() {
       const pythonScript = generateAmazonClearCartPythonScript(AMAZON_CONFIG, recorder);
       const pythonPath = path.join(__dirname, "amazon_clear_cart.py");
       fs.writeFileSync(pythonPath, pythonScript, "utf-8");
-      console.log(`🐍 Partial Python script saved: ${pythonPath}`);
+      console.log(`🐍 Python script preserved (hand-maintained via CDP)`);
     }
 
     throw error;

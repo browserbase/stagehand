@@ -65,9 +65,12 @@ Uses Playwright's native locator API with the user's Chrome profile.
 
 import re
 import json
-import os
+import os, sys, shutil
 import traceback
 from playwright.sync_api import Playwright, sync_playwright, TimeoutError as PwTimeout
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
 
 def run(
@@ -82,24 +85,12 @@ def run(
     print("=" * 59)
     print(f"  Location:    {location}")
     print("  Price range: $" + format(price_min, ",") + " - $" + format(price_max, ",") + " / month\\n")
-
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport={"width": 1920, "height": 1080},
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--start-maximized",
-            "--window-size=1920,1080",
-        ],
-    )
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("apartments_com")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
     results = []
 
@@ -123,7 +114,7 @@ def run(
             try:
                 btn = page.locator(selector).first
                 if btn.is_visible(timeout=1500):
-                    btn.click()
+                    btn.evaluate("el => el.click()")
                     page.wait_for_timeout(500)
             except Exception:
                 pass
@@ -135,11 +126,11 @@ def run(
         search_area = page.locator(".smart-search-input, #heroSearchInput, #quickSearchLookup, input[type='search'], input[placeholder*='search' i]").first
         try:
             search_area.wait_for(state="visible", timeout=5000)
-            search_area.click()
+            search_area.evaluate("el => el.click()")
             page.wait_for_timeout(1000)
         except Exception:
             # Fallback: just click the center of the hero section
-            page.locator("section").first.click()
+            page.locator("section").first.evaluate("el => el.click()")
             page.wait_for_timeout(1000)
         # After clicking, check if a standard input appeared
         search_input = None
@@ -152,7 +143,7 @@ def run(
             except Exception:
                 pass
         if search_input:
-            search_input.click()
+            search_input.evaluate("el => el.click()")
             page.keyboard.press("Control+a")
             page.keyboard.press("Backspace")
             search_input.type(location, delay=80)
@@ -166,7 +157,7 @@ def run(
             try:
                 sug = page.locator(sel).first
                 if sug.is_visible(timeout=1500):
-                    sug.click()
+                    sug.evaluate("el => el.click()")
                     suggestion_clicked = True
                     print(f"  Clicked autocomplete suggestion")
                     break
@@ -183,7 +174,7 @@ def run(
         print("STEP 1: Open price filter...")
         price_link = page.locator("#rentRangeLink").first
         price_link.wait_for(state="visible", timeout=5000)
-        price_link.click()
+        price_link.evaluate("el => el.click()")
         page.wait_for_timeout(1000)
         print("  Opened price dropdown")
 
@@ -191,7 +182,7 @@ def run(
         print("STEP 2: Set min price = $" + format(price_min, ",") + "...")
         min_input = page.locator("#min-input").first
         min_input.wait_for(state="visible", timeout=3000)
-        min_input.click()
+        min_input.evaluate("el => el.click()")
         page.keyboard.press("Control+a")
         page.keyboard.press("Backspace")
         min_input.type(str(price_min), delay=50)
@@ -202,7 +193,7 @@ def run(
         print("STEP 3: Set max price = $" + format(price_max, ",") + "...")
         max_input = page.locator("#max-input").first
         max_input.wait_for(state="visible", timeout=3000)
-        max_input.click()
+        max_input.evaluate("el => el.click()")
         page.keyboard.press("Control+a")
         page.keyboard.press("Backspace")
         max_input.type(str(price_max), delay=50)
@@ -212,7 +203,7 @@ def run(
         # ── STEP 4: Click Done to apply filter ────────────────────────────
         print("STEP 4: Apply filter...")
         done_btn = page.locator(".done-btn").first
-        done_btn.click()
+        done_btn.evaluate("el => el.click()")
         print("  Clicked Done")
         page.wait_for_load_state("domcontentloaded")
         page.wait_for_timeout(5000)
@@ -379,7 +370,17 @@ def run(
         print(f"\\nError: {e}")
         traceback.print_exc()
     finally:
-        context.close()
+        try:
+
+            browser.close()
+
+        except Exception:
+
+            pass
+
+        chrome_proc.terminate()
+
+        shutil.rmtree(profile_dir, ignore_errors=True)
     return results
 
 

@@ -11,29 +11,24 @@ import re
 import os
 from playwright.sync_api import Playwright, sync_playwright, expect
 
+import sys as _sys
+import os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
+import shutil
+
 
 def run(playwright: Playwright, recipient: str = "johndoe@contoso.com", message: str = "Hello John") -> bool:
     """
     Send a message to a recipient in Microsoft Teams.
     Returns True if the message was successfully sent, False otherwise.
     """
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
-
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport=None,
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--start-maximized",
-        ],
-    )
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("teams_microsoft_com")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
 
     success = False
@@ -48,7 +43,7 @@ def run(playwright: Playwright, recipient: str = "johndoe@contoso.com", message:
         # Teams uses a "New chat" button or Ctrl+N shortcut
         try:
             new_chat_btn = page.get_by_role("button", name=re.compile(r"New chat|New message|Compose", re.IGNORECASE)).first
-            new_chat_btn.click()
+            new_chat_btn.evaluate("el => el.click()")
         except Exception:
             # Fallback: use keyboard shortcut
             page.keyboard.press("Control+n")
@@ -59,19 +54,19 @@ def run(playwright: Playwright, recipient: str = "johndoe@contoso.com", message:
         to_field = page.get_by_role("textbox", name=re.compile(r"^To", re.IGNORECASE)).first
         if not to_field.is_visible(timeout=3000):
             to_field = page.locator("[role='combobox'] [role='textbox']").first
-        to_field.click()
+        to_field.evaluate("el => el.click()")
         to_field.press_sequentially(recipient, delay=30)
         page.wait_for_timeout(2000)
 
         # Select the recipient from the suggestions dropdown
         try:
             suggestion = page.get_by_role("option", name=re.compile(re.escape(recipient.split("@")[0]), re.IGNORECASE)).first
-            suggestion.click()
+            suggestion.evaluate("el => el.click()")
         except Exception:
             # Try clicking a listbox item or pressing Enter to confirm
             try:
                 suggestion = page.locator("[role='listbox'] [role='option']").first
-                suggestion.click()
+                suggestion.evaluate("el => el.click()")
             except Exception:
                 to_field.press("Enter")
         page.wait_for_timeout(2000)
@@ -81,14 +76,14 @@ def run(playwright: Playwright, recipient: str = "johndoe@contoso.com", message:
         compose_box = page.get_by_role("textbox", name=re.compile(r"message|type|compose|new message", re.IGNORECASE)).first
         if not compose_box.is_visible(timeout=3000):
             compose_box = page.locator("[data-tid='ckeditor-replyConversation'], [role='textbox']").first
-        compose_box.click()
+        compose_box.evaluate("el => el.click()")
         compose_box.press_sequentially(message, delay=50)
         page.wait_for_timeout(1000)
 
         # Send the message (click Send button or press Ctrl+Enter)
         try:
             send_btn = page.get_by_role("button", name=re.compile(r"Send", re.IGNORECASE)).first
-            send_btn.click()
+            send_btn.evaluate("el => el.click()")
         except Exception:
             compose_box.press("Control+Enter")
         page.wait_for_timeout(3000)
@@ -115,7 +110,12 @@ def run(playwright: Playwright, recipient: str = "johndoe@contoso.com", message:
         print(f"Error sending Teams message: {e}")
         success = False
     finally:
-        context.close()
+        try:
+            browser.close()
+        except Exception:
+            pass
+        chrome_proc.terminate()
+        shutil.rmtree(profile_dir, ignore_errors=True)
 
     return success
 

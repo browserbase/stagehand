@@ -1,7 +1,7 @@
 Please read auto_verbs\verbs\SystemPrompt1.txt
 
 * The target website
-https://www.cvs.com
+https://www.cvs.com/store-locator/landing
 
 * Concrete task
 - Use the Store Locator to find CVS Pharmacy locations near "10001" (zip code for Manhattan, NY).

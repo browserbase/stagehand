@@ -101,10 +101,13 @@ Uses Playwright's native locator API with the user's Chrome profile.
 """
 
 import re
-import os
+import os, sys, shutil
 from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 from playwright.sync_api import Playwright, sync_playwright
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
 
 MONTH_NAMES = [
@@ -137,25 +140,12 @@ def run(
 
     print(f"  Destination: {destination}")
     print(f"  Check-in: {checkin_display}  Check-out: {checkout_display}  ({nights} nights, {num_guests} guests)\\n")
-
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
-
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport={"width": 1920, "height": 1080},
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--start-maximized",
-            "--window-size=1920,1080",
-        ],
-    )
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("airbnb_com")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
     results = []
 
@@ -177,7 +167,7 @@ def run(
             try:
                 btn = page.locator(selector).first
                 if btn.is_visible(timeout=1500):
-                    btn.click()
+                    btn.evaluate("el => el.click()")
                     page.wait_for_timeout(500)
             except Exception:
                 pass
@@ -188,13 +178,13 @@ def run(
         search_input = page.locator('input[name="query"], input[placeholder*="Search"], input[id*="bigsearch"]').first
         try:
             search_input.wait_for(state="visible", timeout=5000)
-            search_input.click()
+            search_input.evaluate("el => el.click()")
         except Exception:
             # Airbnb sometimes needs a click on the search bar area first
-            page.locator('[data-testid="structured-search-input-field-query"], button:has-text("Anywhere")').first.click()
+            page.locator('[data-testid="structured-search-input-field-query"], button:has-text("Anywhere")').first.evaluate("el => el.click()")
             page.wait_for_timeout(1000)
             search_input = page.locator('input[name="query"], input[placeholder*="Search"]').first
-            search_input.click()
+            search_input.evaluate("el => el.click()")
         page.wait_for_timeout(500)
 
         page.keyboard.press("Control+a")
@@ -206,7 +196,7 @@ def run(
         try:
             suggestion = page.locator('[data-testid="option-0"], [id*="bigsearch-query-location-suggestion-0"], [role="option"]').first
             suggestion.wait_for(state="visible", timeout=5000)
-            suggestion.click()
+            suggestion.evaluate("el => el.click()")
             print("  Selected first suggestion")
         except Exception:
             page.keyboard.press("Enter")
@@ -228,7 +218,7 @@ def run(
                 pass
             # Click next month arrow
             try:
-                page.locator('button[aria-label*="forward"], button[aria-label*="Next"], [data-testid="calendar-navigate-forward"]').first.click()
+                page.locator('button[aria-label*="forward"], button[aria-label*="Next"], [data-testid="calendar-navigate-forward"]').first.evaluate("el => el.click()")
                 page.wait_for_timeout(800)
             except Exception:
                 break
@@ -236,7 +226,7 @@ def run(
         # Click check-in date
         try:
             ci_cell = page.locator(f'[data-testid="calendar-day-{checkin_str}"], td[data-date="{checkin_str}"]').first
-            ci_cell.click()
+            ci_cell.evaluate("el => el.click()")
             print(f"  Clicked check-in: {checkin_str}")
         except Exception:
             print(f"  WARNING: could not find check-in date cell")
@@ -245,7 +235,7 @@ def run(
         # Click check-out date (should be on same calendar view since it's 3 days later)
         try:
             co_cell = page.locator(f'[data-testid="calendar-day-{checkout_str}"], td[data-date="{checkout_str}"]').first
-            co_cell.click()
+            co_cell.evaluate("el => el.click()")
             print(f"  Clicked check-out: {checkout_str}")
         except Exception:
             print(f"  WARNING: could not find check-out date cell")
@@ -255,13 +245,13 @@ def run(
         print(f"STEP 3: Guests = {num_guests}...")
         try:
             guest_btn = page.locator('[data-testid="structured-search-input-field-guests-button"], button:has-text("guest"), button:has-text("Add guests"), button:has-text("Who")').first
-            guest_btn.click()
+            guest_btn.evaluate("el => el.click()")
             page.wait_for_timeout(1000)
 
             # Airbnb guest picker: Adults increase button
             adults_label = page.locator('[data-testid="stepper-adults-increase-button"], button[aria-label*="increase"][aria-label*="Adults" i]').first
             for _ in range(num_guests):
-                adults_label.click()
+                adults_label.evaluate("el => el.click()")
                 page.wait_for_timeout(300)
             print(f"  Set {num_guests} adults")
         except Exception:
@@ -272,7 +262,7 @@ def run(
         print("STEP 4: Search...")
         try:
             search_btn = page.locator('[data-testid="structured-search-input-search-button"], button[type="submit"], button:has-text("Search")').first
-            search_btn.click()
+            search_btn.evaluate("el => el.click()")
             print("  Clicked Search button")
         except Exception:
             page.keyboard.press("Enter")
@@ -381,7 +371,17 @@ def run(
         print(f"Error: {e}")
         traceback.print_exc()
     finally:
-        context.close()
+        try:
+
+            browser.close()
+
+        except Exception:
+
+            pass
+
+        chrome_proc.terminate()
+
+        shutil.rmtree(profile_dir, ignore_errors=True)
 
     return results
 
@@ -842,7 +842,7 @@ async function main() {
   console.log(`  📅 Check-in: ${CFG.checkinDisplay}  Check-out: ${CFG.checkoutDisplay}  (${CFG.nights} nights, ${CFG.guests} guests)\n`);
 
   const recorder = new PlaywrightRecorder();
-  const llmClient = setupLLMClient();
+  const llmClient = setupLLMClient("hybrid");
   let stagehand;
 
   try {

@@ -13,6 +13,12 @@ import os
 import traceback
 from playwright.sync_api import Playwright, sync_playwright
 
+import sys as _sys
+import os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
+import shutil
+
 
 def run(
     playwright: Playwright,
@@ -23,23 +29,12 @@ def run(
     print("=" * 59)
     print(f"  Extract up to {max_results} headline stories\n")
 
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport={"width": 1920, "height": 1080},
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--start-maximized",
-            "--window-size=1920,1080",
-        ],
-    )
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("bbc_com")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
     results = []
 
@@ -64,7 +59,7 @@ def run(
             try:
                 btn = page.locator(selector).first
                 if btn.is_visible(timeout=1500):
-                    btn.click()
+                    btn.evaluate("el => el.click()")
                     page.wait_for_timeout(500)
             except Exception:
                 pass
@@ -123,7 +118,12 @@ def run(
         print(f"\nError: {e}")
         traceback.print_exc()
     finally:
-        context.close()
+        try:
+            browser.close()
+        except Exception:
+            pass
+        chrome_proc.terminate()
+        shutil.rmtree(profile_dir, ignore_errors=True)
     return results
 
 

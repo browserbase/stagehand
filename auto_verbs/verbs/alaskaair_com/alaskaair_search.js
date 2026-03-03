@@ -70,10 +70,13 @@ Uses Playwright's native locator API with built-in shadow DOM piercing
 """
 
 import re
-import os
+import os, sys, shutil
 from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 from playwright.sync_api import Playwright, sync_playwright
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
 
 def compute_dates():
@@ -96,25 +99,12 @@ def run(
 
     print(f"  ${cfg.from} -> ${cfg.to}")
     print(f"  Dep: {departure_date}  Ret: {return_date}\\n")
-
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
-
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport={"width": 1920, "height": 1080},
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--start-maximized",
-            "--window-size=1920,1080",
-        ],
-    )
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("alaskaair_com")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
     results = []
 
@@ -131,7 +121,7 @@ def run(
             try:
                 btn = page.get_by_role("button", name=re.compile(label, re.IGNORECASE))
                 if btn.first.is_visible(timeout=1000):
-                    btn.first.click()
+                    btn.first.evaluate("el => el.click()")
                     page.wait_for_timeout(500)
                     break
             except Exception:
@@ -150,7 +140,7 @@ def run(
             ).first
             rt_radio = booking.get_by_text("Round trip", exact=False).first
             if rt_radio.is_visible(timeout=2000):
-                rt_radio.click(force=True)
+                rt_radio.evaluate("el => el.click()")
                 print("  Selected Round Trip (booking widget text)")
             else:
                 raise Exception("not visible")
@@ -178,7 +168,7 @@ def run(
             option = page.locator('[role="option"], auro-menuoption').first
             option.wait_for(state="attached", timeout=5000)
             opt_text = option.inner_text()
-            option.click(force=True)
+            option.evaluate("el => el.click()")
             print(f"  Selected: {opt_text.strip()[:80]}")
         except Exception:
             # Enter accepts the first/highlighted suggestion
@@ -209,7 +199,7 @@ def run(
             option = page.locator('[role="option"], auro-menuoption').first
             option.wait_for(state="attached", timeout=5000)
             opt_text = option.inner_text()
-            option.click(force=True)
+            option.evaluate("el => el.click()")
             print(f"  Selected: {opt_text.strip()[:80]}")
         except Exception:
             page.keyboard.press("Enter")
@@ -291,11 +281,11 @@ def run(
         if search_btn:
             search_btn.scroll_into_view_if_needed()
             page.wait_for_timeout(300)
-            search_btn.click()
+            search_btn.evaluate("el => el.click()")
             print("  Clicked search button")
         else:
             print("  ERROR: Search button not found — trying text fallback")
-            page.get_by_text("Search flights", exact=False).first.click()
+            page.get_by_text("Search flights", exact=False).first.evaluate("el => el.click()")
 
         # Wait for navigation
         start_url = page.url
@@ -306,7 +296,7 @@ def run(
             print(f"  URL after wait: {page.url}")
             if page.url == start_url and search_btn:
                 print("  Retrying click...")
-                search_btn.click(force=True)
+                search_btn.evaluate("el => el.click()")
                 try:
                     page.wait_for_url("**/search/results**", timeout=15000)
                     print(f"  Navigated on retry: {page.url}")
@@ -414,7 +404,17 @@ def run(
         print(f"Error: {e}")
         traceback.print_exc()
     finally:
-        context.close()
+        try:
+
+            browser.close()
+
+        except Exception:
+
+            pass
+
+        chrome_proc.terminate()
+
+        shutil.rmtree(profile_dir, ignore_errors=True)
 
     return results
 
@@ -956,7 +956,7 @@ async function main() {
   console.log(`  📅 Dep: ${CFG.depDate}  Ret: ${CFG.retDate}\n`);
 
   const recorder = new PlaywrightRecorder();
-  const llmClient = setupLLMClient();
+  const llmClient = setupLLMClient("hybrid");
   let stagehand;
 
   try {

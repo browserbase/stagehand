@@ -65,11 +65,14 @@ Recorded ${n} browser interactions
 Uses Playwright's native locator API with the user's Chrome profile.
 """
 
-import os
+import os, sys, shutil
 import re
 import time
 import traceback
 from playwright.sync_api import Playwright, sync_playwright
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
 
 def run(
@@ -83,36 +86,26 @@ def run(
     print(f"  Search: \\"{search_term}\\"")
     print(f"  Filter: Free")
     print(f"  Extract up to {max_results} results\\n")
-
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport={"width": 1920, "height": 1080},
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--start-maximized",
-            "--window-size=1920,1080",
-        ],
-    )
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("coursera_org")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
     results = []
 
     try:
-        # ── Navigate to Coursera ──────────────────────────────────────────
-        print("Loading Coursera...")
-        page.goto("${cfg.url}")
+        # ── Navigate to search results directly ──────────────────────
+        from urllib.parse import quote_plus
+        search_url = f"https://www.coursera.org/search?query={quote_plus(search_term)}&productFree=true"
+        print(f"Loading: {search_url}")
+        page.goto(search_url)
         page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(${cfg.waits.page})
+        page.wait_for_timeout(5000)
         print(f"  Loaded: {page.url}\\n")
 
-        # ── Dismiss cookie / popup banners ────────────────────────────────
+        # ── Dismiss cookie / popup banners ────────────────────────────
         for sel in [
             "button:has-text('Accept')",
             "button:has-text('Accept All')",
@@ -123,90 +116,12 @@ def run(
             try:
                 btn = page.locator(sel).first
                 if btn.is_visible(timeout=1500):
-                    btn.click()
+                    btn.evaluate("el => el.click()")
                     page.wait_for_timeout(500)
             except Exception:
                 pass
 
-        # ── Search for courses ────────────────────────────────────────────
-        print(f"Searching for \\"{search_term}\\"...")
-
-        # Click the search input / search button area
-        search_selectors = [
-            'input[name="query"]',
-            'input[type="search"]',
-            'input[placeholder*="search" i]',
-            'input[placeholder*="What do you want to learn" i]',
-            'input[aria-label*="search" i]',
-            'button[aria-label*="search" i]',
-        ]
-        search_input = None
-        for sel in search_selectors:
-            try:
-                loc = page.locator(sel).first
-                if loc.is_visible(timeout=2000):
-                    search_input = loc
-                    print(f"  Found search input: {sel}")
-                    break
-            except Exception:
-                continue
-
-        if search_input is None:
-            # Fallback: try clicking on any search icon/button to reveal input
-            try:
-                page.locator("button[data-testid='search-button'], [aria-label*='Search' i]").first.click()
-                page.wait_for_timeout(1000)
-                for sel in search_selectors:
-                    try:
-                        loc = page.locator(sel).first
-                        if loc.is_visible(timeout=2000):
-                            search_input = loc
-                            break
-                    except Exception:
-                        continue
-            except Exception:
-                pass
-
-        if search_input is None:
-            raise Exception("Could not find search input on the page")
-
-        search_input.click()
-        page.keyboard.press("Control+a")
-        page.wait_for_timeout(300)
-        search_input.fill(search_term)
-        page.wait_for_timeout(${cfg.waits.type})
-        print(f"  Typed: \\"{search_term}\\"")
-
-        page.keyboard.press("Enter")
-        print("  Submitted search")
-        page.wait_for_timeout(${cfg.waits.search})
-        print(f"  Results loaded: {page.url}\\n")
-
-        # ── Filter by Free ────────────────────────────────────────────────
-        print("Applying Free filter...")
-        free_applied = False
-        free_selectors = [
-            "button:has-text('Free')",
-            "label:has-text('Free')",
-            "a:has-text('Free')",
-            "[data-testid*='free' i]",
-            "input[value='free' i]",
-        ]
-        for sel in free_selectors:
-            try:
-                btn = page.locator(sel).first
-                if btn.is_visible(timeout=2000):
-                    btn.click()
-                    free_applied = True
-                    print(f"  Applied filter: {sel}")
-                    break
-            except Exception:
-                continue
-        if not free_applied:
-            print("  Could not find Free filter, continuing without it")
-        page.wait_for_timeout(${cfg.waits.filter})
-
-        # ── Extract results ───────────────────────────────────────────────
+        # ── Extract results ───────────────────────────────────────────
         print(f"Extracting up to {max_results} results...\\n")
 
         # Scroll to load content
@@ -216,48 +131,62 @@ def run(
         page.evaluate("window.scrollTo(0, 0)")
         page.wait_for_timeout(1000)
 
-        # Try to extract from page text using regex
+        # Extract using page text with heuristics
         body_text = page.evaluate("document.body.innerText") or ""
         lines = [l.strip() for l in body_text.split("\\n") if l.strip()]
 
-        # Look for rating patterns like "4.8" or enrollment patterns
+        # Lines to skip when looking for course titles
+        skip_prefixes = [
+            "status:", "skills you", "coursera", "filter", "sort",
+            "topic", "duration", "language", "level", "learning product",
+            "all results", "show more", "you might", "skip to",
+            "for individuals", "for businesses", "for universities",
+            "for governments", "explore", "degrees", "log in", "join",
+            "ai overview", "understanding", "start with", "begin with",
+            "learn about", "build skills", "enhance your",
+            "multiple educators",
+        ]
+
         seen = set()
         for i, line in enumerate(lines):
             if len(results) >= max_results:
                 break
-            # Look for rating pattern (e.g., "4.8" standalone or "4.8 (1,234)")
+            # Look for rating patterns like "4.8" or "4.9(10K reviews)"
             if re.search(r'^\\d\\.\\d\\b', line):
-                # Look backwards for the title (usually 1-5 lines above)
                 title = "Unknown"
                 provider = "N/A"
-                for j in range(max(0, i - 5), i):
-                    candidate = lines[j].strip()
-                    if candidate and len(candidate) > 10 and "coursera" not in candidate.lower():
-                        title = candidate
-                        break
-                # Provider is usually near the title
-                for j in range(max(0, i - 3), i):
-                    candidate = lines[j].strip()
-                    if candidate and ("university" in candidate.lower() or
-                                     "institute" in candidate.lower() or
-                                     "google" in candidate.lower() or
-                                     "stanford" in candidate.lower() or
-                                     "deeplearning" in candidate.lower()):
-                        provider = candidate
-                        break
-
-                rating = line.split()[0] if line.split() else "N/A"
-
-                # Look for enrollment nearby
                 enrollment = "N/A"
-                for j in range(max(0, i - 2), min(len(lines), i + 3)):
-                    m = re.search(r'([\\d,]+[kKmM]?)\\s*(?:students?|enrolled|learners?)', lines[j], re.IGNORECASE)
+
+                for j in range(i - 1, max(0, i - 8), -1):
+                    cand = lines[j].strip()
+                    cl = cand.lower()
+                    if not cand or len(cand) < 5:
+                        continue
+                    if any(cl.startswith(p) for p in skip_prefixes):
+                        continue
+                    if provider == "N/A" and any(kw in cl for kw in [
+                        "university", "institute", "google", "stanford",
+                        "deeplearning", "ibm", "meta", "microsoft",
+                        "aws", "duke", "johns hopkins",
+                    ]):
+                        provider = cand
+                        continue
+                    if title == "Unknown" and len(cand) > 8:
+                        title = cand
+
+                # Look for review/enrollment count near the rating
+                for j in range(max(0, i - 1), min(len(lines), i + 4)):
+                    m = re.search(
+                        r'[\\d,.]+[kKmM]?\\s*(?:students?|enrolled|learners?|reviews?|ratings?)',
+                        lines[j], re.IGNORECASE
+                    )
                     if m:
                         enrollment = m.group(0)
                         break
 
+                rating = line.split()[0] if line.split() else "N/A"
                 key = title.lower()
-                if key not in seen:
+                if key not in seen and title != "Unknown":
                     seen.add(key)
                     results.append({
                         "title": title,
@@ -266,7 +195,7 @@ def run(
                         "enrollment": enrollment,
                     })
 
-        # ── Print results ─────────────────────────────────────────────────
+        # ── Print results ─────────────────────────────────────────────
         print(f"\\nFound {len(results)} courses:\\n")
         for i, c in enumerate(results, 1):
             print(f"  {i}. {c['title']}")
@@ -279,7 +208,17 @@ def run(
         print(f"\\nError: {e}")
         traceback.print_exc()
     finally:
-        context.close()
+        try:
+
+            browser.close()
+
+        except Exception:
+
+            pass
+
+        chrome_proc.terminate()
+
+        shutil.rmtree(profile_dir, ignore_errors=True)
     return results
 
 
@@ -317,55 +256,71 @@ async function dismissPopups(page) {
 async function searchCourses(stagehand, page, recorder) {
   console.log(`🔍 Searching for "${CFG.searchTerm}"...`);
 
-  // Use AI to find and click the search input
-  await observeAndAct(stagehand, page, recorder,
-    "Click the search input field or search icon where you can type to search for courses",
-    "Click search input"
-  );
-  await page.waitForTimeout(500);
-
-  // Ctrl+A then type (per SystemPrompt1.txt)
-  await stagehand.act("Press Control+A to select all text in the search input field");
-  await page.waitForTimeout(200);
-  await stagehand.act(`Type '${CFG.searchTerm}' into the search input field`);
-  recorder.record("fill", {
-    selector: "search input",
-    value: CFG.searchTerm,
-    description: `Type "${CFG.searchTerm}" in the search box`,
-  });
-  console.log(`   ✅ Typed: "${CFG.searchTerm}"`);
-  await page.waitForTimeout(CFG.waits.type);
-
-  // Submit search
+  // Approach 1: Try the UI search first
+  let navigated = false;
   try {
     await observeAndAct(stagehand, page, recorder,
-      "Click the Search button or submit button to search for courses",
-      "Click search button",
-      1000
+      "Click the search input field or search icon where you can type to search for courses",
+      "Click search input"
     );
-    console.log("   ✅ Clicked search button");
-  } catch (e) {
-    console.log("   ⚠️  No search button found, pressing Enter...");
-    await stagehand.act("Press Enter to submit the search");
+    await page.waitForTimeout(500);
+
+    // Ctrl+A then type (per SystemPrompt1.txt)
+    await stagehand.act("Press Control+A to select all text in the search input field");
+    await page.waitForTimeout(200);
+    await stagehand.act(`Type '${CFG.searchTerm}' into the search input field`);
+    recorder.record("fill", {
+      selector: "search input",
+      value: CFG.searchTerm,
+      description: `Type "${CFG.searchTerm}" in the search box`,
+    });
+    console.log(`   ✅ Typed: "${CFG.searchTerm}"`);
+    await page.waitForTimeout(CFG.waits.type);
+
+    // Submit via Enter key
+    await stagehand.act("Press Enter to submit the search form");
     recorder.record("press", { key: "Enter", description: "Submit search" });
+    console.log("   ✅ Pressed Enter");
+
+    await page.waitForTimeout(CFG.waits.search);
+
+    // Check if the URL changed (i.e. we're on a search results page)
+    const currentUrl = page.url();
+    if (currentUrl.includes("/search") || currentUrl.includes("query=")) {
+      navigated = true;
+      console.log(`   ✅ Results loaded via UI: ${currentUrl}\n`);
+    }
+  } catch (e) {
+    console.log(`   ⚠️  UI search failed: ${e.message}`);
   }
 
-  await page.waitForTimeout(CFG.waits.search);
-  console.log(`   ✅ Results loaded: ${page.url()}\n`);
+  // Approach 2: If UI search didn't navigate, go directly to search URL
+  if (!navigated) {
+    const searchUrl = `${CFG.url}/search?query=${encodeURIComponent(CFG.searchTerm)}`;
+    console.log(`   🔄 UI search didn't navigate, going directly to: ${searchUrl}`);
+    recorder.goto(searchUrl);
+    await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
+    await page.waitForTimeout(CFG.waits.search);
+    console.log(`   ✅ Results loaded via direct URL: ${page.url()}\n`);
+  }
 }
 
 async function applyFreeFilter(stagehand, page, recorder) {
-  console.log("🏷️  Applying Free filter...");
+  console.log("🏷️  Applying Free filter via URL...");
 
-  try {
-    await observeAndAct(stagehand, page, recorder,
-      "Click the 'Free' filter button or checkbox to filter search results to show only free courses",
-      "Apply Free filter",
-      CFG.waits.filter
-    );
-    console.log("   ✅ Free filter applied");
-  } catch (e) {
-    console.log("   ⚠️  Could not find Free filter, continuing without it");
+  // Use URL parameter directly — avoids opening the Filter & Sort side pane
+  // which can obscure course cards and block extraction.
+  const currentUrl = page.url();
+  if (currentUrl.includes("/search")) {
+    const separator = currentUrl.includes("?") ? "&" : "?";
+    const freeUrl = `${currentUrl}${separator}productFree=true`;
+    console.log(`   URL: ${freeUrl}`);
+    recorder.goto(freeUrl);
+    await page.goto(freeUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await page.waitForTimeout(CFG.waits.filter);
+    console.log(`   ✅ Free filter applied: ${page.url()}`);
+  } else {
+    console.log("   ⚠️  Not on search page, skipping filter");
   }
 
   await page.waitForTimeout(CFG.waits.filter);
@@ -375,26 +330,50 @@ async function extractCourses(stagehand, page, recorder) {
   console.log(`🎯 Extracting top ${CFG.maxResults} courses...\n`);
   const { z } = require("zod/v3");
 
-  // Scroll to trigger lazy loading
-  for (let i = 0; i < 3; i++) {
-    await page.evaluate("window.scrollBy(0, 500)");
-    await page.waitForTimeout(500);
-  }
-  await page.evaluate("window.scrollTo(0, 0)");
-  await page.waitForTimeout(1000);
+  const schema = z.object({
+    courses: z.array(z.object({
+      title: z.string().describe("The course title from the card"),
+      provider: z.string().describe("University or organization name from the card"),
+      rating: z.string().describe("Star rating from the card, e.g. '4.8'"),
+      enrollment: z.string().describe("Review or enrollment count from the card, e.g. '1.2K reviews' or '650K students'"),
+    })).describe(`First ${CFG.maxResults} course cards with ratings`),
+  });
 
-  // Use AI extract to pull structured data
-  const data = await stagehand.extract(
-    `Extract up to ${CFG.maxResults} course search results from this Coursera search results page. For each course, get: the course title, the provider or university name, the star rating (e.g. "4.8"), and the enrollment count or number of students/reviews (e.g. "1.2M students" or "245K reviews"). Only extract real course listings, not ads, banners, or headers.`,
-    z.object({
-      courses: z.array(z.object({
-        title: z.string().describe("Course title"),
-        provider: z.string().describe("University or organization offering the course"),
-        rating: z.string().describe("Star rating, e.g. '4.8'"),
-        enrollment: z.string().describe("Enrollment count or number of reviews, e.g. '1.2M students'"),
-      })).describe(`Up to ${CFG.maxResults} courses`),
-    })
-  );
+  const instruction = `Extract the first ${CFG.maxResults} course result CARDS from this Coursera search results page. Do NOT extract from the "AI Overview" text summary at the top. Look for the actual course result cards below, which each have a course title, a provider/university name, a star rating (like 4.8), and a review or enrollment count (like "1.2K reviews" or "4.6M students"). Each card represents one course listing.`;
+
+  // Scroll down progressively to trigger lazy loading and get past AI Overview
+  console.log("   Scrolling down to load course cards...");
+  for (let i = 0; i < 10; i++) {
+    await page.evaluate("window.scrollBy(0, 500)");
+    await page.waitForTimeout(400);
+  }
+  // Scroll back up to where the course cards start (below AI Overview)
+  await page.evaluate("window.scrollTo(0, 1200)");
+  await page.waitForTimeout(3000);
+
+  // Try extraction up to 3 times
+  let data = { courses: [] };
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    console.log(`   Attempt ${attempt}: Extracting...`);
+
+    try {
+      data = await stagehand.extract(instruction, schema);
+      // Check if we got ratings (not just titles from AI Overview)
+      const hasRatings = data.courses.some(c => c.rating && c.rating.trim() !== "");
+      if (data.courses.length > 0 && hasRatings) {
+        console.log(`   ✅ Extracted ${data.courses.length} courses with ratings on attempt ${attempt}`);
+        break;
+      }
+      console.log(`   ⚠️  Attempt ${attempt}: ${data.courses.length} courses but missing ratings, scrolling more...`);
+      // Scroll further down to see the actual cards
+      await page.evaluate("window.scrollBy(0, 800)");
+      await page.waitForTimeout(2000);
+    } catch (e) {
+      console.log(`   ⚠️  Attempt ${attempt} failed: ${e.message}`);
+      await page.evaluate("window.scrollBy(0, 600)");
+      await page.waitForTimeout(2000);
+    }
+  }
 
   recorder.record("extract", {
     instruction: "Extract course search results via AI",
@@ -425,7 +404,7 @@ async function main() {
   console.log(`  📦 Extract up to ${CFG.maxResults} results\n`);
 
   const recorder = new PlaywrightRecorder();
-  const llmClient = setupLLMClient();
+  const llmClient = setupLLMClient("hybrid");
   let stagehand;
 
   try {

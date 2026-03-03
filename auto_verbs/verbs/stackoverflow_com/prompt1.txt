@@ -6,5 +6,5 @@ https://stackoverflow.com
 * Concrete task
 - Search for "how to parse JSON in Python".
 - Sort by "Votes".
-- compose a list of the top 5 answers from the highest-voted question. Each answer has its vote count, author, and a brief summary of the solution.
+- compose a list of the top 5 answers from the highest-voted question. Each answer has its vote count, author, a brief summary of the solution and the URL.
 - print the list.

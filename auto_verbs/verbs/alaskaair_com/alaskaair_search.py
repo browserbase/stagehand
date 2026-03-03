@@ -17,6 +17,63 @@ from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 from playwright.sync_api import Playwright, sync_playwright
 
+import sys as _sys
+import os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
+import shutil
+
+# Deep shadow DOM traversal helper (evaluated in browser)
+DEEP_QUERY_JS = """
+function deepQuerySelectorAll(root, selector) {
+  let results = Array.from(root.querySelectorAll(selector));
+  for (const el of root.querySelectorAll('*')) {
+    if (el.shadowRoot) {
+      results = results.concat(deepQuerySelectorAll(el.shadowRoot, selector));
+    }
+  }
+  return results;
+}
+"""
+
+
+def select_first_visible_option(page, timeout_ms=5000):
+    """Find first VISIBLE [role='option'] via deep shadow DOM query and click it."""
+    import time
+    deadline = time.time() + timeout_ms / 1000
+    while time.time() < deadline:
+        result = page.evaluate(f"""
+            (() => {{
+                {DEEP_QUERY_JS}
+                const opts = deepQuerySelectorAll(document, '[role="option"]');
+                const vis = opts.filter(o => {{
+                    const r = o.getBoundingClientRect();
+                    return r.width > 0 && r.height > 0 && r.top >= 0 && r.top < window.innerHeight;
+                }});
+                if (vis.length > 0) {{
+                    const r = vis[0].getBoundingClientRect();
+                    return {{ x: r.x + r.width/2, y: r.y + r.height/2, text: vis[0].textContent.trim().substring(0, 80), count: vis.length }};
+                }}
+                // Fallback: auro-menuoption
+                const items = deepQuerySelectorAll(document, 'auro-menuoption, [role="listbox"] li');
+                const v = items.filter(o => {{
+                    const r = o.getBoundingClientRect();
+                    return r.width > 0 && r.height > 0 && r.top >= 0 && r.top < window.innerHeight;
+                }});
+                if (v.length > 0) {{
+                    const r = v[0].getBoundingClientRect();
+                    return {{ x: r.x + r.width/2, y: r.y + r.height/2, text: v[0].textContent.trim().substring(0, 80), count: v.length }};
+                }}
+                return null;
+            }})()
+        """)
+        if result:
+            page.mouse.click(result['x'], result['y'])
+            print(f"  Selected: {result['text']} ({result['count']} visible options)")
+            return True
+        page.wait_for_timeout(300)
+    return False
+
 
 def compute_dates():
     today = date.today()
@@ -39,24 +96,12 @@ def run(
     print(f"  Seattle -> Chicago")
     print(f"  Dep: {departure_date}  Ret: {return_date}\n")
 
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
-
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport={"width": 1920, "height": 1080},
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--start-maximized",
-            "--window-size=1920,1080",
-        ],
-    )
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("alaskaair_com")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
     results = []
 
@@ -73,7 +118,7 @@ def run(
             try:
                 btn = page.get_by_role("button", name=re.compile(label, re.IGNORECASE))
                 if btn.first.is_visible(timeout=1000):
-                    btn.first.click()
+                    btn.first.evaluate("el => el.click()")
                     page.wait_for_timeout(500)
                     break
             except Exception:
@@ -92,7 +137,7 @@ def run(
             ).first
             rt_radio = booking.get_by_text("Round trip", exact=False).first
             if rt_radio.is_visible(timeout=2000):
-                rt_radio.click(force=True)
+                rt_radio.evaluate("el => el.click()")
                 print("  Selected Round Trip (booking widget text)")
             else:
                 raise Exception("not visible")
@@ -103,9 +148,26 @@ def run(
 
         # ── Fill Origin ───────────────────────────────────────────────────
         print(f'STEP 3: Origin = "{origin}"...')
-        from_input = page.locator('input[role="combobox"]').first
-        from_input.focus()
-        print("  Focused From combobox")
+        # Click first combobox via deep shadow DOM query (coordinate click)
+        coords = page.evaluate(f"""
+            (() => {{
+                {DEEP_QUERY_JS}
+                const inputs = deepQuerySelectorAll(document, 'input[role="combobox"]');
+                const vis = inputs.filter(i => i.offsetParent !== null || i.getClientRects().length > 0);
+                if (vis.length > 0) {{
+                    vis[0].scrollIntoView({{ block: 'center' }});
+                    vis[0].focus();
+                    const r = vis[0].getBoundingClientRect();
+                    return {{ x: r.x + r.width/2, y: r.y + r.height/2 }};
+                }}
+                return null;
+            }})()
+        """)
+        if coords:
+            page.mouse.click(coords['x'], coords['y'])
+            print(f"  Clicked From combobox at ({int(coords['x'])}, {int(coords['y'])})")
+        else:
+            print("  ERROR: From combobox not found!")
         page.wait_for_timeout(500)
         page.keyboard.press("Control+a")
         page.keyboard.press("Backspace")
@@ -113,30 +175,34 @@ def run(
         print(f'  Typed "{origin}"')
         page.wait_for_timeout(2000)
 
-        # Select first suggestion
-        option_count = page.locator('[role="option"]').count()
-        print(f"  Options found by locator: {option_count}")
-        try:
-            option = page.locator('[role="option"], auro-menuoption').first
-            option.wait_for(state="attached", timeout=5000)
-            opt_text = option.inner_text()
-            option.click(force=True)
-            print(f"  Selected: {opt_text.strip()[:80]}")
-        except Exception:
-            # Enter accepts the first/highlighted suggestion
+        # Select first visible suggestion (deep shadow DOM query)
+        if not select_first_visible_option(page):
             page.keyboard.press("Enter")
-            print("  No option locator found, pressed Enter")
+            print("  No visible option found, pressed Enter")
         page.wait_for_timeout(1500)
 
         # ── Fill Destination ──────────────────────────────────────────────
         print(f'STEP 4: Destination = "{destination}"...')
-        # Tab twice: first Tab lands on the swap/switch-direction button,
-        # second Tab reaches the destination combobox.
-        page.keyboard.press("Tab")
-        page.wait_for_timeout(300)
-        page.keyboard.press("Tab")
-        page.wait_for_timeout(500)
-        print("  Tabbed to To combobox (2x Tab, skipping swap button)")
+        # Click second combobox via deep shadow DOM query
+        coords = page.evaluate(f"""
+            (() => {{
+                {DEEP_QUERY_JS}
+                const inputs = deepQuerySelectorAll(document, 'input[role="combobox"]');
+                const vis = inputs.filter(i => i.offsetParent !== null || i.getClientRects().length > 0);
+                if (vis.length >= 2) {{
+                    vis[1].scrollIntoView({{ block: 'center' }});
+                    vis[1].focus();
+                    const r = vis[1].getBoundingClientRect();
+                    return {{ x: r.x + r.width/2, y: r.y + r.height/2 }};
+                }}
+                return null;
+            }})()
+        """)
+        if coords:
+            page.mouse.click(coords['x'], coords['y'])
+            print(f"  Clicked To combobox at ({int(coords['x'])}, {int(coords['y'])})")
+        else:
+            print("  ERROR: To combobox not found!")
         page.wait_for_timeout(500)
         page.keyboard.press("Control+a")
         page.keyboard.press("Backspace")
@@ -144,50 +210,116 @@ def run(
         print(f'  Typed "{destination}"')
         page.wait_for_timeout(2000)
 
-        # Select first suggestion
-        option_count = page.locator('[role="option"]').count()
-        print(f"  Options found by locator: {option_count}")
-        try:
-            option = page.locator('[role="option"], auro-menuoption').first
-            option.wait_for(state="attached", timeout=5000)
-            opt_text = option.inner_text()
-            option.click(force=True)
-            print(f"  Selected: {opt_text.strip()[:80]}")
-        except Exception:
+        # Select first visible suggestion
+        if not select_first_visible_option(page):
             page.keyboard.press("Enter")
-            print("  No option locator found, pressed Enter")
+            print("  No visible option found, pressed Enter")
         page.wait_for_timeout(1500)
 
         # ── Fill Dates ────────────────────────────────────────────────────
         print(f"STEP 5: Dates — Dep: {departure_date}, Ret: {return_date}...")
 
-        dep_input = page.get_by_placeholder("MM/DD/YYYY").first
-        dep_input.focus()
-        print("  Focused departure date input")
-        page.wait_for_timeout(800)
-        page.keyboard.press("Control+a")
-        page.keyboard.press("Backspace")
-        page.keyboard.type(departure_date, delay=30)
-        print(f"  Typed departure: {departure_date}")
-        page.wait_for_timeout(1000)
+        # Find date inputs via deep shadow DOM query
+        date_inputs = page.evaluate(f"""
+            (() => {{
+                {DEEP_QUERY_JS}
+                const inputs = deepQuerySelectorAll(document, 'input');
+                const results = [];
+                for (const inp of inputs) {{
+                    if (!(inp.offsetParent !== null || inp.getClientRects().length > 0)) continue;
+                    if (inp.getAttribute('role') === 'combobox') continue;
+                    if (['hidden','checkbox','radio','submit'].includes(inp.type)) continue;
+                    const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
+                    const val = inp.value || '';
+                    const id = (inp.id || '').toLowerCase();
+                    const ariaLabel = (inp.getAttribute('aria-label') || '').toLowerCase();
+                    if (ph.includes('mm/dd') || ph.includes('date') || val.includes('/') ||
+                        id.includes('date') || ariaLabel.includes('date') ||
+                        ariaLabel.includes('depart') || ariaLabel.includes('return')) {{
+                        const r = inp.getBoundingClientRect();
+                        results.push({{
+                            placeholder: inp.getAttribute('placeholder'),
+                            ariaLabel: inp.getAttribute('aria-label'),
+                            x: r.x + r.width/2, y: r.y + r.height/2,
+                            w: r.width, h: r.height,
+                        }});
+                    }}
+                }}
+                return results;
+            }})()
+        """)
+        print(f"  Found {len(date_inputs)} date inputs via deep query")
+        for i, d in enumerate(date_inputs):
+            print(f"    [{i}] aria=\"{d.get('ariaLabel', '')}\" placeholder=\"{d.get('placeholder', '')}\" at ({int(d['x'])}, {int(d['y'])})")
 
-        # Tab to return date, then type
-        page.keyboard.press("Tab")
-        page.wait_for_timeout(800)
-        page.keyboard.press("Control+a")
-        page.keyboard.press("Backspace")
-        page.keyboard.type(return_date, delay=30)
-        print(f"  Typed return: {return_date}")
-        page.wait_for_timeout(1000)
+        if date_inputs:
+            # Click departure date input by coordinates
+            page.mouse.click(date_inputs[0]['x'], date_inputs[0]['y'])
+            print(f"  Clicked departure date at ({int(date_inputs[0]['x'])}, {int(date_inputs[0]['y'])})")
+            page.wait_for_timeout(800)
+            page.keyboard.press("Control+a")
+            page.keyboard.press("Backspace")
+            page.keyboard.type(departure_date, delay=30)
+            print(f"  Typed departure: {departure_date}")
+            page.wait_for_timeout(1000)
 
-        # Verify form values
-        comboboxes = page.locator('input[role="combobox"]')
-        dates = page.get_by_placeholder("MM/DD/YYYY")
-        print("  Form state:")
-        print(f'    Origin  = "{comboboxes.first.input_value()}"')
-        print(f'    Dest    = "{comboboxes.nth(1).input_value()}"')
-        print(f'    Depart  = "{dates.first.input_value()}"')
-        print(f'    Return  = "{dates.nth(1).input_value()}"')
+            # Tab to return date, then type
+            page.keyboard.press("Tab")
+            page.wait_for_timeout(800)
+            page.keyboard.press("Control+a")
+            page.keyboard.press("Backspace")
+            page.keyboard.type(return_date, delay=30)
+            print(f"  Typed return: {return_date}")
+            page.wait_for_timeout(1000)
+        else:
+            # Fallback: try Playwright's built-in placeholder matching
+            print("  Falling back to get_by_placeholder...")
+            dep_input = page.get_by_placeholder("MM/DD/YYYY").first
+            dep_input.focus()
+            page.wait_for_timeout(800)
+            page.keyboard.press("Control+a")
+            page.keyboard.press("Backspace")
+            page.keyboard.type(departure_date, delay=30)
+            page.wait_for_timeout(1000)
+            page.keyboard.press("Tab")
+            page.wait_for_timeout(800)
+            page.keyboard.press("Control+a")
+            page.keyboard.press("Backspace")
+            page.keyboard.type(return_date, delay=30)
+            page.wait_for_timeout(1000)
+
+        # Verify form values via deep query
+        form_state = page.evaluate(f"""
+            (() => {{
+                {DEEP_QUERY_JS}
+                const inputs = deepQuerySelectorAll(document, 'input');
+                const combos = [];
+                const dates = [];
+                for (const inp of inputs) {{
+                    if (!(inp.offsetParent !== null || inp.getClientRects().length > 0)) continue;
+                    if (['hidden','checkbox','radio','submit'].includes(inp.type)) continue;
+                    if (inp.getAttribute('role') === 'combobox') {{
+                        combos.push(inp.value);
+                    }} else {{
+                        const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
+                        const ariaLabel = (inp.getAttribute('aria-label') || '').toLowerCase();
+                        if (ph.includes('mm/dd') || ariaLabel.includes('date') || ariaLabel.includes('depart') || ariaLabel.includes('return')) {{
+                            dates.push(inp.value);
+                        }}
+                    }}
+                }}
+                return {{ combos, dates }};
+            }})()
+        """)
+        print("  Form state (deep query):")
+        if form_state.get('combos'):
+            for i, v in enumerate(form_state['combos']):
+                label = 'Origin' if i == 0 else 'Dest' if i == 1 else f'Combo[{i}]'
+                print(f'    {label}  = "{v}"')
+        if form_state.get('dates'):
+            for i, v in enumerate(form_state['dates']):
+                label = 'Depart' if i == 0 else 'Return' if i == 1 else f'Date[{i}]'
+                print(f'    {label}  = "{v}"')
 
         # Close date picker
         page.keyboard.press("Escape")
@@ -195,49 +327,68 @@ def run(
 
         # ── Click Search Flights ──────────────────────────────────────────
         print("STEP 6: Search flights...")
-        search_btn = None
 
-        # Strategy A: planbook-button custom element with "search flights" text
-        try:
-            loc = page.locator("planbook-button").filter(
-                has_text=re.compile("search flights", re.IGNORECASE)
-            )
-            if loc.first.is_visible(timeout=3000):
-                search_btn = loc.first
-                print("  Found <planbook-button> via locator")
-        except Exception:
-            pass
+        # Strategy: deep shadow DOM query for planbook-button / auro-button with "search"
+        coords = page.evaluate(f"""
+            (() => {{
+                {DEEP_QUERY_JS}
+                // Strategy A: custom elements with "search" text
+                const customBtns = deepQuerySelectorAll(document, 'auro-button, planbook-button');
+                for (const aBtn of customBtns) {{
+                    const txt = (aBtn.textContent || '').toLowerCase().trim();
+                    if (txt.includes('search') && !txt.includes('all search')) {{
+                        aBtn.scrollIntoView({{ block: 'center', behavior: 'instant' }});
+                        const r = aBtn.getBoundingClientRect();
+                        if (r.width > 50 && r.height > 20) {{
+                            return {{ x: r.x + r.width/2, y: r.y + r.height/2, text: txt.substring(0, 50), tag: aBtn.tagName.toLowerCase() }};
+                        }}
+                    }}
+                }}
+                // Strategy B: inner button in shadow DOM of host element
+                const btns = deepQuerySelectorAll(document, 'button');
+                for (const btn of btns) {{
+                    if (!(btn.offsetParent !== null || btn.getClientRects().length > 0)) continue;
+                    const r = btn.getBoundingClientRect();
+                    if (r.width < 100 || r.height < 30) continue;
+                    const rootNode = btn.getRootNode();
+                    if (rootNode && rootNode.host) {{
+                        const hostText = (rootNode.host.textContent || '').toLowerCase().trim();
+                        if (hostText.includes('search') && !hostText.includes('all search')) {{
+                            btn.scrollIntoView({{ block: 'center', behavior: 'instant' }});
+                            const r2 = btn.getBoundingClientRect();
+                            return {{ x: r2.x + r2.width/2, y: r2.y + r2.height/2, text: hostText.substring(0, 50), tag: rootNode.host.tagName.toLowerCase() }};
+                        }}
+                    }}
+                }}
+                return null;
+            }})()
+        """)
+        page.wait_for_timeout(500)
 
-        # Strategy B: auro-button with search text
-        if search_btn is None:
-            try:
-                loc = page.locator("auro-button").filter(
-                    has_text=re.compile("search flights", re.IGNORECASE)
-                )
-                if loc.first.is_visible(timeout=2000):
-                    search_btn = loc.first
-                    print("  Found <auro-button> via locator")
-            except Exception:
-                pass
-
-        # Strategy C: any button by role + name
-        if search_btn is None:
-            try:
-                loc = page.get_by_role("button", name=re.compile("search flights", re.IGNORECASE))
-                if loc.first.is_visible(timeout=2000):
-                    search_btn = loc.first
-                    print("  Found button by role")
-            except Exception:
-                pass
-
-        if search_btn:
-            search_btn.scroll_into_view_if_needed()
-            page.wait_for_timeout(300)
-            search_btn.click()
-            print("  Clicked search button")
+        if coords:
+            print(f"  Found <{coords['tag']}> \"{coords['text']}\"")
+            # Re-measure after scroll stabilization
+            fresh = page.evaluate(f"""
+                (() => {{
+                    {DEEP_QUERY_JS}
+                    const customBtns = deepQuerySelectorAll(document, 'auro-button, planbook-button');
+                    for (const aBtn of customBtns) {{
+                        const txt = (aBtn.textContent || '').toLowerCase().trim();
+                        if (txt.includes('search') && !txt.includes('all search')) {{
+                            const r = aBtn.getBoundingClientRect();
+                            return {{ x: r.x + r.width/2, y: r.y + r.height/2 }};
+                        }}
+                    }}
+                    return null;
+                }})()
+            """)
+            cx = fresh['x'] if fresh else coords['x']
+            cy = fresh['y'] if fresh else coords['y']
+            page.mouse.click(cx, cy)
+            print(f"  Clicked at ({int(cx)}, {int(cy)})")
         else:
-            print("  ERROR: Search button not found — trying text fallback")
-            page.get_by_text("Search flights", exact=False).first.click()
+            print("  Search button not found via deep query — trying fallback")
+            page.get_by_text("Search flights", exact=False).first.evaluate("el => el.click()")
 
         # Wait for navigation
         start_url = page.url
@@ -246,14 +397,35 @@ def run(
             print(f"  Navigated to: {page.url}")
         except Exception:
             print(f"  URL after wait: {page.url}")
-            if page.url == start_url and search_btn:
-                print("  Retrying click...")
-                search_btn.click(force=True)
-                try:
-                    page.wait_for_url("**/search/results**", timeout=15000)
-                    print(f"  Navigated on retry: {page.url}")
-                except Exception:
-                    print(f"  URL after retry: {page.url}")
+
+        # If still on homepage, try JS click on host + inner shadow button
+        if "search/results" not in page.url:
+            print("  Retrying with JS click on shadow DOM buttons...")
+            page.evaluate(f"""
+                (() => {{
+                    {DEEP_QUERY_JS}
+                    const customBtns = deepQuerySelectorAll(document, 'planbook-button, auro-button');
+                    for (const btn of customBtns) {{
+                        const txt = (btn.textContent || '').toLowerCase().trim();
+                        if (txt.includes('search') && !txt.includes('all search')) {{
+                            btn.click();
+                            if (btn.shadowRoot) {{
+                                const innerBtn = btn.shadowRoot.querySelector('button');
+                                if (innerBtn) {{
+                                    innerBtn.click();
+                                    innerBtn.dispatchEvent(new MouseEvent('click', {{ bubbles: true, cancelable: true, composed: true }}));
+                                }}
+                            }}
+                            return;
+                        }}
+                    }}
+                }})()
+            """)
+            try:
+                page.wait_for_url("**/search/results**", timeout=15000)
+                print(f"  Navigated on retry: {page.url}")
+            except Exception:
+                print(f"  URL after retry: {page.url}")
 
         if "search/results" in page.url:
             page.wait_for_load_state("networkidle")
@@ -356,7 +528,12 @@ def run(
         print(f"Error: {e}")
         traceback.print_exc()
     finally:
-        context.close()
+        try:
+            browser.close()
+        except Exception:
+            pass
+        chrome_proc.terminate()
+        shutil.rmtree(profile_dir, ignore_errors=True)
 
     return results
 

@@ -2,7 +2,8 @@ Please read auto_verbs\verbs\SystemPrompt1.txt
 
 * The target website
 https://www.southwest.com
-
+or
+https://www.southwest.com/air/booking/
 * Concrete task
 - Search round trip flights from Denver to Los Angeles.
 - The departure date is 2 months from today. The return date is 5 days after the departure date.

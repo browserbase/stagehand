@@ -15,6 +15,12 @@ import os
 import traceback
 from playwright.sync_api import Playwright, sync_playwright
 
+import sys as _sys
+import os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
+import shutil
+
 
 def run(
     playwright: Playwright,
@@ -27,23 +33,12 @@ def run(
     print(f"  Location: {location}")
     print(f"  Max results: {max_results}\n")
 
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport={"width": 1920, "height": 1080},
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--start-maximized",
-            "--window-size=1920,1080",
-        ],
-    )
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("bankofamerica_com")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
     results = []
 
@@ -67,7 +62,7 @@ def run(
             try:
                 btn = page.locator(selector).first
                 if btn.is_visible(timeout=1500):
-                    btn.click()
+                    btn.evaluate("el => el.click()")
                     page.wait_for_timeout(500)
             except Exception:
                 pass
@@ -87,7 +82,7 @@ def run(
             # Fallback: find any visible text input inside the search form
             search_input = page.locator("form input[type='text']:visible").first
             search_input.wait_for(state="visible", timeout=5000)
-        search_input.click()
+        search_input.evaluate("el => el.click()")
         page.keyboard.press("Control+a")
         page.keyboard.press("Backspace")
         search_input.type(location, delay=50)
@@ -108,7 +103,7 @@ def run(
             try:
                 btn = page.locator(sel).first
                 if btn.is_visible(timeout=2000):
-                    btn.click()
+                    btn.evaluate("el => el.click()")
                     submitted = True
                     print("  Clicked Search button")
                     break
@@ -228,7 +223,12 @@ def run(
         print(f"\nError: {e}")
         traceback.print_exc()
     finally:
-        context.close()
+        try:
+            browser.close()
+        except Exception:
+            pass
+        chrome_proc.terminate()
+        shutil.rmtree(profile_dir, ignore_errors=True)
     return results
 
 

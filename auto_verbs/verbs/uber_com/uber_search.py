@@ -4,11 +4,8 @@ Uber - Ride Price Estimate
 Pickup:  Seattle-Tacoma International Airport
 Dropoff: Downtown Seattle
 
-Generated on: 2026-02-27T22:16:26.977Z
-Recorded 15 browser interactions
-
-All DOM interactions use ARIA-based selectors.
-Uses Playwright's native locator API with the user's Chrome profile.
+Uses Playwright persistent context with real Chrome Default profile.
+IMPORTANT: Close ALL Chrome windows before running!
 """
 
 import re
@@ -18,6 +15,17 @@ import traceback
 from playwright.sync_api import Playwright, sync_playwright, TimeoutError as PwTimeout
 
 
+def get_chrome_default_profile() -> str:
+    """Get the Chrome Default profile path (not User Data, but Default subfolder)."""
+    user_data_dir = os.path.join(
+        os.environ["USERPROFILE"],
+        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
+    )
+    if os.path.isdir(user_data_dir):
+        return user_data_dir
+    raise FileNotFoundError("Could not find Chrome Default profile")
+
+
 def run(
     playwright,
     pickup: str = "Seattle-Tacoma International Airport",
@@ -25,15 +33,16 @@ def run(
     max_results: int = 10,
 ) -> list:
     print("=" * 59)
-    print("  Uber - Ride Price Estimate (concretized v2)")
+    print("  Uber - Ride Price Estimate")
     print("=" * 59)
     print(f"  Pickup:  {pickup}")
     print(f"  Dropoff: {dropoff}\n")
 
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
+    # Use REAL Chrome Default profile (Chrome must be closed first!)
+    user_data_dir = get_chrome_default_profile()
+    print(f"  Using Chrome profile: {user_data_dir}")
+    print("  NOTE: Close ALL Chrome windows before running!\n")
+    
     context = playwright.chromium.launch_persistent_context(
         user_data_dir,
         channel="chrome",
@@ -55,6 +64,20 @@ def run(
         page.goto("https://www.uber.com/us/en/price-estimate/")
         page.wait_for_load_state("domcontentloaded")
         page.wait_for_timeout(5000)
+        
+        # Check if redirected to login
+        if "auth.uber.com" in page.url:
+            print("\n  ⚠️  Redirected to login page!")
+            print("  Please log in manually in the browser window...")
+            print("  Waiting for login to complete (up to 2 minutes)...")
+            try:
+                page.wait_for_url("**/price-estimate/**", timeout=120000)
+                print("  Login successful!")
+                page.wait_for_timeout(3000)
+            except PwTimeout:
+                print("  Timeout waiting for login. Please run again after logging in.")
+                return results
+        
         print(f"  Loaded: {page.url}\n")
 
         # Dismiss popups / cookie banners
@@ -69,7 +92,7 @@ def run(
             try:
                 btn = page.locator(selector).first
                 if btn.is_visible(timeout=1500):
-                    btn.click()
+                    btn.evaluate("el => el.click()")
                     page.wait_for_timeout(500)
             except Exception:
                 pass
@@ -190,7 +213,10 @@ def run(
         print(f"\nError: {e}")
         traceback.print_exc()
     finally:
-        context.close()
+        try:
+            context.close()
+        except Exception:
+            pass
     return results
 
 

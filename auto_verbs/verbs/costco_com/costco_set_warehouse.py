@@ -11,29 +11,24 @@ import re
 import os
 from playwright.sync_api import Playwright, sync_playwright, expect
 
+import sys as _sys
+import os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
+import shutil
+
 
 def run(playwright: Playwright) -> bool:
     """
     Set the preferred Costco warehouse to 'Redmond, WA'.
     Returns True if the warehouse was successfully set, False otherwise.
     """
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
-
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport=None,
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--start-maximized",
-        ],
-    )
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("costco_com")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
 
     # Extract the city keyword from the location for matching (e.g. "Redmond" from "Redmond, WA")
@@ -50,7 +45,7 @@ def run(playwright: Playwright) -> bool:
 
         # Click "Locations" link in the main navigation header
         try:
-            page.get_by_role("link", name=re.compile(r"Locations", re.IGNORECASE)).first.click()
+            page.get_by_role("link", name=re.compile(r"Locations", re.IGNORECASE)).first.evaluate("el => el.click()")
         except Exception:
             # Fallback: navigate directly to warehouse locations page
             page.goto("https://www.costco.com/warehouse-locations")
@@ -64,14 +59,14 @@ def run(playwright: Playwright) -> bool:
         if not search_input.is_visible(timeout=3000):
             # Fallback: try any combobox with that label on the page
             search_input = page.get_by_role("combobox", name=re.compile(r"City.*State.*Zip", re.IGNORECASE)).first
-        search_input.click()
+        search_input.evaluate("el => el.click()")
         search_input.fill(location)
         page.wait_for_timeout(1000)
 
         # Click the "Find" button next to the search input (inside the warehouse form)
         try:
             find_btn = warehouse_page.get_by_role("button", name=re.compile(r"^Find", re.IGNORECASE)).first
-            find_btn.click()
+            find_btn.evaluate("el => el.click()")
         except Exception:
             # Fallback: press Enter
             search_input.press("Enter")
@@ -88,7 +83,7 @@ def run(playwright: Playwright) -> bool:
                 name=re.compile(r"Set as My Warehouse.*" + re.escape(city), re.IGNORECASE)
             ).first
             if target_btn.is_visible(timeout=5000):
-                target_btn.click()
+                target_btn.evaluate("el => el.click()")
                 set_clicked = True
         except Exception:
             pass
@@ -102,12 +97,12 @@ def run(playwright: Playwright) -> bool:
                     btn = btns.nth(i)
                     label = btn.get_attribute("aria-label") or btn.inner_text()
                     if city.lower() in label.lower():
-                        btn.click()
+                        btn.evaluate("el => el.click()")
                         set_clicked = True
                         break
                 # If no specific button found, click the first one
                 if not set_clicked and count > 0:
-                    btns.first.click()
+                    btns.first.evaluate("el => el.click()")
                     set_clicked = True
             except Exception:
                 pass
@@ -124,7 +119,12 @@ def run(playwright: Playwright) -> bool:
         print(f"Error setting preferred warehouse: {e}")
         success = False
     finally:
-        context.close()
+        try:
+            browser.close()
+        except Exception:
+            pass
+        chrome_proc.terminate()
+        shutil.rmtree(profile_dir, ignore_errors=True)
 
     return success
 

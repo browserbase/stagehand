@@ -17,6 +17,12 @@ from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 from playwright.sync_api import Playwright, sync_playwright
 
+import sys as _sys
+import os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
+import shutil
+
 
 def compute_dates():
     today = date.today()
@@ -40,24 +46,12 @@ def run(
     print(f"  {origin} → {destination}")
     print(f"  Departure: {dep_display}  Return: {ret_display}\n")
 
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
-
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport={"width": 1920, "height": 1080},
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--start-maximized",
-            "--window-size=1920,1080",
-        ],
-    )
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("flights_google_com")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
     results = []
 
@@ -79,7 +73,7 @@ def run(
             try:
                 btn = page.locator(selector).first
                 if btn.is_visible(timeout=1500):
-                    btn.click()
+                    btn.evaluate("el => el.click()")
                     page.wait_for_timeout(500)
             except Exception:
                 pass
@@ -105,9 +99,9 @@ def run(
                     'button:has-text("One way"), '
                     'button:has-text("Multi-city")'
                 ).first
-                trip_btn.click(timeout=5000)
+                trip_btn.evaluate("el => el.click()")
                 page.wait_for_timeout(500)
-                page.locator('li:has-text("Round trip"), [data-value="1"]').first.click(timeout=5000)
+                page.locator('li:has-text("Round trip"), [data-value="1"]').first.evaluate("el => el.click()")
                 page.wait_for_timeout(500)
                 print("  Selected Round Trip")
         except Exception as e:
@@ -120,7 +114,7 @@ def run(
                 'div[aria-label*="Where from" i], '
                 'input[aria-label*="Where from" i]'
             ).first
-            origin_el.click()
+            origin_el.evaluate("el => el.click()")
             page.wait_for_timeout(500)
             page.keyboard.press("Control+a")
             page.wait_for_timeout(200)
@@ -130,7 +124,7 @@ def run(
             try:
                 suggestion = page.locator('ul[role="listbox"] li').first
                 suggestion.wait_for(state="visible", timeout=5000)
-                suggestion.click()
+                suggestion.evaluate("el => el.click()")
                 print("  Selected origin suggestion")
             except Exception:
                 page.keyboard.press("Enter")
@@ -175,7 +169,7 @@ def run(
                 else:
                     page.locator(
                         'input[aria-label*="Where to" i]'
-                    ).first.click(force=True)
+                    ).first.evaluate("el => el.click()")
                     print("  Force-clicked destination input")
             page.wait_for_timeout(500)
             page.keyboard.press("Control+a")
@@ -186,7 +180,7 @@ def run(
             try:
                 suggestion = page.locator('ul[role="listbox"] li').first
                 suggestion.wait_for(state="visible", timeout=5000)
-                suggestion.click()
+                suggestion.evaluate("el => el.click()")
                 print("  Selected destination suggestion")
             except Exception:
                 page.keyboard.press("Enter")
@@ -205,7 +199,7 @@ def run(
             try:
                 el = page.locator(sel).first
                 if el.is_visible(timeout=2000):
-                    el.click()
+                    el.evaluate("el => el.click()")
                     date_opened = True
                     print("  Opened calendar via departure field")
                     break
@@ -493,7 +487,7 @@ def run(
                     xpath = toggle_info['xpath']
                     print(f"    Clicking toggle: xpath={xpath}")
                     try:
-                        page.locator(f"xpath={xpath}").click()
+                        page.locator(f"xpath={xpath}").evaluate("el => el.click()")
                     except Exception as click_err:
                         print(f"    locator.click failed: {click_err}, trying JS click...")
                         page.evaluate(r'''(xp) => {
@@ -513,7 +507,7 @@ def run(
                 if delta <= 0 and toggle_info and toggle_info.get('hasToggle'):
                     print("    Didn't expand, clicking toggle again...")
                     try:
-                        page.locator(f"xpath={toggle_info['xpath']}").click()
+                        page.locator(f"xpath={toggle_info['xpath']}").evaluate("el => el.click()")
                     except Exception:
                         page.evaluate(r'''(xp) => {
                             const r = document.evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
@@ -575,7 +569,7 @@ def run(
                 # Collapse the card (click same toggle again)
                 if toggle_info and toggle_info.get('hasToggle'):
                     try:
-                        page.locator(f"xpath={toggle_info['xpath']}").click()
+                        page.locator(f"xpath={toggle_info['xpath']}").evaluate("el => el.click()")
                         page.wait_for_timeout(1500)
                     except Exception:
                         page.keyboard.press("Escape")
@@ -605,7 +599,12 @@ def run(
         print(f"Error: {e}")
         traceback.print_exc()
     finally:
-        context.close()
+        try:
+            browser.close()
+        except Exception:
+            pass
+        chrome_proc.terminate()
+        shutil.rmtree(profile_dir, ignore_errors=True)
 
     return results
 

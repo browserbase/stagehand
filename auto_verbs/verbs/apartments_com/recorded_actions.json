@@ -1,39 +1,39 @@
 [
   {
-    "timestamp": 1410,
+    "timestamp": 2147,
     "type": "goto",
     "url": "https://www.apartments.com",
     "description": "Navigate to https://www.apartments.com"
   },
   {
-    "timestamp": 2100,
+    "timestamp": 3086,
     "type": "wait",
     "ms": 5000,
     "description": "Initial page load"
   },
   {
-    "timestamp": 15054,
+    "timestamp": 15188,
     "type": "act",
     "instruction": "Click search bar to activate",
     "description": "Activate homepage search widget",
     "method": "act"
   },
   {
-    "timestamp": 17502,
+    "timestamp": 17104,
     "type": "act",
     "instruction": "Type \"Austin, TX\" in search bar",
     "description": "Search for Austin, TX",
     "method": "observe+act+type"
   },
   {
-    "timestamp": 22551,
+    "timestamp": 33463,
     "type": "act",
     "instruction": "Click first autocomplete suggestion",
     "description": "Select autocomplete suggestion via act",
     "method": "act"
   },
   {
-    "timestamp": 28151,
+    "timestamp": 39097,
     "type": "act",
     "instruction": "Open price filter dropdown",
     "description": "Click #rentRangeLink",
@@ -41,7 +41,7 @@
     "method": "click"
   },
   {
-    "timestamp": 36768,
+    "timestamp": 49973,
     "type": "act",
     "instruction": "Type 1000 in min price input",
     "description": "Set min price: 1000",
@@ -49,7 +49,7 @@
     "method": "observe+act+type"
   },
   {
-    "timestamp": 42713,
+    "timestamp": 60043,
     "type": "act",
     "instruction": "Type 2000 in max price input",
     "description": "Set max price: 2000",
@@ -57,7 +57,7 @@
     "method": "observe+act+type"
   },
   {
-    "timestamp": 49035,
+    "timestamp": 68335,
     "type": "act",
     "instruction": "Click Done to apply price filter",
     "description": "Apply price filter",
@@ -65,7 +65,7 @@
     "method": "click"
   },
   {
-    "timestamp": 67587,
+    "timestamp": 94857,
     "type": "extract",
     "instruction": "Extract apartment listings",
     "description": "Extract up to 5 listings",
@@ -74,13 +74,13 @@
         {
           "name": "Beck at Wells Branch",
           "address": "2801 Wells Branch Pky, Austin, TX 78728",
-          "price": "$899+ - $1,885",
+          "price": "$1,030+ - $1,885",
           "bedsBaths": "1-3 Beds"
         },
         {
           "name": "Stassney at SoCo",
           "address": "1800 E Stassney Ln, Austin, TX 78744",
-          "price": "$854+ - $1,006+",
+          "price": "$874+ - $1,006+",
           "bedsBaths": "1-2 Beds"
         },
         {

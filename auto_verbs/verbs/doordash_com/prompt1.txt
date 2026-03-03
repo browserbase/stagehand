@@ -1,3 +1,6 @@
+ignore this. It requires login, and it has anti-bot detection.
+Ignore the rest of this this instruction.
+
 Please read auto_verbs\verbs\SystemPrompt1.txt
 
 * The target website

@@ -41,9 +41,12 @@ Uses Playwright's native locator API with the user's Chrome profile.
 """
 
 import re
-import os
+import os, sys, shutil
 import traceback
 from playwright.sync_api import Playwright, sync_playwright
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
 
 def run(
@@ -57,24 +60,12 @@ def run(
     print("=" * 59)
     print(f"  Pickup:  {pickup}")
     print(f"  Dropoff: {dropoff}\\n")
-
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport={"width": 1920, "height": 1080},
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--start-maximized",
-            "--window-size=1920,1080",
-        ],
-    )
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("uber_com")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
     results = []
 
@@ -96,7 +87,7 @@ def run(
             try:
                 btn = page.locator(selector).first
                 if btn.is_visible(timeout=1500):
-                    btn.click()
+                    btn.evaluate("el => el.click()")
                     page.wait_for_timeout(500)
             except Exception:
                 pass
@@ -106,7 +97,7 @@ def run(
         pickup_input = page.locator('input[placeholder*="pickup" i], input[placeholder*="Enter pickup" i], input[id*="pickup" i], input[name*="pickup" i]').first
         try:
             pickup_input.wait_for(state="visible", timeout=5000)
-            pickup_input.click()
+            pickup_input.evaluate("el => el.click()")
             page.wait_for_timeout(500)
             page.keyboard.press("Control+a")
             pickup_input.type(pickup, delay=50)
@@ -114,7 +105,7 @@ def run(
             # Fallback: look for first input
             inputs = page.locator('input[type="text"], input:not([type])').all()
             if inputs:
-                inputs[0].click()
+                inputs[0].evaluate("el => el.click()")
                 page.wait_for_timeout(500)
                 page.keyboard.press("Control+a")
                 inputs[0].type(pickup, delay=50)
@@ -124,7 +115,7 @@ def run(
         try:
             suggestion = page.locator('[role="option"], [data-testid*="suggestion"], li[role="option"], [class*="suggestion"] li').first
             suggestion.wait_for(state="visible", timeout=5000)
-            suggestion.click()
+            suggestion.evaluate("el => el.click()")
             print("  Selected pickup suggestion")
         except Exception:
             page.keyboard.press("Enter")
@@ -136,14 +127,14 @@ def run(
         dropoff_input = page.locator('input[placeholder*="dropoff" i], input[placeholder*="Enter drop" i], input[placeholder*="destination" i], input[id*="dropoff" i], input[name*="dropoff" i]').first
         try:
             dropoff_input.wait_for(state="visible", timeout=5000)
-            dropoff_input.click()
+            dropoff_input.evaluate("el => el.click()")
             page.wait_for_timeout(500)
             page.keyboard.press("Control+a")
             dropoff_input.type(dropoff, delay=50)
         except Exception:
             inputs = page.locator('input[type="text"], input:not([type])').all()
             if len(inputs) >= 2:
-                inputs[1].click()
+                inputs[1].evaluate("el => el.click()")
                 page.wait_for_timeout(500)
                 page.keyboard.press("Control+a")
                 inputs[1].type(dropoff, delay=50)
@@ -152,7 +143,7 @@ def run(
         try:
             suggestion = page.locator('[role="option"], [data-testid*="suggestion"], li[role="option"], [class*="suggestion"] li').first
             suggestion.wait_for(state="visible", timeout=5000)
-            suggestion.click()
+            suggestion.evaluate("el => el.click()")
             print("  Selected dropoff suggestion")
         except Exception:
             page.keyboard.press("Enter")
@@ -164,7 +155,7 @@ def run(
         try:
             search_btn = page.locator('button[type="submit"], button:has-text("See prices"), button:has-text("Get"), button:has-text("Search"), button:has-text("Estimate")').first
             if search_btn.is_visible(timeout=3000):
-                search_btn.click()
+                search_btn.evaluate("el => el.click()")
                 print("  Clicked estimate button")
         except Exception:
             print("  No explicit search button (auto-submitted?)")
@@ -216,7 +207,17 @@ def run(
         print(f"\\nError: {e}")
         traceback.print_exc()
     finally:
-        context.close()
+        try:
+
+            browser.close()
+
+        except Exception:
+
+            pass
+
+        chrome_proc.terminate()
+
+        shutil.rmtree(profile_dir, ignore_errors=True)
     return results
 
 

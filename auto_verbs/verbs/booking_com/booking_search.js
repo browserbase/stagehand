@@ -53,10 +53,13 @@ Uses Playwright's native locator API with the user's Chrome profile.
 """
 
 import re
-import os
+import os, sys, shutil
 from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 from playwright.sync_api import Playwright, sync_playwright
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
 
 def compute_dates():
@@ -79,25 +82,12 @@ def run(
 
     print(f"  Destination: {destination}")
     print(f"  Check-in: {checkin_display}  Check-out: {checkout_display}  (${cfg.nights} nights)\\n")
-
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
-
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport={"width": 1920, "height": 1080},
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--start-maximized",
-            "--window-size=1920,1080",
-        ],
-    )
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("booking_com")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
     results = []
     seen_names = set()
@@ -121,7 +111,7 @@ def run(
             try:
                 btn = page.locator(selector).first
                 if btn.is_visible(timeout=1500):
-                    btn.click()
+                    btn.evaluate("el => el.click()")
                     page.wait_for_timeout(500)
             except Exception:
                 pass
@@ -135,7 +125,7 @@ def run(
             'input[name="ss"], '
             'input[placeholder*="Where are you going"]'
         ).first
-        search_input.click()
+        search_input.evaluate("el => el.click()")
         page.wait_for_timeout(500)
         search_input.fill("")
         search_input.type(destination, delay=50)
@@ -150,7 +140,7 @@ def run(
                 '[class*="autocomplete"] li'
             ).first
             suggestion.wait_for(state="visible", timeout=5000)
-            suggestion.click()
+            suggestion.evaluate("el => el.click()")
             print("  Selected first suggestion")
         except Exception:
             page.keyboard.press("Enter")
@@ -165,7 +155,7 @@ def run(
         checkin_cell = page.locator(f'[data-date="{checkin_str}"]').first
         try:
             checkin_cell.wait_for(state="visible", timeout=5000)
-            checkin_cell.click()
+            checkin_cell.evaluate("el => el.click()")
             print(f"  Clicked check-in date: {checkin_str}")
         except Exception:
             # Calendar might not be open yet — try clicking the date field first
@@ -175,7 +165,7 @@ def run(
                 '[data-testid="searchbox-dates-container"], '
                 'button[data-testid="date-display-field-start"]'
             ).first
-            date_field.click()
+            date_field.evaluate("el => el.click()")
             page.wait_for_timeout(1000)
 
             # Navigate calendar months (forward or backward) to find the target date
@@ -195,20 +185,20 @@ def run(
                 if visible_dates and target_ym < visible_dates[0][:7]:
                     # Target is before visible months → go backward
                     try:
-                        page.locator('button[aria-label="Previous month"]').first.click()
+                        page.locator('button[aria-label="Previous month"]').first.evaluate("el => el.click()")
                         page.wait_for_timeout(500)
                     except Exception:
                         break
                 else:
                     # Target is after visible months → go forward
                     try:
-                        page.locator('button[aria-label="Next month"]').last.click()
+                        page.locator('button[aria-label="Next month"]').last.evaluate("el => el.click()")
                         page.wait_for_timeout(500)
                     except Exception:
                         break
 
             checkin_cell = page.locator(f'[data-date="{checkin_str}"]').first
-            checkin_cell.click()
+            checkin_cell.evaluate("el => el.click()")
             print(f"  Clicked check-in date: {checkin_str}")
         page.wait_for_timeout(500)
 
@@ -216,7 +206,7 @@ def run(
         checkout_cell = page.locator(f'[data-date="{checkout_str}"]').first
         try:
             checkout_cell.wait_for(state="visible", timeout=3000)
-            checkout_cell.click()
+            checkout_cell.evaluate("el => el.click()")
             print(f"  Clicked check-out date: {checkout_str}")
         except Exception:
             # May need to navigate forward or backward
@@ -224,7 +214,7 @@ def run(
                 try:
                     checkout_cell = page.locator(f'[data-date="{checkout_str}"]').first
                     if checkout_cell.is_visible(timeout=1000):
-                        checkout_cell.click()
+                        checkout_cell.evaluate("el => el.click()")
                         print(f"  Clicked check-out date: {checkout_str}")
                         break
                 except Exception:
@@ -236,13 +226,13 @@ def run(
                 )
                 if visible_dates and target_ym < visible_dates[0][:7]:
                     try:
-                        page.locator('button[aria-label="Previous month"]').first.click()
+                        page.locator('button[aria-label="Previous month"]').first.evaluate("el => el.click()")
                         page.wait_for_timeout(500)
                     except Exception:
                         break
                 else:
                     try:
-                        page.locator('button[aria-label="Next month"]').last.click()
+                        page.locator('button[aria-label="Next month"]').last.evaluate("el => el.click()")
                         page.wait_for_timeout(500)
                     except Exception:
                         break
@@ -255,7 +245,7 @@ def run(
             '[data-testid="searchbox-search-button"], '
             'button:has-text("Search")'
         ).first
-        search_btn.click()
+        search_btn.evaluate("el => el.click()")
         print("  Clicked Search button")
 
         # Wait for results
@@ -385,7 +375,17 @@ def run(
         print(f"Error: {e}")
         traceback.print_exc()
     finally:
-        context.close()
+        try:
+
+            browser.close()
+
+        except Exception:
+
+            pass
+
+        chrome_proc.terminate()
+
+        shutil.rmtree(profile_dir, ignore_errors=True)
 
     return results
 
@@ -593,7 +593,7 @@ async function main() {
   console.log(`  📅 Check-in: ${CFG.checkinDisplay}  Check-out: ${CFG.checkoutDisplay}  (${CFG.nights} nights)\n`);
 
   const recorder = new PlaywrightRecorder();
-  const llmClient = setupLLMClient();
+  const llmClient = setupLLMClient("hybrid");
   let stagehand;
 
   try {

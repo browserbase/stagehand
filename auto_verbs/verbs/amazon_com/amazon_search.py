@@ -12,25 +12,20 @@ import time
 import os
 from playwright.sync_api import Playwright, sync_playwright, expect
 
+import sys as _sys
+import os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
+import shutil
+
 
 def run(playwright: Playwright) -> None:
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
-
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport=None,
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--start-maximized",
-        ],
-    )
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("amazon_com")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
 
     # Navigate to Amazon
@@ -40,7 +35,7 @@ def run(playwright: Playwright) -> None:
 
     # Click the search box
     search_box = page.get_by_role("searchbox", name=re.compile(r"Search", re.IGNORECASE)).first
-    search_box.click()
+    search_box.evaluate("el => el.click()")
     page.wait_for_timeout(500)
 
     # Type search query
@@ -76,9 +71,9 @@ def run(playwright: Playwright) -> None:
     product_link = product_links.nth(1)
     try:
         product_link.wait_for(state="visible", timeout=10000)
-        product_link.click()
+        product_link.evaluate("el => el.click()")
     except Exception:
-        product_links.first.click(timeout=10000)
+        product_links.first.evaluate("el => el.click()")
 
     # Wait for product page to load
     page.wait_for_load_state("domcontentloaded")
@@ -102,10 +97,10 @@ def run(playwright: Playwright) -> None:
 
     # Click "Add to Cart" button
     try:
-        page.get_by_role("button", name=re.compile(r"Add to Cart", re.IGNORECASE)).first.click(timeout=5000)
+        page.get_by_role("button", name=re.compile(r"Add to Cart", re.IGNORECASE)).first.evaluate("el => el.click()")
     except Exception:
         try:
-            page.locator("#add-to-cart-button").click(timeout=5000)
+            page.locator("#add-to-cart-button").evaluate("el => el.click()")
         except Exception:
             print("Warning: Could not find Add to Cart button")
 
@@ -116,7 +111,12 @@ def run(playwright: Playwright) -> None:
     # ---------------------
     # Cleanup
     # ---------------------
-    context.close()
+    try:
+        browser.close()
+    except Exception:
+        pass
+    chrome_proc.terminate()
+    shutil.rmtree(profile_dir, ignore_errors=True)
 
 
 with sync_playwright() as playwright:

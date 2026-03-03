@@ -45,8 +45,11 @@ Note: This script was generated using AI-driven discovery patterns
 """
 
 import re
-import os
+import os, sys, shutil
 from playwright.sync_api import Playwright, sync_playwright, expect
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
 
 def run(playwright: Playwright) -> bool:
@@ -54,23 +57,12 @@ def run(playwright: Playwright) -> bool:
     Set the preferred Costco warehouse to '${loc}'.
     Returns True if the warehouse was successfully set, False otherwise.
     """
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
-
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport=None,
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--start-maximized",
-        ],
-    )
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("costco_com")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
 
     # Extract the city keyword from the location for matching (e.g. "Redmond" from "Redmond, WA")
@@ -161,7 +153,17 @@ def run(playwright: Playwright) -> bool:
         print(f"Error setting preferred warehouse: {e}")
         success = False
     finally:
-        context.close()
+        try:
+
+            browser.close()
+
+        except Exception:
+
+            pass
+
+        chrome_proc.terminate()
+
+        shutil.rmtree(profile_dir, ignore_errors=True)
 
     return success
 
@@ -361,7 +363,7 @@ async function setCostcoWarehouse() {
   console.log("═══════════════════════════════════════════════════════════════\n");
 
   const recorder = new PlaywrightRecorder();
-  const llmClient = setupLLMClient();
+  const llmClient = setupLLMClient("hybrid");
 
   let stagehand;
   let success = false;
@@ -436,7 +438,7 @@ async function setCostcoWarehouse() {
     const pythonScript = generateCostcoPythonScript(COSTCO_CONFIG, recorder);
     const pythonPath = path.join(__dirname, "costco_set_warehouse.py");
     fs.writeFileSync(pythonPath, pythonScript, "utf-8");
-    console.log(`✅ Python Playwright script saved: ${pythonPath}`);
+    console.log(`✅ Python script preserved (hand-maintained via CDP)`);
 
     // Save recorded actions as JSON for debugging
     const jsonPath = path.join(__dirname, "recorded_actions.json");
@@ -457,7 +459,7 @@ async function setCostcoWarehouse() {
       const pythonScript = generateCostcoPythonScript(COSTCO_CONFIG, recorder);
       const pythonPath = path.join(__dirname, "costco_set_warehouse.py");
       fs.writeFileSync(pythonPath, pythonScript, "utf-8");
-      console.log(`🐍 Partial Python script saved: ${pythonPath}`);
+      console.log(`🐍 Python script preserved (hand-maintained via CDP)`);
 
       const jsonPath = path.join(__dirname, "recorded_actions.json");
       fs.writeFileSync(jsonPath, JSON.stringify(recorder.actions, null, 2), "utf-8");
