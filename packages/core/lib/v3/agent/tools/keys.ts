@@ -1,8 +1,10 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
+import type { Variables } from "../../types/public/agent.js";
+import { substituteVariables } from "../utils/variables.js";
 
-export const keysTool = (v3: V3) =>
+export const keysTool = (v3: V3, variables?: Variables) =>
   tool({
     description: `Send keyboard input to the page without targeting a specific element. Unlike the type tool which clicks then types into coordinates, this sends keystrokes directly to wherever focus currently is.
 
@@ -36,14 +38,17 @@ Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) a
         const times = Math.max(1, repeat ?? 1);
 
         if (method === "type") {
+          // Substitute any %variableName% tokens in the value
+          const actualValue = substituteVariables(value, variables);
           for (let i = 0; i < times; i++) {
-            await page.type(value, { delay: 100 });
+            await page.type(actualValue, { delay: 100 });
           }
           v3.recordAgentReplayStep({
             type: "keys",
             instruction: `type "${value}"`,
             playwrightArguments: { method, text: value, times },
           });
+          // Return original value (with %variableName% tokens) to avoid exposing sensitive values to LLM
           return { success: true, method, value, times };
         }
 
