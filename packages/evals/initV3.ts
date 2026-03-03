@@ -73,7 +73,7 @@ export async function initV3({
     )
       internalModel = "google/gemini-2.0-flash" as AvailableModel;
     else if (process.env.ANTHROPIC_API_KEY)
-      internalModel = "anthropic/claude-3-7-sonnet-latest" as AvailableModel;
+      internalModel = "anthropic/claude-sonnet-4-6" as AvailableModel;
     else
       throw new Error(
         "V3 init: No AISDK API key found. Set one of OPENAI_API_KEY, GEMINI_API_KEY/GOOGLE_GENERATIVE_AI_API_KEY, or ANTHROPIC_API_KEY to run CUA evals.",

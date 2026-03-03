@@ -39,7 +39,7 @@ interface ObserveOptions {
 
 // ModelConfiguration can be either a string or an object
 type ModelConfiguration =
-  | string  // Format: "provider/model" (e.g., "openai/gpt-4o", "anthropic/claude-3-5-sonnet-20241022")
+  | string  // Format: "provider/model" (e.g., "openai/gpt-4o", "anthropic/claude-sonnet-4-6")
   | {
       modelName: string;  // The model name
       apiKey?: string;    // Optional: API key override
@@ -60,12 +60,12 @@ type ModelConfiguration =
 
 <ParamField path="model" type="ModelConfiguration" optional>
   Configure the AI model to use for this observation. Can be either:
-  - A string in the format `"provider/model"` (e.g., `"openai/gpt-4o"`, `"anthropic/claude-3-5-sonnet-20241022"`)
+  - A string in the format `"provider/model"` (e.g., `"openai/gpt-4o"`, `"anthropic/claude-sonnet-4-6"`)
   - An object with detailed configuration
 
   <Expandable title="Model Configuration Object">
     <ParamField path="modelName" type="string" required>
-      The model name (e.g., "gpt-4o", "claude-3-5-sonnet-20241022", "gemini-2.5-flash")
+      The model name (e.g., "gpt-4o", "claude-sonnet-4-6", "gemini-2.5-flash")
     </ParamField>
     <ParamField path="apiKey" type="string" optional>
       API key for the model provider (overrides default)
@@ -198,7 +198,7 @@ const elements = await stagehand.observe("find important call-to-action buttons"
 // Using object format with custom configuration
 const actions = await stagehand.observe("find navigation links", {
   model: {
-    modelName: "claude-3-5-sonnet-20241022",
+    modelName: "claude-sonnet-4-6",
     apiKey: process.env.ANTHROPIC_API_KEY
   },
   timeout: 30000

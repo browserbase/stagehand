@@ -60,7 +60,7 @@ type VariableValue =
 
 // ModelConfiguration can be either a string or an object
 type ModelConfiguration =
-  | string  // Format: "provider/model" (e.g., "openai/gpt-4o", "anthropic/claude-3-5-sonnet-20241022")
+  | string  // Format: "provider/model" (e.g., "openai/gpt-4o", "anthropic/claude-sonnet-4-6")
   | {
       modelName: string;  // The model name
       apiKey?: string;    // Optional: API key override
