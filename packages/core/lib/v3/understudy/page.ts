@@ -1165,7 +1165,7 @@ export class Page {
   }
 
   /**
-   * specifies additional HTTP headers to be included in every request send by
+   * specifies additional HTTP headers to be included in every request sent by
    * the root CDP session of the page, and all of its child CDP sessions.
    *
    * @param headers - the headers to be set.
@@ -1183,8 +1183,6 @@ export class Page {
       if (session === this.mainSession) continue;
       sessions.push(session);
     }
-
-    if (!sessions.length) return;
 
     const results = await Promise.allSettled(
       sessions.map(async (session) => {

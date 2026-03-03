@@ -48,13 +48,18 @@ describe("Page.setExtraHTTPHeaders", () => {
     }
   });
 
-  it("is a no-op when the page has no sessions", async () => {
+  it("applies headers to mainSession even when sessions map is empty", async () => {
     const page = makePage([]);
 
-    // should resolve without throwing
-    await expect(
-      setExtraHTTPHeaders.call(page, { "x-test": "value" }),
-    ).resolves.toBeUndefined();
+    await setExtraHTTPHeaders.call(page, { "x-test": "value" });
+
+    // mainSession should still receive headers even though it's not in the sessions map
+    expect(page.mainSession.callsFor("Network.enable").length).toBe(1);
+    expect(
+      page.mainSession.callsFor("Network.setExtraHTTPHeaders")[0]?.params,
+    ).toEqual({
+      headers: { "x-test": "value" },
+    });
   });
 
   it("throws StagehandSetExtraHTTPHeadersError with session failure details", async () => {
