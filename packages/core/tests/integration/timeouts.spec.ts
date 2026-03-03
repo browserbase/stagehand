@@ -5,12 +5,35 @@ import { z } from "zod";
 import { closeV3 } from "./testUtils.js";
 import type { LLMClient } from "../../lib/v3/llm/LLMClient.js";
 import { generateText } from "ai";
-import { MockLanguageModelV2 } from "ai/test";
 
 type AgentToolNameWithTimeout = "act" | "extract" | "fillForm" | "ariaTree";
 
+type ToolTimeoutGenerateCall = {
+  prompt?: unknown;
+} & Record<string, unknown>;
+
+type ToolTimeoutTestModel = {
+  provider: string;
+  modelId: string;
+  specificationVersion: "v2";
+  supportedUrls: () => Promise<Record<string, never>>;
+  doGenerateCalls: ToolTimeoutGenerateCall[];
+  doGenerate: (options: ToolTimeoutGenerateCall) => Promise<{
+    content: Array<{
+      type: "tool-call";
+      toolCallId: string;
+      toolName: string;
+      input: string;
+    }>;
+    finishReason: "tool-calls";
+    usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+    warnings: [];
+  }>;
+  doStream: (_options: unknown) => Promise<never>;
+};
+
 type ToolTimeoutTestLLMClient = LLMClient & {
-  model: MockLanguageModelV2;
+  model: ToolTimeoutTestModel;
 };
 
 function createToolTimeoutTestLlmClient(
@@ -26,10 +49,14 @@ function createToolTimeoutTestLlmClient(
   };
   let generateCallCount = 0;
 
-  const model = new MockLanguageModelV2({
+  const model: ToolTimeoutTestModel = {
     provider: "mock",
     modelId: "mock/tool-timeout-test",
-    doGenerate: async () => {
+    specificationVersion: "v2",
+    supportedUrls: async () => ({}),
+    doGenerateCalls: [],
+    doGenerate: async (options) => {
+      model.doGenerateCalls.push(options);
       generateCallCount += 1;
       if (generateCallCount === 1) {
         return {
@@ -61,7 +88,10 @@ function createToolTimeoutTestLlmClient(
         warnings: [],
       };
     },
-  });
+    doStream: async () => {
+      throw new Error("doStream not implemented in timeout test model");
+    },
+  };
 
   const llm = {
     type: "openai",
