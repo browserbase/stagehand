@@ -1152,6 +1152,16 @@ export class Page {
     return withScreenshotTimeout(opts.timeout, exec);
   }
 
+  /**
+   * specifies additional HTTP headers to be included in every request send by
+   * the root CDP session of the page, and all of its child CDP sessions.
+   *
+   * @param headers - the headers to be set.
+   * @throws {StagehandSetExtraHTTPHeadersError}
+   * Thrown when one or more CDP sessions fail to enable the Network domain or fail
+   * to apply the headers (i.e. `Network.enable` and/or `Network.setExtraHTTPHeaders` rejects).
+   * @return void
+   */
   async setExtraHTTPHeaders(headers: Record<string, string>): Promise<void> {
     const headersCopy = { ...headers };
 
