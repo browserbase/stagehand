@@ -1199,13 +1199,13 @@ export class Page {
     }));
 
     const filtered = pairs.filter(
-      (pair): pair is { result: PromiseRejectedResult; id: string } =>
+      (pair): pair is { result: PromiseRejectedResult; id: string | null } =>
         pair.result.status === "rejected",
     );
 
     const errors = filtered.map((pair) => {
       const reason = pair.result.reason;
-      const sessId = pair.id;
+      const sessId = pair.id ?? "root";
       const message = reason?.message ?? String(reason);
       return `session=${sessId} error=${message}`;
     });
