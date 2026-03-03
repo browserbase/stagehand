@@ -441,7 +441,11 @@ export class Page {
     if (childSession.id) this.sessions.set(childSession.id, childSession);
 
     this.networkManager.trackSession(childSession);
-    void this.applyExtraHTTPHeadersToSession(childSession).catch(() => {});
+    if (this.extraHTTPHeaders)
+      void this.applyExtraHTTPHeadersToSession(
+        childSession,
+        this.extraHTTPHeaders,
+      ).catch(() => {});
 
     void this.applyInitScriptsToSession(childSession).catch(() => {});
 
@@ -678,11 +682,11 @@ export class Page {
 
   private async applyExtraHTTPHeadersToSession(
     session: CDPSessionLike,
+    headers: Record<string, string>,
   ): Promise<void> {
-    if (!this.extraHTTPHeaders) return;
     await session.send("Network.enable");
     await session.send("Network.setExtraHTTPHeaders", {
-      headers: { ...this.extraHTTPHeaders },
+      headers: headers,
     });
   }
 
@@ -1175,7 +1179,8 @@ export class Page {
    * @return void
    */
   async setExtraHTTPHeaders(headers: Record<string, string>): Promise<void> {
-    this.extraHTTPHeaders = { ...headers };
+    const headersToSet = { ...headers };
+    this.extraHTTPHeaders = headersToSet;
 
     // get the session(s) for this page:
     const sessions: CDPSessionLike[] = [this.mainSession];
@@ -1186,7 +1191,7 @@ export class Page {
 
     const results = await Promise.allSettled(
       sessions.map(async (session) => {
-        await this.applyExtraHTTPHeadersToSession(session);
+        await this.applyExtraHTTPHeadersToSession(session, headersToSet);
       }),
     );
 

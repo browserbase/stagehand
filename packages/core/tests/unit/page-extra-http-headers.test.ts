@@ -106,7 +106,11 @@ describe("Page.setExtraHTTPHeaders", () => {
     page.sessions.set(sessionB.id, sessionB);
 
     // Simulate what adoptOopifSession does: replay headers onto the new session
-    await page.applyExtraHTTPHeadersToSession.call(page, sessionB);
+    await page.applyExtraHTTPHeadersToSession.call(
+      page,
+      sessionB,
+      page.extraHTTPHeaders,
+    );
 
     // The late-arriving session should have received the headers
     expect(sessionB.callsFor("Network.enable").length).toBe(1);
