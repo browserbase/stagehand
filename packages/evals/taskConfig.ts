@@ -28,7 +28,7 @@ const ALL_EVAL_MODELS = [
   "gemini-2.5-flash-preview-04-17",
   "gemini-2.5-pro-preview-03-25",
   // ANTHROPIC
-  "claude-sonnet-4-20250514",
+  "claude-sonnet-4-6",
   // OPENAI
   "gpt-4o-mini",
   "gpt-4o",
