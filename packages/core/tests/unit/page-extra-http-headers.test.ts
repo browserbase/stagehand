@@ -74,22 +74,19 @@ describe("Page.setExtraHTTPHeaders", () => {
     const sessionB = new MockCDPSession({}, "session-b");
     const page = makePage([sessionA, sessionB]);
 
-    const promise = setExtraHTTPHeaders.call(page, {
-      "x-stagehand-test": "yes",
-    });
-
-    await expect(promise).rejects.toBeInstanceOf(
-      StagehandSetExtraHTTPHeadersError,
-    );
-
+    let caughtError: StagehandSetExtraHTTPHeadersError | undefined;
     try {
-      await promise;
+      await setExtraHTTPHeaders.call(page, {
+        "x-stagehand-test": "yes",
+      });
     } catch (error) {
-      const err = error as StagehandSetExtraHTTPHeadersError;
-      expect(err.failures).toHaveLength(1);
-      expect(err.failures[0]).toContain("session=session-a");
-      expect(err.failures[0]).toContain("connection closed");
+      caughtError = error as StagehandSetExtraHTTPHeadersError;
     }
+
+    expect(caughtError).toBeInstanceOf(StagehandSetExtraHTTPHeadersError);
+    expect(caughtError?.failures).toHaveLength(1);
+    expect(caughtError?.failures[0]).toContain("session=session-a");
+    expect(caughtError?.failures[0]).toContain("connection closed");
 
     // sessionB should still have been called successfully
     expect(sessionB.callsFor("Network.setExtraHTTPHeaders").length).toBe(1);
