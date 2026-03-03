@@ -118,7 +118,6 @@ export class V3AgentHandler {
         mode: this.mode,
         systemInstructions: this.systemInstructions,
         isBrowserbase: this.v3.isBrowserbase,
-        captchaSolverEnabled: this.captchaSolverEnabled,
         excludeTools: options.excludeTools,
         variables: options.variables,
       });
@@ -181,13 +180,32 @@ export class V3AgentHandler {
       processMessages(options.messages);
       if (captchaSolver) {
         await captchaSolver.waitIfSolving();
-        if (captchaSolver.lastSolveErrored) {
+        const { solved, errored } = captchaSolver.consumeSolveResult();
+        if (solved) {
+          options.messages.push({
+            role: "user",
+            content:
+              "A captcha was automatically detected and solved. The page may have changed. Please take a screenshot or check the ariaTree to understand the current page state before continuing with your task.",
+          });
           this.logger({
             category: "agent",
-            message: "Captcha solver failed or errored",
+            message:
+              "Captcha solved — injected notification into agent message stream",
             level: 1,
           });
-          captchaSolver.resetError();
+        }
+        if (errored) {
+          options.messages.push({
+            role: "user",
+            content:
+              "A captcha was detected but the automatic captcha solver failed to solve it. You may need to try a different approach or navigate around the captcha.",
+          });
+          this.logger({
+            category: "agent",
+            message:
+              "Captcha solver failed — injected error notification into agent message stream",
+            level: 1,
+          });
         }
       }
       if (userCallback) {

@@ -132,33 +132,19 @@ test.describe("Stagehand agent hybrid mode", () => {
       expect(prompt).toContain(customInstructions);
     });
 
-    test("System prompt includes Browserbase captcha message when captchaSolverEnabled is true", () => {
+    test("System prompt includes roadblocks when isBrowserbase is true", () => {
       const prompt = buildAgentSystemPrompt({
         url: "https://example.com",
         executionInstruction: "Test instruction",
         mode: "dom",
         isBrowserbase: true,
-        captchaSolverEnabled: true,
       });
 
-      expect(prompt).toContain("captcha");
-      expect(prompt).toContain("automatically detected and solved");
+      expect(prompt).toContain("roadblocks");
+      expect(prompt).not.toContain("automatically");
     });
 
-    test("System prompt does not include captcha auto-solve message when captchaSolverEnabled is false", () => {
-      const prompt = buildAgentSystemPrompt({
-        url: "https://example.com",
-        executionInstruction: "Test instruction",
-        mode: "dom",
-        isBrowserbase: true,
-        captchaSolverEnabled: false,
-      });
-
-      expect(prompt).toContain("captcha");
-      expect(prompt).not.toContain("automatically detected and solved");
-    });
-
-    test("System prompt does not include captcha message when isBrowserbase is false", () => {
+    test("System prompt does not include roadblocks when isBrowserbase is false", () => {
       const prompt = buildAgentSystemPrompt({
         url: "https://example.com",
         executionInstruction: "Test instruction",
@@ -166,7 +152,7 @@ test.describe("Stagehand agent hybrid mode", () => {
         isBrowserbase: false,
       });
 
-      expect(prompt).not.toContain("captcha");
+      expect(prompt).not.toContain("roadblocks");
     });
   });
 
