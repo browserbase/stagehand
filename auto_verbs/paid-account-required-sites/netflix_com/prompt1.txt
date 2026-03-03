@@ -1,0 +1,9 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.netflix.com
+
+* Concrete task
+- Search for "documentary".
+- compose a list of the top 5 results. Each has its title, genre/category, and match percentage or rating.
+- print the list.

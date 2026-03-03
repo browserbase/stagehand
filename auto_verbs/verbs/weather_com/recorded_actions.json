@@ -1,0 +1,131 @@
+[
+  {
+    "timestamp": 1341,
+    "type": "goto",
+    "url": "https://weather.com",
+    "description": "Navigate to https://weather.com"
+  },
+  {
+    "timestamp": 2212,
+    "type": "wait",
+    "ms": 4000,
+    "description": "Wait for weather.com"
+  },
+  {
+    "timestamp": 20887,
+    "type": "act",
+    "instruction": "Click the location/city search input field on weather.com where you can type a city name to get weather forecasts.",
+    "description": "Click location search input",
+    "selector": "xpath=/html[1]/body[1]/div[2]/div[3]/header[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/input[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Textbox for searching a location to get weather forecasts",
+    "aria": {
+      "tagName": "input",
+      "type": null,
+      "role": null,
+      "implicitRole": "textbox",
+      "ariaLabel": null,
+      "placeholder": "Search for a location",
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": null,
+      "id": null,
+      "className": "file:text-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 flex w-full min-w-0 bg-transparent px-3 py-1 text-base shadow-xs outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive relative box-border h-12 rounded-3xl border-2 border-[#3A61CC00] bg-white! pr-10 pl-9.5 transition-all placeholder:text-gray-900 placeholder:transition-all hover:border-blue-500 focus:border-blue-500 focus:placeholder:text-gray-400 focus-visible:border-blue-500 max-md:z-2",
+      "bestLabel": "Search for a location",
+      "matchCount": 0,
+      "nearestAncestorId": null,
+      "ariaAncestors": []
+    }
+  },
+  {
+    "timestamp": 20962,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Click location search input"
+  },
+  {
+    "timestamp": 28933,
+    "type": "fill",
+    "selector": "location search input",
+    "value": "Seattle, WA",
+    "description": "Type \"Seattle, WA\" in the search box"
+  },
+  {
+    "timestamp": 33407,
+    "type": "act",
+    "instruction": "Click the first location suggestion/result in the dropdown that appeared after typing \"Seattle, WA\".",
+    "description": "Click first location suggestion",
+    "selector": "xpath=/html[1]/body[1]/div[2]/div[3]/header[1]/div[1]/div[1]/div[2]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "The first location suggestion/result in the dropdown for 'Seattle, WA'.",
+    "aria": {
+      "tagName": "div",
+      "type": null,
+      "role": "button",
+      "implicitRole": null,
+      "ariaLabel": null,
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "LocationSeattleWashington",
+      "name": null,
+      "id": null,
+      "className": "flex min-w-0 flex-1 shrink-1 cursor-pointer items-center gap-3 md:gap-4",
+      "bestLabel": "LocationSeattleWashington",
+      "matchCount": 0,
+      "nearestAncestorId": null,
+      "ariaAncestors": []
+    }
+  },
+  {
+    "timestamp": 35028,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Click first location suggestion"
+  },
+  {
+    "timestamp": 36029,
+    "type": "press",
+    "key": "Enter",
+    "description": "Submit location search"
+  },
+  {
+    "timestamp": 60107,
+    "type": "extract",
+    "instruction": "Extract weather data via AI",
+    "description": "Extract current temp, conditions, 5-day forecast",
+    "results": {
+      "currentTemperature": "60°",
+      "currentConditions": "Sunny",
+      "forecast": [
+        {
+          "day": "Tonight",
+          "high": "",
+          "low": "46°",
+          "conditions": "Partly cloudy this evening followed by mostly cloudy skies and a few showers after midnight."
+        },
+        {
+          "day": "Tue 03",
+          "high": "54°",
+          "low": "47°",
+          "conditions": "PM Showers"
+        },
+        {
+          "day": "Wed 04",
+          "high": "53°",
+          "low": "43°",
+          "conditions": "Showers"
+        },
+        {
+          "day": "Thu 05",
+          "high": "51°",
+          "low": "44°",
+          "conditions": "Cloudy"
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,126 @@
+[
+  {
+    "timestamp": 1387,
+    "type": "goto",
+    "url": "https://www.coursera.org",
+    "description": "Navigate to https://www.coursera.org"
+  },
+  {
+    "timestamp": 2084,
+    "type": "wait",
+    "ms": 4000,
+    "description": "Wait for page load"
+  },
+  {
+    "timestamp": 9909,
+    "type": "act",
+    "instruction": "Click the search input field or search icon where you can type to search for courses",
+    "description": "Click search input",
+    "selector": "xpath=/html[1]/body[1]/div[2]/div[1]/span[1]/span[1]/div[1]/nav[1]/div[2]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/form[1]/div[1]/div[1]/div[2]/input[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "The search input combobox field labeled 'Search catalog' where you can type your query to search for courses.",
+    "aria": {
+      "tagName": "input",
+      "type": "text",
+      "role": "combobox",
+      "implicitRole": "textbox",
+      "ariaLabel": "Search catalog",
+      "placeholder": "What do you want to learn?",
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": "query",
+      "id": "search-autocomplete-input",
+      "className": "cds-178 cds-162 cds-input-input cds-182 cds-165 cds-183 cds-166",
+      "bestLabel": "Search catalog",
+      "matchCount": 1,
+      "nearestAncestorId": "rendered-content",
+      "ariaAncestors": [
+        {
+          "tagName": "form",
+          "ariaLabel": null,
+          "role": "search",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "rendered-content",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 10163,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Click search input"
+  },
+  {
+    "timestamp": 16245,
+    "type": "fill",
+    "selector": "search input",
+    "value": "machine learning",
+    "description": "Type \"machine learning\" in the search box"
+  },
+  {
+    "timestamp": 21677,
+    "type": "press",
+    "key": "Enter",
+    "description": "Submit search"
+  },
+  {
+    "timestamp": 27688,
+    "type": "goto",
+    "url": "https://www.coursera.org/search?query=machine%20learning&productFree=true",
+    "description": "Navigate to https://www.coursera.org/search?query=machine%20learning&productFree=true"
+  },
+  {
+    "timestamp": 49526,
+    "type": "extract",
+    "instruction": "Extract course search results via AI",
+    "description": "Extract up to 5 courses with title, provider, rating, enrollment",
+    "results": {
+      "courses": [
+        {
+          "title": "Machine Learning",
+          "provider": "DeepLearning.AI, Stanford University",
+          "rating": "4.8",
+          "enrollment": "4.6M students"
+        },
+        {
+          "title": "Machine Learning with Python",
+          "provider": "IBM",
+          "rating": "4.6",
+          "enrollment": "82K reviews"
+        },
+        {
+          "title": "IBM Machine Learning",
+          "provider": "IBM",
+          "rating": "4.7",
+          "enrollment": "12K reviews"
+        },
+        {
+          "title": "Supervised Machine Learning: Regression and Classification",
+          "provider": "DeepLearning.AI",
+          "rating": "4.9",
+          "enrollment": "37K reviews"
+        },
+        {
+          "title": "Machine Learning",
+          "provider": "University of Washington",
+          "rating": "4.8",
+          "enrollment": "24K reviews"
+        }
+      ]
+    }
+  }
+]

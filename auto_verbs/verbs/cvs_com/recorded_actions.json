@@ -1,0 +1,134 @@
+[
+  {
+    "timestamp": 1348,
+    "type": "goto",
+    "url": "https://www.cvs.com/store-locator/landing",
+    "description": "Navigate to https://www.cvs.com/store-locator/landing"
+  },
+  {
+    "timestamp": 2694,
+    "type": "wait",
+    "ms": 5000,
+    "description": "Wait for store locator page"
+  },
+  {
+    "timestamp": 12364,
+    "type": "act",
+    "instruction": "Click the location search input field on the store locator page where you can enter a zip code, city, or address to find nearby CVS stores. This is NOT the product search box in the header — it is the main search field in the body of the store locator page.",
+    "description": "Click store locator search input",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/cvs-landing-page[1]/div[1]/div[2]/div[1]/cvs-store-search-controller[1]/cvs-search-form[1]/form[1]/div[1]/div[1]/cvs-combobox[1]/div[1]/input[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "The main location search input field (combobox) on the store locator page where users can enter a zip code, city, or state to find nearby CVS stores. This input is in the body of the store locator and is labeled 'Search by ZIP code, city, or state'.",
+    "aria": {
+      "tagName": "input",
+      "type": "search",
+      "role": "combobox",
+      "implicitRole": "textbox",
+      "ariaLabel": null,
+      "placeholder": "Search",
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": null,
+      "id": "sl-landing-page-search-combobox-input",
+      "className": "cvs-combobox-clear-input",
+      "bestLabel": "Search",
+      "matchCount": 0,
+      "nearestAncestorId": "__next",
+      "ariaAncestors": [
+        {
+          "tagName": "form",
+          "ariaLabel": "Search by ZIP code, city, or state",
+          "role": "search",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "main",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "__next",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 12413,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Click store locator search input"
+  },
+  {
+    "timestamp": 20760,
+    "type": "fill",
+    "selector": "store locator search input",
+    "value": "10001",
+    "description": "Type \"10001\" in the store locator search box"
+  },
+  {
+    "timestamp": 25567,
+    "type": "press",
+    "key": "Enter",
+    "description": "Submit store search"
+  },
+  {
+    "timestamp": 44940,
+    "type": "extract",
+    "instruction": "Extract store locations via AI",
+    "description": "Extract up to 5 stores with address, phone, hours, pharmacy, MinuteClinic",
+    "results": {
+      "stores": [
+        {
+          "address": "5 PENN PLAZA\nNEW YORK, NY, 10001",
+          "phone": "(212) 216-9222",
+          "hours": "Open 24 hours",
+          "hasPharmacy": "Yes",
+          "hasMinuteClinic": "No"
+        },
+        {
+          "address": "258 8TH AVE\nNEW YORK, NY, 10011",
+          "phone": "(212) 479-5190",
+          "hours": "",
+          "hasPharmacy": "Yes",
+          "hasMinuteClinic": "No"
+        },
+        {
+          "address": "750 AVENUE OF AMERICAS\nNEW YORK, NY, 10010",
+          "phone": "(646) 336-8388",
+          "hours": "Closed, opens at 7:00 AM",
+          "hasPharmacy": "Yes",
+          "hasMinuteClinic": "No"
+        },
+        {
+          "address": "500 7TH AVE\nNEW YORK, NY, 10018",
+          "phone": "(212) 835-6921",
+          "hours": "Closed, opens at 7:00 AM",
+          "hasPharmacy": "Yes",
+          "hasMinuteClinic": "No"
+        },
+        {
+          "address": "320 FIFTH AVENUE\nNEW YORK, NY, 10001",
+          "phone": "(212) 279-2856",
+          "hours": "Closed, opens at 7:00 AM",
+          "hasPharmacy": "Yes",
+          "hasMinuteClinic": "No"
+        }
+      ]
+    }
+  }
+]

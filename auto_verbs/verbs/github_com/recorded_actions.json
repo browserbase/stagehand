@@ -1,0 +1,59 @@
+[
+  {
+    "timestamp": 1378,
+    "type": "goto",
+    "url": "https://github.com/search?q=browser%20automation&type=repositories&s=stars&o=desc",
+    "description": "Navigate to https://github.com/search?q=browser%20automation&type=repositories&s=stars&o=desc"
+  },
+  {
+    "timestamp": 2696,
+    "type": "wait",
+    "ms": 5000,
+    "description": "Wait for search results"
+  },
+  {
+    "timestamp": 16562,
+    "type": "extract",
+    "instruction": "Extract repositories via AI",
+    "description": "Extract top 5 repos with name, owner, stars, language, description",
+    "results": {
+      "repos": [
+        {
+          "name": "selenium",
+          "owner": "SeleniumHQ",
+          "stars": "34.1k",
+          "language": "Java",
+          "description": "A browser automation framework and ecosystem."
+        },
+        {
+          "name": "phantomjs",
+          "owner": "ariya",
+          "stars": "29.5k",
+          "language": "C++",
+          "description": "Scriptable Headless Browser"
+        },
+        {
+          "name": "crawlee",
+          "owner": "apify",
+          "stars": "21.9k",
+          "language": "TypeScript",
+          "description": "Crawlee—A web scraping and browser automation library for Node.js to build reliable crawlers. In JavaScript and TypeScript. Extract data …"
+        },
+        {
+          "name": "stagehand",
+          "owner": "browserbase",
+          "stars": "21.3k",
+          "language": "TypeScript",
+          "description": "The AI Browser Automation Framework"
+        },
+        {
+          "name": "automa",
+          "owner": "AutomaApp",
+          "stars": "21.1k",
+          "language": "Vue",
+          "description": "A browser extension for automating your browser by connecting blocks"
+        }
+      ]
+    }
+  }
+]

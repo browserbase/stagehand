@@ -1,0 +1,83 @@
+[
+  {
+    "timestamp": 1705,
+    "type": "goto",
+    "url": "https://www.delta.com",
+    "description": "Navigate to https://www.delta.com"
+  },
+  {
+    "timestamp": 2363,
+    "type": "wait",
+    "ms": 5000,
+    "description": "Initial page load"
+  },
+  {
+    "timestamp": 11405,
+    "type": "act",
+    "instruction": "Select Book tab",
+    "description": "Clicked Book tab"
+  },
+  {
+    "timestamp": 14434,
+    "type": "act",
+    "instruction": "Ensure Round Trip",
+    "description": "Round Trip already selected"
+  },
+  {
+    "timestamp": 25202,
+    "type": "act",
+    "instruction": "Fill origin: Seattle",
+    "description": "Typed Seattle"
+  },
+  {
+    "timestamp": 28237,
+    "type": "act",
+    "instruction": "Select origin",
+    "description": "SEA Seattle"
+  },
+  {
+    "timestamp": 34634,
+    "type": "act",
+    "instruction": "Fill destination: Chicago",
+    "description": "Typed Chicago"
+  },
+  {
+    "timestamp": 37649,
+    "type": "act",
+    "instruction": "Select destination",
+    "description": "CHI Chicago"
+  },
+  {
+    "timestamp": 41252,
+    "type": "act",
+    "instruction": "Select departure: 04/28/2026",
+    "description": "Selected departure"
+  },
+  {
+    "timestamp": 43626,
+    "type": "act",
+    "instruction": "Select return: 05/02/2026",
+    "description": "Selected return"
+  },
+  {
+    "timestamp": 62253,
+    "type": "act",
+    "instruction": "Click Search/Submit",
+    "description": "Click Search"
+  },
+  {
+    "timestamp": 76417,
+    "type": "wait",
+    "ms": 12000,
+    "description": "Wait for results"
+  },
+  {
+    "timestamp": 98199,
+    "type": "extract",
+    "instruction": "Extract flight results",
+    "description": "Extract up to 5 flights",
+    "results": {
+      "flights": []
+    }
+  }
+]

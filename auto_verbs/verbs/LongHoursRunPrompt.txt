@@ -1,0 +1,7 @@
+I am going to sleep now. Can you please go through every folder under auto_verbs\verbs to determine if it contains a js file. If not, this is an unexplored case. please follow prompt1.txt in this folder to solve this case.
+
+*Note that the whole purpose is to generate python code using playwright. You can use stagehand AI to explore (using JS) , but the end result (in python) should not use stagehand AI.*
+*do not hardcode the result obtained from the JS program in the python code! It would miss the whole point of this effort. Instead, please write real code to extract data from the webpage*
+*please see amazon, Amtrak, bankofamerica, booking.com, Costco, Microsoft Teams as examples.*
+
+ Thank you very much!

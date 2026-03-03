@@ -1,0 +1,101 @@
+[
+  {
+    "timestamp": 1354,
+    "type": "goto",
+    "url": "https://en.wikipedia.org",
+    "description": "Navigate to https://en.wikipedia.org"
+  },
+  {
+    "timestamp": 2105,
+    "type": "wait",
+    "ms": 3000,
+    "description": "Wait for Wikipedia"
+  },
+  {
+    "timestamp": 8513,
+    "type": "act",
+    "instruction": "Click the Wikipedia search input field where you can type a search query.",
+    "description": "Click search input",
+    "selector": "xpath=/html[1]/body[1]/div[2]/header[1]/div[2]/div[1]/div[1]/div[1]/form[1]/div[1]/div[1]/input[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Wikipedia search input field, labeled as 'Search Wikipedia', where you can type a search query",
+    "aria": {
+      "tagName": "input",
+      "type": "search",
+      "role": null,
+      "implicitRole": "textbox",
+      "ariaLabel": "Search Wikipedia",
+      "placeholder": "Search Wikipedia",
+      "title": "Search Wikipedia [alt-f]",
+      "tooltip": null,
+      "textContent": "",
+      "name": "search",
+      "id": "searchInput",
+      "className": "cdx-text-input__input mw-searchInput",
+      "bestLabel": "Search Wikipedia",
+      "matchCount": 1,
+      "nearestAncestorId": "simpleSearch",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "simpleSearch",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "form",
+          "ariaLabel": null,
+          "role": null,
+          "id": "searchform",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "search",
+          "id": "p-search",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 8537,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Click search input"
+  },
+  {
+    "timestamp": 15950,
+    "type": "fill",
+    "selector": "search input",
+    "value": "Space Needle",
+    "description": "Type \"Space Needle\" in the search box"
+  },
+  {
+    "timestamp": 19188,
+    "type": "press",
+    "key": "Enter",
+    "description": "Submit search"
+  },
+  {
+    "timestamp": 32254,
+    "type": "extract",
+    "instruction": "Extract article summary and infobox facts",
+    "description": "Extract first paragraph + infobox (location, height, opened)",
+    "results": {
+      "summary": "The Space Needle is an observation tower in Seattle, Washington, United States, considered to be an icon of the city and a Seattle landmark. It was built for the 1962 World's Fair, which drew over 2.3 million visitors, with nearly 20,000 people a day using its elevators. Once the tallest structure in the city, it is 605 ft (184 m) high, 138 ft (42 m) wide, and weighs 9,550 short tons (8,660 metric tons). It is built to withstand winds of up to 200 mph (320 km/h) and earthquakes of up to 9.0 magnitude. The Space Needle features an observation deck at 520 ft (160 m) and a rotating restaurant at 500 ft (150 m).",
+      "location": "Seattle, Washington",
+      "height": "605 ft",
+      "openedDate": "April 21, 1962"
+    }
+  }
+]

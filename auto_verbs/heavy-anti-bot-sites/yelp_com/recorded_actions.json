@@ -1,0 +1,54 @@
+[
+  {
+    "timestamp": 1401,
+    "type": "goto",
+    "url": "https://www.yelp.com/search?find_desc=best%20coffee%20shops&find_loc=Portland%2C%20OR&sortby=rating",
+    "description": "Navigate to https://www.yelp.com/search?find_desc=best%20coffee%20shops&find_loc=Portland%2C%20OR&sortby=rating"
+  },
+  {
+    "timestamp": 1696,
+    "type": "wait",
+    "ms": 6000,
+    "description": "Wait for Yelp search results"
+  },
+  {
+    "timestamp": 23371,
+    "type": "extract",
+    "instruction": "Extract coffee shops via AI",
+    "description": "Extract top 5 shops with name, rating, reviews, price range",
+    "results": {
+      "shops": [
+        {
+          "name": "Slow Haste Coffee",
+          "rating": "4.9",
+          "reviews": "12",
+          "priceRange": "$"
+        },
+        {
+          "name": "Cadejo Coffee",
+          "rating": "4.9",
+          "reviews": "87",
+          "priceRange": "$$"
+        },
+        {
+          "name": "La Perlita",
+          "rating": "4.8",
+          "reviews": "341",
+          "priceRange": "$$"
+        },
+        {
+          "name": "Ovation Coffee & Tea",
+          "rating": "4.7",
+          "reviews": "891",
+          "priceRange": "$"
+        },
+        {
+          "name": "Less and more coffee ii",
+          "rating": "4.7",
+          "reviews": "32",
+          "priceRange": "$"
+        }
+      ]
+    }
+  }
+]

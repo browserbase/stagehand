@@ -27,3 +27,4 @@ packages/core/test-results/
 .turbo
 .idea
 __pycache__/
+.playwright-mcp/
