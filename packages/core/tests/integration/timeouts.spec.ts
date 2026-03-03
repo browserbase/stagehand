@@ -6,7 +6,6 @@ import { closeV3 } from "./testUtils.js";
 import type { LLMClient } from "../../lib/v3/llm/LLMClient.js";
 import { generateText } from "ai";
 import { MockLanguageModelV2 } from "ai/test";
-import type { LanguageModelV2CallOptions } from "@ai-sdk/provider";
 
 type AgentToolNameWithTimeout = "act" | "extract" | "fillForm" | "ariaTree";
 
@@ -30,7 +29,7 @@ function createToolTimeoutTestLlmClient(
   const model = new MockLanguageModelV2({
     provider: "mock",
     modelId: "mock/tool-timeout-test",
-    doGenerate: async (_options: LanguageModelV2CallOptions) => {
+    doGenerate: async () => {
       generateCallCount += 1;
       if (generateCallCount === 1) {
         return {
