@@ -12,10 +12,7 @@ const mockClientOptions = { apiKey: "test-api-key-for-testing" };
 describe("Model format deprecation", () => {
   describe("UnsupportedModelError", () => {
     it("includes guidance to use provider/model format for unknown model names", () => {
-      const error = new UnsupportedModelError([
-        "gpt-4o",
-        "gemini-2.0-flash",
-      ]);
+      const error = new UnsupportedModelError(["gpt-4o", "gemini-2.0-flash"]);
 
       // Should mention the new format
       expect(error.message).toContain("provider/model");
@@ -106,10 +103,7 @@ describe("Model format deprecation", () => {
       const logger = (line: LogLine) => logs.push(line);
       const provider = new LLMProvider(logger);
 
-      const client = provider.getClient(
-        "gemini-2.0-flash",
-        mockClientOptions,
-      );
+      const client = provider.getClient("gemini-2.0-flash", mockClientOptions);
 
       // Should return a client
       expect(client).toBeDefined();
