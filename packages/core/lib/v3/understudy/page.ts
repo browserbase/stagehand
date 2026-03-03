@@ -113,6 +113,7 @@ export class Page {
   >();
   /** Document-start scripts installed across every session this page owns. */
   private readonly initScripts: string[] = [];
+  private extraHTTPHeaders: Record<string, string>;
 
   private constructor(
     private readonly conn: CdpConnection,
@@ -440,6 +441,7 @@ export class Page {
     if (childSession.id) this.sessions.set(childSession.id, childSession);
 
     this.networkManager.trackSession(childSession);
+    void this.applyExtraHTTPHeadersToSession(childSession);
 
     void this.applyInitScriptsToSession(childSession).catch(() => {});
 
@@ -672,6 +674,15 @@ export class Page {
 
   public asProtocolFrameTree(rootMainFrameId: string): Protocol.Page.FrameTree {
     return this.registry.asProtocolFrameTree(rootMainFrameId);
+  }
+
+  private async applyExtraHTTPHeadersToSession(
+    session: CDPSessionLike,
+  ): Promise<void> {
+    await session.send("Network.enable");
+    await session.send("Network.setExtraHTTPHeaders", {
+      headers: { ...this.extraHTTPHeaders },
+    });
   }
 
   private ensureOrdinal(frameId: string): number {
@@ -1163,7 +1174,7 @@ export class Page {
    * @return void
    */
   async setExtraHTTPHeaders(headers: Record<string, string>): Promise<void> {
-    const headersCopy = { ...headers };
+    this.extraHTTPHeaders = { ...headers };
 
     // get the session(s) for this page:
     const sessions: CDPSessionLike[] = [];
@@ -1175,10 +1186,7 @@ export class Page {
 
     const results = await Promise.allSettled(
       sessions.map(async (session) => {
-        await session.send("Network.enable");
-        await session.send("Network.setExtraHTTPHeaders", {
-          headers: headersCopy,
-        });
+        await this.applyExtraHTTPHeadersToSession(session);
       }),
     );
 
