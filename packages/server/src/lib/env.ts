@@ -12,7 +12,7 @@ export const env = createEnv({
   client: {},
   clientPrefix: "PUBLIC_",
   runtimeEnv: {
-    NODE_ENV: process.env.NODE_ENV,
-    BB_ENV: process.env.BB_ENV,
+    NODE_ENV: process.env.NODE_ENV ?? "production",
+    BB_ENV: process.env.BB_ENV ?? "local",
   },
 });

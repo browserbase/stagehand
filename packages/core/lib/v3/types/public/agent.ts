@@ -418,13 +418,19 @@ export interface AgentStreamExecuteOptions extends AgentExecuteOptionsBase {
    */
   callbacks?: AgentStreamCallbacks;
 }
-export type AgentType = "openai" | "anthropic" | "google" | "microsoft";
+export type AgentType =
+  | "openai"
+  | "anthropic"
+  | "google"
+  | "microsoft"
+  | "bedrock";
 
 export const AVAILABLE_CUA_MODELS = [
   "openai/computer-use-preview",
   "openai/computer-use-preview-2025-03-11",
   "anthropic/claude-opus-4-5-20251101",
   "anthropic/claude-opus-4-6",
+  "anthropic/claude-sonnet-4-6",
   "anthropic/claude-haiku-4-5-20251001",
   "anthropic/claude-sonnet-4-20250514",
   "anthropic/claude-sonnet-4-5-20250929",

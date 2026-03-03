@@ -1,11 +1,10 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { getPackageRootDir } from "../lib/v3/runtimePaths.js";
 
 type PackageJson = { version: string };
 
-const here = dirname(fileURLToPath(import.meta.url));
-const pkgPath = join(here, "..", "package.json");
+const packageRoot = getPackageRootDir();
+const pkgPath = `${packageRoot}/package.json`;
 const pkg: PackageJson = JSON.parse(readFileSync(pkgPath, "utf8"));
 
 const fullVersion: `${string}` = pkg.version;
@@ -17,4 +16,4 @@ const banner = `/**
 export const STAGEHAND_VERSION = "${fullVersion}" as const;
 `;
 
-writeFileSync(join(here, "..", "lib", "version.ts"), banner);
+writeFileSync(`${packageRoot}/lib/version.ts`, banner);

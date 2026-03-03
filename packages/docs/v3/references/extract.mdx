@@ -44,6 +44,7 @@ interface ExtractOptions {
   timeout?: number;
   selector?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  serverCache?: boolean;
 }
 
 // ModelConfiguration can be either a string or an object
@@ -107,6 +108,14 @@ type ModelConfiguration =
   If not specified, defaults to the current "active" page in your Stagehand instance.
 </ParamField>
 
+<ParamField path="serverCache" type="boolean" optional>
+  Override the instance-level `serverCache` setting for this request. When `true`, enables server-side caching. When `false`, disables it.
+
+  <Note>Only applies when `env` is `"BROWSERBASE"`. Has no effect in local environments.</Note>
+
+  Defaults to the value set on the Stagehand constructor (which itself defaults to `true`).
+</ParamField>
+
 ### Built-in Support
 
 <Note>
@@ -117,15 +126,15 @@ type ModelConfiguration =
 
 <Tabs>
 <Tab title="With Schema">
-**Returns:** `Promise<z.infer<T>>` where T is your schema
+**Returns:** `Promise<z.infer<T> & { cacheStatus?: "HIT" | "MISS" }>` where T is your schema
 
-The returned object will be strictly typed according to your Zod schema definition.
+The returned object will be strictly typed according to your Zod schema definition. The optional `cacheStatus` field indicates whether the result was served from the server-side cache (`"HIT"`) or computed fresh (`"MISS"`). Only present when running with `env: "BROWSERBASE"` and server-side caching is enabled.
 </Tab>
 
 <Tab title="String Only">
-**Returns:** `Promise<{ extraction: string }>`
+**Returns:** `Promise<{ extraction: string; cacheStatus?: "HIT" | "MISS" }>`
 
-`extraction`: Simple string extraction without schema validation.
+`extraction`: Simple string extraction without schema validation. The optional `cacheStatus` field indicates cache hit or miss when using Browserbase with server-side caching.
 </Tab>
 
 <Tab title="No Parameters">

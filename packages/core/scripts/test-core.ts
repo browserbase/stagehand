@@ -10,7 +10,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import {
   ensureParentDir,
   parseListFlag,
@@ -22,15 +21,9 @@ import {
   hasReporterName,
   writeCtrfFromJunit,
 } from "./test-utils.js";
+import { getRepoRootDir } from "../lib/v3/runtimePaths.js";
 
-const repoRoot = (() => {
-  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
-  const root = value.split("/packages/core/")[0];
-  if (root === value) {
-    throw new Error(`Unable to determine repo root from ${value}`);
-  }
-  return root;
-})();
+const repoRoot = getRepoRootDir();
 
 const sourceTestsDir = `${repoRoot}/packages/core/tests/unit`;
 const testsDir = `${repoRoot}/packages/core/dist/esm/tests/unit`;

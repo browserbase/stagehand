@@ -34,6 +34,7 @@ interface ObserveOptions {
   timeout?: number;
   selector?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  serverCache?: boolean;
 }
 
 // ModelConfiguration can be either a string or an object
@@ -91,6 +92,14 @@ type ModelConfiguration =
   - **Stagehand Page**: Stagehand's wrapped Page object
 
   If not specified, defaults to the current "active" page in your Stagehand instance.
+</ParamField>
+
+<ParamField path="serverCache" type="boolean" optional>
+  Override the instance-level `serverCache` setting for this request. When `true`, enables server-side caching. When `false`, disables it.
+
+  <Note>Only applies when `env` is `"BROWSERBASE"`. Has no effect in local environments.</Note>
+
+  Defaults to the value set on the Stagehand constructor (which itself defaults to `true`).
 </ParamField>
 
 ### Returns `Promise<Action[]>`

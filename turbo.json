@@ -29,7 +29,14 @@
       ]
     },
     "@browserbasehq/stagehand#build": {
-      "dependsOn": ["^build", "gen-version", "build-dom-scripts"],
+      "dependsOn": [
+        "^build",
+        "gen-version",
+        "build-dom-scripts:dom",
+        "build-dom-scripts:locator",
+        "build-dom-scripts:screenshot",
+        "build-dom-scripts:a11y"
+      ],
       "outputs": [
         "dist/**"
       ],
@@ -62,7 +69,14 @@
       ]
     },
     "@browserbasehq/stagehand#build:esm": {
-      "dependsOn": ["^build:esm", "gen-version", "build-dom-scripts"],
+      "dependsOn": [
+        "^build:esm",
+        "gen-version",
+        "build-dom-scripts:dom",
+        "build-dom-scripts:locator",
+        "build-dom-scripts:screenshot",
+        "build-dom-scripts:a11y"
+      ],
       "outputs": [
         "dist/esm/**"
       ],
@@ -79,7 +93,14 @@
       ]
     },
     "@browserbasehq/stagehand#build:cjs": {
-      "dependsOn": ["^build:cjs", "gen-version", "build-dom-scripts"],
+      "dependsOn": [
+        "^build:cjs",
+        "gen-version",
+        "build-dom-scripts:dom",
+        "build-dom-scripts:locator",
+        "build-dom-scripts:screenshot",
+        "build-dom-scripts:a11y"
+      ],
       "outputs": [
         "dist/cjs/**"
       ],
@@ -105,14 +126,55 @@
         "!lib/version.ts"
       ]
     },
-    "build-dom-scripts": {
+    "build-dom-scripts:dom": {
       "outputs": [
-        "lib/dom/build/**",
-        "lib/v3/dom/build/**"
+        "lib/v3/dom/build/v3-index.js",
+        "lib/v3/dom/build/scriptV3Content.ts",
+        "lib/v3/dom/build/rerender-index.js",
+        "lib/v3/dom/build/reRenderScriptContent.ts"
       ],
       "inputs": [
+        "lib/v3/dom/genDomScripts.ts",
         "lib/v3/dom/**/*.ts",
-        "!lib/dom/build/**",
+        "!lib/v3/dom/build/**",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "build-dom-scripts:locator": {
+      "outputs": [
+        "lib/v3/dom/build/locatorScripts.generated.ts"
+      ],
+      "inputs": [
+        "lib/v3/dom/genLocatorScripts.ts",
+        "lib/v3/dom/locatorScripts/**/*.ts",
+        "!lib/v3/dom/build/**",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "build-dom-scripts:screenshot": {
+      "outputs": [
+        "lib/v3/dom/build/screenshotScripts.generated.ts"
+      ],
+      "inputs": [
+        "lib/v3/dom/genScreenshotScripts.ts",
+        "lib/v3/dom/screenshotScripts/**/*.ts",
+        "!lib/v3/dom/build/**",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json"
+      ]
+    },
+    "build-dom-scripts:a11y": {
+      "outputs": [
+        "lib/v3/dom/build/a11yScripts.generated.ts"
+      ],
+      "inputs": [
+        "lib/v3/dom/genA11yScripts.ts",
+        "lib/v3/dom/a11yScripts/**/*.ts",
         "!lib/v3/dom/build/**",
         "package.json",
         "tsconfig.json",

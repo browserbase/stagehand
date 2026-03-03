@@ -781,7 +781,7 @@ export class V3 {
             "--disable-dev-shm-usage",
             "--site-per-process",
           ];
-          let chromeFlags: string[] = [];
+          let chromeFlags: string[];
           const ignore = lbo.ignoreDefaultArgs;
           if (ignore === true) {
             // drop defaults
@@ -899,6 +899,7 @@ export class V3 {
               apiKey,
               projectId,
               logger: this.logger,
+              serverCache: this.opts.serverCache,
             });
             const createSessionPayload = {
               projectId: effectiveSessionParams.projectId ?? projectId,

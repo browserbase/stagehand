@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-server",
-  "version": "3.5.0",
+  "version": "3.6.0",
   "description": "Stagehand API server",
   "type": "module",
   "private": true,
@@ -40,7 +40,7 @@
   },
   "devDependencies": {
     "@types/node": "22.13.1",
-    "eslint": "^9.7.0",
+    "eslint": "10.0.2",
     "eslint-plugin-security": "^3.0.1",
     "openai": "4.87.1",
     "postject": "1.0.0-alpha.6",

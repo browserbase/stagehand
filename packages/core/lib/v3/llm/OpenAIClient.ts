@@ -86,8 +86,8 @@ export class OpenAIClient extends LLMClient {
 
       if (options.tools) {
         // Remove unsupported options
-        let { tools } = options;
-        ({ tools, ...options } = options);
+        const { tools, ...rest } = options;
+        options = rest;
         isToolsOverridedForO1 = true;
         options.messages.push({
           role: "user",
