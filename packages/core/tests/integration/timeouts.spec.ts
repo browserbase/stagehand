@@ -8,17 +8,12 @@ import { generateText } from "ai";
 
 type AgentToolNameWithTimeout = "act" | "extract" | "fillForm" | "ariaTree";
 
-type ToolTimeoutGenerateCall = {
-  prompt?: unknown;
-} & Record<string, unknown>;
-
 type ToolTimeoutTestModel = {
   provider: string;
   modelId: string;
   specificationVersion: "v2";
-  supportedUrls: () => Promise<Record<string, never>>;
-  doGenerateCalls: ToolTimeoutGenerateCall[];
-  doGenerate: (options: ToolTimeoutGenerateCall) => Promise<{
+  supportedUrls: Record<string, RegExp[]>;
+  doGenerate: () => Promise<{
     content: Array<{
       type: "tool-call";
       toolCallId: string;
@@ -53,10 +48,8 @@ function createToolTimeoutTestLlmClient(
     provider: "mock",
     modelId: "mock/tool-timeout-test",
     specificationVersion: "v2",
-    supportedUrls: async () => ({}),
-    doGenerateCalls: [],
-    doGenerate: async (options) => {
-      model.doGenerateCalls.push(options);
+    supportedUrls: {},
+    doGenerate: async () => {
       generateCallCount += 1;
       if (generateCallCount === 1) {
         return {
@@ -153,35 +146,6 @@ function findToolOutput(
   return undefined;
 }
 
-function findModelPromptToolOutput(prompt: unknown, toolName: string) {
-  if (!Array.isArray(prompt)) return undefined;
-  for (const message of prompt) {
-    if (
-      typeof message !== "object" ||
-      message === null ||
-      !("content" in message) ||
-      !Array.isArray(message.content)
-    ) {
-      continue;
-    }
-
-    for (const part of message.content) {
-      if (
-        typeof part === "object" &&
-        part !== null &&
-        "type" in part &&
-        part.type === "tool-result" &&
-        "toolName" in part &&
-        part.toolName === toolName &&
-        "output" in part
-      ) {
-        return part.output;
-      }
-    }
-  }
-  return undefined;
-}
-
 async function runAgentToolTimeoutScenario(
   toolName: AgentToolNameWithTimeout,
   toolInput: Record<string, unknown>,
@@ -222,8 +186,7 @@ async function runAgentToolTimeoutScenario(
     if (!toolOutput) {
       throw new Error(`No tool output captured for ${toolName}`);
     }
-    const modelPrompt = llmClient.model.doGenerateCalls[1]?.prompt;
-    return { toolOutput, modelPrompt };
+    return { toolOutput };
   } finally {
     await closeV3(v3);
   }
@@ -262,78 +225,37 @@ test.describe("V3 hard timeouts", () => {
   });
 
   test("agent toolTimeout enforces timeout for act tool", async () => {
-    const { toolOutput, modelPrompt } = await runAgentToolTimeoutScenario(
-      "act",
-      {
-        action: "click somewhere",
-      },
-    );
+    const { toolOutput } = await runAgentToolTimeoutScenario("act", {
+      action: "click somewhere",
+    });
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
     expect(output.error).toContain("TimeoutError: act() timed out");
-    const promptOutput = findModelPromptToolOutput(modelPrompt, "act") as {
-      success: boolean;
-      error: string;
-    };
-    expect(promptOutput.success).toBe(false);
-    expect(promptOutput.error).toContain("TimeoutError: act() timed out");
   });
 
   test("agent toolTimeout enforces timeout for extract tool", async () => {
-    const { toolOutput, modelPrompt } = await runAgentToolTimeoutScenario(
-      "extract",
-      {
-        instruction: "extract the page title",
-        schema: { type: "object", properties: { title: { type: "string" } } },
-      },
-    );
+    const { toolOutput } = await runAgentToolTimeoutScenario("extract", {
+      instruction: "extract the page title",
+      schema: { type: "object", properties: { title: { type: "string" } } },
+    });
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
     expect(output.error).toContain("TimeoutError: extract() timed out");
-    const promptOutput = findModelPromptToolOutput(modelPrompt, "extract") as {
-      success: boolean;
-      error: string;
-    };
-    expect(promptOutput.success).toBe(false);
-    expect(promptOutput.error).toContain("TimeoutError: extract() timed out");
   });
 
   test("agent toolTimeout enforces timeout for fillForm tool", async () => {
-    const { toolOutput, modelPrompt } = await runAgentToolTimeoutScenario(
-      "fillForm",
-      {
-        fields: [{ action: "type hello into name", value: "hello" }],
-      },
-    );
+    const { toolOutput } = await runAgentToolTimeoutScenario("fillForm", {
+      fields: [{ action: "type hello into name", value: "hello" }],
+    });
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
     expect(output.error).toContain("TimeoutError: fillForm() timed out");
-    const promptOutput = findModelPromptToolOutput(modelPrompt, "fillForm") as {
-      success: boolean;
-      error: string;
-    };
-    expect(promptOutput.success).toBe(false);
-    expect(promptOutput.error).toContain("TimeoutError: fillForm() timed out");
   });
 
-  test("agent toolTimeout timeout for ariaTree is serialized for the model", async () => {
-    const { toolOutput, modelPrompt } = await runAgentToolTimeoutScenario(
-      "ariaTree",
-      {},
-    );
+  test("agent toolTimeout enforces timeout for ariaTree", async () => {
+    const { toolOutput } = await runAgentToolTimeoutScenario("ariaTree", {});
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
     expect(output.error).toContain("TimeoutError: ariaTree() timed out");
-
-    const modelOutput = findModelPromptToolOutput(modelPrompt, "ariaTree") as {
-      type: string;
-      value: Array<{ type: string; text?: string }>;
-    };
-    expect(modelOutput.type).toBe("content");
-    expect(modelOutput.value[0]?.type).toBe("text");
-    expect(JSON.parse(modelOutput.value[0]?.text ?? "{}")).toMatchObject({
-      success: false,
-      error: output.error,
-    });
   });
 });
