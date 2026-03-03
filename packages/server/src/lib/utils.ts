@@ -192,12 +192,6 @@ export function mapModelToProvider(model: LegacyModel): LegacyProvider {
     case "gpt-4.5-preview":
     case "o3-mini":
       return "openai";
-    case "claude-3-5-sonnet-latest":
-    case "claude-3-5-sonnet-20241022":
-    case "claude-3-5-sonnet-20240620":
-    case "claude-3-7-sonnet-20250219":
-    case "claude-3-7-sonnet-latest":
-      return "anthropic";
     case "gemini-1.5-flash":
     case "gemini-1.5-pro":
     case "gemini-1.5-flash-8b":

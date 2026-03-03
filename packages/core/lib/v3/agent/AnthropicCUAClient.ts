@@ -442,7 +442,7 @@ export class AnthropicCUAClient extends AgentClient {
         messages: messages,
         tools: [
           {
-            type: "computer_20250124", // Use the latest version for Claude 3.7 Sonnet
+            type: "computer_20250124",
             name: "computer",
             display_width_px: this.currentViewport.width,
             display_height_px: this.currentViewport.height,

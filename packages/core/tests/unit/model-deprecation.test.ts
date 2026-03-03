@@ -14,7 +14,7 @@ describe("Model format deprecation", () => {
     it("includes guidance to use provider/model format for unknown model names", () => {
       const error = new UnsupportedModelError([
         "gpt-4o",
-        "claude-3-5-sonnet-latest",
+        "gemini-2.0-flash",
       ]);
 
       // Should mention the new format
@@ -101,20 +101,20 @@ describe("Model format deprecation", () => {
       expect(client.constructor.name).toBe("OpenAIClient");
     });
 
-    it("returns AnthropicClient for legacy Anthropic model names", () => {
+    it("returns GoogleClient for legacy Google model names", () => {
       const logs: LogLine[] = [];
       const logger = (line: LogLine) => logs.push(line);
       const provider = new LLMProvider(logger);
 
       const client = provider.getClient(
-        "claude-3-5-sonnet-latest",
+        "gemini-2.0-flash",
         mockClientOptions,
       );
 
       // Should return a client
       expect(client).toBeDefined();
-      // The client should be an AnthropicClient
-      expect(client.constructor.name).toBe("AnthropicClient");
+      // The client should be a GoogleClient
+      expect(client.constructor.name).toBe("GoogleClient");
     });
   });
 

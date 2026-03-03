@@ -29,7 +29,7 @@
 //     // Create a computer use agent
 //     const agent = stagehand.agent({
 //       provider: "anthropic",
-//       // For Anthropic, use claude-sonnet-4-20250514 or claude-3-7-sonnet-latest
+//       // For Anthropic, use claude-sonnet-4-20250514 or claude-sonnet-4-5-20250929
 //       model: "claude-sonnet-4-20250514",
 //       instructions: `You are a helpful assistant that can use a web browser.
 //       You are currently on the following page: ${page.url()}.
