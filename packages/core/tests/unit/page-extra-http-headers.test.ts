@@ -4,13 +4,16 @@ import { MockCDPSession } from "./helpers/mockCDPSession.js";
 import { StagehandSetExtraHTTPHeadersError } from "../../lib/v3/types/public/sdkErrors.js";
 
 type PageStub = {
+  mainSession: MockCDPSession;
   sessions: Map<string, MockCDPSession>;
   extraHTTPHeaders: Record<string, string>;
   applyExtraHTTPHeadersToSession: (session: MockCDPSession) => Promise<void>;
 };
 
 const makePage = (sessions: MockCDPSession[]): PageStub => {
+  const mainSession = sessions[0] ?? new MockCDPSession({}, "main");
   const stub: PageStub = {
+    mainSession,
     sessions: new Map(sessions.map((s) => [s.id, s])),
     extraHTTPHeaders: {},
     // Bind the private helper from Page.prototype so setExtraHTTPHeaders can call it
