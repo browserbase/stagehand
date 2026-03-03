@@ -20,7 +20,8 @@ const SOLVE_TIMEOUT_MS = 90_000;
  */
 export class CaptchaSolver {
   private solving = false;
-  private _lastSolveErrored = false;
+  private _solvedSinceLastConsume = false;
+  private _erroredSinceLastConsume = false;
   private listener: ((msg: ConsoleMessage) => void) | null = null;
   private attachedPage: Page | null = null;
   private pageProvider: (() => Promise<Page>) | null = null;
@@ -58,14 +59,13 @@ export class CaptchaSolver {
       const text = msg.text();
       if (text === SOLVING_STARTED) {
         this.solving = true;
-        this._lastSolveErrored = false;
       } else if (text === SOLVING_FINISHED) {
         this.solving = false;
-        this._lastSolveErrored = false;
+        this._solvedSinceLastConsume = true;
         this.settle();
       } else if (text === SOLVING_ERRORED) {
         this.solving = false;
-        this._lastSolveErrored = true;
+        this._erroredSinceLastConsume = true;
         this.settle();
       }
     };
@@ -95,7 +95,7 @@ export class CaptchaSolver {
       this.resolveWait = resolve;
       this.waitTimer = setTimeout(() => {
         this.solving = false;
-        this._lastSolveErrored = true;
+        this._erroredSinceLastConsume = true;
         this.settle();
       }, SOLVE_TIMEOUT_MS);
     });
@@ -104,18 +104,19 @@ export class CaptchaSolver {
   }
 
   /**
-   * Whether the most recent captcha solve attempt errored.
-   * Resets to false when a new solve starts or `resetError()` is called.
+   * Returns and resets the solve event flags.
+   * Call after `waitIfSolving()` to check whether a captcha was solved
+   * (or errored) since the last consume.  This captures events even if
+   * the solve completed between two `waitIfSolving()` calls.
    */
-  get lastSolveErrored(): boolean {
-    return this._lastSolveErrored;
-  }
-
-  /**
-   * Clear the error flag after consuming it.
-   */
-  resetError(): void {
-    this._lastSolveErrored = false;
+  consumeSolveResult(): { solved: boolean; errored: boolean } {
+    const result = {
+      solved: this._solvedSinceLastConsume,
+      errored: this._erroredSinceLastConsume,
+    };
+    this._solvedSinceLastConsume = false;
+    this._erroredSinceLastConsume = false;
+    return result;
   }
 
   /**
@@ -126,7 +127,8 @@ export class CaptchaSolver {
     this.attachedPage = null;
     this.pageProvider = null;
     this.solving = false;
-    this._lastSolveErrored = false;
+    this._solvedSinceLastConsume = false;
+    this._erroredSinceLastConsume = false;
     this.settle();
   }
 

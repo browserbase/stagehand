@@ -79,13 +79,13 @@ export class V3CuaAgentHandler {
       // Wait for captcha solver to finish before executing action
       if (this.captchaSolver) {
         await this.captchaSolver.waitIfSolving();
-        if (this.captchaSolver.lastSolveErrored) {
+        const { errored } = this.captchaSolver.consumeSolveResult();
+        if (errored) {
           this.logger({
             category: "agent",
             message: "Captcha solver failed or errored",
             level: 1,
           });
-          this.captchaSolver.resetError();
         }
       }
 
