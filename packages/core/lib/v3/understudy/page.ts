@@ -679,6 +679,7 @@ export class Page {
   private async applyExtraHTTPHeadersToSession(
     session: CDPSessionLike,
   ): Promise<void> {
+    if (!this.extraHTTPHeaders) return;
     await session.send("Network.enable");
     await session.send("Network.setExtraHTTPHeaders", {
       headers: { ...this.extraHTTPHeaders },
@@ -1177,8 +1178,9 @@ export class Page {
     this.extraHTTPHeaders = { ...headers };
 
     // get the session(s) for this page:
-    const sessions: CDPSessionLike[] = [];
+    const sessions: CDPSessionLike[] = [this.mainSession];
     for (const session of this.sessions.values()) {
+      if (session === this.mainSession) continue;
       sessions.push(session);
     }
 
