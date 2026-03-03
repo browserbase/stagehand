@@ -1200,7 +1200,7 @@ export class Page {
 
     const filtered = pairs.filter(
       (pair): pair is { result: PromiseRejectedResult; id: string } =>
-        pair.result.status === "rejected" && pair.id !== null,
+        pair.result.status === "rejected",
     );
 
     const errors = filtered.map((pair) => {
