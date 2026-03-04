@@ -41,6 +41,11 @@ export class CaptchaSolver {
     this.pageProvider = pageProvider;
   }
 
+  /** Whether a captcha solve is currently in progress. */
+  isSolving(): boolean {
+    return this.solving;
+  }
+
   /**
    * Ensure the console listener is attached to the current active page.
    * If the active page has changed since the last call, the old listener
