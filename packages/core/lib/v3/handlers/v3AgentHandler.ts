@@ -118,6 +118,7 @@ export class V3AgentHandler {
         mode: this.mode,
         systemInstructions: this.systemInstructions,
         isBrowserbase: this.v3.isBrowserbase,
+        solveCaptchas: this.v3.isCaptchaSolverEnabled,
         excludeTools: options.excludeTools,
         variables: options.variables,
       });
@@ -197,7 +198,7 @@ export class V3AgentHandler {
           options.messages.push({
             role: "user",
             content:
-              "A captcha was automatically detected and solved. The page may have changed. Please take a screenshot or check the ariaTree to understand the current page state before continuing with your task.",
+              "A captcha was automatically detected and solved — no further interaction with the captcha is needed, even if it does not visually appear solved. Continue with your task.",
           });
           this.logger({
             category: "agent",
