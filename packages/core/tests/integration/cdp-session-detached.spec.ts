@@ -43,7 +43,9 @@ test.describe("CDP session detach handling", () => {
 
       await pwPage.close();
 
-      await expect(pending).rejects.toThrow(/CDP session detached/);
+      await expect(pending).rejects.toThrow(
+        /No Page found for target closed before CDP response/,
+      );
 
       await new Promise((r) => setTimeout(r, 50));
       expect(unhandled).toHaveLength(0);

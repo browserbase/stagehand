@@ -2,7 +2,10 @@
 import WebSocket from "ws";
 import type { Protocol } from "devtools-protocol";
 import { STAGEHAND_VERSION } from "../../version.js";
-import { CdpConnectionClosedError } from "../types/public/sdkErrors.js";
+import {
+  CdpConnectionClosedError,
+  PageNotFoundError,
+} from "../types/public/sdkErrors.js";
 
 /**
  * CDP transport & session multiplexer
@@ -31,6 +34,13 @@ type Inflight = {
 };
 
 type EventHandler = (params: unknown) => void;
+type SessionDispatchWaiter = {
+  sessionId: string;
+  method: string;
+  match?: (params?: object) => boolean;
+  resolve: () => void;
+  reject: (error: Error) => void;
+};
 
 type RawMessage =
   | {
@@ -49,6 +59,7 @@ export class CdpConnection implements CDPSessionLike {
   private sessions = new Map<string, CdpSession>();
   /** Maps sessionId -> targetId (1:1 mapping) */
   private sessionToTarget = new Map<string, string>();
+  private sessionDispatchWaiters = new Set<SessionDispatchWaiter>();
   public readonly id: string | null = null; // root
   private transportCloseHandlers = new Set<(why: string) => void>();
 
@@ -169,10 +180,36 @@ export class CdpConnection implements CDPSessionLike {
       entry.reject(new CdpConnectionClosedError(why));
       this.inflight.delete(id);
     }
+    for (const waiter of Array.from(this.sessionDispatchWaiters)) {
+      waiter.reject(new CdpConnectionClosedError(why));
+    }
   }
 
   getSession(sessionId: string): CdpSession | undefined {
     return this.sessions.get(sessionId);
+  }
+
+  waitForSessionDispatch(
+    sessionId: string,
+    method: string,
+    match?: (params?: object) => boolean,
+  ): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const waiter: SessionDispatchWaiter = {
+        sessionId,
+        method,
+        match,
+        resolve: () => {
+          this.sessionDispatchWaiters.delete(waiter);
+          resolve();
+        },
+        reject: (error: Error) => {
+          this.sessionDispatchWaiters.delete(waiter);
+          reject(error);
+        },
+      };
+      this.sessionDispatchWaiters.add(waiter);
+    });
   }
 
   async attachToTarget(targetId: string): Promise<CdpSession> {
@@ -227,8 +264,21 @@ export class CdpConnection implements CDPSessionLike {
           .params;
         for (const [id, entry] of this.inflight.entries()) {
           if (entry.sessionId === p.sessionId) {
-            entry.reject(new Error("CDP session detached"));
+            entry.reject(
+              new PageNotFoundError(
+                `target closed before CDP response (sessionId=${p.sessionId}, targetId=${p.targetId})`,
+              ),
+            );
             this.inflight.delete(id);
+          }
+        }
+        for (const waiter of Array.from(this.sessionDispatchWaiters)) {
+          if (waiter.sessionId === p.sessionId) {
+            waiter.reject(
+              new PageNotFoundError(
+                `target closed before CDP send (sessionId=${p.sessionId}, targetId=${p.targetId})`,
+              ),
+            );
           }
         }
         this.sessions.delete(p.sessionId);
@@ -253,6 +303,14 @@ export class CdpConnection implements CDPSessionLike {
       if (sessionId) {
         const session = this.sessions.get(sessionId);
         session?.dispatch(method, params);
+
+        // Forward target lifecycle events to root listeners as well.
+        // Some browsers emit these via a parent session rather than the root
+        // connection; fan-out keeps target tracking consistent.
+        if (method.startsWith("Target.")) {
+          const handlers = this.eventHandlers.get(method);
+          if (handlers) for (const h of handlers) h(params);
+        }
       } else {
         const handlers = this.eventHandlers.get(method);
         if (handlers) for (const h of handlers) h(params);
@@ -284,6 +342,13 @@ export class CdpConnection implements CDPSessionLike {
     void p.catch(() => {});
     const targetId = this.sessionToTarget.get(sessionId) ?? null;
     this.cdpLogger?.({ method, params, targetId });
+    for (const waiter of Array.from(this.sessionDispatchWaiters)) {
+      if (waiter.sessionId !== sessionId) continue;
+      if (waiter.method !== method) continue;
+      if (waiter.match && !waiter.match(params)) continue;
+      waiter.resolve();
+      break;
+    }
     this.ws.send(JSON.stringify(payload));
     return p;
   }
