@@ -117,7 +117,6 @@ export class V3AgentHandler {
         executionInstruction: options.instruction,
         mode: this.mode,
         systemInstructions: this.systemInstructions,
-        isBrowserbase: this.v3.isBrowserbase,
         solveCaptchas: this.v3.isCaptchaSolverEnabled,
         excludeTools: options.excludeTools,
         variables: options.variables,

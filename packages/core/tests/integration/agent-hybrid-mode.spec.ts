@@ -132,27 +132,27 @@ test.describe("Stagehand agent hybrid mode", () => {
       expect(prompt).toContain(customInstructions);
     });
 
-    test("System prompt includes Browserbase captcha message when isBrowserbase is true", () => {
+    test("System prompt includes captcha instructions when solveCaptchas is true", () => {
       const prompt = buildAgentSystemPrompt({
         url: "https://example.com",
         executionInstruction: "Test instruction",
         mode: "dom",
-        isBrowserbase: true,
+        solveCaptchas: true,
       });
 
       expect(prompt).toContain("captcha");
-      expect(prompt).toContain("automatically be solved");
+      expect(prompt).toContain("automatically detected and solved");
     });
 
-    test("System prompt does not include captcha message when isBrowserbase is false", () => {
+    test("System prompt does not include captcha instructions when solveCaptchas is false", () => {
       const prompt = buildAgentSystemPrompt({
         url: "https://example.com",
         executionInstruction: "Test instruction",
         mode: "dom",
-        isBrowserbase: false,
+        solveCaptchas: false,
       });
 
-      expect(prompt).not.toContain("automatically be solved");
+      expect(prompt).not.toContain("automatically detected and solved");
     });
   });
 
