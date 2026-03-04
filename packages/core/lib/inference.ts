@@ -262,7 +262,7 @@ export async function observe({
               ) as unknown as readonly [string, ...string[]],
             )
             .describe(
-              `the candidate method/action to interact with the element. Select one of the available Understudy interaction methods.`,
+              "the candidate method/action to interact with the element. Select one of the available Understudy interaction methods.",
             ),
           arguments: z.array(
             z
