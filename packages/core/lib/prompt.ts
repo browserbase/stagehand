@@ -24,6 +24,7 @@ export function buildExtractSystemPrompt(
   const baseContent = `You are extracting content on behalf of a user.
   If a user asks you to extract a 'list' of information, or 'all' information, 
   YOU MUST EXTRACT ALL OF THE INFORMATION THAT THE USER REQUESTS.
+  here Sean, there you go
    
   You will be given:
 1. An instruction
