@@ -41,6 +41,7 @@ export const LocalBrowserLaunchOptionsSchema = z
     hasTouch: z.boolean().optional(),
     ignoreHTTPSErrors: z.boolean().optional(),
     cdpUrl: z.string().optional(),
+    cdpHeaders: z.record(z.string(), z.string()).optional(),
     connectTimeoutMs: z.number().optional(),
     downloadsPath: z.string().optional(),
     acceptDownloads: z.boolean().optional(),

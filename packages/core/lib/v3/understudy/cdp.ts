@@ -111,13 +111,17 @@ export class CdpConnection implements CDPSessionLike {
     this.ws.on("message", (data) => this.onMessage(data.toString()));
   }
 
-  static async connect(wsUrl: string): Promise<CdpConnection> {
+  static async connect(
+    wsUrl: string,
+    options?: { headers?: Record<string, string> },
+  ): Promise<CdpConnection> {
     // Include User-Agent header for server-side observability and version tracking
-    const ws = new WebSocket(wsUrl, {
-      headers: {
-        "User-Agent": `Stagehand/${STAGEHAND_VERSION}`,
-      },
-    });
+    // Merge user-provided headers, letting them override defaults
+    const headers = {
+      "User-Agent": `Stagehand/${STAGEHAND_VERSION}`,
+      ...options?.headers,
+    };
+    const ws = new WebSocket(wsUrl, { headers });
     await new Promise<void>((resolve, reject) => {
       ws.once("open", () => resolve());
       ws.once("error", (e) => reject(e));

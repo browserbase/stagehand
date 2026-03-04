@@ -737,6 +737,7 @@ export class V3 {
             });
             this.ctx = await V3Context.create(lbo.cdpUrl, {
               env: "LOCAL",
+              cdpHeaders: lbo.cdpHeaders,
             });
             const logCtx = SessionFileLogger.getContext();
             this.ctx.conn.cdpLogger = (info) =>

@@ -675,6 +675,49 @@ describe("POST /v1/sessions/start - V3 format", () => {
     await endSession(ctx.body.data.sessionId, headers);
   });
 
+  it("should accept cdpHeaders in launchOptions alongside cdpUrl", async () => {
+    const url = getBaseUrl();
+    const providedCdpUrl = "ws://localhost:9222/devtools/browser/test";
+    const providedCdpHeaders = {
+      Authorization: "Bearer test-token",
+      "X-Custom-Header": "custom-value",
+    };
+
+    const ctx = await fetchWithContext<StartResponse>(
+      `${url}/v1/sessions/start`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          modelName: "gpt-4.1-nano",
+          browser: {
+            type: "local",
+            launchOptions: {
+              cdpUrl: providedCdpUrl,
+              cdpHeaders: providedCdpHeaders,
+            },
+          },
+        }),
+      },
+    );
+
+    assertFetchStatus(ctx, HTTP_OK, "Request should succeed");
+    assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+    assertFetchOk(
+      isSuccessResponse(ctx.body),
+      "Should be a success response",
+      ctx,
+    );
+    // The cdpUrl should be passed through to the response
+    assertFetchOk(
+      ctx.body.data.cdpUrl === providedCdpUrl,
+      "cdpUrl should match provided value",
+      ctx,
+    );
+
+    await endSession(ctx.body.data.sessionId, headers);
+  });
+
   it("should return error for browserbase requests without API key", async () => {
     const url = getBaseUrl();
 
