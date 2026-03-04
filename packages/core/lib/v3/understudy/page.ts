@@ -26,6 +26,7 @@ import { ConsoleMessage, ConsoleListener } from "./consoleMessage.js";
 import type { StagehandAPIClient } from "../api.js";
 import {
   LocalBrowserLaunchOptions,
+  StagehandSetExtraHTTPHeadersError,
   StagehandSnapshotError,
 } from "../types/public/index.js";
 import type { Locator } from "./locator.js";
@@ -112,6 +113,7 @@ export class Page {
   >();
   /** Document-start scripts installed across every session this page owns. */
   private readonly initScripts: string[] = [];
+  private extraHTTPHeaders: Record<string, string>;
 
   private constructor(
     private readonly conn: CdpConnection,
@@ -443,6 +445,11 @@ export class Page {
     if (childSession.id) this.sessions.set(childSession.id, childSession);
 
     this.networkManager.trackSession(childSession);
+    if (this.extraHTTPHeaders)
+      void this.applyExtraHTTPHeadersToSession(
+        childSession,
+        this.extraHTTPHeaders,
+      ).catch(() => {});
 
     void this.applyInitScriptsToSession(childSession).catch(() => {});
 
@@ -675,6 +682,16 @@ export class Page {
 
   public asProtocolFrameTree(rootMainFrameId: string): Protocol.Page.FrameTree {
     return this.registry.asProtocolFrameTree(rootMainFrameId);
+  }
+
+  private async applyExtraHTTPHeadersToSession(
+    session: CDPSessionLike,
+    headers: Record<string, string>,
+  ): Promise<void> {
+    await session.send("Network.enable");
+    await session.send("Network.setExtraHTTPHeaders", {
+      headers: headers,
+    });
   }
 
   private ensureOrdinal(frameId: string): number {
@@ -1153,6 +1170,56 @@ export class Page {
     };
 
     return withScreenshotTimeout(opts.timeout, exec);
+  }
+
+  /**
+   * specifies additional HTTP headers to be included in every request sent by
+   * the root CDP session of the page, and all of its child CDP sessions.
+   *
+   * @param headers - the headers to be set.
+   * @throws {StagehandSetExtraHTTPHeadersError}
+   * Thrown when one or more CDP sessions fail to enable the Network domain or fail
+   * to apply the headers (i.e. `Network.enable` and/or `Network.setExtraHTTPHeaders` rejects).
+   * @return void
+   */
+  async setExtraHTTPHeaders(headers: Record<string, string>): Promise<void> {
+    const headersToSet = { ...headers };
+    this.extraHTTPHeaders = headersToSet;
+
+    // get the session(s) for this page:
+    const sessions: CDPSessionLike[] = [this.mainSession];
+    for (const session of this.sessions.values()) {
+      if (session === this.mainSession) continue;
+      sessions.push(session);
+    }
+
+    const results = await Promise.allSettled(
+      sessions.map(async (session) => {
+        await this.applyExtraHTTPHeadersToSession(session, headersToSet);
+      }),
+    );
+
+    // get list of objects containing results & corresponding session IDs
+    const pairs = results.map((result, index) => ({
+      result,
+      id: sessions[index].id,
+    }));
+
+    const filtered = pairs.filter(
+      (pair): pair is { result: PromiseRejectedResult; id: string | null } =>
+        pair.result.status === "rejected",
+    );
+
+    const errors = filtered.map((pair) => {
+      const reason = pair.result.reason;
+      const sessId = pair.id ?? "root";
+      const message = reason?.message ?? String(reason);
+      return `session=${sessId} error=${message}`;
+    });
+
+    if (errors.length > 0) {
+      throw new StagehandSetExtraHTTPHeadersError(errors);
+    }
   }
 
   /**
