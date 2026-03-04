@@ -5,8 +5,6 @@ export interface AgentSystemPromptOptions {
   executionInstruction: string;
   mode: AgentToolMode;
   systemInstructions?: string;
-  /** Whether running on Browserbase */
-  isBrowserbase?: boolean;
   /** Whether captchas are automatically solved by the browser environment */
   solveCaptchas?: boolean;
   /** Tools to exclude from the system prompt */
@@ -124,7 +122,6 @@ export function buildAgentSystemPrompt(
     executionInstruction,
     mode,
     systemInstructions,
-    isBrowserbase = false,
     solveCaptchas = false,
     excludeTools,
     variables,
