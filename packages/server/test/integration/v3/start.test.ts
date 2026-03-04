@@ -690,8 +690,94 @@ describe("POST /v1/sessions/start - V3 format", () => {
       },
     );
 
-    // Should fail because browserbase requires x-bb-api-key and x-bb-project-id headers
+    // Should fail because browserbase requires x-bb-api-key header
     assertFetchStatus(ctx, HTTP_BAD_REQUEST, "Request should fail with 400");
+    assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+    const body = ctx.body as StartErrorResponse;
+    assertFetchOk(body.success === false, "Should be an error response", ctx);
+    assertFetchOk(
+      body.message ===
+        "Missing required x-bb-api-key header for browserbase sessions",
+      `Error message should indicate missing x-bb-api-key, got: ${body.message}`,
+      ctx,
+    );
+  });
+
+  it("should return error for browserbase requests with project-id but no api-key", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<StartResponse>(
+      `${url}/v1/sessions/start`,
+      {
+        method: "POST",
+        headers: {
+          ...headers,
+          "x-bb-project-id": "some-project-id",
+        },
+        body: JSON.stringify({
+          modelName: "gpt-4.1-nano",
+          browser: { type: "browserbase" },
+        }),
+      },
+    );
+
+    // Should still fail because x-bb-api-key is required even when x-bb-project-id is provided
+    assertFetchStatus(ctx, HTTP_BAD_REQUEST, "Request should fail with 400");
+    assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+    const body = ctx.body as StartErrorResponse;
+    assertFetchOk(body.success === false, "Should be an error response", ctx);
+    assertFetchOk(
+      body.message ===
+        "Missing required x-bb-api-key header for browserbase sessions",
+      `Error message should indicate missing x-bb-api-key, got: ${body.message}`,
+      ctx,
+    );
+  });
+
+  it("should accept browserbase request with api-key but without project-id", async () => {
+    if (!bbApiKey) {
+      // Skip this test if BROWSERBASE_API_KEY is not set (e.g. in local-only CI)
+      return;
+    }
+
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<StartResponse>(
+      `${url}/v1/sessions/start`,
+      {
+        method: "POST",
+        headers: {
+          ...headers,
+          "x-bb-api-key": bbApiKey,
+          // Intentionally NOT setting x-bb-project-id
+        },
+        body: JSON.stringify({
+          modelName: "gpt-4.1-nano",
+          browser: { type: "browserbase" },
+          browserbaseSessionCreateParams: {
+            projectId: bbProjectId,
+          },
+        }),
+      },
+    );
+
+    // Should succeed: x-bb-project-id header is optional; projectId can come
+    // from browserbaseSessionCreateParams instead.
+    assertFetchStatus(
+      ctx,
+      HTTP_OK,
+      "Request should succeed without x-bb-project-id header",
+    );
+    assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+    assertFetchOk(
+      isSuccessResponse(ctx.body),
+      "Should be a success response",
+      ctx,
+    );
+    assertFetchOk(!!ctx.body.data.sessionId, "Should have sessionId", ctx);
+
+    // Clean up the session
+    await endSession(ctx.body.data.sessionId, headers);
   });
 
   // =============================================================================
