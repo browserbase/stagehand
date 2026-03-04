@@ -2,15 +2,14 @@ import { LLMTool } from "../types/public/model.js";
 import {
   embed,
   embedMany,
-  experimental_generateImage,
+  generateImage,
   experimental_generateSpeech,
   experimental_transcribe,
-  generateObject,
   generateText,
-  streamObject,
   streamText,
 } from "ai";
-import type { LanguageModelV2 } from "@ai-sdk/provider";
+import { generateObjectShim, streamObjectShim } from "./objectShims.js";
+import type { LanguageModelV3 } from "@ai-sdk/provider";
 import { LogLine } from "../types/public/logs.js";
 import { AvailableModel, ClientOptions } from "../types/public/model.js";
 import type { StagehandZodSchema } from "../zodCompat.js";
@@ -140,15 +139,15 @@ export abstract class LLMClient {
     options: CreateChatCompletionOptions,
   ): Promise<T>;
 
-  public generateObject = generateObject;
+  public generateObject = generateObjectShim;
   public generateText = generateText;
   public streamText = streamText;
-  public streamObject = streamObject;
-  public generateImage = experimental_generateImage;
+  public streamObject = streamObjectShim;
+  public generateImage = generateImage;
   public embed = embed;
   public embedMany = embedMany;
   public transcribe = experimental_transcribe;
   public generateSpeech = experimental_generateSpeech;
 
-  getLanguageModel?(): LanguageModelV2;
+  getLanguageModel?(): LanguageModelV3;
 }

@@ -64,13 +64,13 @@ export const scrollTool = (v3: V3) =>
         scrolledPixels: scrollDistance,
       };
     },
-    toModelOutput: (result) => {
+    toModelOutput: ({ output }) => {
       return {
         type: "json",
         value: {
-          success: result.success,
-          message: result.message,
-          scrolledPixels: result.scrolledPixels,
+          success: output.success,
+          message: output.message,
+          scrolledPixels: output.scrolledPixels,
         },
       };
     },
@@ -162,22 +162,22 @@ export const scrollVisionTool = (v3: V3, provider?: string) =>
         screenshotBase64,
       };
     },
-    toModelOutput: (result) => {
+    toModelOutput: ({ output }) => {
       const content: ModelOutputContentItem[] = [
         {
           type: "text",
           text: JSON.stringify({
-            success: result.success,
-            message: result.message,
-            scrolledPixels: result.scrolledPixels,
+            success: output.success,
+            message: output.message,
+            scrolledPixels: output.scrolledPixels,
           }),
         },
       ];
-      if (result.screenshotBase64) {
+      if (output.screenshotBase64) {
         content.push({
           type: "media",
           mediaType: "image/png",
-          data: result.screenshotBase64,
+          data: output.screenshotBase64,
         });
       }
       return { type: "content", value: content };

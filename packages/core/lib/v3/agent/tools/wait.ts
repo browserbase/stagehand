@@ -40,21 +40,21 @@ export const waitTool = (v3: V3, mode?: AgentToolMode) =>
 
       return { success: true, waited: timeMs };
     },
-    toModelOutput: (result) => {
+    toModelOutput: ({ output }) => {
       const content: ModelOutputContentItem[] = [
         {
           type: "text",
           text: JSON.stringify({
-            success: result.success,
-            waited: result.waited,
+            success: output.success,
+            waited: output.waited,
           }),
         },
       ];
-      if (result.screenshotBase64) {
+      if (output.screenshotBase64) {
         content.push({
           type: "media",
           mediaType: "image/png",
-          data: result.screenshotBase64,
+          data: output.screenshotBase64,
         });
       }
       return { type: "content", value: content };

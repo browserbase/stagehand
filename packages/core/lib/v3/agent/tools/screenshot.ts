@@ -22,8 +22,8 @@ export const screenshotTool = (v3: V3) =>
         pageUrl,
       };
     },
-    toModelOutput: (result) => ({
+    toModelOutput: ({ output }) => ({
       type: "content",
-      value: [{ type: "media", mediaType: "image/png", data: result.base64 }],
+      value: [{ type: "media", mediaType: "image/png", data: output.base64 }],
     }),
   });

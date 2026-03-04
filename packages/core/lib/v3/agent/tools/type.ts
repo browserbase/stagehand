@@ -103,23 +103,23 @@ export const typeTool = (v3: V3, provider?: string, variables?: Variables) => {
         };
       }
     },
-    toModelOutput: (result) => {
-      if (result.success) {
+    toModelOutput: ({ output }) => {
+      if (output.success) {
         const content: ModelOutputContentItem[] = [
           {
             type: "text",
             text: JSON.stringify({
-              success: result.success,
-              describe: result.describe,
-              text: result.text,
+              success: output.success,
+              describe: output.describe,
+              text: output.text,
             }),
           },
         ];
-        if (result.screenshotBase64) {
+        if (output.screenshotBase64) {
           content.push({
             type: "media",
             mediaType: "image/png",
-            data: result.screenshotBase64,
+            data: output.screenshotBase64,
           });
         }
         return { type: "content", value: content };
@@ -130,8 +130,8 @@ export const typeTool = (v3: V3, provider?: string, variables?: Variables) => {
           {
             type: "text",
             text: JSON.stringify({
-              success: result.success,
-              error: result.error,
+              success: output.success,
+              error: output.error,
             }),
           },
         ],
