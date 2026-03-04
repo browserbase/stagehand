@@ -63,11 +63,18 @@ export class V3CuaAgentHandler {
 
   private setupAgentClient(): void {
     // Provide screenshots to the agent client
+    // Use JPEG for Google CUA to reduce payload size significantly
+    // (PNG: 1-4 MB per screenshot, JPEG at 80%: 100-300 KB)
+    // This helps avoid INVALID_ARGUMENT errors from the Gemini API
+    // when conversation history accumulates large screenshot payloads
+    const useJpeg = this.agentClient instanceof GoogleCUAClient;
     this.agentClient.setScreenshotProvider(async () => {
       this.ensureNotClosed();
       const page = await this.v3.context.awaitActivePage();
-      const screenshotBuffer = await page.screenshot({ fullPage: false });
-      return screenshotBuffer.toString("base64"); // base64 png
+      const screenshotBuffer = useJpeg
+        ? await page.screenshot({ fullPage: false, type: "jpeg", quality: 80 })
+        : await page.screenshot({ fullPage: false });
+      return screenshotBuffer.toString("base64");
     });
 
     // Provide action executor
@@ -594,7 +601,10 @@ export class V3CuaAgentHandler {
     });
     try {
       const page = await this.v3.context.awaitActivePage();
-      const screenshotBuffer = await page.screenshot({ fullPage: false });
+      const useJpeg = this.agentClient instanceof GoogleCUAClient;
+      const screenshotBuffer = useJpeg
+        ? await page.screenshot({ fullPage: false, type: "jpeg", quality: 80 })
+        : await page.screenshot({ fullPage: false });
 
       // Emit screenshot event via the bus
       this.v3.bus.emit("agent_screenshot_taken_event", screenshotBuffer);
