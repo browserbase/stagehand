@@ -179,6 +179,14 @@ export class V3AgentHandler {
     return async (options) => {
       processMessages(options.messages);
       if (captchaSolver) {
+        if (captchaSolver.isSolving()) {
+          this.logger({
+            category: "agent",
+            message:
+              "Captcha detected — waiting for Browserbase to solve it before continuing",
+            level: 1,
+          });
+        }
         await captchaSolver.waitIfSolving();
         const { solved, errored } = captchaSolver.consumeSolveResult();
         if (solved) {
