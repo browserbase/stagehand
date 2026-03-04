@@ -7,7 +7,10 @@ type PageStub = {
   mainSession: MockCDPSession;
   sessions: Map<string, MockCDPSession>;
   extraHTTPHeaders: Record<string, string>;
-  applyExtraHTTPHeadersToSession: (session: MockCDPSession) => Promise<void>;
+  applyExtraHTTPHeadersToSession: (
+    session: MockCDPSession,
+    headers: Record<string, string>,
+  ) => Promise<void>;
 };
 
 const makePage = (sessions: MockCDPSession[]): PageStub => {
