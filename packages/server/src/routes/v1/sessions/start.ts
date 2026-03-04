@@ -22,7 +22,7 @@ const startBodySchema = z
     const record = value as Record<string, unknown>;
     if (
       typeof record.verbose === "string" &&
-      ["0", "1", "2"].includes(record.verbose)
+      ["0", "1", "2", "3"].includes(record.verbose)
     ) {
       return { ...record, verbose: Number(record.verbose) };
     }

@@ -30,6 +30,7 @@ env:
   PUPPETEER_SKIP_DOWNLOAD: "1"
   PLAYWRIGHT_SKIP_DOWNLOAD: "1"
   TURBO_TELEMETRY_DISABLED: "1"
+  STAGEHAND_VERBOSE: "3"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

@@ -27,7 +27,7 @@ describe("V3 Core public API types", () => {
       browserbaseDebugURL: string | undefined;
       experimental: boolean;
       logInferenceToFile: boolean;
-      verbose: 0 | 1 | 2;
+      verbose: 0 | 1 | 2 | 3;
       logger: (logLine: Stagehand.LogLine) => void;
       isAgentReplayActive: () => boolean;
       recordAgentReplayStep: (step: unknown) => void;

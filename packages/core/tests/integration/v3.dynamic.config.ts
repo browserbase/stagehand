@@ -17,9 +17,17 @@ const browserbaseRegion = (
 ).includes(browserbaseRegionRaw as BrowserbaseSessionCreateParams["region"])
   ? (browserbaseRegionRaw as BrowserbaseSessionCreateParams["region"])
   : undefined;
+const envVerboseValue = process.env.STAGEHAND_VERBOSE;
+const envVerboseRaw =
+  envVerboseValue === undefined ? Number.NaN : Number(envVerboseValue);
+const envVerbose: 0 | 1 | 2 | 3 | undefined = [0, 1, 2, 3].includes(
+  envVerboseRaw,
+)
+  ? (envVerboseRaw as 0 | 1 | 2 | 3)
+  : undefined;
 
 const baseConfig = {
-  verbose: 0 as const,
+  verbose: (envVerbose ?? 0) as 0 | 1 | 2 | 3,
   disablePino: true,
   logger: (line: LogLine) => console.log(line),
   disableAPI: true,

@@ -412,13 +412,14 @@ components:
           example: 5000
           type: number
         verbose:
-          description: Logging verbosity level (0=quiet, 1=normal, 2=debug)
+          description: Logging verbosity level (0=quiet, 1=normal, 2=debug, 3=debug + flow logs to stderr)
           example: 1
           type: number
           enum:
             - 0
             - 1
             - 2
+            - 3
         systemPrompt:
           description: Custom system prompt for AI operations
           type: string

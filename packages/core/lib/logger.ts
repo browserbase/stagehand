@@ -98,7 +98,7 @@ export class StagehandLogger {
   private static sharedPinoLogger: pino.Logger | null = null;
 
   private logger?: pino.Logger;
-  private verbose: 0 | 1 | 2;
+  private verbose: 0 | 1 | 2 | 3;
   private externalLogger?: (logLine: LogLine) => void;
   private usePino: boolean;
   private isTest: boolean;
@@ -137,7 +137,7 @@ export class StagehandLogger {
   /**
    * Set the verbosity level
    */
-  setVerbosity(level: 0 | 1 | 2) {
+  setVerbosity(level: 0 | 1 | 2 | 3) {
     this.verbose = level;
 
     if (this.usePino && this.logger) {
@@ -150,6 +150,7 @@ export class StagehandLogger {
           this.logger.level = "info";
           break;
         case 2:
+        case 3:
           this.logger.level = "debug";
           break;
       }

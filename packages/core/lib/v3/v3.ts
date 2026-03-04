@@ -92,6 +92,13 @@ import { ActTimeoutError } from "./types/public/sdkErrors.js";
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
 
+function getVerboseFromEnv(defaultLevel: 0 | 1 | 2 | 3): 0 | 1 | 2 | 3 {
+  const rawValue = process.env.STAGEHAND_VERBOSE;
+  if (rawValue === undefined) return defaultLevel;
+  const raw = Number(rawValue);
+  return [0, 1, 2, 3].includes(raw) ? (raw as 0 | 1 | 2 | 3) : defaultLevel;
+}
+
 type ResolvedModelConfiguration = {
   modelName: AvailableModel;
   clientOptions?: ClientOptions;
@@ -225,7 +232,7 @@ export class V3 {
   public readonly logInferenceToFile: boolean = false;
   public readonly disableAPI: boolean = false;
   private externalLogger?: (logLine: LogLine) => void;
-  public verbose: 0 | 1 | 2 = 1;
+  public verbose: 0 | 1 | 2 | 3 = 1;
   private stagehandLogger: StagehandLogger;
   private _history: Array<HistoryEntry> = [];
   private readonly instanceId: string;
@@ -268,7 +275,7 @@ export class V3 {
 
   constructor(opts: V3Options) {
     this.externalLogger = opts.logger;
-    this.verbose = opts.verbose ?? 1;
+    this.verbose = opts.verbose ?? getVerboseFromEnv(1);
     this.instanceId = uuidv7();
     this.keepAlive =
       opts.keepAlive ?? opts.browserbaseSessionCreateParams?.keepAlive;

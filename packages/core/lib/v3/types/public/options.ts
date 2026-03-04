@@ -41,7 +41,7 @@ export interface V3Options {
   systemPrompt?: string;
   logInferenceToFile?: boolean;
   experimental?: boolean;
-  verbose?: 0 | 1 | 2;
+  verbose?: 0 | 1 | 2 | 3;
   selfHeal?: boolean;
   // V2 compatibility fields - only included because the server imports this type and supports V2
   waitForCaptchaSolves?: boolean;

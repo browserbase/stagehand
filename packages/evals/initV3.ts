@@ -62,6 +62,15 @@ export async function initV3({
   createAgent,
   isCUA,
 }: InitV3Args): Promise<V3InitResult> {
+  const envVerboseValue = process.env.STAGEHAND_VERBOSE;
+  const envVerboseRaw =
+    envVerboseValue === undefined ? Number.NaN : Number(envVerboseValue);
+  const envVerbose: 0 | 1 | 2 | 3 | undefined = [0, 1, 2, 3].includes(
+    envVerboseRaw,
+  )
+    ? (envVerboseRaw as 0 | 1 | 2 | 3)
+    : undefined;
+
   // If CUA, choose a safe internal AISDK model for V3 handlers based on available API keys
   let internalModel: AvailableModel = modelName;
   if (isCUA) {
@@ -103,7 +112,7 @@ export async function initV3({
       typeof configOverrides?.experimental === "boolean"
         ? configOverrides.experimental && process.env.USE_API !== "true" // experimental only when not using API
         : false,
-    verbose: 2,
+    verbose: envVerbose ?? 2,
     browserbaseSessionCreateParams:
       configOverrides?.browserbaseSessionCreateParams,
     browserbaseSessionID: configOverrides?.browserbaseSessionID,

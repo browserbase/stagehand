@@ -24,7 +24,7 @@ export interface CreateSessionParams {
   /** Model name (e.g., "openai/gpt-4o") */
   modelName: string;
   /** Verbosity level */
-  verbose?: 0 | 1 | 2;
+  verbose?: 0 | 1 | 2 | 3;
   /** Custom system prompt */
   systemPrompt?: string;
   /** Enable self-healing for failed actions */

@@ -307,13 +307,24 @@ function shouldFilterCdpEvent(event: FlowEvent): boolean {
 const isWritable = (s: fs.WriteStream | null): s is fs.WriteStream =>
   !!(s && !s.destroyed && s.writable);
 
-function createJsonlStream(ctx: FlowLoggerContext): Writable {
+function createJsonlStream(
+  ctx: FlowLoggerContext,
+  mirrorToStderr = false,
+): Writable {
   return new Writable({
     objectMode: true,
     write(chunk: string, _, cb) {
-      if (ctx.initialized && isWritable(ctx.fileStreams.jsonl)) {
-        ctx.fileStreams.jsonl.write(chunk, cb);
-      } else cb();
+      if (!ctx.initialized) return cb();
+      if (mirrorToStderr) {
+        try {
+          const event = JSON.parse(chunk) as FlowEvent;
+          if (event.category !== "CDP") process.stderr.write(chunk);
+        } catch {
+          process.stderr.write(chunk);
+        }
+      }
+      if (!isWritable(ctx.fileStreams.jsonl)) return cb();
+      ctx.fileStreams.jsonl.write(chunk, cb);
     },
   });
 }
@@ -322,6 +333,7 @@ function createPrettyStream(
   ctx: FlowLoggerContext,
   category: EventCategory,
   streamKey: keyof FlowLoggerContext["fileStreams"],
+  mirrorToStderr = false,
 ): Writable {
   return new Writable({
     objectMode: true,
@@ -333,8 +345,11 @@ function createPrettyStream(
         if (event.category !== category || shouldFilterCdpEvent(event))
           return cb();
         const line = prettifyEvent(event);
-        if (line) stream.write(line + "\n", cb);
-        else cb();
+        if (line) {
+          const output = line + "\n";
+          if (mirrorToStderr) process.stderr.write(output);
+          stream.write(output, cb);
+        } else cb();
       } catch {
         cb();
       }
@@ -636,15 +651,39 @@ export class SessionFileLogger {
       );
 
       ctx.initialized = true;
+      const mirrorFlowLogsToStderr = v3Options?.verbose === 3;
 
       // Create pino multistream: JSONL + pretty streams per category
       const streams: pino.StreamEntry[] = [
-        { stream: createJsonlStream(ctx) },
-        { stream: createPrettyStream(ctx, "AgentTask", "agent") },
-        { stream: createPrettyStream(ctx, "StagehandStep", "stagehand") },
-        { stream: createPrettyStream(ctx, "UnderstudyAction", "understudy") },
-        { stream: createPrettyStream(ctx, "CDP", "cdp") },
-        { stream: createPrettyStream(ctx, "LLM", "llm") },
+        { stream: createJsonlStream(ctx, mirrorFlowLogsToStderr) },
+        {
+          stream: createPrettyStream(
+            ctx,
+            "AgentTask",
+            "agent",
+            mirrorFlowLogsToStderr,
+          ),
+        },
+        {
+          stream: createPrettyStream(
+            ctx,
+            "StagehandStep",
+            "stagehand",
+            mirrorFlowLogsToStderr,
+          ),
+        },
+        {
+          stream: createPrettyStream(
+            ctx,
+            "UnderstudyAction",
+            "understudy",
+            mirrorFlowLogsToStderr,
+          ),
+        },
+        { stream: createPrettyStream(ctx, "CDP", "cdp", false) },
+        {
+          stream: createPrettyStream(ctx, "LLM", "llm", mirrorFlowLogsToStderr),
+        },
       ];
 
       // Create logger with mixin that injects span context from AsyncLocalStorage
