@@ -142,6 +142,10 @@ export class CaptchaSolver {
       this.attachedPage.off("console", this.listener);
     }
     this.listener = null;
+    // Reset solving state so waiters aren't stuck waiting for events
+    // that can never arrive from the detached page.
+    this.solving = false;
+    this.settle();
   }
 
   /** Resolve the shared wait promise and clear the timeout. */
