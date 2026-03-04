@@ -1,9 +1,11 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
+import type { Page } from "../../understudy/page.js";
+import { resolveActivePage } from "../utils/activePage.js";
 import { TimeoutError } from "../../types/public/sdkErrors.js";
 
-export const ariaTreeTool = (v3: V3, toolTimeout?: number) =>
+export const ariaTreeTool = (v3: V3, toolTimeout?: number, page?: Page) =>
   tool({
     description:
       "gets the accessibility (ARIA) hybrid tree text for the current page. use this to understand structure and content.",
@@ -15,14 +17,14 @@ export const ariaTreeTool = (v3: V3, toolTimeout?: number) =>
           message: `Agent calling tool: ariaTree`,
           level: 1,
         });
-        const page = await v3.context.awaitActivePage();
+        const activePage = await resolveActivePage(v3, page);
         const extractOptions = toolTimeout
-          ? { timeout: toolTimeout }
-          : undefined;
+          ? { timeout: toolTimeout, page: activePage }
+          : { page: activePage };
         const { pageText } = (await v3.extract(extractOptions)) as {
           pageText: string;
         };
-        const pageUrl = page.url();
+        const pageUrl = activePage.url();
 
         let content = pageText;
         const MAX_TOKENS = 70000; // rough cap, assume ~4 chars per token for conservative truncation

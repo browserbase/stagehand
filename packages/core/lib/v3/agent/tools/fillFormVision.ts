@@ -5,18 +5,16 @@ import type { Action } from "../../types/public/methods.js";
 import type {
   FillFormVisionToolResult,
   ModelOutputContentItem,
-  Variables,
 } from "../../types/public/agent.js";
 import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { ensureXPath } from "../utils/xpath.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
 import { substituteVariables } from "../utils/variables.js";
+import type { Page } from "../../understudy/page.js";
+import type { Variables } from "../../types/public/agent.js";
+import { resolveActivePage } from "../utils/activePage.js";
 
-export const fillFormVisionTool = (
-  v3: V3,
-  provider?: string,
-  variables?: Variables,
-) => {
+export const fillFormVisionTool = (v3: V3, provider?: string, variables?: Variables, page?: Page) => {
   const hasVariables = variables && Object.keys(variables).length > 0;
   const valueDescription = hasVariables
     ? `Text to type into the target field. Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}`
@@ -62,7 +60,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
     }),
     execute: async ({ fields }): Promise<FillFormVisionToolResult> => {
       try {
-        const page = await v3.context.awaitActivePage();
+        const activePage = await resolveActivePage(v3, page);
 
         // Process coordinates and substitute variables for each field
         // Keep original values (with %tokens%) for logging/caching, substituted values for typing
@@ -99,14 +97,14 @@ MANDATORY USE CASES (always use fillFormVision for these):
 
         for (const field of processedFields) {
           // Click the field, only requesting XPath when caching is enabled
-          const xpath = await page.click(
+          const xpath = await activePage.click(
             field.coordinates.x,
             field.coordinates.y,
             {
               returnXpath: shouldCollectXpath,
             },
           );
-          await page.type(field.value);
+          await activePage.type(field.value);
 
           // Build Action with XPath for deterministic replay (only when caching)
           // Use originalValue (with %tokens%) so cache stores references, not sensitive values
@@ -126,7 +124,10 @@ MANDATORY USE CASES (always use fillFormVision for these):
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
 
-        const screenshotBase64 = await waitAndCaptureScreenshot(page, 100);
+        const screenshotBase64 = await waitAndCaptureScreenshot(
+          activePage,
+          100,
+        );
 
         // Record as "act" step with proper Actions for deterministic replay (only when caching)
         if (shouldCollectXpath && actions.length > 0) {

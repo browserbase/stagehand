@@ -19,6 +19,7 @@ import { searchTool } from "./search.js";
 import type { ToolSet, InferUITools } from "ai";
 import type { V3 } from "../../v3.js";
 import type { LogLine } from "../../types/public/logs.js";
+import type { Page } from "../../understudy/page.js";
 import type {
   AgentToolMode,
   AgentModelConfig,
@@ -53,6 +54,11 @@ export interface V3AgentToolOptions {
    * Forwarded to the underlying v3 call's `timeout` option.
    */
   toolTimeout?: number;
+  /**
+   * Explicit page to use for all tools. When provided, tools use this page
+   * instead of resolving via awaitActivePage().
+   */
+  page?: Page;
 }
 
 /**
@@ -96,24 +102,28 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const excludeTools = options?.excludeTools;
   const variables = options?.variables;
   const toolTimeout = options?.toolTimeout;
+  const page = options?.page;
 
   const allTools: ToolSet = {
-    act: actTool(v3, executionModel, variables, toolTimeout),
-    ariaTree: ariaTreeTool(v3, toolTimeout),
-    click: clickTool(v3, provider),
-    clickAndHold: clickAndHoldTool(v3, provider),
-    dragAndDrop: dragAndDropTool(v3, provider),
-    extract: extractTool(v3, executionModel, toolTimeout),
-    fillForm: fillFormTool(v3, executionModel, variables, toolTimeout),
-    fillFormVision: fillFormVisionTool(v3, provider, variables),
-    goto: gotoTool(v3),
-    keys: keysTool(v3),
-    navback: navBackTool(v3),
-    screenshot: screenshotTool(v3),
-    scroll: mode === "hybrid" ? scrollVisionTool(v3, provider) : scrollTool(v3),
+    act: actTool(v3, executionModel, variables, toolTimeout, page),
+    ariaTree: ariaTreeTool(v3, toolTimeout, page),
+    click: clickTool(v3, provider, page),
+    clickAndHold: clickAndHoldTool(v3, provider, page),
+    dragAndDrop: dragAndDropTool(v3, provider, page),
+    extract: extractTool(v3, executionModel, toolTimeout, page),
+    fillForm: fillFormTool(v3, executionModel, variables, toolTimeout, page),
+    fillFormVision: fillFormVisionTool(v3, provider, variables, page),
+    goto: gotoTool(v3, page),
+    keys: keysTool(v3, page),
+    navback: navBackTool(v3, page),
+    screenshot: screenshotTool(v3, page),
+    scroll:
+      mode === "hybrid"
+        ? scrollVisionTool(v3, provider, page)
+        : scrollTool(v3, page),
     think: thinkTool(),
-    type: typeTool(v3, provider, variables),
-    wait: waitTool(v3, mode),
+    type: typeTool(v3, provider, variables, page),
+    wait: waitTool(v3, mode, page),
   };
 
   if (process.env.BRAVE_API_KEY) {

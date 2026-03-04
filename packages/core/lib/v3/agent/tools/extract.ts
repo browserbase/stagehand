@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z, ZodTypeAny } from "zod";
 import type { V3 } from "../../v3.js";
 import type { AgentModelConfig } from "../../types/public/agent.js";
+import type { Page } from "../../understudy/page.js";
 import { TimeoutError } from "../../types/public/sdkErrors.js";
 
 interface JsonSchema {
@@ -50,28 +51,29 @@ export const extractTool = (
   v3: V3,
   executionModel?: string | AgentModelConfig,
   toolTimeout?: number,
+  page?: Page,
 ) =>
   tool({
     description: `Extract structured data from the current page based on a provided schema.
-    
+
     USAGE GUIDELINES:
     - Keep schemas MINIMAL - only include fields essential for the task
     - IMPORTANT: only use this if explicitly asked for structured output. In most scenarios, you should use the aria tree tool over this.
     - For URL fields, use format: "url"
-    
+
     EXAMPLES:
     1. Extract a single value:
        instruction: "extract the product price"
        schema: { type: "object", properties: { price: { type: "number" } } }
-    
+
     2. Extract multiple fields:
        instruction: "extract product name and price"
        schema: { type: "object", properties: { name: { type: "string" }, price: { type: "number" } } }
-    
+
     3. Extract arrays:
        instruction: "extract all product names and prices"
        schema: { type: "object", properties: { products: { type: "array", items: { type: "object", properties: { name: { type: "string" }, price: { type: "number" } } } } } }
-    
+
     4. Extract a URL:
        instruction: "extract the link"
        schema: { type: "object", properties: { url: { type: "string", format: "url" } } }`,
@@ -97,6 +99,7 @@ export const extractTool = (
         const result = await v3.extract(instruction, parsedSchema, {
           ...(executionModel ? { model: executionModel } : {}),
           timeout: toolTimeout,
+          page,
         });
         return { success: true, result };
       } catch (error) {

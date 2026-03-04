@@ -2,14 +2,17 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
 import type {
-  AgentToolMode,
   WaitToolResult,
   ModelOutputContentItem,
 } from "../../types/public/agent.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
+import type { Page } from "../../understudy/page.js";
+import type { AgentToolMode } from "../../types/public/agent.js";
+import { resolveActivePage } from "../utils/activePage.js";
 
-export const waitTool = (v3: V3, mode?: AgentToolMode) =>
-  tool({
+export const waitTool = (v3: V3, mode?: AgentToolMode, page?: Page) => {
+
+  return tool({
     description: "Wait for a specified time",
     inputSchema: z.object({
       timeMs: z.number().describe("Time in milliseconds"),
@@ -33,8 +36,8 @@ export const waitTool = (v3: V3, mode?: AgentToolMode) =>
 
       // Take screenshot after wait in hybrid mode for visual feedback
       if (mode === "hybrid") {
-        const page = await v3.context.awaitActivePage();
-        const screenshotBase64 = await waitAndCaptureScreenshot(page, 0);
+        const activePage = await resolveActivePage(v3, page);
+        const screenshotBase64 = await waitAndCaptureScreenshot(activePage, 0);
         return { success: true, waited: timeMs, screenshotBase64 };
       }
 
@@ -67,3 +70,4 @@ export const waitTool = (v3: V3, mode?: AgentToolMode) =>
       return { type: "content", value: content };
     },
   });
+};

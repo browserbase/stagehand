@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
 import type { AgentModelConfig, Variables } from "../../types/public/agent.js";
+import type { Page } from "../../understudy/page.js";
 import { TimeoutError } from "../../types/public/sdkErrors.js";
 
 export const fillFormTool = (
@@ -10,6 +11,7 @@ export const fillFormTool = (
   executionModel?: string | AgentModelConfig,
   variables?: Variables,
   toolTimeout?: number,
+  page?: Page,
 ) => {
   const hasVariables = variables && Object.keys(variables).length > 0;
   const valueDescription = hasVariables
@@ -50,16 +52,16 @@ export const fillFormTool = (
           .join(", ")}`;
 
         const observeOptions = executionModel
-          ? { model: executionModel, timeout: toolTimeout }
-          : { timeout: toolTimeout };
+          ? { model: executionModel, timeout: toolTimeout, page }
+          : { timeout: toolTimeout, page };
         const observeResults = await v3.observe(instruction, observeOptions);
 
         const completed = [] as unknown[];
         const replayableActions: Action[] = [];
         for (const res of observeResults) {
           const actOptions = variables
-            ? { variables, timeout: toolTimeout }
-            : { timeout: toolTimeout };
+            ? { variables, timeout: toolTimeout, page }
+            : { timeout: toolTimeout, page };
           const actResult = await v3.act(res, actOptions);
           completed.push(actResult);
           if (Array.isArray(actResult.actions)) {

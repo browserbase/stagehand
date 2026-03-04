@@ -1,8 +1,10 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
+import type { Page } from "../../understudy/page.js";
+import { resolveActivePage } from "../utils/activePage.js";
 
-export const screenshotTool = (v3: V3) =>
+export const screenshotTool = (v3: V3, page?: Page) =>
   tool({
     description:
       "Takes a screenshot (PNG) of the current page. Use this to quickly verify page state.",
@@ -14,9 +16,9 @@ export const screenshotTool = (v3: V3) =>
           message: `Agent calling tool: screenshot`,
           level: 1,
         });
-        const page = await v3.context.awaitActivePage();
-        const buffer = await page.screenshot({ fullPage: false });
-        const pageUrl = page.url();
+        const activePage = await resolveActivePage(v3, page);
+        const buffer = await activePage.screenshot({ fullPage: false });
+        const pageUrl = activePage.url();
         return {
           success: true,
           base64: buffer.toString("base64"),

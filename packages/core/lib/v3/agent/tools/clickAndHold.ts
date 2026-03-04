@@ -4,9 +4,12 @@ import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
 import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { ensureXPath } from "../utils/xpath.js";
+import type { Page } from "../../understudy/page.js";
+import { resolveActivePage } from "../utils/activePage.js";
 
-export const clickAndHoldTool = (v3: V3, provider?: string) =>
-  tool({
+export const clickAndHoldTool = (v3: V3, provider?: string, page?: Page) => {
+
+  return tool({
     description: "Click and hold on an element using its coordinates",
     inputSchema: z.object({
       describe: z
@@ -23,7 +26,7 @@ export const clickAndHoldTool = (v3: V3, provider?: string) =>
     }),
     execute: async ({ describe, coordinates, duration }) => {
       try {
-        const page = await v3.context.awaitActivePage();
+        const activePage = await resolveActivePage(v3, page);
         const processed = processCoordinates(
           coordinates[0],
           coordinates[1],
@@ -50,7 +53,7 @@ export const clickAndHoldTool = (v3: V3, provider?: string) =>
         const shouldCollectXpath = v3.isAgentReplayActive();
 
         // Use dragAndDrop from same point to same point with delay to simulate click and hold
-        const [xpath] = await page.dragAndDrop(
+        const [xpath] = await activePage.dragAndDrop(
           processed.x,
           processed.y,
           processed.x,
@@ -86,3 +89,4 @@ export const clickAndHoldTool = (v3: V3, provider?: string) =>
       }
     },
   });
+};

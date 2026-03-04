@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
 import type { AgentModelConfig, Variables } from "../../types/public/agent.js";
+import type { Page } from "../../understudy/page.js";
 import { TimeoutError } from "../../types/public/sdkErrors.js";
 
 export const actTool = (
@@ -10,6 +11,7 @@ export const actTool = (
   executionModel?: string | AgentModelConfig,
   variables?: Variables,
   toolTimeout?: number,
+  page?: Page,
 ) => {
   const hasVariables = variables && Object.keys(variables).length > 0;
   const actionDescription = hasVariables
@@ -36,8 +38,8 @@ export const actTool = (
           },
         });
         const options = executionModel
-          ? { model: executionModel, variables, timeout: toolTimeout }
-          : { variables, timeout: toolTimeout };
+          ? { model: executionModel, variables, timeout: toolTimeout, page }
+          : { variables, timeout: toolTimeout, page };
 
         const result = await v3.act(action, options);
         const actions = (result.actions as Action[] | undefined) ?? [];

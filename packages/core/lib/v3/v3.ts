@@ -1690,16 +1690,6 @@ export class V3 {
 
     const resolvedExecutionModel = options?.executionModel ?? options?.model;
 
-    const handler = new V3AgentHandler(
-      this,
-      this.logger,
-      agentLlmClient,
-      resolvedExecutionModel,
-      options?.systemPrompt,
-      tools,
-      options?.mode,
-    );
-
     const resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions =
       typeof instructionOrOptions === "string"
         ? {
@@ -1721,10 +1711,22 @@ export class V3 {
       );
     }
 
+    let resolvedPage: Page | undefined;
     if (resolvedOptions.page) {
-      const normalizedPage = await this.normalizeToV3Page(resolvedOptions.page);
-      this.ctx!.setActivePage(normalizedPage);
+      resolvedPage = await this.normalizeToV3Page(resolvedOptions.page);
+      this.ctx!.setActivePage(resolvedPage);
     }
+
+    const handler = new V3AgentHandler(
+      this,
+      this.logger,
+      agentLlmClient,
+      resolvedExecutionModel,
+      options?.systemPrompt,
+      tools,
+      options?.mode,
+      resolvedPage,
+    );
 
     const instruction = resolvedOptions.instruction.trim();
     const sanitizedOptions =

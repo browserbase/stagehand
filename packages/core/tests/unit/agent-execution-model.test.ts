@@ -54,7 +54,7 @@ describe("agent tools pass full executionModel config to v3 methods", () => {
 
   it("actTool passes AgentModelConfig object to v3.act()", async () => {
     const v3 = createMockV3();
-    const tool = actTool(v3, modelConfig);
+    const tool = actTool(v3, { executionModel: modelConfig });
     await tool.execute!(
       { action: "click the button" },
       {
@@ -71,7 +71,7 @@ describe("agent tools pass full executionModel config to v3 methods", () => {
 
   it("extractTool passes AgentModelConfig object to v3.extract()", async () => {
     const v3 = createMockV3();
-    const tool = extractTool(v3, modelConfig);
+    const tool = extractTool(v3, { executionModel: modelConfig });
     await tool.execute!(
       { instruction: "get the title", schema: undefined },
       {
@@ -88,7 +88,7 @@ describe("agent tools pass full executionModel config to v3 methods", () => {
 
   it("fillFormTool passes AgentModelConfig object to v3.observe()", async () => {
     const v3 = createMockV3();
-    const tool = fillFormTool(v3, modelConfig);
+    const tool = fillFormTool(v3, { executionModel: modelConfig });
     await tool.execute!(
       { fields: [{ action: "type hello into name", value: "hello" }] },
       {
@@ -105,7 +105,7 @@ describe("agent tools pass full executionModel config to v3 methods", () => {
 
   it("actTool passes undefined when no executionModel is set", async () => {
     const v3 = createMockV3();
-    const tool = actTool(v3, undefined);
+    const tool = actTool(v3);
     await tool.execute!(
       { action: "click the button" },
       {
@@ -121,7 +121,7 @@ describe("agent tools pass full executionModel config to v3 methods", () => {
 
   it("actTool passes plain string executionModel to v3.act()", async () => {
     const v3 = createMockV3();
-    const tool = actTool(v3, "openai/gpt-4o-mini");
+    const tool = actTool(v3, { executionModel: "openai/gpt-4o-mini" });
     await tool.execute!(
       { action: "click the button" },
       {
