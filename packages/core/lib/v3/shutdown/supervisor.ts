@@ -118,7 +118,7 @@ const cleanupBrowserbase = async (
   cfg: Extract<ShutdownSupervisorConfig, { kind: "STAGEHAND_API" }>,
   reason: string,
 ) => {
-  if (!cfg.apiKey || !cfg.projectId || !cfg.sessionId) return;
+  if (!cfg.apiKey || !cfg.sessionId) return;
   try {
     console.error(
       `[shutdown-supervisor] Ending Browserbase session ${cfg.sessionId} ` +
@@ -127,7 +127,7 @@ const cleanupBrowserbase = async (
     const bb = new Browserbase({ apiKey: cfg.apiKey });
     await bb.sessions.update(cfg.sessionId, {
       status: "REQUEST_RELEASE",
-      projectId: cfg.projectId,
+      ...(cfg.projectId ? { projectId: cfg.projectId } : {}),
     });
   } catch {
     // best-effort cleanup
