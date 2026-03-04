@@ -728,6 +728,15 @@ export class V3 {
           const lbo: LocalBrowserLaunchOptions =
             this.opts.localBrowserLaunchOptions ?? {};
 
+          if (lbo.cdpHeaders && !lbo.cdpUrl) {
+            this.logger({
+              category: "init",
+              message:
+                "`cdpHeaders` was provided but `cdpUrl` is not set — cdpHeaders will be ignored. Set `cdpUrl` to connect to an existing browser via CDP.",
+              level: 2,
+            });
+          }
+
           // If a CDP URL is provided, attach instead of launching.
           if (lbo.cdpUrl) {
             this.logger({
@@ -737,6 +746,7 @@ export class V3 {
             });
             this.ctx = await V3Context.create(lbo.cdpUrl, {
               env: "LOCAL",
+              cdpHeaders: lbo.cdpHeaders,
             });
             const logCtx = SessionFileLogger.getContext();
             this.ctx.conn.cdpLogger = (info) =>

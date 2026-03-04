@@ -159,10 +159,13 @@ export class V3Context {
       env?: "LOCAL" | "BROWSERBASE";
       apiClient?: StagehandAPIClient | null;
       localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null;
+      cdpHeaders?: Record<string, string>;
     },
   ): Promise<V3Context> {
     const connectTask = async () => {
-      const conn = await CdpConnection.connect(wsUrl);
+      const conn = await CdpConnection.connect(wsUrl, {
+        headers: opts?.cdpHeaders,
+      });
       const ctx = new V3Context(
         conn,
         opts?.env ?? "LOCAL",
