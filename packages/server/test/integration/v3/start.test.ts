@@ -735,7 +735,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
   });
 
   it("should accept browserbase request with api-key but without project-id", async () => {
-    if (!bbApiKey) {
+    if (!bbApiKey || !bbProjectId) {
       // Skip this test if BROWSERBASE_API_KEY is not set (e.g. in local-only CI)
       return;
     }
