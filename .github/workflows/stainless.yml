@@ -19,7 +19,7 @@ env:
 
 jobs:
   preview:
-    if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     permissions:
       contents: read
