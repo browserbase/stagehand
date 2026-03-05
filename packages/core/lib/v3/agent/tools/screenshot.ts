@@ -1,11 +1,16 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
-import type { Page } from "../../understudy/page.js";
 import { resolvePage } from "../utils/resolvePage.js";
+import type { AgentToolFactoryOptions } from "./types.js";
 
-export const screenshotTool = (v3: V3, page?: Page) =>
-  tool({
+export const screenshotTool = (
+  v3: V3,
+  options: AgentToolFactoryOptions = {},
+) => {
+  const { page } = options;
+
+  return tool({
     description:
       "Takes a screenshot (PNG) of the current page. Use this to quickly verify page state.",
     inputSchema: z.object({}),
@@ -46,3 +51,4 @@ export const screenshotTool = (v3: V3, page?: Page) =>
       };
     },
   });
+};

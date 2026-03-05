@@ -104,26 +104,35 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const toolTimeout = options?.toolTimeout;
   const page = options?.page;
 
+  const toolOpts = {
+    executionModel,
+    provider,
+    variables,
+    mode,
+    toolTimeout,
+    page,
+  };
+
   const allTools: ToolSet = {
-    act: actTool(v3, executionModel, variables, toolTimeout, page),
-    ariaTree: ariaTreeTool(v3, toolTimeout, page),
-    click: clickTool(v3, provider, page),
-    clickAndHold: clickAndHoldTool(v3, provider, page),
-    dragAndDrop: dragAndDropTool(v3, provider, page),
-    extract: extractTool(v3, executionModel, toolTimeout, page),
-    fillForm: fillFormTool(v3, executionModel, variables, toolTimeout, page),
-    fillFormVision: fillFormVisionTool(v3, provider, variables, page),
-    goto: gotoTool(v3, page),
-    keys: keysTool(v3, page),
-    navback: navBackTool(v3, page),
-    screenshot: screenshotTool(v3, page),
+    act: actTool(v3, toolOpts),
+    ariaTree: ariaTreeTool(v3, toolOpts),
+    click: clickTool(v3, toolOpts),
+    clickAndHold: clickAndHoldTool(v3, toolOpts),
+    dragAndDrop: dragAndDropTool(v3, toolOpts),
+    extract: extractTool(v3, toolOpts),
+    fillForm: fillFormTool(v3, toolOpts),
+    fillFormVision: fillFormVisionTool(v3, toolOpts),
+    goto: gotoTool(v3, toolOpts),
+    keys: keysTool(v3, toolOpts),
+    navback: navBackTool(v3, toolOpts),
+    screenshot: screenshotTool(v3, toolOpts),
     scroll:
       mode === "hybrid"
-        ? scrollVisionTool(v3, provider, page)
-        : scrollTool(v3, page),
+        ? scrollVisionTool(v3, toolOpts)
+        : scrollTool(v3, toolOpts),
     think: thinkTool(),
-    type: typeTool(v3, provider, variables, page),
-    wait: waitTool(v3, mode, page),
+    type: typeTool(v3, toolOpts),
+    wait: waitTool(v3, toolOpts),
   };
 
   if (process.env.BRAVE_API_KEY) {

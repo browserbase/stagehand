@@ -1865,8 +1865,16 @@ export class V3 {
 
             const resolvedOptions: AgentExecuteOptions =
               typeof instructionOrOptions === "string"
-                ? { instruction: instructionOrOptions }
-                : instructionOrOptions;
+                ? {
+                    instruction: instructionOrOptions,
+                    toolTimeout: DEFAULT_AGENT_TOOL_TIMEOUT_MS,
+                  }
+                : {
+                    ...instructionOrOptions,
+                    toolTimeout:
+                      instructionOrOptions.toolTimeout ??
+                      DEFAULT_AGENT_TOOL_TIMEOUT_MS,
+                  };
             let resolvedPage: Page | undefined;
             if (resolvedOptions.page) {
               resolvedPage = await this.normalizeToV3Page(resolvedOptions.page);

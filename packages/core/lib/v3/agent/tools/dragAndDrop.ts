@@ -9,11 +9,14 @@ import type {
 import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { ensureXPath } from "../utils/xpath.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
-
-import type { Page } from "../../understudy/page.js";
 import { resolvePage } from "../utils/resolvePage.js";
+import type { AgentToolFactoryOptions } from "./types.js";
 
-export const dragAndDropTool = (v3: V3, provider?: string, page?: Page) => {
+export const dragAndDropTool = (
+  v3: V3,
+  options: AgentToolFactoryOptions = {},
+) => {
+  const { provider, page } = options;
 
   return tool({
     description:

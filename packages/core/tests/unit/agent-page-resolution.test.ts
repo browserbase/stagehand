@@ -59,8 +59,7 @@ describe("agent tools use explicit page", () => {
 
   it("actTool passes page to v3.act()", async () => {
     const v3 = createMockV3();
-    // actTool(v3, executionModel?, variables?, toolTimeout?, page?)
-    const tool = actTool(v3, undefined, undefined, undefined, fakePage);
+    const tool = actTool(v3, { page: fakePage });
     await tool.execute!({ action: "click the button" }, toolCtx("1"));
 
     expect(v3.calls[0].page).toBe(fakePage);
@@ -76,8 +75,7 @@ describe("agent tools use explicit page", () => {
 
   it("extractTool passes page to v3.extract()", async () => {
     const v3 = createMockV3();
-    // extractTool(v3, executionModel?, toolTimeout?, page?)
-    const tool = extractTool(v3, undefined, undefined, fakePage);
+    const tool = extractTool(v3, { page: fakePage });
     await tool.execute!(
       { instruction: "get the title", schema: undefined },
       toolCtx("3"),
@@ -88,8 +86,7 @@ describe("agent tools use explicit page", () => {
 
   it("fillFormTool passes page to v3.observe()", async () => {
     const v3 = createMockV3();
-    // fillFormTool(v3, executionModel?, variables?, toolTimeout?, page?)
-    const tool = fillFormTool(v3, undefined, undefined, undefined, fakePage);
+    const tool = fillFormTool(v3, { page: fakePage });
     await tool.execute!(
       { fields: [{ action: "type hello into name", value: "hello" }] },
       toolCtx("4"),
@@ -104,8 +101,7 @@ describe("agent tools use explicit page", () => {
     const explicitPage = { id: "explicit", goto: vi.fn() } as unknown as Page;
     const v3 = createMockV3(globalPage);
 
-    // gotoTool(v3, page?)
-    const tool = gotoTool(v3, explicitPage);
+    const tool = gotoTool(v3, { page: explicitPage });
     await tool.execute!({ url: "https://example.com" }, toolCtx("5"));
 
     expect((explicitPage as any).goto).toHaveBeenCalledWith(
@@ -138,8 +134,7 @@ describe("agent tools use explicit page", () => {
     } as unknown as Page;
     const v3 = createMockV3(globalPage);
 
-    // screenshotTool(v3, page?)
-    const tool = screenshotTool(v3, explicitPage);
+    const tool = screenshotTool(v3, { page: explicitPage });
     const result = await tool.execute!({}, toolCtx("7"));
 
     expect((explicitPage as any).screenshot).toHaveBeenCalled();

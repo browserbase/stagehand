@@ -2,17 +2,11 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
-import type { AgentModelConfig, Variables } from "../../types/public/agent.js";
-import type { Page } from "../../understudy/page.js";
 import { TimeoutError } from "../../types/public/sdkErrors.js";
+import type { AgentToolFactoryOptions } from "./types.js";
 
-export const fillFormTool = (
-  v3: V3,
-  executionModel?: string | AgentModelConfig,
-  variables?: Variables,
-  toolTimeout?: number,
-  page?: Page,
-) => {
+export const fillFormTool = (v3: V3, options: AgentToolFactoryOptions = {}) => {
+  const { executionModel, variables, toolTimeout, page } = options;
   const hasVariables = variables && Object.keys(variables).length > 0;
   const valueDescription = hasVariables
     ? `Text to type into the target. Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}`

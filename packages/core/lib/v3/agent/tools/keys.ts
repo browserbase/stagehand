@@ -1,11 +1,11 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
-
-import type { Page } from "../../understudy/page.js";
 import { resolvePage } from "../utils/resolvePage.js";
+import type { AgentToolFactoryOptions } from "./types.js";
 
-export const keysTool = (v3: V3, page?: Page) => {
+export const keysTool = (v3: V3, options: AgentToolFactoryOptions = {}) => {
+  const { page } = options;
 
   return tool({
     description: `Send keyboard input to the page without targeting a specific element. Unlike the type tool which clicks then types into coordinates, this sends keystrokes directly to wherever focus currently is.

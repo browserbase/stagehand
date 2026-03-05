@@ -1,11 +1,11 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
-
-import type { Page } from "../../understudy/page.js";
 import { resolvePage } from "../utils/resolvePage.js";
+import type { AgentToolFactoryOptions } from "./types.js";
 
-export const navBackTool = (v3: V3, page?: Page) => {
+export const navBackTool = (v3: V3, options: AgentToolFactoryOptions = {}) => {
+  const { page } = options;
 
   return tool({
     description: "Navigate back to the previous page",

@@ -4,11 +4,14 @@ import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
 import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { ensureXPath } from "../utils/xpath.js";
-
-import type { Page } from "../../understudy/page.js";
 import { resolvePage } from "../utils/resolvePage.js";
+import type { AgentToolFactoryOptions } from "./types.js";
 
-export const clickAndHoldTool = (v3: V3, provider?: string, page?: Page) => {
+export const clickAndHoldTool = (
+  v3: V3,
+  options: AgentToolFactoryOptions = {},
+) => {
+  const { provider, page } = options;
 
   return tool({
     description: "Click and hold on an element using its coordinates",

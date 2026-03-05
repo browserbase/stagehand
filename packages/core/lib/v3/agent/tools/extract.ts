@@ -1,9 +1,8 @@
 import { tool } from "ai";
 import { z, ZodTypeAny } from "zod";
 import type { V3 } from "../../v3.js";
-import type { AgentModelConfig } from "../../types/public/agent.js";
-import type { Page } from "../../understudy/page.js";
 import { TimeoutError } from "../../types/public/sdkErrors.js";
+import type { AgentToolFactoryOptions } from "./types.js";
 
 interface JsonSchema {
   type?: string;
@@ -47,13 +46,10 @@ function jsonSchemaToZod(schema: JsonSchema): ZodTypeAny {
   }
 }
 
-export const extractTool = (
-  v3: V3,
-  executionModel?: string | AgentModelConfig,
-  toolTimeout?: number,
-  page?: Page,
-) =>
-  tool({
+export const extractTool = (v3: V3, options: AgentToolFactoryOptions = {}) => {
+  const { executionModel, toolTimeout, page } = options;
+
+  return tool({
     description: `Extract structured data from the current page based on a provided schema.
 
     USAGE GUIDELINES:
@@ -119,3 +115,4 @@ export const extractTool = (
       }
     },
   });
+};

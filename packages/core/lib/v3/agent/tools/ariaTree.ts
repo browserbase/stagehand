@@ -1,12 +1,14 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
-import type { Page } from "../../understudy/page.js";
 import { resolvePage } from "../utils/resolvePage.js";
 import { TimeoutError } from "../../types/public/sdkErrors.js";
+import type { AgentToolFactoryOptions } from "./types.js";
 
-export const ariaTreeTool = (v3: V3, toolTimeout?: number, page?: Page) =>
-  tool({
+export const ariaTreeTool = (v3: V3, options: AgentToolFactoryOptions = {}) => {
+  const { toolTimeout, page } = options;
+
+  return tool({
     description:
       "gets the accessibility (ARIA) hybrid tree text for the current page. use this to understand structure and content.",
     inputSchema: z.object({}),
@@ -76,3 +78,4 @@ export const ariaTreeTool = (v3: V3, toolTimeout?: number, page?: Page) =>
       };
     },
   });
+};

@@ -6,12 +6,11 @@ import type {
   ModelOutputContentItem,
 } from "../../types/public/agent.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
-
-import type { Page } from "../../understudy/page.js";
-import type { AgentToolMode } from "../../types/public/agent.js";
 import { resolvePage } from "../utils/resolvePage.js";
+import type { AgentToolFactoryOptions } from "./types.js";
 
-export const waitTool = (v3: V3, mode?: AgentToolMode, page?: Page) => {
+export const waitTool = (v3: V3, options: AgentToolFactoryOptions = {}) => {
+  const { mode, page } = options;
 
   return tool({
     description: "Wait for a specified time",

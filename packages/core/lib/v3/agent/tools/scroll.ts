@@ -8,14 +8,15 @@ import type {
 } from "../../types/public/agent.js";
 import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
-import type { Page } from "../../understudy/page.js";
 import { resolvePage } from "../utils/resolvePage.js";
+import type { AgentToolFactoryOptions } from "./types.js";
 
 /**
  * Simple scroll tool for DOM mode (non-grounding models).
  * No coordinates - scrolls from viewport center.
  */
-export const scrollTool = (v3: V3, page?: Page) => {
+export const scrollTool = (v3: V3, options: AgentToolFactoryOptions = {}) => {
+  const { page } = options;
 
   return tool({
     description:
@@ -91,7 +92,11 @@ export const scrollTool = (v3: V3, page?: Page) => {
  * Scroll tool for hybrid mode (grounding models).
  * Supports optional coordinates for scrolling within nested scrollable elements.
  */
-export const scrollVisionTool = (v3: V3, provider?: string, page?: Page) => {
+export const scrollVisionTool = (
+  v3: V3,
+  options: AgentToolFactoryOptions = {},
+) => {
+  const { provider, page } = options;
 
   return tool({
     description: `Scroll the page up or down. For general page scrolling, no coordinates needed. Only provide coordinates when scrolling inside a nested scrollable element (e.g., a dropdown menu, modal with overflow, or scrollable sidebar). Default is 80%, and what should be typically used for general page scrolling`,

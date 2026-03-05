@@ -10,12 +10,14 @@ import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { ensureXPath } from "../utils/xpath.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
 import { substituteVariables } from "../utils/variables.js";
-
-import type { Page } from "../../understudy/page.js";
-import type { Variables } from "../../types/public/agent.js";
 import { resolvePage } from "../utils/resolvePage.js";
+import type { AgentToolFactoryOptions } from "./types.js";
 
-export const fillFormVisionTool = (v3: V3, provider?: string, variables?: Variables, page?: Page) => {
+export const fillFormVisionTool = (
+  v3: V3,
+  options: AgentToolFactoryOptions = {},
+) => {
+  const { provider, variables, page } = options;
   const hasVariables = variables && Object.keys(variables).length > 0;
   const valueDescription = hasVariables
     ? `Text to type into the target field. Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}`
