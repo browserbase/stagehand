@@ -135,6 +135,8 @@ export class OpenAICUAClient extends AgentClient {
     try {
       // Execute steps until completion or max steps reached
       while (!completed && currentStep < maxSteps) {
+        await this.prepareStepHandler?.();
+
         logger({
           category: "agent",
           message: `Executing step ${currentStep + 1}/${maxSteps}`,
