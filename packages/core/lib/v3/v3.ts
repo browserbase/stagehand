@@ -1864,8 +1864,11 @@ export class V3 {
                 modelName,
                 clientOptions,
                 userProvidedInstructions:
-                  options.systemPrompt ??
-                  `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
+                  (options.systemPrompt ??
+                    `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`) +
+                  (this.isCaptchaSolverEnabled
+                    ? `\n\nCaptchas on this page are automatically detected and solved by the browser environment. Do not interact with or attempt to solve any captchas yourself — they will be handled for you. Continue with your task as if the captcha does not exist.`
+                    : ""),
               },
               tools,
             );

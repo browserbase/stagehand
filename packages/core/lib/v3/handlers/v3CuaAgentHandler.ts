@@ -78,8 +78,23 @@ export class V3CuaAgentHandler {
 
       // Wait for captcha solver to finish before executing action
       if (this.captchaSolver) {
+        if (this.captchaSolver.isSolving()) {
+          this.logger({
+            category: "agent",
+            message:
+              "Captcha detected — waiting for Browserbase to solve it before continuing",
+            level: 1,
+          });
+        }
         await this.captchaSolver.waitIfSolving();
-        const { errored } = this.captchaSolver.consumeSolveResult();
+        const { solved, errored } = this.captchaSolver.consumeSolveResult();
+        if (solved) {
+          this.logger({
+            category: "agent",
+            message: "Captcha solved — continuing with task",
+            level: 1,
+          });
+        }
         if (errored) {
           this.logger({
             category: "agent",
@@ -187,6 +202,34 @@ export class V3CuaAgentHandler {
     if (this.v3.isCaptchaSolverEnabled) {
       this.captchaSolver = new CaptchaSolver();
       this.captchaSolver.init(() => this.v3.context.awaitActivePage());
+
+      // Block the CUA agent loop before each step while a captcha is being solved
+      this.agentClient.setPrepareStepHandler(async () => {
+        if (this.captchaSolver?.isSolving()) {
+          this.logger({
+            category: "agent",
+            message:
+              "Captcha detected — waiting for Browserbase to solve it before continuing",
+            level: 1,
+          });
+        }
+        await this.captchaSolver?.waitIfSolving();
+        const result = this.captchaSolver?.consumeSolveResult();
+        if (result?.solved) {
+          this.logger({
+            category: "agent",
+            message: "Captcha solved — continuing with task",
+            level: 1,
+          });
+        }
+        if (result?.errored) {
+          this.logger({
+            category: "agent",
+            message: "Captcha solver failed or errored",
+            level: 1,
+          });
+        }
+      });
     }
 
     if (this.highlightCursor) {
