@@ -20,6 +20,12 @@ export type SnapshotOptions = {
    * Optional feature flag that surfaces experimental traversal tweaks in the Accessibility layer.
    */
   experimental?: boolean;
+  /**
+   * When true, return only the combined tree string instead of the full
+   * HybridSnapshot object. Intended for callers that only need the text
+   * outline (e.g. DOM hashing, cache keys).
+   */
+  hashMode?: boolean;
 };
 
 /**
@@ -108,6 +114,8 @@ export type A11yOptions = {
   tagNameMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
   encode: (backendNodeId: number) => string;
+  /** When true, use hash-friendly formatting (quote names, normalize structural roles). */
+  hashMode?: boolean;
 };
 
 export type AccessibilityTreeResult = {

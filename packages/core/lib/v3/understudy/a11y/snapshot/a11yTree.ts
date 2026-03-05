@@ -9,7 +9,11 @@ import {
   resolveObjectIdForCss,
   resolveObjectIdForXPath,
 } from "./focusSelectors.js";
-import { formatTreeLine, normaliseSpaces } from "./treeFormatUtils.js";
+import {
+  formatTreeLine,
+  formatTreeLineForHash,
+  normaliseSpaces,
+} from "./treeFormatUtils.js";
 
 /**
  * Fetch and prune the accessibility tree for a frame, optionally scoping the
@@ -95,7 +99,8 @@ export async function a11yForFrame(
   const decorated = decorateRoles(nodesForOutline, opts);
   const { tree } = await buildHierarchicalTree(decorated, opts);
 
-  const simplified = tree.map((n) => formatTreeLine(n)).join("\n");
+  const fmt = opts.hashMode ? formatTreeLineForHash : formatTreeLine;
+  const simplified = tree.map((n) => fmt(n)).join("\n");
   return { outline: simplified.trimEnd(), urlMap, scopeApplied };
 }
 

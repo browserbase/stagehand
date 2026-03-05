@@ -44,10 +44,23 @@ import { normalizeXPath, prefixXPath } from "./xpathUtils.js";
  */
 export async function captureHybridSnapshot(
   page: Page,
+  options: SnapshotOptions & { hashMode: true },
+): Promise<string>;
+export async function captureHybridSnapshot(
+  page: Page,
   options?: SnapshotOptions,
-): Promise<HybridSnapshot> {
+): Promise<HybridSnapshot>;
+export async function captureHybridSnapshot(
+  page: Page,
+  options?: SnapshotOptions,
+): Promise<HybridSnapshot | string> {
   const pierce = options?.pierceShadow ?? true;
   const includeIframes = options?.includeIframes !== false;
+
+  // Strip [encodedId] prefixes that were kept during formatting solely so
+  // injectSubtrees could locate iframe injection points. One regex pass over
+  // the final combined string is far cheaper than post-processing in the caller.
+  const stripIds = (tree: string) => tree.replace(/^(\s*)\[[^\]]+\] /gm, "$1");
 
   const context = buildFrameContext(page);
 
@@ -57,7 +70,10 @@ export async function captureHybridSnapshot(
     context,
     pierce,
   );
-  if (scopedSnapshot) return scopedSnapshot;
+  if (scopedSnapshot) {
+    if (options?.hashMode) return stripIds(scopedSnapshot.combinedTree);
+    return scopedSnapshot;
+  }
 
   const framesInScope = includeIframes ? [...context.frames] : [context.rootId];
   if (!framesInScope.includes(context.rootId)) {
@@ -80,7 +96,7 @@ export async function captureHybridSnapshot(
     framesInScope,
   );
 
-  return mergeFramesIntoSnapshot(
+  const result = mergeFramesIntoSnapshot(
     context,
     perFrameMaps,
     perFrameOutlines,
@@ -88,6 +104,8 @@ export async function captureHybridSnapshot(
     iframeHostEncByChild,
     framesInScope,
   );
+  if (options?.hashMode) return stripIds(result.combinedTree);
+  return result;
 }
 
 /**
@@ -191,6 +209,7 @@ export async function tryScopedSnapshot(
         scrollableMap,
         encode: (backendNodeId) =>
           `${page.getOrdinal(targetFrameId)}-${backendNodeId}`,
+        hashMode: options?.hashMode,
       },
     );
 
@@ -331,6 +350,7 @@ export async function collectPerFrameMaps(
       tagNameMap,
       scrollableMap,
       encode: (backendNodeId) => `${page.getOrdinal(frameId)}-${backendNodeId}`,
+      hashMode: options?.hashMode,
     });
 
     perFrameOutlines.push({ frameId, outline });
