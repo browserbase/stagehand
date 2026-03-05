@@ -1,4 +1,6 @@
 import { computeActiveElementXpath } from "../understudy/a11y/snapshot/index.js";
+import type { Page } from "../understudy/page.js";
+import { resolvePage } from "../agent/utils/resolvePage.js";
 import { V3 } from "../v3.js";
 import { ToolSet } from "ai";
 import { AgentClient } from "../agent/AgentClient.js";
@@ -28,16 +30,19 @@ export class V3CuaAgentHandler {
   private agentClient: AgentClient;
   private options: AgentHandlerOptions;
   private highlightCursor: boolean;
+  private page?: Page;
 
   constructor(
     v3: V3,
     logger: (message: LogLine) => void,
     options: AgentHandlerOptions,
     tools?: ToolSet,
+    page?: Page,
   ) {
     this.v3 = v3;
     this.logger = logger;
     this.options = options;
+    this.page = page;
 
     this.provider = new AgentProvider(logger);
     const client = this.provider.getClient(
@@ -61,11 +66,15 @@ export class V3CuaAgentHandler {
     }
   }
 
+  private async resolvePage(): Promise<Page> {
+    return resolvePage(this.v3, this.page);
+  }
+
   private setupAgentClient(): void {
     // Provide screenshots to the agent client
     this.agentClient.setScreenshotProvider(async () => {
       this.ensureNotClosed();
-      const page = await this.v3.context.awaitActivePage();
+      const page = await this.resolvePage();
       const screenshotBuffer = await page.screenshot({ fullPage: false });
       return screenshotBuffer.toString("base64"); // base64 png
     });
@@ -73,7 +82,7 @@ export class V3CuaAgentHandler {
     // Provide action executor
     this.agentClient.setActionHandler(async (action) => {
       this.ensureNotClosed();
-      action.pageUrl = (await this.v3.context.awaitActivePage()).url();
+      action.pageUrl = (await this.resolvePage()).url();
 
       const defaultDelay = 500;
       const waitBetween =
@@ -156,7 +165,7 @@ export class V3CuaAgentHandler {
     this.highlightCursor = options.highlightCursor !== false;
 
     // Redirect if blank
-    const page = await this.v3.context.awaitActivePage();
+    const page = await this.resolvePage();
     const currentUrl = page.url();
     if (!currentUrl || currentUrl === "about:blank") {
       this.logger({
@@ -201,7 +210,7 @@ export class V3CuaAgentHandler {
   private async executeAction(
     action: AgentAction,
   ): Promise<ActionExecutionResult> {
-    const page = await this.v3.context.awaitActivePage();
+    const page = await this.resolvePage();
     const recording = this.v3.isAgentReplayActive();
     switch (action.type) {
       case "click": {
@@ -564,7 +573,7 @@ export class V3CuaAgentHandler {
         this.agentClient.setViewport(dims.width, dims.height);
       } else {
         // For other clients, use actual window dimensions
-        const page = await this.v3.context.awaitActivePage();
+        const page = await this.resolvePage();
         const { w, h } = await page.mainFrame().evaluate<{
           w: number;
           h: number;
@@ -578,7 +587,7 @@ export class V3CuaAgentHandler {
 
   private async updateClientUrl(): Promise<void> {
     try {
-      const page = await this.v3.context.awaitActivePage();
+      const page = await this.resolvePage();
       const url = page.url();
       this.agentClient.setCurrentUrl(url);
     } catch {
@@ -593,7 +602,7 @@ export class V3CuaAgentHandler {
       level: 1,
     });
     try {
-      const page = await this.v3.context.awaitActivePage();
+      const page = await this.resolvePage();
       const screenshotBuffer = await page.screenshot({ fullPage: false });
 
       // Emit screenshot event via the bus
@@ -615,7 +624,7 @@ export class V3CuaAgentHandler {
 
   private async injectCursor(): Promise<void> {
     try {
-      const page = await this.v3.context.awaitActivePage();
+      const page = await this.resolvePage();
       await page.enableCursorOverlay();
     } catch {
       // Best-effort only

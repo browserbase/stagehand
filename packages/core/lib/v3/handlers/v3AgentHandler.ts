@@ -39,6 +39,7 @@ import {
   AgentAbortError,
 } from "../types/public/sdkErrors.js";
 import { handleDoneToolCall } from "../agent/utils/handleDoneToolCall.js";
+import type { Page } from "../understudy/page.js";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -74,6 +75,7 @@ export class V3AgentHandler {
   private systemInstructions?: string;
   private mcpTools?: ToolSet;
   private mode: AgentToolMode;
+  private page?: Page;
 
   constructor(
     v3: V3,
@@ -83,6 +85,7 @@ export class V3AgentHandler {
     systemInstructions?: string,
     mcpTools?: ToolSet,
     mode?: AgentToolMode,
+    page?: Page,
   ) {
     this.v3 = v3;
     this.logger = logger;
@@ -91,6 +94,14 @@ export class V3AgentHandler {
     this.systemInstructions = systemInstructions;
     this.mcpTools = mcpTools;
     this.mode = mode ?? "dom";
+    this.page = page;
+  }
+
+  /**
+   * Resolve the page to use: explicit page if provided, otherwise the global active page.
+   */
+  private async resolvePage(): Promise<Page> {
+    return this.page ?? (await this.v3.context.awaitActivePage());
   }
 
   private async prepareAgent(
@@ -105,7 +116,7 @@ export class V3AgentHandler {
       const maxSteps = options.maxSteps || 20;
 
       // Get the initial page URL first (needed for the system prompt)
-      const initialPageUrl = (await this.v3.context.awaitActivePage()).url();
+      const initialPageUrl = (await this.resolvePage()).url();
 
       // Build the system prompt with mode-aware tool guidance
       const systemPrompt = buildAgentSystemPrompt({
@@ -235,7 +246,7 @@ export class V3AgentHandler {
             state.actions.push(action);
           }
         }
-        state.currentPageUrl = (await this.v3.context.awaitActivePage()).url();
+        state.currentPageUrl = (await this.resolvePage()).url();
 
         // Capture screenshot after tool execution (only for evals)
         if (process.env.EVALS === "true") {
@@ -292,8 +303,8 @@ export class V3AgentHandler {
 
       // Enable cursor overlay for hybrid mode (coordinate-based interactions)
       if (shouldHighlightCursor && this.mode === "hybrid") {
-        const page = await this.v3.context.awaitActivePage();
-        await page.enableCursorOverlay().catch(() => {});
+        const cursorPage = await this.resolvePage();
+        await cursorPage.enableCursorOverlay().catch(() => {});
       }
 
       messages = preparedMessages;
@@ -406,8 +417,8 @@ export class V3AgentHandler {
 
     // Enable cursor overlay for hybrid mode (coordinate-based interactions)
     if (shouldHighlightCursor && this.mode === "hybrid") {
-      const page = await this.v3.context.awaitActivePage();
-      await page.enableCursorOverlay().catch(() => {});
+      const cursorPage = await this.resolvePage();
+      await cursorPage.enableCursorOverlay().catch(() => {});
     }
 
     const callbacks = (instructionOrOptions as AgentStreamExecuteOptions)
@@ -580,6 +591,7 @@ export class V3AgentHandler {
       excludeTools,
       variables,
       toolTimeout,
+      page: this.page,
     });
   }
 
@@ -650,7 +662,7 @@ export class V3AgentHandler {
    */
   private async captureAndEmitScreenshot(): Promise<void> {
     try {
-      const page = await this.v3.context.awaitActivePage();
+      const page = await this.resolvePage();
       const screenshot = await page.screenshot({ fullPage: false });
       this.v3.bus.emit("agent_screenshot_taken_event", screenshot);
     } catch (error) {

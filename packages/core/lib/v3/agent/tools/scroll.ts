@@ -8,13 +8,17 @@ import type {
 } from "../../types/public/agent.js";
 import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
+import { resolvePage } from "../utils/resolvePage.js";
+import type { AgentToolFactoryOptions } from "./types.js";
 
 /**
  * Simple scroll tool for DOM mode (non-grounding models).
  * No coordinates - scrolls from viewport center.
  */
-export const scrollTool = (v3: V3) =>
-  tool({
+export const scrollTool = (v3: V3, options: AgentToolFactoryOptions = {}) => {
+  const { page } = options;
+
+  return tool({
     description:
       "Scroll the page up or down by a percentage of the viewport height. Default is 80%, and what should be typically used for general page scrolling",
     inputSchema: z.object({
@@ -37,9 +41,9 @@ export const scrollTool = (v3: V3) =>
         },
       });
 
-      const page = await v3.context.awaitActivePage();
+      const activePage = await resolvePage(v3, page);
 
-      const { w, h } = await page.mainFrame().evaluate<{
+      const { w, h } = await activePage.mainFrame().evaluate<{
         w: number;
         h: number;
       }>("({ w: window.innerWidth, h: window.innerHeight })");
@@ -49,7 +53,7 @@ export const scrollTool = (v3: V3) =>
       const cy = Math.floor(h / 2);
       const deltaY = direction === "up" ? -scrollDistance : scrollDistance;
 
-      await page.scroll(cx, cy, 0, deltaY);
+      await activePage.scroll(cx, cy, 0, deltaY);
 
       v3.recordAgentReplayStep({
         type: "scroll",
@@ -82,13 +86,19 @@ export const scrollTool = (v3: V3) =>
       };
     },
   });
+};
 
 /**
  * Scroll tool for hybrid mode (grounding models).
  * Supports optional coordinates for scrolling within nested scrollable elements.
  */
-export const scrollVisionTool = (v3: V3, provider?: string) =>
-  tool({
+export const scrollVisionTool = (
+  v3: V3,
+  options: AgentToolFactoryOptions = {},
+) => {
+  const { provider, page } = options;
+
+  return tool({
     description: `Scroll the page up or down. For general page scrolling, no coordinates needed. Only provide coordinates when scrolling inside a nested scrollable element (e.g., a dropdown menu, modal with overflow, or scrollable sidebar). Default is 80%, and what should be typically used for general page scrolling`,
     inputSchema: z.object({
       direction: z.enum(["up", "down"]),
@@ -105,9 +115,9 @@ export const scrollVisionTool = (v3: V3, provider?: string) =>
       coordinates,
       percentage = 80,
     }): Promise<ScrollVisionToolResult> => {
-      const page = await v3.context.awaitActivePage();
+      const activePage = await resolvePage(v3, page);
 
-      const { w, h } = await page.mainFrame().evaluate<{
+      const { w, h } = await activePage.mainFrame().evaluate<{
         w: number;
         h: number;
       }>("({ w: window.innerWidth, h: window.innerHeight })");
@@ -149,9 +159,9 @@ export const scrollVisionTool = (v3: V3, provider?: string) =>
       const scrollDistance = Math.round((h * percentage) / 100);
       const deltaY = direction === "up" ? -scrollDistance : scrollDistance;
 
-      await page.scroll(cx, cy, 0, deltaY);
+      await activePage.scroll(cx, cy, 0, deltaY);
 
-      const screenshotBase64 = await waitAndCaptureScreenshot(page, 100);
+      const screenshotBase64 = await waitAndCaptureScreenshot(activePage, 100);
 
       v3.recordAgentReplayStep({
         type: "scroll",
@@ -197,3 +207,4 @@ export const scrollVisionTool = (v3: V3, provider?: string) =>
       return { type: "content", value: content };
     },
   });
+};

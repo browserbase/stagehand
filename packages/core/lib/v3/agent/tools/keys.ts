@@ -1,9 +1,13 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
+import { resolvePage } from "../utils/resolvePage.js";
+import type { AgentToolFactoryOptions } from "./types.js";
 
-export const keysTool = (v3: V3) =>
-  tool({
+export const keysTool = (v3: V3, options: AgentToolFactoryOptions = {}) => {
+  const { page } = options;
+
+  return tool({
     description: `Send keyboard input to the page without targeting a specific element. Unlike the type tool which clicks then types into coordinates, this sends keystrokes directly to wherever focus currently is.
 
 Use method="type" to enter text into the currently focused element. Preferred when: input is already focused, text needs to flow across multiple fields (e.g., verification codes)
@@ -20,7 +24,7 @@ Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) a
     }),
     execute: async ({ method, value, repeat }) => {
       try {
-        const page = await v3.context.awaitActivePage();
+        const activePage = await resolvePage(v3, page);
         v3.logger({
           category: "agent",
           message: `Agent calling tool: keys`,
@@ -37,7 +41,7 @@ Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) a
 
         if (method === "type") {
           for (let i = 0; i < times; i++) {
-            await page.type(value, { delay: 100 });
+            await activePage.type(value, { delay: 100 });
           }
           v3.recordAgentReplayStep({
             type: "keys",
@@ -49,7 +53,7 @@ Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) a
 
         if (method === "press") {
           for (let i = 0; i < times; i++) {
-            await page.keyPress(value, { delay: 100 });
+            await activePage.keyPress(value, { delay: 100 });
           }
           v3.recordAgentReplayStep({
             type: "keys",
@@ -65,3 +69,4 @@ Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) a
       }
     },
   });
+};

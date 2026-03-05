@@ -85,6 +85,7 @@ import { resolveModel } from "../modelUtils.js";
 import { StagehandAPIClient } from "./api.js";
 import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures.js";
 import { flattenVariables } from "./agent/utils/variables.js";
+import { resolvePage } from "./agent/utils/resolvePage.js";
 import { SessionFileLogger, logStagehandStep } from "./flowLogger.js";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard.js";
 import { ActTimeoutError } from "./types/public/sdkErrors.js";
@@ -1668,6 +1669,7 @@ export class V3 {
     instruction: string;
     cacheContext: AgentCacheContext | null;
     llmClient: LLMClient;
+    resolvedPage: Page | undefined;
   }> {
     // Note: experimental validation is done at the call site before this method
     // Warn if mode is not explicitly set (defaults to "dom")
@@ -1690,16 +1692,6 @@ export class V3 {
 
     const resolvedExecutionModel = options?.executionModel ?? options?.model;
 
-    const handler = new V3AgentHandler(
-      this,
-      this.logger,
-      agentLlmClient,
-      resolvedExecutionModel,
-      options?.systemPrompt,
-      tools,
-      options?.mode,
-    );
-
     const resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions =
       typeof instructionOrOptions === "string"
         ? {
@@ -1721,10 +1713,22 @@ export class V3 {
       );
     }
 
+    let resolvedPage: Page | undefined;
     if (resolvedOptions.page) {
-      const normalizedPage = await this.normalizeToV3Page(resolvedOptions.page);
-      this.ctx!.setActivePage(normalizedPage);
+      resolvedPage = await this.normalizeToV3Page(resolvedOptions.page);
+      this.ctx!.setActivePage(resolvedPage);
     }
+
+    const handler = new V3AgentHandler(
+      this,
+      this.logger,
+      agentLlmClient,
+      resolvedExecutionModel,
+      options?.systemPrompt,
+      tools,
+      options?.mode,
+      resolvedPage,
+    );
 
     const instruction = resolvedOptions.instruction.trim();
     const sanitizedOptions =
@@ -1737,7 +1741,7 @@ export class V3 {
           instruction,
           options: sanitizedOptions,
           configSignature: agentConfigSignature,
-          page: await this.ctx!.awaitActivePage(),
+          page: await resolvePage(this, resolvedPage),
           variables: cacheVariables,
         })
       : null;
@@ -1748,6 +1752,7 @@ export class V3 {
       instruction,
       cacheContext,
       llmClient: agentLlmClient,
+      resolvedPage,
     };
   }
 
@@ -1858,19 +1863,6 @@ export class V3 {
               ? await resolveTools(options.integrations, options.tools)
               : (options?.tools ?? {});
 
-            const handler = new V3CuaAgentHandler(
-              this,
-              this.logger,
-              {
-                modelName,
-                clientOptions,
-                userProvidedInstructions:
-                  options.systemPrompt ??
-                  `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
-              },
-              tools,
-            );
-
             const resolvedOptions: AgentExecuteOptions =
               typeof instructionOrOptions === "string"
                 ? {
@@ -1883,12 +1875,26 @@ export class V3 {
                       instructionOrOptions.toolTimeout ??
                       DEFAULT_AGENT_TOOL_TIMEOUT_MS,
                   };
+            let resolvedPage: Page | undefined;
             if (resolvedOptions.page) {
-              const normalizedPage = await this.normalizeToV3Page(
-                resolvedOptions.page,
-              );
-              this.ctx!.setActivePage(normalizedPage);
+              resolvedPage = await this.normalizeToV3Page(resolvedOptions.page);
+              this.ctx!.setActivePage(resolvedPage);
             }
+
+            const handler = new V3CuaAgentHandler(
+              this,
+              this.logger,
+              {
+                modelName,
+                clientOptions,
+                userProvidedInstructions:
+                  options.systemPrompt ??
+                  `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
+              },
+              tools,
+              resolvedPage,
+            );
+
             const instruction = resolvedOptions.instruction.trim();
             const sanitizedOptions =
               this.agentCache.sanitizeExecuteOptions(resolvedOptions);
@@ -1897,7 +1903,7 @@ export class V3 {
 
             let cacheContext: AgentCacheContext | null = null;
             if (this.agentCache.shouldAttemptCache(instruction)) {
-              const startPage = await this.ctx!.awaitActivePage();
+              const startPage = await resolvePage(this, resolvedPage);
               cacheContext = await this.agentCache.prepareContext({
                 instruction,
                 options: sanitizedOptions,
@@ -1906,7 +1912,11 @@ export class V3 {
                 variables: cacheVariables,
               });
               if (cacheContext) {
-                const replayed = await this.agentCache.tryReplay(cacheContext);
+                const replayed = await this.agentCache.tryReplay(
+                  cacheContext,
+                  undefined,
+                  resolvedPage,
+                );
                 if (replayed) {
                   SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
                   return replayed;
@@ -1924,11 +1934,11 @@ export class V3 {
             let result: AgentResult;
             try {
               if (this.apiClient && !this.experimental) {
-                const page = await this.ctx!.awaitActivePage();
+                const apiPage = await resolvePage(this, resolvedPage);
                 result = await this.apiClient.agentExecute(
                   options,
                   resolvedOptions,
-                  page.mainFrameId(),
+                  apiPage.mainFrameId(),
                   !!cacheContext,
                 );
                 if (cacheContext) {
@@ -1994,17 +2004,23 @@ export class V3 {
 
           // Streaming mode
           if (isStreaming) {
-            const { handler, resolvedOptions, cacheContext, llmClient } =
-              await this.prepareAgentExecution(
-                options,
-                instructionOrOptions,
-                agentConfigSignature,
-              );
+            const {
+              handler,
+              resolvedOptions,
+              cacheContext,
+              llmClient,
+              resolvedPage,
+            } = await this.prepareAgentExecution(
+              options,
+              instructionOrOptions,
+              agentConfigSignature,
+            );
 
             if (cacheContext) {
               const replayed = await this.agentCache.tryReplayAsStream(
                 cacheContext,
                 llmClient,
+                resolvedPage,
               );
               if (replayed) {
                 SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
@@ -2035,17 +2051,23 @@ export class V3 {
           }
 
           // Non-streaming mode (default)
-          const { handler, resolvedOptions, cacheContext, llmClient } =
-            await this.prepareAgentExecution(
-              options,
-              instructionOrOptions,
-              agentConfigSignature,
-            );
+          const {
+            handler,
+            resolvedOptions,
+            cacheContext,
+            llmClient,
+            resolvedPage,
+          } = await this.prepareAgentExecution(
+            options,
+            instructionOrOptions,
+            agentConfigSignature,
+          );
 
           if (cacheContext) {
             const replayed = await this.agentCache.tryReplay(
               cacheContext,
               llmClient,
+              resolvedPage,
             );
             if (replayed) {
               SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
@@ -2063,7 +2085,7 @@ export class V3 {
 
           try {
             if (this.apiClient && !this.experimental) {
-              const page = await this.ctx!.awaitActivePage();
+              const page = await resolvePage(this, resolvedPage);
               result = await this.apiClient.agentExecute(
                 options ?? {},
                 resolvedOptions as AgentExecuteOptions,

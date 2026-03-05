@@ -175,6 +175,7 @@ export class AgentCache {
   async tryReplay(
     context: AgentCacheContext,
     llmClientOverride?: LLMClient,
+    page?: Page,
   ): Promise<AgentResult | null> {
     if (!this.enabled) return null;
 
@@ -210,7 +211,12 @@ export class AgentCache {
       },
     });
 
-    return await this.replayAgentCacheEntry(context, entry, llmClientOverride);
+    return await this.replayAgentCacheEntry(
+      context,
+      entry,
+      llmClientOverride,
+      page,
+    );
   }
 
   /**
@@ -232,8 +238,9 @@ export class AgentCache {
   async tryReplayAsStream(
     context: AgentCacheContext,
     llmClientOverride?: LLMClient,
+    page?: Page,
   ): Promise<AgentStreamResult | null> {
-    const result = await this.tryReplay(context, llmClientOverride);
+    const result = await this.tryReplay(context, llmClientOverride, page);
     if (!result) return null;
     return this.createCachedStreamResult(result);
   }
@@ -573,6 +580,7 @@ export class AgentCache {
     context: AgentCacheContext,
     entry: CachedAgentEntry,
     llmClientOverride?: LLMClient,
+    page?: Page,
   ): Promise<AgentResult | null> {
     const ctx = this.getContext();
     const handler = this.getActHandler();
@@ -589,6 +597,7 @@ export class AgentCache {
             handler,
             effectiveClient,
             context.variables,
+            page,
           )) ?? step;
         stepsChanged ||= replayedStep !== step;
         updatedSteps.push(replayedStep);
@@ -629,6 +638,7 @@ export class AgentCache {
     handler: ActHandler,
     llmClient: LLMClient,
     variables?: Record<string, string>,
+    page?: Page,
   ): Promise<AgentReplayStep> {
     switch (step.type) {
       case "act":
@@ -638,6 +648,7 @@ export class AgentCache {
           handler,
           llmClient,
           variables,
+          page,
         );
       case "fillForm":
         return await this.replayAgentFillFormStep(
@@ -646,21 +657,30 @@ export class AgentCache {
           handler,
           llmClient,
           variables,
+          page,
         );
       case "goto":
-        await this.replayAgentGotoStep(step as AgentReplayGotoStep, ctx);
+        await this.replayAgentGotoStep(step as AgentReplayGotoStep, ctx, page);
         return step;
       case "scroll":
-        await this.replayAgentScrollStep(step as AgentReplayScrollStep, ctx);
+        await this.replayAgentScrollStep(
+          step as AgentReplayScrollStep,
+          ctx,
+          page,
+        );
         return step;
       case "wait":
         await this.replayAgentWaitStep(step as AgentReplayWaitStep);
         return step;
       case "navback":
-        await this.replayAgentNavBackStep(step as AgentReplayNavBackStep, ctx);
+        await this.replayAgentNavBackStep(
+          step as AgentReplayNavBackStep,
+          ctx,
+          page,
+        );
         return step;
       case "keys":
-        await this.replayAgentKeysStep(step as AgentReplayKeysStep, ctx);
+        await this.replayAgentKeysStep(step as AgentReplayKeysStep, ctx, page);
         return step;
       case "done":
       case "extract":
@@ -683,14 +703,15 @@ export class AgentCache {
     handler: ActHandler,
     llmClient: LLMClient,
     variables?: Record<string, string>,
+    page?: Page,
   ): Promise<AgentReplayActStep> {
     const actions = Array.isArray(step.actions) ? step.actions : [];
     if (actions.length > 0) {
-      const page = await ctx.awaitActivePage();
+      const resolvedPage = page ?? (await ctx.awaitActivePage());
       const updatedActions: Action[] = [];
       for (const action of actions) {
         await waitForCachedSelector({
-          page,
+          page: resolvedPage,
           selector: action.selector,
           timeout: this.domSettleTimeoutMs,
           logger: this.logger,
@@ -698,7 +719,7 @@ export class AgentCache {
         });
         const result = await handler.takeDeterministicAction(
           action,
-          page,
+          resolvedPage,
           this.domSettleTimeoutMs,
           llmClient,
           undefined,
@@ -715,7 +736,11 @@ export class AgentCache {
       }
       return step;
     }
-    await this.act(step.instruction, { timeout: step.timeout, variables });
+    await this.act(step.instruction, {
+      timeout: step.timeout,
+      variables,
+      page,
+    });
     return step;
   }
 
@@ -725,6 +750,7 @@ export class AgentCache {
     handler: ActHandler,
     llmClient: LLMClient,
     variables?: Record<string, string>,
+    page?: Page,
   ): Promise<AgentReplayFillFormStep> {
     const actions =
       Array.isArray(step.actions) && step.actions.length > 0
@@ -733,11 +759,11 @@ export class AgentCache {
     if (!Array.isArray(actions) || actions.length === 0) {
       return step;
     }
-    const page = await ctx.awaitActivePage();
+    const resolvedPage = page ?? (await ctx.awaitActivePage());
     const updatedActions: Action[] = [];
     for (const action of actions) {
       await waitForCachedSelector({
-        page,
+        page: resolvedPage,
         selector: action.selector,
         timeout: this.domSettleTimeoutMs,
         logger: this.logger,
@@ -745,7 +771,7 @@ export class AgentCache {
       });
       const result = await handler.takeDeterministicAction(
         action,
-        page,
+        resolvedPage,
         this.domSettleTimeoutMs,
         llmClient,
         undefined, // ensureTimeRemaining is not used in this context
@@ -766,19 +792,21 @@ export class AgentCache {
   private async replayAgentGotoStep(
     step: AgentReplayGotoStep,
     ctx: V3Context,
+    page?: Page,
   ): Promise<void> {
-    const page = await ctx.awaitActivePage();
-    await page.goto(step.url, { waitUntil: step.waitUntil ?? "load" });
+    const resolvedPage = page ?? (await ctx.awaitActivePage());
+    await resolvedPage.goto(step.url, { waitUntil: step.waitUntil ?? "load" });
   }
 
   private async replayAgentScrollStep(
     step: AgentReplayScrollStep,
     ctx: V3Context,
+    page?: Page,
   ): Promise<void> {
-    const page = await ctx.awaitActivePage();
+    const resolvedPage = page ?? (await ctx.awaitActivePage());
     let anchor = step.anchor;
     if (!anchor) {
-      anchor = await page
+      anchor = await resolvedPage
         .mainFrame()
         .evaluate<{ x: number; y: number }>(() => ({
           x: Math.max(0, Math.floor(window.innerWidth / 2)),
@@ -787,7 +815,7 @@ export class AgentCache {
     }
     const deltaX = step.deltaX ?? 0;
     const deltaY = step.deltaY ?? 0;
-    await page.scroll(
+    await resolvedPage.scroll(
       Math.round(anchor.x ?? 0),
       Math.round(anchor.y ?? 0),
       deltaX,
@@ -803,26 +831,30 @@ export class AgentCache {
   private async replayAgentNavBackStep(
     step: AgentReplayNavBackStep,
     ctx: V3Context,
+    page?: Page,
   ): Promise<void> {
-    const page = await ctx.awaitActivePage();
-    await page.goBack({ waitUntil: step.waitUntil ?? "domcontentloaded" });
+    const resolvedPage = page ?? (await ctx.awaitActivePage());
+    await resolvedPage.goBack({
+      waitUntil: step.waitUntil ?? "domcontentloaded",
+    });
   }
 
   private async replayAgentKeysStep(
     step: AgentReplayKeysStep,
     ctx: V3Context,
+    page?: Page,
   ): Promise<void> {
-    const page = await ctx.awaitActivePage();
+    const resolvedPage = page ?? (await ctx.awaitActivePage());
     const { method, text, keys, times } = step.playwrightArguments;
     const repeatCount = Math.max(1, times ?? 1);
 
     if (method === "type" && text) {
       for (let i = 0; i < repeatCount; i++) {
-        await page.type(text, { delay: 100 });
+        await resolvedPage.type(text, { delay: 100 });
       }
     } else if (method === "press" && keys) {
       for (let i = 0; i < repeatCount; i++) {
-        await page.keyPress(keys, { delay: 100 });
+        await resolvedPage.keyPress(keys, { delay: 100 });
       }
     }
   }
