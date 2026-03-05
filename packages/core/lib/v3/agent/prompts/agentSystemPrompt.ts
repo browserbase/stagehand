@@ -5,8 +5,8 @@ export interface AgentSystemPromptOptions {
   executionInstruction: string;
   mode: AgentToolMode;
   systemInstructions?: string;
-  /** Whether running on Browserbase (enables captcha solver messaging) */
-  isBrowserbase?: boolean;
+  /** Whether captchas are automatically solved by the browser environment */
+  solveCaptchas?: boolean;
   /** Tools to exclude from the system prompt */
   excludeTools?: string[];
   /** Variables available to the agent for use in act/type tools */
@@ -122,7 +122,7 @@ export function buildAgentSystemPrompt(
     executionInstruction,
     mode,
     systemInstructions,
-    isBrowserbase = false,
+    solveCaptchas = false,
     excludeTools,
     variables,
   } = options;
@@ -193,11 +193,10 @@ export function buildAgentSystemPrompt(
     </step_1>
   </page_understanding_protocol>`;
 
-  // Roadblocks section only shown when running on Browserbase (has captcha solver)
-  const roadblocksSection = isBrowserbase
+  // Roadblocks section only shown when running on Browserbase
+  const roadblocksSection = solveCaptchas
     ? `<roadblocks>
-    <note>captchas, popups, etc.</note>
-    <captcha>If you see a captcha, use the wait tool. It will automatically be solved by our internal solver.</captcha>
+    <note>Captchas on this page are automatically detected and solved by the browser environment. Do not interact with or attempt to solve any captchas yourself — they will be handled for you. Continue with your task as if the captcha does not exist.</note>
   </roadblocks>`
     : "";
 

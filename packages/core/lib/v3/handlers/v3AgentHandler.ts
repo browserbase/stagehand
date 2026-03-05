@@ -39,6 +39,7 @@ import {
   AgentAbortError,
 } from "../types/public/sdkErrors.js";
 import { handleDoneToolCall } from "../agent/utils/handleDoneToolCall.js";
+import { CaptchaSolver } from "../agent/utils/captchaSolver.js";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -74,6 +75,7 @@ export class V3AgentHandler {
   private systemInstructions?: string;
   private mcpTools?: ToolSet;
   private mode: AgentToolMode;
+  private captchaSolverEnabled: boolean;
 
   constructor(
     v3: V3,
@@ -83,6 +85,7 @@ export class V3AgentHandler {
     systemInstructions?: string,
     mcpTools?: ToolSet,
     mode?: AgentToolMode,
+    captchaSolverEnabled?: boolean,
   ) {
     this.v3 = v3;
     this.logger = logger;
@@ -91,6 +94,7 @@ export class V3AgentHandler {
     this.systemInstructions = systemInstructions;
     this.mcpTools = mcpTools;
     this.mode = mode ?? "dom";
+    this.captchaSolverEnabled = captchaSolverEnabled ?? false;
   }
 
   private async prepareAgent(
@@ -113,7 +117,7 @@ export class V3AgentHandler {
         executionInstruction: options.instruction,
         mode: this.mode,
         systemInstructions: this.systemInstructions,
-        isBrowserbase: this.v3.isBrowserbase,
+        solveCaptchas: this.v3.isCaptchaSolverEnabled,
         excludeTools: options.excludeTools,
         variables: options.variables,
       });
@@ -174,9 +178,48 @@ export class V3AgentHandler {
   }
   private createPrepareStep(
     userCallback?: PrepareStepFunction<ToolSet>,
+    captchaSolver?: CaptchaSolver,
   ): PrepareStepFunction<ToolSet> {
     return async (options) => {
       processMessages(options.messages);
+      if (captchaSolver) {
+        if (captchaSolver.isSolving()) {
+          this.logger({
+            category: "agent",
+            message:
+              "Captcha detected — waiting for Browserbase to solve it before continuing",
+            level: 1,
+          });
+        }
+        await captchaSolver.waitIfSolving();
+        const { solved, errored } = captchaSolver.consumeSolveResult();
+        if (solved) {
+          options.messages.push({
+            role: "user",
+            content:
+              "A captcha was automatically detected and solved — no further interaction with the captcha is needed, even if it does not visually appear solved. Continue with your task.",
+          });
+          this.logger({
+            category: "agent",
+            message:
+              "Captcha solved — injected notification into agent message stream",
+            level: 1,
+          });
+        }
+        if (errored) {
+          options.messages.push({
+            role: "user",
+            content:
+              "A captcha was detected but the automatic captcha solver failed to solve it. You may need to try a different approach or navigate around the captcha.",
+          });
+          this.logger({
+            category: "agent",
+            message:
+              "Captcha solver failed — injected error notification into agent message stream",
+            level: 1,
+          });
+        }
+      }
       if (userCallback) {
         return userCallback(options);
       }
@@ -278,6 +321,7 @@ export class V3AgentHandler {
     };
 
     let messages: ModelMessage[] = [];
+    let captchaSolver: CaptchaSolver | undefined;
 
     try {
       const {
@@ -294,6 +338,12 @@ export class V3AgentHandler {
       if (shouldHighlightCursor && this.mode === "hybrid") {
         const page = await this.v3.context.awaitActivePage();
         await page.enableCursorOverlay().catch(() => {});
+      }
+
+      // Set up captcha solver for Browserbase environments
+      if (this.captchaSolverEnabled) {
+        captchaSolver = new CaptchaSolver();
+        captchaSolver.init(() => this.v3.context.awaitActivePage());
       }
 
       messages = preparedMessages;
@@ -324,7 +374,10 @@ export class V3AgentHandler {
         temperature: 1,
         toolChoice: "auto",
 
-        prepareStep: this.createPrepareStep(callbacks?.prepareStep),
+        prepareStep: this.createPrepareStep(
+          callbacks?.prepareStep,
+          captchaSolver,
+        ),
         onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
         abortSignal: preparedOptions.signal,
         providerOptions: wrappedModel.modelId.includes("gemini-3")
@@ -381,6 +434,8 @@ export class V3AgentHandler {
         completed: false,
         messages,
       };
+    } finally {
+      captchaSolver?.dispose();
     }
   }
 
@@ -408,6 +463,13 @@ export class V3AgentHandler {
     if (shouldHighlightCursor && this.mode === "hybrid") {
       const page = await this.v3.context.awaitActivePage();
       await page.enableCursorOverlay().catch(() => {});
+    }
+
+    // Set up captcha solver for Browserbase environments
+    let captchaSolver: CaptchaSolver | undefined;
+    if (this.captchaSolverEnabled) {
+      captchaSolver = new CaptchaSolver();
+      captchaSolver.init(() => this.v3.context.awaitActivePage());
     }
 
     const callbacks = (instructionOrOptions as AgentStreamExecuteOptions)
@@ -440,66 +502,81 @@ export class V3AgentHandler {
       rejectResult(error);
     };
 
-    const streamResult = this.llmClient.streamText({
-      model: wrappedModel,
-      messages: prependSystemMessage(systemPrompt, messages),
-      tools: allTools,
-      stopWhen: (result) => this.handleStop(result, maxSteps),
-      temperature: 1,
-      toolChoice: "auto",
-      prepareStep: this.createPrepareStep(callbacks?.prepareStep),
-      onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
-      onError: (event) => {
-        if (callbacks?.onError) {
-          callbacks.onError(event);
-        }
-        handleError(event.error);
-      },
-      onChunk: callbacks?.onChunk,
-      onFinish: (event) => {
-        if (callbacks?.onFinish) {
-          callbacks.onFinish(event);
-        }
-
-        const allMessages = [...messages, ...(event.response?.messages || [])];
-        this.ensureDone(
-          state,
-          wrappedModel,
-          allMessages,
-          options.instruction,
-          options.output,
-          this.logger,
-        ).then((doneResult) => {
-          const result = this.consolidateMetricsAndResult(
-            startTime,
-            state,
-            doneResult.messages,
-            event,
-            maxSteps,
-            doneResult.output,
-          );
-          resolveResult(result);
-        });
-      },
-      onAbort: (event) => {
-        if (callbacks?.onAbort) {
-          callbacks.onAbort(event);
-        }
-        // Reject the result promise with AgentAbortError when stream is aborted
-        const reason = options.signal?.reason
-          ? String(options.signal.reason)
-          : "Stream was aborted";
-        rejectResult(new AgentAbortError(reason));
-      },
-      abortSignal: options.signal,
-      providerOptions: wrappedModel.modelId.includes("gemini-3")
-        ? {
-            google: {
-              mediaResolution: "MEDIA_RESOLUTION_HIGH",
-            },
+    let streamResult: ReturnType<typeof this.llmClient.streamText>;
+    try {
+      streamResult = this.llmClient.streamText({
+        model: wrappedModel,
+        messages: prependSystemMessage(systemPrompt, messages),
+        tools: allTools,
+        stopWhen: (result) => this.handleStop(result, maxSteps),
+        temperature: 1,
+        toolChoice: "auto",
+        prepareStep: this.createPrepareStep(
+          callbacks?.prepareStep,
+          captchaSolver,
+        ),
+        onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
+        onError: (event) => {
+          captchaSolver?.dispose();
+          if (callbacks?.onError) {
+            callbacks.onError(event);
           }
-        : undefined,
-    });
+          handleError(event.error);
+        },
+        onChunk: callbacks?.onChunk,
+        onFinish: (event) => {
+          captchaSolver?.dispose();
+          if (callbacks?.onFinish) {
+            callbacks.onFinish(event);
+          }
+
+          const allMessages = [
+            ...messages,
+            ...(event.response?.messages || []),
+          ];
+          this.ensureDone(
+            state,
+            wrappedModel,
+            allMessages,
+            options.instruction,
+            options.output,
+            this.logger,
+          ).then((doneResult) => {
+            const result = this.consolidateMetricsAndResult(
+              startTime,
+              state,
+              doneResult.messages,
+              event,
+              maxSteps,
+              doneResult.output,
+            );
+            resolveResult(result);
+          });
+        },
+        onAbort: (event) => {
+          captchaSolver?.dispose();
+          if (callbacks?.onAbort) {
+            callbacks.onAbort(event);
+          }
+          // Reject the result promise with AgentAbortError when stream is aborted
+          const reason = options.signal?.reason
+            ? String(options.signal.reason)
+            : "Stream was aborted";
+          rejectResult(new AgentAbortError(reason));
+        },
+        abortSignal: options.signal,
+        providerOptions: wrappedModel.modelId.includes("gemini-3")
+          ? {
+              google: {
+                mediaResolution: "MEDIA_RESOLUTION_HIGH",
+              },
+            }
+          : undefined,
+      });
+    } catch (error) {
+      captchaSolver?.dispose();
+      throw error;
+    }
 
     const agentStreamResult = streamResult as AgentStreamResult;
     agentStreamResult.result = resultPromise;
