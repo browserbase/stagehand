@@ -2,7 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
 import type { Page } from "../../understudy/page.js";
-import { resolveActivePage } from "../utils/activePage.js";
+import { resolvePage } from "../utils/resolvePage.js";
 import { TimeoutError } from "../../types/public/sdkErrors.js";
 
 export const ariaTreeTool = (v3: V3, toolTimeout?: number, page?: Page) =>
@@ -17,7 +17,7 @@ export const ariaTreeTool = (v3: V3, toolTimeout?: number, page?: Page) =>
           message: `Agent calling tool: ariaTree`,
           level: 1,
         });
-        const activePage = await resolveActivePage(v3, page);
+        const activePage = await resolvePage(v3, page);
         const extractOptions = toolTimeout
           ? { timeout: toolTimeout, page: activePage }
           : { page: activePage };

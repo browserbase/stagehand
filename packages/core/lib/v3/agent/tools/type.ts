@@ -10,9 +10,10 @@ import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { ensureXPath } from "../utils/xpath.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
 import { substituteVariables } from "../utils/variables.js";
+
 import type { Page } from "../../understudy/page.js";
 import type { Variables } from "../../types/public/agent.js";
-import { resolveActivePage } from "../utils/activePage.js";
+import { resolvePage } from "../utils/resolvePage.js";
 
 export const typeTool = (v3: V3, provider?: string, variables?: Variables, page?: Page) => {
   const hasVariables = variables && Object.keys(variables).length > 0;
@@ -40,7 +41,7 @@ export const typeTool = (v3: V3, provider?: string, variables?: Variables, page?
       text,
     }): Promise<TypeToolResult> => {
       try {
-        const activePage = await resolveActivePage(v3, page);
+        const activePage = await resolvePage(v3, page);
         const processed = processCoordinates(
           coordinates[0],
           coordinates[1],

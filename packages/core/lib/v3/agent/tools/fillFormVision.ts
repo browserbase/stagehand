@@ -10,9 +10,10 @@ import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { ensureXPath } from "../utils/xpath.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
 import { substituteVariables } from "../utils/variables.js";
+
 import type { Page } from "../../understudy/page.js";
 import type { Variables } from "../../types/public/agent.js";
-import { resolveActivePage } from "../utils/activePage.js";
+import { resolvePage } from "../utils/resolvePage.js";
 
 export const fillFormVisionTool = (v3: V3, provider?: string, variables?: Variables, page?: Page) => {
   const hasVariables = variables && Object.keys(variables).length > 0;
@@ -60,7 +61,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
     }),
     execute: async ({ fields }): Promise<FillFormVisionToolResult> => {
       try {
-        const activePage = await resolveActivePage(v3, page);
+        const activePage = await resolvePage(v3, page);
 
         // Process coordinates and substitute variables for each field
         // Keep original values (with %tokens%) for logging/caching, substituted values for typing

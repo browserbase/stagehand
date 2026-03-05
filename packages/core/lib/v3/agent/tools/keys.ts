@@ -1,8 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
+
 import type { Page } from "../../understudy/page.js";
-import { resolveActivePage } from "../utils/activePage.js";
+import { resolvePage } from "../utils/resolvePage.js";
 
 export const keysTool = (v3: V3, page?: Page) => {
 
@@ -23,7 +24,7 @@ Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) a
     }),
     execute: async ({ method, value, repeat }) => {
       try {
-        const activePage = await resolveActivePage(v3, page);
+        const activePage = await resolvePage(v3, page);
         v3.logger({
           category: "agent",
           message: `Agent calling tool: keys`,

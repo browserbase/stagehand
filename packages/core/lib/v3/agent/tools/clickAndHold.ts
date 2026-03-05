@@ -4,8 +4,9 @@ import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
 import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { ensureXPath } from "../utils/xpath.js";
+
 import type { Page } from "../../understudy/page.js";
-import { resolveActivePage } from "../utils/activePage.js";
+import { resolvePage } from "../utils/resolvePage.js";
 
 export const clickAndHoldTool = (v3: V3, provider?: string, page?: Page) => {
 
@@ -26,7 +27,7 @@ export const clickAndHoldTool = (v3: V3, provider?: string, page?: Page) => {
     }),
     execute: async ({ describe, coordinates, duration }) => {
       try {
-        const activePage = await resolveActivePage(v3, page);
+        const activePage = await resolvePage(v3, page);
         const processed = processCoordinates(
           coordinates[0],
           coordinates[1],

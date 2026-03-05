@@ -1,8 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
+
 import type { Page } from "../../understudy/page.js";
-import { resolveActivePage } from "../utils/activePage.js";
+import { resolvePage } from "../utils/resolvePage.js";
 
 export const navBackTool = (v3: V3, page?: Page) => {
 
@@ -17,7 +18,7 @@ export const navBackTool = (v3: V3, page?: Page) => {
         message: `Agent calling tool: navback`,
         level: 1,
       });
-      const activePage = await resolveActivePage(v3, page);
+      const activePage = await resolvePage(v3, page);
       await activePage.goBack({ waitUntil: "domcontentloaded" });
       v3.recordAgentReplayStep({
         type: "navback",

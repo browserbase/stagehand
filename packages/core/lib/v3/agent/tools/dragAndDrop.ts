@@ -9,8 +9,9 @@ import type {
 import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { ensureXPath } from "../utils/xpath.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
+
 import type { Page } from "../../understudy/page.js";
-import { resolveActivePage } from "../utils/activePage.js";
+import { resolvePage } from "../utils/resolvePage.js";
 
 export const dragAndDropTool = (v3: V3, provider?: string, page?: Page) => {
 
@@ -32,7 +33,7 @@ export const dragAndDropTool = (v3: V3, provider?: string, page?: Page) => {
       endCoordinates,
     }): Promise<DragAndDropToolResult> => {
       try {
-        const activePage = await resolveActivePage(v3, page);
+        const activePage = await resolvePage(v3, page);
         const processedStart = processCoordinates(
           startCoordinates[0],
           startCoordinates[1],

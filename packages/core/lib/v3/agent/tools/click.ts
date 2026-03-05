@@ -9,8 +9,9 @@ import type {
 import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { ensureXPath } from "../utils/xpath.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
+
 import type { Page } from "../../understudy/page.js";
-import { resolveActivePage } from "../utils/activePage.js";
+import { resolvePage } from "../utils/resolvePage.js";
 
 export const clickTool = (v3: V3, provider?: string, page?: Page) => {
 
@@ -29,7 +30,7 @@ export const clickTool = (v3: V3, provider?: string, page?: Page) => {
     }),
     execute: async ({ describe, coordinates }): Promise<ClickToolResult> => {
       try {
-        const activePage = await resolveActivePage(v3, page);
+        const activePage = await resolvePage(v3, page);
         const processed = processCoordinates(
           coordinates[0],
           coordinates[1],

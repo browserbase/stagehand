@@ -6,9 +6,10 @@ import type {
   ModelOutputContentItem,
 } from "../../types/public/agent.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
+
 import type { Page } from "../../understudy/page.js";
 import type { AgentToolMode } from "../../types/public/agent.js";
-import { resolveActivePage } from "../utils/activePage.js";
+import { resolvePage } from "../utils/resolvePage.js";
 
 export const waitTool = (v3: V3, mode?: AgentToolMode, page?: Page) => {
 
@@ -36,7 +37,7 @@ export const waitTool = (v3: V3, mode?: AgentToolMode, page?: Page) => {
 
       // Take screenshot after wait in hybrid mode for visual feedback
       if (mode === "hybrid") {
-        const activePage = await resolveActivePage(v3, page);
+        const activePage = await resolvePage(v3, page);
         const screenshotBase64 = await waitAndCaptureScreenshot(activePage, 0);
         return { success: true, waited: timeMs, screenshotBase64 };
       }
