@@ -2,12 +2,15 @@ name: Tests
 
 on:
   workflow_run:
-    # DO NOT CHANGE THIS TO pull_request_target as it will leak secrets to external contributors before approval.
-    # DO NOT CHANGE THIS to pull_request as it will prevent us from running CI on PRs from external contributors.
-    # Learn more: https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/
-    # https://dvc.org/blog/testing-external-contributions-using-github-actions-secrets/
+    # DO NOT CHANGE THIS TO pull_request_target as it will leak secrets to external contributors before maintainer approves the CI run.
+    # DO NOT CHANGE THIS to pull_request as it will prevent us from running CI on PRs from external contributors with secrets *after* approval.
+    # Learn more:
+    # - https://github.blog/changelog/2025-11-07-actions-pull_request_target-and-environment-branch-protections-changes/
+    # - https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/
+    # - https://dvc.org/blog/testing-external-contributions-using-github-actions-secrets/
+    # - https://github.com/orgs/community/discussions/179107
     workflows:
-      - "Ensure Contributor Is Trusted to Run CI"
+      - "Ensure Contributor Is Trusted to Run CI"   # filename: ensure-contributor-is-trusted-to-run-ci.yml
     types:
       - completed
 
