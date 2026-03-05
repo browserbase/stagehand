@@ -8,14 +8,13 @@ import type {
 } from "../../types/public/agent.js";
 import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
+import type { Page } from "../../understudy/page.js";
+import { resolvePage } from "../utils/resolvePage.js";
 
 /**
  * Simple scroll tool for DOM mode (non-grounding models).
  * No coordinates - scrolls from viewport center.
  */
-import type { Page } from "../../understudy/page.js";
-import { resolvePage } from "../utils/resolvePage.js";
-
 export const scrollTool = (v3: V3, page?: Page) => {
 
   return tool({
@@ -92,9 +91,6 @@ export const scrollTool = (v3: V3, page?: Page) => {
  * Scroll tool for hybrid mode (grounding models).
  * Supports optional coordinates for scrolling within nested scrollable elements.
  */
-import type { Page } from "../../understudy/page.js";
-import { resolvePage } from "../utils/resolvePage.js";
-
 export const scrollVisionTool = (v3: V3, provider?: string, page?: Page) => {
 
   return tool({
