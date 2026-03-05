@@ -1,5 +1,25 @@
 # @browserbasehq/stagehand
 
+## 3.2.0
+
+### Minor Changes
+
+- [#1779](https://github.com/browserbase/stagehand/pull/1779) [`2f43ffa`](https://github.com/browserbase/stagehand/commit/2f43ffac11778152d17e4c44405770cc32c3ec8c) Thanks [@shrey150](https://github.com/shrey150)! - feat: add `cdpHeaders` option to `localBrowserLaunchOptions` for passing custom HTTP headers when connecting to an existing browser via CDP URL
+
+- [#1774](https://github.com/browserbase/stagehand/pull/1774) [`521a10e`](https://github.com/browserbase/stagehand/commit/521a10e3698fc5631e219947bc90dad0f8bddaa8) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add new page.setExtraHTTPHeaders() method
+
+### Patch Changes
+
+- [#1759](https://github.com/browserbase/stagehand/pull/1759) [`505e8c6`](https://github.com/browserbase/stagehand/commit/505e8c6736f3706328dbc8df670c49a018058388) Thanks [@shrey150](https://github.com/shrey150)! - Add bedrock to the provider enum in model configuration schemas and regenerate OpenAPI spec.
+
+- [#1764](https://github.com/browserbase/stagehand/pull/1764) [`6ba0a1d`](https://github.com/browserbase/stagehand/commit/6ba0a1db7fc2d5d5a2f8927b1417d8f1d15eda10) Thanks [@shrey150](https://github.com/shrey150)! - Expose `headers` in `GoogleVertexProviderSettings` so model configs can pass custom provider headers (for example `X-Goog-Priority`) without TypeScript errors.
+
+- [#1766](https://github.com/browserbase/stagehand/pull/1766) [`7817fcc`](https://github.com/browserbase/stagehand/commit/7817fcc315eee4455ce04567cf56c9ec801caf0b) Thanks [@tkattkat](https://github.com/tkattkat)! - Add configurable timeout to tools in agent
+
+- [#1749](https://github.com/browserbase/stagehand/pull/1749) [`7390508`](https://github.com/browserbase/stagehand/commit/73905088c5ed5923d276da9cce2efd0a0a3a46eb) Thanks [@pirate](https://github.com/pirate)! - When connecting to a browser session that has zero open tabs, Stagehand now automatically creates an initial `about:blank` tab so the connection can continue.
+
+- [#1761](https://github.com/browserbase/stagehand/pull/1761) [`611f43a`](https://github.com/browserbase/stagehand/commit/611f43ac8d4c580216d55d2b217c14a9a9c11013) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix issue where handlePossibleNavigation was producing unnecessary error logs on clicks that trigger page close
+
 ## 3.1.0
 
 ### Minor Changes
