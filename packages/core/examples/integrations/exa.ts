@@ -1,6 +1,16 @@
 import { Stagehand } from "../../lib/v3/index.js";
 
-async function example(stagehand: Stagehand) {
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  model: "openai/gpt-4.1",
+  verbose: 1,
+  logInferenceToFile: true,
+  experimental: true,
+});
+
+try {
+  await stagehand.init();
+
   const page = stagehand.context.pages()[0];
   await page.goto("https://www.google.com");
 
@@ -20,23 +30,8 @@ async function example(stagehand: Stagehand) {
   );
 
   console.log(result);
+} catch (error) {
+  console.error("Error running example:", error);
+} finally {
+  await stagehand.close();
 }
-
-(async () => {
-  const stagehand = new Stagehand({
-    env: "LOCAL",
-    model: "openai/gpt-4.1",
-    verbose: 1,
-    logInferenceToFile: true,
-    experimental: true,
-  });
-
-  try {
-    await stagehand.init();
-    await example(stagehand);
-  } catch (error) {
-    console.error("Error running example:", error);
-  } finally {
-    await stagehand.close();
-  }
-})();

@@ -83,6 +83,4 @@ async function formFillingSensible() {
   }
 }
 
-(async () => {
-  await formFillingSensible();
-})();
+await formFillingSensible();

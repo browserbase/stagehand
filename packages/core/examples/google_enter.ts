@@ -6,19 +6,13 @@
 
 import { Stagehand } from "../lib/v3/index.js";
 
-async function example() {
-  const stagehand = new Stagehand({
-    env: "BROWSERBASE",
-    verbose: 1,
-  });
-  await stagehand.init();
-  const page = stagehand.context.pages()[0];
-  await page.goto("https://google.com");
-  await stagehand.act("type in 'Browserbase'");
-  await stagehand.act("press enter");
-  await stagehand.close();
-}
-
-(async () => {
-  await example();
-})();
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  verbose: 1,
+});
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+await page.goto("https://google.com");
+await stagehand.act("type in 'Browserbase'");
+await stagehand.act("press enter");
+await stagehand.close();
