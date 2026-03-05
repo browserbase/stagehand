@@ -1,5 +1,5 @@
-import { Page } from "../../understudy/page";
-import { V3 } from "../../v3";
+import { Page } from "../../understudy/page.js";
+import { V3 } from "../../v3.js";
 
 /**
  * Prefers the page parameter if provided, otherwise gets the active page via

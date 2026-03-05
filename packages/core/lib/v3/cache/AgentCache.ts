@@ -736,7 +736,11 @@ export class AgentCache {
       }
       return step;
     }
-    await this.act(step.instruction, { timeout: step.timeout, variables });
+    await this.act(step.instruction, {
+      timeout: step.timeout,
+      variables,
+      page,
+    });
     return step;
   }
 
