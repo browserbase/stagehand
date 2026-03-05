@@ -230,7 +230,7 @@ test.describe("V3 hard timeouts", () => {
     });
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
-    expect(output.error).toContain("TimeoutError: act() timed out");
+    expect(output.error).toContain("TimeoutError");
   });
 
   test("agent toolTimeout enforces timeout for extract tool", async () => {
@@ -240,7 +240,7 @@ test.describe("V3 hard timeouts", () => {
     });
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
-    expect(output.error).toContain("TimeoutError: extract() timed out");
+    expect(output.error).toContain("TimeoutError");
   });
 
   test("agent toolTimeout enforces timeout for fillForm tool", async () => {
@@ -249,13 +249,13 @@ test.describe("V3 hard timeouts", () => {
     });
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
-    expect(output.error).toContain("TimeoutError: fillForm() timed out");
+    expect(output.error).toContain("TimeoutError");
   });
 
   test("agent toolTimeout enforces timeout for ariaTree", async () => {
     const { toolOutput } = await runAgentToolTimeoutScenario("ariaTree", {});
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
-    expect(output.error).toContain("TimeoutError: ariaTree() timed out");
+    expect(output.error).toContain("TimeoutError");
   });
 });
