@@ -1,14 +1,19 @@
 name: Tests
 
 on:
-  pull_request:
+  workflow_run:
+    # DO NOT CHANGE THIS TO pull_request_target as it will leak secrets to external contributors before maintainer approves the CI run.
+    # DO NOT CHANGE THIS to pull_request as it will prevent us from running CI on PRs from external contributors with secrets *after* approval.
+    # Learn more:
+    # - https://github.blog/changelog/2025-11-07-actions-pull_request_target-and-environment-branch-protections-changes/
+    # - https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/
+    # - https://dvc.org/blog/testing-external-contributions-using-github-actions-secrets/
+    # - https://github.com/orgs/community/discussions/179107
+    workflows:
+      - "Ensure Contributor Is Trusted to Run CI"   # filename: ensure-contributor-is-trusted-to-run-ci.yml
     types:
-      - opened
-      - synchronize
-      - labeled
-      - unlabeled
-    paths-ignore:
-      - "packages/docs/**"
+      - completed
+
 
 permissions:
   contents: read
@@ -32,20 +37,44 @@ env:
   TURBO_TELEMETRY_DISABLED: "1"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-pr-${{ github.event.workflow_run.pull_requests[0].number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   determine-changes:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.pull_requests[0].number != null
     runs-on: ubuntu-latest
     outputs:
       core: ${{ steps.filter.outputs.core }}
       evals: ${{ steps.filter.outputs.evals }}
       server: ${{ steps.filter.outputs.server }}
       docs-only: ${{ steps.filter.outputs.docs-only }}
+      labels: ${{ steps.pr.outputs.labels }}
     steps:
+      - name: Resolve PR labels
+        id: pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pr_number=$(jq -r '.workflow_run.pull_requests[0].number // empty' "$GITHUB_EVENT_PATH")
+          if [ -z "$pr_number" ]; then
+            echo "No associated pull request found."
+            exit 1
+          fi
+          pr=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${pr_number}")
+          labels=$(jq -cr '[.labels[].name]' <<< "$pr")
+          base_sha=$(jq -r '.base.sha' <<< "$pr")
+          echo "labels=${labels}" >> "$GITHUB_OUTPUT"
+          echo "base-sha=${base_sha}" >> "$GITHUB_OUTPUT"
+
       - name: Check out repository code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: "${{ github.event.workflow_run.head_sha }}"
 
       - name: Log GitHub API rate limit
         env:
@@ -76,6 +105,8 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          base: ${{ steps.pr.outputs.base-sha }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           filters: |
             core:
               - '.github/workflows/ci.yml'
@@ -129,7 +160,7 @@ jobs:
           }
 
           # Check if skip-evals label is present
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'skip-evals') }}" == "true" ]]; then
+          if [[ "${{ contains(fromJson(needs.determine-changes.outputs.labels), 'skip-evals') }}" == "true" ]]; then
             echo "skip-evals label found - skipping all evals"
             echo "skip-all-evals=true" >> $GITHUB_OUTPUT
             emit_categories
@@ -145,7 +176,7 @@ jobs:
           fi
 
           # Check for skip-regression-evals label
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'skip-regression-evals') }}" == "true" ]]; then
+          if [[ "${{ contains(fromJson(needs.determine-changes.outputs.labels), 'skip-regression-evals') }}" == "true" ]]; then
             echo "skip-regression-evals label found - regression evals will be skipped"
           else
             echo "Regression evals will run by default"
@@ -154,22 +185,22 @@ jobs:
 
           # Check for specific labels
           echo "skip-all-evals=false" >> $GITHUB_OUTPUT
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'combination') }}" == "true" ]]; then
+          if [[ "${{ contains(fromJson(needs.determine-changes.outputs.labels), 'combination') }}" == "true" ]]; then
             add_category "combination"
           fi
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'extract') }}" == "true" ]]; then
+          if [[ "${{ contains(fromJson(needs.determine-changes.outputs.labels), 'extract') }}" == "true" ]]; then
             add_category "extract"
           fi
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'act') }}" == "true" ]]; then
+          if [[ "${{ contains(fromJson(needs.determine-changes.outputs.labels), 'act') }}" == "true" ]]; then
             add_category "act"
           fi
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'observe') }}" == "true" ]]; then
+          if [[ "${{ contains(fromJson(needs.determine-changes.outputs.labels), 'observe') }}" == "true" ]]; then
             add_category "observe"
           fi
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'targeted-extract') }}" == "true" ]]; then
+          if [[ "${{ contains(fromJson(needs.determine-changes.outputs.labels), 'targeted-extract') }}" == "true" ]]; then
             add_category "targeted_extract"
           fi
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'agent') }}" == "true" ]]; then
+          if [[ "${{ contains(fromJson(needs.determine-changes.outputs.labels), 'agent') }}" == "true" ]]; then
             add_category "agent"
           fi
           emit_categories
@@ -181,6 +212,8 @@ jobs:
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.workflow_run.head_sha }}"
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
@@ -214,6 +247,8 @@ jobs:
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.workflow_run.head_sha }}"
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
@@ -259,6 +294,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          ref: "${{ github.event.workflow_run.head_sha }}"
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
@@ -298,6 +334,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          ref: "${{ github.event.workflow_run.head_sha }}"
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
@@ -330,6 +367,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          ref: "${{ github.event.workflow_run.head_sha }}"
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
@@ -374,9 +412,7 @@ jobs:
     name: server/integration/${{ matrix.test.name }}
     runs-on: ubuntu-latest
     needs: [build-server-sea, discover-server-tests, run-build]
-    if: >
-      needs.discover-server-tests.outputs.has-integration-tests == 'true' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+    if: needs.discover-server-tests.outputs.has-integration-tests == 'true'
 
     strategy:
       fail-fast: false
@@ -399,6 +435,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          ref: "${{ github.event.workflow_run.head_sha }}"
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
@@ -446,6 +483,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          ref: "${{ github.event.workflow_run.head_sha }}"
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
@@ -472,8 +510,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 50
     if: >
-      needs.discover-e2e-tests.outputs.has-e2e-tests == 'true' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      needs.discover-e2e-tests.outputs.has-e2e-tests == 'true'
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -491,6 +528,8 @@ jobs:
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.workflow_run.head_sha }}"
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
@@ -519,8 +558,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 50
     if: >
-      needs.discover-e2e-tests.outputs.has-e2e-tests == 'true' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      needs.discover-e2e-tests.outputs.has-e2e-tests == 'true'
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -538,6 +576,8 @@ jobs:
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.workflow_run.head_sha }}"
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
@@ -574,8 +614,7 @@ jobs:
         needs.run-e2e-bb-tests.result != 'failure' &&
         needs.run-e2e-bb-tests.result != 'cancelled' &&
         needs.determine-evals.outputs.skip-all-evals != 'true' &&
-        needs.determine-evals.outputs.eval-categories != '[]' &&
-        github.event.pull_request.head.repo.full_name == github.repository
+        needs.determine-evals.outputs.eval-categories != '[]'
       }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -595,6 +634,8 @@ jobs:
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.workflow_run.head_sha }}"
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
@@ -684,6 +725,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          ref: "${{ github.event.workflow_run.head_sha }}"
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
@@ -790,7 +832,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_ID: ${{ github.run_id }}
-          PULL_NUMBER: ${{ github.event.pull_request.number }}
+          PULL_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number || '' }}
           TESTS_FAILED: ${{ steps.coverage-status.outputs.tests_failed }}
           TOTAL_COVERAGE: ${{ steps.coverage-status.outputs.total_coverage }}
         run: |
