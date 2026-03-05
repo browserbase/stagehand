@@ -91,6 +91,7 @@ import { ActTimeoutError } from "./types/public/sdkErrors.js";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
+const DEFAULT_AGENT_TOOL_TIMEOUT_MS = 45000;
 
 type ResolvedModelConfiguration = {
   modelName: AvailableModel;
@@ -1094,12 +1095,8 @@ export class V3 {
             frameId: v3Page.mainFrameId(),
           });
         } else {
-          const effectiveTimeoutMs =
-            typeof options?.timeout === "number" && options.timeout > 0
-              ? options.timeout
-              : undefined;
           const ensureTimeRemaining = createTimeoutGuard(
-            effectiveTimeoutMs,
+            options?.timeout,
             (ms) => new ActTimeoutError(ms),
           );
           actResult = await this.actHandler.takeDeterministicAction(
@@ -1705,8 +1702,15 @@ export class V3 {
 
     const resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions =
       typeof instructionOrOptions === "string"
-        ? { instruction: instructionOrOptions }
-        : instructionOrOptions;
+        ? {
+            instruction: instructionOrOptions,
+            toolTimeout: DEFAULT_AGENT_TOOL_TIMEOUT_MS,
+          }
+        : {
+            ...instructionOrOptions,
+            toolTimeout:
+              instructionOrOptions.toolTimeout ?? DEFAULT_AGENT_TOOL_TIMEOUT_MS,
+          };
 
     const callbacksWithSafety = resolvedOptions.callbacks as
       | AgentExecuteCallbacks
@@ -1869,8 +1873,16 @@ export class V3 {
 
             const resolvedOptions: AgentExecuteOptions =
               typeof instructionOrOptions === "string"
-                ? { instruction: instructionOrOptions }
-                : instructionOrOptions;
+                ? {
+                    instruction: instructionOrOptions,
+                    toolTimeout: DEFAULT_AGENT_TOOL_TIMEOUT_MS,
+                  }
+                : {
+                    ...instructionOrOptions,
+                    toolTimeout:
+                      instructionOrOptions.toolTimeout ??
+                      DEFAULT_AGENT_TOOL_TIMEOUT_MS,
+                  };
             if (resolvedOptions.page) {
               const normalizedPage = await this.normalizeToV3Page(
                 resolvedOptions.page,

@@ -11,6 +11,7 @@ import {
   CachedActEntry,
 } from "../types/private/index.js";
 import { StagehandNotInitializedError } from "../types/public/sdkErrors.js";
+import { withTimeout } from "../timeoutConfig.js";
 
 export class ActCache {
   private readonly storage: CacheStorage;
@@ -276,7 +277,7 @@ export class ActCache {
       };
     };
 
-    return await this.runWithTimeout(execute, timeout);
+    return await withTimeout(execute(), timeout, "act()");
   }
 
   private haveActionsChanged(original: Action[], updated: Action[]): boolean {
@@ -381,31 +382,5 @@ export class ActCache {
       }
     }
     return true;
-  }
-
-  private async runWithTimeout<T>(
-    run: () => Promise<T>,
-    timeout?: number,
-  ): Promise<T> {
-    if (!timeout) {
-      return await run();
-    }
-
-    return await new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(new Error(`act() timed out after ${timeout}ms`));
-      }, timeout);
-
-      void run().then(
-        (value) => {
-          clearTimeout(timer);
-          resolve(value);
-        },
-        (err) => {
-          clearTimeout(timer);
-          reject(err);
-        },
-      );
-    });
   }
 }

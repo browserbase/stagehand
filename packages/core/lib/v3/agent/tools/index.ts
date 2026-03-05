@@ -48,6 +48,11 @@ export interface V3AgentToolOptions {
    * When provided, these tools will have an optional useVariable field.
    */
   variables?: Variables;
+  /**
+   * Timeout in milliseconds for tool calls that invoke v3 methods (act, extract, fillForm, ariaTree).
+   * Forwarded to the underlying v3 call's `timeout` option.
+   */
+  toolTimeout?: number;
 }
 
 /**
@@ -90,15 +95,16 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const provider = options?.provider;
   const excludeTools = options?.excludeTools;
   const variables = options?.variables;
+  const toolTimeout = options?.toolTimeout;
 
   const allTools: ToolSet = {
-    act: actTool(v3, executionModel, variables),
-    ariaTree: ariaTreeTool(v3),
+    act: actTool(v3, executionModel, variables, toolTimeout),
+    ariaTree: ariaTreeTool(v3, toolTimeout),
     click: clickTool(v3, provider),
     clickAndHold: clickAndHoldTool(v3, provider),
     dragAndDrop: dragAndDropTool(v3, provider),
-    extract: extractTool(v3, executionModel),
-    fillForm: fillFormTool(v3, executionModel, variables),
+    extract: extractTool(v3, executionModel, toolTimeout),
+    fillForm: fillFormTool(v3, executionModel, variables, toolTimeout),
     fillFormVision: fillFormVisionTool(v3, provider, variables),
     goto: gotoTool(v3),
     keys: keysTool(v3),
@@ -110,7 +116,6 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     wait: waitTool(v3, mode),
   };
 
-  // Only include search tool if BRAVE_API_KEY is configured
   if (process.env.BRAVE_API_KEY) {
     allTools.search = searchTool(v3);
   }

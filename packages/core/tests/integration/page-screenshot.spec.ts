@@ -70,7 +70,9 @@ test.describe("Page.screenshot options", () => {
     };
 
     try {
-      await expect(page.screenshot({ timeout: 10 })).rejects.toThrow(/timeout/);
+      await expect(page.screenshot({ timeout: 10 })).rejects.toThrow(
+        /timed out|timeout/i,
+      );
     } finally {
       (
         mainFrame as typeof mainFrame & {

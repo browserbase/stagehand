@@ -138,11 +138,8 @@ export class ActHandler {
     const { instruction, page, variables, timeout, model } = params;
 
     const llmClient = this.resolveLlmClient(model);
-    const effectiveTimeoutMs =
-      typeof timeout === "number" && timeout > 0 ? timeout : undefined;
-
     const ensureTimeRemaining = createTimeoutGuard(
-      effectiveTimeoutMs,
+      timeout,
       (ms) => new ActTimeoutError(ms),
     );
 

@@ -52,10 +52,10 @@ import {
   normalizeScreenshotClip,
   runScreenshotCleanups,
   setTransparentBackground,
-  withScreenshotTimeout,
   type ScreenshotCleanup,
 } from "./screenshotUtils.js";
 import { InitScriptSource } from "../types/private/index.js";
+import { withTimeout } from "../timeoutConfig.js";
 
 /**
  * Page
@@ -1169,7 +1169,7 @@ export class Page {
       }
     };
 
-    return withScreenshotTimeout(opts.timeout, exec);
+    return await withTimeout(exec(), opts.timeout, "screenshot");
   }
 
   /**

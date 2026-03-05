@@ -11,9 +11,17 @@ export function getEnvTimeoutMs(name: string): number | undefined {
 
 export async function withTimeout<T>(
   promise: Promise<T>,
-  timeoutMs: number,
+  timeoutMs: number | null | undefined,
   operation: string,
 ): Promise<T> {
+  if (
+    typeof timeoutMs !== "number" ||
+    !Number.isFinite(timeoutMs) ||
+    timeoutMs <= 0
+  ) {
+    return await promise;
+  }
+
   let timeoutId: NodeJS.Timeout | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {

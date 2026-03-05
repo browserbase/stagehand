@@ -22,9 +22,11 @@ import { SupportedUnderstudyAction } from "./v3/types/private/handlers.js";
 export type { LLMParsedResponse, LLMUsage } from "./v3/llm/LLMClient.js";
 
 function withLlmTimeout<T>(promise: Promise<T>, operation: string): Promise<T> {
-  const timeoutMs = getEnvTimeoutMs("LLM_MAX_MS");
-  if (!timeoutMs) return promise;
-  return withTimeout(promise, timeoutMs, `LLM ${operation}`);
+  return withTimeout(
+    promise,
+    getEnvTimeoutMs("LLM_MAX_MS"),
+    `LLM ${operation}`,
+  );
 }
 
 export async function extract<T extends StagehandZodObject>({

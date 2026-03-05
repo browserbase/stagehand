@@ -3,11 +3,13 @@ import { z } from "zod";
 import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
 import type { AgentModelConfig, Variables } from "../../types/public/agent.js";
+import { TimeoutError } from "../../types/public/sdkErrors.js";
 
 export const actTool = (
   v3: V3,
   executionModel?: string | AgentModelConfig,
   variables?: Variables,
+  toolTimeout?: number,
 ) => {
   const hasVariables = variables && Object.keys(variables).length > 0;
   const actionDescription = hasVariables
@@ -34,8 +36,9 @@ export const actTool = (
           },
         });
         const options = executionModel
-          ? { model: executionModel, variables }
-          : { variables };
+          ? { model: executionModel, variables, timeout: toolTimeout }
+          : { variables, timeout: toolTimeout };
+
         const result = await v3.act(action, options);
         const actions = (result.actions as Action[] | undefined) ?? [];
         v3.recordAgentReplayStep({
@@ -60,7 +63,22 @@ export const actTool = (
         }
         return response;
       } catch (error) {
-        return { success: false, error: error?.message ?? String(error) };
+        if (error instanceof TimeoutError) {
+          const timeoutMessage = `TimeoutError while waiting for act() to complete (it may continue executing in the background)`;
+          v3.logger({
+            category: "agent",
+            message: timeoutMessage,
+            level: 0,
+          });
+          return {
+            success: false,
+            error: `${timeoutMessage} — try using a different description for the action`,
+          };
+        }
+        return {
+          success: false,
+          error: error?.message ?? String(error),
+        };
       }
     },
   });

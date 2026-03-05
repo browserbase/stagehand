@@ -218,6 +218,7 @@ describe("Stagehand public API types", () => {
       output?: Stagehand.StagehandZodObject;
       callbacks?: Stagehand.AgentExecuteCallbacks;
       variables?: Stagehand.Variables;
+      toolTimeout?: number;
     };
 
     it("matches expected type shape", () => {
@@ -237,6 +238,7 @@ describe("Stagehand public API types", () => {
       output?: Stagehand.StagehandZodObject;
       callbacks?: Stagehand.AgentStreamCallbacks;
       variables?: Stagehand.Variables;
+      toolTimeout?: number;
     };
 
     it("matches expected type shape", () => {

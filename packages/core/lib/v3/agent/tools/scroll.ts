@@ -65,6 +65,13 @@ export const scrollTool = (v3: V3) =>
       };
     },
     toModelOutput: (result) => {
+      if (result.success === false || result.error !== undefined) {
+        return {
+          type: "content",
+          value: [{ type: "text", text: JSON.stringify(result) }],
+        };
+      }
+
       return {
         type: "json",
         value: {
@@ -163,6 +170,13 @@ export const scrollVisionTool = (v3: V3, provider?: string) =>
       };
     },
     toModelOutput: (result) => {
+      if (result.success === false || result.error !== undefined) {
+        return {
+          type: "content",
+          value: [{ type: "text", text: JSON.stringify(result) }],
+        };
+      }
+
       const content: ModelOutputContentItem[] = [
         {
           type: "text",

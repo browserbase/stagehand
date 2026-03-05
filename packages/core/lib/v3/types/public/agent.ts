@@ -393,6 +393,15 @@ export interface AgentExecuteOptionsBase {
    * ```
    */
   variables?: Variables;
+  /**
+   * Timeout in milliseconds for each agent tool call.
+   * If a tool call exceeds this duration, it will be aborted and
+   * reported back to the LLM as a timeout error so it can retry or adjust.
+   * For tools that call v3 methods (act, extract, fillForm, ariaTree), the
+   * timeout is also forwarded to the underlying v3 call for true cancellation.
+   * @default 45000 (45 seconds)
+   */
+  toolTimeout?: number;
 }
 
 /**
@@ -736,6 +745,7 @@ export interface ScrollToolResult {
   success: boolean;
   message: string;
   scrolledPixels: number;
+  error?: string;
 }
 
 export interface ScrollVisionToolResult extends ScrollToolResult {
@@ -746,4 +756,5 @@ export interface WaitToolResult {
   success: boolean;
   waited: number;
   screenshotBase64?: string;
+  error?: string;
 }
