@@ -52,14 +52,11 @@ export const LocalBrowserLaunchOptionsSchema = z
 /** Detailed model configuration object */
 export const ModelConfigObjectSchema = z
   .object({
-    provider: z
-      .enum(["openai", "anthropic", "google", "microsoft", "bedrock"])
-      .optional()
-      .meta({
-        description:
-          "AI provider for the model (or provide a baseURL endpoint instead)",
-        example: "openai",
-      }),
+    provider: z.string().optional().meta({
+      description:
+        "AI provider for the model (or provide a baseURL endpoint instead)",
+      example: "openai",
+    }),
     modelName: z.string().meta({
       description:
         "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
@@ -590,7 +587,7 @@ export const ObserveResponseSchema = wrapResponse(
 export const AgentConfigSchema = z
   .object({
     provider: z // cloud accepts provider: at the top level for legacy reasons, in the future we should remove it
-      .enum(["openai", "anthropic", "google", "microsoft", "bedrock"])
+      .string()
       .optional()
       .meta({
         description:
