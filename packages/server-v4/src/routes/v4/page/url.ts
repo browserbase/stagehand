@@ -1,13 +1,13 @@
 import type { RouteOptions } from "fastify";
+import { Api } from "@browserbasehq/stagehand";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
+  PageUrlActionSchema,
   PageUrlRequestSchema,
   PageUrlResponseSchema,
-  ValidationErrorResponseSchema,
-  V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createNotImplementedHandler } from "./shared.js";
+import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const urlRoute: RouteOptions = {
   method: "POST",
@@ -15,14 +15,20 @@ const urlRoute: RouteOptions = {
   schema: {
     operationId: "PageUrl",
     summary: "page.url",
+    headers: Api.SessionHeadersSchema,
     body: PageUrlRequestSchema,
     response: {
       200: PageUrlResponseSchema,
-      400: ValidationErrorResponseSchema,
-      501: V4ErrorResponseSchema,
+      ...pageErrorResponses,
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: createNotImplementedHandler("POST /v4/page/url is not implemented yet"),
+  handler: createPageActionHandler({
+    method: "url",
+    actionSchema: PageUrlActionSchema,
+    execute: async ({ page }) => {
+      return { url: page.url() };
+    },
+  }),
 };
 
 export default urlRoute;

@@ -1,13 +1,13 @@
 import type { RouteOptions } from "fastify";
+import { Api } from "@browserbasehq/stagehand";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
+  PageWaitForLoadStateActionSchema,
   PageWaitForLoadStateRequestSchema,
   PageWaitForLoadStateResponseSchema,
-  ValidationErrorResponseSchema,
-  V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createNotImplementedHandler } from "./shared.js";
+import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const waitForLoadStateRoute: RouteOptions = {
   method: "POST",
@@ -15,16 +15,21 @@ const waitForLoadStateRoute: RouteOptions = {
   schema: {
     operationId: "PageWaitForLoadState",
     summary: "page.waitForLoadState",
+    headers: Api.SessionHeadersSchema,
     body: PageWaitForLoadStateRequestSchema,
     response: {
       200: PageWaitForLoadStateResponseSchema,
-      400: ValidationErrorResponseSchema,
-      501: V4ErrorResponseSchema,
+      ...pageErrorResponses,
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: createNotImplementedHandler(
-    "POST /v4/page/waitForLoadState is not implemented yet",
-  ),
+  handler: createPageActionHandler({
+    method: "waitForLoadState",
+    actionSchema: PageWaitForLoadStateActionSchema,
+    execute: async ({ page, params }) => {
+      await page.waitForLoadState(params.state, params.timeoutMs);
+      return { state: params.state };
+    },
+  }),
 };
 
 export default waitForLoadStateRoute;

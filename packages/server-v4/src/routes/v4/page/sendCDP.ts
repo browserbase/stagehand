@@ -1,13 +1,13 @@
 import type { RouteOptions } from "fastify";
+import { Api } from "@browserbasehq/stagehand";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
+  PageSendCDPActionSchema,
   PageSendCDPRequestSchema,
   PageSendCDPResponseSchema,
-  ValidationErrorResponseSchema,
-  V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createNotImplementedHandler } from "./shared.js";
+import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const sendCDPRoute: RouteOptions = {
   method: "POST",
@@ -15,16 +15,34 @@ const sendCDPRoute: RouteOptions = {
   schema: {
     operationId: "PageSendCDP",
     summary: "page.sendCDP",
+    headers: Api.SessionHeadersSchema,
     body: PageSendCDPRequestSchema,
     response: {
       200: PageSendCDPResponseSchema,
-      400: ValidationErrorResponseSchema,
-      501: V4ErrorResponseSchema,
+      ...pageErrorResponses,
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: createNotImplementedHandler(
-    "POST /v4/page/sendCDP is not implemented yet",
-  ),
+  handler: createPageActionHandler({
+    method: "sendCDP",
+    actionSchema: PageSendCDPActionSchema,
+    execute: async ({ page, params }) => {
+      if (
+        params.params !== undefined &&
+        (typeof params.params !== "object" ||
+          params.params === null ||
+          Array.isArray(params.params))
+      ) {
+        throw new Error("CDP params must be an object");
+      }
+
+      const value = await page.sendCDP(
+        params.method,
+        params.params as Record<string, unknown> | undefined,
+      );
+
+      return { value };
+    },
+  }),
 };
 
 export default sendCDPRoute;

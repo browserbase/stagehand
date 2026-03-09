@@ -1,14 +1,13 @@
 import type { RouteOptions } from "fastify";
+import { Api } from "@browserbasehq/stagehand";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageActionDetailsQuerySchema,
   PageActionDetailsResponseSchema,
   PageActionIdParamsSchema,
-  ValidationErrorResponseSchema,
-  V4ErrorResponseSchema,
 } from "../../../../schemas/v4/page.js";
-import { createNotImplementedHandler } from "../shared.js";
+import { pageActionDetailsHandler, pageErrorResponses } from "../shared.js";
 
 const pageActionDetailsRoute: RouteOptions = {
   method: "GET",
@@ -16,18 +15,15 @@ const pageActionDetailsRoute: RouteOptions = {
   schema: {
     operationId: "PageActionDetails",
     summary: "page.actionById",
+    headers: Api.SessionHeadersSchema,
     params: PageActionIdParamsSchema,
     querystring: PageActionDetailsQuerySchema,
     response: {
       200: PageActionDetailsResponseSchema,
-      400: ValidationErrorResponseSchema,
-      404: V4ErrorResponseSchema,
-      501: V4ErrorResponseSchema,
+      ...pageErrorResponses,
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: createNotImplementedHandler(
-    "GET /v4/page/action/:actionId is not implemented yet",
-  ),
+  handler: pageActionDetailsHandler,
 };
 
 export default pageActionDetailsRoute;

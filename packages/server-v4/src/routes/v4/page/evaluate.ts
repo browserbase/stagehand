@@ -1,13 +1,13 @@
 import type { RouteOptions } from "fastify";
+import { Api } from "@browserbasehq/stagehand";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
+  PageEvaluateActionSchema,
   PageEvaluateRequestSchema,
   PageEvaluateResponseSchema,
-  ValidationErrorResponseSchema,
-  V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createNotImplementedHandler } from "./shared.js";
+import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const evaluateRoute: RouteOptions = {
   method: "POST",
@@ -15,16 +15,35 @@ const evaluateRoute: RouteOptions = {
   schema: {
     operationId: "PageEvaluate",
     summary: "page.evaluate",
+    headers: Api.SessionHeadersSchema,
     body: PageEvaluateRequestSchema,
     response: {
       200: PageEvaluateResponseSchema,
-      400: ValidationErrorResponseSchema,
-      501: V4ErrorResponseSchema,
+      ...pageErrorResponses,
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: createNotImplementedHandler(
-    "POST /v4/page/evaluate is not implemented yet",
-  ),
+  handler: createPageActionHandler({
+    method: "evaluate",
+    actionSchema: PageEvaluateActionSchema,
+    execute: async ({ page, params }) => {
+      const value = await page.evaluate(
+        ({ arg, expression }) => {
+          const localArg = arg;
+          return (() => {
+            const arg = localArg;
+            // eslint-disable-next-line no-eval
+            return eval(expression);
+          })();
+        },
+        {
+          expression: params.expression,
+          arg: params.arg,
+        },
+      );
+
+      return { value };
+    },
+  }),
 };
 
 export default evaluateRoute;

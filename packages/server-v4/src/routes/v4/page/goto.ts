@@ -1,13 +1,13 @@
 import type { RouteOptions } from "fastify";
+import { Api } from "@browserbasehq/stagehand";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
+  PageGotoActionSchema,
   PageGotoRequestSchema,
   PageGotoResponseSchema,
-  ValidationErrorResponseSchema,
-  V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createNotImplementedHandler } from "./shared.js";
+import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const gotoRoute: RouteOptions = {
   method: "POST",
@@ -15,16 +15,25 @@ const gotoRoute: RouteOptions = {
   schema: {
     operationId: "PageGoto",
     summary: "page.goto",
+    headers: Api.SessionHeadersSchema,
     body: PageGotoRequestSchema,
     response: {
       200: PageGotoResponseSchema,
-      400: ValidationErrorResponseSchema,
-      501: V4ErrorResponseSchema,
+      ...pageErrorResponses,
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: createNotImplementedHandler(
-    "POST /v4/page/goto is not implemented yet",
-  ),
+  handler: createPageActionHandler({
+    method: "goto",
+    actionSchema: PageGotoActionSchema,
+    execute: async ({ page, params }) => {
+      await page.goto(params.url, {
+        waitUntil: params.waitUntil,
+        timeoutMs: params.timeoutMs,
+      });
+
+      return { url: page.url() };
+    },
+  }),
 };
 
 export default gotoRoute;

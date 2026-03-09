@@ -29,16 +29,14 @@ export const pageErrorResponses = {
   500: V4ErrorResponseSchema,
 };
 
-type PageRequestBody<TParams> = {
+type PageRequestBody<TAction extends PageAction> = {
   sessionId: string;
-  params: TParams & {
-    pageId?: string;
-  };
+  params: TAction["params"];
 };
 
-type PageActionHandlerContext<TParams> = {
+type PageActionHandlerContext<TAction extends PageAction> = {
   page: Awaited<ReturnType<typeof resolvePage>>;
-  params: TParams;
+  params: TAction["params"];
   request: Parameters<RouteHandlerMethod>[0];
   sessionId: string;
 };
@@ -56,11 +54,18 @@ function getStatusCode(error: unknown): number {
   if (
     message === "Unauthorized" ||
     message === "Session not found" ||
-    message === "Page not found"
+    message === "Page not found" ||
+    message === "CDP params must be an object"
   ) {
-    return message === "Unauthorized"
-      ? StatusCodes.UNAUTHORIZED
-      : StatusCodes.NOT_FOUND;
+    if (message === "Unauthorized") {
+      return StatusCodes.UNAUTHORIZED;
+    }
+
+    if (message === "CDP params must be an object") {
+      return StatusCodes.BAD_REQUEST;
+    }
+
+    return StatusCodes.NOT_FOUND;
   }
 
   if (
@@ -129,9 +134,6 @@ async function resolvePage(stagehand: V3, pageId?: string) {
 }
 
 export function createPageActionHandler<
-  TParams extends {
-    pageId?: string;
-  },
   TAction extends PageAction,
 >({
   actionSchema,
@@ -139,7 +141,7 @@ export function createPageActionHandler<
   method,
 }: {
   actionSchema: z.ZodType<TAction>;
-  execute: (ctx: PageActionHandlerContext<TParams>) => Promise<TAction["result"]>;
+  execute: (ctx: PageActionHandlerContext<TAction>) => Promise<TAction["result"]>;
   method: PageActionMethod;
 }): RouteHandlerMethod {
   return async (request, reply) => {
@@ -149,7 +151,7 @@ export function createPageActionHandler<
         .send(buildErrorResponse({ error: "Unauthorized" }));
     }
 
-    const { params, sessionId } = request.body as PageRequestBody<TParams>;
+    const { params, sessionId } = request.body as PageRequestBody<TAction>;
     const sessionStore = getSessionStore();
 
     try {

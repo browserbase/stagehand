@@ -307,7 +307,7 @@ export class InMemorySessionStore implements SessionStore {
     const stagehand =
       node.stagehand ??
       (node.stagehandInitPromise
-        ? await node.stagehandInitPromise.catch(() => null)
+        ? await node.stagehandInitPromise.catch((): null => null)
         : null);
 
     // Close V3 instance if it exists

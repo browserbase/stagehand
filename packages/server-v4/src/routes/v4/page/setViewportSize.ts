@@ -1,13 +1,13 @@
 import type { RouteOptions } from "fastify";
+import { Api } from "@browserbasehq/stagehand";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
+  PageSetViewportSizeActionSchema,
   PageSetViewportSizeRequestSchema,
   PageSetViewportSizeResponseSchema,
-  ValidationErrorResponseSchema,
-  V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createNotImplementedHandler } from "./shared.js";
+import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const setViewportSizeRoute: RouteOptions = {
   method: "POST",
@@ -15,16 +15,28 @@ const setViewportSizeRoute: RouteOptions = {
   schema: {
     operationId: "PageSetViewportSize",
     summary: "page.setViewportSize",
+    headers: Api.SessionHeadersSchema,
     body: PageSetViewportSizeRequestSchema,
     response: {
       200: PageSetViewportSizeResponseSchema,
-      400: ValidationErrorResponseSchema,
-      501: V4ErrorResponseSchema,
+      ...pageErrorResponses,
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: createNotImplementedHandler(
-    "POST /v4/page/setViewportSize is not implemented yet",
-  ),
+  handler: createPageActionHandler({
+    method: "setViewportSize",
+    actionSchema: PageSetViewportSizeActionSchema,
+    execute: async ({ page, params }) => {
+      await page.setViewportSize(params.width, params.height, {
+        deviceScaleFactor: params.deviceScaleFactor,
+      });
+
+      return {
+        width: params.width,
+        height: params.height,
+        deviceScaleFactor: params.deviceScaleFactor,
+      };
+    },
+  }),
 };
 
 export default setViewportSizeRoute;

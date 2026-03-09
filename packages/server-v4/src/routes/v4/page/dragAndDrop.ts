@@ -30,7 +30,7 @@ const dragAndDropRoute: RouteOptions = {
     method: "dragAndDrop",
     actionSchema: PageDragAndDropActionSchema,
     execute: async ({ page, params }) => {
-      if ("xpath" in params.from) {
+      if ("xpath" in params.from && "xpath" in params.to) {
         const from = await page
           .deepLocator(normalizeXPath(params.from.xpath))
           .centroid();
@@ -50,11 +50,13 @@ const dragAndDropRoute: RouteOptions = {
         };
       }
 
+      const fromPoint = params.from as { x: number; y: number };
+      const toPoint = params.to as { x: number; y: number };
       const [fromXpath, toXpath] = await page.dragAndDrop(
-        params.from.x,
-        params.from.y,
-        params.to.x,
-        params.to.y,
+        fromPoint.x,
+        fromPoint.y,
+        toPoint.x,
+        toPoint.y,
         {
           button: params.button,
           steps: params.steps,

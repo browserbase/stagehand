@@ -1,13 +1,17 @@
 import type { RouteOptions } from "fastify";
+import { Api } from "@browserbasehq/stagehand";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
+  PageWaitForSelectorActionSchema,
   PageWaitForSelectorRequestSchema,
   PageWaitForSelectorResponseSchema,
-  ValidationErrorResponseSchema,
-  V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createNotImplementedHandler } from "./shared.js";
+import {
+  createPageActionHandler,
+  normalizeXPath,
+  pageErrorResponses,
+} from "./shared.js";
 
 const waitForSelectorRoute: RouteOptions = {
   method: "POST",
@@ -15,16 +19,32 @@ const waitForSelectorRoute: RouteOptions = {
   schema: {
     operationId: "PageWaitForSelector",
     summary: "page.waitForSelector",
+    headers: Api.SessionHeadersSchema,
     body: PageWaitForSelectorRequestSchema,
     response: {
       200: PageWaitForSelectorResponseSchema,
-      400: ValidationErrorResponseSchema,
-      501: V4ErrorResponseSchema,
+      ...pageErrorResponses,
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: createNotImplementedHandler(
-    "POST /v4/page/waitForSelector is not implemented yet",
-  ),
+  handler: createPageActionHandler({
+    method: "waitForSelector",
+    actionSchema: PageWaitForSelectorActionSchema,
+    execute: async ({ page, params }) => {
+      const matched = await page.waitForSelector(
+        normalizeXPath(params.selector.xpath),
+        {
+          state: params.state,
+          timeout: params.timeout,
+          pierceShadow: params.pierceShadow,
+        },
+      );
+
+      return {
+        selector: params.selector,
+        matched,
+      };
+    },
+  }),
 };
 
 export default waitForSelectorRoute;

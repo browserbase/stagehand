@@ -1,13 +1,13 @@
 import type { RouteOptions } from "fastify";
+import { Api } from "@browserbasehq/stagehand";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
+  PageGoForwardActionSchema,
   PageGoForwardRequestSchema,
   PageGoForwardResponseSchema,
-  ValidationErrorResponseSchema,
-  V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createNotImplementedHandler } from "./shared.js";
+import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const goForwardRoute: RouteOptions = {
   method: "POST",
@@ -15,16 +15,25 @@ const goForwardRoute: RouteOptions = {
   schema: {
     operationId: "PageGoForward",
     summary: "page.goForward",
+    headers: Api.SessionHeadersSchema,
     body: PageGoForwardRequestSchema,
     response: {
       200: PageGoForwardResponseSchema,
-      400: ValidationErrorResponseSchema,
-      501: V4ErrorResponseSchema,
+      ...pageErrorResponses,
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: createNotImplementedHandler(
-    "POST /v4/page/goForward is not implemented yet",
-  ),
+  handler: createPageActionHandler({
+    method: "goForward",
+    actionSchema: PageGoForwardActionSchema,
+    execute: async ({ page, params }) => {
+      await page.goForward({
+        waitUntil: params.waitUntil,
+        timeoutMs: params.timeoutMs,
+      });
+
+      return { url: page.url() };
+    },
+  }),
 };
 
 export default goForwardRoute;

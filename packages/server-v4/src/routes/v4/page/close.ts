@@ -1,13 +1,13 @@
 import type { RouteOptions } from "fastify";
+import { Api } from "@browserbasehq/stagehand";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
+  PageCloseActionSchema,
   PageCloseRequestSchema,
   PageCloseResponseSchema,
-  ValidationErrorResponseSchema,
-  V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createNotImplementedHandler } from "./shared.js";
+import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const closeRoute: RouteOptions = {
   method: "POST",
@@ -15,16 +15,21 @@ const closeRoute: RouteOptions = {
   schema: {
     operationId: "PageClose",
     summary: "page.close",
+    headers: Api.SessionHeadersSchema,
     body: PageCloseRequestSchema,
     response: {
       200: PageCloseResponseSchema,
-      400: ValidationErrorResponseSchema,
-      501: V4ErrorResponseSchema,
+      ...pageErrorResponses,
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: createNotImplementedHandler(
-    "POST /v4/page/close is not implemented yet",
-  ),
+  handler: createPageActionHandler({
+    method: "close",
+    actionSchema: PageCloseActionSchema,
+    execute: async ({ page }) => {
+      await page.close();
+      return { closed: true };
+    },
+  }),
 };
 
 export default closeRoute;

@@ -1401,42 +1401,9 @@ components:
         - width
         - height
       additionalProperties: false
-    PageMetadata:
-      type: object
-      properties:
-        requestId:
-          type: string
-          minLength: 1
-        sessionId:
-          $ref: "#/components/schemas/SessionId"
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        actionId:
-          $ref: "#/components/schemas/ActionId"
-        timestamp:
-          $ref: "#/components/schemas/Timestamp"
-      required:
-        - requestId
-        - timestamp
-      additionalProperties: false
     PageError:
-      type: object
-      properties:
-        code:
-          type: string
-          minLength: 1
-        message:
-          type: string
-          minLength: 1
-        details:
-          type: object
-          propertyNames:
-            type: string
-          additionalProperties: {}
-      required:
-        - code
-        - message
-      additionalProperties: false
+      type: string
+      minLength: 1
     PageClickParams:
       anyOf:
         - $ref: "#/components/schemas/PageClickSelectorParams"
@@ -2931,570 +2898,366 @@ components:
         - success
         - data
       additionalProperties: false
-    ValidationErrorResponse:
-      type: object
-      properties:
-        error:
-          type: string
-        issues:
-          type: array
-          items: {}
-        statusCode:
-          type: number
-        code:
-          type: string
-        message:
-          type: string
-      required:
-        - error
-      additionalProperties: {}
     V4ErrorResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: false
         error:
           $ref: "#/components/schemas/PageError"
-        result:
-          type: "null"
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
       additionalProperties: false
     PageClickResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageClickAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageClickAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageHoverResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageHoverAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageHoverAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageScrollResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageScrollAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageScrollAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageDragAndDropResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageDragAndDropAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageDragAndDropAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageTypeResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageTypeAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageTypeAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageKeyPressResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageKeyPressAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageKeyPressAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageGotoResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageGotoAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageGotoAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageReloadResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageReloadAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageReloadAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageGoBackResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageGoBackAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageGoBackAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageGoForwardResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageGoForwardAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageGoForwardAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageTitleResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageTitleAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageTitleAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageUrlResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageUrlAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageUrlAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageScreenshotResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageScreenshotAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageScreenshotAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageSnapshotResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageSnapshotAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageSnapshotAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageSetViewportSizeResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageSetViewportSizeAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageSetViewportSizeAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageWaitForLoadStateResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageWaitForLoadStateAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageWaitForLoadStateAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageWaitForSelectorResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageWaitForSelectorAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageWaitForSelectorAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageWaitForTimeoutResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageWaitForTimeoutAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageWaitForTimeoutAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageEvaluateResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageEvaluateAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageEvaluateAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageSendCDPResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageSendCDPAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageSendCDPAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageCloseResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageCloseAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageCloseAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageActionDetailsResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            action:
-              $ref: "#/components/schemas/PageAction"
-          required:
-            - action
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        action:
+          $ref: "#/components/schemas/PageAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - action
       additionalProperties: false
     PageActionListResponse:
       type: object
       properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
+        success:
+          type: boolean
+          const: true
         error:
           type: "null"
-        result:
-          type: object
-          properties:
-            actions:
-              type: array
-              items:
-                $ref: "#/components/schemas/PageAction"
-          required:
-            - actions
-          additionalProperties: false
-        metadata:
-          $ref: "#/components/schemas/PageMetadata"
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PageAction"
       required:
-        - id
+        - success
         - error
-        - result
-        - metadata
+        - actions
       additionalProperties: false
     AgentCacheEntryOutput:
       type: object
@@ -4296,6 +4059,20 @@ components:
         - type
         - id
       additionalProperties: false
+    ValidationErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: false
+        error:
+          $ref: "#/components/schemas/PageError"
+        action:
+          $ref: "#/components/schemas/PageAction"
+      required:
+        - success
+        - error
+      additionalProperties: false
     PageActionBase:
       type: object
       properties:
@@ -4377,6 +4154,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageClickRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4389,8 +4177,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4406,6 +4218,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageHoverRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4418,8 +4241,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4435,6 +4282,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageScrollRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4447,8 +4305,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4464,6 +4346,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageDragAndDropRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4476,8 +4369,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4493,6 +4410,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageTypeRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4505,8 +4433,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4522,6 +4474,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageKeyPressRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4534,8 +4497,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4551,6 +4538,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageGotoRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4563,8 +4561,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4580,6 +4602,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageReloadRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4592,8 +4625,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4609,6 +4666,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageGoBackRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4621,8 +4689,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4638,6 +4730,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageGoForwardRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4650,8 +4753,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4667,6 +4794,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageTitleRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4679,8 +4817,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4696,6 +4858,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageUrlRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4708,8 +4881,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4725,6 +4922,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageScreenshotRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4737,8 +4945,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4754,6 +4986,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageSnapshotRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4766,8 +5009,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4783,6 +5050,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageSetViewportSizeRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4795,8 +5073,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4812,6 +5114,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageWaitForLoadStateRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4824,8 +5137,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4841,6 +5178,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageWaitForSelectorRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4853,8 +5201,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4870,6 +5242,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageWaitForTimeoutRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4882,8 +5265,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4899,6 +5306,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageEvaluateRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4911,8 +5329,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4928,6 +5370,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageSendCDPRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4940,8 +5393,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -4957,6 +5434,17 @@ paths:
             schema:
               $ref: "#/components/schemas/PageCloseRequest"
         required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -4969,8 +5457,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -5008,6 +5520,16 @@ paths:
             maximum: 500
           in: query
           name: limit
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -5020,8 +5542,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
-        "501":
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:
@@ -5046,6 +5592,16 @@ paths:
           in: path
           name: actionId
           required: true
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
       responses:
         "200":
           description: Default Response
@@ -5058,14 +5614,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
         "404":
           description: Default Response
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/V4ErrorResponse"
-        "501":
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
           description: Default Response
           content:
             application/json:

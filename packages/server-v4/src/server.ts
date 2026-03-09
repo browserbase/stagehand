@@ -17,7 +17,7 @@ import {
 import { StatusCodes } from "http-status-codes";
 
 import { logging } from "./lib/logging/index.js";
-import { pageOpenApiComponents } from "./schemas/v4/page.js";
+import { buildErrorResponse, pageOpenApiComponents } from "./schemas/v4/page.js";
 import {
   destroySessionStore,
   initializeSessionStore,
@@ -69,6 +69,15 @@ const app = fastify({
 
   return503OnClosing: false,
 });
+
+const isPageRoute = (request: { routeOptions?: { url?: string }; url: string }) => {
+  const routeUrl = request.routeOptions?.url ?? "";
+  return (
+    routeUrl.startsWith("/page/") ||
+    routeUrl.startsWith("/v4/page/") ||
+    request.url.startsWith("/v4/page/")
+  );
+};
 
 export const logger = app.log;
 
@@ -189,6 +198,13 @@ const start = async () => {
           .map((err) => (err as RequestValidationError).params.issue);
 
         request.log.warn({ zodIssues }, "request validation failed");
+        if (isPageRoute(request)) {
+          return reply.status(StatusCodes.BAD_REQUEST).send(
+            buildErrorResponse({
+              error: "Request validation failed",
+            }),
+          );
+        }
         return reply.status(StatusCodes.BAD_REQUEST).send({
           error: "Request validation failed",
           issues: zodIssues,
@@ -197,6 +213,11 @@ const start = async () => {
 
       if (error instanceof ResponseSerializationError) {
         request.log.error({ err: error }, "response serialization failed");
+        if (isPageRoute(request)) {
+          return reply
+            .status(StatusCodes.INTERNAL_SERVER_ERROR)
+            .send(buildErrorResponse({ error: "Internal Server Error" }));
+        }
         return reply
           .status(StatusCodes.INTERNAL_SERVER_ERROR)
           .send({ error: "Response validation failed" });
@@ -209,6 +230,17 @@ const start = async () => {
       const statusCode =
         (error as { statusCode?: number }).statusCode ??
         StatusCodes.INTERNAL_SERVER_ERROR;
+
+      if (isPageRoute(request)) {
+        return reply.status(statusCode).send(
+          buildErrorResponse({
+            error:
+              statusCode >= StatusCodes.INTERNAL_SERVER_ERROR
+                ? "Internal Server Error"
+                : errorMessage,
+          }),
+        );
+      }
 
       reply.status(statusCode).send({
         error:

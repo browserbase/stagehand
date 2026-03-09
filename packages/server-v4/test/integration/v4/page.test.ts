@@ -18,7 +18,7 @@ import {
 
 interface PageActionRecord {
   id: string;
-  type: string;
+  method: string;
   status: string;
   sessionId: string;
   pageId?: string;
@@ -124,7 +124,7 @@ function assertSuccessAction(
   const action = ctx.body.action;
   assert.equal(typeof action.id, "string");
   assert.notEqual(action.id.length, 0);
-  assert.equal(action.type, expectedType);
+  assert.equal(action.method, expectedType);
   assert.equal(action.status, "completed");
 
   return action;
@@ -179,9 +179,10 @@ describe("v4 page routes", { concurrency: false }, () => {
       url: CLICK_TEST_URL,
       waitUntil: "load",
     });
-    assertSuccessAction(gotoCtx, "goto");
+    const gotoAction = assertSuccessAction(gotoCtx, "goto");
 
     const clickCtx = await postPageRoute("click", sessionId, {
+      pageId: gotoAction.pageId,
       selector: {
         xpath: "//button[@id='click-target']",
       },
@@ -231,7 +232,7 @@ describe("v4 page routes", { concurrency: false }, () => {
       detailCtx,
     );
     assert.equal(detailCtx.body.action.id, createdAction.id);
-    assert.equal(detailCtx.body.action.type, "goto");
+    assert.equal(detailCtx.body.action.method, "goto");
     assert.equal(detailCtx.body.action.sessionId, sessionId);
   });
 
@@ -270,7 +271,7 @@ describe("v4 page routes", { concurrency: false }, () => {
       (action) => action.id === clickAction.id,
     );
     assert.ok(listedClickAction, "Expected click action details in history");
-    assert.equal(listedClickAction.type, "click");
+    assert.equal(listedClickAction.method, "click");
     assert.equal(listedClickAction.sessionId, sessionId);
   });
 

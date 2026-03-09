@@ -1,13 +1,13 @@
 import type { RouteOptions } from "fastify";
+import { Api } from "@browserbasehq/stagehand";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
+  PageReloadActionSchema,
   PageReloadRequestSchema,
   PageReloadResponseSchema,
-  ValidationErrorResponseSchema,
-  V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createNotImplementedHandler } from "./shared.js";
+import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const reloadRoute: RouteOptions = {
   method: "POST",
@@ -15,16 +15,26 @@ const reloadRoute: RouteOptions = {
   schema: {
     operationId: "PageReload",
     summary: "page.reload",
+    headers: Api.SessionHeadersSchema,
     body: PageReloadRequestSchema,
     response: {
       200: PageReloadResponseSchema,
-      400: ValidationErrorResponseSchema,
-      501: V4ErrorResponseSchema,
+      ...pageErrorResponses,
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: createNotImplementedHandler(
-    "POST /v4/page/reload is not implemented yet",
-  ),
+  handler: createPageActionHandler({
+    method: "reload",
+    actionSchema: PageReloadActionSchema,
+    execute: async ({ page, params }) => {
+      await page.reload({
+        waitUntil: params.waitUntil,
+        timeoutMs: params.timeoutMs,
+        ignoreCache: params.ignoreCache,
+      });
+
+      return { url: page.url() };
+    },
+  }),
 };
 
 export default reloadRoute;

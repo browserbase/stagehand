@@ -1,13 +1,13 @@
 import type { RouteOptions } from "fastify";
+import { Api } from "@browserbasehq/stagehand";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
+  PageSnapshotActionSchema,
   PageSnapshotRequestSchema,
   PageSnapshotResponseSchema,
-  ValidationErrorResponseSchema,
-  V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createNotImplementedHandler } from "./shared.js";
+import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const snapshotRoute: RouteOptions = {
   method: "POST",
@@ -15,16 +15,22 @@ const snapshotRoute: RouteOptions = {
   schema: {
     operationId: "PageSnapshot",
     summary: "page.snapshot",
+    headers: Api.SessionHeadersSchema,
     body: PageSnapshotRequestSchema,
     response: {
       200: PageSnapshotResponseSchema,
-      400: ValidationErrorResponseSchema,
-      501: V4ErrorResponseSchema,
+      ...pageErrorResponses,
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: createNotImplementedHandler(
-    "POST /v4/page/snapshot is not implemented yet",
-  ),
+  handler: createPageActionHandler({
+    method: "snapshot",
+    actionSchema: PageSnapshotActionSchema,
+    execute: async ({ page, params }) => {
+      return await page.snapshot({
+        includeIframes: params.includeIframes,
+      });
+    },
+  }),
 };
 
 export default snapshotRoute;

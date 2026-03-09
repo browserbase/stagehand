@@ -1,13 +1,13 @@
 import type { RouteOptions } from "fastify";
+import { Api } from "@browserbasehq/stagehand";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
+  PageKeyPressActionSchema,
   PageKeyPressRequestSchema,
   PageKeyPressResponseSchema,
-  ValidationErrorResponseSchema,
-  V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createNotImplementedHandler } from "./shared.js";
+import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const keyPressRoute: RouteOptions = {
   method: "POST",
@@ -15,16 +15,24 @@ const keyPressRoute: RouteOptions = {
   schema: {
     operationId: "PageKeyPress",
     summary: "page.keyPress",
+    headers: Api.SessionHeadersSchema,
     body: PageKeyPressRequestSchema,
     response: {
       200: PageKeyPressResponseSchema,
-      400: ValidationErrorResponseSchema,
-      501: V4ErrorResponseSchema,
+      ...pageErrorResponses,
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: createNotImplementedHandler(
-    "POST /v4/page/keyPress is not implemented yet",
-  ),
+  handler: createPageActionHandler({
+    method: "keyPress",
+    actionSchema: PageKeyPressActionSchema,
+    execute: async ({ page, params }) => {
+      await page.keyPress(params.key, {
+        delay: params.delay,
+      });
+
+      return { key: params.key };
+    },
+  }),
 };
 
 export default keyPressRoute;

@@ -1,13 +1,13 @@
 import type { RouteOptions } from "fastify";
+import { Api } from "@browserbasehq/stagehand";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
+  PageWaitForTimeoutActionSchema,
   PageWaitForTimeoutRequestSchema,
   PageWaitForTimeoutResponseSchema,
-  ValidationErrorResponseSchema,
-  V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createNotImplementedHandler } from "./shared.js";
+import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const waitForTimeoutRoute: RouteOptions = {
   method: "POST",
@@ -15,16 +15,21 @@ const waitForTimeoutRoute: RouteOptions = {
   schema: {
     operationId: "PageWaitForTimeout",
     summary: "page.waitForTimeout",
+    headers: Api.SessionHeadersSchema,
     body: PageWaitForTimeoutRequestSchema,
     response: {
       200: PageWaitForTimeoutResponseSchema,
-      400: ValidationErrorResponseSchema,
-      501: V4ErrorResponseSchema,
+      ...pageErrorResponses,
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: createNotImplementedHandler(
-    "POST /v4/page/waitForTimeout is not implemented yet",
-  ),
+  handler: createPageActionHandler({
+    method: "waitForTimeout",
+    actionSchema: PageWaitForTimeoutActionSchema,
+    execute: async ({ page, params }) => {
+      await page.waitForTimeout(params.ms);
+      return { ms: params.ms };
+    },
+  }),
 };
 
 export default waitForTimeoutRoute;
