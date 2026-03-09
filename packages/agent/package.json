@@ -1,0 +1,96 @@
+{
+  "name": "@browserbasehq/agent",
+  "version": "3.1.0",
+  "description": "A general-purpose AI agent designed to use Browserbase's Stagehand for web browsing.",
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
+    },
+    "./protocol": {
+      "types": "./dist/esm/lib/protocol.d.ts",
+      "import": "./dist/esm/lib/protocol.js",
+      "require": "./dist/cjs/lib/protocol.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "build": "pnpm --filter @browserbasehq/agent run --parallel \"/^build:(esm|cjs)$/\"",
+    "build:esm": "tsx scripts/build-esm.ts",
+    "build:cjs": "tsx scripts/build-cjs.ts",
+    "format": "prettier --write .",
+    "typecheck": "pnpm -w --dir ../.. exec tsc -p packages/agent/tsconfig.json --noEmit",
+    "eslint": "eslint .",
+    "lint": "cd ../.. && prettier --check packages/agent && cd packages/agent && pnpm run eslint && pnpm run typecheck"
+  },
+  "files": [
+    "dist/esm",
+    "dist/cjs"
+  ],
+  "keywords": [
+    "ai",
+    "browser",
+    "automation",
+    "web-scraping",
+    "testing"
+  ],
+  "author": "Browserbase",
+  "license": "MIT",
+  "peerDependencies": {
+    "deepmerge": "^4.3.1",
+    "zod": "^3.25.76 || ^4.2.0"
+  },
+  "dependencies": {
+    "@ai-sdk/provider": "^2.0.0",
+    "@anthropic-ai/sdk": "0.39.0",
+    "@browserbasehq/sdk": "^2.4.0",
+    "@browserbasehq/stagehand": "workspace:*",
+    "@google/genai": "^1.22.0",
+    "@langchain/openai": "^0.4.4",
+    "@modelcontextprotocol/sdk": "^1.17.2",
+    "ai": "^5.0.133",
+    "devtools-protocol": "^0.0.1464554",
+    "fetch-cookie": "^3.1.0",
+    "openai": "^4.87.1",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0",
+    "uuid": "^11.1.0",
+    "ws": "^8.18.0",
+    "zod-to-json-schema": "^3.25.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.42.1",
+    "@types/adm-zip": "^0.5.7",
+    "@types/jsdom": "^27.0.0",
+    "@types/node": "^20.11.30",
+    "@types/ws": "^8.5.13",
+    "@vitest/coverage-v8": "^4.0.8",
+    "adm-zip": "^0.5.16",
+    "chalk": "^5.4.1",
+    "eslint": "10.0.2",
+    "jsdom": "^24.0.0",
+    "playwright": "^1.52.0",
+    "playwright-core": "^1.54.1",
+    "prettier": "^3.2.5",
+    "tsx": "*",
+    "vitest": "^4.0.8",
+    "zod": "^3.25.76 || ^4.2.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/browserbase/stagehand.git",
+    "directory": "packages/agent"
+  },
+  "bugs": {
+    "url": "https://github.com/browserbase/stagehand/issues"
+  },
+  "homepage": "https://stagehand.dev"
+}

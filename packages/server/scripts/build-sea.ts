@@ -119,6 +119,8 @@ const runOptional = (
   spawnSync(cmd, args, { stdio: "ignore", ...opts });
 };
 
+const SEA_SENTINEL_FUSE = "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2";
+
 const download = (url: string, dest: string): Promise<void> =>
   new Promise((resolve, reject) => {
     https
@@ -161,19 +163,21 @@ const download = (url: string, dest: string): Promise<void> =>
       .on("error", reject);
   });
 
-const resolveNodeBinary = async (): Promise<string> => {
-  if (targetPlatform !== process.platform) {
-    throw new Error(
-      `Cross-platform builds are not supported. Host=${process.platform}, target=${targetPlatform}`,
-    );
-  }
-  if (targetArch === process.arch) {
-    return process.execPath;
+const hasSeaSentinelFuse = (binaryPath: string): boolean => {
+  if (!fs.existsSync(binaryPath)) {
+    return false;
   }
 
-  const version = process.version;
-  const distPlatform = targetPlatform === "win32" ? "win" : targetPlatform;
-  const archiveBase = `node-${version}-${distPlatform}-${targetArch}`;
+  return fs.readFileSync(binaryPath).includes(Buffer.from(SEA_SENTINEL_FUSE));
+};
+
+const downloadOfficialNodeBinary = async (
+  version: string,
+  platform: NodeJS.Platform,
+  arch: string,
+): Promise<string> => {
+  const distPlatform = platform === "win32" ? "win" : platform;
+  const archiveBase = `node-${version}-${distPlatform}-${arch}`;
   const archiveExt = distPlatform === "win" ? "zip" : "tar.xz";
   const tmpRoot = `${os.tmpdir()}/stagehand-sea/${archiveBase}`;
   const archivePath = `${tmpRoot}/${archiveBase}.${archiveExt}`;
@@ -209,6 +213,34 @@ const resolveNodeBinary = async (): Promise<string> => {
     throw new Error(`Missing Node binary at ${binaryPath}`);
   }
   return binaryPath;
+};
+
+const resolveNodeBinary = async (): Promise<string> => {
+  if (targetPlatform !== process.platform) {
+    throw new Error(
+      `Cross-platform builds are not supported. Host=${process.platform}, target=${targetPlatform}`,
+    );
+  }
+  const version = process.version;
+  if (targetArch === process.arch) {
+    if (hasSeaSentinelFuse(process.execPath)) {
+      return process.execPath;
+    }
+
+    console.warn(
+      `Local Node binary at ${process.execPath} is missing ${SEA_SENTINEL_FUSE}; downloading official ${version} runtime for SEA injection.`,
+    );
+    return downloadOfficialNodeBinary(
+      version,
+      targetPlatform as NodeJS.Platform,
+      targetArch,
+    );
+  }
+  return downloadOfficialNodeBinary(
+    version,
+    targetPlatform as NodeJS.Platform,
+    targetArch,
+  );
 };
 
 const writeSeaConfig = (
@@ -477,7 +509,7 @@ const main = async () => {
     "NODE_SEA_BLOB",
     `${repoDir}/packages/server/dist/sea/sea-prep.blob`,
     "--sentinel-fuse",
-    "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2",
+    SEA_SENTINEL_FUSE,
   ];
   if (targetPlatform === "darwin") {
     postjectArgs.push("--macho-segment-name", "NODE_SEA");
