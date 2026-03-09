@@ -77,6 +77,8 @@ export async function performUnderstudyMethod(
     args: Array.from(args),
   });
 
+  // Arm the watcher before the action so we do not miss very fast URL changes,
+  // but start the timeout window only after the click returns.
   const navWatcher = shouldWaitForPostClickSettle(method)
     ? watchMainFrameUrlChangeStart(page, page.url())
     : null;
@@ -115,7 +117,6 @@ export async function performUnderstudyMethod(
         () => {},
       );
     }
-
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : undefined;
@@ -189,6 +190,9 @@ function watchMainFrameUrlChangeStart(
   const isMainFrame = (frameId: string): boolean =>
     frameId === initialMainFrameId || frameId === page.mainFrameId();
 
+  // We only treat main-frame events with an actual URL change as navigation
+  // start. Real pages can emit same-URL history events that should not trigger
+  // a post-click settle wait.
   const onFrameNavigated = (event: Protocol.Page.FrameNavigatedEvent) => {
     if (
       isMainFrame(event.frame.id) &&
@@ -212,6 +216,8 @@ function watchMainFrameUrlChangeStart(
 
   return {
     wait: async (timeoutMs: number) => {
+      // If navigation started while the click was still in flight, surface that
+      // immediately instead of burning the full timeout budget after the click.
       if (matched) return true;
       if (disposed) return false;
       return await new Promise<boolean>((resolve) => {

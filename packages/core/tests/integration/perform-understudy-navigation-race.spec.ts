@@ -43,6 +43,8 @@ async function writeDelayedNavigationFixture(
     "utf8",
   );
 
+  // Use file-backed pages so the navigation behaves like a normal document
+  // load, while the delay stays fully deterministic inside the fixture.
   return { sourceUrl, targetUrl };
 }
 
@@ -58,10 +60,7 @@ test.describe("performUnderstudyMethod navigation race", () => {
     await closeV3(v3);
   });
 
-  test("waits for navigation that starts within 400ms of click", async (
-    {},
-    testInfo,
-  ) => {
+  test("waits for navigation that starts within 400ms of click", async ({}, testInfo) => {
     const page = v3.context.pages()[0];
     const { sourceUrl, targetUrl } = await writeDelayedNavigationFixture(
       testInfo.outputDir,
@@ -82,10 +81,7 @@ test.describe("performUnderstudyMethod navigation race", () => {
     expect(page.url()).toBe(targetUrl);
   });
 
-  test("does not wait for navigation that starts after 400ms of click", async (
-    {},
-    testInfo,
-  ) => {
+  test("does not wait for navigation that starts after 400ms of click", async ({}, testInfo) => {
     const page = v3.context.pages()[0];
     const { sourceUrl, targetUrl } = await writeDelayedNavigationFixture(
       testInfo.outputDir,
@@ -112,12 +108,9 @@ test.describe("performUnderstudyMethod navigation race", () => {
     ).toBe(true);
 
     await expect
-      .poll(
-        () => page.url(),
-        {
-          timeout: 3_000,
-        },
-      )
+      .poll(() => page.url(), {
+        timeout: 3_000,
+      })
       .toBe(targetUrl);
   });
 });
