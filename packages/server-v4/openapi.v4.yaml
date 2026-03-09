@@ -975,6 +975,580 @@ components:
       required:
         - status
         - message
+    V4RequestId:
+      example: req_01JXAMPLE
+      type: string
+      minLength: 1
+    V4ResponseId:
+      example: req_01JXAMPLE
+      type: string
+      minLength: 1
+    V4SessionId:
+      example: session_01JXAMPLE
+      type: string
+      minLength: 1
+    V4PageId:
+      example: target_01JXAMPLE
+      type: string
+      minLength: 1
+    V4ActionId:
+      example: action_01JXAMPLE
+      type: string
+      minLength: 1
+    V4Timestamp:
+      example: 2026-02-03T12:00:00.000Z
+      type: string
+      format: date-time
+      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+    MouseButton:
+      type: string
+      enum:
+        - left
+        - right
+        - middle
+    PageNavigateWaitUntil:
+      type: string
+      enum:
+        - load
+        - domcontentloaded
+        - networkidle
+    PageScreenshotType:
+      type: string
+      enum:
+        - png
+        - jpeg
+    PageScreenshotMimeType:
+      type: string
+      enum:
+        - image/png
+        - image/jpeg
+    PageActionType:
+      type: string
+      enum:
+        - click
+        - scroll
+        - navigate
+        - screenshot
+    PageActionStatus:
+      type: string
+      enum:
+        - queued
+        - running
+        - completed
+        - failed
+        - canceled
+    PageSelector:
+      type: object
+      properties:
+        xpath:
+          description: Absolute or relative XPath understood by understudy.
+          example: //button[text()='Submit']
+          type: string
+          minLength: 1
+      required:
+        - xpath
+      additionalProperties: false
+    V4ResponseMetadata:
+      type: object
+      properties:
+        requestId:
+          type: string
+          minLength: 1
+        sessionId:
+          $ref: "#/components/schemas/V4SessionId"
+        pageId:
+          $ref: "#/components/schemas/V4PageId"
+        actionId:
+          $ref: "#/components/schemas/V4ActionId"
+        timestamp:
+          $ref: "#/components/schemas/V4Timestamp"
+      required:
+        - requestId
+        - timestamp
+      additionalProperties: false
+    V4ErrorObject:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 1
+        message:
+          type: string
+          minLength: 1
+        details:
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties: {}
+      required:
+        - code
+        - message
+      additionalProperties: false
+    PageClickParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/V4PageId"
+        selector:
+          $ref: "#/components/schemas/PageSelector"
+        button:
+          $ref: "#/components/schemas/MouseButton"
+        clickCount:
+          description: Defaults to a single click.
+          type: integer
+          minimum: 1
+          maximum: 3
+      required:
+        - selector
+      additionalProperties: false
+    PageScrollByCoordinatesParams:
+      type: object
+      properties:
+        target:
+          type: string
+          const: coordinates
+        pageId:
+          $ref: "#/components/schemas/V4PageId"
+        x:
+          type: number
+        y:
+          type: number
+        deltaX:
+          type: number
+        deltaY:
+          type: number
+      required:
+        - target
+        - x
+        - y
+        - deltaY
+      additionalProperties: false
+    PageScrollBySelectorParams:
+      type: object
+      properties:
+        target:
+          type: string
+          const: selector
+        pageId:
+          $ref: "#/components/schemas/V4PageId"
+        selector:
+          $ref: "#/components/schemas/PageSelector"
+        percentage:
+          type: number
+          minimum: 0
+          maximum: 100
+      required:
+        - target
+        - selector
+        - percentage
+      additionalProperties: false
+    PageScrollParams:
+      oneOf:
+        - $ref: "#/components/schemas/PageScrollByCoordinatesParams"
+        - $ref: "#/components/schemas/PageScrollBySelectorParams"
+      type: object
+      discriminator:
+        propertyName: target
+        mapping:
+          coordinates: "#/components/schemas/PageScrollByCoordinatesParams"
+          selector: "#/components/schemas/PageScrollBySelectorParams"
+    PageNavigateParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/V4PageId"
+        url:
+          type: string
+          format: uri
+        referer:
+          type: string
+          format: uri
+        waitUntil:
+          $ref: "#/components/schemas/PageNavigateWaitUntil"
+        timeoutMs:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+      required:
+        - url
+      additionalProperties: false
+    PageScreenshotParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/V4PageId"
+        fullPage:
+          type: boolean
+        type:
+          $ref: "#/components/schemas/PageScreenshotType"
+        quality:
+          type: integer
+          minimum: 0
+          maximum: 100
+        timeoutMs:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+      additionalProperties: false
+    PageClickRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/V4RequestId"
+        sessionId:
+          $ref: "#/components/schemas/V4SessionId"
+        params:
+          $ref: "#/components/schemas/PageClickParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageScrollRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/V4RequestId"
+        sessionId:
+          $ref: "#/components/schemas/V4SessionId"
+        params:
+          $ref: "#/components/schemas/PageScrollParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageNavigateRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/V4RequestId"
+        sessionId:
+          $ref: "#/components/schemas/V4SessionId"
+        params:
+          $ref: "#/components/schemas/PageNavigateParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageScreenshotRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/V4RequestId"
+        sessionId:
+          $ref: "#/components/schemas/V4SessionId"
+        params:
+          $ref: "#/components/schemas/PageScreenshotParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageClickResultData:
+      type: object
+      properties:
+        clicked:
+          type: boolean
+        selector:
+          $ref: "#/components/schemas/PageSelector"
+      required:
+        - clicked
+        - selector
+      additionalProperties: false
+    PageScrollByCoordinatesResultData:
+      type: object
+      properties:
+        target:
+          type: string
+          const: coordinates
+        x:
+          type: number
+        y:
+          type: number
+        deltaX:
+          type: number
+        deltaY:
+          type: number
+      required:
+        - target
+        - x
+        - y
+        - deltaX
+        - deltaY
+      additionalProperties: false
+    PageScrollBySelectorResultData:
+      type: object
+      properties:
+        target:
+          type: string
+          const: selector
+        selector:
+          $ref: "#/components/schemas/PageSelector"
+        percentage:
+          type: number
+          minimum: 0
+          maximum: 100
+      required:
+        - target
+        - selector
+        - percentage
+      additionalProperties: false
+    PageScrollResultData:
+      oneOf:
+        - $ref: "#/components/schemas/PageScrollByCoordinatesResultData"
+        - $ref: "#/components/schemas/PageScrollBySelectorResultData"
+      type: object
+      discriminator:
+        propertyName: target
+        mapping:
+          coordinates: "#/components/schemas/PageScrollByCoordinatesResultData"
+          selector: "#/components/schemas/PageScrollBySelectorResultData"
+    PageNavigateResultData:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+      required:
+        - url
+      additionalProperties: false
+    PageScreenshotResultData:
+      type: object
+      properties:
+        base64:
+          type: string
+        mimeType:
+          $ref: "#/components/schemas/PageScreenshotMimeType"
+      required:
+        - base64
+        - mimeType
+      additionalProperties: false
+    PageClickAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/V4ActionId"
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/V4SessionId"
+        pageId:
+          $ref: "#/components/schemas/V4PageId"
+        createdAt:
+          $ref: "#/components/schemas/V4Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/V4Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/V4Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/V4ErrorObject"
+            - type: "null"
+        type:
+          type: string
+          const: click
+        request:
+          $ref: "#/components/schemas/PageClickParams"
+        resultData:
+          anyOf:
+            - $ref: "#/components/schemas/PageClickResultData"
+            - type: "null"
+      required:
+        - id
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - type
+        - request
+        - resultData
+      additionalProperties: false
+    PageScrollAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/V4ActionId"
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/V4SessionId"
+        pageId:
+          $ref: "#/components/schemas/V4PageId"
+        createdAt:
+          $ref: "#/components/schemas/V4Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/V4Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/V4Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/V4ErrorObject"
+            - type: "null"
+        type:
+          type: string
+          const: scroll
+        request:
+          $ref: "#/components/schemas/PageScrollParams"
+        resultData:
+          anyOf:
+            - $ref: "#/components/schemas/PageScrollResultData"
+            - type: "null"
+      required:
+        - id
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - type
+        - request
+        - resultData
+      additionalProperties: false
+    PageNavigateAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/V4ActionId"
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/V4SessionId"
+        pageId:
+          $ref: "#/components/schemas/V4PageId"
+        createdAt:
+          $ref: "#/components/schemas/V4Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/V4Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/V4Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/V4ErrorObject"
+            - type: "null"
+        type:
+          type: string
+          const: navigate
+        request:
+          $ref: "#/components/schemas/PageNavigateParams"
+        resultData:
+          anyOf:
+            - $ref: "#/components/schemas/PageNavigateResultData"
+            - type: "null"
+      required:
+        - id
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - type
+        - request
+        - resultData
+      additionalProperties: false
+    PageScreenshotAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/V4ActionId"
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/V4SessionId"
+        pageId:
+          $ref: "#/components/schemas/V4PageId"
+        createdAt:
+          $ref: "#/components/schemas/V4Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/V4Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/V4Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/V4ErrorObject"
+            - type: "null"
+        type:
+          type: string
+          const: screenshot
+        request:
+          $ref: "#/components/schemas/PageScreenshotParams"
+        resultData:
+          anyOf:
+            - $ref: "#/components/schemas/PageScreenshotResultData"
+            - type: "null"
+      required:
+        - id
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - type
+        - request
+        - resultData
+      additionalProperties: false
+    PageAction:
+      oneOf:
+        - $ref: "#/components/schemas/PageClickAction"
+        - $ref: "#/components/schemas/PageScrollAction"
+        - $ref: "#/components/schemas/PageNavigateAction"
+        - $ref: "#/components/schemas/PageScreenshotAction"
+      type: object
+      discriminator:
+        propertyName: type
+        mapping:
+          click: "#/components/schemas/PageClickAction"
+          scroll: "#/components/schemas/PageScrollAction"
+          navigate: "#/components/schemas/PageNavigateAction"
+          screenshot: "#/components/schemas/PageScreenshotAction"
+    PageClickResult:
+      type: object
+      properties:
+        action:
+          $ref: "#/components/schemas/PageClickAction"
+      required:
+        - action
+      additionalProperties: false
+    PageScrollResult:
+      type: object
+      properties:
+        action:
+          $ref: "#/components/schemas/PageScrollAction"
+      required:
+        - action
+      additionalProperties: false
+    PageNavigateResult:
+      type: object
+      properties:
+        action:
+          $ref: "#/components/schemas/PageNavigateAction"
+      required:
+        - action
+      additionalProperties: false
+    PageScreenshotResult:
+      type: object
+      properties:
+        action:
+          $ref: "#/components/schemas/PageScreenshotAction"
+      required:
+        - action
+      additionalProperties: false
+    PageActionDetailsResult:
+      type: object
+      properties:
+        action:
+          $ref: "#/components/schemas/PageAction"
+      required:
+        - action
+      additionalProperties: false
+    PageActionListResult:
+      type: object
+      properties:
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PageAction"
+      required:
+        - actions
+      additionalProperties: false
     SessionStartResponse:
       type: object
       properties:
@@ -1067,6 +1641,125 @@ components:
       required:
         - success
         - data
+      additionalProperties: false
+    PageClickResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/V4ResponseId"
+        error:
+          type: "null"
+        result:
+          $ref: "#/components/schemas/PageClickResult"
+        metadata:
+          $ref: "#/components/schemas/V4ResponseMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageScrollResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/V4ResponseId"
+        error:
+          type: "null"
+        result:
+          $ref: "#/components/schemas/PageScrollResult"
+        metadata:
+          $ref: "#/components/schemas/V4ResponseMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageNavigateResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/V4ResponseId"
+        error:
+          type: "null"
+        result:
+          $ref: "#/components/schemas/PageNavigateResult"
+        metadata:
+          $ref: "#/components/schemas/V4ResponseMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageScreenshotResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/V4ResponseId"
+        error:
+          type: "null"
+        result:
+          $ref: "#/components/schemas/PageScreenshotResult"
+        metadata:
+          $ref: "#/components/schemas/V4ResponseMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageActionDetailsResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/V4ResponseId"
+        error:
+          type: "null"
+        result:
+          $ref: "#/components/schemas/PageActionDetailsResult"
+        metadata:
+          $ref: "#/components/schemas/V4ResponseMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageActionListResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/V4ResponseId"
+        error:
+          type: "null"
+        result:
+          $ref: "#/components/schemas/PageActionListResult"
+        metadata:
+          $ref: "#/components/schemas/V4ResponseMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    V4ErrorResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/V4ResponseId"
+        error:
+          $ref: "#/components/schemas/V4ErrorObject"
+        result:
+          type: "null"
+        metadata:
+          $ref: "#/components/schemas/V4ResponseMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
       additionalProperties: false
     AgentCacheEntryOutput:
       type: object
@@ -1868,7 +2561,306 @@ components:
         - type
         - id
       additionalProperties: false
+    PageActionIdParams:
+      type: object
+      properties:
+        actionId:
+          $ref: "#/components/schemas/V4ActionId"
+      required:
+        - actionId
+      additionalProperties: false
+    PageActionDetailsQuery:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/V4RequestId"
+        sessionId:
+          $ref: "#/components/schemas/V4SessionId"
+      required:
+        - sessionId
+      additionalProperties: false
+    PageActionListQuery:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/V4RequestId"
+        sessionId:
+          $ref: "#/components/schemas/V4SessionId"
+        pageId:
+          $ref: "#/components/schemas/V4PageId"
+        type:
+          $ref: "#/components/schemas/PageActionType"
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        limit:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 500
+      required:
+        - sessionId
+      additionalProperties: false
+    PageActionBase:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/V4ActionId"
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/V4SessionId"
+        pageId:
+          $ref: "#/components/schemas/V4PageId"
+        createdAt:
+          $ref: "#/components/schemas/V4Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/V4Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/V4Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/V4ErrorObject"
+            - type: "null"
+      required:
+        - id
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+      additionalProperties: false
 paths:
+  /v4/page/click:
+    post:
+      operationId: PageClick
+      summary: Click an element on the current page
+      tags:
+        - Page
+      description: Creates a page action that clicks an element addressed by an
+        understudy XPath selector.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageClickRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageClickResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/scroll:
+    post:
+      operationId: PageScroll
+      summary: Scroll the current page
+      tags:
+        - Page
+      description: Creates a page action that either scrolls by coordinates or scrolls
+        a selected element to a percentage.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageScrollRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageScrollResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/navigate:
+    post:
+      operationId: PageNavigate
+      summary: Navigate a page
+      tags:
+        - Page
+      description: Creates a page action that navigates the selected page to a URL.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageNavigateRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageNavigateResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/screenshot:
+    post:
+      operationId: PageScreenshot
+      summary: Capture a screenshot
+      tags:
+        - Page
+      description: Creates a page action that captures a screenshot and returns the
+        image as raw base64 data.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageScreenshotRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageScreenshotResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/action:
+    get:
+      operationId: PageActionList
+      summary: List page actions
+      tags:
+        - Page
+      description: Lists previously recorded page actions for a session.
+      parameters:
+        - schema:
+            $ref: "#/components/schemas/V4RequestId"
+          in: query
+          name: id
+        - schema:
+            $ref: "#/components/schemas/V4SessionId"
+          in: query
+          name: sessionId
+          required: true
+        - schema:
+            $ref: "#/components/schemas/V4PageId"
+          in: query
+          name: pageId
+        - schema:
+            $ref: "#/components/schemas/PageActionType"
+          in: query
+          name: type
+        - schema:
+            $ref: "#/components/schemas/PageActionStatus"
+          in: query
+          name: status
+        - schema:
+            type: integer
+            exclusiveMinimum: 0
+            maximum: 500
+          in: query
+          name: limit
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageActionListResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/action/{actionId}:
+    get:
+      operationId: PageActionDetails
+      summary: Get page action details
+      tags:
+        - Page
+      description: Retrieves a previously recorded page action by ID.
+      parameters:
+        - schema:
+            $ref: "#/components/schemas/V4RequestId"
+          in: query
+          name: id
+        - schema:
+            $ref: "#/components/schemas/V4SessionId"
+          in: query
+          name: sessionId
+          required: true
+        - schema:
+            $ref: "#/components/schemas/V4ActionId"
+          in: path
+          name: actionId
+          required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageActionDetailsResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
   /v4/sessions/{id}/act:
     post:
       operationId: SessionAct

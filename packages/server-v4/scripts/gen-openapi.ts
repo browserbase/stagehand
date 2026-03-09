@@ -12,8 +12,15 @@ import {
   type FastifyZodOpenApiTypeProvider,
 } from "fastify-zod-openapi";
 import { Api } from "@browserbasehq/stagehand";
+import { pageOpenApiComponents } from "../src/schemas/v4/page.js";
 
 // Routes
+import pageActionDetailsRoute from "../src/routes/v4/page/action/_actionId.js";
+import pageActionListRoute from "../src/routes/v4/page/action/index.js";
+import pageClickRoute from "../src/routes/v4/page/click.js";
+import pageNavigateRoute from "../src/routes/v4/page/navigate.js";
+import pageScreenshotRoute from "../src/routes/v4/page/screenshot.js";
+import pageScrollRoute from "../src/routes/v4/page/scroll.js";
 import actRoute from "../src/routes/v4/sessions/_id/act.js";
 import agentExecuteRoute from "../src/routes/v4/sessions/_id/agentExecute.js";
 import endRoute from "../src/routes/v4/sessions/_id/end.js";
@@ -109,6 +116,7 @@ async function main() {
       StreamEventSystemData: Api.StreamEventSystemDataSchema,
       StreamEventLogData: Api.StreamEventLogDataSchema,
       StreamEvent: Api.StreamEventSchema,
+      ...pageOpenApiComponents.schemas,
     },
   };
 
@@ -151,6 +159,12 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
 
   await app.register(
     (instance, _opts, done) => {
+      instance.route(pageClickRoute);
+      instance.route(pageScrollRoute);
+      instance.route(pageNavigateRoute);
+      instance.route(pageScreenshotRoute);
+      instance.route(pageActionListRoute);
+      instance.route(pageActionDetailsRoute);
       instance.route(actRoute);
       instance.route(endRoute);
       instance.route(extractRoute);

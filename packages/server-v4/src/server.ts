@@ -17,12 +17,19 @@ import {
 import { StatusCodes } from "http-status-codes";
 
 import { logging } from "./lib/logging/index.js";
+import { pageOpenApiComponents } from "./schemas/v4/page.js";
 import {
   destroySessionStore,
   initializeSessionStore,
 } from "./lib/sessionStoreManager.js";
 import healthcheckRoute from "./routes/healthcheck.js";
 import readinessRoute, { setReady, setUnready } from "./routes/readiness.js";
+import pageActionDetailsRoute from "./routes/v4/page/action/_actionId.js";
+import pageActionListRoute from "./routes/v4/page/action/index.js";
+import pageClickRoute from "./routes/v4/page/click.js";
+import pageNavigateRoute from "./routes/v4/page/navigate.js";
+import pageScreenshotRoute from "./routes/v4/page/screenshot.js";
+import pageScrollRoute from "./routes/v4/page/scroll.js";
 import actRoute from "./routes/v4/sessions/_id/act.js";
 import agentExecuteRoute from "./routes/v4/sessions/_id/agentExecute.js";
 import endRoute from "./routes/v4/sessions/_id/end.js";
@@ -150,7 +157,9 @@ const start = async () => {
     app.setValidatorCompiler(validatorCompiler);
     app.setSerializerCompiler(serializerCompiler);
 
-    await app.register(fastifyZodOpenApiPlugin);
+    await app.register(fastifyZodOpenApiPlugin, {
+      components: pageOpenApiComponents,
+    });
 
     await app.register(fastifySwagger, {
       openapi: {
@@ -238,6 +247,12 @@ const start = async () => {
 
     await appWithTypes.register(
       (instance, _opts, done) => {
+        instance.route(pageClickRoute);
+        instance.route(pageScrollRoute);
+        instance.route(pageNavigateRoute);
+        instance.route(pageScreenshotRoute);
+        instance.route(pageActionListRoute);
+        instance.route(pageActionDetailsRoute);
         instance.route(actRoute);
         instance.route(endRoute);
         instance.route(extractRoute);
