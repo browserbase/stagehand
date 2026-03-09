@@ -35,7 +35,7 @@ after(async () => {
 // ---------------------------------------------------------------------------
 
 function extractUrl() {
-  return `${getBaseUrl()}/v1/sessions/${sessionId}/extract`;
+  return `${getBaseUrl()}/v4/sessions/${sessionId}/extract`;
 }
 
 function extractBody(instruction = "extract the page title") {

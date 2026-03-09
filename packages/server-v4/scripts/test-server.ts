@@ -9,7 +9,7 @@
  * Env: STAGEHAND_SERVER_TARGET=sea|local|remote, STAGEHAND_BASE_URL, SEA_BINARY_NAME,
  *      NODE_TEST_CONSOLE_REPORTER, NODE_TEST_REPORTER, NODE_TEST_REPORTER_DESTINATION,
  *      NODE_V8_COVERAGE; writes CTRF to ctrf/node-test-*.xml by default.
- * Example: STAGEHAND_SERVER_TARGET=sea pnpm run test:server -- packages/server-v4/dist/tests/integration/v3/start.test.js
+ * Example: STAGEHAND_SERVER_TARGET=sea pnpm run test:server -- packages/server-v4/dist/tests/integration/v4/start.test.js
  */
 import fs from "node:fs";
 import path from "node:path";

@@ -41,10 +41,10 @@ after(async () => {
 });
 
 // =============================================================================
-// POST /v1/sessions/:id/extract - V3 Format Tests
+// POST /v4/sessions/:id/extract - V3 Format Tests
 // =============================================================================
 
-describe("POST /v1/sessions/:id/extract (V3)", () => {
+describe("POST /v4/sessions/:id/extract (V3)", () => {
   it("should extract data with instruction and schema", async () => {
     const url = getBaseUrl();
     const frameId = await getMainFrameId(cdpUrl);
@@ -55,7 +55,7 @@ describe("POST /v1/sessions/:id/extract (V3)", () => {
     }
 
     const ctx = await fetchWithContext<ExtractResponse>(
-      `${url}/v1/sessions/${sessionId}/extract`,
+      `${url}/v4/sessions/${sessionId}/extract`,
       {
         method: "POST",
         headers: getHeaders("3.0.0"),
@@ -99,7 +99,7 @@ describe("POST /v1/sessions/:id/extract (V3)", () => {
     }
 
     const ctx = await fetchWithContext<ExtractResponse>(
-      `${url}/v1/sessions/${sessionId}/extract`,
+      `${url}/v4/sessions/${sessionId}/extract`,
       {
         method: "POST",
         headers: getHeaders("3.0.0"),
@@ -139,7 +139,7 @@ describe("POST /v1/sessions/:id/extract (V3)", () => {
     }
 
     const ctx = await fetchWithContext<ExtractResponse>(
-      `${url}/v1/sessions/${sessionId}/extract`,
+      `${url}/v4/sessions/${sessionId}/extract`,
       {
         method: "POST",
         headers: getHeaders("3.0.0"),
@@ -180,7 +180,7 @@ describe("POST /v1/sessions/:id/extract (V3)", () => {
     }
 
     const ctx = await fetchWithContext<ExtractResponse>(
-      `${url}/v1/sessions/${sessionId}/extract`,
+      `${url}/v4/sessions/${sessionId}/extract`,
       {
         method: "POST",
         headers: getHeaders("3.0.0"),
@@ -225,7 +225,7 @@ describe("POST /v1/sessions/:id/extract (V3)", () => {
     }
 
     const ctx = await fetchWithContext<ExtractResponse>(
-      `${url}/v1/sessions/${sessionId}/extract`,
+      `${url}/v4/sessions/${sessionId}/extract`,
       {
         method: "POST",
         headers: getHeaders("3.0.0"),
@@ -256,7 +256,7 @@ describe("POST /v1/sessions/:id/extract (V3)", () => {
     }
 
     const ctx = await fetchWithContext<ExtractResponse>(
-      `${url}/v1/sessions/${sessionId}/extract`,
+      `${url}/v4/sessions/${sessionId}/extract`,
       {
         method: "POST",
         headers: getHeaders("3.0.0"),
@@ -294,7 +294,7 @@ describe("POST /v1/sessions/:id/extract (V3)", () => {
     }
 
     const ctx = await fetchWithContext<ExtractResponse>(
-      `${url}/v1/sessions/${sessionId}/extract`,
+      `${url}/v4/sessions/${sessionId}/extract`,
       {
         method: "POST",
         headers: getHeaders("3.0.0"),
@@ -339,11 +339,11 @@ describe("POST /v1/sessions/:id/extract (V3)", () => {
 // SSE Streaming Tests - V3
 // =============================================================================
 
-describe("POST /v1/sessions/:id/extract with SSE streaming (V3)", () => {
+describe("POST /v4/sessions/:id/extract with SSE streaming (V3)", () => {
   it("should stream valid SSE events with correct structure", async () => {
     const url = getBaseUrl();
 
-    const response = await fetch(`${url}/v1/sessions/${sessionId}/extract`, {
+    const response = await fetch(`${url}/v4/sessions/${sessionId}/extract`, {
       method: "POST",
       headers: getHeaders("3.0.0"),
       body: JSON.stringify({
@@ -403,7 +403,7 @@ describe("POST /v1/sessions/:id/extract with SSE streaming (V3)", () => {
   it("should have correct event sequence: starting -> connected -> finished", async () => {
     const url = getBaseUrl();
 
-    const response = await fetch(`${url}/v1/sessions/${sessionId}/extract`, {
+    const response = await fetch(`${url}/v4/sessions/${sessionId}/extract`, {
       method: "POST",
       headers: getHeaders("3.0.0"),
       body: JSON.stringify({
@@ -446,7 +446,7 @@ describe("POST /v1/sessions/:id/extract with SSE streaming (V3)", () => {
   it("should have valid UUID for each event id", async () => {
     const url = getBaseUrl();
 
-    const response = await fetch(`${url}/v1/sessions/${sessionId}/extract`, {
+    const response = await fetch(`${url}/v4/sessions/${sessionId}/extract`, {
       method: "POST",
       headers: getHeaders("3.0.0"),
       body: JSON.stringify({
@@ -479,7 +479,7 @@ describe("POST /v1/sessions/:id/extract with SSE streaming (V3)", () => {
   it("should extract data matching the provided schema", async () => {
     const url = getBaseUrl();
 
-    const response = await fetch(`${url}/v1/sessions/${sessionId}/extract`, {
+    const response = await fetch(`${url}/v4/sessions/${sessionId}/extract`, {
       method: "POST",
       headers: getHeaders("3.0.0"),
       body: JSON.stringify({

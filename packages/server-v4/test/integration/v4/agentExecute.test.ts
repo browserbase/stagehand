@@ -23,10 +23,10 @@ import {
 } from "../utils.js";
 
 // =============================================================================
-// POST /v1/sessions/:id/agentExecute (V3 Format)
+// POST /v4/sessions/:id/agentExecute (V3 Format)
 // =============================================================================
 
-describe("POST /v1/sessions/:id/agentExecute (V3) - Basic Config", () => {
+describe("POST /v4/sessions/:id/agentExecute (V3) - Basic Config", () => {
   let sessionId: string;
   let cdpUrl: string;
   const headers = getHeaders("3.0.0");
@@ -59,7 +59,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - Basic Config", () => {
     const ctx = await fetchWithContext<{
       success: boolean;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -92,7 +92,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - Basic Config", () => {
     const ctx = await fetchWithContext<{
       success: boolean;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -130,7 +130,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - Basic Config", () => {
     const ctx = await fetchWithContext<{
       success: boolean;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -171,7 +171,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - Basic Config", () => {
     const ctx = await fetchWithContext<{
       success: boolean;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -209,7 +209,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - Basic Config", () => {
 // V3 Format Tests with model: {modelName, apiKey} format - Google Gemini
 // ===========================================================================
 
-describe("POST /v1/sessions/:id/agentExecute (V3) - Google Gemini with API key", () => {
+describe("POST /v4/sessions/:id/agentExecute (V3) - Google Gemini with API key", () => {
   let sessionId: string;
   const headers = getHeaders("3.0.0");
 
@@ -241,7 +241,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - Google Gemini with API key",
     const ctx = await fetchWithContext<{
       success: boolean;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -283,7 +283,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - Google Gemini with API key",
     const ctx = await fetchWithContext<{
       success: boolean;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -325,7 +325,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - Google Gemini with API key",
 // V3 Format Tests with OpenAI model: {modelName, apiKey} format
 // ===========================================================================
 
-describe("POST /v1/sessions/:id/agentExecute (V3) - OpenAI with API key", () => {
+describe("POST /v4/sessions/:id/agentExecute (V3) - OpenAI with API key", () => {
   let sessionId: string;
   const headers = getHeaders("3.0.0");
 
@@ -357,7 +357,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - OpenAI with API key", () => 
     const ctx = await fetchWithContext<{
       success: boolean;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -397,7 +397,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - OpenAI with API key", () => 
 // V3 CUA Mode Tests - Testing explicit cua flag with model compatibility
 // ===========================================================================
 
-describe("POST /v1/sessions/:id/agentExecute (V3) - CUA flag compatibility", () => {
+describe("POST /v4/sessions/:id/agentExecute (V3) - CUA flag compatibility", () => {
   let sessionId: string;
   const headers = getHeaders("3.0.0");
 
@@ -429,7 +429,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - CUA flag compatibility", () 
     const ctx = await fetchWithContext<{
       success: boolean;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -472,7 +472,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - CUA flag compatibility", () 
     const ctx = await fetchWithContext<{
       success: boolean;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -516,7 +516,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - CUA flag compatibility", () 
       success: boolean;
       message?: string;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -560,7 +560,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - CUA flag compatibility", () 
       success: boolean;
       message?: string;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -593,7 +593,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - CUA flag compatibility", () 
     const ctx = await fetchWithContext<{
       success: boolean;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -635,7 +635,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - CUA flag compatibility", () 
 // V3 executionModel Tests - Testing agentConfig.executionModel serialization
 // =============================================================================
 
-describe("POST /v1/sessions/:id/agentExecute (V3) - executionModel serialization", () => {
+describe("POST /v4/sessions/:id/agentExecute (V3) - executionModel serialization", () => {
   let sessionId: string;
   const headers = getHeaders("3.0.0");
 
@@ -666,7 +666,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - executionModel serialization
     const ctx = await fetchWithContext<{
       success: boolean;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -705,7 +705,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - executionModel serialization
     const ctx = await fetchWithContext<{
       success: boolean;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -747,7 +747,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - executionModel serialization
     const ctx = await fetchWithContext<{
       success: boolean;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -791,7 +791,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - executionModel serialization
 // V3 Mode Tests - Testing agentConfig.mode field (dom, hybrid, cua)
 // =============================================================================
 
-describe("POST /v1/sessions/:id/agentExecute - agentConfig.mode (V3)", () => {
+describe("POST /v4/sessions/:id/agentExecute - agentConfig.mode (V3)", () => {
   let sessionId: string;
   const headers = getHeaders("3.0.0");
 
@@ -822,7 +822,7 @@ describe("POST /v1/sessions/:id/agentExecute - agentConfig.mode (V3)", () => {
     const ctx = await fetchWithContext<{
       success: boolean;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -861,7 +861,7 @@ describe("POST /v1/sessions/:id/agentExecute - agentConfig.mode (V3)", () => {
     const ctx = await fetchWithContext<{
       success: boolean;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -905,7 +905,7 @@ describe("POST /v1/sessions/:id/agentExecute - agentConfig.mode (V3)", () => {
     const ctx = await fetchWithContext<{
       success: boolean;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -946,7 +946,7 @@ describe("POST /v1/sessions/:id/agentExecute - agentConfig.mode (V3)", () => {
 // SSE Streaming Tests (V3)
 // =============================================================================
 
-describe("POST /v1/sessions/:id/agentExecute with SSE streaming (V3)", () => {
+describe("POST /v4/sessions/:id/agentExecute with SSE streaming (V3)", () => {
   let sessionId: string;
   const headers = getHeaders("3.0.0");
 
@@ -975,7 +975,7 @@ describe("POST /v1/sessions/:id/agentExecute with SSE streaming (V3)", () => {
     const url = getBaseUrl();
 
     const response = await fetch(
-      `${url}/v1/sessions/${sessionId}/agentExecute`,
+      `${url}/v4/sessions/${sessionId}/agentExecute`,
       {
         method: "POST",
         headers,
@@ -1083,7 +1083,7 @@ describe("POST /v1/sessions/:id/agentExecute with SSE streaming (V3)", () => {
 // Validation Error Tests (V3)
 // =============================================================================
 
-describe("POST /v1/sessions/:id/agentExecute - validation errors (V3)", () => {
+describe("POST /v4/sessions/:id/agentExecute - validation errors (V3)", () => {
   let sessionId: string;
   const headers = getHeaders("3.0.0");
 
@@ -1115,7 +1115,7 @@ describe("POST /v1/sessions/:id/agentExecute - validation errors (V3)", () => {
       success?: boolean;
       error?: string;
       message?: string;
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -1140,7 +1140,7 @@ describe("POST /v1/sessions/:id/agentExecute - validation errors (V3)", () => {
       success?: boolean;
       error?: string;
       message?: string;
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -1167,7 +1167,7 @@ describe("POST /v1/sessions/:id/agentExecute - validation errors (V3)", () => {
       success?: boolean;
       error?: string;
       message?: string;
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -1197,7 +1197,7 @@ describe("POST /v1/sessions/:id/agentExecute - validation errors (V3)", () => {
       success?: boolean;
       error?: string;
       message?: string;
-    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+    }>(`${url}/v4/sessions/${sessionId}/agentExecute`, {
       method: "POST",
       headers,
       body: JSON.stringify({

@@ -12,7 +12,10 @@ export default [
     languageOptions: { globals: globals.node },
   },
   {
-    files: ["packages/server-v*/scripts/**/*.{js,cjs,mjs,ts}"],
+    files: [
+      "packages/server-v3/scripts/**/*.{js,cjs,mjs,ts}",
+      "packages/server-v4/scripts/**/*.{js,cjs,mjs,ts}",
+    ],
     languageOptions: { globals: globals.node },
   },
   {
@@ -21,6 +24,7 @@ export default [
       "**/node_modules/**",
       "packages/core/lib/dom/build/**",
       "packages/core/lib/v3/dom/build/**",
+      "packages/core/lib/v4/dom/build/**",
       "packages/core/scripts/prepare.js",
       "**/*.config.js",
       "**/*.config.mjs",
@@ -29,7 +33,7 @@ export default [
       "**/*.json",
       "stainless.yml",
       "packages/server-v3/openapi.v3.yaml",
-      "packages/server-v4/openapi.v3.yaml",
+      "packages/server-v4/openapi.v4.yaml",
     ],
   },
   pluginJs.configs.recommended,

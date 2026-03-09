@@ -62,10 +62,10 @@ after(async () => {
 });
 
 // =============================================================================
-// POST /v1/sessions/:id/act (V3 Format)
+// POST /v4/sessions/:id/act (V3 Format)
 // =============================================================================
 
-describe("POST /v1/sessions/:id/act (V3)", () => {
+describe("POST /v4/sessions/:id/act (V3)", () => {
   // ===========================================================================
   // V3 Format Tests
   // ===========================================================================
@@ -75,7 +75,7 @@ describe("POST /v1/sessions/:id/act (V3)", () => {
     const frameId = await getMainFrameId(cdpUrl);
 
     const ctx = await fetchWithContext<ActResponse>(
-      `${url}/v1/sessions/${sessionId}/act`,
+      `${url}/v4/sessions/${sessionId}/act`,
       {
         method: "POST",
         headers: {
@@ -117,7 +117,7 @@ describe("POST /v1/sessions/:id/act (V3)", () => {
     const url = getBaseUrl();
 
     const ctx = await fetchWithContext<ActResponse>(
-      `${url}/v1/sessions/${sessionId}/act`,
+      `${url}/v4/sessions/${sessionId}/act`,
       {
         method: "POST",
         headers: {
@@ -149,7 +149,7 @@ describe("POST /v1/sessions/:id/act (V3)", () => {
     const url = getBaseUrl();
 
     const ctx = await fetchWithContext<ActResponse>(
-      `${url}/v1/sessions/${sessionId}/act`,
+      `${url}/v4/sessions/${sessionId}/act`,
       {
         method: "POST",
         headers: {
@@ -185,7 +185,7 @@ describe("POST /v1/sessions/:id/act (V3)", () => {
     const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
 
     const ctx = await fetchWithContext<ActResponse>(
-      `${url}/v1/sessions/${sessionId}/act`,
+      `${url}/v4/sessions/${sessionId}/act`,
       {
         method: "POST",
         headers: {
@@ -225,7 +225,7 @@ describe("POST /v1/sessions/:id/act (V3)", () => {
     const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
 
     const ctx = await fetchWithContext<ActResponse>(
-      `${url}/v1/sessions/${sessionId}/act`,
+      `${url}/v4/sessions/${sessionId}/act`,
       {
         method: "POST",
         headers: {
@@ -266,7 +266,7 @@ describe("POST /v1/sessions/:id/act (V3)", () => {
     const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
 
     const ctx = await fetchWithContext<ActResponse>(
-      `${url}/v1/sessions/${sessionId}/act`,
+      `${url}/v4/sessions/${sessionId}/act`,
       {
         method: "POST",
         headers: {
@@ -310,7 +310,7 @@ describe("POST /v1/sessions/:id/act (V3)", () => {
     const geminiApiKey = requireEnv("GEMINI_API_KEY", GEMINI_API_KEY);
 
     const ctx = await fetchWithContext<ActResponse>(
-      `${url}/v1/sessions/${sessionId}/act`,
+      `${url}/v4/sessions/${sessionId}/act`,
       {
         method: "POST",
         headers: {
@@ -350,11 +350,11 @@ describe("POST /v1/sessions/:id/act (V3)", () => {
 // SSE Streaming Tests (V3)
 // =============================================================================
 
-describe("POST /v1/sessions/:id/act with SSE streaming (V3)", () => {
+describe("POST /v4/sessions/:id/act with SSE streaming (V3)", () => {
   it("should stream valid SSE events with correct structure", async () => {
     const url = getBaseUrl();
 
-    const response = await fetch(`${url}/v1/sessions/${sessionId}/act`, {
+    const response = await fetch(`${url}/v4/sessions/${sessionId}/act`, {
       method: "POST",
       headers: {
         ...getHeaders("3.0.0"),
@@ -405,7 +405,7 @@ describe("POST /v1/sessions/:id/act with SSE streaming (V3)", () => {
     const url = getBaseUrl();
     const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
 
-    const response = await fetch(`${url}/v1/sessions/${sessionId}/act`, {
+    const response = await fetch(`${url}/v4/sessions/${sessionId}/act`, {
       method: "POST",
       headers: {
         ...getHeaders("3.0.0"),

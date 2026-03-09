@@ -72,7 +72,7 @@
       "dependsOn": ["^build"],
       "outputs": [
         "dist/**",
-        "openapi.v3.yaml"
+        "openapi.v4.yaml"
       ],
       "inputs": [
         "**/*.ts",
@@ -81,7 +81,19 @@
         "tsconfig.json",
         "tsconfig.*.json",
         "!dist/**",
-        "!openapi.v3.yaml"
+        "!openapi.v4.yaml"
+      ]
+    },
+    "@browserbasehq/stagehand-server-v4#gen:openapi": {
+      "dependsOn": ["^build:esm"],
+      "outputs": ["openapi.v4.yaml"],
+      "inputs": [
+        "src/**/*.ts",
+        "scripts/gen-openapi.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json",
+        "!openapi.v4.yaml"
       ]
     },
     "@browserbasehq/stagehand#build:esm": {

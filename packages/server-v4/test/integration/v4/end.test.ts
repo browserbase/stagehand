@@ -17,10 +17,10 @@ import {
 } from "../utils.js";
 
 // =============================================================================
-// POST /v1/sessions/:id/end (V3 Format)
+// POST /v4/sessions/:id/end (V3 Format)
 // =============================================================================
 
-describe("POST /v1/sessions/:id/end (V3)", () => {
+describe("POST /v4/sessions/:id/end (V3)", () => {
   const headers = getHeaders("3.0.0");
   let sessionId: string;
 
@@ -42,7 +42,7 @@ describe("POST /v1/sessions/:id/end (V3)", () => {
     // Create a fresh session for this test since we need to test error cases
     const testSessionId = await createSession(headers);
 
-    const response = await fetch(`${url}/v1/sessions/${testSessionId}/end`, {
+    const response = await fetch(`${url}/v4/sessions/${testSessionId}/end`, {
       method: "POST",
       headers: {
         ...headers,
@@ -75,7 +75,7 @@ describe("POST /v1/sessions/:id/end (V3)", () => {
     const testSessionId = await createSession(headers);
 
     const ctx = await fetchWithContext<{ success?: boolean; message?: string }>(
-      `${url}/v1/sessions/${testSessionId}/end`,
+      `${url}/v4/sessions/${testSessionId}/end`,
       {
         method: "POST",
         headers,
@@ -98,7 +98,7 @@ describe("POST /v1/sessions/:id/end (V3)", () => {
     const testSessionId = await createSession(headers);
 
     const ctx = await fetchWithContext<{ success: boolean }>(
-      `${url}/v1/sessions/${testSessionId}/end`,
+      `${url}/v4/sessions/${testSessionId}/end`,
       {
         method: "POST",
         headers,
@@ -116,7 +116,7 @@ describe("POST /v1/sessions/:id/end (V3)", () => {
     const testSessionId = await createSession(headers);
 
     // Send request with no body at all
-    const response = await fetch(`${url}/v1/sessions/${testSessionId}/end`, {
+    const response = await fetch(`${url}/v4/sessions/${testSessionId}/end`, {
       method: "POST",
       headers: {
         ...headers,
@@ -139,7 +139,7 @@ describe("POST /v1/sessions/:id/end (V3)", () => {
     const url = getBaseUrl();
 
     const ctx = await fetchWithContext<{ success: boolean }>(
-      `${url}/v1/sessions/${sessionId}/end`,
+      `${url}/v4/sessions/${sessionId}/end`,
       {
         method: "POST",
         headers,
@@ -156,7 +156,7 @@ describe("POST /v1/sessions/:id/end (V3)", () => {
     const url = getBaseUrl();
 
     const ctx = await fetchWithContext<{ success?: boolean; message?: string }>(
-      `${url}/v1/sessions/non-existent-session-id/end`,
+      `${url}/v4/sessions/non-existent-session-id/end`,
       {
         method: "POST",
         headers,

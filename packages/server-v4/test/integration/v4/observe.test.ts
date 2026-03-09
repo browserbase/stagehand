@@ -42,10 +42,10 @@ after(async () => {
 });
 
 // =============================================================================
-// POST /v1/sessions/:id/observe - V3 Format Tests
+// POST /v4/sessions/:id/observe - V3 Format Tests
 // =============================================================================
 
-describe("POST /v1/sessions/:id/observe (V3)", () => {
+describe("POST /v4/sessions/:id/observe (V3)", () => {
   it("should observe elements with instruction", async () => {
     const url = getBaseUrl();
     const frameId = await getMainFrameId(cdpUrl);
@@ -56,7 +56,7 @@ describe("POST /v1/sessions/:id/observe (V3)", () => {
     }
 
     const ctx = await fetchWithContext<ObserveResponse>(
-      `${url}/v1/sessions/${sessionId}/observe`,
+      `${url}/v4/sessions/${sessionId}/observe`,
       {
         method: "POST",
         headers: getHeaders("3.0.0"),
@@ -91,7 +91,7 @@ describe("POST /v1/sessions/:id/observe (V3)", () => {
     }
 
     const ctx = await fetchWithContext<ObserveResponse>(
-      `${url}/v1/sessions/${sessionId}/observe`,
+      `${url}/v4/sessions/${sessionId}/observe`,
       {
         method: "POST",
         headers: getHeaders("3.0.0"),
@@ -128,7 +128,7 @@ describe("POST /v1/sessions/:id/observe (V3)", () => {
     }
 
     const ctx = await fetchWithContext<ObserveResponse>(
-      `${url}/v1/sessions/${sessionId}/observe`,
+      `${url}/v4/sessions/${sessionId}/observe`,
       {
         method: "POST",
         headers: getHeaders("3.0.0"),
@@ -165,7 +165,7 @@ describe("POST /v1/sessions/:id/observe (V3)", () => {
     }
 
     const ctx = await fetchWithContext<ObserveResponse>(
-      `${url}/v1/sessions/${sessionId}/observe`,
+      `${url}/v4/sessions/${sessionId}/observe`,
       {
         method: "POST",
         headers: getHeaders("3.0.0"),
@@ -206,7 +206,7 @@ describe("POST /v1/sessions/:id/observe (V3)", () => {
     }
 
     const ctx = await fetchWithContext<ObserveResponse>(
-      `${url}/v1/sessions/${sessionId}/observe`,
+      `${url}/v4/sessions/${sessionId}/observe`,
       {
         method: "POST",
         headers: {
@@ -249,11 +249,11 @@ describe("POST /v1/sessions/:id/observe (V3)", () => {
 // SSE Streaming Tests - V3
 // =============================================================================
 
-describe("POST /v1/sessions/:id/observe with SSE streaming (V3)", () => {
+describe("POST /v4/sessions/:id/observe with SSE streaming (V3)", () => {
   it("should stream valid SSE events with correct structure", async () => {
     const url = getBaseUrl();
 
-    const response = await fetch(`${url}/v1/sessions/${sessionId}/observe`, {
+    const response = await fetch(`${url}/v4/sessions/${sessionId}/observe`, {
       method: "POST",
       headers: getHeaders("3.0.0"),
       body: JSON.stringify({
@@ -301,7 +301,7 @@ describe("POST /v1/sessions/:id/observe with SSE streaming (V3)", () => {
   it("should have correct event sequence: starting -> connected -> finished", async () => {
     const url = getBaseUrl();
 
-    const response = await fetch(`${url}/v1/sessions/${sessionId}/observe`, {
+    const response = await fetch(`${url}/v4/sessions/${sessionId}/observe`, {
       method: "POST",
       headers: getHeaders("3.0.0"),
       body: JSON.stringify({
@@ -338,7 +338,7 @@ describe("POST /v1/sessions/:id/observe with SSE streaming (V3)", () => {
   it("should have valid UUID for each event id", async () => {
     const url = getBaseUrl();
 
-    const response = await fetch(`${url}/v1/sessions/${sessionId}/observe`, {
+    const response = await fetch(`${url}/v4/sessions/${sessionId}/observe`, {
       method: "POST",
       headers: getHeaders("3.0.0"),
       body: JSON.stringify({
@@ -365,7 +365,7 @@ describe("POST /v1/sessions/:id/observe with SSE streaming (V3)", () => {
   it("should return observed elements with expected properties", async () => {
     const url = getBaseUrl();
 
-    const response = await fetch(`${url}/v1/sessions/${sessionId}/observe`, {
+    const response = await fetch(`${url}/v4/sessions/${sessionId}/observe`, {
       method: "POST",
       headers: getHeaders("3.0.0"),
       body: JSON.stringify({

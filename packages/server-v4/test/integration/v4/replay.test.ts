@@ -10,13 +10,13 @@ import {
   HTTP_OK,
 } from "../utils.js";
 
-describe("GET /v1/sessions/:id/replay (V3)", () => {
+describe("GET /v4/sessions/:id/replay (V3)", () => {
   it("should return an empty replay result for local server", async () => {
     const url = getBaseUrl();
     const headers = getHeaders("3.0.0");
 
     const ctx = await fetchWithContext<unknown>(
-      `${url}/v1/sessions/test-session-id/replay`,
+      `${url}/v4/sessions/test-session-id/replay`,
       {
         method: "GET",
         headers,

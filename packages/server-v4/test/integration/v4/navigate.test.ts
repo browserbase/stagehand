@@ -16,10 +16,10 @@ import {
 } from "../utils.js";
 
 // =============================================================================
-// POST /v1/sessions/:id/navigate (V3 Format)
+// POST /v4/sessions/:id/navigate (V3 Format)
 // =============================================================================
 
-describe("POST /v1/sessions/:id/navigate (V3)", () => {
+describe("POST /v4/sessions/:id/navigate (V3)", () => {
   let sessionId: string;
   let cdpUrl: string;
 
@@ -37,7 +37,7 @@ describe("POST /v1/sessions/:id/navigate (V3)", () => {
     const ctx = await fetchWithContext<{
       success: boolean;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/navigate`, {
+    }>(`${url}/v4/sessions/${sessionId}/navigate`, {
       method: "POST",
       headers: getHeaders("3.0.0"),
       body: JSON.stringify({ url: "https://example.com", frameId: "" }),
@@ -84,7 +84,7 @@ describe("POST /v1/sessions/:id/navigate (V3)", () => {
     const ctx = await fetchWithContext<{
       success: boolean;
       data?: { result: unknown; actionId?: string };
-    }>(`${url}/v1/sessions/${sessionId}/navigate`, {
+    }>(`${url}/v4/sessions/${sessionId}/navigate`, {
       method: "POST",
       headers: getHeaders("3.0.0"),
       body: JSON.stringify({
@@ -123,7 +123,7 @@ describe("POST /v1/sessions/:id/navigate (V3)", () => {
       success?: boolean;
       message?: string;
       error?: string;
-    }>(`${url}/v1/sessions/${sessionId}/navigate`, {
+    }>(`${url}/v4/sessions/${sessionId}/navigate`, {
       method: "POST",
       headers: getHeaders("3.0.0"),
       body: JSON.stringify({ frameId: "" }), // Missing url

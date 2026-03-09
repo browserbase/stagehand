@@ -1,7 +1,7 @@
 openapi: "3.1.0"
 info:
-  title: Stagehand API
-  version: "3.1.0"
+  title: Stagehand API v4
+  version: "4.0.0"
   description: >-
     Stagehand SDK for AI browser automation [ALPHA]. This API allows clients to
 
@@ -442,10 +442,10 @@ components:
         experimental:
           type: boolean
         waitForCaptchaSolves:
-          description: Wait for captcha solves (deprecated, v2 only)
+          description: Wait for captcha solves
           type: boolean
         actTimeoutMs:
-          description: Timeout in ms for act operations (deprecated, v2 only)
+          description: Timeout in ms for act operations
           type: number
       required:
         - modelName
@@ -1869,7 +1869,7 @@ components:
         - id
       additionalProperties: false
 paths:
-  /v1/sessions/{id}/act:
+  /v4/sessions/{id}/act:
     post:
       operationId: SessionAct
       summary: Perform an action
@@ -1907,7 +1907,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ActResponse"
-  /v1/sessions/{id}/end:
+  /v4/sessions/{id}/end:
     post:
       operationId: SessionEnd
       summary: End a browser session
@@ -1938,7 +1938,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SessionEndResponse"
-  /v1/sessions/{id}/extract:
+  /v4/sessions/{id}/extract:
     post:
       operationId: SessionExtract
       summary: Extract data from the page
@@ -1975,7 +1975,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExtractResponse"
-  /v1/sessions/{id}/navigate:
+  /v4/sessions/{id}/navigate:
     post:
       operationId: SessionNavigate
       summary: Navigate to a URL
@@ -2012,7 +2012,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NavigateResponse"
-  /v1/sessions/{id}/observe:
+  /v4/sessions/{id}/observe:
     post:
       operationId: SessionObserve
       summary: Observe available actions
@@ -2050,7 +2050,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ObserveResponse"
-  /v1/sessions/{id}/replay:
+  /v4/sessions/{id}/replay:
     get:
       operationId: SessionReplay
       summary: Replay session metrics
@@ -2081,7 +2081,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReplayResponse"
-  /v1/sessions/start:
+  /v4/sessions/start:
     post:
       operationId: SessionStart
       summary: Start a new browser session
@@ -2111,7 +2111,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SessionStartResponse"
-  /v1/sessions/{id}/agentExecute:
+  /v4/sessions/{id}/agentExecute:
     post:
       operationId: SessionAgentExecute
       summary: Execute an AI agent

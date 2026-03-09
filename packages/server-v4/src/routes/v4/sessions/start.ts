@@ -225,7 +225,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
               connectTimeoutMs: browser.launchOptions.connectTimeoutMs,
             },
           },
-          "Failed to initialize local browser session in /v1/sessions/start",
+          "Failed to initialize local browser session in /v4/sessions/start",
         );
         throw err;
       }

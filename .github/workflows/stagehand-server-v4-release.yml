@@ -14,7 +14,7 @@ permissions:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 env:
-  OAS_PATH: packages/server-v4/openapi.v3.yaml
+  OAS_PATH: packages/server-v4/openapi.v4.yaml
 
 jobs:
   detect:
@@ -138,7 +138,7 @@ jobs:
       - name: Prepare stagehand/server-v4 release assets
         run: |
           set -euo pipefail
-          cp "${{ env.OAS_PATH }}" "release-assets/openapi.v3.stagehand-server-v4-${{ needs.detect.outputs.version }}.yaml"
+          cp "${{ env.OAS_PATH }}" "release-assets/openapi.v4.stagehand-server-v4-${{ needs.detect.outputs.version }}.yaml"
 
       - name: Download SEA binary artifacts
         uses: actions/download-artifact@v4
@@ -181,6 +181,6 @@ jobs:
           name: stagehand/server-v4 v${{ needs.detect.outputs.version }}
           generate_release_notes: true
           files: |
-            release-assets/openapi.v3.stagehand-server-v4-${{ needs.detect.outputs.version }}.yaml
+            release-assets/openapi.v4.stagehand-server-v4-${{ needs.detect.outputs.version }}.yaml
             release-assets/stagehand-server-v4-*
             release-assets/checksums.sha256

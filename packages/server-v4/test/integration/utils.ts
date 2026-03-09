@@ -195,7 +195,7 @@ export async function createSessionWithCdp(
     ...createLocalBrowserBody(),
   };
 
-  const response = await fetch(`${url}/v1/sessions/start`, {
+  const response = await fetch(`${url}/v4/sessions/start`, {
     method: "POST",
     headers,
     body: JSON.stringify(startPayload),
@@ -245,7 +245,7 @@ export async function endSession(
 ): Promise<void> {
   const url = getBaseUrl();
 
-  await fetch(`${url}/v1/sessions/${sessionId}/end`, {
+  await fetch(`${url}/v4/sessions/${sessionId}/end`, {
     method: "POST",
     headers,
     body: JSON.stringify({}),
@@ -263,7 +263,7 @@ export async function navigateSession(
 ): Promise<Response> {
   const url = getBaseUrl();
 
-  return fetch(`${url}/v1/sessions/${sessionId}/navigate`, {
+  return fetch(`${url}/v4/sessions/${sessionId}/navigate`, {
     method: "POST",
     headers,
     body: JSON.stringify({ url: targetUrl, frameId: "" }),

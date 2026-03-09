@@ -352,7 +352,7 @@ async function startKeepAliveFalseLocalSession(baseUrl: string): Promise<{
 }> {
   const headers = getHeaders("3.0.0");
   const ctx = await fetchWithContext<StartResponse>(
-    `${baseUrl}/v1/sessions/start`,
+    `${baseUrl}/v4/sessions/start`,
     {
       method: "POST",
       headers,
@@ -392,7 +392,7 @@ async function startKeepAliveFalseBrowserbaseSession(
     "x-bb-project-id": bbProjectId,
   };
   const ctx = await fetchWithContext<StartResponse>(
-    `${baseUrl}/v1/sessions/start`,
+    `${baseUrl}/v4/sessions/start`,
     {
       method: "POST",
       headers,
@@ -420,7 +420,7 @@ async function startKeepAliveFalseBrowserbaseSession(
 
   // Browserbase Stagehand init is lazy; navigate once to ensure supervisor is running.
   const navigateCtx = await fetchWithContext<{ success?: boolean }>(
-    `${baseUrl}/v1/sessions/${sessionId}/navigate`,
+    `${baseUrl}/v4/sessions/${sessionId}/navigate`,
     {
       method: "POST",
       headers,
@@ -496,7 +496,7 @@ async function requestBrowserbaseReleaseBestEffort(sessionId: string) {
 // V3 Format Tests (x-sdk-version: 3.x.x header)
 // =============================================================================
 
-describe("POST /v1/sessions/start - V3 format", () => {
+describe("POST /v4/sessions/start - V3 format", () => {
   const headers = getHeaders("3.0.0");
   const localBrowser = LOCAL_BROWSER_BODY;
 
@@ -504,7 +504,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
     const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
-      `${url}/v1/sessions/start`,
+      `${url}/v4/sessions/start`,
       {
         method: "POST",
         headers,
@@ -530,7 +530,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
     const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
-      `${url}/v1/sessions/start`,
+      `${url}/v4/sessions/start`,
       {
         method: "POST",
         headers,
@@ -558,7 +558,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
     const pythonHeaders = getHeaders("1.0.0", "python");
 
     const ctx = await fetchWithContext<StartResponse>(
-      `${url}/v1/sessions/start`,
+      `${url}/v4/sessions/start`,
       {
         method: "POST",
         headers: pythonHeaders,
@@ -581,7 +581,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
     const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
-      `${url}/v1/sessions/start`,
+      `${url}/v4/sessions/start`,
       {
         method: "POST",
         headers,
@@ -612,7 +612,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
     const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
-      `${url}/v1/sessions/start`,
+      `${url}/v4/sessions/start`,
       {
         method: "POST",
         headers,
@@ -648,7 +648,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
     const providedCdpUrl = "ws://localhost:9222/devtools/browser/test";
 
     const ctx = await fetchWithContext<StartResponse>(
-      `${url}/v1/sessions/start`,
+      `${url}/v4/sessions/start`,
       {
         method: "POST",
         headers,
@@ -679,7 +679,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
     const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
-      `${url}/v1/sessions/start`,
+      `${url}/v4/sessions/start`,
       {
         method: "POST",
         headers,
@@ -705,7 +705,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
     // Note: Local browser sessions don't actually use the region, but the server
     // should still accept the parameter without returning { available: false }
     const ctx = await fetchWithContext<StartResponse>(
-      `${url}/v1/sessions/start`,
+      `${url}/v4/sessions/start`,
       {
         method: "POST",
         headers,
@@ -741,7 +741,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
     const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
-      `${url}/v1/sessions/start`,
+      `${url}/v4/sessions/start`,
       {
         method: "POST",
         headers,
@@ -776,7 +776,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
     const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
-      `${url}/v1/sessions/start`,
+      `${url}/v4/sessions/start`,
       {
         method: "POST",
         headers,
@@ -808,7 +808,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
   });
 });
 
-describe("POST /v1/sessions/start - keepAlive=false supervision in SEA", () => {
+describe("POST /v4/sessions/start - keepAlive=false supervision in SEA", () => {
   it("spawns a supervisor and exits it when chrome dies", async () => {
     const handle = await startSeaServer();
     const seaPid = handle.proc.pid;

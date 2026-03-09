@@ -14,18 +14,18 @@ import {
 import { Api } from "@browserbasehq/stagehand";
 
 // Routes
-import actRoute from "../src/routes/v1/sessions/_id/act.js";
-import agentExecuteRoute from "../src/routes/v1/sessions/_id/agentExecute.js";
-import endRoute from "../src/routes/v1/sessions/_id/end.js";
-import extractRoute from "../src/routes/v1/sessions/_id/extract.js";
-import navigateRoute from "../src/routes/v1/sessions/_id/navigate.js";
-import observeRoute from "../src/routes/v1/sessions/_id/observe.js";
-import replayRoute from "../src/routes/v1/sessions/_id/replay.js";
-import startRoute from "../src/routes/v1/sessions/start.js";
+import actRoute from "../src/routes/v4/sessions/_id/act.js";
+import agentExecuteRoute from "../src/routes/v4/sessions/_id/agentExecute.js";
+import endRoute from "../src/routes/v4/sessions/_id/end.js";
+import extractRoute from "../src/routes/v4/sessions/_id/extract.js";
+import navigateRoute from "../src/routes/v4/sessions/_id/navigate.js";
+import observeRoute from "../src/routes/v4/sessions/_id/observe.js";
+import replayRoute from "../src/routes/v4/sessions/_id/replay.js";
+import startRoute from "../src/routes/v4/sessions/start.js";
 import healthcheckRoute from "../src/routes/healthcheck.js";
 import readinessRoute from "../src/routes/readiness.js";
 
-const OUTPUT_PATH = path.resolve(getCurrentDirPath(), "../openapi.v3.yaml");
+const OUTPUT_PATH = path.resolve(getCurrentDirPath(), "../openapi.v4.yaml");
 
 async function main() {
   const app = fastify({
@@ -117,8 +117,8 @@ async function main() {
   await app.register(fastifySwagger, {
     openapi: {
       info: {
-        title: "Stagehand API",
-        version: "3.1.0",
+        title: "Stagehand API v4",
+        version: "4.0.0",
         description: `Stagehand SDK for AI browser automation [ALPHA]. This API allows clients to
 execute browser automation tasks remotely on the Browserbase cloud.
 All endpoints except /sessions/start require an active session ID.
@@ -161,7 +161,7 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
       instance.route(agentExecuteRoute);
       done();
     },
-    { prefix: "/v1" },
+    { prefix: "/v4" },
   );
 
   app.route(healthcheckRoute);
@@ -173,7 +173,15 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
   // Mintlify expects OpenAPI version fields to be strings, so quote them here.
   const fixedYaml = yaml
     .replace(/^openapi:\s*(?!['"])([^#\s]+)\s*$/m, 'openapi: "$1"')
-    .replace(/^ {2}version:\s*(?!['"])([^#\s]+)\s*$/m, '  version: "$1"');
+    .replace(/^ {2}version:\s*(?!['"])([^#\s]+)\s*$/m, '  version: "$1"')
+    .replace(
+      "description: Wait for captcha solves (deprecated, v2 only)",
+      "description: Wait for captcha solves",
+    )
+    .replace(
+      "description: Timeout in ms for act operations (deprecated, v2 only)",
+      "description: Timeout in ms for act operations",
+    );
 
   await writeFile(OUTPUT_PATH, fixedYaml, "utf8");
 

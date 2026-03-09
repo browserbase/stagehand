@@ -46,7 +46,7 @@ function isSuccessResponse(
 // are accepted.
 // =============================================================================
 
-describe("POST /v1/sessions/start - Multi-region support", () => {
+describe("POST /v4/sessions/start - Multi-region support", () => {
   const headers = getHeaders("3.0.0");
   const localBrowser = LOCAL_BROWSER_BODY;
 
@@ -54,7 +54,7 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
     const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
-      `${url}/v1/sessions/start`,
+      `${url}/v4/sessions/start`,
       {
         method: "POST",
         headers,
@@ -94,7 +94,7 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
     // This test verifies that non-us-west-2 regions are now accepted.
     // Previously, this would have returned { available: false }.
     const ctx = await fetchWithContext<StartResponse>(
-      `${url}/v1/sessions/start`,
+      `${url}/v4/sessions/start`,
       {
         method: "POST",
         headers,
@@ -132,7 +132,7 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
     const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
-      `${url}/v1/sessions/start`,
+      `${url}/v4/sessions/start`,
       {
         method: "POST",
         headers,
@@ -170,7 +170,7 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
     const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
-      `${url}/v1/sessions/start`,
+      `${url}/v4/sessions/start`,
       {
         method: "POST",
         headers,
@@ -208,7 +208,7 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
     const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
-      `${url}/v1/sessions/start`,
+      `${url}/v4/sessions/start`,
       {
         method: "POST",
         headers,
@@ -244,7 +244,7 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
     const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
-      `${url}/v1/sessions/start`,
+      `${url}/v4/sessions/start`,
       {
         method: "POST",
         headers,

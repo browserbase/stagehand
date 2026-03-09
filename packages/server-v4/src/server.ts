@@ -23,14 +23,14 @@ import {
 } from "./lib/sessionStoreManager.js";
 import healthcheckRoute from "./routes/healthcheck.js";
 import readinessRoute, { setReady, setUnready } from "./routes/readiness.js";
-import actRoute from "./routes/v1/sessions/_id/act.js";
-import agentExecuteRoute from "./routes/v1/sessions/_id/agentExecute.js";
-import endRoute from "./routes/v1/sessions/_id/end.js";
-import extractRoute from "./routes/v1/sessions/_id/extract.js";
-import navigateRoute from "./routes/v1/sessions/_id/navigate.js";
-import observeRoute from "./routes/v1/sessions/_id/observe.js";
-import replayRoute from "./routes/v1/sessions/_id/replay.js";
-import startRoute from "./routes/v1/sessions/start.js";
+import actRoute from "./routes/v4/sessions/_id/act.js";
+import agentExecuteRoute from "./routes/v4/sessions/_id/agentExecute.js";
+import endRoute from "./routes/v4/sessions/_id/end.js";
+import extractRoute from "./routes/v4/sessions/_id/extract.js";
+import navigateRoute from "./routes/v4/sessions/_id/navigate.js";
+import observeRoute from "./routes/v4/sessions/_id/observe.js";
+import replayRoute from "./routes/v4/sessions/_id/replay.js";
+import startRoute from "./routes/v4/sessions/start.js";
 
 // Constants for graceful shutdown
 const READY_WAIT_PERIOD = 10_000; // 10 seconds
@@ -248,7 +248,7 @@ const start = async () => {
         instance.route(agentExecuteRoute);
         done();
       },
-      { prefix: "/v1" },
+      { prefix: "/v4" },
     );
 
     logging(app);
