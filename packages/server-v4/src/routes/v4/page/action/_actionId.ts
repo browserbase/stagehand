@@ -5,7 +5,6 @@ import {
   PageActionDetailsQuerySchema,
   PageActionDetailsResponseSchema,
   PageActionIdParamsSchema,
-  PageOperations,
   ValidationErrorResponseSchema,
   V4ErrorResponseSchema,
 } from "../../../../schemas/v4/page.js";
@@ -15,7 +14,8 @@ const pageActionDetailsRoute: RouteOptions = {
   method: "GET",
   url: "/page/action/:actionId",
   schema: {
-    ...PageOperations.PageActionDetails,
+    operationId: "PageActionDetails",
+    summary: "page.actionById",
     params: PageActionIdParamsSchema,
     querystring: PageActionDetailsQuerySchema,
     response: {

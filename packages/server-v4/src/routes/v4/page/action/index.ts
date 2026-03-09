@@ -4,7 +4,6 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 import {
   PageActionListQuerySchema,
   PageActionListResponseSchema,
-  PageOperations,
   ValidationErrorResponseSchema,
   V4ErrorResponseSchema,
 } from "../../../../schemas/v4/page.js";
@@ -14,7 +13,8 @@ const pageActionListRoute: RouteOptions = {
   method: "GET",
   url: "/page/action",
   schema: {
-    ...PageOperations.PageActionList,
+    operationId: "PageActionList",
+    summary: "page.action",
     querystring: PageActionListQuerySchema,
     response: {
       200: PageActionListResponseSchema,

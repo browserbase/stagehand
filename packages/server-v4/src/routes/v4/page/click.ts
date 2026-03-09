@@ -4,7 +4,6 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 import {
   PageClickRequestSchema,
   PageClickResponseSchema,
-  PageOperations,
   ValidationErrorResponseSchema,
   V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
@@ -14,7 +13,8 @@ const clickRoute: RouteOptions = {
   method: "POST",
   url: "/page/click",
   schema: {
-    ...PageOperations.PageClick,
+    operationId: "PageClick",
+    summary: "page.click",
     body: PageClickRequestSchema,
     response: {
       200: PageClickResponseSchema,

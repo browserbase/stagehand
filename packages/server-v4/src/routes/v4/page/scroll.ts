@@ -2,7 +2,6 @@ import type { RouteOptions } from "fastify";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
-  PageOperations,
   PageScrollRequestSchema,
   PageScrollResponseSchema,
   ValidationErrorResponseSchema,
@@ -14,7 +13,8 @@ const scrollRoute: RouteOptions = {
   method: "POST",
   url: "/page/scroll",
   schema: {
-    ...PageOperations.PageScroll,
+    operationId: "PageScroll",
+    summary: "page.scroll",
     body: PageScrollRequestSchema,
     response: {
       200: PageScrollResponseSchema,

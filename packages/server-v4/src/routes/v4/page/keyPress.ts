@@ -2,29 +2,29 @@ import type { RouteOptions } from "fastify";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
-  PageScreenshotRequestSchema,
-  PageScreenshotResponseSchema,
+  PageKeyPressRequestSchema,
+  PageKeyPressResponseSchema,
   ValidationErrorResponseSchema,
   V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
 import { createNotImplementedHandler } from "./shared.js";
 
-const screenshotRoute: RouteOptions = {
+const keyPressRoute: RouteOptions = {
   method: "POST",
-  url: "/page/screenshot",
+  url: "/page/keyPress",
   schema: {
-    operationId: "PageScreenshot",
-    summary: "page.screenshot",
-    body: PageScreenshotRequestSchema,
+    operationId: "PageKeyPress",
+    summary: "page.keyPress",
+    body: PageKeyPressRequestSchema,
     response: {
-      200: PageScreenshotResponseSchema,
+      200: PageKeyPressResponseSchema,
       400: ValidationErrorResponseSchema,
       501: V4ErrorResponseSchema,
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: createNotImplementedHandler(
-    "POST /v4/page/screenshot is not implemented yet",
+    "POST /v4/page/keyPress is not implemented yet",
   ),
 };
 
-export default screenshotRoute;
+export default keyPressRoute;

@@ -2,29 +2,29 @@ import type { RouteOptions } from "fastify";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
-  PageScreenshotRequestSchema,
-  PageScreenshotResponseSchema,
+  PageWaitForLoadStateRequestSchema,
+  PageWaitForLoadStateResponseSchema,
   ValidationErrorResponseSchema,
   V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
 import { createNotImplementedHandler } from "./shared.js";
 
-const screenshotRoute: RouteOptions = {
+const waitForLoadStateRoute: RouteOptions = {
   method: "POST",
-  url: "/page/screenshot",
+  url: "/page/waitForLoadState",
   schema: {
-    operationId: "PageScreenshot",
-    summary: "page.screenshot",
-    body: PageScreenshotRequestSchema,
+    operationId: "PageWaitForLoadState",
+    summary: "page.waitForLoadState",
+    body: PageWaitForLoadStateRequestSchema,
     response: {
-      200: PageScreenshotResponseSchema,
+      200: PageWaitForLoadStateResponseSchema,
       400: ValidationErrorResponseSchema,
       501: V4ErrorResponseSchema,
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: createNotImplementedHandler(
-    "POST /v4/page/screenshot is not implemented yet",
+    "POST /v4/page/waitForLoadState is not implemented yet",
   ),
 };
 
-export default screenshotRoute;
+export default waitForLoadStateRoute;

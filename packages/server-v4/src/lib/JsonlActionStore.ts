@@ -38,7 +38,9 @@ export class JsonlActionStore implements ActionStore {
       .filter((action) =>
         options.pageId ? action.pageId === options.pageId : true,
       )
-      .filter((action) => (options.type ? action.type === options.type : true))
+      .filter((action) =>
+        options.method ? action.method === options.method : true,
+      )
       .filter((action) =>
         options.status ? action.status === options.status : true,
       )

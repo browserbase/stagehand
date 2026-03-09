@@ -2,29 +2,29 @@ import type { RouteOptions } from "fastify";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
-  PageScreenshotRequestSchema,
-  PageScreenshotResponseSchema,
+  PageSetViewportSizeRequestSchema,
+  PageSetViewportSizeResponseSchema,
   ValidationErrorResponseSchema,
   V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
 import { createNotImplementedHandler } from "./shared.js";
 
-const screenshotRoute: RouteOptions = {
+const setViewportSizeRoute: RouteOptions = {
   method: "POST",
-  url: "/page/screenshot",
+  url: "/page/setViewportSize",
   schema: {
-    operationId: "PageScreenshot",
-    summary: "page.screenshot",
-    body: PageScreenshotRequestSchema,
+    operationId: "PageSetViewportSize",
+    summary: "page.setViewportSize",
+    body: PageSetViewportSizeRequestSchema,
     response: {
-      200: PageScreenshotResponseSchema,
+      200: PageSetViewportSizeResponseSchema,
       400: ValidationErrorResponseSchema,
       501: V4ErrorResponseSchema,
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: createNotImplementedHandler(
-    "POST /v4/page/screenshot is not implemented yet",
+    "POST /v4/page/setViewportSize is not implemented yet",
   ),
 };
 
-export default screenshotRoute;
+export default setViewportSizeRoute;

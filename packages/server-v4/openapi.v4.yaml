@@ -75,6 +75,143 @@ components:
         id: $response.body#/data/sessionId
       description: End the session and release resources
   schemas:
+    PageClickSelectorParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        selector:
+          $ref: "#/components/schemas/PageSelector"
+        button:
+          $ref: "#/components/schemas/MouseButton"
+        clickCount:
+          type: integer
+          minimum: 1
+          maximum: 3
+      required:
+        - selector
+      additionalProperties: false
+    PageClickCoordinatesParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        x:
+          type: number
+        y:
+          type: number
+        button:
+          $ref: "#/components/schemas/MouseButton"
+        clickCount:
+          type: integer
+          minimum: 1
+          maximum: 3
+      required:
+        - x
+        - y
+      additionalProperties: false
+    PageHoverSelectorParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        selector:
+          $ref: "#/components/schemas/PageSelector"
+      required:
+        - selector
+      additionalProperties: false
+    PageHoverCoordinatesParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        x:
+          type: number
+        y:
+          type: number
+      required:
+        - x
+        - y
+      additionalProperties: false
+    PageScrollSelectorParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        selector:
+          $ref: "#/components/schemas/PageSelector"
+        percentage:
+          type: number
+          minimum: 0
+          maximum: 100
+      required:
+        - selector
+        - percentage
+      additionalProperties: false
+    PageScrollCoordinatesParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        x:
+          type: number
+        y:
+          type: number
+        deltaX:
+          type: number
+        deltaY:
+          type: number
+      required:
+        - x
+        - y
+        - deltaY
+      additionalProperties: false
+    PageDragAndDropSelectorParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        from:
+          $ref: "#/components/schemas/PageSelector"
+        to:
+          $ref: "#/components/schemas/PageSelector"
+        button:
+          $ref: "#/components/schemas/MouseButton"
+        steps:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+        delay:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - from
+        - to
+      additionalProperties: false
+    PageDragAndDropCoordinatesParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        from:
+          $ref: "#/components/schemas/PagePoint"
+        to:
+          $ref: "#/components/schemas/PagePoint"
+        button:
+          $ref: "#/components/schemas/MouseButton"
+        steps:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+        delay:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - from
+        - to
+      additionalProperties: false
     AgentCacheEntry:
       type: object
       properties:
@@ -87,6 +224,158 @@ components:
       required:
         - cacheKey
         - entry
+    PageXPathResult:
+      type: object
+      properties:
+        xpath:
+          type: string
+      additionalProperties: false
+    PageDragAndDropResult:
+      type: object
+      properties:
+        fromXpath:
+          type: string
+        toXpath:
+          type: string
+      additionalProperties: false
+    PageTypeResult:
+      type: object
+      properties:
+        text:
+          type: string
+      required:
+        - text
+      additionalProperties: false
+    PageKeyPressResult:
+      type: object
+      properties:
+        key:
+          type: string
+      required:
+        - key
+      additionalProperties: false
+    PageNavigationResult:
+      type: object
+      properties:
+        url:
+          type: string
+      additionalProperties: false
+    PageTitleResult:
+      type: object
+      properties:
+        title:
+          type: string
+      required:
+        - title
+      additionalProperties: false
+    PageUrlResult:
+      type: object
+      properties:
+        url:
+          type: string
+      required:
+        - url
+      additionalProperties: false
+    PageScreenshotResult:
+      type: object
+      properties:
+        base64:
+          type: string
+        mimeType:
+          $ref: "#/components/schemas/ScreenshotMimeType"
+      required:
+        - base64
+        - mimeType
+      additionalProperties: false
+    PageSnapshotResult:
+      type: object
+      properties:
+        formattedTree:
+          type: string
+        xpathMap:
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
+        urlMap:
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
+      required:
+        - formattedTree
+        - xpathMap
+        - urlMap
+      additionalProperties: false
+    PageSetViewportSizeResult:
+      type: object
+      properties:
+        width:
+          type: number
+          exclusiveMinimum: 0
+        height:
+          type: number
+          exclusiveMinimum: 0
+        deviceScaleFactor:
+          type: number
+          exclusiveMinimum: 0
+      required:
+        - width
+        - height
+      additionalProperties: false
+    PageWaitForLoadStateResult:
+      type: object
+      properties:
+        state:
+          $ref: "#/components/schemas/LoadState"
+      required:
+        - state
+      additionalProperties: false
+    PageWaitForSelectorResult:
+      type: object
+      properties:
+        selector:
+          $ref: "#/components/schemas/PageSelector"
+        matched:
+          type: boolean
+      required:
+        - selector
+        - matched
+      additionalProperties: false
+    PageWaitForTimeoutResult:
+      type: object
+      properties:
+        ms:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+      required:
+        - ms
+      additionalProperties: false
+    PageEvaluateResult:
+      type: object
+      properties:
+        value: {}
+      required:
+        - value
+      additionalProperties: false
+    PageSendCDPResult:
+      type: object
+      properties:
+        value: {}
+      required:
+        - value
+      additionalProperties: false
+    PageCloseResult:
+      type: object
+      properties:
+        closed:
+          type: boolean
+      required:
+        - closed
+      additionalProperties: false
     BrowserbaseRegion:
       type: string
       enum:
@@ -975,27 +1264,23 @@ components:
       required:
         - status
         - message
-    V4RequestId:
+    RequestId:
       example: req_01JXAMPLE
       type: string
       minLength: 1
-    V4ResponseId:
-      example: req_01JXAMPLE
-      type: string
-      minLength: 1
-    V4SessionId:
+    SessionId:
       example: session_01JXAMPLE
       type: string
       minLength: 1
-    V4PageId:
+    PageId:
       example: target_01JXAMPLE
       type: string
       minLength: 1
-    V4ActionId:
+    ActionId:
       example: action_01JXAMPLE
       type: string
       minLength: 1
-    V4Timestamp:
+    Timestamp:
       example: 2026-02-03T12:00:00.000Z
       type: string
       format: date-time
@@ -1006,29 +1291,68 @@ components:
         - left
         - right
         - middle
-    PageNavigateWaitUntil:
+    LoadState:
       type: string
       enum:
         - load
         - domcontentloaded
         - networkidle
-    PageScreenshotType:
+    WaitForSelectorState:
+      type: string
+      enum:
+        - attached
+        - detached
+        - visible
+        - hidden
+    ScreenshotType:
       type: string
       enum:
         - png
         - jpeg
-    PageScreenshotMimeType:
+    ScreenshotMimeType:
       type: string
       enum:
         - image/png
         - image/jpeg
-    PageActionType:
+    ScreenshotScale:
+      type: string
+      enum:
+        - css
+        - device
+    ScreenshotAnimations:
+      type: string
+      enum:
+        - allow
+        - disabled
+    ScreenshotCaret:
+      type: string
+      enum:
+        - hide
+        - initial
+    PageActionMethod:
       type: string
       enum:
         - click
+        - hover
         - scroll
-        - navigate
+        - dragAndDrop
+        - type
+        - keyPress
+        - goto
+        - reload
+        - goBack
+        - goForward
+        - title
+        - url
         - screenshot
+        - snapshot
+        - setViewportSize
+        - waitForLoadState
+        - waitForSelector
+        - waitForTimeout
+        - evaluate
+        - sendCDP
+        - close
     PageActionStatus:
       type: string
       enum:
@@ -1041,32 +1365,61 @@ components:
       type: object
       properties:
         xpath:
-          description: Absolute or relative XPath understood by understudy.
           example: //button[text()='Submit']
           type: string
           minLength: 1
       required:
         - xpath
       additionalProperties: false
-    V4ResponseMetadata:
+    PagePoint:
+      type: object
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+      required:
+        - x
+        - y
+      additionalProperties: false
+    PageClip:
+      type: object
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+        width:
+          type: number
+          exclusiveMinimum: 0
+        height:
+          type: number
+          exclusiveMinimum: 0
+      required:
+        - x
+        - y
+        - width
+        - height
+      additionalProperties: false
+    PageMetadata:
       type: object
       properties:
         requestId:
           type: string
           minLength: 1
         sessionId:
-          $ref: "#/components/schemas/V4SessionId"
+          $ref: "#/components/schemas/SessionId"
         pageId:
-          $ref: "#/components/schemas/V4PageId"
+          $ref: "#/components/schemas/PageId"
         actionId:
-          $ref: "#/components/schemas/V4ActionId"
+          $ref: "#/components/schemas/ActionId"
         timestamp:
-          $ref: "#/components/schemas/V4Timestamp"
+          $ref: "#/components/schemas/Timestamp"
       required:
         - requestId
         - timestamp
       additionalProperties: false
-    V4ErrorObject:
+    PageError:
       type: object
       properties:
         code:
@@ -1085,86 +1438,62 @@ components:
         - message
       additionalProperties: false
     PageClickParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/V4PageId"
-        selector:
-          $ref: "#/components/schemas/PageSelector"
-        button:
-          $ref: "#/components/schemas/MouseButton"
-        clickCount:
-          description: Defaults to a single click.
-          type: integer
-          minimum: 1
-          maximum: 3
-      required:
-        - selector
-      additionalProperties: false
-    PageScrollByCoordinatesParams:
-      type: object
-      properties:
-        target:
-          type: string
-          const: coordinates
-        pageId:
-          $ref: "#/components/schemas/V4PageId"
-        x:
-          type: number
-        y:
-          type: number
-        deltaX:
-          type: number
-        deltaY:
-          type: number
-      required:
-        - target
-        - x
-        - y
-        - deltaY
-      additionalProperties: false
-    PageScrollBySelectorParams:
-      type: object
-      properties:
-        target:
-          type: string
-          const: selector
-        pageId:
-          $ref: "#/components/schemas/V4PageId"
-        selector:
-          $ref: "#/components/schemas/PageSelector"
-        percentage:
-          type: number
-          minimum: 0
-          maximum: 100
-      required:
-        - target
-        - selector
-        - percentage
-      additionalProperties: false
+      anyOf:
+        - $ref: "#/components/schemas/PageClickSelectorParams"
+        - $ref: "#/components/schemas/PageClickCoordinatesParams"
+    PageHoverParams:
+      anyOf:
+        - $ref: "#/components/schemas/PageHoverSelectorParams"
+        - $ref: "#/components/schemas/PageHoverCoordinatesParams"
     PageScrollParams:
-      oneOf:
-        - $ref: "#/components/schemas/PageScrollByCoordinatesParams"
-        - $ref: "#/components/schemas/PageScrollBySelectorParams"
-      type: object
-      discriminator:
-        propertyName: target
-        mapping:
-          coordinates: "#/components/schemas/PageScrollByCoordinatesParams"
-          selector: "#/components/schemas/PageScrollBySelectorParams"
-    PageNavigateParams:
+      anyOf:
+        - $ref: "#/components/schemas/PageScrollSelectorParams"
+        - $ref: "#/components/schemas/PageScrollCoordinatesParams"
+    PageDragAndDropParams:
+      anyOf:
+        - $ref: "#/components/schemas/PageDragAndDropSelectorParams"
+        - $ref: "#/components/schemas/PageDragAndDropCoordinatesParams"
+    PageTypeParams:
       type: object
       properties:
         pageId:
-          $ref: "#/components/schemas/V4PageId"
+          $ref: "#/components/schemas/PageId"
+        text:
+          type: string
+        delay:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        withMistakes:
+          type: boolean
+      required:
+        - text
+      additionalProperties: false
+    PageKeyPressParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        key:
+          type: string
+          minLength: 1
+        delay:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - key
+      additionalProperties: false
+    PageGotoParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
         url:
           type: string
           format: uri
-        referer:
-          type: string
-          format: uri
         waitUntil:
-          $ref: "#/components/schemas/PageNavigateWaitUntil"
+          $ref: "#/components/schemas/LoadState"
         timeoutMs:
           type: integer
           exclusiveMinimum: 0
@@ -1172,33 +1501,208 @@ components:
       required:
         - url
       additionalProperties: false
-    PageScreenshotParams:
+    PageReloadParams:
       type: object
       properties:
         pageId:
-          $ref: "#/components/schemas/V4PageId"
-        fullPage:
-          type: boolean
-        type:
-          $ref: "#/components/schemas/PageScreenshotType"
-        quality:
+          $ref: "#/components/schemas/PageId"
+        waitUntil:
+          $ref: "#/components/schemas/LoadState"
+        timeoutMs:
           type: integer
-          minimum: 0
-          maximum: 100
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+        ignoreCache:
+          type: boolean
+      additionalProperties: false
+    PageGoBackParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        waitUntil:
+          $ref: "#/components/schemas/LoadState"
         timeoutMs:
           type: integer
           exclusiveMinimum: 0
           maximum: 9007199254740991
       additionalProperties: false
+    PageGoForwardParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        waitUntil:
+          $ref: "#/components/schemas/LoadState"
+        timeoutMs:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+      additionalProperties: false
+    PageTitleParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+      additionalProperties: false
+    PageUrlParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+      additionalProperties: false
+    PageScreenshotParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        fullPage:
+          type: boolean
+        clip:
+          $ref: "#/components/schemas/PageClip"
+        type:
+          $ref: "#/components/schemas/ScreenshotType"
+        quality:
+          type: integer
+          minimum: 0
+          maximum: 100
+        scale:
+          $ref: "#/components/schemas/ScreenshotScale"
+        animations:
+          $ref: "#/components/schemas/ScreenshotAnimations"
+        caret:
+          $ref: "#/components/schemas/ScreenshotCaret"
+        style:
+          type: string
+        omitBackground:
+          type: boolean
+        timeout:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+      additionalProperties: false
+    PageSnapshotParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        includeIframes:
+          type: boolean
+      additionalProperties: false
+    PageSetViewportSizeParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        width:
+          type: number
+          exclusiveMinimum: 0
+        height:
+          type: number
+          exclusiveMinimum: 0
+        deviceScaleFactor:
+          type: number
+          exclusiveMinimum: 0
+      required:
+        - width
+        - height
+      additionalProperties: false
+    PageWaitForLoadStateParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        state:
+          $ref: "#/components/schemas/LoadState"
+        timeoutMs:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+      required:
+        - state
+      additionalProperties: false
+    PageWaitForSelectorParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        selector:
+          $ref: "#/components/schemas/PageSelector"
+        state:
+          $ref: "#/components/schemas/WaitForSelectorState"
+        timeout:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+        pierceShadow:
+          type: boolean
+      required:
+        - selector
+      additionalProperties: false
+    PageWaitForTimeoutParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        ms:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+      required:
+        - ms
+      additionalProperties: false
+    PageEvaluateParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        expression:
+          type: string
+          minLength: 1
+        arg: {}
+      required:
+        - expression
+      additionalProperties: false
+    PageSendCDPParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        method:
+          type: string
+          minLength: 1
+        params: {}
+      required:
+        - method
+      additionalProperties: false
+    PageCloseParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+      additionalProperties: false
     PageClickRequest:
       type: object
       properties:
         id:
-          $ref: "#/components/schemas/V4RequestId"
+          $ref: "#/components/schemas/RequestId"
         sessionId:
-          $ref: "#/components/schemas/V4SessionId"
+          $ref: "#/components/schemas/SessionId"
         params:
           $ref: "#/components/schemas/PageClickParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageHoverRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageHoverParams"
       required:
         - sessionId
         - params
@@ -1207,24 +1711,128 @@ components:
       type: object
       properties:
         id:
-          $ref: "#/components/schemas/V4RequestId"
+          $ref: "#/components/schemas/RequestId"
         sessionId:
-          $ref: "#/components/schemas/V4SessionId"
+          $ref: "#/components/schemas/SessionId"
         params:
           $ref: "#/components/schemas/PageScrollParams"
       required:
         - sessionId
         - params
       additionalProperties: false
-    PageNavigateRequest:
+    PageDragAndDropRequest:
       type: object
       properties:
         id:
-          $ref: "#/components/schemas/V4RequestId"
+          $ref: "#/components/schemas/RequestId"
         sessionId:
-          $ref: "#/components/schemas/V4SessionId"
+          $ref: "#/components/schemas/SessionId"
         params:
-          $ref: "#/components/schemas/PageNavigateParams"
+          $ref: "#/components/schemas/PageDragAndDropParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageTypeRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageTypeParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageKeyPressRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageKeyPressParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageGotoRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageGotoParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageReloadRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageReloadParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageGoBackRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageGoBackParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageGoForwardRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageGoForwardParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageTitleRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageTitleParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageUrlRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageUrlParams"
       required:
         - sessionId
         - params
@@ -1233,322 +1841,1003 @@ components:
       type: object
       properties:
         id:
-          $ref: "#/components/schemas/V4RequestId"
+          $ref: "#/components/schemas/RequestId"
         sessionId:
-          $ref: "#/components/schemas/V4SessionId"
+          $ref: "#/components/schemas/SessionId"
         params:
           $ref: "#/components/schemas/PageScreenshotParams"
       required:
         - sessionId
         - params
       additionalProperties: false
-    PageClickResultData:
+    PageSnapshotRequest:
       type: object
       properties:
-        clicked:
-          type: boolean
-        selector:
-          $ref: "#/components/schemas/PageSelector"
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageSnapshotParams"
       required:
-        - clicked
-        - selector
+        - sessionId
+        - params
       additionalProperties: false
-    PageScrollByCoordinatesResultData:
+    PageSetViewportSizeRequest:
       type: object
       properties:
-        target:
-          type: string
-          const: coordinates
-        x:
-          type: number
-        y:
-          type: number
-        deltaX:
-          type: number
-        deltaY:
-          type: number
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageSetViewportSizeParams"
       required:
-        - target
-        - x
-        - y
-        - deltaX
-        - deltaY
+        - sessionId
+        - params
       additionalProperties: false
-    PageScrollBySelectorResultData:
+    PageWaitForLoadStateRequest:
       type: object
       properties:
-        target:
-          type: string
-          const: selector
-        selector:
-          $ref: "#/components/schemas/PageSelector"
-        percentage:
-          type: number
-          minimum: 0
-          maximum: 100
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageWaitForLoadStateParams"
       required:
-        - target
-        - selector
-        - percentage
+        - sessionId
+        - params
       additionalProperties: false
-    PageScrollResultData:
-      oneOf:
-        - $ref: "#/components/schemas/PageScrollByCoordinatesResultData"
-        - $ref: "#/components/schemas/PageScrollBySelectorResultData"
-      type: object
-      discriminator:
-        propertyName: target
-        mapping:
-          coordinates: "#/components/schemas/PageScrollByCoordinatesResultData"
-          selector: "#/components/schemas/PageScrollBySelectorResultData"
-    PageNavigateResultData:
+    PageWaitForSelectorRequest:
       type: object
       properties:
-        url:
-          type: string
-          format: uri
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageWaitForSelectorParams"
       required:
-        - url
+        - sessionId
+        - params
       additionalProperties: false
-    PageScreenshotResultData:
+    PageWaitForTimeoutRequest:
       type: object
       properties:
-        base64:
-          type: string
-        mimeType:
-          $ref: "#/components/schemas/PageScreenshotMimeType"
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageWaitForTimeoutParams"
       required:
-        - base64
-        - mimeType
+        - sessionId
+        - params
+      additionalProperties: false
+    PageEvaluateRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageEvaluateParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageSendCDPRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageSendCDPParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageCloseRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageCloseParams"
+      required:
+        - sessionId
+        - params
       additionalProperties: false
     PageClickAction:
       type: object
       properties:
         id:
-          $ref: "#/components/schemas/V4ActionId"
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: click
         status:
           $ref: "#/components/schemas/PageActionStatus"
         sessionId:
-          $ref: "#/components/schemas/V4SessionId"
+          $ref: "#/components/schemas/SessionId"
         pageId:
-          $ref: "#/components/schemas/V4PageId"
+          $ref: "#/components/schemas/PageId"
         createdAt:
-          $ref: "#/components/schemas/V4Timestamp"
+          $ref: "#/components/schemas/Timestamp"
         updatedAt:
-          $ref: "#/components/schemas/V4Timestamp"
+          $ref: "#/components/schemas/Timestamp"
         completedAt:
-          $ref: "#/components/schemas/V4Timestamp"
+          $ref: "#/components/schemas/Timestamp"
         error:
           anyOf:
-            - $ref: "#/components/schemas/V4ErrorObject"
+            - $ref: "#/components/schemas/PageError"
             - type: "null"
-        type:
-          type: string
-          const: click
-        request:
+        params:
           $ref: "#/components/schemas/PageClickParams"
-        resultData:
+        result:
           anyOf:
-            - $ref: "#/components/schemas/PageClickResultData"
+            - $ref: "#/components/schemas/PageXPathResult"
             - type: "null"
       required:
         - id
+        - method
         - status
         - sessionId
         - createdAt
         - updatedAt
         - error
-        - type
-        - request
-        - resultData
+        - params
+        - result
+      additionalProperties: false
+    PageHoverAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: hover
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageHoverParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageXPathResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
       additionalProperties: false
     PageScrollAction:
       type: object
       properties:
         id:
-          $ref: "#/components/schemas/V4ActionId"
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: scroll
         status:
           $ref: "#/components/schemas/PageActionStatus"
         sessionId:
-          $ref: "#/components/schemas/V4SessionId"
+          $ref: "#/components/schemas/SessionId"
         pageId:
-          $ref: "#/components/schemas/V4PageId"
+          $ref: "#/components/schemas/PageId"
         createdAt:
-          $ref: "#/components/schemas/V4Timestamp"
+          $ref: "#/components/schemas/Timestamp"
         updatedAt:
-          $ref: "#/components/schemas/V4Timestamp"
+          $ref: "#/components/schemas/Timestamp"
         completedAt:
-          $ref: "#/components/schemas/V4Timestamp"
+          $ref: "#/components/schemas/Timestamp"
         error:
           anyOf:
-            - $ref: "#/components/schemas/V4ErrorObject"
+            - $ref: "#/components/schemas/PageError"
             - type: "null"
-        type:
-          type: string
-          const: scroll
-        request:
+        params:
           $ref: "#/components/schemas/PageScrollParams"
-        resultData:
+        result:
           anyOf:
-            - $ref: "#/components/schemas/PageScrollResultData"
+            - $ref: "#/components/schemas/PageXPathResult"
             - type: "null"
       required:
         - id
+        - method
         - status
         - sessionId
         - createdAt
         - updatedAt
         - error
-        - type
-        - request
-        - resultData
+        - params
+        - result
       additionalProperties: false
-    PageNavigateAction:
+    PageDragAndDropAction:
       type: object
       properties:
         id:
-          $ref: "#/components/schemas/V4ActionId"
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: dragAndDrop
         status:
           $ref: "#/components/schemas/PageActionStatus"
         sessionId:
-          $ref: "#/components/schemas/V4SessionId"
+          $ref: "#/components/schemas/SessionId"
         pageId:
-          $ref: "#/components/schemas/V4PageId"
+          $ref: "#/components/schemas/PageId"
         createdAt:
-          $ref: "#/components/schemas/V4Timestamp"
+          $ref: "#/components/schemas/Timestamp"
         updatedAt:
-          $ref: "#/components/schemas/V4Timestamp"
+          $ref: "#/components/schemas/Timestamp"
         completedAt:
-          $ref: "#/components/schemas/V4Timestamp"
+          $ref: "#/components/schemas/Timestamp"
         error:
           anyOf:
-            - $ref: "#/components/schemas/V4ErrorObject"
+            - $ref: "#/components/schemas/PageError"
             - type: "null"
-        type:
-          type: string
-          const: navigate
-        request:
-          $ref: "#/components/schemas/PageNavigateParams"
-        resultData:
+        params:
+          $ref: "#/components/schemas/PageDragAndDropParams"
+        result:
           anyOf:
-            - $ref: "#/components/schemas/PageNavigateResultData"
+            - $ref: "#/components/schemas/PageDragAndDropResult"
             - type: "null"
       required:
         - id
+        - method
         - status
         - sessionId
         - createdAt
         - updatedAt
         - error
-        - type
-        - request
-        - resultData
+        - params
+        - result
+      additionalProperties: false
+    PageTypeAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: type
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageTypeParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageTypeResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageKeyPressAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: keyPress
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageKeyPressParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageKeyPressResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageGotoAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: goto
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageGotoParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageNavigationResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageReloadAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: reload
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageReloadParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageNavigationResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageGoBackAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: goBack
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageGoBackParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageNavigationResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageGoForwardAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: goForward
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageGoForwardParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageNavigationResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageTitleAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: title
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageTitleParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageTitleResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageUrlAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: url
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageUrlParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageUrlResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
       additionalProperties: false
     PageScreenshotAction:
       type: object
       properties:
         id:
-          $ref: "#/components/schemas/V4ActionId"
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: screenshot
         status:
           $ref: "#/components/schemas/PageActionStatus"
         sessionId:
-          $ref: "#/components/schemas/V4SessionId"
+          $ref: "#/components/schemas/SessionId"
         pageId:
-          $ref: "#/components/schemas/V4PageId"
+          $ref: "#/components/schemas/PageId"
         createdAt:
-          $ref: "#/components/schemas/V4Timestamp"
+          $ref: "#/components/schemas/Timestamp"
         updatedAt:
-          $ref: "#/components/schemas/V4Timestamp"
+          $ref: "#/components/schemas/Timestamp"
         completedAt:
-          $ref: "#/components/schemas/V4Timestamp"
+          $ref: "#/components/schemas/Timestamp"
         error:
           anyOf:
-            - $ref: "#/components/schemas/V4ErrorObject"
+            - $ref: "#/components/schemas/PageError"
             - type: "null"
-        type:
-          type: string
-          const: screenshot
-        request:
+        params:
           $ref: "#/components/schemas/PageScreenshotParams"
-        resultData:
+        result:
           anyOf:
-            - $ref: "#/components/schemas/PageScreenshotResultData"
+            - $ref: "#/components/schemas/PageScreenshotResult"
             - type: "null"
       required:
         - id
+        - method
         - status
         - sessionId
         - createdAt
         - updatedAt
         - error
-        - type
-        - request
-        - resultData
+        - params
+        - result
+      additionalProperties: false
+    PageSnapshotAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: snapshot
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageSnapshotParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageSnapshotResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageSetViewportSizeAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: setViewportSize
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageSetViewportSizeParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageSetViewportSizeResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageWaitForLoadStateAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: waitForLoadState
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageWaitForLoadStateParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageWaitForLoadStateResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageWaitForSelectorAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: waitForSelector
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageWaitForSelectorParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageWaitForSelectorResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageWaitForTimeoutAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: waitForTimeout
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageWaitForTimeoutParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageWaitForTimeoutResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageEvaluateAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: evaluate
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageEvaluateParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageEvaluateResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageSendCDPAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: sendCDP
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageSendCDPParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageSendCDPResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageCloseAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: close
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageCloseParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageCloseResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
       additionalProperties: false
     PageAction:
-      oneOf:
+      anyOf:
         - $ref: "#/components/schemas/PageClickAction"
+        - $ref: "#/components/schemas/PageHoverAction"
         - $ref: "#/components/schemas/PageScrollAction"
-        - $ref: "#/components/schemas/PageNavigateAction"
+        - $ref: "#/components/schemas/PageDragAndDropAction"
+        - $ref: "#/components/schemas/PageTypeAction"
+        - $ref: "#/components/schemas/PageKeyPressAction"
+        - $ref: "#/components/schemas/PageGotoAction"
+        - $ref: "#/components/schemas/PageReloadAction"
+        - $ref: "#/components/schemas/PageGoBackAction"
+        - $ref: "#/components/schemas/PageGoForwardAction"
+        - $ref: "#/components/schemas/PageTitleAction"
+        - $ref: "#/components/schemas/PageUrlAction"
         - $ref: "#/components/schemas/PageScreenshotAction"
-      type: object
-      discriminator:
-        propertyName: type
-        mapping:
-          click: "#/components/schemas/PageClickAction"
-          scroll: "#/components/schemas/PageScrollAction"
-          navigate: "#/components/schemas/PageNavigateAction"
-          screenshot: "#/components/schemas/PageScreenshotAction"
-    PageClickResult:
-      type: object
-      properties:
-        action:
-          $ref: "#/components/schemas/PageClickAction"
-      required:
-        - action
-      additionalProperties: false
-    PageScrollResult:
-      type: object
-      properties:
-        action:
-          $ref: "#/components/schemas/PageScrollAction"
-      required:
-        - action
-      additionalProperties: false
-    PageNavigateResult:
-      type: object
-      properties:
-        action:
-          $ref: "#/components/schemas/PageNavigateAction"
-      required:
-        - action
-      additionalProperties: false
-    PageScreenshotResult:
-      type: object
-      properties:
-        action:
-          $ref: "#/components/schemas/PageScreenshotAction"
-      required:
-        - action
-      additionalProperties: false
-    PageActionDetailsResult:
-      type: object
-      properties:
-        action:
-          $ref: "#/components/schemas/PageAction"
-      required:
-        - action
-      additionalProperties: false
-    PageActionListResult:
-      type: object
-      properties:
-        actions:
-          type: array
-          items:
-            $ref: "#/components/schemas/PageAction"
-      required:
-        - actions
-      additionalProperties: false
+        - $ref: "#/components/schemas/PageSnapshotAction"
+        - $ref: "#/components/schemas/PageSetViewportSizeAction"
+        - $ref: "#/components/schemas/PageWaitForLoadStateAction"
+        - $ref: "#/components/schemas/PageWaitForSelectorAction"
+        - $ref: "#/components/schemas/PageWaitForTimeoutAction"
+        - $ref: "#/components/schemas/PageEvaluateAction"
+        - $ref: "#/components/schemas/PageSendCDPAction"
+        - $ref: "#/components/schemas/PageCloseAction"
     SessionStartResponse:
       type: object
       properties:
@@ -1642,17 +2931,80 @@ components:
         - success
         - data
       additionalProperties: false
+    ValidationErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        issues:
+          type: array
+          items: {}
+        statusCode:
+          type: number
+        code:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+      additionalProperties: {}
+    V4ErrorResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        error:
+          $ref: "#/components/schemas/PageError"
+        result:
+          type: "null"
+        metadata:
+          $ref: "#/components/schemas/PageMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
     PageClickResponse:
       type: object
       properties:
         id:
-          $ref: "#/components/schemas/V4ResponseId"
+          $ref: "#/components/schemas/RequestId"
         error:
           type: "null"
         result:
-          $ref: "#/components/schemas/PageClickResult"
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageClickAction"
+          required:
+            - action
+          additionalProperties: false
         metadata:
-          $ref: "#/components/schemas/V4ResponseMetadata"
+          $ref: "#/components/schemas/PageMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageHoverResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        error:
+          type: "null"
+        result:
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageHoverAction"
+          required:
+            - action
+          additionalProperties: false
+        metadata:
+          $ref: "#/components/schemas/PageMetadata"
       required:
         - id
         - error
@@ -1663,30 +3015,226 @@ components:
       type: object
       properties:
         id:
-          $ref: "#/components/schemas/V4ResponseId"
+          $ref: "#/components/schemas/RequestId"
         error:
           type: "null"
         result:
-          $ref: "#/components/schemas/PageScrollResult"
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageScrollAction"
+          required:
+            - action
+          additionalProperties: false
         metadata:
-          $ref: "#/components/schemas/V4ResponseMetadata"
+          $ref: "#/components/schemas/PageMetadata"
       required:
         - id
         - error
         - result
         - metadata
       additionalProperties: false
-    PageNavigateResponse:
+    PageDragAndDropResponse:
       type: object
       properties:
         id:
-          $ref: "#/components/schemas/V4ResponseId"
+          $ref: "#/components/schemas/RequestId"
         error:
           type: "null"
         result:
-          $ref: "#/components/schemas/PageNavigateResult"
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageDragAndDropAction"
+          required:
+            - action
+          additionalProperties: false
         metadata:
-          $ref: "#/components/schemas/V4ResponseMetadata"
+          $ref: "#/components/schemas/PageMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageTypeResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        error:
+          type: "null"
+        result:
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageTypeAction"
+          required:
+            - action
+          additionalProperties: false
+        metadata:
+          $ref: "#/components/schemas/PageMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageKeyPressResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        error:
+          type: "null"
+        result:
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageKeyPressAction"
+          required:
+            - action
+          additionalProperties: false
+        metadata:
+          $ref: "#/components/schemas/PageMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageGotoResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        error:
+          type: "null"
+        result:
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageGotoAction"
+          required:
+            - action
+          additionalProperties: false
+        metadata:
+          $ref: "#/components/schemas/PageMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageReloadResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        error:
+          type: "null"
+        result:
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageReloadAction"
+          required:
+            - action
+          additionalProperties: false
+        metadata:
+          $ref: "#/components/schemas/PageMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageGoBackResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        error:
+          type: "null"
+        result:
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageGoBackAction"
+          required:
+            - action
+          additionalProperties: false
+        metadata:
+          $ref: "#/components/schemas/PageMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageGoForwardResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        error:
+          type: "null"
+        result:
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageGoForwardAction"
+          required:
+            - action
+          additionalProperties: false
+        metadata:
+          $ref: "#/components/schemas/PageMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageTitleResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        error:
+          type: "null"
+        result:
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageTitleAction"
+          required:
+            - action
+          additionalProperties: false
+        metadata:
+          $ref: "#/components/schemas/PageMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageUrlResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        error:
+          type: "null"
+        result:
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageUrlAction"
+          required:
+            - action
+          additionalProperties: false
+        metadata:
+          $ref: "#/components/schemas/PageMetadata"
       required:
         - id
         - error
@@ -1697,13 +3245,203 @@ components:
       type: object
       properties:
         id:
-          $ref: "#/components/schemas/V4ResponseId"
+          $ref: "#/components/schemas/RequestId"
         error:
           type: "null"
         result:
-          $ref: "#/components/schemas/PageScreenshotResult"
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageScreenshotAction"
+          required:
+            - action
+          additionalProperties: false
         metadata:
-          $ref: "#/components/schemas/V4ResponseMetadata"
+          $ref: "#/components/schemas/PageMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageSnapshotResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        error:
+          type: "null"
+        result:
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageSnapshotAction"
+          required:
+            - action
+          additionalProperties: false
+        metadata:
+          $ref: "#/components/schemas/PageMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageSetViewportSizeResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        error:
+          type: "null"
+        result:
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageSetViewportSizeAction"
+          required:
+            - action
+          additionalProperties: false
+        metadata:
+          $ref: "#/components/schemas/PageMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageWaitForLoadStateResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        error:
+          type: "null"
+        result:
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageWaitForLoadStateAction"
+          required:
+            - action
+          additionalProperties: false
+        metadata:
+          $ref: "#/components/schemas/PageMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageWaitForSelectorResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        error:
+          type: "null"
+        result:
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageWaitForSelectorAction"
+          required:
+            - action
+          additionalProperties: false
+        metadata:
+          $ref: "#/components/schemas/PageMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageWaitForTimeoutResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        error:
+          type: "null"
+        result:
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageWaitForTimeoutAction"
+          required:
+            - action
+          additionalProperties: false
+        metadata:
+          $ref: "#/components/schemas/PageMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageEvaluateResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        error:
+          type: "null"
+        result:
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageEvaluateAction"
+          required:
+            - action
+          additionalProperties: false
+        metadata:
+          $ref: "#/components/schemas/PageMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageSendCDPResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        error:
+          type: "null"
+        result:
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageSendCDPAction"
+          required:
+            - action
+          additionalProperties: false
+        metadata:
+          $ref: "#/components/schemas/PageMetadata"
+      required:
+        - id
+        - error
+        - result
+        - metadata
+      additionalProperties: false
+    PageCloseResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        error:
+          type: "null"
+        result:
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageCloseAction"
+          required:
+            - action
+          additionalProperties: false
+        metadata:
+          $ref: "#/components/schemas/PageMetadata"
       required:
         - id
         - error
@@ -1714,13 +3452,19 @@ components:
       type: object
       properties:
         id:
-          $ref: "#/components/schemas/V4ResponseId"
+          $ref: "#/components/schemas/RequestId"
         error:
           type: "null"
         result:
-          $ref: "#/components/schemas/PageActionDetailsResult"
+          type: object
+          properties:
+            action:
+              $ref: "#/components/schemas/PageAction"
+          required:
+            - action
+          additionalProperties: false
         metadata:
-          $ref: "#/components/schemas/V4ResponseMetadata"
+          $ref: "#/components/schemas/PageMetadata"
       required:
         - id
         - error
@@ -1731,30 +3475,21 @@ components:
       type: object
       properties:
         id:
-          $ref: "#/components/schemas/V4ResponseId"
+          $ref: "#/components/schemas/RequestId"
         error:
           type: "null"
         result:
-          $ref: "#/components/schemas/PageActionListResult"
+          type: object
+          properties:
+            actions:
+              type: array
+              items:
+                $ref: "#/components/schemas/PageAction"
+          required:
+            - actions
+          additionalProperties: false
         metadata:
-          $ref: "#/components/schemas/V4ResponseMetadata"
-      required:
-        - id
-        - error
-        - result
-        - metadata
-      additionalProperties: false
-    V4ErrorResponse:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/V4ResponseId"
-        error:
-          $ref: "#/components/schemas/V4ErrorObject"
-        result:
-          type: "null"
-        metadata:
-          $ref: "#/components/schemas/V4ResponseMetadata"
+          $ref: "#/components/schemas/PageMetadata"
       required:
         - id
         - error
@@ -2561,11 +4296,43 @@ components:
         - type
         - id
       additionalProperties: false
+    PageActionBase:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          $ref: "#/components/schemas/PageActionMethod"
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+      additionalProperties: false
     PageActionIdParams:
       type: object
       properties:
         actionId:
-          $ref: "#/components/schemas/V4ActionId"
+          $ref: "#/components/schemas/ActionId"
       required:
         - actionId
       additionalProperties: false
@@ -2573,9 +4340,9 @@ components:
       type: object
       properties:
         id:
-          $ref: "#/components/schemas/V4RequestId"
+          $ref: "#/components/schemas/RequestId"
         sessionId:
-          $ref: "#/components/schemas/V4SessionId"
+          $ref: "#/components/schemas/SessionId"
       required:
         - sessionId
       additionalProperties: false
@@ -2583,13 +4350,13 @@ components:
       type: object
       properties:
         id:
-          $ref: "#/components/schemas/V4RequestId"
+          $ref: "#/components/schemas/RequestId"
         sessionId:
-          $ref: "#/components/schemas/V4SessionId"
+          $ref: "#/components/schemas/SessionId"
         pageId:
-          $ref: "#/components/schemas/V4PageId"
-        type:
-          $ref: "#/components/schemas/PageActionType"
+          $ref: "#/components/schemas/PageId"
+        method:
+          $ref: "#/components/schemas/PageActionMethod"
         status:
           $ref: "#/components/schemas/PageActionStatus"
         limit:
@@ -2599,44 +4366,11 @@ components:
       required:
         - sessionId
       additionalProperties: false
-    PageActionBase:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/V4ActionId"
-        status:
-          $ref: "#/components/schemas/PageActionStatus"
-        sessionId:
-          $ref: "#/components/schemas/V4SessionId"
-        pageId:
-          $ref: "#/components/schemas/V4PageId"
-        createdAt:
-          $ref: "#/components/schemas/V4Timestamp"
-        updatedAt:
-          $ref: "#/components/schemas/V4Timestamp"
-        completedAt:
-          $ref: "#/components/schemas/V4Timestamp"
-        error:
-          anyOf:
-            - $ref: "#/components/schemas/V4ErrorObject"
-            - type: "null"
-      required:
-        - id
-        - status
-        - sessionId
-        - createdAt
-        - updatedAt
-        - error
-      additionalProperties: false
 paths:
   /v4/page/click:
     post:
       operationId: PageClick
-      summary: Click an element on the current page
-      tags:
-        - Page
-      description: Creates a page action that clicks an element addressed by an
-        understudy XPath selector.
+      summary: page.click
       requestBody:
         content:
           application/json:
@@ -2655,7 +4389,36 @@ paths:
           content:
             application/json:
               schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
                 $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/hover:
+    post:
+      operationId: PageHover
+      summary: page.hover
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageHoverRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageHoverResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
         "501":
           description: Default Response
           content:
@@ -2665,11 +4428,7 @@ paths:
   /v4/page/scroll:
     post:
       operationId: PageScroll
-      summary: Scroll the current page
-      tags:
-        - Page
-      description: Creates a page action that either scrolls by coordinates or scrolls
-        a selected element to a percentage.
+      summary: page.scroll
       requestBody:
         content:
           application/json:
@@ -2688,25 +4447,22 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
+                $ref: "#/components/schemas/ValidationErrorResponse"
         "501":
           description: Default Response
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/V4ErrorResponse"
-  /v4/page/navigate:
+  /v4/page/dragAndDrop:
     post:
-      operationId: PageNavigate
-      summary: Navigate a page
-      tags:
-        - Page
-      description: Creates a page action that navigates the selected page to a URL.
+      operationId: PageDragAndDrop
+      summary: page.dragAndDrop
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/PageNavigateRequest"
+              $ref: "#/components/schemas/PageDragAndDropRequest"
         required: true
       responses:
         "200":
@@ -2714,13 +4470,245 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PageNavigateResponse"
+                $ref: "#/components/schemas/PageDragAndDropResponse"
         "400":
           description: Default Response
           content:
             application/json:
               schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
                 $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/type:
+    post:
+      operationId: PageType
+      summary: page.type
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageTypeRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageTypeResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/keyPress:
+    post:
+      operationId: PageKeyPress
+      summary: page.keyPress
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageKeyPressRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageKeyPressResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/goto:
+    post:
+      operationId: PageGoto
+      summary: page.goto
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageGotoRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageGotoResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/reload:
+    post:
+      operationId: PageReload
+      summary: page.reload
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageReloadRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageReloadResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/goBack:
+    post:
+      operationId: PageGoBack
+      summary: page.goBack
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageGoBackRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageGoBackResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/goForward:
+    post:
+      operationId: PageGoForward
+      summary: page.goForward
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageGoForwardRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageGoForwardResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/title:
+    post:
+      operationId: PageTitle
+      summary: page.title
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageTitleRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageTitleResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/url:
+    post:
+      operationId: PageUrl
+      summary: page.url
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageUrlRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageUrlResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
         "501":
           description: Default Response
           content:
@@ -2730,11 +4718,7 @@ paths:
   /v4/page/screenshot:
     post:
       operationId: PageScreenshot
-      summary: Capture a screenshot
-      tags:
-        - Page
-      description: Creates a page action that captures a screenshot and returns the
-        image as raw base64 data.
+      summary: page.screenshot
       requestBody:
         content:
           application/json:
@@ -2753,7 +4737,239 @@ paths:
           content:
             application/json:
               schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
                 $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/snapshot:
+    post:
+      operationId: PageSnapshot
+      summary: page.snapshot
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageSnapshotRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageSnapshotResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/setViewportSize:
+    post:
+      operationId: PageSetViewportSize
+      summary: page.setViewportSize
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageSetViewportSizeRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageSetViewportSizeResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/waitForLoadState:
+    post:
+      operationId: PageWaitForLoadState
+      summary: page.waitForLoadState
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageWaitForLoadStateRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageWaitForLoadStateResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/waitForSelector:
+    post:
+      operationId: PageWaitForSelector
+      summary: page.waitForSelector
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageWaitForSelectorRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageWaitForSelectorResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/waitForTimeout:
+    post:
+      operationId: PageWaitForTimeout
+      summary: page.waitForTimeout
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageWaitForTimeoutRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageWaitForTimeoutResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/evaluate:
+    post:
+      operationId: PageEvaluate
+      summary: page.evaluate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageEvaluateRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageEvaluateResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/sendCDP:
+    post:
+      operationId: PageSendCDP
+      summary: page.sendCDP
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageSendCDPRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageSendCDPResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "501":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/close:
+    post:
+      operationId: PageClose
+      summary: page.close
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageCloseRequest"
+        required: true
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageCloseResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
         "501":
           description: Default Response
           content:
@@ -2763,28 +4979,25 @@ paths:
   /v4/page/action:
     get:
       operationId: PageActionList
-      summary: List page actions
-      tags:
-        - Page
-      description: Lists previously recorded page actions for a session.
+      summary: page.action
       parameters:
         - schema:
-            $ref: "#/components/schemas/V4RequestId"
+            $ref: "#/components/schemas/RequestId"
           in: query
           name: id
         - schema:
-            $ref: "#/components/schemas/V4SessionId"
+            $ref: "#/components/schemas/SessionId"
           in: query
           name: sessionId
           required: true
         - schema:
-            $ref: "#/components/schemas/V4PageId"
+            $ref: "#/components/schemas/PageId"
           in: query
           name: pageId
         - schema:
-            $ref: "#/components/schemas/PageActionType"
+            $ref: "#/components/schemas/PageActionMethod"
           in: query
-          name: type
+          name: method
         - schema:
             $ref: "#/components/schemas/PageActionStatus"
           in: query
@@ -2807,7 +5020,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
+                $ref: "#/components/schemas/ValidationErrorResponse"
         "501":
           description: Default Response
           content:
@@ -2817,22 +5030,19 @@ paths:
   /v4/page/action/{actionId}:
     get:
       operationId: PageActionDetails
-      summary: Get page action details
-      tags:
-        - Page
-      description: Retrieves a previously recorded page action by ID.
+      summary: page.actionById
       parameters:
         - schema:
-            $ref: "#/components/schemas/V4RequestId"
+            $ref: "#/components/schemas/RequestId"
           in: query
           name: id
         - schema:
-            $ref: "#/components/schemas/V4SessionId"
+            $ref: "#/components/schemas/SessionId"
           in: query
           name: sessionId
           required: true
         - schema:
-            $ref: "#/components/schemas/V4ActionId"
+            $ref: "#/components/schemas/ActionId"
           in: path
           name: actionId
           required: true
@@ -2848,7 +5058,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
+                $ref: "#/components/schemas/ValidationErrorResponse"
         "404":
           description: Default Response
           content:

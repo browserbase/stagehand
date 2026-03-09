@@ -1,13 +1,13 @@
 import type {
   PageAction,
   PageActionStatus,
-  PageActionType,
+  PageActionMethod,
 } from "../schemas/v4/page.js";
 
 export interface ActionStoreListOptions {
   sessionId: string;
   pageId?: string;
-  type?: PageActionType;
+  method?: PageActionMethod;
   status?: PageActionStatus;
   limit?: number;
 }
