@@ -154,6 +154,12 @@ components:
           type: boolean
         cdpUrl:
           type: string
+        cdpHeaders:
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
         connectTimeoutMs:
           type: number
         downloadsPath:
@@ -1137,6 +1143,12 @@ components:
           type: boolean
         cdpUrl:
           type: string
+        cdpHeaders:
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
         connectTimeoutMs:
           type: number
         downloadsPath:
