@@ -114,46 +114,19 @@ export const PageClipSchema = z
   .strict()
   .meta({ id: "PageClip" });
 
-export const PageMetadataSchema = z
-  .object({
-    requestId: z.string().min(1),
-    sessionId: SessionIdSchema.optional(),
-    pageId: PageIdSchema.optional(),
-    actionId: ActionIdSchema.optional(),
-    timestamp: TimestampSchema,
-  })
-  .strict()
-  .meta({ id: "PageMetadata" });
-
 export const PageErrorSchema = z
-  .object({
-    code: z.string().min(1),
-    message: z.string().min(1),
-    details: z.record(z.string(), z.unknown()).optional(),
-  })
-  .strict()
+  .string()
+  .min(1)
   .meta({ id: "PageError" });
 
 export const ValidationErrorResponseSchema = z
   .object({
-    error: z.string(),
-    issues: z.array(z.unknown()).optional(),
-    statusCode: z.number().optional(),
-    code: z.string().optional(),
-    message: z.string().optional(),
-  })
-  .passthrough()
-  .meta({ id: "ValidationErrorResponse" });
-
-export const V4ErrorResponseSchema = z
-  .object({
-    id: RequestIdSchema,
+    success: z.literal(false),
     error: PageErrorSchema,
-    result: z.null(),
-    metadata: PageMetadataSchema,
+    action: z.lazy(() => PageActionSchema).optional(),
   })
   .strict()
-  .meta({ id: "V4ErrorResponse" });
+  .meta({ id: "ValidationErrorResponse" });
 
 const PageBodySchema = z
   .object({
@@ -208,14 +181,9 @@ function createPageResponseSchema<T extends z.ZodTypeAny>(
 ) {
   return z
     .object({
-      id: RequestIdSchema,
+      success: z.literal(true),
       error: z.null(),
-      result: z
-        .object({
-          action,
-        })
-        .strict(),
-      metadata: PageMetadataSchema,
+      action,
     })
     .strict()
     .meta({ id });
@@ -842,6 +810,15 @@ export const PageActionSchema = z
   ])
   .meta({ id: "PageAction" });
 
+export const V4ErrorResponseSchema = z
+  .object({
+    success: z.literal(false),
+    error: PageErrorSchema,
+    action: PageActionSchema.optional(),
+  })
+  .strict()
+  .meta({ id: "V4ErrorResponse" });
+
 export const PageClickResponseSchema = createPageResponseSchema(
   "PageClickResponse",
   PageClickActionSchema,
@@ -976,28 +953,18 @@ export const PageActionListQuerySchema = z
 
 export const PageActionDetailsResponseSchema = z
   .object({
-    id: RequestIdSchema,
+    success: z.literal(true),
     error: z.null(),
-    result: z
-      .object({
-        action: PageActionSchema,
-      })
-      .strict(),
-    metadata: PageMetadataSchema,
+    action: PageActionSchema,
   })
   .strict()
   .meta({ id: "PageActionDetailsResponse" });
 
 export const PageActionListResponseSchema = z
   .object({
-    id: RequestIdSchema,
+    success: z.literal(true),
     error: z.null(),
-    result: z
-      .object({
-        actions: z.array(PageActionSchema),
-      })
-      .strict(),
-    metadata: PageMetadataSchema,
+    actions: z.array(PageActionSchema),
   })
   .strict()
   .meta({ id: "PageActionListResponse" });
@@ -1022,7 +989,6 @@ export const pageOpenApiComponents = {
     PageSelector: PageSelectorSchema,
     PagePoint: PagePointSchema,
     PageClip: PageClipSchema,
-    PageMetadata: PageMetadataSchema,
     PageError: PageErrorSchema,
     ValidationErrorResponse: ValidationErrorResponseSchema,
     V4ErrorResponse: V4ErrorResponseSchema,
@@ -1129,19 +1095,12 @@ export type PageActionDetailsQuery = z.infer<
 export type PageActionListQuery = z.infer<typeof PageActionListQuerySchema>;
 
 export function buildErrorResponse(input: {
-  id: string;
   error: z.input<typeof PageErrorSchema>;
-  metadata: Omit<z.input<typeof PageMetadataSchema>, "timestamp"> & {
-    timestamp?: string;
-  };
+  action?: z.input<typeof PageActionSchema>;
 }) {
   return V4ErrorResponseSchema.parse({
-    id: input.id,
+    success: false,
     error: input.error,
-    result: null,
-    metadata: {
-      ...input.metadata,
-      timestamp: input.metadata.timestamp ?? new Date().toISOString(),
-    },
+    ...(input.action ? { action: input.action } : {}),
   });
 }

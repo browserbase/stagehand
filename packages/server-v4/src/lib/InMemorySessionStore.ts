@@ -19,6 +19,7 @@ interface LruNode {
   sessionId: string;
   params: CreateSessionParams;
   stagehand: V3 | null;
+  stagehandInitPromise: Promise<V3> | null;
   loggerRef: { current?: (message: LogLine) => void };
   expiry: number;
   prev: LruNode | null;
@@ -179,21 +180,32 @@ export class InMemorySessionStore implements SessionStore {
       return node.stagehand;
     }
 
-    // Create V3 instance (lazy initialization)
-    const options = this.buildV3Options(node.params, ctx, node.loggerRef);
-    const stagehand = new V3(options);
-    try {
-      await stagehand.init();
-    } catch (error) {
-      try {
-        await stagehand.close();
-      } catch {
-        // best-effort cleanup for failed init attempts
-      }
-      throw error;
+    if (node.stagehandInitPromise) {
+      return await node.stagehandInitPromise;
     }
-    node.stagehand = stagehand;
-    return stagehand;
+
+    // Create V3 instance (lazy initialization)
+    const initPromise = (async () => {
+      const options = this.buildV3Options(node.params, ctx, node.loggerRef);
+      const stagehand = new V3(options);
+      try {
+        await stagehand.init();
+        node.stagehand = stagehand;
+        return stagehand;
+      } catch (error) {
+        try {
+          await stagehand.close();
+        } catch {
+          // best-effort cleanup for failed init attempts
+        }
+        throw error;
+      } finally {
+        node.stagehandInitPromise = null;
+      }
+    })();
+
+    node.stagehandInitPromise = initPromise;
+    return await initPromise;
   }
 
   /**
@@ -263,6 +275,7 @@ export class InMemorySessionStore implements SessionStore {
       sessionId,
       params,
       stagehand: null, // Lazy initialization
+      stagehandInitPromise: null,
       loggerRef: {},
       expiry: this.ttlMs > 0 ? Date.now() + this.ttlMs : Infinity,
       prev: this.last,
@@ -281,18 +294,6 @@ export class InMemorySessionStore implements SessionStore {
     const node = this.items.get(sessionId);
     if (!node) return;
 
-    // Close V3 instance if it exists
-    if (node.stagehand) {
-      try {
-        await node.stagehand.close();
-      } catch (error) {
-        console.error(
-          `Error closing stagehand for session ${sessionId}:`,
-          error,
-        );
-      }
-    }
-
     // Remove from map
     this.items.delete(sessionId);
 
@@ -302,6 +303,24 @@ export class InMemorySessionStore implements SessionStore {
     if (next) next.prev = prev;
     if (this.first === node) this.first = next;
     if (this.last === node) this.last = prev;
+
+    const stagehand =
+      node.stagehand ??
+      (node.stagehandInitPromise
+        ? await node.stagehandInitPromise.catch(() => null)
+        : null);
+
+    // Close V3 instance if it exists
+    if (stagehand) {
+      try {
+        await stagehand.close();
+      } catch (error) {
+        console.error(
+          `Error closing stagehand for session ${sessionId}:`,
+          error,
+        );
+      }
+    }
   }
 
   async getSessionConfig(sessionId: string): Promise<CreateSessionParams> {

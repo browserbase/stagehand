@@ -1,13 +1,17 @@
 import type { RouteOptions } from "fastify";
+import { Api } from "@browserbasehq/stagehand";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
+  PageHoverActionSchema,
   PageHoverRequestSchema,
   PageHoverResponseSchema,
-  ValidationErrorResponseSchema,
-  V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createNotImplementedHandler } from "./shared.js";
+import {
+  createPageActionHandler,
+  normalizeXPath,
+  pageErrorResponses,
+} from "./shared.js";
 
 const hoverRoute: RouteOptions = {
   method: "POST",
@@ -15,16 +19,29 @@ const hoverRoute: RouteOptions = {
   schema: {
     operationId: "PageHover",
     summary: "page.hover",
+    headers: Api.SessionHeadersSchema,
     body: PageHoverRequestSchema,
     response: {
       200: PageHoverResponseSchema,
-      400: ValidationErrorResponseSchema,
-      501: V4ErrorResponseSchema,
+      ...pageErrorResponses,
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: createNotImplementedHandler(
-    "POST /v4/page/hover is not implemented yet",
-  ),
+  handler: createPageActionHandler({
+    method: "hover",
+    actionSchema: PageHoverActionSchema,
+    execute: async ({ page, params }) => {
+      if ("selector" in params) {
+        await page.deepLocator(normalizeXPath(params.selector.xpath)).hover();
+        return { xpath: params.selector.xpath };
+      }
+
+      const xpath = await page.hover(params.x, params.y, {
+        returnXpath: true,
+      });
+
+      return { xpath: xpath || undefined };
+    },
+  }),
 };
 
 export default hoverRoute;

@@ -1,13 +1,17 @@
 import type { RouteOptions } from "fastify";
+import { Api } from "@browserbasehq/stagehand";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
+  PageClickActionSchema,
   PageClickRequestSchema,
   PageClickResponseSchema,
-  ValidationErrorResponseSchema,
-  V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createNotImplementedHandler } from "./shared.js";
+import {
+  createPageActionHandler,
+  normalizeXPath,
+  pageErrorResponses,
+} from "./shared.js";
 
 const clickRoute: RouteOptions = {
   method: "POST",
@@ -15,16 +19,35 @@ const clickRoute: RouteOptions = {
   schema: {
     operationId: "PageClick",
     summary: "page.click",
+    headers: Api.SessionHeadersSchema,
     body: PageClickRequestSchema,
     response: {
       200: PageClickResponseSchema,
-      400: ValidationErrorResponseSchema,
-      501: V4ErrorResponseSchema,
+      ...pageErrorResponses,
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: createNotImplementedHandler(
-    "POST /v4/page/click is not implemented yet",
-  ),
+  handler: createPageActionHandler({
+    method: "click",
+    actionSchema: PageClickActionSchema,
+    execute: async ({ page, params }) => {
+      if ("selector" in params) {
+        await page.deepLocator(normalizeXPath(params.selector.xpath)).click({
+          button: params.button,
+          clickCount: params.clickCount,
+        });
+
+        return { xpath: params.selector.xpath };
+      }
+
+      const xpath = await page.click(params.x, params.y, {
+        button: params.button,
+        clickCount: params.clickCount,
+        returnXpath: true,
+      });
+
+      return { xpath: xpath || undefined };
+    },
+  }),
 };
 
 export default clickRoute;

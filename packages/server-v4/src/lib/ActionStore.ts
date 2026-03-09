@@ -16,4 +16,5 @@ export interface ActionStore {
   putAction(action: PageAction): Promise<void>;
   getAction(actionId: string): Promise<PageAction | null>;
   listActions(options: ActionStoreListOptions): Promise<PageAction[]>;
+  destroy?(): Promise<void>;
 }
