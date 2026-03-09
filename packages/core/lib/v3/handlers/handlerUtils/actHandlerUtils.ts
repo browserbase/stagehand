@@ -77,6 +77,10 @@ export async function performUnderstudyMethod(
     args: Array.from(args),
   });
 
+  const navWatcher = shouldWaitForPostClickSettle(method)
+    ? watchMainFrameUrlChangeStart(page, page.url())
+    : null;
+
   try {
     const handler = METHOD_HANDLER_MAP[method] ?? null;
 
@@ -106,6 +110,12 @@ export async function performUnderstudyMethod(
           );
       }
     }
+    if (navWatcher && (await navWatcher.wait(400))) {
+      await waitForDomNetworkQuiet(page.mainFrame(), domSettleTimeoutMs).catch(
+        () => {},
+      );
+    }
+
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : undefined;
@@ -126,8 +136,96 @@ export async function performUnderstudyMethod(
     }
     throw new UnderstudyCommandException(msg, e);
   } finally {
+    navWatcher?.dispose();
     SessionFileLogger.logUnderstudyActionCompleted();
   }
+}
+
+function shouldWaitForPostClickSettle(method: string): boolean {
+  return method === "click" || method === "doubleClick";
+}
+
+function watchMainFrameUrlChangeStart(
+  page: Page,
+  initialUrl: string,
+): {
+  wait: (timeoutMs: number) => Promise<boolean>;
+  dispose: () => void;
+} {
+  const session = page.mainFrame().session;
+  const initialMainFrameId = page.mainFrameId();
+  let matched = false;
+  let disposed = false;
+  let waiter:
+    | {
+        resolve: (value: boolean) => void;
+        timer: ReturnType<typeof setTimeout>;
+      }
+    | undefined;
+
+  const finish = (value: boolean) => {
+    if (disposed) return;
+    if (value) matched = true;
+    if (waiter) {
+      clearTimeout(waiter.timer);
+      const current = waiter;
+      waiter = undefined;
+      current.resolve(value);
+    }
+  };
+
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    session.off("Page.frameNavigated", onFrameNavigated);
+    session.off("Page.navigatedWithinDocument", onNavigatedWithinDocument);
+    if (waiter) {
+      clearTimeout(waiter.timer);
+      waiter.resolve(false);
+      waiter = undefined;
+    }
+  };
+
+  const isMainFrame = (frameId: string): boolean =>
+    frameId === initialMainFrameId || frameId === page.mainFrameId();
+
+  const onFrameNavigated = (event: Protocol.Page.FrameNavigatedEvent) => {
+    if (
+      isMainFrame(event.frame.id) &&
+      event.frame.url &&
+      event.frame.url !== initialUrl
+    ) {
+      finish(true);
+    }
+  };
+
+  const onNavigatedWithinDocument = (
+    event: Protocol.Page.NavigatedWithinDocumentEvent,
+  ) => {
+    if (isMainFrame(event.frameId) && event.url !== initialUrl) {
+      finish(true);
+    }
+  };
+
+  session.on("Page.frameNavigated", onFrameNavigated);
+  session.on("Page.navigatedWithinDocument", onNavigatedWithinDocument);
+
+  return {
+    wait: async (timeoutMs: number) => {
+      if (matched) return true;
+      if (disposed) return false;
+      return await new Promise<boolean>((resolve) => {
+        waiter = {
+          resolve,
+          timer: setTimeout(() => {
+            waiter = undefined;
+            resolve(false);
+          }, timeoutMs),
+        };
+      });
+    },
+    dispose,
+  };
 }
 
 /* ===================== Handlers & Map ===================== */
