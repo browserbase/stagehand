@@ -1,0 +1,25 @@
+packages/server/openapi.v3.yaml
+  62f88ef7c1590f39 157-162,1146-1151
+packages/server/scripts/build-sea.ts
+  62f88ef7c1590f39 122-123,166-168,171-180,218-243,512
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "fad269af09ce635998b61fb542e695cac8b72f93",
+  "prompts": {
+    "62f88ef7c1590f39": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cd345-e708-7a82-9521-3ae0aa43434c",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>",
+      "messages": [],
+      "total_additions": 56,
+      "total_deletions": 12,
+      "accepted_lines": 56,
+      "overriden_lines": 0
+    }
+  }
+}
