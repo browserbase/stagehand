@@ -1,51 +1,53 @@
-import fs from "node:fs/promises";
-import path from "node:path";
-import { pathToFileURL } from "node:url";
 import { expect, test } from "@playwright/test";
 import { V3 } from "../../lib/v3/v3.js";
 import { performUnderstudyMethod } from "../../lib/v3/handlers/handlerUtils/actHandlerUtils.js";
 import { closeV3 } from "./testUtils.js";
 import { v3DynamicTestConfig } from "./v3.dynamic.config.js";
 
-async function writeDelayedNavigationFixture(
-  outputDir: string,
+async function loadDelayedDocumentNavigationFixture(
+  v3: V3,
   delayMs: number,
-): Promise<{ sourceUrl: string; targetUrl: string }> {
-  const targetPath = path.join(outputDir, `target-${delayMs}.html`);
-  const sourcePath = path.join(outputDir, `source-${delayMs}.html`);
-  const targetUrl = pathToFileURL(targetPath).href;
-  const sourceUrl = pathToFileURL(sourcePath).href;
+): Promise<{
+  page: ReturnType<V3["context"]["pages"]>[number];
+  sourceUrl: string;
+  targetUrl: string;
+}> {
+  const page = v3.context.pages()[0];
+  const sourceUrl = "https://example.com/";
+  const targetUrl = `https://example.com/?nav-race=${delayMs}`;
 
-  await fs.mkdir(outputDir, { recursive: true });
-  await fs.writeFile(
-    targetPath,
-    "<!DOCTYPE html><html><body><h1 id='done'>destination</h1></body></html>",
-    "utf8",
-  );
-  await fs.writeFile(
-    sourcePath,
-    `<!DOCTYPE html>
-      <html>
-        <body>
-          <button id="go" type="button">Go</button>
-          <script>
-            window.__navDelayMs = ${delayMs};
-            window.__navScheduled = false;
-            document.getElementById("go").addEventListener("click", () => {
-              window.__navScheduled = true;
-              setTimeout(() => {
-                window.location.assign(${JSON.stringify(targetUrl)});
-              }, ${delayMs});
-            });
-          </script>
-        </body>
-      </html>`,
-    "utf8",
+  await page.goto(sourceUrl, { waitUntil: "load" });
+
+  await page.mainFrame().evaluate(
+    ({ delay, nextUrl }) => {
+      document.open();
+      document.write(`<!DOCTYPE html>
+        <html>
+          <body>
+            <button id="go" type="button">Go</button>
+          </body>
+        </html>`);
+      document.close();
+
+      (window as typeof window & { __navScheduled?: boolean }).__navScheduled =
+        false;
+      document.getElementById("go")?.addEventListener("click", () => {
+        (
+          window as typeof window & { __navScheduled?: boolean }
+        ).__navScheduled = true;
+        setTimeout(() => {
+          window.location.assign(nextUrl);
+        }, delay);
+      });
+    },
+    { delay: delayMs, nextUrl: targetUrl },
   );
 
-  // Use file-backed pages so the navigation behaves like a normal document
-  // load, while the delay stays fully deterministic inside the fixture.
-  return { sourceUrl, targetUrl };
+  return {
+    page,
+    sourceUrl,
+    targetUrl,
+  };
 }
 
 test.describe("performUnderstudyMethod navigation race", () => {
@@ -60,23 +62,17 @@ test.describe("performUnderstudyMethod navigation race", () => {
     await closeV3(v3);
   });
 
-  test("waits for navigation that starts within 400ms of click", async ({
-    browserName,
-  }, testInfo) => {
-    void browserName;
-    const page = v3.context.pages()[0];
-    const { sourceUrl, targetUrl } = await writeDelayedNavigationFixture(
-      testInfo.outputDir,
+  test("waits for navigation that starts within 400ms of click", async () => {
+    const { page, targetUrl } = await loadDelayedDocumentNavigationFixture(
+      v3,
       250,
     );
-
-    await page.goto(sourceUrl, { waitUntil: "load" });
 
     await performUnderstudyMethod(
       page,
       page.mainFrame(),
       "click",
-      "xpath=//*[@id='go']",
+      "xpath=/html/body/button",
       [],
       3_000,
     );
@@ -84,23 +80,15 @@ test.describe("performUnderstudyMethod navigation race", () => {
     expect(page.url()).toBe(targetUrl);
   });
 
-  test("does not wait for navigation that starts after 400ms of click", async ({
-    browserName,
-  }, testInfo) => {
-    void browserName;
-    const page = v3.context.pages()[0];
-    const { sourceUrl, targetUrl } = await writeDelayedNavigationFixture(
-      testInfo.outputDir,
-      900,
-    );
-
-    await page.goto(sourceUrl, { waitUntil: "load" });
+  test("does not wait for navigation that starts after 400ms of click", async () => {
+    const { page, sourceUrl, targetUrl } =
+      await loadDelayedDocumentNavigationFixture(v3, 900);
 
     await performUnderstudyMethod(
       page,
       page.mainFrame(),
       "click",
-      "xpath=//*[@id='go']",
+      "xpath=/html/body/button",
       [],
       3_000,
     );
