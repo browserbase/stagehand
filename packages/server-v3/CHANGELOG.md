@@ -1,4 +1,4 @@
-# @browserbasehq/stagehand-server
+# @browserbasehq/stagehand-server-v3
 
 ## 3.6.0
 

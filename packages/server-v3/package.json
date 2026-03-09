@@ -1,23 +1,23 @@
 {
-  "name": "@browserbasehq/stagehand-server",
+  "name": "@browserbasehq/stagehand-server-v3",
   "version": "3.6.0",
-  "description": "Stagehand API server",
+  "description": "Stagehand API server v3",
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "pnpm --filter @browserbasehq/stagehand-server run --parallel \"/^(build:esm-tests|build:server:dist|gen:openapi|build:sea:esm)$/\"",
+    "build": "pnpm --filter @browserbasehq/stagehand-server-v3 run --parallel \"/^(build:esm-tests|build:server:dist|gen:openapi|build:sea:esm)$/\"",
     "dev": "tsx watch src/server.ts",
-    "build:esm-tests": "pnpm -w --dir ../.. exec tsc -p packages/server/tsconfig.tests.json",
-    "build:server:dist": "pnpm -w --dir ../.. exec tsc -p packages/server/tsconfig.json && pnpm -w --dir ../.. exec tsc-alias -p packages/server/tsconfig.json",
+    "build:esm-tests": "pnpm -w --dir ../.. exec tsc -p packages/server-v3/tsconfig.tests.json",
+    "build:server:dist": "pnpm -w --dir ../.. exec tsc -p packages/server-v3/tsconfig.json && pnpm -w --dir ../.. exec tsc-alias -p packages/server-v3/tsconfig.json",
     "build:sea:esm": "tsx scripts/build-sea.ts --mode=esm",
     "build:sea:cjs": "tsx scripts/build-sea.ts --mode=cjs",
-    "lint": "cd ../.. && prettier --check packages/server && cd packages/server && eslint . && pnpm run typecheck",
-    "typecheck": "pnpm -w --dir ../.. exec tsc -p packages/server/tsconfig.json --noEmit",
-    "test": "pnpm -w --dir ../.. exec turbo run test:server --filter=@browserbasehq/stagehand-server --",
+    "lint": "cd ../.. && prettier --check packages/server-v3 && cd packages/server-v3 && eslint . && pnpm run typecheck",
+    "typecheck": "pnpm -w --dir ../.. exec tsc -p packages/server-v3/tsconfig.json --noEmit",
+    "test": "pnpm -w --dir ../.. exec turbo run test:server --filter=@browserbasehq/stagehand-server-v3 --",
     "test:server": "tsx scripts/test-server.ts",
-    "test:integration": "pnpm run test:server -- packages/server/dist/tests/integration",
-    "test:integration:local": "STAGEHAND_SERVER_TARGET=local pnpm run test:server -- packages/server/dist/tests/integration",
-    "test:integration:sea": "STAGEHAND_SERVER_TARGET=sea pnpm run test:server -- packages/server/dist/tests/integration",
+    "test:integration": "pnpm run test:server -- packages/server-v3/dist/tests/integration",
+    "test:integration:local": "STAGEHAND_SERVER_TARGET=local pnpm run test:server -- packages/server-v3/dist/tests/integration",
+    "test:integration:sea": "STAGEHAND_SERVER_TARGET=sea pnpm run test:server -- packages/server-v3/dist/tests/integration",
     "gen:openapi": "tsx scripts/gen-openapi.ts"
   },
   "dependencies": {
@@ -53,7 +53,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/browserbase/stagehand.git",
-    "directory": "packages/server"
+    "directory": "packages/server-v3"
   },
   "bugs": {
     "url": "https://github.com/browserbase/stagehand/issues"

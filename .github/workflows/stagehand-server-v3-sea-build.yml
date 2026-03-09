@@ -1,4 +1,4 @@
-name: Stagehand Server SEA Build
+name: Stagehand Server v3 SEA Build
 
 on:
   workflow_call:
@@ -9,12 +9,12 @@ on:
         type: string
         default: |
           [
-            {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64","include_sourcemaps":false},
-            {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","binary_name":"stagehand-server-linux-arm64","include_sourcemaps":false},
-            {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-darwin-arm64","include_sourcemaps":false},
-            {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-darwin-x64","include_sourcemaps":false},
-            {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe","include_sourcemaps":false},
-            {"os":"windows-11-arm","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe","include_sourcemaps":false}
+            {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-v3-linux-x64","include_sourcemaps":false},
+            {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","binary_name":"stagehand-server-v3-linux-arm64","include_sourcemaps":false},
+            {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-v3-darwin-arm64","include_sourcemaps":false},
+            {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-v3-darwin-x64","include_sourcemaps":false},
+            {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-v3-win32-x64.exe","include_sourcemaps":false},
+            {"os":"windows-11-arm","platform":"win32","arch":"arm64","binary_name":"stagehand-server-v3-win32-arm64.exe","include_sourcemaps":false}
           ]
       use-prebuilt-artifacts:
         description: "Whether to download pre-built package artifacts."
@@ -43,12 +43,12 @@ on:
         required: false
         default: |
           [
-            {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64","include_sourcemaps":false},
-            {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","binary_name":"stagehand-server-linux-arm64","include_sourcemaps":false},
-            {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-darwin-arm64","include_sourcemaps":false},
-            {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-darwin-x64","include_sourcemaps":false},
-            {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe","include_sourcemaps":false},
-            {"os":"windows-11-arm","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe","include_sourcemaps":false}
+            {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-v3-linux-x64","include_sourcemaps":false},
+            {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","binary_name":"stagehand-server-v3-linux-arm64","include_sourcemaps":false},
+            {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-v3-darwin-arm64","include_sourcemaps":false},
+            {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-v3-darwin-x64","include_sourcemaps":false},
+            {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-v3-win32-x64.exe","include_sourcemaps":false},
+            {"os":"windows-11-arm","platform":"win32","arch":"arm64","binary_name":"stagehand-server-v3-win32-arm64.exe","include_sourcemaps":false}
           ]
       use-prebuilt-artifacts:
         description: "Whether to download pre-built package artifacts."
@@ -103,12 +103,12 @@ jobs:
           SEA_TARGET_ARCH: ${{ matrix.arch }}
           SEA_BINARY_NAME: ${{ matrix.binary_name }}
           SEA_INCLUDE_SOURCEMAPS: ${{ matrix.include_sourcemaps && '1' || '0' }}
-        run: pnpm exec turbo run build:sea:esm --filter=@browserbasehq/stagehand-server
+        run: pnpm exec turbo run build:sea:esm --filter=@browserbasehq/stagehand-server-v3
 
       - name: Verify SEA binary exists
         shell: bash
         run: |
-          test -f "packages/server/dist/sea/${{ matrix.binary_name }}"
+          test -f "packages/server-v3/dist/sea/${{ matrix.binary_name }}"
 
       - name: Verify SEA binary launches cleanly
         shell: bash
@@ -117,7 +117,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          binary="packages/server/dist/sea/${{ matrix.binary_name }}"
+          binary="packages/server-v3/dist/sea/${{ matrix.binary_name }}"
           matrix_arch="${{ matrix.arch }}"
           runner_arch="$(echo "${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')"
 
@@ -176,5 +176,5 @@ jobs:
           # package.json is included to anchor artifact paths at repo root.
           path: |
             package.json
-            packages/server/dist/sea/${{ matrix.binary_name }}
+            packages/server-v3/dist/sea/${{ matrix.binary_name }}
           retention-days: 7

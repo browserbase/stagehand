@@ -1,4 +1,4 @@
-name: Release stagehand/server
+name: Release stagehand/server-v3
 
 on:
   push:
@@ -14,11 +14,11 @@ permissions:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 env:
-  OAS_PATH: packages/server/openapi.v3.yaml
+  OAS_PATH: packages/server-v3/openapi.v3.yaml
 
 jobs:
   detect:
-    name: Detect server release (changesets)
+    name: Detect server-v3 release (changesets)
     runs-on: ubuntu-latest
     outputs:
       release: ${{ steps.meta.outputs.release }}
@@ -43,7 +43,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          latest_tag="$(git tag -l 'stagehand-server/v*' --sort=-v:refname | head -n 1 || true)"
+          latest_tag="$(git tag -l 'stagehand-server-v3/v*' --sort=-v:refname | head -n 1 || true)"
           rm -f changeset-status.json
           if [ -n "${latest_tag}" ]; then
             pnpm changeset status --since "${latest_tag}" --output changeset-status.json
@@ -59,19 +59,19 @@ jobs:
           const releases = Array.isArray(status.releases) ? status.releases : [];
 
           const shouldRelease = changesets.some((cs) =>
-            (cs.releases || []).some((r) => r?.name === '@browserbasehq/stagehand-server')
+            (cs.releases || []).some((r) => r?.name === '@browserbasehq/stagehand-server-v3')
           );
 
-          const serverRelease = releases.find((r) => r?.name === '@browserbasehq/stagehand-server');
+          const serverRelease = releases.find((r) => r?.name === '@browserbasehq/stagehand-server-v3');
           if (shouldRelease && !serverRelease?.newVersion) {
             throw new Error(
-              'Expected @browserbasehq/stagehand-server to have a computed newVersion in changeset-status.json.'
+              'Expected @browserbasehq/stagehand-server-v3 to have a computed newVersion in changeset-status.json.'
             );
           }
 
           const release = shouldRelease ? 'true' : 'false';
           const version = shouldRelease ? serverRelease.newVersion : '';
-          const tag = `stagehand-server/v${version}`;
+          const tag = `stagehand-server-v3/v${version}`;
 
           const out = process.env.GITHUB_OUTPUT;
           fs.appendFileSync(out, `release=${release}\n`);
@@ -79,7 +79,7 @@ jobs:
           fs.appendFileSync(out, `tag=${tag}\n`);
           NODE
 
-      - name: Create stagehand/server tag
+      - name: Create stagehand/server-v3 tag
         if: steps.meta.outputs.release == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -101,23 +101,23 @@ jobs:
             exit 0
           fi
 
-          git tag -a "${TAG}" "${TARGET_SHA}" -m "stagehand/server v${VERSION}"
+          git tag -a "${TAG}" "${TARGET_SHA}" -m "stagehand/server-v3 v${VERSION}"
           git push origin "${TAG}"
 
   build_binaries:
     name: Build SEA binaries
     needs: detect
     if: needs.detect.outputs.release == 'true'
-    uses: ./.github/workflows/stagehand-server-sea-build.yml
+    uses: ./.github/workflows/stagehand-server-v3-sea-build.yml
     with:
       matrix: |
         [
-          {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64","include_sourcemaps":false},
-          {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","binary_name":"stagehand-server-linux-arm64","include_sourcemaps":false},
-          {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-darwin-arm64","include_sourcemaps":false},
-          {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-darwin-x64","include_sourcemaps":false},
-          {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe","include_sourcemaps":false},
-          {"os":"windows-11-arm","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe","include_sourcemaps":false}
+          {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-v3-linux-x64","include_sourcemaps":false},
+          {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","binary_name":"stagehand-server-v3-linux-arm64","include_sourcemaps":false},
+          {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-v3-darwin-arm64","include_sourcemaps":false},
+          {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-v3-darwin-x64","include_sourcemaps":false},
+          {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-v3-win32-x64.exe","include_sourcemaps":false},
+          {"os":"windows-11-arm","platform":"win32","arch":"arm64","binary_name":"stagehand-server-v3-win32-arm64.exe","include_sourcemaps":false}
         ]
 
   release:
@@ -135,15 +135,15 @@ jobs:
       - name: Prepare release assets directory
         run: mkdir -p release-assets
 
-      - name: Prepare stagehand/server release assets
+      - name: Prepare stagehand/server-v3 release assets
         run: |
           set -euo pipefail
-          cp "${{ env.OAS_PATH }}" "release-assets/openapi.v3.stagehand-server-${{ needs.detect.outputs.version }}.yaml"
+          cp "${{ env.OAS_PATH }}" "release-assets/openapi.v3.stagehand-server-v3-${{ needs.detect.outputs.version }}.yaml"
 
       - name: Download SEA binary artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: stagehand-server-*
+          pattern: stagehand-server-v3-*
           path: .
           merge-multiple: true
 
@@ -152,7 +152,7 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          for f in packages/server/dist/sea/stagehand-server-*; do
+          for f in packages/server-v3/dist/sea/stagehand-server-v3-*; do
             cp "$f" release-assets/
           done
 
@@ -163,7 +163,7 @@ jobs:
           cd release-assets
           # Only checksum binaries (exclude openapi yaml). Avoid failing if no matches.
           shopt -s nullglob
-          files=(stagehand-server-*)
+          files=(stagehand-server-v3-*)
           bins=()
           for f in "${files[@]}"; do
             [[ "$f" == *openapi* ]] && continue
@@ -174,13 +174,13 @@ jobs:
             shasum -a 256 "${bins[@]}" > checksums.sha256
           fi
 
-      - name: Publish stagehand/server GitHub release
+      - name: Publish stagehand/server-v3 GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.detect.outputs.tag }}
-          name: stagehand/server v${{ needs.detect.outputs.version }}
+          name: stagehand/server-v3 v${{ needs.detect.outputs.version }}
           generate_release_notes: true
           files: |
-            release-assets/openapi.v3.stagehand-server-${{ needs.detect.outputs.version }}.yaml
-            release-assets/stagehand-server-*
+            release-assets/openapi.v3.stagehand-server-v3-${{ needs.detect.outputs.version }}.yaml
+            release-assets/stagehand-server-v3-*
             release-assets/checksums.sha256

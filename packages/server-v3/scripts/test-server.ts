@@ -2,14 +2,14 @@
  * Server unit + integration tests on dist/esm + SEA/local server targets.
  *
  * Prereqs:
- * - pnpm run build (packages/server/dist/tests + packages/server/dist/server.js).
+ * - pnpm run build (packages/server-v3/dist/tests + packages/server-v3/dist/server.js).
  * - SEA integration still requires build:sea when STAGEHAND_SERVER_TARGET=sea.
  *
  * Args: [test paths...] -- [node --test args...] | --list (prints JSON matrix)
  * Env: STAGEHAND_SERVER_TARGET=sea|local|remote, STAGEHAND_BASE_URL, SEA_BINARY_NAME,
  *      NODE_TEST_CONSOLE_REPORTER, NODE_TEST_REPORTER, NODE_TEST_REPORTER_DESTINATION,
  *      NODE_V8_COVERAGE; writes CTRF to ctrf/node-test-*.xml by default.
- * Example: STAGEHAND_SERVER_TARGET=sea pnpm run test:server -- packages/server/dist/tests/integration/v3/start.test.js
+ * Example: STAGEHAND_SERVER_TARGET=sea pnpm run test:server -- packages/server-v3/dist/tests/integration/v3/start.test.js
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -93,12 +93,12 @@ const writeCtrfFromJunit = (junitPath: string, tool: string) => {
   }
 };
 
-const sourceTestsDir = `${repoRoot}/packages/server/test`;
+const sourceTestsDir = `${repoRoot}/packages/server-v3/test`;
 const sourceUnitDir = `${sourceTestsDir}/unit`;
 const sourceIntegrationDir = `${sourceTestsDir}/integration`;
-const unitDir = `${repoRoot}/packages/server/dist/tests/unit`;
-const integrationDir = `${repoRoot}/packages/server/dist/tests/integration`;
-const allTestsDir = `${repoRoot}/packages/server/dist/tests`;
+const unitDir = `${repoRoot}/packages/server-v3/dist/tests/unit`;
+const integrationDir = `${repoRoot}/packages/server-v3/dist/tests/integration`;
+const allTestsDir = `${repoRoot}/packages/server-v3/dist/tests`;
 
 const resolveRepoRelative = (value: string) =>
   path.isAbsolute(value) ? value : path.resolve(repoRoot, value);
@@ -143,7 +143,7 @@ const listRequested = rawArgs.includes("--list");
 if (listRequested) {
   const unitTests = collectFiles(sourceUnitDir, ".test.ts").map((file) => {
     const relSource = path.relative(sourceTestsDir, file).replaceAll("\\", "/");
-    const distPath = `${repoRoot}/packages/server/dist/tests/${relSource.replace(/\.test\.ts$/, ".test.js")}`;
+    const distPath = `${repoRoot}/packages/server-v3/dist/tests/${relSource.replace(/\.test\.ts$/, ".test.js")}`;
     const name = path.basename(file, ".test.ts");
     return {
       path: path.relative(repoRoot, distPath).replaceAll("\\", "/"),
@@ -156,7 +156,7 @@ if (listRequested) {
       const relSource = path
         .relative(sourceTestsDir, file)
         .replaceAll("\\", "/");
-      const distPath = `${repoRoot}/packages/server/dist/tests/${relSource.replace(/\.test\.ts$/, ".test.js")}`;
+      const distPath = `${repoRoot}/packages/server-v3/dist/tests/${relSource.replace(/\.test\.ts$/, ".test.js")}`;
       const rel = path
         .relative(sourceIntegrationDir, file)
         .replaceAll("\\", "/")
@@ -183,7 +183,7 @@ if (removedReporterOverride) {
 
 if (!fs.existsSync(allTestsDir)) {
   console.error(
-    "Missing packages/server/dist/tests. Run pnpm run build first.",
+    "Missing packages/server-v3/dist/tests. Run pnpm run build first.",
   );
   process.exit(1);
 }
@@ -201,10 +201,10 @@ if (serverTarget === "remote" && !explicitBaseUrl) {
 
 if (
   serverTarget === "local" &&
-  !fs.existsSync(`${repoRoot}/packages/server/dist/server.js`)
+  !fs.existsSync(`${repoRoot}/packages/server-v3/dist/server.js`)
 ) {
   console.error(
-    "Missing packages/server/dist/server.js. Run pnpm run build first.",
+    "Missing packages/server-v3/dist/server.js. Run pnpm run build first.",
   );
   process.exit(1);
 }
@@ -231,20 +231,22 @@ const allPaths =
       ];
 
 const unitPaths = allPaths.filter((p) =>
-  p.replaceAll("\\", "/").includes("/packages/server/dist/tests/unit/"),
+  p.replaceAll("\\", "/").includes("/packages/server-v3/dist/tests/unit/"),
 );
 const integrationPaths = allPaths.filter((p) =>
-  p.replaceAll("\\", "/").includes("/packages/server/dist/tests/integration/"),
+  p
+    .replaceAll("\\", "/")
+    .includes("/packages/server-v3/dist/tests/integration/"),
 );
 
 const singlePath = allPaths.length === 1 ? allPaths[0] : null;
 const coverageSuffix =
   singlePath &&
-  singlePath.startsWith(`${repoRoot}/packages/server/dist/tests/unit/`)
+  singlePath.startsWith(`${repoRoot}/packages/server-v3/dist/tests/unit/`)
     ? `server-unit/${path.basename(singlePath).replace(/\.test\.js$/, "")}`
     : singlePath &&
         singlePath.startsWith(
-          `${repoRoot}/packages/server/dist/tests/integration/`,
+          `${repoRoot}/packages/server-v3/dist/tests/integration/`,
         )
       ? `server-integration/${path
           .relative(integrationDir, singlePath)
@@ -318,7 +320,7 @@ const startServer = async () => {
   if (serverTarget === "local") {
     return spawn(
       process.execPath,
-      [`${repoRoot}/packages/server/dist/server.js`],
+      [`${repoRoot}/packages/server-v3/dist/server.js`],
       {
         stdio: "inherit",
         env: {
@@ -331,8 +333,8 @@ const startServer = async () => {
     );
   }
 
-  const defaultName = `stagehand-server-${process.platform}-${process.arch}${process.platform === "win32" ? ".exe" : ""}`;
-  const seaBinary = `${repoRoot}/packages/server/dist/sea/${process.env.SEA_BINARY_NAME ?? defaultName}`;
+  const defaultName = `stagehand-server-v3-${process.platform}-${process.arch}${process.platform === "win32" ? ".exe" : ""}`;
+  const seaBinary = `${repoRoot}/packages/server-v3/dist/sea/${process.env.SEA_BINARY_NAME ?? defaultName}`;
 
   if (!fs.existsSync(seaBinary)) {
     console.error(`SEA binary not found at ${seaBinary}`);

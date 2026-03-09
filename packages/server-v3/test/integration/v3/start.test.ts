@@ -72,15 +72,15 @@ type SupervisorInfo = {
 
 const repoRoot = (() => {
   const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
-  const root = value.split("/packages/server/")[0];
+  const root = value.split("/packages/server-v3/")[0];
   if (root === value) {
     throw new Error(`Unable to determine repo root from ${value}`);
   }
   return root;
 })();
 
-const defaultSeaBinaryName = `stagehand-server-${process.platform}-${process.arch}${process.platform === "win32" ? ".exe" : ""}`;
-const seaBinaryPath = `${repoRoot}/packages/server/dist/sea/${process.env.SEA_BINARY_NAME ?? defaultSeaBinaryName}`;
+const defaultSeaBinaryName = `stagehand-server-v3-${process.platform}-${process.arch}${process.platform === "win32" ? ".exe" : ""}`;
+const seaBinaryPath = `${repoRoot}/packages/server-v3/dist/sea/${process.env.SEA_BINARY_NAME ?? defaultSeaBinaryName}`;
 const bbApiKey = process.env.BROWSERBASE_API_KEY;
 const bbProjectId = process.env.BROWSERBASE_PROJECT_ID;
 const activeSea = new Set<SeaHandle>();
