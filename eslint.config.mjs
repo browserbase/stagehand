@@ -12,7 +12,7 @@ export default [
     languageOptions: { globals: globals.node },
   },
   {
-    files: ["packages/server/scripts/**/*.{js,cjs,mjs,ts}"],
+    files: ["packages/server-v*/scripts/**/*.{js,cjs,mjs,ts}"],
     languageOptions: { globals: globals.node },
   },
   {
@@ -28,7 +28,8 @@ export default [
       "**/.browserbase/**",
       "**/*.json",
       "stainless.yml",
-      "packages/server/openapi.v3.yaml",
+      "packages/server-v3/openapi.v3.yaml",
+      "packages/server-v4/openapi.v3.yaml",
     ],
   },
   pluginJs.configs.recommended,

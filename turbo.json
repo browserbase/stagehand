@@ -52,7 +52,23 @@
         "!dist/**"
       ]
     },
-    "@browserbasehq/stagehand-server#build": {
+    "@browserbasehq/stagehand-server-v3#build": {
+      "dependsOn": ["^build"],
+      "outputs": [
+        "dist/**",
+        "openapi.v3.yaml"
+      ],
+      "inputs": [
+        "**/*.ts",
+        "**/*.js",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json",
+        "!dist/**",
+        "!openapi.v3.yaml"
+      ]
+    },
+    "@browserbasehq/stagehand-server-v4#build": {
       "dependsOn": ["^build"],
       "outputs": [
         "dist/**",

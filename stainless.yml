@@ -83,7 +83,7 @@ environments:
   # local: http://stagehand-api.localhost
 
 # OpenAPI transforms applied by Stainless during SDK generation.
-# This keeps the generated `packages/server/openapi.v3.yaml` faithful to the Fastify+Zod source,
+# This keeps the generated `packages/server-v3/openapi.v3.yaml` faithful to the Fastify+Zod source,
 # while still producing a Stainless-compatible spec for codegen.
 openapi:
   code_samples: mintlify
