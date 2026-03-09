@@ -501,7 +501,7 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
 
   // Graceful shutdown handler
   let shuttingDown = false;
-  const shutdown = async (signal?: string) => {
+  const shutdown = async (_signal?: string) => {
     if (shuttingDown) return;
     shuttingDown = true;
 

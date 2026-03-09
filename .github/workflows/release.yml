@@ -46,6 +46,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Publish CLI alias (@browserbasehq/browse-cli)
+        if: steps.changesets.outputs.published == 'true'
+        working-directory: packages/cli
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          # Re-publish the same dist under the scoped alias name
+          node -e "
+            const pkg = require('./package.json');
+            pkg.name = '@browserbasehq/browse-cli';
+            require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+          "
+          npm publish --provenance --access public
+          # Restore original package.json
+          git checkout package.json
+
       - name: Publish Canary
         if: github.ref == 'refs/heads/main'
         run: |

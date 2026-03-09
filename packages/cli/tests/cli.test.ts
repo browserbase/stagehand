@@ -17,20 +17,15 @@ import {
   expect,
   beforeAll,
   afterAll,
-  beforeEach,
   afterEach,
 } from "vitest";
-import { spawn, exec } from "child_process";
-import { promisify } from "util";
+import { exec } from "child_process";
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as os from "os";
 
-const execAsync = promisify(exec);
-
 // CLI executable path - use tsx for development testing
 const CLI_PATH = path.join(__dirname, "../src/index.ts");
-const TSX_PATH = "npx";
 
 // Test session name to avoid conflicts
 const TEST_SESSION = `test-${Date.now()}`;
@@ -45,7 +40,7 @@ async function browse(
 
   return new Promise((resolve) => {
     const fullArgs = `tsx ${CLI_PATH} --session ${session} ${args}`;
-    const child = exec(fullArgs, { timeout }, (error, stdout, stderr) => {
+    exec(fullArgs, { timeout }, (error, stdout, stderr) => {
       resolve({
         stdout: stdout.trim(),
         stderr: stderr.trim(),
