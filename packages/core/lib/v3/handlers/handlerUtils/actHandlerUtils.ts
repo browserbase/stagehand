@@ -166,6 +166,8 @@ function watchMainFrameUrlChangeStart(
 
   const finish = (value: boolean) => {
     if (disposed) return;
+    // Latch a successful match so wait() can return immediately when a very
+    // fast navigation starts before the post-click timeout window begins.
     if (value) matched = true;
     if (waiter) {
       clearTimeout(waiter.timer);
@@ -176,6 +178,8 @@ function watchMainFrameUrlChangeStart(
   };
 
   const dispose = () => {
+    // dispose() is called from cleanup paths that can overlap, so it must be
+    // safe to run more than once.
     if (disposed) return;
     disposed = true;
     session.off("Page.frameNavigated", onFrameNavigated);
@@ -187,6 +191,8 @@ function watchMainFrameUrlChangeStart(
     }
   };
 
+  // Main-frame identity can shift during navigation. Treat both the original
+  // root frame id and the current page.mainFrameId() as authoritative.
   const isMainFrame = (frameId: string): boolean =>
     frameId === initialMainFrameId || frameId === page.mainFrameId();
 
@@ -224,6 +230,8 @@ function watchMainFrameUrlChangeStart(
         waiter = {
           resolve,
           timer: setTimeout(() => {
+            // Clear waiter before resolving so a late navigation event cannot
+            // race in and resolve the same wait() call twice.
             waiter = undefined;
             resolve(false);
           }, timeoutMs),

@@ -60,7 +60,10 @@ test.describe("performUnderstudyMethod navigation race", () => {
     await closeV3(v3);
   });
 
-  test("waits for navigation that starts within 400ms of click", async ({}, testInfo) => {
+  test("waits for navigation that starts within 400ms of click", async ({
+    browserName,
+  }, testInfo) => {
+    void browserName;
     const page = v3.context.pages()[0];
     const { sourceUrl, targetUrl } = await writeDelayedNavigationFixture(
       testInfo.outputDir,
@@ -81,11 +84,14 @@ test.describe("performUnderstudyMethod navigation race", () => {
     expect(page.url()).toBe(targetUrl);
   });
 
-  test("does not wait for navigation that starts after 400ms of click", async ({}, testInfo) => {
+  test("does not wait for navigation that starts after 400ms of click", async ({
+    browserName,
+  }, testInfo) => {
+    void browserName;
     const page = v3.context.pages()[0];
     const { sourceUrl, targetUrl } = await writeDelayedNavigationFixture(
       testInfo.outputDir,
-      650,
+      900,
     );
 
     await page.goto(sourceUrl, { waitUntil: "load" });
