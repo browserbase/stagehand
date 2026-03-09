@@ -1,5 +1,6 @@
 packages:
   - "packages/core"
+  - "packages/cli"
   - "packages/evals"
   - "packages/docs"
   - "packages/server"
