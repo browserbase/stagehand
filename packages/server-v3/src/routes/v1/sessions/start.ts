@@ -148,12 +148,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
             ...(browserbaseSessionCreateParams?.userMetadata ?? {}),
             stagehand: "true",
           },
-        } satisfies Omit<
-          Browserbase.Sessions.SessionCreateParams,
-          "projectId"
-        > & {
-          projectId?: string;
-        };
+        } satisfies Browserbase.Sessions.SessionCreateParams;
 
         const created = (await bb.sessions.create(
           createPayload,
