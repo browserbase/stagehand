@@ -119,9 +119,9 @@ export function getAISDKLanguageModel(
       );
     }
     const provider = creator(clientOptions);
-    // "chatcompletions" and "zhipuai" use the Chat Completions API
-    // (/chat/completions) instead of the Responses API (/responses),
-    // for OpenAI-compatible endpoints that don't support /responses.
+    // "chatcompletions" uses the Chat Completions API (/chat/completions)
+    // instead of the Responses API (/responses), for OpenAI-compatible
+    // endpoints that don't support /responses.
     if (subProvider === "chatcompletions") {
       return (provider as ReturnType<typeof createOpenAI>).chat(subModelName);
     }
