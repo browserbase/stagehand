@@ -34,7 +34,8 @@ describe("OpenAICUAClient", () => {
       )
       .mockResolvedValueOnce({
         actions: [],
-        message: "I've located the Submit button. Should I go ahead and submit it?",
+        message:
+          "I've located the Submit button. Should I go ahead and submit it?",
         completed: true,
         nextInputItems: [],
         responseId: "response-1",
