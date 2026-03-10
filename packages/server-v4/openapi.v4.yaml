@@ -5109,6 +5109,70 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/close:
+    post:
+      operationId: PageClose
+      summary: page.close
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageCloseRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageCloseResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
   /v4/page/enableCursorOverlay:
     post:
       operationId: PageEnableCursorOverlay
@@ -5557,70 +5621,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/V4ErrorResponse"
-  /v4/page/title:
-    post:
-      operationId: PageTitle
-      summary: page.title
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PageTitleRequest"
-        required: true
-      parameters:
-        - schema:
-            description: Whether to stream the response via SSE
-            example: "true"
-            type: string
-            enum:
-              - "true"
-              - "false"
-          in: header
-          name: x-stream-response
-          description: Whether to stream the response via SSE
-      responses:
-        "200":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PageTitleResponse"
-        "400":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "401":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "404":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "408":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "422":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "500":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
   /v4/page/listAllFrameIds:
     post:
       operationId: PageListAllFrameIds
@@ -5713,6 +5713,70 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PageGetOrdinalResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/title:
+    post:
+      operationId: PageTitle
+      summary: page.title
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageTitleRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageTitleResponse"
         "400":
           description: Default Response
           content:
@@ -6481,70 +6545,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PageSendCDPResponse"
-        "400":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "401":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "404":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "408":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "422":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "500":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-  /v4/page/close:
-    post:
-      operationId: PageClose
-      summary: page.close
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PageCloseRequest"
-        required: true
-      parameters:
-        - schema:
-            description: Whether to stream the response via SSE
-            example: "true"
-            type: string
-            enum:
-              - "true"
-              - "false"
-          in: header
-          name: x-stream-response
-          description: Whether to stream the response via SSE
-      responses:
-        "200":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PageCloseResponse"
         "400":
           description: Default Response
           content:

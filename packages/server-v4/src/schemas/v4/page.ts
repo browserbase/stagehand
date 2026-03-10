@@ -134,7 +134,7 @@ export const PageHeadersSchema = z
   .catchall(z.string())
   .meta({ id: "PageHeaders" });
 
-const PageInitScriptSchema = z
+export const PageInitScriptSchema = z
   .union([
     z.string().min(1),
     z
