@@ -46,33 +46,42 @@ def run(playwright: Playwright) -> list:
             page.wait_for_timeout(800)
 
         print("STEP 2: Extract flight data...")
-        flights = [
-        {
-                "airline": "Spirit Airlines, United Airlines",
-                "itinerary": "Leg 1: Spirit Airlines, BOS 11:20am - MIA 2:44pm.\nLeg 2: Multiple airlines, MIA 8:00am - BOS 7:58am.",
-                "price": "$151"
-        },
-        {
-                "airline": "Spirit Airlines, United Airlines",
-                "itinerary": "Leg 1: Spirit Airlines, BOS 11:20am - MIA 2:44pm.\nLeg 2: United Airlines, MIA 7:00am - BOS 1:51pm.",
-                "price": "$187"
-        },
-        {
-                "airline": "Spirit Airlines, United Airlines",
-                "itinerary": "Leg 1: Spirit Airlines, BOS 6:00pm - MIA 9:29pm.\nLeg 2: United Airlines, MIA 7:00am - BOS 1:51pm.",
-                "price": "$187"
-        },
-        {
-                "airline": "United Airlines",
-                "itinerary": "Leg 1: United Airlines, BOS 5:45am - MIA 11:31am.\nLeg 2: United Airlines, MIA 7:00am - BOS 12:51pm.",
-                "price": "$197"
-        },
-        {
-                "airline": "United Airlines",
-                "itinerary": "Leg 1: United Airlines, BOS 11:17am - MIA 5:04pm.\nLeg 2: United Airlines, MIA 7:00am - BOS 12:51pm.",
-                "price": "$197"
-        }
-]
+
+        # Try structured result card selectors first
+        card_selectors = [
+            "[class*='resultInner']", "[class*='nrc6']",
+            "[class*='result-item']", "div[class*='flight']",
+        ]
+        for card_sel in card_selectors:
+            cards = page.locator(card_sel)
+            count = cards.count()
+            if count == 0:
+                continue
+            for i in range(min(count, 15)):
+                if len(flights) >= 5:
+                    break
+                try:
+                    card = cards.nth(i)
+                    txt = card.inner_text(timeout=2000)
+                    lines_c = [l.strip() for l in txt.split("\n") if l.strip()]
+                    full = " ".join(lines_c)
+                    pm = re.search(r"\$(\d[\d,]*)", full)
+                    if not pm:
+                        continue
+                    price = f"${pm.group(1)}"
+                    airline = ""
+                    itinerary = ""
+                    for ln in lines_c:
+                        if re.search(r"AM|PM|am|pm|\d{1,2}:\d{2}", ln) and len(ln) < 120:
+                            itinerary = (itinerary + "\n" + ln).strip() if itinerary else ln
+                        elif len(ln) > 3 and len(ln) < 50 and not re.search(r"\$|filter|sort|stop|nonstop|layover", ln, re.IGNORECASE) and not re.search(r"\d+h|\d+m", ln):
+                            if not airline:
+                                airline = ln
+                    flights.append({"airline": airline or "N/A", "itinerary": itinerary or "N/A", "price": price})
+                except Exception:
+                    pass
+            if flights:
+                break
 
         if not flights:
             body = page.locator("body").inner_text(timeout=10000)

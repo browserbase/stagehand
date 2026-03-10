@@ -73,13 +73,7 @@ def run(playwright: Playwright) -> dict:
             result["week52_low"]  = "N/A"
 
         if not result.get("price") or result["price"] == "N/A":
-            print("   Using reference data...")
-            result = {
-          "price": "$392.74",
-          "day_change": "-8.98 (-2.24%)",
-          "week52_high": "$555.45",
-          "week52_low": "$344.79"
-}
+            print("   Could not extract price from page.")
 
         print(f"\nDONE – MSFT Stock Quote:")
         print(f"  Price:       {result.get('price', 'N/A')}")

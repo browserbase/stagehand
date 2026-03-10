@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://trains.ctrip.com/
+
+* Concrete task
+- Search train tickets from 上海 to 福州.
+- The departure date is 4 days from today. One-way trip. 1 adult.
+- compose a list of the available train options (up to 5). Each has departure time, arrival time, duration, and price.
+- print the list.

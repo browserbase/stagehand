@@ -1,0 +1,59 @@
+[
+  {
+    "timestamp": 1503,
+    "type": "goto",
+    "url": "https://trains.ctrip.com/webapp/train/list?ticketType=0&dStation=%E4%B8%8A%E6%B5%B7&aStation=%E7%A6%8F%E5%B7%9E&dDate=2026-03-13&rDate=&trainsNo=&from=trains_mainpage",
+    "description": "Navigate to https://trains.ctrip.com/webapp/train/list?ticketType=0&dStation=%E4%B8%8A%E6%B5%B7&aStation=%E7%A6%8F%E5%B7%9E&dDate=2026-03-13&rDate=&trainsNo=&from=trains_mainpage"
+  },
+  {
+    "timestamp": 2872,
+    "type": "wait",
+    "ms": 3000,
+    "description": "Results page load"
+  },
+  {
+    "timestamp": 20472,
+    "type": "extract",
+    "instruction": "Extract train search results",
+    "description": "Extract up to 5 trains",
+    "results": {
+      "trains": [
+        {
+          "trainNumber": "G3091",
+          "departureTime": "06:20",
+          "arrivalTime": "12:01",
+          "duration": "5时41分",
+          "price": "371"
+        },
+        {
+          "trainNumber": "D3145",
+          "departureTime": "06:27",
+          "arrivalTime": "13:05",
+          "duration": "6时38分",
+          "price": "348"
+        },
+        {
+          "trainNumber": "G3091",
+          "departureTime": "06:38",
+          "arrivalTime": "12:01",
+          "duration": "5时23分",
+          "price": "360"
+        },
+        {
+          "trainNumber": "D3145",
+          "departureTime": "06:43",
+          "arrivalTime": "13:05",
+          "duration": "6时22分",
+          "price": "337"
+        },
+        {
+          "trainNumber": "D2287",
+          "departureTime": "06:52",
+          "arrivalTime": "13:17",
+          "duration": "6时25分",
+          "price": "365"
+        }
+      ]
+    }
+  }
+]

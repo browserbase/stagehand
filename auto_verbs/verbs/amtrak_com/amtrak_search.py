@@ -233,23 +233,40 @@ def set_date(page, dep):
         });
     })()""")
 
-    # Click target day by aria-label
-    day_cell = page.evaluate(f"""((monthName, day, year) => {{
+    # Click target day by aria-label — use JS click (coordinate clicks unreliable
+    # due to overlays / viewport offset), then fall back to mouse click if needed.
+    day_click = page.evaluate(f"""((monthName, day, year) => {{
+        const target = monthName + ' ' + day + ', ' + year;
         const els = document.querySelectorAll('[aria-label]');
         for (const el of els) {{
             const aria = el.getAttribute('aria-label') || '';
-            if (aria.includes(monthName + ' ' + day + ', ' + year) && el.offsetParent !== null) {{
+            if (aria.includes(target) && el.offsetParent !== null) {{
                 const r = el.getBoundingClientRect();
-                if (r.width > 5 && r.height > 5 && r.y > 0 && r.y < 600)
-                    return {{ x: r.x + r.width/2, y: r.y + r.height/2, aria: aria }};
+                if (r.width > 5 && r.height > 5 && r.y > 0 && r.y < 800) {{
+                    // Try clicking the inner <span> or the element itself
+                    const inner = el.querySelector('span, div') || el;
+                    inner.click();
+                    return {{ clicked: true, aria: aria, method: 'inner-click' }};
+                }}
             }}
         }}
-        return null;
+        // Also try div[aria-label] pattern used by some ngb-datepicker versions
+        const divs = document.querySelectorAll('div.ngb-dp-day, [class*="dp-day"]');
+        for (const d of divs) {{
+            const aria = d.getAttribute('aria-label') || '';
+            if (aria.includes(target)) {{
+                d.click();
+                return {{ clicked: true, aria: aria, method: 'div-click' }};
+            }}
+        }}
+        return {{ clicked: false, aria: null, method: null }};
     }})('{month_name}', '{day}', '{year}')""")
 
-    if day_cell:
-        page.mouse.click(day_cell["x"], day_cell["y"])
+    if day_click["clicked"]:
+        print(f'   Clicked day: "{day_click["aria"]}" via {day_click["method"]}')
         page.wait_for_timeout(1000)
+
+        # Verify the date was set
         ds = page.evaluate("""(() => {
             const inp = document.getElementById('am-form-field-control-4');
             if (!inp) return { value: '', valid: false };
@@ -257,8 +274,29 @@ def set_date(page, dep):
             return { value: inp.value, valid: cls.includes('ng-valid') && !cls.includes('ng-invalid') };
         })()""")
         print(f'   Date: value="{ds["value"]}" valid={ds["valid"]}')
-        if not ds["valid"]:
-            print("   (Angular FormControl ng-invalid - will force-enable button)")
+
+        # If JS click didn't register, force-set value directly
+        if not ds["valid"] or not ds["value"]:
+            print("   JS click didn't set value — forcing date value via Angular ngModel...")
+            page.evaluate(f"""(() => {{
+                const inp = document.getElementById('am-form-field-control-4');
+                if (!inp) return;
+                // Set value and trigger Angular change detection
+                const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                    window.HTMLInputElement.prototype, 'value').set;
+                nativeInputValueSetter.call(inp, '{dep_display}');
+                inp.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                inp.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                inp.dispatchEvent(new Event('blur', {{ bubbles: true }}));
+            }})()""")
+            page.wait_for_timeout(500)
+            ds2 = page.evaluate("""(() => {
+                const inp = document.getElementById('am-form-field-control-4');
+                if (!inp) return { value: '', valid: false };
+                const cls = inp.className || '';
+                return { value: inp.value, valid: cls.includes('ng-valid') && !cls.includes('ng-invalid') };
+            })()""")
+            print(f'   After force-set: value="{ds2["value"]}" valid={ds2["valid"]}')
     else:
         print(f"   WARNING: Day {day} not found in calendar")
 
@@ -298,7 +336,7 @@ def click_search(page, from_code, to_code, dep_iso):
     if clicked:
         print(f'   Clicked FIND TRAINS (wasDisabled: {clicked["wasDisabled"]})')
 
-    page.wait_for_timeout(5000)
+    page.wait_for_timeout(2000)
     url = page.url
     print(f"   URL: {url}")
 
@@ -311,14 +349,14 @@ def click_search(page, from_code, to_code, dep_iso):
             f"&departDate={dep_iso}&adults=1&children=0&seniors=0&type=one-way"
         )
         page.goto(direct_url)
-        page.wait_for_timeout(8000)
+        page.wait_for_timeout(4000)
         try:
             page.wait_for_load_state("domcontentloaded")
         except Exception:
             pass
 
     print("   Waiting for results...")
-    page.wait_for_timeout(15000)
+    page.wait_for_timeout(3000)
     try:
         page.wait_for_load_state("domcontentloaded")
     except Exception:
@@ -410,7 +448,7 @@ def run(
         print("Loading Amtrak...")
         page.goto("https://www.amtrak.com")
         page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(5000)
+        page.wait_for_timeout(1000)
         print("Loaded\n")
 
         dismiss_popups(page)

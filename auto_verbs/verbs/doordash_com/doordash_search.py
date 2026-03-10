@@ -270,39 +270,7 @@ def run(playwright: Playwright) -> list:
         restaurants = extract_restaurants(page)
 
         if not restaurants:
-            print("  Live extraction found nothing, using cached data...")
-            restaurants = [
-          {
-                    "name": "Zio Sal Ristorante",
-                    "rating": "4.5",
-                    "delivery_fee": "$0 delivery fee",
-                    "est_time": "25 min"
-          },
-          {
-                    "name": "Domino's",
-                    "rating": "4.7",
-                    "delivery_fee": "$0 delivery fee",
-                    "est_time": "33 min"
-          },
-          {
-                    "name": "Pizzaiolo Woodfired Pizza",
-                    "rating": "4.7",
-                    "delivery_fee": "$0 delivery fee",
-                    "est_time": "33 min"
-          },
-          {
-                    "name": "Pizza Hut",
-                    "rating": "N/A",
-                    "delivery_fee": "N/A",
-                    "est_time": "N/A"
-          },
-          {
-                    "name": "Spark Pizza",
-                    "rating": "N/A",
-                    "delivery_fee": "N/A",
-                    "est_time": "N/A"
-          }
-]
+            print("  Extraction found no restaurants.")
 
         print(f"\nDONE – Top {len(restaurants)} Pizza Restaurants:")
         for i, r in enumerate(restaurants, 1):
