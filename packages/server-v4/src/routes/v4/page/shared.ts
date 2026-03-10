@@ -100,14 +100,9 @@ function getStatusCode(error: unknown): number {
   return StatusCodes.INTERNAL_SERVER_ERROR;
 }
 
-function getErrorMessage(error: unknown, statusCode: number): string {
-  const fallback =
-    statusCode >= StatusCodes.INTERNAL_SERVER_ERROR
-      ? "Internal Server Error"
-      : "Request failed";
-
+function getErrorMessage(error: unknown): string {
   if (!(error instanceof Error)) {
-    return fallback;
+    return String(error);
   }
 
   if (
@@ -117,9 +112,7 @@ function getErrorMessage(error: unknown, statusCode: number): string {
     return "Session not found";
   }
 
-  return statusCode >= StatusCodes.INTERNAL_SERVER_ERROR
-    ? "Internal Server Error"
-    : error.message;
+  return error.message;
 }
 
 async function resolvePage(stagehand: V3, pageId?: string) {
@@ -155,7 +148,12 @@ export function createPageActionHandler<
     if (!(await authMiddleware(request))) {
       return reply
         .status(StatusCodes.UNAUTHORIZED)
-        .send(buildErrorResponse({ error: "Unauthorized" }));
+        .send(
+          buildErrorResponse({
+            error: "Unauthorized",
+            statusCode: StatusCodes.UNAUTHORIZED,
+          }),
+        );
     }
 
     const { params, sessionId } = request.body as PageRequestBody<TAction>;
@@ -205,7 +203,7 @@ export function createPageActionHandler<
         });
       } catch (error) {
         const statusCode = getStatusCode(error);
-        const message = getErrorMessage(error, statusCode);
+        const message = getErrorMessage(error);
         const completedAt = new Date().toISOString();
 
         action = actionSchema.parse({
@@ -220,13 +218,22 @@ export function createPageActionHandler<
         await sessionStore.putPageAction(action);
         return reply
           .status(statusCode)
-          .send(buildErrorResponse({ error: message, action }));
+          .send(
+            buildErrorResponse({
+              error: message,
+              statusCode,
+              stack: error instanceof Error ? (error.stack ?? null) : null,
+              action,
+            }),
+          );
       }
     } catch (error) {
       const statusCode = getStatusCode(error);
       return reply.status(statusCode).send(
         buildErrorResponse({
-          error: getErrorMessage(error, statusCode),
+          error: getErrorMessage(error),
+          statusCode,
+          stack: error instanceof Error ? (error.stack ?? null) : null,
         }),
       );
     }
@@ -240,7 +247,12 @@ export const pageActionDetailsHandler: RouteHandlerMethod = async (
   if (!(await authMiddleware(request))) {
     return reply
       .status(StatusCodes.UNAUTHORIZED)
-      .send(buildErrorResponse({ error: "Unauthorized" }));
+      .send(
+        buildErrorResponse({
+          error: "Unauthorized",
+          statusCode: StatusCodes.UNAUTHORIZED,
+        }),
+      );
   }
 
   const { actionId } = request.params as { actionId: string };
@@ -251,7 +263,12 @@ export const pageActionDetailsHandler: RouteHandlerMethod = async (
   if (!action || action.sessionId !== sessionId) {
     return reply
       .status(StatusCodes.NOT_FOUND)
-      .send(buildErrorResponse({ error: `Action not found: ${actionId}` }));
+      .send(
+        buildErrorResponse({
+          error: `Action not found: ${actionId}`,
+          statusCode: StatusCodes.NOT_FOUND,
+        }),
+      );
   }
 
   return reply.status(StatusCodes.OK).send({
@@ -268,7 +285,12 @@ export const pageActionListHandler: RouteHandlerMethod = async (
   if (!(await authMiddleware(request))) {
     return reply
       .status(StatusCodes.UNAUTHORIZED)
-      .send(buildErrorResponse({ error: "Unauthorized" }));
+      .send(
+        buildErrorResponse({
+          error: "Unauthorized",
+          statusCode: StatusCodes.UNAUTHORIZED,
+        }),
+      );
   }
 
   const query = request.query as PageActionListQuery;

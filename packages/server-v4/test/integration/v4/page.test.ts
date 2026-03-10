@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
 import { after, before, describe, it } from "node:test";
 
 import type { Page } from "playwright";
@@ -11,6 +12,7 @@ import {
   endSession,
   fetchWithContext,
   getBaseUrl,
+  getMainFrameId,
   getHeaders,
   HTTP_BAD_REQUEST,
   HTTP_OK,
@@ -32,6 +34,8 @@ interface PageActionRecord {
 interface PageActionResponse {
   success: boolean;
   error: string | null;
+  statusCode?: number;
+  stack?: string | null;
   action?: PageActionRecord;
   actions?: PageActionRecord[];
 }
@@ -560,6 +564,228 @@ describe("v4 page routes", { concurrency: false }, () => {
     }
   });
 
+  it("POST /v4/page metadata routes expose the underlying page getters and frame/network helpers", async () => {
+    const temp = await createSessionWithCdp(headers);
+    let requestHeaders: Record<string, string | string[] | undefined> | null =
+      null;
+    const server = createServer((req, res) => {
+      if (req.url === "/") {
+        requestHeaders = req.headers;
+      }
+
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>V4 header route</title>
+  </head>
+  <body>
+    <main id="message">header-ok</main>
+  </body>
+</html>`);
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const url = `http://127.0.0.1:${address.port}/`;
+
+    try {
+      const enableCursorOverlayCtx = await postPageRoute(
+        "enableCursorOverlay",
+        temp.sessionId,
+        {},
+      );
+      const enableCursorOverlayAction = assertSuccessAction(
+        enableCursorOverlayCtx,
+        "enableCursorOverlay",
+      );
+      assert.equal(
+        (enableCursorOverlayAction.result as { enabled: boolean }).enabled,
+        true,
+      );
+
+      const addInitScriptCtx = await postPageRoute(
+        "addInitScript",
+        temp.sessionId,
+        {
+          script: "window.__v4InitValue = 'present';",
+        },
+      );
+      const addInitScriptAction = assertSuccessAction(
+        addInitScriptCtx,
+        "addInitScript",
+      );
+      assert.equal(
+        (addInitScriptAction.result as { added: boolean }).added,
+        true,
+      );
+
+      const setHeadersCtx = await postPageRoute("setExtraHTTPHeaders", temp.sessionId, {
+        headers: {
+          "x-stagehand-test": "present",
+        },
+      });
+      const setHeadersAction = assertSuccessAction(
+        setHeadersCtx,
+        "setExtraHTTPHeaders",
+      );
+      assert.equal(
+        (
+          setHeadersAction.result as {
+            headers: Record<string, string>;
+          }
+        ).headers["x-stagehand-test"],
+        "present",
+      );
+
+      const gotoCtx = await postPageRoute("goto", temp.sessionId, {
+        url,
+        waitUntil: "load",
+      });
+      const gotoAction = assertSuccessAction(gotoCtx, "goto");
+      assert.equal(requestHeaders?.["x-stagehand-test"], "present");
+
+      const targetIdCtx = await postPageRoute("targetId", temp.sessionId, {});
+      const targetIdAction = assertSuccessAction(targetIdCtx, "targetId");
+      assert.equal(
+        (targetIdAction.result as { targetId: string }).targetId,
+        gotoAction.pageId,
+      );
+
+      const mainFrameIdCtx = await postPageRoute("mainFrameId", temp.sessionId, {});
+      const mainFrameIdAction = assertSuccessAction(
+        mainFrameIdCtx,
+        "mainFrameId",
+      );
+      const mainFrameId = (
+        mainFrameIdAction.result as { mainFrameId: string }
+      ).mainFrameId;
+      assert.equal(mainFrameId, await getMainFrameId(temp.cdpUrl));
+
+      const mainFrameCtx = await postPageRoute("mainFrame", temp.sessionId, {});
+      const mainFrameAction = assertSuccessAction(mainFrameCtx, "mainFrame");
+      assert.equal(
+        (
+          mainFrameAction.result as {
+            frame: { frameId: string };
+          }
+        ).frame.frameId,
+        mainFrameId,
+      );
+
+      const framesCtx = await postPageRoute("frames", temp.sessionId, {});
+      const framesAction = assertSuccessAction(framesCtx, "frames");
+      const frames = (
+        framesAction.result as {
+          frames: Array<{ frameId: string }>;
+        }
+      ).frames;
+      assert.ok(frames.some((frame) => frame.frameId === mainFrameId));
+
+      const fullFrameTreeCtx = await postPageRoute(
+        "getFullFrameTree",
+        temp.sessionId,
+        {},
+      );
+      const fullFrameTreeAction = assertSuccessAction(
+        fullFrameTreeCtx,
+        "getFullFrameTree",
+      );
+      assert.equal(
+        (
+          fullFrameTreeAction.result as {
+            frameTree: { frame: { id: string } };
+          }
+        ).frameTree.frame.id,
+        mainFrameId,
+      );
+
+      const protocolFrameTreeCtx = await postPageRoute(
+        "asProtocolFrameTree",
+        temp.sessionId,
+        { rootMainFrameId: mainFrameId },
+      );
+      const protocolFrameTreeAction = assertSuccessAction(
+        protocolFrameTreeCtx,
+        "asProtocolFrameTree",
+      );
+      assert.equal(
+        (
+          protocolFrameTreeAction.result as {
+            frameTree: { frame: { id: string } };
+          }
+        ).frameTree.frame.id,
+        mainFrameId,
+      );
+
+      const listAllFrameIdsCtx = await postPageRoute(
+        "listAllFrameIds",
+        temp.sessionId,
+        {},
+      );
+      const listAllFrameIdsAction = assertSuccessAction(
+        listAllFrameIdsCtx,
+        "listAllFrameIds",
+      );
+      const frameIds = (
+        listAllFrameIdsAction.result as { frameIds: string[] }
+      ).frameIds;
+      assert.ok(frameIds.includes(mainFrameId));
+      assert.deepEqual(
+        [...frameIds].sort(),
+        [...frames.map((frame) => frame.frameId)].sort(),
+      );
+
+      const getOrdinalCtx = await postPageRoute("getOrdinal", temp.sessionId, {
+        frameId: mainFrameId,
+      });
+      const getOrdinalAction = assertSuccessAction(getOrdinalCtx, "getOrdinal");
+      assert.equal(
+        (getOrdinalAction.result as { frameId: string }).frameId,
+        mainFrameId,
+      );
+      assert.ok(
+        (getOrdinalAction.result as { ordinal: number }).ordinal >= 0,
+      );
+
+      const waitForMainLoadStateCtx = await postPageRoute(
+        "waitForMainLoadState",
+        temp.sessionId,
+        {
+          state: "load",
+          timeoutMs: 15_000,
+        },
+      );
+      assertSuccessAction(waitForMainLoadStateCtx, "waitForMainLoadState");
+
+      const evaluateCtx = await postPageRoute("evaluate", temp.sessionId, {
+        expression: `({
+          title: document.title,
+          cursorOverlay: !!document.getElementById("__v3_cursor_overlay__"),
+          initValue: globalThis.__v4InitValue ?? null
+        })`,
+      });
+      const evaluateAction = assertSuccessAction(evaluateCtx, "evaluate");
+      assert.deepEqual(evaluateAction.result, {
+        value: {
+          title: "V4 header route",
+          cursorOverlay: true,
+          initValue: "present",
+        },
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+      await endSession(temp.sessionId, headers);
+    }
+  });
+
   it("GET /v4/page/action/:actionId returns the new envelope for a stored action", async () => {
     const gotoCtx = await postPageRoute("goto", sessionId, {
       url: GOTO_TEST_URL,
@@ -673,9 +899,43 @@ describe("v4 page routes", { concurrency: false }, () => {
     assertFetchStatus(ctx, HTTP_BAD_REQUEST);
     assertFetchOk(ctx.body !== null, "Expected a JSON response body", ctx);
     assert.equal(ctx.body.success, false);
+    assert.equal(ctx.body.statusCode, HTTP_BAD_REQUEST);
     assert.equal(typeof ctx.body.error, "string");
     assert.ok(ctx.body.error);
+    assert.ok(
+      ctx.body.stack === null || typeof ctx.body.stack === "string",
+      "Expected stack to be null or a string",
+    );
     assert.equal(ctx.body.action, undefined);
     assert.equal(ctx.body.actions, undefined);
+  });
+
+  it("POST /v4/page routes return the underlying error message and stack for route failures", async () => {
+    const gotoCtx = await postPageRoute("goto", sessionId, {
+      url: CLICK_TEST_URL,
+      waitUntil: "load",
+    });
+    assertSuccessAction(gotoCtx, "goto");
+
+    const ctx = await postPageRoute("click", sessionId, {
+      selector: {
+        xpath: "//button[@id='missing-target']",
+      },
+    });
+
+    assertFetchStatus(ctx, 404);
+    assertFetchOk(ctx.body !== null, "Expected a JSON response body", ctx);
+    assert.equal(ctx.body.success, false);
+    assert.equal(ctx.body.statusCode, 404);
+    assert.equal(typeof ctx.body.error, "string");
+    assert.ok(ctx.body.error);
+    assert.equal(typeof ctx.body.stack, "string");
+    assert.ok(ctx.body.stack);
+    assertFetchOk(
+      ctx.body.action !== undefined,
+      "Expected a failed action payload",
+      ctx,
+    );
+    assert.equal(ctx.body.action.status, "failed");
   });
 });
