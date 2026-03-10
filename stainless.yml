@@ -265,7 +265,6 @@ security:
   - BBApiKeyAuth: []
     BBProjectIdAuth: []
     LLMModelApiKeyAuth: []
-    LLMModelBaseUrlAuth: []
 
 # `readme` is used to configure the code snippets that will be rendered in the
 # README.md of various SDKs.

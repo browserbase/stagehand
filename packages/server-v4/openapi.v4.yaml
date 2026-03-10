@@ -9344,4 +9344,3 @@ security:
   - BrowserbaseApiKey: []
     BrowserbaseProjectId: []
     ModelApiKey: []
-    ModelBaseUrl: []
