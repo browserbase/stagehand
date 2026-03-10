@@ -175,6 +175,27 @@ async function postPageRoute(
   );
 }
 
+async function getPageRoute(
+  path: string,
+  sessionId: string,
+  params: Record<string, unknown>,
+) {
+  const searchParams = new URLSearchParams();
+  searchParams.set("sessionId", sessionId);
+
+  for (const [key, value] of Object.entries(params)) {
+    searchParams.set(key, String(value));
+  }
+
+  return fetchWithContext<PageActionResponse>(
+    `${getBaseUrl()}/v4/page/${path}?${searchParams.toString()}`,
+    {
+      method: "GET",
+      headers,
+    },
+  );
+}
+
 function assertSuccessAction(
   ctx: Awaited<ReturnType<typeof postPageRoute>>,
   expectedType: string,
@@ -349,14 +370,14 @@ describe("v4 page routes", { concurrency: false }, () => {
     });
     assertSuccessAction(waitForLoadStateCtx, "waitForLoadState");
 
-    const titleCtx = await postPageRoute("title", sessionId, {});
+    const titleCtx = await getPageRoute("title", sessionId, {});
     const titleAction = assertSuccessAction(titleCtx, "title");
     assert.equal(
       (titleAction.result as { title: string }).title,
       "V4 methods route",
     );
 
-    const urlCtx = await postPageRoute("url", sessionId, {});
+    const urlCtx = await getPageRoute("url", sessionId, {});
     const urlAction = assertSuccessAction(urlCtx, "url");
     assert.equal((urlAction.result as { url: string }).url, METHODS_TEST_URL);
 
@@ -650,14 +671,18 @@ describe("v4 page routes", { concurrency: false }, () => {
       const gotoAction = assertSuccessAction(gotoCtx, "goto");
       assert.equal(requestHeaders?.["x-stagehand-test"], "present");
 
-      const targetIdCtx = await postPageRoute("targetId", temp.sessionId, {});
+      const targetIdCtx = await getPageRoute("targetId", temp.sessionId, {});
       const targetIdAction = assertSuccessAction(targetIdCtx, "targetId");
       assert.equal(
         (targetIdAction.result as { targetId: string }).targetId,
         gotoAction.pageId,
       );
 
-      const mainFrameIdCtx = await postPageRoute("mainFrameId", temp.sessionId, {});
+      const mainFrameIdCtx = await getPageRoute(
+        "mainFrameId",
+        temp.sessionId,
+        {},
+      );
       const mainFrameIdAction = assertSuccessAction(
         mainFrameIdCtx,
         "mainFrameId",
@@ -667,7 +692,7 @@ describe("v4 page routes", { concurrency: false }, () => {
       ).mainFrameId;
       assert.equal(mainFrameId, await getMainFrameId(temp.cdpUrl));
 
-      const mainFrameCtx = await postPageRoute("mainFrame", temp.sessionId, {});
+      const mainFrameCtx = await getPageRoute("mainFrame", temp.sessionId, {});
       const mainFrameAction = assertSuccessAction(mainFrameCtx, "mainFrame");
       assert.equal(
         (
@@ -678,7 +703,7 @@ describe("v4 page routes", { concurrency: false }, () => {
         mainFrameId,
       );
 
-      const framesCtx = await postPageRoute("frames", temp.sessionId, {});
+      const framesCtx = await getPageRoute("frames", temp.sessionId, {});
       const framesAction = assertSuccessAction(framesCtx, "frames");
       const frames = (
         framesAction.result as {
@@ -687,7 +712,7 @@ describe("v4 page routes", { concurrency: false }, () => {
       ).frames;
       assert.ok(frames.some((frame) => frame.frameId === mainFrameId));
 
-      const fullFrameTreeCtx = await postPageRoute(
+      const fullFrameTreeCtx = await getPageRoute(
         "getFullFrameTree",
         temp.sessionId,
         {},
@@ -705,7 +730,7 @@ describe("v4 page routes", { concurrency: false }, () => {
         mainFrameId,
       );
 
-      const protocolFrameTreeCtx = await postPageRoute(
+      const protocolFrameTreeCtx = await getPageRoute(
         "asProtocolFrameTree",
         temp.sessionId,
         { rootMainFrameId: mainFrameId },
@@ -723,7 +748,7 @@ describe("v4 page routes", { concurrency: false }, () => {
         mainFrameId,
       );
 
-      const listAllFrameIdsCtx = await postPageRoute(
+      const listAllFrameIdsCtx = await getPageRoute(
         "listAllFrameIds",
         temp.sessionId,
         {},
@@ -741,7 +766,7 @@ describe("v4 page routes", { concurrency: false }, () => {
         [...frames.map((frame) => frame.frameId)].sort(),
       );
 
-      const getOrdinalCtx = await postPageRoute("getOrdinal", temp.sessionId, {
+      const getOrdinalCtx = await getPageRoute("getOrdinal", temp.sessionId, {
         frameId: mainFrameId,
       });
       const getOrdinalAction = assertSuccessAction(getOrdinalCtx, "getOrdinal");
