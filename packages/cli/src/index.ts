@@ -260,8 +260,9 @@ const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
 async function runDaemon(session: string, headless: boolean): Promise<void> {
   await cleanupStaleFiles(session);
 
-  // Write daemon PID file
+  // Write daemon PID file and initial mode so status is immediately available
   await fs.writeFile(getPidPath(session), String(process.pid));
+  await fs.writeFile(getModePath(session), await getDesiredMode(session));
 
   // Browser state (initialized lazily on first command)
   let stagehand: Stagehand | null = null;
@@ -1537,7 +1538,7 @@ program
       let mode: string | null = null;
       const desiredMode = await getDesiredMode(session);
       if (await isDaemonRunning(session)) {
-        mode = toModeTarget((await readCurrentMode(session)) ?? "local");
+        mode = toModeTarget((await readCurrentMode(session)) ?? desiredMode);
       }
       console.log(JSON.stringify({
         mode: mode ?? "not running",
