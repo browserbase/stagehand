@@ -7,6 +7,7 @@ import { z } from "zod/v4";
 import { AppError } from "./errorHandler.js";
 import {
   getModelApiKey,
+  getModelBaseURL,
   getOptionalHeader,
   shouldRespondWithSSE,
 } from "./header.js";
@@ -36,6 +37,7 @@ export async function createStreamingResponse<TV3>({
 }: StreamingResponseOptions<TV3>) {
   const shouldStreamResponse = shouldRespondWithSSE(request);
   const modelApiKey = getModelApiKey(request);
+  const modelBaseURL = getModelBaseURL(request);
 
   const sessionStore = getSessionStore();
   const sessionConfig = await sessionStore.getSessionConfig(sessionId);
@@ -117,6 +119,7 @@ export async function createStreamingResponse<TV3>({
 
   const requestContext: RequestContext = {
     modelApiKey,
+    modelBaseURL,
     logger: shouldStreamResponse
       ? (message) => {
           sendData("log", { status: "running", message });

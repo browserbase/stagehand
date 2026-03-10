@@ -67,6 +67,8 @@ export interface CreateSessionParams {
 export interface RequestContext {
   /** Model API key (from x-model-api-key header) */
   modelApiKey?: string;
+  /** Model base URL override (from x-model-base-url header) */
+  modelBaseURL?: string;
   /** Logger function for this request */
   logger?: (message: LogLine) => void;
 }
