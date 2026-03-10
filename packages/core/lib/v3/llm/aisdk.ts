@@ -173,19 +173,39 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       }
 
       try {
+        // Try structured output first. If the provider doesn't support
+        // response_format (e.g. chatcompletions/ endpoints), this will throw
+        // and we fall back to no-schema mode with response coercion below.
+        objectResponse = await generateObject({
+          model: this.model,
+          messages: formattedMessages,
+          schema: options.response_model.schema,
+          temperature,
+          providerOptions: isGPT5
+            ? {
+                openai: {
+                  textVerbosity: isCodex ? "medium" : "low",
+                  reasoningEffort: isCodex
+                    ? "medium"
+                    : usesLowReasoningEffort
+                      ? "low"
+                      : "minimal",
+                },
+              }
+            : undefined,
+        });
+      } catch (err) {
+        // For models whose modelId matches a known fallback pattern, retry
+        // with output: "no-schema" and coerce the free-form JSON response.
+        // This handles OpenAI-compatible endpoints (chatcompletions/) that
+        // don't support structured output / response_format.
         if (needsPromptJsonFallback) {
-          // For models without native structured output support, use
-          // "no-schema" mode so the AI SDK doesn't send response_format.
-          // The prompt-based JSON instruction above guides the model instead.
           const noSchemaResponse = await generateObject({
             model: this.model,
             messages: formattedMessages,
             output: "no-schema",
             temperature,
           });
-          // Coerce the free-form response to match the expected schema.
-          // Models without structured output support may return stringified
-          // nested values (e.g. "[]" instead of []) or omit fields entirely.
           const raw = noSchemaResponse.object as Record<string, unknown>;
           for (const [k, v] of Object.entries(raw)) {
             if (typeof v === "string") {
@@ -196,9 +216,6 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
               }
             }
           }
-
-          // Parse the coerced response. On failure, default missing/invalid
-          // array fields to [] and retry.
           let parsed: unknown;
           const firstTry = options.response_model.schema.safeParse(raw);
           if (firstTry.success) {
@@ -215,76 +232,52 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
             }
             parsed = options.response_model.schema.parse(raw);
           }
-
-          objectResponse = {
-            ...noSchemaResponse,
-            object: parsed,
-          };
+          objectResponse = { ...noSchemaResponse, object: parsed };
         } else {
-          objectResponse = await generateObject({
-            model: this.model,
-            messages: formattedMessages,
-            schema: options.response_model.schema,
-            temperature,
-            providerOptions: isGPT5
-              ? {
-                  openai: {
-                    textVerbosity: isCodex ? "medium" : "low",
-                    reasoningEffort: isCodex
-                      ? "medium"
-                      : usesLowReasoningEffort
-                        ? "low"
-                        : "minimal",
-                  },
-                }
-              : undefined,
+          // Log error response to maintain request/response pairing
+          SessionFileLogger.logLlmResponse({
+            requestId: llmRequestId,
+            model: this.model.modelId,
+            operation: "generateObject",
+            output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
           });
-        }
-      } catch (err) {
-        // Log error response to maintain request/response pairing
-        SessionFileLogger.logLlmResponse({
-          requestId: llmRequestId,
-          model: this.model.modelId,
-          operation: "generateObject",
-          output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
-        });
 
-        if (NoObjectGeneratedError.isInstance(err)) {
-          this.logger?.({
-            category: "AISDK error",
-            message: err.message,
-            level: 0,
-            auxiliary: {
-              cause: {
-                value: JSON.stringify(err.cause ?? {}),
-                type: "object",
+          if (NoObjectGeneratedError.isInstance(err)) {
+            this.logger?.({
+              category: "AISDK error",
+              message: err.message,
+              level: 0,
+              auxiliary: {
+                cause: {
+                  value: JSON.stringify(err.cause ?? {}),
+                  type: "object",
+                },
+                text: {
+                  value: err.text ?? "",
+                  type: "string",
+                },
+                response: {
+                  value: JSON.stringify(err.response ?? {}),
+                  type: "object",
+                },
+                usage: {
+                  value: JSON.stringify(err.usage ?? {}),
+                  type: "object",
+                },
+                finishReason: {
+                  value: err.finishReason ?? "unknown",
+                  type: "string",
+                },
+                requestId: {
+                  value: options.requestId,
+                  type: "string",
+                },
               },
-              text: {
-                value: err.text ?? "",
-                type: "string",
-              },
-              response: {
-                value: JSON.stringify(err.response ?? {}),
-                type: "object",
-              },
-              usage: {
-                value: JSON.stringify(err.usage ?? {}),
-                type: "object",
-              },
-              finishReason: {
-                value: err.finishReason ?? "unknown",
-                type: "string",
-              },
-              requestId: {
-                value: options.requestId,
-                type: "string",
-              },
-            },
-          });
+            });
+          }
 
           throw err;
         }
-        throw err;
       }
 
       const result = {
