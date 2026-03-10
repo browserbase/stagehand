@@ -197,7 +197,7 @@ export class V3AgentHandler {
           options.messages.push({
             role: "user",
             content:
-              "A captcha was automatically detected and solved — no further interaction with the captcha is needed, even if it does not visually appear solved. Continue with your task.",
+              "A captcha was automatically detected and solved — no further interaction with the captcha is needed, even if it does not visually appear solved. Do not click the captcha checkbox, widget, or challenge again. Continue with your task.",
           });
           this.logger({
             category: "agent",

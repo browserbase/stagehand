@@ -49,4 +49,12 @@ export abstract class AgentClient {
   setPrepareStepHandler(handler: () => Promise<void>): void {
     this.prepareStepHandler = handler;
   }
+
+  /**
+   * Optional ephemeral context note that should be sent to the next model turn.
+   * Clients that do not support this can ignore it.
+   */
+  addContextNote(_note: string): void {
+    // no-op by default
+  }
 }

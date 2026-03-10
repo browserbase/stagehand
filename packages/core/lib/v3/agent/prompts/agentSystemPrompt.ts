@@ -196,7 +196,7 @@ export function buildAgentSystemPrompt(
   // Roadblocks section only shown when running on Browserbase
   const roadblocksSection = solveCaptchas
     ? `<roadblocks>
-    <note>Captchas on this page are automatically detected and solved by the browser environment. Do not interact with or attempt to solve any captchas yourself — they will be handled for you. Continue with your task as if the captcha does not exist.</note>
+    <note>Captchas on this page are automatically detected and solved by the browser environment. Do not interact with or attempt to solve any captchas yourself — they will be handled for you. Do not click the captcha checkbox, widget, or challenge again after it has been solved, even if it still looks unresolved. Continue with your task as if the captcha does not exist.</note>
   </roadblocks>`
     : "";
 
