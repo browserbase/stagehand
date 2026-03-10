@@ -906,20 +906,25 @@ export class V3 {
               logger: this.logger,
               serverCache: this.opts.serverCache,
             });
-            const resolvedProjectId =
-              effectiveSessionParams.projectId ?? projectId;
+            const {
+              projectId: overrideProjectId,
+              browserSettings,
+              userMetadata,
+              ...restSessionParams
+            } = effectiveSessionParams;
+            const resolvedProjectId = overrideProjectId ?? projectId;
             const createSessionPayload = {
               ...(resolvedProjectId ? { projectId: resolvedProjectId } : {}),
-              ...effectiveSessionParams,
+              ...restSessionParams,
               browserSettings: {
-                ...(effectiveSessionParams.browserSettings ?? {}),
-                viewport: effectiveSessionParams.browserSettings?.viewport ?? {
+                ...(browserSettings ?? {}),
+                viewport: browserSettings?.viewport ?? {
                   width: 1288,
                   height: 711,
                 },
               },
               userMetadata: {
-                ...(effectiveSessionParams.userMetadata ?? {}),
+                ...(userMetadata ?? {}),
                 stagehand: "true",
               },
             };
