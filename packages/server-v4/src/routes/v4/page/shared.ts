@@ -7,7 +7,6 @@ import { z } from "zod/v4";
 
 import { authMiddleware } from "../../../lib/auth.js";
 import { getModelApiKey } from "../../../lib/header.js";
-import { JsonlActionStore } from "../../../lib/JsonlActionStore.js";
 import { getSessionStore } from "../../../lib/sessionStoreManager.js";
 import {
   buildErrorResponse,
@@ -17,8 +16,6 @@ import {
   type PageActionMethod,
   V4ErrorResponseSchema,
 } from "../../../schemas/v4/page.js";
-
-const actionStore = new JsonlActionStore();
 
 export const pageErrorResponses = {
   400: V4ErrorResponseSchema,
@@ -41,6 +38,9 @@ type PageActionHandlerContext<TAction extends PageAction> = {
   sessionId: string;
 };
 
+// Selector stays wrapped in an object even though we only consume xpath today,
+// because we may add more optional locator fields later without changing the
+// v4 request shape.
 function normalizeXPath(xpath: string): string {
   return xpath.startsWith("xpath=") || xpath.startsWith("/")
     ? xpath
@@ -110,6 +110,13 @@ function getErrorMessage(error: unknown, statusCode: number): string {
     return fallback;
   }
 
+  if (
+    error.message.startsWith("Session not found:") ||
+    error.message.startsWith("Session expired:")
+  ) {
+    return "Session not found";
+  }
+
   return statusCode >= StatusCodes.INTERNAL_SERVER_ERROR
     ? "Internal Server Error"
     : error.message;
@@ -155,12 +162,6 @@ export function createPageActionHandler<
     const sessionStore = getSessionStore();
 
     try {
-      if (!(await sessionStore.hasSession(sessionId))) {
-        return reply
-          .status(StatusCodes.NOT_FOUND)
-          .send(buildErrorResponse({ error: "Session not found" }));
-      }
-
       const stagehand = await sessionStore.getOrCreateStagehand(sessionId, {
         modelApiKey: getModelApiKey(request),
       });
@@ -181,7 +182,7 @@ export function createPageActionHandler<
         result: null,
       });
 
-      await actionStore.putAction(action);
+      await sessionStore.putPageAction(action);
 
       try {
         const result = await execute({ page, params, request, sessionId });
@@ -196,7 +197,7 @@ export function createPageActionHandler<
           result,
         });
 
-        await actionStore.putAction(action);
+        await sessionStore.putPageAction(action);
         return reply.status(StatusCodes.OK).send({
           success: true,
           error: null,
@@ -216,7 +217,7 @@ export function createPageActionHandler<
           result: null,
         });
 
-        await actionStore.putAction(action);
+        await sessionStore.putPageAction(action);
         return reply
           .status(statusCode)
           .send(buildErrorResponse({ error: message, action }));
@@ -244,8 +245,9 @@ export const pageActionDetailsHandler: RouteHandlerMethod = async (
 
   const { actionId } = request.params as { actionId: string };
   const { sessionId } = request.query as PageActionDetailsQuery;
+  const sessionStore = getSessionStore();
 
-  const action = await actionStore.getAction(actionId);
+  const action = await sessionStore.getPageAction(actionId);
   if (!action || action.sessionId !== sessionId) {
     return reply
       .status(StatusCodes.NOT_FOUND)
@@ -270,7 +272,7 @@ export const pageActionListHandler: RouteHandlerMethod = async (
   }
 
   const query = request.query as PageActionListQuery;
-  const actions = await actionStore.listActions(query);
+  const actions = await getSessionStore().listPageActions(query);
 
   return reply.status(StatusCodes.OK).send({
     success: true,

@@ -87,6 +87,9 @@ export const PageActionStatusSchema = z
   .enum(["queued", "running", "completed", "failed", "canceled"])
   .meta({ id: "PageActionStatus" });
 
+// Keep selector wrapped in an object even though xpath is the only supported
+// field today so we can add optional locator fields later without breaking the
+// v4 request shape.
 export const PageSelectorSchema = z
   .object({
     xpath: z.string().min(1).meta({
@@ -192,7 +195,7 @@ function createPageResponseSchema<T extends z.ZodTypeAny>(
 const PageClickSelectorParamsSchema = PageWithPageIdSchema.extend({
   selector: PageSelectorSchema,
   button: MouseButtonSchema.optional(),
-  clickCount: z.number().int().min(1).max(3).optional(),
+  clickCount: z.number().int().min(1).optional(),
 })
   .strict()
   .meta({ id: "PageClickSelectorParams" });
@@ -201,7 +204,7 @@ const PageClickCoordinatesParamsSchema = PageWithPageIdSchema.extend({
   x: z.number(),
   y: z.number(),
   button: MouseButtonSchema.optional(),
-  clickCount: z.number().int().min(1).max(3).optional(),
+  clickCount: z.number().int().min(1).optional(),
 })
   .strict()
   .meta({ id: "PageClickCoordinatesParams" });
@@ -292,14 +295,14 @@ export const PageKeyPressParamsSchema = PageWithPageIdSchema.extend({
 export const PageGotoParamsSchema = PageWithPageIdSchema.extend({
   url: z.string().url(),
   waitUntil: LoadStateSchema.optional(),
-  timeoutMs: z.number().int().positive().optional(),
+  timeoutMs: z.number().int().nonnegative().optional(),
 })
   .strict()
   .meta({ id: "PageGotoParams" });
 
 export const PageReloadParamsSchema = PageWithPageIdSchema.extend({
   waitUntil: LoadStateSchema.optional(),
-  timeoutMs: z.number().int().positive().optional(),
+  timeoutMs: z.number().int().nonnegative().optional(),
   ignoreCache: z.boolean().optional(),
 })
   .strict()
@@ -307,14 +310,14 @@ export const PageReloadParamsSchema = PageWithPageIdSchema.extend({
 
 export const PageGoBackParamsSchema = PageWithPageIdSchema.extend({
   waitUntil: LoadStateSchema.optional(),
-  timeoutMs: z.number().int().positive().optional(),
+  timeoutMs: z.number().int().nonnegative().optional(),
 })
   .strict()
   .meta({ id: "PageGoBackParams" });
 
 export const PageGoForwardParamsSchema = PageWithPageIdSchema.extend({
   waitUntil: LoadStateSchema.optional(),
-  timeoutMs: z.number().int().positive().optional(),
+  timeoutMs: z.number().int().nonnegative().optional(),
 })
   .strict()
   .meta({ id: "PageGoForwardParams" });
@@ -337,7 +340,7 @@ export const PageScreenshotParamsSchema = PageWithPageIdSchema.extend({
   caret: ScreenshotCaretSchema.optional(),
   style: z.string().optional(),
   omitBackground: z.boolean().optional(),
-  timeout: z.number().int().positive().optional(),
+  timeout: z.number().int().nonnegative().optional(),
 })
   .strict()
   .superRefine((value, ctx) => {
@@ -375,7 +378,7 @@ export const PageSetViewportSizeParamsSchema = PageWithPageIdSchema.extend({
 
 export const PageWaitForLoadStateParamsSchema = PageWithPageIdSchema.extend({
   state: LoadStateSchema,
-  timeoutMs: z.number().int().positive().optional(),
+  timeoutMs: z.number().int().nonnegative().optional(),
 })
   .strict()
   .meta({ id: "PageWaitForLoadStateParams" });
@@ -383,14 +386,14 @@ export const PageWaitForLoadStateParamsSchema = PageWithPageIdSchema.extend({
 export const PageWaitForSelectorParamsSchema = PageWithPageIdSchema.extend({
   selector: PageSelectorSchema,
   state: WaitForSelectorStateSchema.optional(),
-  timeout: z.number().int().positive().optional(),
+  timeout: z.number().int().nonnegative().optional(),
   pierceShadow: z.boolean().optional(),
 })
   .strict()
   .meta({ id: "PageWaitForSelectorParams" });
 
 export const PageWaitForTimeoutParamsSchema = PageWithPageIdSchema.extend({
-  ms: z.number().int().positive(),
+  ms: z.number().int().nonnegative(),
 })
   .strict()
   .meta({ id: "PageWaitForTimeoutParams" });
@@ -549,7 +552,17 @@ const PageKeyPressResultSchema = z
 
 const PageNavigationResultSchema = z
   .object({
-    url: z.string().optional(),
+    url: z.string(),
+    response: z
+      .object({
+        url: z.string(),
+        status: z.number().int(),
+        statusText: z.string(),
+        ok: z.boolean(),
+        headers: z.object({}).catchall(z.string()),
+      })
+      .strict()
+      .nullable(),
   })
   .strict()
   .meta({ id: "PageNavigationResult" });
@@ -579,8 +592,8 @@ const PageScreenshotResultSchema = z
 const PageSnapshotResultSchema = z
   .object({
     formattedTree: z.string(),
-    xpathMap: z.record(z.string(), z.string()),
-    urlMap: z.record(z.string(), z.string()),
+    xpathMap: z.object({}).catchall(z.string()),
+    urlMap: z.object({}).catchall(z.string()),
   })
   .strict()
   .meta({ id: "PageSnapshotResult" });
@@ -611,7 +624,7 @@ const PageWaitForSelectorResultSchema = z
 
 const PageWaitForTimeoutResultSchema = z
   .object({
-    ms: z.number().int().positive(),
+    ms: z.number().int().nonnegative(),
   })
   .strict()
   .meta({ id: "PageWaitForTimeoutResult" });

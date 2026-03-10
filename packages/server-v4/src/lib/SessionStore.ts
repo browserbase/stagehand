@@ -4,6 +4,7 @@ import type {
   LogLine,
   V3,
 } from "@browserbasehq/stagehand";
+import type { PageAction, PageActionListQuery } from "../schemas/v4/page.js";
 
 /**
  * Result from SessionStore.startSession().
@@ -163,6 +164,24 @@ export interface SessionStore {
    * @param sessionId - The session identifier
    */
   getSessionConfig(sessionId: string): Promise<CreateSessionParams>;
+
+  /**
+   * Persist a v4 page action.
+   *
+   * Cloud implementations should store this with the rest of the session's
+   * durable metadata so action history is available across pods.
+   */
+  putPageAction(action: PageAction): Promise<void>;
+
+  /**
+   * Retrieve a stored v4 page action by id.
+   */
+  getPageAction(actionId: string): Promise<PageAction | null>;
+
+  /**
+   * List stored v4 page actions for a session with optional filters.
+   */
+  listPageActions(query: PageActionListQuery): Promise<PageAction[]>;
 
   /**
    * Update cache configuration dynamically.

@@ -87,7 +87,7 @@ components:
         clickCount:
           type: integer
           minimum: 1
-          maximum: 3
+          maximum: 9007199254740991
       required:
         - selector
       additionalProperties: false
@@ -105,7 +105,7 @@ components:
         clickCount:
           type: integer
           minimum: 1
-          maximum: 3
+          maximum: 9007199254740991
       required:
         - x
         - y
@@ -259,6 +259,36 @@ components:
       properties:
         url:
           type: string
+        response:
+          anyOf:
+            - type: object
+              properties:
+                url:
+                  type: string
+                status:
+                  type: integer
+                  minimum: -9007199254740991
+                  maximum: 9007199254740991
+                statusText:
+                  type: string
+                ok:
+                  type: boolean
+                headers:
+                  type: object
+                  properties: {}
+                  additionalProperties:
+                    type: string
+              required:
+                - url
+                - status
+                - statusText
+                - ok
+                - headers
+              additionalProperties: false
+            - type: "null"
+      required:
+        - url
+        - response
       additionalProperties: false
     PageTitleResult:
       type: object
@@ -294,14 +324,12 @@ components:
           type: string
         xpathMap:
           type: object
-          propertyNames:
-            type: string
+          properties: {}
           additionalProperties:
             type: string
         urlMap:
           type: object
-          propertyNames:
-            type: string
+          properties: {}
           additionalProperties:
             type: string
       required:
@@ -349,7 +377,7 @@ components:
       properties:
         ms:
           type: integer
-          exclusiveMinimum: 0
+          minimum: 0
           maximum: 9007199254740991
       required:
         - ms
@@ -1463,7 +1491,7 @@ components:
           $ref: "#/components/schemas/LoadState"
         timeoutMs:
           type: integer
-          exclusiveMinimum: 0
+          minimum: 0
           maximum: 9007199254740991
       required:
         - url
@@ -1477,7 +1505,7 @@ components:
           $ref: "#/components/schemas/LoadState"
         timeoutMs:
           type: integer
-          exclusiveMinimum: 0
+          minimum: 0
           maximum: 9007199254740991
         ignoreCache:
           type: boolean
@@ -1491,7 +1519,7 @@ components:
           $ref: "#/components/schemas/LoadState"
         timeoutMs:
           type: integer
-          exclusiveMinimum: 0
+          minimum: 0
           maximum: 9007199254740991
       additionalProperties: false
     PageGoForwardParams:
@@ -1503,7 +1531,7 @@ components:
           $ref: "#/components/schemas/LoadState"
         timeoutMs:
           type: integer
-          exclusiveMinimum: 0
+          minimum: 0
           maximum: 9007199254740991
       additionalProperties: false
     PageTitleParams:
@@ -1545,7 +1573,7 @@ components:
           type: boolean
         timeout:
           type: integer
-          exclusiveMinimum: 0
+          minimum: 0
           maximum: 9007199254740991
       additionalProperties: false
     PageSnapshotParams:
@@ -1583,7 +1611,7 @@ components:
           $ref: "#/components/schemas/LoadState"
         timeoutMs:
           type: integer
-          exclusiveMinimum: 0
+          minimum: 0
           maximum: 9007199254740991
       required:
         - state
@@ -1599,7 +1627,7 @@ components:
           $ref: "#/components/schemas/WaitForSelectorState"
         timeout:
           type: integer
-          exclusiveMinimum: 0
+          minimum: 0
           maximum: 9007199254740991
         pierceShadow:
           type: boolean
@@ -1613,7 +1641,7 @@ components:
           $ref: "#/components/schemas/PageId"
         ms:
           type: integer
-          exclusiveMinimum: 0
+          minimum: 0
           maximum: 9007199254740991
       required:
         - ms

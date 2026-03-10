@@ -26,12 +26,23 @@ const gotoRoute: RouteOptions = {
     method: "goto",
     actionSchema: PageGotoActionSchema,
     execute: async ({ page, params }) => {
-      await page.goto(params.url, {
+      const response = await page.goto(params.url, {
         waitUntil: params.waitUntil,
         timeoutMs: params.timeoutMs,
       });
 
-      return { url: page.url() };
+      return {
+        url: page.url(),
+        response: response
+          ? {
+              url: response.url(),
+              status: response.status(),
+              statusText: response.statusText(),
+              ok: response.ok(),
+              headers: response.headers(),
+            }
+          : null,
+      };
     },
   }),
 };

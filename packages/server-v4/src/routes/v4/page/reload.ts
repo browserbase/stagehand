@@ -26,13 +26,24 @@ const reloadRoute: RouteOptions = {
     method: "reload",
     actionSchema: PageReloadActionSchema,
     execute: async ({ page, params }) => {
-      await page.reload({
+      const response = await page.reload({
         waitUntil: params.waitUntil,
         timeoutMs: params.timeoutMs,
         ignoreCache: params.ignoreCache,
       });
 
-      return { url: page.url() };
+      return {
+        url: page.url(),
+        response: response
+          ? {
+              url: response.url(),
+              status: response.status(),
+              statusText: response.statusText(),
+              ok: response.ok(),
+              headers: response.headers(),
+            }
+          : null,
+      };
     },
   }),
 };

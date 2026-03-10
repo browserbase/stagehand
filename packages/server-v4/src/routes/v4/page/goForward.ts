@@ -26,12 +26,23 @@ const goForwardRoute: RouteOptions = {
     method: "goForward",
     actionSchema: PageGoForwardActionSchema,
     execute: async ({ page, params }) => {
-      await page.goForward({
+      const response = await page.goForward({
         waitUntil: params.waitUntil,
         timeoutMs: params.timeoutMs,
       });
 
-      return { url: page.url() };
+      return {
+        url: page.url(),
+        response: response
+          ? {
+              url: response.url(),
+              status: response.status(),
+              statusText: response.statusText(),
+              ok: response.ok(),
+              headers: response.headers(),
+            }
+          : null,
+      };
     },
   }),
 };

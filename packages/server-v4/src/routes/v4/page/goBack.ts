@@ -26,12 +26,23 @@ const goBackRoute: RouteOptions = {
     method: "goBack",
     actionSchema: PageGoBackActionSchema,
     execute: async ({ page, params }) => {
-      await page.goBack({
+      const response = await page.goBack({
         waitUntil: params.waitUntil,
         timeoutMs: params.timeoutMs,
       });
 
-      return { url: page.url() };
+      return {
+        url: page.url(),
+        response: response
+          ? {
+              url: response.url(),
+              status: response.status(),
+              statusText: response.statusText(),
+              ok: response.ok(),
+              headers: response.headers(),
+            }
+          : null,
+      };
     },
   }),
 };
