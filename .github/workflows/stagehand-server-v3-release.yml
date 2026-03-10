@@ -1,0 +1,186 @@
+name: Release stagehand/server-v3
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .changeset/**
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+env:
+  OAS_PATH: packages/server-v3/openapi.v3.yaml
+
+jobs:
+  detect:
+    name: Detect server-v3 release (changesets)
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.meta.outputs.release }}
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          fetch-tags: true
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        with:
+          use-prebuilt-artifacts: "false"
+
+      - name: Determine release metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          latest_tag="$(git tag -l 'stagehand-server-v3/v*' --sort=-v:refname | head -n 1 || true)"
+          rm -f changeset-status.json
+          if [ -n "${latest_tag}" ]; then
+            pnpm changeset status --since "${latest_tag}" --output changeset-status.json
+          else
+            pnpm changeset status --output changeset-status.json
+          fi
+
+          node <<'NODE'
+          const fs = require('fs');
+
+          const status = JSON.parse(fs.readFileSync('changeset-status.json', 'utf8'));
+          const changesets = Array.isArray(status.changesets) ? status.changesets : [];
+          const releases = Array.isArray(status.releases) ? status.releases : [];
+
+          const shouldRelease = changesets.some((cs) =>
+            (cs.releases || []).some((r) => r?.name === '@browserbasehq/stagehand-server-v3')
+          );
+
+          const serverRelease = releases.find((r) => r?.name === '@browserbasehq/stagehand-server-v3');
+          if (shouldRelease && !serverRelease?.newVersion) {
+            throw new Error(
+              'Expected @browserbasehq/stagehand-server-v3 to have a computed newVersion in changeset-status.json.'
+            );
+          }
+
+          const release = shouldRelease ? 'true' : 'false';
+          const version = shouldRelease ? serverRelease.newVersion : '';
+          const tag = `stagehand-server-v3/v${version}`;
+
+          const out = process.env.GITHUB_OUTPUT;
+          fs.appendFileSync(out, `release=${release}\n`);
+          fs.appendFileSync(out, `version=${version}\n`);
+          fs.appendFileSync(out, `tag=${tag}\n`);
+          NODE
+
+      - name: Create stagehand/server-v3 tag
+        if: steps.meta.outputs.release == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG="${{ steps.meta.outputs.tag }}"
+          VERSION="${{ steps.meta.outputs.version }}"
+          TARGET_SHA="${{ github.sha }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Try to fetch the tag if it exists on remote; ignore failure for new tags
+          git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}" 2>/dev/null || true
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag already exists: ${TAG}"
+            exit 0
+          fi
+
+          git tag -a "${TAG}" "${TARGET_SHA}" -m "stagehand/server-v3 v${VERSION}"
+          git push origin "${TAG}"
+
+  build_binaries:
+    name: Build SEA binaries
+    needs: detect
+    if: needs.detect.outputs.release == 'true'
+    uses: ./.github/workflows/stagehand-server-v3-sea-build.yml
+    with:
+      matrix: |
+        [
+          {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-v3-linux-x64","include_sourcemaps":false},
+          {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","binary_name":"stagehand-server-v3-linux-arm64","include_sourcemaps":false},
+          {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-v3-darwin-arm64","include_sourcemaps":false},
+          {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-v3-darwin-x64","include_sourcemaps":false},
+          {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-v3-win32-x64.exe","include_sourcemaps":false},
+          {"os":"windows-11-arm","platform":"win32","arch":"arm64","binary_name":"stagehand-server-v3-win32-arm64.exe","include_sourcemaps":false}
+        ]
+
+  release:
+    name: Publish GitHub Release
+    needs: [detect, build_binaries]
+    if: needs.detect.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          fetch-tags: false
+
+      - name: Prepare release assets directory
+        run: mkdir -p release-assets
+
+      - name: Prepare stagehand/server-v3 release assets
+        run: |
+          set -euo pipefail
+          cp "${{ env.OAS_PATH }}" "release-assets/openapi.v3.stagehand-server-v3-${{ needs.detect.outputs.version }}.yaml"
+
+      - name: Download SEA binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: stagehand-server-v3-*
+          path: .
+          merge-multiple: true
+
+      - name: Collect SEA binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for f in packages/server-v3/dist/sea/stagehand-server-v3-*; do
+            cp "$f" release-assets/
+          done
+
+      - name: Create checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-assets
+          # Only checksum binaries (exclude openapi yaml). Avoid failing if no matches.
+          shopt -s nullglob
+          files=(stagehand-server-v3-*)
+          bins=()
+          for f in "${files[@]}"; do
+            [[ "$f" == *openapi* ]] && continue
+            [[ -f "$f" ]] && bins+=("$f")
+          done
+          : > checksums.sha256
+          if [ "${#bins[@]}" -gt 0 ]; then
+            shasum -a 256 "${bins[@]}" > checksums.sha256
+          fi
+
+      - name: Publish stagehand/server-v3 GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.detect.outputs.tag }}
+          name: stagehand/server-v3 v${{ needs.detect.outputs.version }}
+          generate_release_notes: true
+          files: |
+            release-assets/openapi.v3.stagehand-server-v3-${{ needs.detect.outputs.version }}.yaml
+            release-assets/stagehand-server-v3-*
+            release-assets/checksums.sha256

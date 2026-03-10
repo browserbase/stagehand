@@ -1,7 +1,8 @@
 /**
  * Keep this file in sync with:
  * - /packages/core/lib/v3/runtimePaths.ts
- * - /packages/server/scripts/runtimePaths.ts
+ * - /packages/server-v3/scripts/runtimePaths.ts
+ * - /packages/server-v4/scripts/runtimePaths.ts
  * - /packages/evals/runtimePaths.ts
  * - /packages/docs/scripts/runtimePaths.js
  */

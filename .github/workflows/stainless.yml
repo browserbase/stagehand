@@ -15,7 +15,7 @@ concurrency:
 env:
   STAINLESS_ORG: ${{ vars.STAINLESS_ORG }}
   STAINLESS_PROJECT: ${{ vars.STAINLESS_PROJECT }}
-  OAS_PATH: packages/server/openapi.v3.yaml
+  OAS_PATH: packages/server-v3/openapi.v3.yaml
 
 jobs:
   preview:

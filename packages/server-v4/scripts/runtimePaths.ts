@@ -1,7 +1,6 @@
 /**
  * Keep this file in sync with:
  * - /packages/core/lib/v3/runtimePaths.ts
- * - /packages/server-v3/scripts/runtimePaths.ts
  * - /packages/server-v4/scripts/runtimePaths.ts
  * - /packages/evals/runtimePaths.ts
  * - /packages/docs/scripts/runtimePaths.js
@@ -10,7 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 
-const PACKAGE_SEGMENT = "/packages/core/";
+const PACKAGE_SEGMENT = "/packages/server-v4/";
 const EVAL_FRAMES = new Set(["[eval]", "[eval]-wrapper"]);
 const INTERNAL_FRAME_NAMES = new Set([
   "readCallsites",
