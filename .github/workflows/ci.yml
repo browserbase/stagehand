@@ -40,6 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       core: ${{ steps.filter.outputs.core }}
+      cli: ${{ steps.filter.outputs.cli }}
       evals: ${{ steps.filter.outputs.evals }}
       server: ${{ steps.filter.outputs.server }}
       docs-only: ${{ steps.filter.outputs.docs-only }}
@@ -83,6 +84,11 @@ jobs:
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'turbo.json'
+            cli:
+              - 'packages/cli/**'
+              - 'packages/core/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
             evals:
               - 'packages/evals/**'
               - 'package.json'
@@ -243,6 +249,7 @@ jobs:
             packages/core/lib/version.ts
             packages/core/lib/dom/build/**
             packages/core/lib/v3/dom/build/**
+            packages/cli/dist/**
             packages/evals/dist/**
             packages/server-v3/dist/**
             packages/server-v3/openapi.v3.yaml
