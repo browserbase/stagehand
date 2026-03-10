@@ -317,18 +317,18 @@ Windows support requires WSL or TCP socket implementation.
 ```bash
 # Clone and setup (in monorepo)
 cd packages/cli
-npm install          # Install dependencies first!
-npm run build        # Build the CLI
+pnpm install         # Install dependencies first!
+pnpm run build       # Build the CLI
 
 # Run without building (for development)
-npm run dev -- <command>
+pnpm run dev -- <command>
 
 # Or with tsx directly
 npx tsx src/index.ts <command>
 
 # Run linting and formatting
-npm run lint
-npm run format
+pnpm run lint
+pnpm run format
 ```
 
 ## License
