@@ -93,7 +93,7 @@ describe("Browse CLI env command", () => {
     });
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain(
-      "Remote mode requires BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID",
+      "Remote mode requires BROWSERBASE_API_KEY",
     );
   });
 });

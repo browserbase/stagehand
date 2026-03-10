@@ -145,15 +145,13 @@ function getModeOverridePath(session: string): string {
 type BrowseMode = "browserbase" | "local";
 
 function hasBrowserbaseCredentials(): boolean {
-  return Boolean(
-    process.env.BROWSERBASE_API_KEY && process.env.BROWSERBASE_PROJECT_ID,
-  );
+  return Boolean(process.env.BROWSERBASE_API_KEY);
 }
 
 function assertModeSupported(mode: BrowseMode): void {
   if (mode === "browserbase" && !hasBrowserbaseCredentials()) {
     throw new Error(
-      "Remote mode requires BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID. Set both env vars or run `browse env local`.",
+      "Remote mode requires BROWSERBASE_API_KEY. Set the env var or run `browse env local`.",
     );
   }
 }
