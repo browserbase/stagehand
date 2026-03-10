@@ -13,6 +13,7 @@ export const AISDK_PROVIDERS = [
   "ollama",
   "vertex",
   "bedrock",
+  "chatcompletions",
 ] as const;
 export type AISDKProvider = (typeof AISDK_PROVIDERS)[number];
 

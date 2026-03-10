@@ -197,8 +197,8 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
             }
           }
 
-          // First attempt: parse as-is. On failure, patch common issues
-          // (missing/stringified arrays) and retry.
+          // Parse the coerced response. On failure, default missing/invalid
+          // array fields to [] and retry.
           let parsed: unknown;
           const firstTry = options.response_model.schema.safeParse(raw);
           if (firstTry.success) {
@@ -210,17 +210,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
                 issue.expected === "array" &&
                 issue.path.length === 1
               ) {
-                const key = issue.path[0] as string;
-                const val = raw[key];
-                if (val === undefined || val === null) {
-                  raw[key] = [];
-                } else if (typeof val === "string") {
-                  try {
-                    raw[key] = JSON.parse(val);
-                  } catch {
-                    raw[key] = [];
-                  }
-                }
+                raw[issue.path[0] as string] = [];
               }
             }
             parsed = options.response_model.schema.parse(raw);

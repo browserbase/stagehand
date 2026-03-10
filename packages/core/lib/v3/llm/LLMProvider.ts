@@ -50,6 +50,7 @@ const AISDKProviders: Record<string, AISDKProvider> = {
   ollama,
   vertex,
   gateway,
+  chatcompletions: openai,
 };
 const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   openai: createOpenAI,
@@ -67,6 +68,7 @@ const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   perplexity: createPerplexity,
   ollama: createOllama,
   gateway: createGateway,
+  chatcompletions: createOpenAI,
 };
 
 const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
@@ -117,10 +119,10 @@ export function getAISDKLanguageModel(
       );
     }
     const provider = creator(clientOptions);
-    // When a custom baseURL is set, use the chat completions API instead of
-    // the Responses API, since custom endpoints (e.g. ZhipuAI, Ollama) are
-    // OpenAI-compatible but don't support the Responses API.
-    if (subProvider === "openai" && clientOptions?.baseURL) {
+    // "chatcompletions" and "zhipuai" use the Chat Completions API
+    // (/chat/completions) instead of the Responses API (/responses),
+    // for OpenAI-compatible endpoints that don't support /responses.
+    if (subProvider === "chatcompletions") {
       return (provider as ReturnType<typeof createOpenAI>).chat(subModelName);
     }
     // Get the specific model from the provider
