@@ -242,6 +242,13 @@ client_settings:
       nullable: false
       auth:
         security_scheme: LLMModelApiKeyAuth
+    MODEL_BASE_URL:
+      type: string
+      read_env: MODEL_BASE_URL
+      description: Base URL override for the AI model provider (for OpenAI-compatible endpoints)
+      nullable: true
+      auth:
+        security_scheme: LLMModelBaseUrlAuth
 
 security_schemes:
   BBApiKeyAuth:
