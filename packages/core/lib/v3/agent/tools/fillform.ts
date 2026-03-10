@@ -56,7 +56,16 @@ export const fillFormTool = (
 
         const completed = [] as unknown[];
         const replayableActions: Action[] = [];
-        for (const res of observeResults) {
+        for (let i = 0; i < observeResults.length; i++) {
+          const res = observeResults[i];
+
+          // Override LLM-hallucinated arguments with the actual value
+          // provided by the caller to prevent placeholder values like
+          // "test@example.com" from being typed instead of real input.
+          if (res.method === "fill" && fields[i]?.value) {
+            res.arguments = [fields[i].value];
+          }
+
           const actOptions = variables
             ? { variables, timeout: toolTimeout }
             : { timeout: toolTimeout };
