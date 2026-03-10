@@ -716,7 +716,11 @@ describe("POST /v1/sessions/start - V3 format", () => {
       },
     );
 
-    assertFetchStatus(ctx, HTTP_OK, "Request should succeed without project ID");
+    assertFetchStatus(
+      ctx,
+      HTTP_OK,
+      "Request should succeed without project ID",
+    );
     assertFetchOk(ctx.body !== null, "Should have response body", ctx);
     assertFetchOk(
       isSuccessResponse(ctx.body),
