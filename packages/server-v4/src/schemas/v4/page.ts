@@ -182,6 +182,13 @@ const PageBodySchema = z
   })
   .strict();
 
+const PageQuerySchemaBase = z
+  .object({
+    id: RequestIdSchema.optional(),
+    sessionId: SessionIdSchema,
+  })
+  .strict();
+
 const PageWithPageIdSchema = z
   .object({
     pageId: PageIdSchema.optional(),
@@ -208,6 +215,13 @@ function createPageRequestSchema<T extends z.ZodTypeAny>(
   params: T,
 ) {
   return PageBodySchema.extend({ params }).meta({ id });
+}
+
+function createPageQuerySchema<T extends z.ZodObject>(
+  id: string,
+  params: T,
+) {
+  return PageQuerySchemaBase.extend(params.shape).meta({ id });
 }
 
 function createPageActionSchema<
@@ -584,8 +598,18 @@ export const PageTargetIdRequestSchema = createPageRequestSchema(
   PageTargetIdParamsSchema,
 );
 
+export const PageTargetIdQuerySchema = createPageQuerySchema(
+  "PageTargetIdQuery",
+  PageTargetIdParamsSchema,
+);
+
 export const PageMainFrameIdRequestSchema = createPageRequestSchema(
   "PageMainFrameIdRequest",
+  PageMainFrameIdParamsSchema,
+);
+
+export const PageMainFrameIdQuerySchema = createPageQuerySchema(
+  "PageMainFrameIdQuery",
   PageMainFrameIdParamsSchema,
 );
 
@@ -594,8 +618,18 @@ export const PageMainFrameRequestSchema = createPageRequestSchema(
   PageMainFrameParamsSchema,
 );
 
+export const PageMainFrameQuerySchema = createPageQuerySchema(
+  "PageMainFrameQuery",
+  PageMainFrameParamsSchema,
+);
+
 export const PageGetFullFrameTreeRequestSchema = createPageRequestSchema(
   "PageGetFullFrameTreeRequest",
+  PageGetFullFrameTreeParamsSchema,
+);
+
+export const PageGetFullFrameTreeQuerySchema = createPageQuerySchema(
+  "PageGetFullFrameTreeQuery",
   PageGetFullFrameTreeParamsSchema,
 );
 
@@ -604,8 +638,18 @@ export const PageAsProtocolFrameTreeRequestSchema = createPageRequestSchema(
   PageAsProtocolFrameTreeParamsSchema,
 );
 
+export const PageAsProtocolFrameTreeQuerySchema = createPageQuerySchema(
+  "PageAsProtocolFrameTreeQuery",
+  PageAsProtocolFrameTreeParamsSchema,
+);
+
 export const PageListAllFrameIdsRequestSchema = createPageRequestSchema(
   "PageListAllFrameIdsRequest",
+  PageListAllFrameIdsParamsSchema,
+);
+
+export const PageListAllFrameIdsQuerySchema = createPageQuerySchema(
+  "PageListAllFrameIdsQuery",
   PageListAllFrameIdsParamsSchema,
 );
 
@@ -614,13 +658,28 @@ export const PageGetOrdinalRequestSchema = createPageRequestSchema(
   PageGetOrdinalParamsSchema,
 );
 
+export const PageGetOrdinalQuerySchema = createPageQuerySchema(
+  "PageGetOrdinalQuery",
+  PageGetOrdinalParamsSchema,
+);
+
 export const PageTitleRequestSchema = createPageRequestSchema(
   "PageTitleRequest",
   PageTitleParamsSchema,
 );
 
+export const PageTitleQuerySchema = createPageQuerySchema(
+  "PageTitleQuery",
+  PageTitleParamsSchema,
+);
+
 export const PageUrlRequestSchema = createPageRequestSchema(
   "PageUrlRequest",
+  PageUrlParamsSchema,
+);
+
+export const PageUrlQuerySchema = createPageQuerySchema(
+  "PageUrlQuery",
   PageUrlParamsSchema,
 );
 
@@ -636,6 +695,11 @@ export const PageSnapshotRequestSchema = createPageRequestSchema(
 
 export const PageFramesRequestSchema = createPageRequestSchema(
   "PageFramesRequest",
+  PageFramesParamsSchema,
+);
+
+export const PageFramesQuerySchema = createPageQuerySchema(
+  "PageFramesQuery",
   PageFramesParamsSchema,
 );
 
@@ -656,6 +720,11 @@ export const PageWaitForLoadStateRequestSchema = createPageRequestSchema(
 
 export const PageWaitForMainLoadStateRequestSchema = createPageRequestSchema(
   "PageWaitForMainLoadStateRequest",
+  PageWaitForMainLoadStateParamsSchema,
+);
+
+export const PageWaitForMainLoadStateQuerySchema = createPageQuerySchema(
+  "PageWaitForMainLoadStateQuery",
   PageWaitForMainLoadStateParamsSchema,
 );
 
@@ -1458,21 +1527,32 @@ export const pageOpenApiComponents = {
     PageGoBackRequest: PageGoBackRequestSchema,
     PageGoForwardRequest: PageGoForwardRequestSchema,
     PageTargetIdRequest: PageTargetIdRequestSchema,
+    PageTargetIdQuery: PageTargetIdQuerySchema,
     PageMainFrameIdRequest: PageMainFrameIdRequestSchema,
+    PageMainFrameIdQuery: PageMainFrameIdQuerySchema,
     PageMainFrameRequest: PageMainFrameRequestSchema,
+    PageMainFrameQuery: PageMainFrameQuerySchema,
     PageGetFullFrameTreeRequest: PageGetFullFrameTreeRequestSchema,
+    PageGetFullFrameTreeQuery: PageGetFullFrameTreeQuerySchema,
     PageAsProtocolFrameTreeRequest: PageAsProtocolFrameTreeRequestSchema,
+    PageAsProtocolFrameTreeQuery: PageAsProtocolFrameTreeQuerySchema,
     PageListAllFrameIdsRequest: PageListAllFrameIdsRequestSchema,
+    PageListAllFrameIdsQuery: PageListAllFrameIdsQuerySchema,
     PageGetOrdinalRequest: PageGetOrdinalRequestSchema,
+    PageGetOrdinalQuery: PageGetOrdinalQuerySchema,
     PageTitleRequest: PageTitleRequestSchema,
+    PageTitleQuery: PageTitleQuerySchema,
     PageUrlRequest: PageUrlRequestSchema,
+    PageUrlQuery: PageUrlQuerySchema,
     PageScreenshotRequest: PageScreenshotRequestSchema,
     PageSnapshotRequest: PageSnapshotRequestSchema,
     PageFramesRequest: PageFramesRequestSchema,
+    PageFramesQuery: PageFramesQuerySchema,
     PageSetViewportSizeRequest: PageSetViewportSizeRequestSchema,
     PageSetExtraHTTPHeadersRequest: PageSetExtraHTTPHeadersRequestSchema,
     PageWaitForLoadStateRequest: PageWaitForLoadStateRequestSchema,
     PageWaitForMainLoadStateRequest: PageWaitForMainLoadStateRequestSchema,
+    PageWaitForMainLoadStateQuery: PageWaitForMainLoadStateQuerySchema,
     PageWaitForSelectorRequest: PageWaitForSelectorRequestSchema,
     PageWaitForTimeoutRequest: PageWaitForTimeoutRequestSchema,
     PageEvaluateRequest: PageEvaluateRequestSchema,
