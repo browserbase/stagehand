@@ -110,6 +110,7 @@ export function getAISDKLanguageModel(
     clientOptions &&
     Object.values(clientOptions).some((v) => v !== undefined && v !== null);
 
+  let provider;
   if (hasValidOptions) {
     const creator = AISDKProvidersWithAPIKey[subProvider];
     if (!creator) {
@@ -118,25 +119,24 @@ export function getAISDKLanguageModel(
         Object.keys(AISDKProvidersWithAPIKey),
       );
     }
-    const provider = creator(clientOptions);
-    // "chatcompletions" uses the Chat Completions API (/chat/completions)
-    // instead of the Responses API (/responses), for OpenAI-compatible
-    // endpoints that don't support /responses.
-    if (subProvider === "chatcompletions") {
-      return (provider as ReturnType<typeof createOpenAI>).chat(subModelName);
-    }
-    // Get the specific model from the provider
-    return provider(subModelName);
+    provider = creator(clientOptions);
   } else {
-    const provider = AISDKProviders[subProvider];
+    provider = AISDKProviders[subProvider];
     if (!provider) {
       throw new UnsupportedAISDKModelProviderError(
         subProvider,
         Object.keys(AISDKProviders),
       );
     }
-    return provider(subModelName);
   }
+
+  // "chatcompletions" uses the Chat Completions API (/chat/completions)
+  // instead of the Responses API (/responses), for OpenAI-compatible
+  // endpoints that don't support /responses.
+  if (subProvider === "chatcompletions") {
+    return (provider as ReturnType<typeof createOpenAI>).chat(subModelName);
+  }
+  return provider(subModelName);
 }
 
 export class LLMProvider {

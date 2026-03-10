@@ -172,115 +172,129 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
         });
       }
 
-      try {
-        // Try structured output first. If the provider doesn't support
-        // response_format (e.g. chatcompletions/ endpoints), this will throw
-        // and we fall back to no-schema mode with response coercion below.
-        objectResponse = await generateObject({
-          model: this.model,
-          messages: formattedMessages,
-          schema: options.response_model.schema,
-          temperature,
-          providerOptions: isGPT5
-            ? {
-                openai: {
-                  textVerbosity: isCodex ? "medium" : "low", // codex models only support 'medium'
-                  reasoningEffort: isCodex
-                    ? "medium"
-                    : usesLowReasoningEffort
-                      ? "low"
-                      : "minimal",
-                },
-              }
-            : undefined,
-        });
-      } catch (err) {
-        // Fallback for OpenAI-compatible endpoints (chatcompletions/) that
-        // don't support structured output / response_format.
-        // Pipeline: call LLM → fix strings → fix missing arrays → validate
-        if (needsPromptJsonFallback) {
-          // 1. Call LLM without schema (prompt instruction guides JSON output)
-          const noSchemaResponse = await generateObject({
+      // chatcompletions/ models (provider: "openai.chat") can't do structured
+      // output — skip schema entirely to avoid a wasted LLM call.
+      // Other fallback models (deepseek, kimi) succeed with schema.
+      let useNoSchema =
+        needsPromptJsonFallback && this.model.provider === "openai.chat";
+
+      if (!useNoSchema) {
+        try {
+          objectResponse = await generateObject({
             model: this.model,
             messages: formattedMessages,
-            output: "no-schema",
+            schema: options.response_model.schema,
             temperature,
+            providerOptions: isGPT5
+              ? {
+                  openai: {
+                    textVerbosity: isCodex ? "medium" : "low", // codex models only support 'medium'
+                    reasoningEffort: isCodex
+                      ? "medium"
+                      : usesLowReasoningEffort
+                        ? "low"
+                        : "minimal",
+                  },
+                }
+              : undefined,
           });
-          // 2. Fix strings — models may return "[]" instead of []
-          const raw = noSchemaResponse.object as Record<string, unknown>;
-          for (const [k, v] of Object.entries(raw)) {
-            if (typeof v === "string") {
-              try {
-                raw[k] = JSON.parse(v);
-              } catch {
-                // keep as string
-              }
-            }
-          }
-          // 3. Fix missing arrays — models may omit empty array fields entirely
-          let parsed: unknown;
-          const firstTry = options.response_model.schema.safeParse(raw);
-          if (firstTry.success) {
-            parsed = firstTry.data;
+        } catch (err) {
+          if (needsPromptJsonFallback) {
+            useNoSchema = true;
           } else {
-            for (const issue of firstTry.error.issues) {
-              if (
-                issue.code === "invalid_type" &&
-                issue.expected === "array" &&
-                issue.path.length === 1
-              ) {
-                raw[issue.path[0] as string] = [];
-              }
-            }
-            // 4. Validate against schema
-            parsed = options.response_model.schema.parse(raw);
-          }
-          objectResponse = { ...noSchemaResponse, object: parsed };
-        } else {
-          // Log error response to maintain request/response pairing
-          SessionFileLogger.logLlmResponse({
-            requestId: llmRequestId,
-            model: this.model.modelId,
-            operation: "generateObject",
-            output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
-          });
-
-          if (NoObjectGeneratedError.isInstance(err)) {
-            this.logger?.({
-              category: "AISDK error",
-              message: err.message,
-              level: 0,
-              auxiliary: {
-                cause: {
-                  value: JSON.stringify(err.cause ?? {}),
-                  type: "object",
-                },
-                text: {
-                  value: err.text ?? "",
-                  type: "string",
-                },
-                response: {
-                  value: JSON.stringify(err.response ?? {}),
-                  type: "object",
-                },
-                usage: {
-                  value: JSON.stringify(err.usage ?? {}),
-                  type: "object",
-                },
-                finishReason: {
-                  value: err.finishReason ?? "unknown",
-                  type: "string",
-                },
-                requestId: {
-                  value: options.requestId,
-                  type: "string",
-                },
-              },
+            // Log error response to maintain request/response pairing
+            SessionFileLogger.logLlmResponse({
+              requestId: llmRequestId,
+              model: this.model.modelId,
+              operation: "generateObject",
+              output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
             });
-          }
 
-          throw err;
+            if (NoObjectGeneratedError.isInstance(err)) {
+              this.logger?.({
+                category: "AISDK error",
+                message: err.message,
+                level: 0,
+                auxiliary: {
+                  cause: {
+                    value: JSON.stringify(err.cause ?? {}),
+                    type: "object",
+                  },
+                  text: {
+                    value: err.text ?? "",
+                    type: "string",
+                  },
+                  response: {
+                    value: JSON.stringify(err.response ?? {}),
+                    type: "object",
+                  },
+                  usage: {
+                    value: JSON.stringify(err.usage ?? {}),
+                    type: "object",
+                  },
+                  finishReason: {
+                    value: err.finishReason ?? "unknown",
+                    type: "string",
+                  },
+                  requestId: {
+                    value: options.requestId,
+                    type: "string",
+                  },
+                },
+              });
+            }
+
+            throw err;
+          }
         }
+      }
+
+      // No-schema fallback for models that can't do structured output.
+      // Pipeline: call LLM → fix strings → fix missing arrays → validate
+      if (useNoSchema) {
+        // 1. Call LLM without schema (prompt instruction guides JSON output)
+        const noSchemaResponse = await generateObject({
+          model: this.model,
+          messages: formattedMessages,
+          output: "no-schema",
+          temperature,
+        });
+        // 2. Fix strings — models may return "[]" instead of []
+        const raw = noSchemaResponse.object as Record<string, unknown>;
+        for (const [k, v] of Object.entries(raw)) {
+          if (typeof v === "string") {
+            try {
+              raw[k] = JSON.parse(v);
+            } catch {
+              // keep as string
+            }
+          }
+        }
+        // 3. Fix missing arrays — models may omit empty array fields entirely
+        let parsed: unknown;
+        const firstTry = options.response_model.schema.safeParse(raw);
+        if (firstTry.success) {
+          parsed = firstTry.data;
+        } else {
+          for (const issue of firstTry.error.issues) {
+            if (
+              issue.code === "invalid_type" &&
+              issue.expected === "array" &&
+              issue.path.length === 1
+            ) {
+              raw[issue.path[0] as string] = [];
+            }
+          }
+          // 4. Validate against schema
+          const secondTry = options.response_model.schema.safeParse(raw);
+          if (!secondTry.success) {
+            throw new Error(
+              `Model response could not be coerced into the expected schema: ${secondTry.error.message}`,
+            );
+          }
+          parsed = secondTry.data;
+        }
+        objectResponse = { ...noSchemaResponse, object: parsed };
       }
 
       const result = {
