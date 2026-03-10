@@ -197,7 +197,7 @@ async function getPageRoute(
 }
 
 function assertSuccessAction(
-  ctx: Awaited<ReturnType<typeof postPageRoute>>,
+  ctx: Awaited<ReturnType<typeof fetchWithContext<PageActionResponse>>>,
   expectedType: string,
 ): PageActionRecord {
   assertFetchStatus(ctx, HTTP_OK);
@@ -585,7 +585,7 @@ describe("v4 page routes", { concurrency: false }, () => {
     }
   });
 
-  it("POST /v4/page metadata routes expose the underlying page getters and frame/network helpers", async () => {
+  it("GET page getters and POST page config methods expose the underlying understudy interface", async () => {
     const temp = await createSessionWithCdp(headers);
     let requestHeaders: Record<string, string | string[] | undefined> | null =
       null;
