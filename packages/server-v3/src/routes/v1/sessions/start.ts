@@ -8,7 +8,11 @@ import { z } from "zod/v4";
 
 import { authMiddleware } from "../../../lib/auth.js";
 import { withErrorHandling } from "../../../lib/errorHandler.js";
-import { getModelApiKey, getOptionalHeader } from "../../../lib/header.js";
+import {
+  getModelApiKey,
+  getModelBaseURL,
+  getOptionalHeader,
+} from "../../../lib/header.js";
 import { error, success } from "../../../lib/response.js";
 import { getSessionStore } from "../../../lib/sessionStoreManager.js";
 import { AISDK_PROVIDERS } from "../../../types/model.js";
@@ -205,10 +209,11 @@ const startRouteHandler: RouteHandler = withErrorHandling(
     let finalCdpUrl = connectUrl ?? session.cdpUrl ?? "";
     if (browserType === "local" && browser?.launchOptions && !browser?.cdpUrl) {
       const modelApiKey = getModelApiKey(request);
+      const modelBaseURL = getModelBaseURL(request);
       try {
         const stagehand = await sessionStore.getOrCreateStagehand(
           session.sessionId,
-          { modelApiKey },
+          { modelApiKey, modelBaseURL },
         );
         finalCdpUrl = stagehand.connectURL();
       } catch (err) {

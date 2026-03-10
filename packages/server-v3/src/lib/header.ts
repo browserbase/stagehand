@@ -77,6 +77,23 @@ export function getModelApiKey(request: FastifyRequest): string | undefined {
 }
 
 /**
+ * Extracts the model base URL with precedence:
+ * 1. Per-request body baseURL (V3: body.options.model.baseURL)
+ * 2. Per-request header x-model-base-url
+ */
+export function getModelBaseURL(request: FastifyRequest): string | undefined {
+  const body = request.body as Record<string, unknown> | undefined;
+  const options = body?.options as Record<string, unknown> | undefined;
+  const model = options?.model as Record<string, unknown> | undefined;
+
+  if (typeof model?.baseURL === "string" && model.baseURL) {
+    return model.baseURL;
+  }
+
+  return getOptionalHeader(request, "x-model-base-url");
+}
+
+/**
  * Extracts the stream response value from either the request header or body.
  * Body parameter takes precedence over header.
  * Defaults to false (non-streaming) if neither is provided.
