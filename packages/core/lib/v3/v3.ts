@@ -886,12 +886,6 @@ export class V3 {
 
         if (this.opts.env === "BROWSERBASE") {
           const { apiKey, projectId } = this.requireBrowserbaseCreds();
-          if (!apiKey || !projectId) {
-            throw new MissingEnvironmentVariableError(
-              "BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID",
-              "Browserbase environment",
-            );
-          }
           this.logger({
             category: "init",
             message: "Starting browserbase session",
@@ -912,18 +906,25 @@ export class V3 {
               logger: this.logger,
               serverCache: this.opts.serverCache,
             });
+            const {
+              projectId: overrideProjectId,
+              browserSettings,
+              userMetadata,
+              ...restSessionParams
+            } = effectiveSessionParams;
+            const resolvedProjectId = overrideProjectId ?? projectId;
             const createSessionPayload = {
-              projectId: effectiveSessionParams.projectId ?? projectId,
-              ...effectiveSessionParams,
+              ...(resolvedProjectId ? { projectId: resolvedProjectId } : {}),
+              ...restSessionParams,
               browserSettings: {
-                ...(effectiveSessionParams.browserSettings ?? {}),
-                viewport: effectiveSessionParams.browserSettings?.viewport ?? {
+                ...(browserSettings ?? {}),
+                viewport: browserSettings?.viewport ?? {
                   width: 1288,
                   height: 711,
                 },
               },
               userMetadata: {
-                ...(effectiveSessionParams.userMetadata ?? {}),
+                ...(userMetadata ?? {}),
                 stagehand: "true",
               },
             };
@@ -1474,7 +1475,10 @@ export class V3 {
   }
 
   /** Guard: ensure Browserbase credentials exist in options. */
-  private requireBrowserbaseCreds(): { apiKey: string; projectId: string } {
+  private requireBrowserbaseCreds(): {
+    apiKey: string;
+    projectId?: string;
+  } {
     let { apiKey, projectId } = this.opts;
 
     // Fall back to environment variables if not explicitly provided
@@ -1484,19 +1488,16 @@ export class V3 {
       projectId =
         process.env.BROWSERBASE_PROJECT_ID ?? process.env.BB_PROJECT_ID;
 
-    if (!apiKey || !projectId) {
-      const missing: string[] = [];
-      if (!apiKey) missing.push("BROWSERBASE_API_KEY");
-      if (!projectId) missing.push("BROWSERBASE_PROJECT_ID");
+    if (!apiKey) {
       throw new MissingEnvironmentVariableError(
-        missing.join(", "),
+        "BROWSERBASE_API_KEY",
         "Browserbase",
       );
     }
 
     // Cache resolved values back into opts for consistency
     this.opts.apiKey = apiKey;
-    this.opts.projectId = projectId;
+    if (projectId) this.opts.projectId = projectId;
 
     // Informational log
     this.logger({

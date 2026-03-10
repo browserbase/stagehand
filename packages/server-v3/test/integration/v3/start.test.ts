@@ -690,8 +690,45 @@ describe("POST /v1/sessions/start - V3 format", () => {
       },
     );
 
-    // Should fail because browserbase requires x-bb-api-key and x-bb-project-id headers
+    // Should fail because browserbase requires x-bb-api-key header
     assertFetchStatus(ctx, HTTP_BAD_REQUEST, "Request should fail with 400");
+  });
+
+  it("should start browserbase session with API key but no project ID", async () => {
+    if (!bbApiKey) return; // skip when credentials unavailable
+
+    const url = getBaseUrl();
+    const bbHeaders = {
+      ...getHeaders("3.0.0"),
+      "x-bb-api-key": bbApiKey,
+      // intentionally omitting x-bb-project-id
+    };
+
+    const ctx = await fetchWithContext<StartResponse>(
+      `${url}/v1/sessions/start`,
+      {
+        method: "POST",
+        headers: bbHeaders,
+        body: JSON.stringify({
+          modelName: "gpt-4.1-nano",
+          browser: { type: "browserbase" },
+        }),
+      },
+    );
+
+    assertFetchStatus(
+      ctx,
+      HTTP_OK,
+      "Request should succeed without project ID",
+    );
+    assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+    assertFetchOk(
+      isSuccessResponse(ctx.body),
+      "Should return a successful start response",
+      ctx,
+    );
+
+    await endSession(ctx.body.data.sessionId, bbHeaders);
   });
 
   // =============================================================================

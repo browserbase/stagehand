@@ -84,7 +84,7 @@ export function getApiUrlForRegion(
  */
 interface StagehandAPIConstructorParams {
   apiKey: string;
-  projectId: string;
+  projectId?: string;
   logger: (message: LogLine) => void;
   /**
    * When true, enables server-side caching by default for all requests.
@@ -174,7 +174,7 @@ interface ClientObserveParameters {
 
 export class StagehandAPIClient {
   private apiKey: string;
-  private projectId: string;
+  private projectId?: string;
   private sessionId?: string;
   private modelApiKey: string;
   private modelProvider?: string;
@@ -844,7 +844,7 @@ export class StagehandAPIClient {
   ): Promise<Response> {
     const defaultHeaders: Record<string, string> = {
       "x-bb-api-key": this.apiKey,
-      "x-bb-project-id": this.projectId,
+      ...(this.projectId ? { "x-bb-project-id": this.projectId } : {}),
       "x-bb-session-id": this.sessionId,
       // we want real-time logs, so we stream the response
       "x-stream-response": "true",

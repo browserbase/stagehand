@@ -8,7 +8,7 @@ import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig.js";
 
 export async function createBrowserbaseSession(
   apiKey: string,
-  projectId: string,
+  projectId?: string,
   params?: BrowserbaseSessionCreateParams,
   resumeSessionId?: string,
 ): Promise<{ ws: string; sessionId: string; bb: Browserbase }> {
@@ -50,8 +50,9 @@ export async function createBrowserbaseSession(
   } = params ?? {};
 
   // satisfies check ensures our BrowserbaseSessionCreateParamsSchema stays in sync with SDK
+  const resolvedProjectId = overrideProjectId ?? projectId;
   const createPayload = {
-    projectId: overrideProjectId ?? projectId,
+    ...(resolvedProjectId ? { projectId: resolvedProjectId } : {}),
     ...rest,
     browserSettings: {
       ...(browserSettings ?? {}),

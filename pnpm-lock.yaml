@@ -121,8 +121,8 @@ importers:
         specifier: 0.39.0
         version: 0.39.0
       '@browserbasehq/sdk':
-        specifier: ^2.4.0
-        version: 2.5.0
+        specifier: ^2.7.0
+        version: 2.7.0
       '@google/genai':
         specifier: ^1.22.0
         version: 1.24.0(@modelcontextprotocol/sdk@1.17.2)(bufferutil@4.0.9)
@@ -319,8 +319,8 @@ importers:
   packages/server-v3:
     dependencies:
       '@browserbasehq/sdk':
-        specifier: ^2.4.0
-        version: 2.5.0
+        specifier: ^2.7.0
+        version: 2.7.0
       '@browserbasehq/stagehand':
         specifier: workspace:*
         version: link:../core
@@ -401,8 +401,8 @@ importers:
   packages/server-v4:
     dependencies:
       '@browserbasehq/sdk':
-        specifier: ^2.4.0
-        version: 2.5.0
+        specifier: ^2.7.0
+        version: 2.7.0
       '@browserbasehq/stagehand':
         specifier: workspace:*
         version: link:../core
@@ -686,8 +686,8 @@ packages:
     resolution: {integrity: sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA==}
     engines: {node: '>=18'}
 
-  '@browserbasehq/sdk@2.5.0':
-    resolution: {integrity: sha512-bcnbYZvm5Ht1nrHUfWDK4crspiTy1ESJYMApsMiOTUnlKOan0ocRD6m7hZH34iSC2c2XWsoryR80cwsYgCBWzQ==}
+  '@browserbasehq/sdk@2.7.0':
+    resolution: {integrity: sha512-1iwuj3fChplMq+S66M9tGb9ZXA4e7Vi8MjqQQ6/T6rzoAWLGfDnEAPbgTOU479o+Mi3of5/6YXk1oIHKTw0NBw==}
 
   '@cfworker/json-schema@4.1.1':
     resolution: {integrity: sha512-gAmrUZSGtKc3AiBL71iNWxDsyUC5uMaKKGdvzYsBoTW/xi42JQHl7eKV2OYzCUqvc+D2RCcf7EXY2iCyFIk6og==}
@@ -7008,7 +7008,7 @@ snapshots:
 
   '@bcoe/v8-coverage@1.0.2': {}
 
-  '@browserbasehq/sdk@2.5.0':
+  '@browserbasehq/sdk@2.7.0':
     dependencies:
       '@types/node': 18.19.87
       '@types/node-fetch': 2.6.12
