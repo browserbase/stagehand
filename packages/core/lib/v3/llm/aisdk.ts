@@ -186,7 +186,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
           providerOptions: isGPT5
             ? {
                 openai: {
-                  textVerbosity: isCodex ? "medium" : "low",
+                  textVerbosity: isCodex ? "medium" : "low", // codex models only support 'medium'
                   reasoningEffort: isCodex
                     ? "medium"
                     : usesLowReasoningEffort
@@ -197,17 +197,18 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
             : undefined,
         });
       } catch (err) {
-        // For models whose modelId matches a known fallback pattern, retry
-        // with output: "no-schema" and coerce the free-form JSON response.
-        // This handles OpenAI-compatible endpoints (chatcompletions/) that
+        // Fallback for OpenAI-compatible endpoints (chatcompletions/) that
         // don't support structured output / response_format.
+        // Pipeline: call LLM → fix strings → fix missing arrays → validate
         if (needsPromptJsonFallback) {
+          // 1. Call LLM without schema (prompt instruction guides JSON output)
           const noSchemaResponse = await generateObject({
             model: this.model,
             messages: formattedMessages,
             output: "no-schema",
             temperature,
           });
+          // 2. Fix strings — models may return "[]" instead of []
           const raw = noSchemaResponse.object as Record<string, unknown>;
           for (const [k, v] of Object.entries(raw)) {
             if (typeof v === "string") {
@@ -218,6 +219,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
               }
             }
           }
+          // 3. Fix missing arrays — models may omit empty array fields entirely
           let parsed: unknown;
           const firstTry = options.response_model.schema.safeParse(raw);
           if (firstTry.success) {
@@ -232,6 +234,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
                 raw[issue.path[0] as string] = [];
               }
             }
+            // 4. Validate against schema
             parsed = options.response_model.schema.parse(raw);
           }
           objectResponse = { ...noSchemaResponse, object: parsed };
