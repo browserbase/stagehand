@@ -60,12 +60,15 @@ class FakeCuaClient {
   public contextNotes: string[] = [];
   public prepareStepHandler?: () => Promise<void>;
   public actionHandler?: (action: Record<string, unknown>) => Promise<void>;
-  public executeImpl = vi.fn(async (_options: unknown) => ({
-    success: true,
-    message: "ok",
-    actions: [],
-    completed: true,
-  }));
+  public executeImpl = vi.fn(async (options: unknown) => {
+    void options;
+    return {
+      success: true,
+      message: "ok",
+      actions: [],
+      completed: true,
+    };
+  });
   public captureScreenshot = vi.fn(async () => null);
   public setViewport = vi.fn();
   public setCurrentUrl = vi.fn();
@@ -100,7 +103,9 @@ let fakeCuaClient: FakeCuaClient;
 
 vi.mock("../../lib/v3/agent/AgentProvider", () => ({
   AgentProvider: class {
-    constructor(_logger: unknown) {}
+    constructor(logger: unknown) {
+      void logger;
+    }
 
     getClient(): FakeCuaClient {
       return fakeCuaClient;
@@ -271,9 +276,9 @@ describe("agent captcha hooks", () => {
       ).toBe(true);
     });
 
-    expect(
-      logs.some((line) => line.message.includes("Captcha solved")),
-    ).toBe(false);
+    expect(logs.some((line) => line.message.includes("Captcha solved"))).toBe(
+      false,
+    );
 
     page.emitConsole(SOLVING_FINISHED);
     await execution;
@@ -281,9 +286,9 @@ describe("agent captcha hooks", () => {
     expect(fakeCuaClient.contextNotes).toEqual([
       expect.stringContaining("automatically detected and solved"),
     ]);
-    expect(
-      logs.some((line) => line.message.includes("Captcha solved")),
-    ).toBe(true);
+    expect(logs.some((line) => line.message.includes("Captcha solved"))).toBe(
+      true,
+    );
   });
 
   it("pauses CUA actions until the captcha solver finishes", async () => {
@@ -325,12 +330,14 @@ describe("agent captcha hooks", () => {
         clientOptions: { waitBetweenActions: 1 },
       } as never,
     );
-    const executeActionSpy = vi.spyOn(
-      handler as unknown as {
-        executeAction: (action: Record<string, unknown>) => Promise<unknown>;
-      },
-      "executeAction",
-    ).mockResolvedValue({ success: true });
+    const executeActionSpy = vi
+      .spyOn(
+        handler as unknown as {
+          executeAction: (action: Record<string, unknown>) => Promise<unknown>;
+        },
+        "executeAction",
+      )
+      .mockResolvedValue({ success: true });
     vi.spyOn(handler, "captureAndSendScreenshot").mockResolvedValue(null);
 
     const execution = handler.execute({
@@ -350,9 +357,9 @@ describe("agent captcha hooks", () => {
     expect(fakeCuaClient.contextNotes).toEqual([
       expect.stringContaining("automatically detected and solved"),
     ]);
-    expect(
-      logs.some((line) => line.message.includes("Captcha solved")),
-    ).toBe(true);
+    expect(logs.some((line) => line.message.includes("Captcha solved"))).toBe(
+      true,
+    );
   });
 
   it("skips post-solve clicks on the captcha widget and injects another note", async () => {
@@ -400,12 +407,14 @@ describe("agent captcha hooks", () => {
         clientOptions: { waitBetweenActions: 1 },
       } as never,
     );
-    const executeActionSpy = vi.spyOn(
-      handler as unknown as {
-        executeAction: (action: Record<string, unknown>) => Promise<unknown>;
-      },
-      "executeAction",
-    ).mockResolvedValue({ success: true });
+    const executeActionSpy = vi
+      .spyOn(
+        handler as unknown as {
+          executeAction: (action: Record<string, unknown>) => Promise<unknown>;
+        },
+        "executeAction",
+      )
+      .mockResolvedValue({ success: true });
     vi.spyOn(handler, "captureAndSendScreenshot").mockResolvedValue(null);
 
     await handler.execute({
@@ -416,12 +425,12 @@ describe("agent captcha hooks", () => {
     expect(executeActionSpy).not.toHaveBeenCalled();
     expect(fakeCuaClient.contextNotes).toEqual([
       expect.stringContaining("automatically detected and solved"),
-      expect.stringContaining(
-        "Original task: Describe the page briefly.",
-      ),
+      expect.stringContaining("Original task: Describe the page briefly."),
     ]);
     expect(
-      logs.some((line) => line.message.includes("Skipped click on solved captcha widget")),
+      logs.some((line) =>
+        line.message.includes("Skipped click on solved captcha widget"),
+      ),
     ).toBe(true);
   });
 });

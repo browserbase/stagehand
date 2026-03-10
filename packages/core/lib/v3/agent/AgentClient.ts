@@ -54,7 +54,8 @@ export abstract class AgentClient {
    * Optional ephemeral context note that should be sent to the next model turn.
    * Clients that do not support this can ignore it.
    */
-  addContextNote(_note: string): void {
+  addContextNote(note: string): void {
+    void note;
     // no-op by default
   }
 }
