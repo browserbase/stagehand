@@ -10,13 +10,13 @@ import {
 import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const asProtocolFrameTreeRoute: RouteOptions = {
-  method: "POST",
+  method: "GET",
   url: "/page/asProtocolFrameTree",
   schema: {
     operationId: "PageAsProtocolFrameTree",
     summary: "page.asProtocolFrameTree",
     headers: Api.SessionHeadersSchema,
-    body: PageAsProtocolFrameTreeRequestSchema,
+    querystring: PageAsProtocolFrameTreeRequestSchema,
     response: {
       200: PageAsProtocolFrameTreeResponseSchema,
       ...pageErrorResponses,

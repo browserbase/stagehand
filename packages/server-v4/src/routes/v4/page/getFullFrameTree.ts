@@ -10,13 +10,13 @@ import {
 import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const getFullFrameTreeRoute: RouteOptions = {
-  method: "POST",
+  method: "GET",
   url: "/page/getFullFrameTree",
   schema: {
     operationId: "PageGetFullFrameTree",
     summary: "page.getFullFrameTree",
     headers: Api.SessionHeadersSchema,
-    body: PageGetFullFrameTreeRequestSchema,
+    querystring: PageGetFullFrameTreeRequestSchema,
     response: {
       200: PageGetFullFrameTreeResponseSchema,
       ...pageErrorResponses,

@@ -10,13 +10,13 @@ import {
 import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const listAllFrameIdsRoute: RouteOptions = {
-  method: "POST",
+  method: "GET",
   url: "/page/listAllFrameIds",
   schema: {
     operationId: "PageListAllFrameIds",
     summary: "page.listAllFrameIds",
     headers: Api.SessionHeadersSchema,
-    body: PageListAllFrameIdsRequestSchema,
+    querystring: PageListAllFrameIdsRequestSchema,
     response: {
       200: PageListAllFrameIdsResponseSchema,
       ...pageErrorResponses,

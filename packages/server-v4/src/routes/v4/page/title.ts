@@ -10,13 +10,13 @@ import {
 import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const titleRoute: RouteOptions = {
-  method: "POST",
+  method: "GET",
   url: "/page/title",
   schema: {
     operationId: "PageTitle",
     summary: "page.title",
     headers: Api.SessionHeadersSchema,
-    body: PageTitleRequestSchema,
+    querystring: PageTitleRequestSchema,
     response: {
       200: PageTitleResponseSchema,
       ...pageErrorResponses,

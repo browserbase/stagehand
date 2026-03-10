@@ -10,13 +10,13 @@ import {
 import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const mainFrameRoute: RouteOptions = {
-  method: "POST",
+  method: "GET",
   url: "/page/mainFrame",
   schema: {
     operationId: "PageMainFrame",
     summary: "page.mainFrame",
     headers: Api.SessionHeadersSchema,
-    body: PageMainFrameRequestSchema,
+    querystring: PageMainFrameRequestSchema,
     response: {
       200: PageMainFrameResponseSchema,
       ...pageErrorResponses,

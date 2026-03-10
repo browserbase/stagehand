@@ -217,13 +217,6 @@ function createPageRequestSchema<T extends z.ZodTypeAny>(
   return PageBodySchema.extend({ params }).meta({ id });
 }
 
-function createPageQuerySchema<T extends z.ZodObject>(
-  id: string,
-  params: T,
-) {
-  return PageQuerySchemaBase.extend(params.shape).meta({ id });
-}
-
 function createPageActionSchema<
   TMethod extends PageActionMethod,
   TParams extends z.ZodTypeAny,
@@ -593,95 +586,41 @@ export const PageAddInitScriptRequestSchema = createPageRequestSchema(
   PageAddInitScriptParamsSchema,
 );
 
-export const PageTargetIdRequestSchema = createPageRequestSchema(
-  "PageTargetIdRequest",
-  PageTargetIdParamsSchema,
-);
+export const PageTargetIdRequestSchema = PageQuerySchemaBase.extend(
+  PageTargetIdParamsSchema.shape,
+).meta({ id: "PageTargetIdRequest" });
 
-export const PageTargetIdQuerySchema = createPageQuerySchema(
-  "PageTargetIdQuery",
-  PageTargetIdParamsSchema,
-);
+export const PageMainFrameIdRequestSchema = PageQuerySchemaBase.extend(
+  PageMainFrameIdParamsSchema.shape,
+).meta({ id: "PageMainFrameIdRequest" });
 
-export const PageMainFrameIdRequestSchema = createPageRequestSchema(
-  "PageMainFrameIdRequest",
-  PageMainFrameIdParamsSchema,
-);
+export const PageMainFrameRequestSchema = PageQuerySchemaBase.extend(
+  PageMainFrameParamsSchema.shape,
+).meta({ id: "PageMainFrameRequest" });
 
-export const PageMainFrameIdQuerySchema = createPageQuerySchema(
-  "PageMainFrameIdQuery",
-  PageMainFrameIdParamsSchema,
-);
+export const PageGetFullFrameTreeRequestSchema = PageQuerySchemaBase.extend(
+  PageGetFullFrameTreeParamsSchema.shape,
+).meta({ id: "PageGetFullFrameTreeRequest" });
 
-export const PageMainFrameRequestSchema = createPageRequestSchema(
-  "PageMainFrameRequest",
-  PageMainFrameParamsSchema,
-);
+export const PageAsProtocolFrameTreeRequestSchema = PageQuerySchemaBase.extend(
+  PageAsProtocolFrameTreeParamsSchema.shape,
+).meta({ id: "PageAsProtocolFrameTreeRequest" });
 
-export const PageMainFrameQuerySchema = createPageQuerySchema(
-  "PageMainFrameQuery",
-  PageMainFrameParamsSchema,
-);
+export const PageListAllFrameIdsRequestSchema = PageQuerySchemaBase.extend(
+  PageListAllFrameIdsParamsSchema.shape,
+).meta({ id: "PageListAllFrameIdsRequest" });
 
-export const PageGetFullFrameTreeRequestSchema = createPageRequestSchema(
-  "PageGetFullFrameTreeRequest",
-  PageGetFullFrameTreeParamsSchema,
-);
+export const PageGetOrdinalRequestSchema = PageQuerySchemaBase.extend(
+  PageGetOrdinalParamsSchema.shape,
+).meta({ id: "PageGetOrdinalRequest" });
 
-export const PageGetFullFrameTreeQuerySchema = createPageQuerySchema(
-  "PageGetFullFrameTreeQuery",
-  PageGetFullFrameTreeParamsSchema,
-);
+export const PageTitleRequestSchema = PageQuerySchemaBase.extend(
+  PageTitleParamsSchema.shape,
+).meta({ id: "PageTitleRequest" });
 
-export const PageAsProtocolFrameTreeRequestSchema = createPageRequestSchema(
-  "PageAsProtocolFrameTreeRequest",
-  PageAsProtocolFrameTreeParamsSchema,
-);
-
-export const PageAsProtocolFrameTreeQuerySchema = createPageQuerySchema(
-  "PageAsProtocolFrameTreeQuery",
-  PageAsProtocolFrameTreeParamsSchema,
-);
-
-export const PageListAllFrameIdsRequestSchema = createPageRequestSchema(
-  "PageListAllFrameIdsRequest",
-  PageListAllFrameIdsParamsSchema,
-);
-
-export const PageListAllFrameIdsQuerySchema = createPageQuerySchema(
-  "PageListAllFrameIdsQuery",
-  PageListAllFrameIdsParamsSchema,
-);
-
-export const PageGetOrdinalRequestSchema = createPageRequestSchema(
-  "PageGetOrdinalRequest",
-  PageGetOrdinalParamsSchema,
-);
-
-export const PageGetOrdinalQuerySchema = createPageQuerySchema(
-  "PageGetOrdinalQuery",
-  PageGetOrdinalParamsSchema,
-);
-
-export const PageTitleRequestSchema = createPageRequestSchema(
-  "PageTitleRequest",
-  PageTitleParamsSchema,
-);
-
-export const PageTitleQuerySchema = createPageQuerySchema(
-  "PageTitleQuery",
-  PageTitleParamsSchema,
-);
-
-export const PageUrlRequestSchema = createPageRequestSchema(
-  "PageUrlRequest",
-  PageUrlParamsSchema,
-);
-
-export const PageUrlQuerySchema = createPageQuerySchema(
-  "PageUrlQuery",
-  PageUrlParamsSchema,
-);
+export const PageUrlRequestSchema = PageQuerySchemaBase.extend(
+  PageUrlParamsSchema.shape,
+).meta({ id: "PageUrlRequest" });
 
 export const PageScreenshotRequestSchema = createPageRequestSchema(
   "PageScreenshotRequest",
@@ -693,15 +632,9 @@ export const PageSnapshotRequestSchema = createPageRequestSchema(
   PageSnapshotParamsSchema,
 );
 
-export const PageFramesRequestSchema = createPageRequestSchema(
-  "PageFramesRequest",
-  PageFramesParamsSchema,
-);
-
-export const PageFramesQuerySchema = createPageQuerySchema(
-  "PageFramesQuery",
-  PageFramesParamsSchema,
-);
+export const PageFramesRequestSchema = PageQuerySchemaBase.extend(
+  PageFramesParamsSchema.shape,
+).meta({ id: "PageFramesRequest" });
 
 export const PageSetViewportSizeRequestSchema = createPageRequestSchema(
   "PageSetViewportSizeRequest",
@@ -720,11 +653,6 @@ export const PageWaitForLoadStateRequestSchema = createPageRequestSchema(
 
 export const PageWaitForMainLoadStateRequestSchema = createPageRequestSchema(
   "PageWaitForMainLoadStateRequest",
-  PageWaitForMainLoadStateParamsSchema,
-);
-
-export const PageWaitForMainLoadStateQuerySchema = createPageQuerySchema(
-  "PageWaitForMainLoadStateQuery",
   PageWaitForMainLoadStateParamsSchema,
 );
 

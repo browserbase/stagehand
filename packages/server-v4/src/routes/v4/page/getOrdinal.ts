@@ -10,13 +10,13 @@ import {
 import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const getOrdinalRoute: RouteOptions = {
-  method: "POST",
+  method: "GET",
   url: "/page/getOrdinal",
   schema: {
     operationId: "PageGetOrdinal",
     summary: "page.getOrdinal",
     headers: Api.SessionHeadersSchema,
-    body: PageGetOrdinalRequestSchema,
+    querystring: PageGetOrdinalRequestSchema,
     response: {
       200: PageGetOrdinalResponseSchema,
       ...pageErrorResponses,

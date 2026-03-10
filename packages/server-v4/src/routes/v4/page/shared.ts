@@ -31,6 +31,11 @@ type PageRequestBody<TAction extends PageAction> = {
   params: TAction["params"];
 };
 
+type PageRequestQuery<TAction extends PageAction> = {
+  id?: string;
+  sessionId: string;
+} & TAction["params"];
+
 type PageActionHandlerContext<TAction extends PageAction> = {
   page: Awaited<ReturnType<typeof resolvePage>>;
   params: TAction["params"];
@@ -156,7 +161,13 @@ export function createPageActionHandler<
         );
     }
 
-    const { params, sessionId } = request.body as PageRequestBody<TAction>;
+    const input = (request.body ?? request.query) as
+      | PageRequestBody<TAction>
+      | PageRequestQuery<TAction>;
+    const sessionId = input.sessionId;
+    const params = (
+      "params" in input ? input.params : input
+    ) as TAction["params"];
     const sessionStore = getSessionStore();
 
     try {
