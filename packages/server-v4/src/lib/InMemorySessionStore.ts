@@ -2,6 +2,10 @@ import { randomUUID } from "crypto";
 import type { V3Options, LogLine } from "@browserbasehq/stagehand";
 import { V3 } from "@browserbasehq/stagehand";
 import type {
+  BrowserSessionAction,
+  BrowserSessionActionListQuery,
+} from "../schemas/v4/browserSession.js";
+import type {
   PageAction,
   PageActionListQuery,
 } from "../schemas/v4/page.js";
@@ -48,6 +52,7 @@ export class InMemorySessionStore implements SessionStore {
   private last: LruNode | null = null;
   private items: Map<string, LruNode> = new Map();
   private actions: Map<string, PageAction> = new Map();
+  private browserSessionActions: Map<string, BrowserSessionAction> = new Map();
   private maxCapacity: number;
   private ttlMs: number;
   private cleanupInterval: NodeJS.Timeout | null = null;
@@ -362,6 +367,33 @@ export class InMemorySessionStore implements SessionStore {
     return actions.slice(0, query.limit);
   }
 
+  async putBrowserSessionAction(action: BrowserSessionAction): Promise<void> {
+    this.browserSessionActions.set(action.id, action);
+  }
+
+  async getBrowserSessionAction(
+    actionId: string,
+  ): Promise<BrowserSessionAction | null> {
+    return this.browserSessionActions.get(actionId) ?? null;
+  }
+
+  async listBrowserSessionActions(
+    query: BrowserSessionActionListQuery,
+  ): Promise<BrowserSessionAction[]> {
+    const actions = [...this.browserSessionActions.values()]
+      .filter((action) => action.sessionId === query.sessionId)
+      .filter((action) => (query.pageId ? action.pageId === query.pageId : true))
+      .filter((action) => (query.method ? action.method === query.method : true))
+      .filter((action) => (query.status ? action.status === query.status : true))
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+
+    if (!query.limit) {
+      return actions;
+    }
+
+    return actions.slice(0, query.limit);
+  }
+
   updateCacheConfig(config: SessionCacheConfig): void {
     if (config.maxCapacity !== undefined) {
       if (config.maxCapacity <= 0) {
@@ -403,6 +435,7 @@ export class InMemorySessionStore implements SessionStore {
     const sessionIds = Array.from(this.items.keys());
     await Promise.all(sessionIds.map((id) => this.deleteSession(id)));
     this.actions.clear();
+    this.browserSessionActions.clear();
   }
 
   /**

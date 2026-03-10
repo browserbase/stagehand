@@ -5,6 +5,10 @@ import type {
   V3,
 } from "@browserbasehq/stagehand";
 import type { PageAction, PageActionListQuery } from "../schemas/v4/page.js";
+import type {
+  BrowserSessionAction,
+  BrowserSessionActionListQuery,
+} from "../schemas/v4/browserSession.js";
 
 /**
  * Result from SessionStore.startSession().
@@ -182,6 +186,23 @@ export interface SessionStore {
    * List stored v4 page actions for a session with optional filters.
    */
   listPageActions(query: PageActionListQuery): Promise<PageAction[]>;
+
+  /**
+   * Persist a v4 browser session action.
+   */
+  putBrowserSessionAction(action: BrowserSessionAction): Promise<void>;
+
+  /**
+   * Retrieve a stored v4 browser session action by id.
+   */
+  getBrowserSessionAction(actionId: string): Promise<BrowserSessionAction | null>;
+
+  /**
+   * List stored v4 browser session actions for a session with optional filters.
+   */
+  listBrowserSessionActions(
+    query: BrowserSessionActionListQuery,
+  ): Promise<BrowserSessionAction[]>;
 
   /**
    * Update cache configuration dynamically.

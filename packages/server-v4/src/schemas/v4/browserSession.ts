@@ -1014,6 +1014,152 @@ export const browserSessionOpenApiComponents = {
     BrowserSessionResult: BrowserSessionResultSchema,
     BrowserSessionResponse: BrowserSessionResponseSchema,
     BrowserSessionErrorResponse: BrowserSessionErrorResponseSchema,
+    BrowserSessionActionMethod: BrowserSessionActionMethodSchema,
+    BrowserSessionActionStatus: BrowserSessionActionStatusSchema,
+    BrowserSessionPage: BrowserSessionPageSchema,
+    BrowserSessionCookie: BrowserSessionCookieSchema,
+    BrowserSessionCookieParam: BrowserSessionCookieParamSchema,
+    BrowserSessionRegex: BrowserSessionRegexSchema,
+    BrowserSessionStringPattern: BrowserSessionStringPatternSchema,
+    BrowserSessionClearCookiesOptions: BrowserSessionClearCookiesOptionsSchema,
+    BrowserSessionViewport: BrowserSessionViewportSchema,
+    BrowserSessionActionBase: BrowserSessionActionBaseSchema,
+    BrowserSessionAddInitScriptParams: BrowserSessionAddInitScriptParamsSchema,
+    BrowserSessionSetExtraHTTPHeadersParams:
+      BrowserSessionSetExtraHTTPHeadersParamsSchema,
+    BrowserSessionPagesParams: BrowserSessionPagesParamsSchema,
+    BrowserSessionActivePageParams: BrowserSessionActivePageParamsSchema,
+    BrowserSessionAwaitActivePageParams:
+      BrowserSessionAwaitActivePageParamsSchema,
+    BrowserSessionResolvePageByMainFrameIdParams:
+      BrowserSessionResolvePageByMainFrameIdParamsSchema,
+    BrowserSessionGetFullFrameTreeByMainFrameIdParams:
+      BrowserSessionGetFullFrameTreeByMainFrameIdParamsSchema,
+    BrowserSessionNewPageParams: BrowserSessionNewPageParamsSchema,
+    BrowserSessionCookiesParams: BrowserSessionCookiesParamsSchema,
+    BrowserSessionAddCookiesParams: BrowserSessionAddCookiesParamsSchema,
+    BrowserSessionClearCookiesParams: BrowserSessionClearCookiesParamsSchema,
+    BrowserSessionConnectURLParams: BrowserSessionConnectURLParamsSchema,
+    BrowserSessionConfiguredViewportParams:
+      BrowserSessionConfiguredViewportParamsSchema,
+    BrowserSessionBrowserbaseSessionIDParams:
+      BrowserSessionBrowserbaseSessionIDParamsSchema,
+    BrowserSessionBrowserbaseSessionURLParams:
+      BrowserSessionBrowserbaseSessionURLParamsSchema,
+    BrowserSessionBrowserbaseDebugURLParams:
+      BrowserSessionBrowserbaseDebugURLParamsSchema,
+    BrowserSessionIsBrowserbaseParams: BrowserSessionIsBrowserbaseParamsSchema,
+    BrowserSessionIsAdvancedStealthParams:
+      BrowserSessionIsAdvancedStealthParamsSchema,
+    BrowserSessionSetViewportSizeParams:
+      BrowserSessionSetViewportSizeParamsSchema,
+    BrowserSessionCloseParams: BrowserSessionCloseParamsSchema,
+    BrowserSessionAddInitScriptRequest:
+      BrowserSessionAddInitScriptRequestSchema,
+    BrowserSessionSetExtraHTTPHeadersRequest:
+      BrowserSessionSetExtraHTTPHeadersRequestSchema,
+    BrowserSessionPagesRequest: BrowserSessionPagesRequestSchema,
+    BrowserSessionActivePageRequest: BrowserSessionActivePageRequestSchema,
+    BrowserSessionAwaitActivePageRequest:
+      BrowserSessionAwaitActivePageRequestSchema,
+    BrowserSessionResolvePageByMainFrameIdRequest:
+      BrowserSessionResolvePageByMainFrameIdRequestSchema,
+    BrowserSessionGetFullFrameTreeByMainFrameIdRequest:
+      BrowserSessionGetFullFrameTreeByMainFrameIdRequestSchema,
+    BrowserSessionNewPageRequest: BrowserSessionNewPageRequestSchema,
+    BrowserSessionCookiesRequest: BrowserSessionCookiesRequestSchema,
+    BrowserSessionAddCookiesRequest: BrowserSessionAddCookiesRequestSchema,
+    BrowserSessionClearCookiesRequest: BrowserSessionClearCookiesRequestSchema,
+    BrowserSessionConnectURLRequest: BrowserSessionConnectURLRequestSchema,
+    BrowserSessionConfiguredViewportRequest:
+      BrowserSessionConfiguredViewportRequestSchema,
+    BrowserSessionBrowserbaseSessionIDRequest:
+      BrowserSessionBrowserbaseSessionIDRequestSchema,
+    BrowserSessionBrowserbaseSessionURLRequest:
+      BrowserSessionBrowserbaseSessionURLRequestSchema,
+    BrowserSessionBrowserbaseDebugURLRequest:
+      BrowserSessionBrowserbaseDebugURLRequestSchema,
+    BrowserSessionIsBrowserbaseRequest:
+      BrowserSessionIsBrowserbaseRequestSchema,
+    BrowserSessionIsAdvancedStealthRequest:
+      BrowserSessionIsAdvancedStealthRequestSchema,
+    BrowserSessionSetViewportSizeRequest:
+      BrowserSessionSetViewportSizeRequestSchema,
+    BrowserSessionCloseRequest: BrowserSessionCloseRequestSchema,
+    BrowserSessionAddInitScriptAction: BrowserSessionAddInitScriptActionSchema,
+    BrowserSessionSetExtraHTTPHeadersAction:
+      BrowserSessionSetExtraHTTPHeadersActionSchema,
+    BrowserSessionPagesAction: BrowserSessionPagesActionSchema,
+    BrowserSessionActivePageAction: BrowserSessionActivePageActionSchema,
+    BrowserSessionAwaitActivePageAction:
+      BrowserSessionAwaitActivePageActionSchema,
+    BrowserSessionResolvePageByMainFrameIdAction:
+      BrowserSessionResolvePageByMainFrameIdActionSchema,
+    BrowserSessionGetFullFrameTreeByMainFrameIdAction:
+      BrowserSessionGetFullFrameTreeByMainFrameIdActionSchema,
+    BrowserSessionNewPageAction: BrowserSessionNewPageActionSchema,
+    BrowserSessionCookiesAction: BrowserSessionCookiesActionSchema,
+    BrowserSessionAddCookiesAction: BrowserSessionAddCookiesActionSchema,
+    BrowserSessionClearCookiesAction: BrowserSessionClearCookiesActionSchema,
+    BrowserSessionConnectURLAction: BrowserSessionConnectURLActionSchema,
+    BrowserSessionConfiguredViewportAction:
+      BrowserSessionConfiguredViewportActionSchema,
+    BrowserSessionBrowserbaseSessionIDAction:
+      BrowserSessionBrowserbaseSessionIDActionSchema,
+    BrowserSessionBrowserbaseSessionURLAction:
+      BrowserSessionBrowserbaseSessionURLActionSchema,
+    BrowserSessionBrowserbaseDebugURLAction:
+      BrowserSessionBrowserbaseDebugURLActionSchema,
+    BrowserSessionIsBrowserbaseAction:
+      BrowserSessionIsBrowserbaseActionSchema,
+    BrowserSessionIsAdvancedStealthAction:
+      BrowserSessionIsAdvancedStealthActionSchema,
+    BrowserSessionSetViewportSizeAction:
+      BrowserSessionSetViewportSizeActionSchema,
+    BrowserSessionCloseAction: BrowserSessionCloseActionSchema,
+    BrowserSessionAction: BrowserSessionActionSchema,
+    BrowserSessionV4ErrorResponse: BrowserSessionV4ErrorResponseSchema,
+    BrowserSessionAddInitScriptResponse:
+      BrowserSessionAddInitScriptResponseSchema,
+    BrowserSessionSetExtraHTTPHeadersResponse:
+      BrowserSessionSetExtraHTTPHeadersResponseSchema,
+    BrowserSessionPagesResponse: BrowserSessionPagesResponseSchema,
+    BrowserSessionActivePageResponse: BrowserSessionActivePageResponseSchema,
+    BrowserSessionAwaitActivePageResponse:
+      BrowserSessionAwaitActivePageResponseSchema,
+    BrowserSessionResolvePageByMainFrameIdResponse:
+      BrowserSessionResolvePageByMainFrameIdResponseSchema,
+    BrowserSessionGetFullFrameTreeByMainFrameIdResponse:
+      BrowserSessionGetFullFrameTreeByMainFrameIdResponseSchema,
+    BrowserSessionNewPageResponse: BrowserSessionNewPageResponseSchema,
+    BrowserSessionCookiesResponse: BrowserSessionCookiesResponseSchema,
+    BrowserSessionAddCookiesResponse: BrowserSessionAddCookiesResponseSchema,
+    BrowserSessionClearCookiesResponse:
+      BrowserSessionClearCookiesResponseSchema,
+    BrowserSessionConnectURLResponse: BrowserSessionConnectURLResponseSchema,
+    BrowserSessionConfiguredViewportResponse:
+      BrowserSessionConfiguredViewportResponseSchema,
+    BrowserSessionBrowserbaseSessionIDResponse:
+      BrowserSessionBrowserbaseSessionIDResponseSchema,
+    BrowserSessionBrowserbaseSessionURLResponse:
+      BrowserSessionBrowserbaseSessionURLResponseSchema,
+    BrowserSessionBrowserbaseDebugURLResponse:
+      BrowserSessionBrowserbaseDebugURLResponseSchema,
+    BrowserSessionIsBrowserbaseResponse:
+      BrowserSessionIsBrowserbaseResponseSchema,
+    BrowserSessionIsAdvancedStealthResponse:
+      BrowserSessionIsAdvancedStealthResponseSchema,
+    BrowserSessionSetViewportSizeResponse:
+      BrowserSessionSetViewportSizeResponseSchema,
+    BrowserSessionCloseResponse: BrowserSessionCloseResponseSchema,
+    BrowserSessionActionIdParams: BrowserSessionActionIdParamsSchema,
+    BrowserSessionActionDetailsQuery:
+      BrowserSessionActionDetailsQuerySchema,
+    BrowserSessionActionListQuery: BrowserSessionActionListQuerySchema,
+    BrowserSessionActionDetailsResponse:
+      BrowserSessionActionDetailsResponseSchema,
+    BrowserSessionActionListResponse:
+      BrowserSessionActionListResponseSchema,
   },
 };
 
@@ -1024,3 +1170,29 @@ export type BrowserSessionIdParams = z.infer<
   typeof BrowserSessionIdParamsSchema
 >;
 export type BrowserSession = z.infer<typeof BrowserSessionSchema>;
+export type BrowserSessionActionMethod = z.infer<
+  typeof BrowserSessionActionMethodSchema
+>;
+export type BrowserSessionAction = z.infer<typeof BrowserSessionActionSchema>;
+export type BrowserSessionActionDetailsQuery = z.infer<
+  typeof BrowserSessionActionDetailsQuerySchema
+>;
+export type BrowserSessionActionListQuery = z.infer<
+  typeof BrowserSessionActionListQuerySchema
+>;
+export type BrowserSessionPage = z.infer<typeof BrowserSessionPageSchema>;
+
+export function buildBrowserSessionErrorResponse(input: {
+  error: string;
+  statusCode: number;
+  stack?: string | null;
+  action?: z.input<typeof BrowserSessionActionSchema>;
+}) {
+  return BrowserSessionV4ErrorResponseSchema.parse({
+    success: false,
+    error: input.error,
+    statusCode: input.statusCode,
+    stack: input.stack ?? null,
+    ...(input.action ? { action: input.action } : {}),
+  });
+}
