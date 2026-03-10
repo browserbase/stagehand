@@ -256,11 +256,16 @@ security_schemes:
     type: apiKey
     in: header
     name: x-model-api-key
+  LLMModelBaseUrlAuth:
+    type: apiKey
+    in: header
+    name: x-model-base-url
 
 security:
   - BBApiKeyAuth: []
     BBProjectIdAuth: []
     LLMModelApiKeyAuth: []
+    LLMModelBaseUrlAuth: []
 
 # `readme` is used to configure the code snippets that will be rendered in the
 # README.md of various SDKs.

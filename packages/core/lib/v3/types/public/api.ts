@@ -956,6 +956,13 @@ export const openApiSecuritySchemes = {
     name: "x-model-api-key",
     description: "API key for the AI model provider (OpenAI, Anthropic, etc.)",
   },
+  ModelBaseUrl: {
+    type: "apiKey",
+    in: "header",
+    name: "x-model-base-url",
+    description:
+      "Base URL override for the AI model provider (for OpenAI-compatible endpoints)",
+  },
 } as const;
 
 /** OpenAPI links for session operations (used in SessionStart response) */

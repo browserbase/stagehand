@@ -104,6 +104,8 @@ interface StagehandAPIConstructorParams {
 interface ClientSessionStartParams extends Api.SessionStartRequest {
   /** Model API key - sent via x-model-api-key header, not in request body */
   modelApiKey: string;
+  /** Model base URL - sent via x-model-base-url header, not in request body */
+  modelBaseURL?: string;
 }
 
 /**
@@ -177,6 +179,7 @@ export class StagehandAPIClient {
   private projectId?: string;
   private sessionId?: string;
   private modelApiKey: string;
+  private modelBaseURL?: string;
   private modelProvider?: string;
   private region?: BrowserbaseRegion;
   private logger: (message: LogLine) => void;
@@ -202,6 +205,7 @@ export class StagehandAPIClient {
   async init({
     modelName,
     modelApiKey,
+    modelBaseURL,
     domSettleTimeoutMs,
     verbose,
     systemPrompt,
@@ -214,6 +218,7 @@ export class StagehandAPIClient {
       throw new StagehandAPIError("modelApiKey is required");
     }
     this.modelApiKey = modelApiKey;
+    this.modelBaseURL = modelBaseURL;
     // Extract provider from modelName (e.g., "openai/gpt-5-nano" -> "openai")
     this.modelProvider = modelName?.includes("/")
       ? modelName.split("/")[0]
@@ -849,6 +854,7 @@ export class StagehandAPIClient {
       // we want real-time logs, so we stream the response
       "x-stream-response": "true",
       "x-model-api-key": this.modelApiKey,
+      ...(this.modelBaseURL ? { "x-model-base-url": this.modelBaseURL } : {}),
       "x-language": "typescript",
       "x-sdk-version": STAGEHAND_VERSION,
     };
