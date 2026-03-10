@@ -1,6 +1,7 @@
 ---
 "@browserbasehq/stagehand": minor
 "@browserbasehq/stagehand-server-v3": minor
+"@browserbasehq/stagehand-server-v4": minor
 ---
 
 feat: add `chatcompletions` provider prefix and `modelBaseURL` support for OpenAI-compatible endpoints
