@@ -117,6 +117,12 @@ export function getAISDKLanguageModel(
       );
     }
     const provider = creator(clientOptions);
+    // When a custom baseURL is set, use the chat completions API instead of
+    // the Responses API, since custom endpoints (e.g. ZhipuAI, Ollama) are
+    // OpenAI-compatible but don't support the Responses API.
+    if (subProvider === "openai" && clientOptions?.baseURL) {
+      return (provider as ReturnType<typeof createOpenAI>).chat(subModelName);
+    }
     // Get the specific model from the provider
     return provider(subModelName);
   } else {

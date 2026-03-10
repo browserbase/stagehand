@@ -173,24 +173,83 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       }
 
       try {
-        objectResponse = await generateObject({
-          model: this.model,
-          messages: formattedMessages,
-          schema: options.response_model.schema,
-          temperature,
-          providerOptions: isGPT5
-            ? {
-                openai: {
-                  textVerbosity: isCodex ? "medium" : "low", // codex models only support 'medium'
-                  reasoningEffort: isCodex
-                    ? "medium"
-                    : usesLowReasoningEffort
-                      ? "low"
-                      : "minimal",
-                },
+        if (needsPromptJsonFallback) {
+          // For models without native structured output support, use
+          // "no-schema" mode so the AI SDK doesn't send response_format.
+          // The prompt-based JSON instruction above guides the model instead.
+          const noSchemaResponse = await generateObject({
+            model: this.model,
+            messages: formattedMessages,
+            output: "no-schema",
+            temperature,
+          });
+          // Coerce the free-form response to match the expected schema.
+          // Models without structured output support may return stringified
+          // nested values (e.g. "[]" instead of []) or omit fields entirely.
+          const raw = noSchemaResponse.object as Record<string, unknown>;
+          for (const [k, v] of Object.entries(raw)) {
+            if (typeof v === "string") {
+              try {
+                raw[k] = JSON.parse(v);
+              } catch {
+                // keep as string
               }
-            : undefined,
-        });
+            }
+          }
+
+          // First attempt: parse as-is. On failure, patch common issues
+          // (missing/stringified arrays) and retry.
+          let parsed: unknown;
+          const firstTry = options.response_model.schema.safeParse(raw);
+          if (firstTry.success) {
+            parsed = firstTry.data;
+          } else {
+            for (const issue of firstTry.error.issues) {
+              if (
+                issue.code === "invalid_type" &&
+                issue.expected === "array" &&
+                issue.path.length === 1
+              ) {
+                const key = issue.path[0] as string;
+                const val = raw[key];
+                if (val === undefined || val === null) {
+                  raw[key] = [];
+                } else if (typeof val === "string") {
+                  try {
+                    raw[key] = JSON.parse(val);
+                  } catch {
+                    raw[key] = [];
+                  }
+                }
+              }
+            }
+            parsed = options.response_model.schema.parse(raw);
+          }
+
+          objectResponse = {
+            ...noSchemaResponse,
+            object: parsed,
+          };
+        } else {
+          objectResponse = await generateObject({
+            model: this.model,
+            messages: formattedMessages,
+            schema: options.response_model.schema,
+            temperature,
+            providerOptions: isGPT5
+              ? {
+                  openai: {
+                    textVerbosity: isCodex ? "medium" : "low",
+                    reasoningEffort: isCodex
+                      ? "medium"
+                      : usesLowReasoningEffort
+                        ? "low"
+                        : "minimal",
+                  },
+                }
+              : undefined,
+          });
+        }
       } catch (err) {
         // Log error response to maintain request/response pairing
         SessionFileLogger.logLlmResponse({

@@ -211,6 +211,7 @@ export class InMemorySessionStore implements SessionStore {
       model: {
         modelName: params.modelName,
         apiKey: ctx.modelApiKey,
+        baseURL: ctx.modelBaseURL,
       },
       verbose: params.verbose,
       systemPrompt: params.systemPrompt,
