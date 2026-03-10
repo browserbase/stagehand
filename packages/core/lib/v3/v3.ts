@@ -886,12 +886,6 @@ export class V3 {
 
         if (this.opts.env === "BROWSERBASE") {
           const { apiKey, projectId } = this.requireBrowserbaseCreds();
-          if (!apiKey || !projectId) {
-            throw new MissingEnvironmentVariableError(
-              "BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID",
-              "Browserbase environment",
-            );
-          }
           this.logger({
             category: "init",
             message: "Starting browserbase session",
