@@ -62,7 +62,7 @@ export async function createBrowserbaseSession(
       ...(userMetadata ?? {}),
       stagehand: "true",
     },
-  } as Browserbase.Sessions.SessionCreateParams;
+  } satisfies Browserbase.Sessions.SessionCreateParams;
 
   const created = (await withTimeout(
     bb.sessions.create(createPayload),
