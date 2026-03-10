@@ -88,7 +88,8 @@ jobs:
               - 'package.json'
               - 'pnpm-lock.yaml'
             server:
-              - 'packages/server/**'
+              - 'packages/server-v3/**'
+              - 'packages/server-v4/**'
               - 'packages/core/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
@@ -243,8 +244,10 @@ jobs:
             packages/core/lib/dom/build/**
             packages/core/lib/v3/dom/build/**
             packages/evals/dist/**
-            packages/server/dist/**
-            packages/server/openapi.v3.yaml
+            packages/server-v3/dist/**
+            packages/server-v3/openapi.v3.yaml
+            packages/server-v4/dist/**
+            packages/server-v4/openapi.v4.yaml
           retention-days: 1
 
   discover-core-tests:
@@ -339,7 +342,7 @@ jobs:
       - name: Discover server test files
         id: set-matrix
         run: |
-          int_json=$(pnpm --filter @browserbasehq/stagehand-server --silent run test:server -- --list integration)
+          int_json=$(pnpm --filter @browserbasehq/stagehand-server-v3 --silent run test:server -- --list integration)
           echo "integration-tests=$int_json" >> $GITHUB_OUTPUT
 
           if [ "$int_json" = "[]" ]; then
@@ -351,27 +354,27 @@ jobs:
           echo "Found server integration tests: $int_json"
 
   build-server-sea:
-    name: Build SEA binary (tests)
-    uses: ./.github/workflows/stagehand-server-sea-build.yml
+    name: Build SEA binary (tests, v3)
+    uses: ./.github/workflows/stagehand-server-v3-sea-build.yml
     needs: [run-build]
     with:
       matrix: |
         [
-          {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64","include_sourcemaps":false},
-          {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","binary_name":"stagehand-server-linux-arm64","include_sourcemaps":false},
-          {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-darwin-arm64","include_sourcemaps":false},
-          {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-darwin-x64","include_sourcemaps":false},
-          {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-win32-x64.exe","include_sourcemaps":false},
-          {"os":"windows-11-arm","platform":"win32","arch":"arm64","binary_name":"stagehand-server-win32-arm64.exe","include_sourcemaps":false},
-          {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-linux-x64-sourcemap","include_sourcemaps":true}
+          {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-v3-linux-x64","include_sourcemaps":false},
+          {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","binary_name":"stagehand-server-v3-linux-arm64","include_sourcemaps":false},
+          {"os":"macos-15","platform":"darwin","arch":"arm64","binary_name":"stagehand-server-v3-darwin-arm64","include_sourcemaps":false},
+          {"os":"macos-15-intel","platform":"darwin","arch":"x64","binary_name":"stagehand-server-v3-darwin-x64","include_sourcemaps":false},
+          {"os":"windows-latest","platform":"win32","arch":"x64","binary_name":"stagehand-server-v3-win32-x64.exe","include_sourcemaps":false},
+          {"os":"windows-11-arm","platform":"win32","arch":"arm64","binary_name":"stagehand-server-v3-win32-arm64.exe","include_sourcemaps":false},
+          {"os":"ubuntu-latest","platform":"linux","arch":"x64","binary_name":"stagehand-server-v3-linux-x64-sourcemap","include_sourcemaps":true}
         ]
       use-prebuilt-artifacts: "true"
       restore-turbo-cache: "false"
       node-version: "20.x"
-      upload-only-binary: stagehand-server-linux-x64-sourcemap
+      upload-only-binary: stagehand-server-v3-linux-x64-sourcemap
 
   server-integration-tests:
-    name: server/integration/${{ matrix.test.name }}
+    name: server/v3/integration/${{ matrix.test.name }}
     runs-on: ubuntu-latest
     needs: [build-server-sea, discover-server-tests, run-build]
     if: needs.discover-server-tests.outputs.has-integration-tests == 'true'
@@ -406,31 +409,31 @@ jobs:
       - name: Download SEA binary
         uses: actions/download-artifact@v4
         with:
-          name: stagehand-server-linux-x64-sourcemap
+          name: stagehand-server-v3-linux-x64-sourcemap
           path: .
 
       - name: Ensure SEA binary is present and executable
         shell: bash
         run: |
           set -euo pipefail
-          test -f packages/server/dist/sea/stagehand-server-linux-x64-sourcemap
-          chmod +x packages/server/dist/sea/stagehand-server-linux-x64-sourcemap
+          test -f packages/server-v3/dist/sea/stagehand-server-v3-linux-x64-sourcemap
+          chmod +x packages/server-v3/dist/sea/stagehand-server-v3-linux-x64-sourcemap
 
       - name: Run server integration test - ${{ matrix.test.name }}
         env:
-          SEA_BINARY_NAME: stagehand-server-linux-x64-sourcemap
+          SEA_BINARY_NAME: stagehand-server-v3-linux-x64-sourcemap
         run: |
-          pnpm exec turbo run test:server --only --filter=@browserbasehq/stagehand-server -- "${{ matrix.test.path }}"
+          pnpm exec turbo run test:server --only --filter=@browserbasehq/stagehand-server-v3 -- "${{ matrix.test.path }}"
 
       - uses: ./.github/actions/upload-ctrf-report
         if: always()
         with:
-          name: ctrf/server-integration/${{ matrix.test.name }}.json
+          name: ctrf/server-v3-integration/${{ matrix.test.name }}.json
 
       - uses: ./.github/actions/upload-v8-coverage
         if: always()
         with:
-          name: coverage/server-integration/${{ matrix.test.name }}
+          name: coverage/server-v3-integration/${{ matrix.test.name }}
 
   discover-e2e-tests:
     runs-on: ubuntu-latest
