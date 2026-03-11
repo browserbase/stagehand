@@ -43,7 +43,7 @@ const toolCtx = {
   abortSignal: new AbortController().signal,
 };
 
-describe("fillForm value override (#1789)", () => {
+describe("fillForm value override", () => {
   it("uses caller-provided values instead of LLM-hallucinated values", async () => {
     // observe() returns hallucinated placeholder values
     const v3 = createMockV3([
