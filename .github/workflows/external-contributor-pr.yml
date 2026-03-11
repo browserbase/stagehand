@@ -30,6 +30,7 @@ env:
         { name: 'external-contributor:completed', color: '2da44e', description: 'The mirrored PR has been merged and the external contributor flow is complete.' },
       ];
       const MANAGED_LABELS = new Set(LABELS.map((label) => label.name));
+      const MANAGED_COMMENT_AUTHOR = 'github-actions[bot]';
       const CLAIM_RE = /<!-- external-contributor-pr:claim owned-pr=(\d+) source-sha=([0-9a-f]{40}) claimer=([A-Za-z0-9-]+) branch=([^ ]+) -->/;
       const OWNED_RE = /<!-- external-contributor-pr:owned source-pr=(\d+) source-sha=([0-9a-f]{40}) claimer=([A-Za-z0-9-]+) -->/;
       const NOTICE_MARKER = '<!-- external-contributor-pr:notice -->';
@@ -69,10 +70,25 @@ env:
         });
       }
 
+      function isManagedComment(comment) {
+        return comment.user?.login === MANAGED_COMMENT_AUTHOR;
+      }
+
+      function defaultManagedBranch(prNumber) {
+        return `external-contributor-pr-${prNumber}`;
+      }
+
+      function sanitizeManagedBranch(prNumber, branch) {
+        const fallback = defaultManagedBranch(prNumber);
+        if (!branch) return fallback;
+        const allowed = new RegExp(`^external-contributor-pr-${prNumber}(?:-[A-Za-z0-9._-]+)?$`);
+        return allowed.test(branch) ? branch : fallback;
+      }
+
       async function upsertComment(github, context, issueNumber, marker, lines) {
         const comments = await listComments(github, context, issueNumber);
         const body = [marker, ...lines].join('\n');
-        const existing = comments.find((comment) => comment.body?.includes(marker));
+        const existing = comments.find((comment) => isManagedComment(comment) && comment.body?.includes(marker));
         if (!existing) {
           await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNumber, body });
           return;
@@ -103,9 +119,16 @@ env:
         return [...comments]
           .reverse()
           .map((comment) => {
+            if (!isManagedComment(comment)) return null;
             const match = comment.body?.match(CLAIM_RE);
             if (!match) return null;
-            return { ownedPrNumber: Number(match[1]), sourceSha: match[2], claimer: match[3], branch: match[4] };
+            const sourcePrNumber = issueNumber;
+            return {
+              ownedPrNumber: Number(match[1]),
+              sourceSha: match[2],
+              claimer: match[3],
+              branch: sanitizeManagedBranch(sourcePrNumber, match[4]),
+            };
           })
           .find(Boolean);
       }
@@ -204,7 +227,7 @@ env:
         if (pr.head.sha !== handoff.approvedSha) return;
 
         const latestClaim = await findLatestClaim(github, context, pr.number);
-        const branch = latestClaim?.branch || `external-contributor-pr-${pr.number}`;
+        const branch = sanitizeManagedBranch(pr.number, latestClaim?.branch);
         const title = `[Claimed #${pr.number}] ${pr.title}`;
         const body = [
           `Mirrored from external contributor PR #${pr.number} after approval by @${handoff.reviewer}.`,
@@ -437,7 +460,7 @@ jobs:
             const lib = eval(process.env.ECPR_LIB);
             await lib.prepareClaim({ github, context, core, artifactPath: 'approval-handoff/approval-handoff.json' });
 
-      - name: Validate GitHub App configuration
+      - name: Checkout repository for branch operations
         if: steps.prepare-claim.outputs.should-claim == 'true'
         uses: actions/checkout@v4
         with:
@@ -447,51 +470,99 @@ jobs:
       - name: Refresh internal branch
         if: steps.prepare-claim.outputs.should-claim == 'true'
         id: refresh-branch
+        continue-on-error: true
         env:
           INTERNAL_BRANCH: ${{ steps.prepare-claim.outputs.branch }}
           PR_NUMBER: ${{ steps.prepare-claim.outputs.pr-number }}
           PREVIOUS_SOURCE_SHA: ${{ steps.prepare-claim.outputs.previous-source-sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -euo pipefail
-          git config user.name "stagehand-external-pr[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git fetch origin "pull/${PR_NUMBER}/head:refs/remotes/origin/external-pr-head-${PR_NUMBER}"
+          set -uo pipefail
+
+          refresh_status="conflict"
+          refresh_reason="unknown"
+
+          write_outputs() {
+            echo "refresh-status=${refresh_status}" >> "$GITHUB_OUTPUT"
+            if [ -n "${refresh_reason}" ]; then
+              echo "reason=${refresh_reason}" >> "$GITHUB_OUTPUT"
+            fi
+          }
+
+          trap write_outputs EXIT
+
+          if ! git config user.name "github-actions[bot]"; then
+            refresh_reason="git-config-failed"
+            exit 0
+          fi
+
+          if ! git config user.email "41898282+github-actions[bot]@users.noreply.github.com"; then
+            refresh_reason="git-config-failed"
+            exit 0
+          fi
+
+          if ! git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"; then
+            refresh_reason="remote-auth-failed"
+            exit 0
+          fi
+
+          if ! git fetch origin "pull/${PR_NUMBER}/head:refs/remotes/origin/external-pr-head-${PR_NUMBER}"; then
+            refresh_reason="fetch-external-failed"
+            exit 0
+          fi
 
           external_ref="refs/remotes/origin/external-pr-head-${PR_NUMBER}"
           branch_exists=false
           if git ls-remote --exit-code --heads origin "${INTERNAL_BRANCH}" >/dev/null 2>&1; then
             branch_exists=true
-            git fetch origin "${INTERNAL_BRANCH}:refs/remotes/origin/${INTERNAL_BRANCH}"
+            if ! git fetch origin "${INTERNAL_BRANCH}:refs/remotes/origin/${INTERNAL_BRANCH}"; then
+              refresh_reason="fetch-internal-failed"
+              exit 0
+            fi
           fi
 
           if [ "${branch_exists}" = false ]; then
-            git checkout -B "${INTERNAL_BRANCH}" "${external_ref}"
-            git push --force-with-lease origin "HEAD:refs/heads/${INTERNAL_BRANCH}"
-            echo "refresh-status=updated" >> "$GITHUB_OUTPUT"
+            if ! git checkout -B "${INTERNAL_BRANCH}" "${external_ref}"; then
+              refresh_reason="checkout-failed"
+              exit 0
+            fi
+
+            if ! git push --force-with-lease origin "HEAD:refs/heads/${INTERNAL_BRANCH}"; then
+              refresh_reason="push-failed"
+              exit 0
+            fi
+
+            refresh_status="updated"
+            refresh_reason=""
             exit 0
           fi
 
-          git checkout -B "${INTERNAL_BRANCH}" "refs/remotes/origin/${INTERNAL_BRANCH}"
+          if ! git checkout -B "${INTERNAL_BRANCH}" "refs/remotes/origin/${INTERNAL_BRANCH}"; then
+            refresh_reason="checkout-failed"
+            exit 0
+          fi
+
           if [ -z "${PREVIOUS_SOURCE_SHA}" ]; then
-            echo "refresh-status=conflict" >> "$GITHUB_OUTPUT"
-            echo "reason=missing-previous-source" >> "$GITHUB_OUTPUT"
+            refresh_reason="missing-previous-source"
             exit 0
           fi
 
           if git rebase --onto "${external_ref}" "${PREVIOUS_SOURCE_SHA}" "${INTERNAL_BRANCH}"; then
-            git push --force-with-lease origin "HEAD:refs/heads/${INTERNAL_BRANCH}"
-            echo "refresh-status=updated" >> "$GITHUB_OUTPUT"
+            if ! git push --force-with-lease origin "HEAD:refs/heads/${INTERNAL_BRANCH}"; then
+              refresh_reason="push-failed"
+              exit 0
+            fi
+
+            refresh_status="updated"
+            refresh_reason=""
             exit 0
           fi
 
           git rebase --abort || true
-          echo "refresh-status=conflict" >> "$GITHUB_OUTPUT"
-          echo "reason=rebase-conflict" >> "$GITHUB_OUTPUT"
+          refresh_reason="rebase-conflict"
 
       - name: Finalize approved claim
-        if: steps.prepare-claim.outputs.should-claim == 'true'
+        if: always() && steps.prepare-claim.outputs.should-claim == 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -502,15 +573,15 @@ jobs:
               context,
               input: {
                 prNumber: Number('${{ steps.prepare-claim.outputs.pr-number }}'),
-                sourceSha: '${{ steps.prepare-claim.outputs.source-sha }}',
-                branch: '${{ steps.prepare-claim.outputs.branch }}',
-                claimer: '${{ steps.prepare-claim.outputs.claimer }}',
+                sourceSha: ${{ toJson(steps.prepare-claim.outputs.source-sha) }},
+                branch: ${{ toJson(steps.prepare-claim.outputs.branch) }},
+                claimer: ${{ toJson(steps.prepare-claim.outputs.claimer) }},
                 title: ${{ toJson(steps.prepare-claim.outputs.title) }},
                 body: ${{ toJson(steps.prepare-claim.outputs.body) }},
-                existingNumber: '${{ steps.prepare-claim.outputs.owned-pr-number }}',
+                existingNumber: ${{ toJson(steps.prepare-claim.outputs.owned-pr-number) }},
                 existingMerged: '${{ steps.prepare-claim.outputs.owned-pr-merged }}' === 'true',
-                refreshStatus: '${{ steps.refresh-branch.outputs.refresh-status }}',
-                refreshReason: '${{ steps.refresh-branch.outputs.reason }}',
+                refreshStatus: ${{ toJson(steps.refresh-branch.outputs.refresh-status) }},
+                refreshReason: ${{ toJson(steps.refresh-branch.outputs.reason) }},
               },
             });
 
