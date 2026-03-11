@@ -1,0 +1,889 @@
+name: External Contributor PR
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - closed
+  workflow_run:
+    workflows:
+      - External Contributor PR Approval Handoff
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  manage-external-pr:
+    if: github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post claim instructions
+        if: github.event.action == 'opened' || github.event.action == 'reopened'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const marker = '<!-- external-contributor-pr:notice -->';
+            const body = [
+              marker,
+              'This PR is from an external contributor and must be approved by a stagehand team member with write access before CI can run.',
+              'To claim it, submit a normal approving review on the latest commit. The workflow will mirror that exact SHA into an internal PR owned by the approver.',
+              'If new commits are pushed later, the mirrored PR will be closed and a team member must approve the latest commit again to recreate it.',
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+
+            const existingComment = comments.find((comment) => comment.body?.includes(marker));
+            if (!existingComment) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+              return;
+            }
+
+            if (existingComment.body !== body) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body,
+              });
+            }
+
+      - name: Sync external PR state
+        if: github.event.action == 'opened' || github.event.action == 'reopened'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const managedLabels = [
+              { name: 'external-contributor', color: '8b949e', description: 'Tracks PRs mirrored from external contributor forks.' },
+              { name: 'external-contributor:awaiting-approval', color: 'd29922', description: 'Waiting for a stagehand team member to approve the latest external commit.' },
+              { name: 'external-contributor:mirrored', color: '1f6feb', description: 'An internal mirrored PR currently exists for this external contributor PR.' },
+              { name: 'external-contributor:stale', color: 'db6d28', description: 'The mirrored PR is stale or closed and needs maintainer action.' },
+              { name: 'external-contributor:completed', color: '2da44e', description: 'The mirrored PR has been merged and the external contributor flow is complete.' },
+            ];
+            const managedLabelNames = new Set(managedLabels.map((label) => label.name));
+
+            async function ensureLabels() {
+              for (const label of managedLabels) {
+                try {
+                  await github.rest.issues.getLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label.name,
+                  });
+                } catch (error) {
+                  if (error.status !== 404) {
+                    throw error;
+                  }
+
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label.name,
+                    color: label.color,
+                    description: label.description,
+                  });
+                }
+              }
+            }
+
+            async function syncLabels(issueNumber, desiredLabels) {
+              const { data: issue } = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+              });
+
+              const existingNames = issue.labels.map((label) => typeof label === 'string' ? label : label.name).filter(Boolean);
+              const preserved = existingNames.filter((label) => !managedLabelNames.has(label));
+              await github.rest.issues.setLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: [...preserved, ...desiredLabels],
+              });
+            }
+
+            await ensureLabels();
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              per_page: 100,
+            });
+
+            const claimPattern = /<!-- external-contributor-pr:claim owned-pr=(\d+) source-sha=([0-9a-f]{40}) claimer=([A-Za-z0-9-]+) branch=([^ ]+) -->/;
+            const latestClaim = [...comments]
+              .reverse()
+              .map((comment) => {
+                const match = comment.body?.match(claimPattern);
+                if (!match) {
+                  return null;
+                }
+
+                return {
+                  ownedPrNumber: Number(match[1]),
+                  sourceSha: match[2],
+                };
+              })
+              .find(Boolean);
+
+            if (context.payload.action === 'reopened' && latestClaim && latestClaim.sourceSha === pr.head.sha) {
+              const { data: ownedPr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: latestClaim.ownedPrNumber,
+              });
+
+              if (ownedPr.state === 'open') {
+                await syncLabels(pr.number, ['external-contributor', 'external-contributor:mirrored']);
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  body: `This external contributor PR is already mirrored to ${ownedPr.html_url}. Closing it again so all further discussion stays on the mirrored PR until new commits require another approval.`,
+                });
+                await github.rest.pulls.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pr.number,
+                  state: 'closed',
+                });
+                return;
+              }
+            }
+
+            await syncLabels(pr.number, ['external-contributor', 'external-contributor:awaiting-approval']);
+
+      - name: Detect stale claim
+        if: github.event.action == 'synchronize'
+        id: stale-claim
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              per_page: 100,
+            });
+
+            const claimPattern = /<!-- external-contributor-pr:claim owned-pr=(\d+) source-sha=([0-9a-f]{40}) claimer=([A-Za-z0-9-]+) branch=([^ ]+) -->/;
+            const latestClaim = [...comments]
+              .reverse()
+              .map((comment) => {
+                const match = comment.body?.match(claimPattern);
+                if (!match) {
+                  return null;
+                }
+
+                return {
+                  ownedPrNumber: Number(match[1]),
+                  sourceSha: match[2],
+                  claimer: match[3],
+                  branch: match[4],
+                };
+              })
+              .find(Boolean);
+
+            if (!latestClaim) {
+              core.setOutput('should-invalidate', 'false');
+              return;
+            }
+
+            if (latestClaim.sourceSha === pr.head.sha) {
+              core.setOutput('should-invalidate', 'false');
+              return;
+            }
+
+            const { data: ownedPr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: latestClaim.ownedPrNumber,
+            });
+
+            if (ownedPr.state !== 'open') {
+              core.setOutput('should-invalidate', 'false');
+              return;
+            }
+
+            core.setOutput('should-invalidate', 'true');
+            core.setOutput('owned-pr-number', String(latestClaim.ownedPrNumber));
+            core.setOutput('owned-pr-url', ownedPr.html_url);
+            core.setOutput('claimer', latestClaim.claimer);
+            core.setOutput('previous-sha', latestClaim.sourceSha);
+
+      - name: Invalidate stale claim
+        if: github.event.action == 'synchronize' && steps.stale-claim.outputs.should-invalidate == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const ownedNumber = Number('${{ steps.stale-claim.outputs.owned-pr-number }}');
+            const ownedUrl = '${{ steps.stale-claim.outputs.owned-pr-url }}';
+            const claimer = '${{ steps.stale-claim.outputs.claimer }}';
+            const previousSha = '${{ steps.stale-claim.outputs.previous-sha }}';
+            const newSha = pr.head.sha;
+            const managedLabels = [
+              { name: 'external-contributor', color: '8b949e', description: 'Tracks PRs mirrored from external contributor forks.' },
+              { name: 'external-contributor:awaiting-approval', color: 'd29922', description: 'Waiting for a stagehand team member to approve the latest external commit.' },
+              { name: 'external-contributor:mirrored', color: '1f6feb', description: 'An internal mirrored PR currently exists for this external contributor PR.' },
+              { name: 'external-contributor:stale', color: 'db6d28', description: 'The mirrored PR is stale or closed and needs maintainer action.' },
+              { name: 'external-contributor:completed', color: '2da44e', description: 'The mirrored PR has been merged and the external contributor flow is complete.' },
+            ];
+            const managedLabelNames = new Set(managedLabels.map((label) => label.name));
+
+            async function ensureLabels() {
+              for (const label of managedLabels) {
+                try {
+                  await github.rest.issues.getLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label.name,
+                  });
+                } catch (error) {
+                  if (error.status !== 404) {
+                    throw error;
+                  }
+
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label.name,
+                    color: label.color,
+                    description: label.description,
+                  });
+                }
+              }
+            }
+
+            async function syncLabels(issueNumber, desiredLabels) {
+              const { data: issue } = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+              });
+
+              const existingNames = issue.labels.map((label) => typeof label === 'string' ? label : label.name).filter(Boolean);
+              const preserved = existingNames.filter((label) => !managedLabelNames.has(label));
+              await github.rest.issues.setLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: [...preserved, ...desiredLabels],
+              });
+            }
+
+            async function upsertComment(issueNumber, marker, bodyLines) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                per_page: 100,
+              });
+
+              const body = [marker, ...bodyLines].join('\n');
+              const existingComment = comments.find((comment) => comment.body?.includes(marker));
+              if (!existingComment) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body,
+                });
+                return;
+              }
+
+              if (existingComment.body !== body) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existingComment.id,
+                  body,
+                });
+              }
+            }
+
+            await ensureLabels();
+            await syncLabels(pr.number, ['external-contributor', 'external-contributor:awaiting-approval']);
+            await syncLabels(ownedNumber, ['external-contributor', 'external-contributor:stale']);
+            await upsertComment(
+              ownedNumber,
+              '<!-- external-contributor-pr:owned-status -->',
+              [
+                `This mirrored PR is stale because the original external contributor PR #${pr.number} received new commits (\`${previousSha}\` -> \`${newSha}\`).`,
+                `Original PR: ${pr.html_url}`,
+                '',
+                'A stagehand team member must approve the latest external commit before this mirror can be recreated.',
+              ],
+            );
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ownedNumber,
+              body: `Closing this mirrored PR because the original external PR #${pr.number} received new commits (\`${previousSha}\` -> \`${newSha}\`). A stagehand team member must approve the latest commit on the original PR before a new mirrored PR can be created.`,
+            });
+
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: ownedNumber,
+              state: 'closed',
+            });
+
+            if (pr.state === 'closed') {
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                state: 'open',
+              });
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body: `New commits were pushed to this external contributor PR (\`${previousSha}\` -> \`${newSha}\`), so the previous approval claim by @${claimer} has been invalidated. The mirrored PR ${ownedUrl} has been closed. A stagehand team member with write access must submit a new approving review on the latest commit to recreate the mirrored PR and rerun CI.`,
+            });
+
+  claim-approved-pr:
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download approval handoff artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: approved-review
+          path: approval-handoff
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Prepare approved claim
+        id: prepare-claim
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const handoff = JSON.parse(fs.readFileSync('approval-handoff/approval-handoff.json', 'utf8'));
+
+            core.setOutput('should-claim', 'false');
+
+            if (!handoff.shouldClaim || !handoff.prNumber || !handoff.reviewer || !handoff.approvedSha) {
+              return;
+            }
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: Number(handoff.prNumber),
+            });
+
+            if (pr.head.repo.full_name === context.payload.repository.full_name || pr.state !== 'open') {
+              return;
+            }
+
+            const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: handoff.reviewer,
+            });
+
+            const allowedPermissions = new Set(['admin', 'maintain', 'write']);
+            if (!allowedPermissions.has(permission.permission)) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: `@${handoff.reviewer} submitted an approving review, but only stagehand team members with write access can claim external contributor PRs. A maintainer with write access must approve the latest commit to proceed.`,
+              });
+              return;
+            }
+
+            if (pr.head.sha !== handoff.approvedSha) {
+              return;
+            }
+
+            const branch = `external-contributor-pr-${pr.number}-${pr.head.sha.slice(0, 12)}`;
+            const title = `[Claimed #${pr.number}] ${pr.title}`;
+            const body = [
+              `Mirrored from external contributor PR #${pr.number} after approval by @${handoff.reviewer}.`,
+              '',
+              `Original author: @${pr.user.login}`,
+              `Original PR: ${pr.html_url}`,
+              `Approved source head SHA: \`${pr.head.sha}\``,
+              '',
+              `@${pr.user.login}, please continue any follow-up discussion on this mirrored PR. New commits pushed to the original fork PR will invalidate this claim and require another approving review on the latest commit.`,
+              '',
+              '## Original description',
+              pr.body?.trim() || '_No description provided._',
+              '',
+              `<!-- external-contributor-pr:owned source-pr=${pr.number} source-sha=${pr.head.sha} claimer=${handoff.reviewer} -->`,
+            ].join('\n');
+
+            const { data: ownedPrs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              head: `${context.repo.owner}:${branch}`,
+              base: 'main',
+              per_page: 100,
+            });
+
+            const ownedPr = ownedPrs[0];
+
+            core.setOutput('should-claim', 'true');
+            core.setOutput('claimer', handoff.reviewer);
+            core.setOutput('pr-number', String(pr.number));
+            core.setOutput('source-sha', pr.head.sha);
+            core.setOutput('branch', branch);
+            core.setOutput('title', title);
+            core.setOutput('body', body);
+            core.setOutput('owned-pr-number', ownedPr ? String(ownedPr.number) : '');
+            core.setOutput('owned-pr-merged', ownedPr?.merged_at ? 'true' : 'false');
+
+      - name: Validate GitHub App configuration
+        if: steps.prepare-claim.outputs.should-claim == 'true'
+        env:
+          # The GitHub App must have contents:write, pull_requests:write, and issues:write.
+          APP_ID: ${{ secrets.EXTERNAL_CONTRIBUTOR_PR_APP_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.EXTERNAL_CONTRIBUTOR_PR_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${APP_ID}" ] || [ -z "${APP_PRIVATE_KEY}" ]; then
+            echo "Missing EXTERNAL_CONTRIBUTOR_PR_APP_ID or EXTERNAL_CONTRIBUTOR_PR_APP_PRIVATE_KEY."
+            exit 1
+          fi
+
+      - name: Generate GitHub App token
+        if: steps.prepare-claim.outputs.should-claim == 'true'
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.EXTERNAL_CONTRIBUTOR_PR_APP_ID }}
+          private-key: ${{ secrets.EXTERNAL_CONTRIBUTOR_PR_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Check out repository
+        if: steps.prepare-claim.outputs.should-claim == 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Mirror approved SHA to internal branch
+        if: steps.prepare-claim.outputs.should-claim == 'true'
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          INTERNAL_BRANCH: ${{ steps.prepare-claim.outputs.branch }}
+          PR_NUMBER: ${{ steps.prepare-claim.outputs.pr-number }}
+        run: |
+          set -euo pipefail
+          git config user.name "stagehand-external-pr[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${APP_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch origin "pull/${PR_NUMBER}/head:refs/remotes/origin/external-pr-head-${PR_NUMBER}"
+          git push --force origin "refs/remotes/origin/external-pr-head-${PR_NUMBER}:refs/heads/${INTERNAL_BRANCH}"
+
+      - name: Create or reopen owned PR
+        if: steps.prepare-claim.outputs.should-claim == 'true'
+        id: owned-pr
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const existingNumber = '${{ steps.prepare-claim.outputs.owned-pr-number }}';
+            const existingMerged = '${{ steps.prepare-claim.outputs.owned-pr-merged }}' === 'true';
+            const assignee = '${{ steps.prepare-claim.outputs.claimer }}';
+            const title = ${{ toJson(steps.prepare-claim.outputs.title) }};
+            const body = ${{ toJson(steps.prepare-claim.outputs.body) }};
+
+            let ownedPr;
+            if (existingNumber && !existingMerged) {
+              const { data } = await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: Number(existingNumber),
+                title,
+                body,
+                base: 'main',
+                state: 'open',
+              });
+              ownedPr = data;
+            } else {
+              const { data } = await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                head: '${{ steps.prepare-claim.outputs.branch }}',
+                base: 'main',
+              });
+              ownedPr = data;
+            }
+
+            await github.rest.issues.addAssignees({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ownedPr.number,
+              assignees: [assignee],
+            });
+
+            core.setOutput('number', String(ownedPr.number));
+            core.setOutput('url', ownedPr.html_url);
+
+      - name: Sync mirrored PR labels and status
+        if: steps.prepare-claim.outputs.should-claim == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = Number('${{ steps.prepare-claim.outputs.pr-number }}');
+            const ownedNumber = Number('${{ steps.owned-pr.outputs.number }}');
+            const ownedUrl = '${{ steps.owned-pr.outputs.url }}';
+            const claimer = '${{ steps.prepare-claim.outputs.claimer }}';
+            const sourceSha = '${{ steps.prepare-claim.outputs.source-sha }}';
+            const managedLabels = [
+              { name: 'external-contributor', color: '8b949e', description: 'Tracks PRs mirrored from external contributor forks.' },
+              { name: 'external-contributor:awaiting-approval', color: 'd29922', description: 'Waiting for a stagehand team member to approve the latest external commit.' },
+              { name: 'external-contributor:mirrored', color: '1f6feb', description: 'An internal mirrored PR currently exists for this external contributor PR.' },
+              { name: 'external-contributor:stale', color: 'db6d28', description: 'The mirrored PR is stale or closed and needs maintainer action.' },
+              { name: 'external-contributor:completed', color: '2da44e', description: 'The mirrored PR has been merged and the external contributor flow is complete.' },
+            ];
+            const managedLabelNames = new Set(managedLabels.map((label) => label.name));
+
+            async function ensureLabels() {
+              for (const label of managedLabels) {
+                try {
+                  await github.rest.issues.getLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label.name,
+                  });
+                } catch (error) {
+                  if (error.status !== 404) {
+                    throw error;
+                  }
+
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label.name,
+                    color: label.color,
+                    description: label.description,
+                  });
+                }
+              }
+            }
+
+            async function syncLabels(issueNumber, desiredLabels) {
+              const { data: issue } = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+              });
+
+              const existingNames = issue.labels.map((label) => typeof label === 'string' ? label : label.name).filter(Boolean);
+              const preserved = existingNames.filter((label) => !managedLabelNames.has(label));
+              await github.rest.issues.setLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: [...preserved, ...desiredLabels],
+              });
+            }
+
+            async function upsertComment(issueNumber, marker, bodyLines) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                per_page: 100,
+              });
+
+              const body = [marker, ...bodyLines].join('\n');
+              const existingComment = comments.find((comment) => comment.body?.includes(marker));
+              if (!existingComment) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body,
+                });
+                return;
+              }
+
+              if (existingComment.body !== body) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existingComment.id,
+                  body,
+                });
+              }
+            }
+
+            await ensureLabels();
+            await syncLabels(prNumber, ['external-contributor', 'external-contributor:mirrored']);
+            await syncLabels(ownedNumber, ['external-contributor', 'external-contributor:mirrored']);
+            await upsertComment(
+              ownedNumber,
+              '<!-- external-contributor-pr:owned-status -->',
+              [
+                `This mirrored PR tracks external contributor PR #${prNumber} at source SHA \`${sourceSha}\`, approved by @${claimer}.`,
+                `Original PR: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/pull/${prNumber}`,
+                '',
+                `If new commits are pushed to the original PR, this mirrored PR will be closed until the latest commit is approved again. Current mirror: ${ownedUrl}`,
+              ],
+            );
+
+      - name: Link and close original PR
+        if: steps.prepare-claim.outputs.should-claim == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const ownedNumber = Number('${{ steps.owned-pr.outputs.number }}');
+            const ownedUrl = '${{ steps.owned-pr.outputs.url }}';
+            const claimer = '${{ steps.prepare-claim.outputs.claimer }}';
+            const sourceSha = '${{ steps.prepare-claim.outputs.source-sha }}';
+            const branch = '${{ steps.prepare-claim.outputs.branch }}';
+            const prNumber = Number('${{ steps.prepare-claim.outputs.pr-number }}');
+            const marker = `<!-- external-contributor-pr:claim owned-pr=${ownedNumber} source-sha=${sourceSha} claimer=${claimer} branch=${branch} -->`;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+
+            const alreadyLinked = comments.some((comment) => comment.body?.includes(marker));
+            if (!alreadyLinked) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: [
+                  marker,
+                  `This PR was approved by @${claimer} and mirrored to ${ownedUrl}. All further discussion should happen on that PR.`,
+                ].join('\n'),
+              });
+            }
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            if (pr.state !== 'closed') {
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                state: 'closed',
+              });
+            }
+
+  sync-owned-pr:
+    if: github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'closed' || github.event.action == 'reopened')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync mirrored PR lifecycle
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const markerMatch = pr.body?.match(/<!-- external-contributor-pr:owned source-pr=(\d+) source-sha=([0-9a-f]{40}) claimer=([A-Za-z0-9-]+) -->/);
+            if (!markerMatch) {
+              return;
+            }
+
+            const sourcePrNumber = Number(markerMatch[1]);
+            const sourceSha = markerMatch[2];
+            const managedLabels = [
+              { name: 'external-contributor', color: '8b949e', description: 'Tracks PRs mirrored from external contributor forks.' },
+              { name: 'external-contributor:awaiting-approval', color: 'd29922', description: 'Waiting for a stagehand team member to approve the latest external commit.' },
+              { name: 'external-contributor:mirrored', color: '1f6feb', description: 'An internal mirrored PR currently exists for this external contributor PR.' },
+              { name: 'external-contributor:stale', color: 'db6d28', description: 'The mirrored PR is stale or closed and needs maintainer action.' },
+              { name: 'external-contributor:completed', color: '2da44e', description: 'The mirrored PR has been merged and the external contributor flow is complete.' },
+            ];
+            const managedLabelNames = new Set(managedLabels.map((label) => label.name));
+
+            async function ensureLabels() {
+              for (const label of managedLabels) {
+                try {
+                  await github.rest.issues.getLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label.name,
+                  });
+                } catch (error) {
+                  if (error.status !== 404) {
+                    throw error;
+                  }
+
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label.name,
+                    color: label.color,
+                    description: label.description,
+                  });
+                }
+              }
+            }
+
+            async function syncLabels(issueNumber, desiredLabels) {
+              const { data: issue } = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+              });
+
+              const existingNames = issue.labels.map((label) => typeof label === 'string' ? label : label.name).filter(Boolean);
+              const preserved = existingNames.filter((label) => !managedLabelNames.has(label));
+              await github.rest.issues.setLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: [...preserved, ...desiredLabels],
+              });
+            }
+
+            async function upsertComment(issueNumber, marker, bodyLines) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                per_page: 100,
+              });
+
+              const body = [marker, ...bodyLines].join('\n');
+              const existingComment = comments.find((comment) => comment.body?.includes(marker));
+              if (!existingComment) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body,
+                });
+                return;
+              }
+
+              if (existingComment.body !== body) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existingComment.id,
+                  body,
+                });
+              }
+            }
+
+            await ensureLabels();
+
+            const { data: externalPr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: sourcePrNumber,
+            });
+
+            if (context.payload.action === 'reopened') {
+              await syncLabels(pr.number, ['external-contributor', 'external-contributor:mirrored']);
+              await syncLabels(sourcePrNumber, ['external-contributor', 'external-contributor:mirrored']);
+
+              if (externalPr.state !== 'closed') {
+                await github.rest.pulls.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: sourcePrNumber,
+                  state: 'closed',
+                });
+              }
+              return;
+            }
+
+            if (pr.merged) {
+              await syncLabels(pr.number, ['external-contributor', 'external-contributor:completed']);
+              await syncLabels(sourcePrNumber, ['external-contributor', 'external-contributor:completed']);
+              await upsertComment(
+                pr.number,
+                '<!-- external-contributor-pr:owned-status -->',
+                [
+                  `This mirrored PR has been merged into \`main\`. The original external PR ${externalPr.html_url} is now completed.`,
+                ],
+              );
+              await upsertComment(
+                sourcePrNumber,
+                `<!-- external-contributor-pr:completed owned-pr=${pr.number} -->`,
+                [
+                  `The mirrored PR ${pr.html_url} has been merged into \`main\`. This original external contributor PR will stay closed as completed.`,
+                ],
+              );
+              return;
+            }
+
+            const becameStale = externalPr.head.sha !== sourceSha;
+            await syncLabels(pr.number, ['external-contributor', 'external-contributor:stale']);
+            await syncLabels(sourcePrNumber, ['external-contributor', 'external-contributor:awaiting-approval']);
+
+            if (becameStale) {
+              return;
+            }
+
+            if (externalPr.state === 'closed') {
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: sourcePrNumber,
+                state: 'open',
+              });
+            }
+
+            await upsertComment(
+              sourcePrNumber,
+              `<!-- external-contributor-pr:owned-closed owned-pr=${pr.number} -->`,
+              [
+                `The mirrored PR ${pr.html_url} was closed without merge. This original PR has been reopened and is awaiting a fresh approving review from a stagehand team member with write access.`,
+              ],
+            );
+            await upsertComment(
+              pr.number,
+              '<!-- external-contributor-pr:owned-status -->',
+              [
+                `This mirrored PR was closed without merge. The original external PR ${externalPr.html_url} has been reopened and relabeled as awaiting approval.`,
+              ],
+            );
