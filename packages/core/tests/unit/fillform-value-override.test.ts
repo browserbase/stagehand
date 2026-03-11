@@ -3,13 +3,8 @@ import { fillFormTool } from "../../lib/v3/agent/tools/fillform.js";
 import type { V3 } from "../../lib/v3/v3.js";
 
 /**
- * Reproduces the hallucination bug from #1789:
- * fillForm receives { action, value } pairs but only passes `action` to
- * observe(). The LLM then hallucinates placeholder values like
- * "test@example.com" which get typed into form fields instead of the
- * caller-provided values.
+ * Minimal mock of V3 that captures arguments passed to act().
  */
-
 function createMockV3(
   observeResults: Array<{
     method: string;
