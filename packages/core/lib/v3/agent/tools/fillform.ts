@@ -60,9 +60,7 @@ export const fillFormTool = (
         for (const res of observeResults) {
           if (res.method === "fill") {
             if (fillIndex < fields.length) {
-              if (fields[fillIndex].value !== undefined) {
-                res.arguments = [fields[fillIndex].value];
-              }
+              res.arguments = [fields[fillIndex].value];
               fillIndex++;
             } else {
               v3.logger({
