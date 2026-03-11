@@ -56,13 +56,23 @@ export const fillFormTool = (
 
         const completed = [] as unknown[];
         const replayableActions: Action[] = [];
+        // Only apply index-based value overrides when observe returned
+        // the same number of results as caller-provided fields.
+        // This avoids misassigning values when the counts diverge.
+        const canMapByIndex = observeResults.length === fields.length;
         for (let i = 0; i < observeResults.length; i++) {
           const res = observeResults[i];
 
           // Override LLM-hallucinated arguments with the actual value
           // provided by the caller to prevent placeholder values like
           // "test@example.com" from being typed instead of real input.
-          if (res.method === "fill" && fields[i]?.value) {
+          // Use != null so that empty-string values ("") are preserved
+          // as valid input rather than being dropped by a truthy check.
+          if (
+            canMapByIndex &&
+            res.method === "fill" &&
+            fields[i]?.value != null
+          ) {
             res.arguments = [fields[i].value];
           }
 
