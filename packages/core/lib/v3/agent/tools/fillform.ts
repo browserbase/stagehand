@@ -56,7 +56,15 @@ export const fillFormTool = (
 
         const completed = [] as unknown[];
         const replayableActions: Action[] = [];
+        let fillIndex = 0;
         for (const res of observeResults) {
+          if (res.method === "fill") {
+            if (fields[fillIndex]?.value !== undefined) {
+              res.arguments = [fields[fillIndex].value];
+            }
+            fillIndex++;
+          }
+
           const actOptions = variables
             ? { variables, timeout: toolTimeout }
             : { timeout: toolTimeout };
