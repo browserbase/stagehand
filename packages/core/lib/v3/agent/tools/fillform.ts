@@ -59,10 +59,19 @@ export const fillFormTool = (
         let fillIndex = 0;
         for (const res of observeResults) {
           if (res.method === "fill") {
-            if (fields[fillIndex]?.value !== undefined) {
-              res.arguments = [fields[fillIndex].value];
+            if (fillIndex < fields.length) {
+              if (fields[fillIndex].value !== undefined) {
+                res.arguments = [fields[fillIndex].value];
+              }
+              fillIndex++;
+            } else {
+              v3.logger({
+                category: "agent",
+                message: `fillForm: observe returned more fill actions than provided fields (${fields.length}); skipping extra fill`,
+                level: 1,
+              });
+              continue;
             }
-            fillIndex++;
           }
 
           const actOptions = variables

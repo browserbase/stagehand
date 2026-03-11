@@ -44,7 +44,7 @@ const toolCtx = {
 };
 
 describe("fillForm value override (#1789)", () => {
-  it("BUG REPRO: without fix, LLM-hallucinated values reach act()", async () => {
+  it("uses caller-provided values instead of LLM-hallucinated values", async () => {
     // observe() returns hallucinated placeholder values
     const v3 = createMockV3([
       {
@@ -147,5 +147,37 @@ describe("fillForm value override (#1789)", () => {
     // Empty string is a valid value (clearing a field) —
     // it should NOT fall back to the hallucinated value
     expect(v3.actCalls[0].arguments).toEqual([""]);
+  });
+
+  it("skips extra fills when observe returns more fills than fields", async () => {
+    const v3 = createMockV3([
+      { method: "fill", arguments: ["hal1"], description: "email" },
+      { method: "fill", arguments: ["hal2"], description: "password" },
+      { method: "fill", arguments: ["hal3"], description: "confirm password" },
+    ]);
+
+    const tool = fillFormTool(v3);
+    await tool.execute!(
+      {
+        fields: [
+          { action: "type email", value: "real@email.com" },
+          { action: "type password", value: "realPass" },
+        ],
+      },
+      toolCtx,
+    );
+
+    // Only the two matched fills should be acted on
+    expect(v3.actCalls).toHaveLength(2);
+    expect(v3.actCalls[0].arguments).toEqual(["real@email.com"]);
+    expect(v3.actCalls[1].arguments).toEqual(["realPass"]);
+
+    // Warning should be logged for the skipped fill
+    expect(v3.logger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: "agent",
+        message: expect.stringContaining("more fill actions than provided fields"),
+      }),
+    );
   });
 });
