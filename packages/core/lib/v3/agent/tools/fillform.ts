@@ -12,9 +12,9 @@ export const fillFormTool = (
   toolTimeout?: number,
 ) => {
   const hasVariables = variables && Object.keys(variables).length > 0;
-  const valueDescription = hasVariables
-    ? `Text to type into the target. Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}`
-    : "Text to type into the target";
+  const actionDescription = hasVariables
+    ? `Typing action with the value to type and target field. Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}. Example: "type %email% into the email field"`
+    : 'Typing action with the value to type and target field, e.g. "type foo@bar.com into the email field"';
 
   return tool({
     description: `📝 FORM FILL - MULTI-FIELD INPUT TOOL\nFor any form with 2+ inputs/textareas. Faster than individual typing.`,
@@ -22,12 +22,7 @@ export const fillFormTool = (
       fields: z
         .array(
           z.object({
-            action: z
-              .string()
-              .describe(
-                'Description of typing action, e.g. "type foo into the email field"',
-              ),
-            value: z.string().describe(valueDescription),
+            action: z.string().describe(actionDescription),
           }),
         )
         .min(1, "Provide at least one field to fill"),

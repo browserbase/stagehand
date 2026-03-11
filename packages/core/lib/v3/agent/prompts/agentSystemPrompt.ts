@@ -210,7 +210,7 @@ export function buildAgentSystemPrompt(
   const hasVariables = variables && Object.keys(variables).length > 0;
   const variableToolsNote = isHybridMode
     ? "Use %variableName% syntax in the type, fillFormVision, or act tool's value/text/action fields."
-    : "Use %variableName% syntax in the act or fillForm tool's value/action fields.";
+    : "Use %variableName% syntax in the act or fillForm tool's action fields.";
   const variablesSection = hasVariables
     ? `<variables>
     <note>You have access to the following variables. Use %variableName% syntax to substitute variable values. This is especially important for sensitive data like passwords.</note>
