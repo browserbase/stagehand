@@ -67,11 +67,11 @@ describe("fillForm value override", () => {
         fields: [
           {
             action: "type email into email field",
-            value: "tiwa@trysplendor.com",
+            value: "user@example.org",
           },
           {
             action: "type password into password field",
-            value: "actualSecret!",
+            value: "s3cret!",
           },
         ],
       },
@@ -79,8 +79,8 @@ describe("fillForm value override", () => {
     );
 
     // With the fix applied, act() should receive the REAL values
-    expect(v3.actCalls[0].arguments).toEqual(["tiwa@trysplendor.com"]);
-    expect(v3.actCalls[1].arguments).toEqual(["actualSecret!"]);
+    expect(v3.actCalls[0].arguments).toEqual(["user@example.org"]);
+    expect(v3.actCalls[1].arguments).toEqual(["s3cret!"]);
   });
 
   it("does not override non-fill methods (e.g. click)", async () => {
