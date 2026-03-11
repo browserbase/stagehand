@@ -7,7 +7,8 @@
  */
 import { Stagehand } from "../lib/v3/index.js";
 import chalk from "chalk";
-
+import dotenv from "dotenv";
+dotenv.config();
 // Load environment variables
 
 async function main() {
@@ -16,8 +17,10 @@ async function main() {
   const stagehand = new Stagehand({
     env: "LOCAL",
     verbose: 2,
-    cacheDir: "stagehand-agent-cache",
+    //cacheDir: "stagehand-agent-cache",
     logInferenceToFile: false,
+    experimental: true,
+    model: "google/gemini-3-flash-preview",
   });
 
   await stagehand.init();
@@ -28,10 +31,10 @@ async function main() {
       "https://browserbase.github.io/stagehand-eval-sites/sites/shadow-dom/",
     );
     const agent = stagehand.agent();
-
     const result = await agent.execute({
-      instruction: "click the button",
+      instruction: "go to amazon, and cart me a random shampoo",
       maxSteps: 20,
+
     });
 
     console.log(`${chalk.green("✓")} Execution complete`);

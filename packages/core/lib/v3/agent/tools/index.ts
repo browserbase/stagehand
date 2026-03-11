@@ -1,5 +1,6 @@
 import { gotoTool } from "./goto.js";
 import { actTool } from "./act.js";
+import { actOnElementTool } from "./actOnElement.js";
 import { screenshotTool } from "./screenshot.js";
 import { waitTool } from "./wait.js";
 import { navBackTool } from "./navback.js";
@@ -11,6 +12,7 @@ import { clickTool } from "./click.js";
 import { typeTool } from "./type.js";
 import { dragAndDropTool } from "./dragAndDrop.js";
 import { clickAndHoldTool } from "./clickAndHold.js";
+import { hoverTool } from "./hover.js";
 import { keysTool } from "./keys.js";
 import { fillFormVisionTool } from "./fillFormVision.js";
 import { thinkTool } from "./think.js";
@@ -75,6 +77,7 @@ function filterTools(
     // DOM mode (default)
     delete filtered.click;
     delete filtered.type;
+    delete filtered.hover;
     delete filtered.dragAndDrop;
     delete filtered.clickAndHold;
     delete filtered.fillFormVision;
@@ -99,6 +102,7 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
 
   const allTools: ToolSet = {
     act: actTool(v3, executionModel, variables, toolTimeout),
+    actOnElement: actOnElementTool(v3),
     ariaTree: ariaTreeTool(v3, toolTimeout),
     click: clickTool(v3, provider),
     clickAndHold: clickAndHoldTool(v3, provider),
@@ -107,6 +111,7 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     fillForm: fillFormTool(v3, executionModel, variables, toolTimeout),
     fillFormVision: fillFormVisionTool(v3, provider, variables),
     goto: gotoTool(v3),
+    hover: hoverTool(v3, provider),
     keys: keysTool(v3),
     navback: navBackTool(v3),
     screenshot: screenshotTool(v3),
@@ -131,6 +136,7 @@ export type AgentTools = ReturnType<typeof createAgentTools>;
  */
 export type AgentToolTypesMap = {
   act: ReturnType<typeof actTool>;
+  actOnElement: ReturnType<typeof actOnElementTool>;
   ariaTree: ReturnType<typeof ariaTreeTool>;
   click: ReturnType<typeof clickTool>;
   clickAndHold: ReturnType<typeof clickAndHoldTool>;
@@ -139,6 +145,7 @@ export type AgentToolTypesMap = {
   fillForm: ReturnType<typeof fillFormTool>;
   fillFormVision: ReturnType<typeof fillFormVisionTool>;
   goto: ReturnType<typeof gotoTool>;
+  hover: ReturnType<typeof hoverTool>;
   keys: ReturnType<typeof keysTool>;
   navback: ReturnType<typeof navBackTool>;
   screenshot: ReturnType<typeof screenshotTool>;

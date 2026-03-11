@@ -34,27 +34,38 @@ function buildToolsSection(
   const hybridTools: ToolDefinition[] = [
     {
       name: "screenshot",
-      description: "Take a compressed JPEG screenshot for quick visual context",
+      description:
+        "Take a screenshot for visual context. Also returns page metadata (viewport size, scroll height, element counts) to help decide if ariaTree is needed.",
     },
     {
       name: "ariaTree",
       description:
-        "Get an accessibility (ARIA) hybrid tree for full page context",
+        "Get an accessibility (ARIA) hybrid tree with element IDs for full page context. Only use when screenshot metadata indicates the page is large or target element is not visible.",
+    },
+    {
+      name: "actOnElement",
+      description:
+        "Act directly on an ariaTree element by its ID (e.g. '0-37'). PREFERRED over act when you already have ariaTree — faster because it skips redundant element inference.",
     },
     {
       name: "click",
       description:
-        "Click on an element (PREFERRED - more reliable when element is visible in viewport)",
+        "Click on an element by coordinates (PREFERRED when element is visible in viewport)",
     },
     {
       name: "type",
       description:
-        "Type text into an element (PREFERRED - more reliable when element is visible in viewport)",
+        "Type text into an element by coordinates (PREFERRED when element is visible in viewport)",
     },
     {
       name: "act",
       description:
-        "Perform a specific atomic action (click, type, etc.) - ONLY use when element is in ariaTree but NOT visible in screenshot. Less reliable but can interact with out-of-viewport elements.",
+        "Perform an action by description — use only when you do NOT have ariaTree element IDs and the element is not visible in the screenshot.",
+    },
+    {
+      name: "hover",
+      description:
+        "Hover over an element by coordinates to reveal tooltips, dropdown menus, sub-navigation, or other hover-triggered content. Returns a screenshot showing the result.",
     },
     { name: "dragAndDrop", description: "Drag and drop an element" },
     { name: "clickAndHold", description: "Click and hold on an element" },
@@ -74,16 +85,23 @@ function buildToolsSection(
   const domTools: ToolDefinition[] = [
     {
       name: "screenshot",
-      description: "Take a compressed JPEG screenshot for quick visual context",
+      description:
+        "Take a screenshot for visual context. Also returns page metadata (viewport size, scroll height, element counts).",
     },
     {
       name: "ariaTree",
       description:
-        "Get an accessibility (ARIA) hybrid tree for full page context",
+        "Get an accessibility (ARIA) hybrid tree with element IDs for full page context",
+    },
+    {
+      name: "actOnElement",
+      description:
+        "Act directly on an ariaTree element by its ID (e.g. '0-37'). PREFERRED over act when you already have ariaTree — faster because it skips redundant element inference.",
     },
     {
       name: "act",
-      description: "Perform a specific atomic action (click, type)",
+      description:
+        "Perform an action by description — use when you do NOT have ariaTree element IDs",
     },
     { name: "keys", description: "Press a keyboard key" },
     { name: "fillForm", description: "Fill out a form" },
@@ -140,16 +158,18 @@ export function buildAgentSystemPrompt(
   const strategyItems = isHybridMode
     ? [
         `<item>Tool selection priority: Use specific tools (click, type) when elements are visible in viewport for maximum reliability.</item>`,
-        `<item>Always use screenshot to get proper grounding of the coordinates you want to type/click into.</item>`,
+        `<item>Always use screenshot to get proper grounding of the coordinates you want to type/click into. Screenshot also returns page metadata — use it to decide if ariaTree is needed.</item>`,
         `<item>When interacting with an input, always use the type tool to type into the input, over clicking and then typing into it.</item>`,
-        `<item>Use ariaTree as a secondary tool when elements aren't visible in screenshot or to get full page context.</item>`,
-        `<item>Only use act when element is in ariaTree but NOT visible in screenshot.</item>`,
+        `<item>Only use ariaTree when page metadata from screenshot indicates the page extends beyond the viewport (scrollHeight >> viewportHeight), has many elements, or you cannot find the target element in the screenshot.</item>`,
+        `<item>After calling ariaTree, ALWAYS prefer actOnElement (with the element ID) over act. actOnElement is faster and more reliable because it targets the exact element without re-inference. Only fall back to act if you do not have ariaTree context.</item>`,
+        `<item>Use hover to reveal hidden content (tooltips, dropdown menus, sub-navigation, preview cards) before clicking or reading. If you suspect an element has hover-triggered content, hover first and check the screenshot before proceeding.</item>`,
       ]
     : [
-        `<item>Tool selection priority: Use act tool for all clicking and typing on a page.</item>`,
+        `<item>Tool selection priority: Use actOnElement or act tool for all clicking and typing on a page.</item>`,
         `<item>Always check ariaTree first to understand full page content without scrolling - it shows all elements including those below the fold.</item>`,
-        `<item>When interacting with an input, always use the act tool to type into the input, over clicking and then typing.</item>`,
-        `<item>If an element is present in the ariaTree, use act to interact with it directly - this eliminates the need to scroll.</item>`,
+        `<item>When interacting with an input, always use the actOnElement or act tool to type into the input, over clicking and then typing.</item>`,
+        `<item>After calling ariaTree, ALWAYS prefer actOnElement (with the element ID) over act. actOnElement targets the exact element without re-inference, making it faster and more reliable.</item>`,
+        `<item>Only fall back to act when you do not have ariaTree context or the element ID is uncertain.</item>`,
         `<item>Use screenshot for visual confirmation when needed, but rely primarily on ariaTree for element detection.</item>`,
       ];
 
@@ -169,28 +189,41 @@ export function buildAgentSystemPrompt(
       <title>UNDERSTAND THE PAGE</title>
       <primary_tool>
         <name>screenshot</name>
-        <usage>Visual confirmation when needed. Ideally after navigating to a new page.</usage>
-        </primary_tool>
-      <secondary_tool>
-        <name>ariaTree</name>
-        <usage>Get complete page context before taking actions</usage>
-        <benefit>Eliminates the need to scroll and provides full accessible content</benefit>
-      </secondary_tool>
+        <usage>Always start with a screenshot. It returns both the visual state and page metadata (viewport height, scroll height, element counts, iframes).</usage>
+      </primary_tool>
+      <decision>
+        <condition>If page metadata shows scrollHeight is close to viewportHeight and you can see the target element in the screenshot</condition>
+        <then>Interact directly using click/type by coordinates.</then>
+      </decision>
+      <decision>
+        <condition>If scrollHeight greatly exceeds viewportHeight, the page has many elements, or the target element is not visible</condition>
+        <then>Call ariaTree to get the full page structure with element IDs.</then>
+      </decision>
     </step_1>
+    <step_2>
+      <title>INTERACT WITH ELEMENTS</title>
+      <rule>When you have ariaTree element IDs, use actOnElement to act on them directly — this is faster and more reliable than act.</rule>
+      <rule>Only use act as a last resort when you lack ariaTree context.</rule>
+    </step_2>
   </page_understanding_protocol>`
     : `<page_understanding_protocol>
     <step_1>
       <title>UNDERSTAND THE PAGE</title>
       <primary_tool>
         <name>ariaTree</name>
-        <usage>Get complete page context before taking actions</usage>
+        <usage>Get complete page context before taking actions. Returns element IDs you can use with actOnElement.</usage>
         <benefit>Eliminates the need to scroll and provides full accessible content</benefit>
-        </primary_tool>
+      </primary_tool>
       <secondary_tool>
         <name>screenshot</name>
         <usage>Visual confirmation when needed. Ideally after navigating to a new page.</usage>
       </secondary_tool>
     </step_1>
+    <step_2>
+      <title>INTERACT WITH ELEMENTS</title>
+      <rule>When you have ariaTree element IDs, use actOnElement to act on them directly — this is faster and more reliable than act.</rule>
+      <rule>Only use act as a last resort when you lack ariaTree context.</rule>
+    </step_2>
   </page_understanding_protocol>`;
 
   // Roadblocks section only shown when running on Browserbase (has captcha solver)

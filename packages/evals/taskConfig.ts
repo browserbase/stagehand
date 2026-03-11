@@ -101,23 +101,19 @@ if (filterByEvalName && !tasksByName[filterByEvalName]) {
 const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
   ? process.env.EVAL_MODELS.split(",")
   : [
-      "google/gemini-2.0-flash",
-      "openai/gpt-4.1-mini",
+      "google/gemini-3-flash-preview",
+      "openai/gpt-5.4",
       "anthropic/claude-haiku-4-5",
+      "anthropic/claude-sonnet-4-6",
     ];
 
 // Standard agent models - these run with stagehand.agent()
-const AGENT_MODELS = process.env.EVAL_AGENT_MODELS
-  ? process.env.EVAL_AGENT_MODELS.split(",")
-  : ["anthropic/claude-sonnet-4-20250514"];
+const AGENT_MODELS =  [ "google/gemini-3-flash-preview", "openai/gpt-5.4", "anthropic/claude-haiku-4-5", "anthropic/claude-sonnet-4-6",];
 
 // CUA agent models - these run with stagehand.agent({ cua: true })
 const AGENT_MODELS_CUA = process.env.EVAL_AGENT_MODELS_CUA
   ? process.env.EVAL_AGENT_MODELS_CUA.split(",")
   : [
-      "openai/computer-use-preview-2025-03-11",
-      "anthropic/claude-sonnet-4-20250514",
-      "google/gemini-2.5-computer-use-preview-10-2025",
     ];
 
 const AGENT_MODEL_ENTRIES: AgentModelEntry[] = [

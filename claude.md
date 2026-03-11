@@ -234,12 +234,15 @@ const agent = stagehand.agent({
 
 ### Agent Hybrid Mode
 
-Hybrid mode uses both DOM-based and coordinate-based tools (act, click, type, dragAndDrop) for visual interactions. This requires `experimental: true` and models that support reliable coordinate-based actions.
+Hybrid mode uses both DOM-based and coordinate-based tools (act, actOnElement, click, type, dragAndDrop) for visual interactions. This requires `experimental: true` and models that support reliable coordinate-based actions.
+
+The `screenshot` tool returns page metadata (viewport height, scroll height, element counts) alongside the image. The agent uses this to decide whether to call `ariaTree`. After calling `ariaTree`, the agent should use `actOnElement` (with the element ID from the tree) instead of `act`, which skips redundant LLM inference and directly targets the element.
 
 **Recommended models for hybrid mode:**
 
 - `google/gemini-3-flash-preview`
 - `anthropic/claude-sonnet-4-20250514`, `anthropic/claude-sonnet-4-5-20250929`, `anthropic/claude-haiku-4-5-20251001`
+- `openai/gpt-5.4`
 
 ```typescript
 const stagehand = new Stagehand({
@@ -262,8 +265,8 @@ await agent.execute({
 
 **Agent modes:**
 
-- `"dom"` (default): Uses DOM-based tools (act, fillForm) - works with any model
-- `"hybrid"`: Uses both DOM-based and coordinate-based tools (act, click, type, dragAndDrop) - requires grounding-capable models
+- `"dom"` (default): Uses DOM-based tools (act, actOnElement, fillForm) - works with any model
+- `"hybrid"`: Uses both DOM-based and coordinate-based tools (act, actOnElement, click, type, dragAndDrop) - requires grounding-capable models
 - `"cua"`: Uses Computer Use Agent providers
 
 ## Advanced Features
