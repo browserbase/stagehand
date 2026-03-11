@@ -540,6 +540,14 @@ export const ObserveOptionsSchema = z
       description:
         "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
     }),
+    variables: z
+      .record(z.string(), z.string())
+      .optional()
+      .meta({
+        description:
+          "Variables to substitute into observed action arguments using %variableName% placeholders",
+        example: { username: "john_doe" },
+      }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the observation",
       example: 30000,

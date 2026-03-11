@@ -1,0 +1,46 @@
+import { describe, expect, it, vi } from "vitest";
+import { StagehandAPIClient } from "../../lib/v3/api.js";
+
+describe("StagehandAPIClient.observe variables", () => {
+  it("flattens rich variables before sending the observe request", async () => {
+    const client = new StagehandAPIClient({
+      apiKey: "bb-test",
+      logger: vi.fn(),
+    });
+    const executeMock = vi.fn().mockResolvedValue([]);
+
+    (
+      client as unknown as {
+        execute: typeof executeMock;
+      }
+    ).execute = executeMock;
+
+    await client.observe({
+      instruction: "find the field where %username% should be entered",
+      options: {
+        variables: {
+          username: {
+            value: "john@example.com",
+            description: "The login email",
+          },
+          password: "secret",
+        },
+      },
+    });
+
+    expect(executeMock).toHaveBeenCalledWith({
+      method: "observe",
+      args: {
+        instruction: "find the field where %username% should be entered",
+        options: {
+          variables: {
+            username: "john@example.com",
+            password: "secret",
+          },
+        },
+        frameId: undefined,
+      },
+      serverCache: undefined,
+    });
+  });
+});

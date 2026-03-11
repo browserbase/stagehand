@@ -73,6 +73,7 @@ export const pageTextSchema = z.object({
 
 export interface ObserveOptions {
   model?: ModelConfiguration;
+  variables?: Variables;
   timeout?: number;
   selector?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;

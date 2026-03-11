@@ -9,33 +9,53 @@ import type { V3 } from "../../lib/v3/v3.js";
  * into v3.act(), v3.extract(), and v3.observe().
  */
 function createMockV3() {
-  const calls: { method: string; model: unknown }[] = [];
+  const calls: { method: string; model: unknown; variables: unknown }[] = [];
 
   const mock = {
     logger: vi.fn(),
     recordAgentReplayStep: vi.fn(),
-    act: vi.fn(async (_instruction: unknown, options?: { model?: unknown }) => {
-      calls.push({ method: "act", model: options?.model });
-      return {
-        success: true,
-        message: "ok",
-        actionDescription: "clicked",
-        actions: [],
-      };
-    }),
+    act: vi.fn(
+      async (
+        _instruction: unknown,
+        options?: { model?: unknown; variables?: unknown },
+      ) => {
+        calls.push({
+          method: "act",
+          model: options?.model,
+          variables: options?.variables,
+        });
+        return {
+          success: true,
+          message: "ok",
+          actionDescription: "clicked",
+          actions: [],
+        };
+      },
+    ),
     extract: vi.fn(
       async (
         _instruction: unknown,
         _schema: unknown,
-        options?: { model?: unknown },
+        options?: { model?: unknown; variables?: unknown },
       ) => {
-        calls.push({ method: "extract", model: options?.model });
+        calls.push({
+          method: "extract",
+          model: options?.model,
+          variables: options?.variables,
+        });
         return { extraction: "data" };
       },
     ),
     observe: vi.fn(
-      async (_instruction: unknown, options?: { model?: unknown }) => {
-        calls.push({ method: "observe", model: options?.model });
+      async (
+        _instruction: unknown,
+        options?: { model?: unknown; variables?: unknown },
+      ) => {
+        calls.push({
+          method: "observe",
+          model: options?.model,
+          variables: options?.variables,
+        });
         return [];
       },
     ),
@@ -101,6 +121,31 @@ describe("agent tools pass full executionModel config to v3 methods", () => {
     expect(v3.calls).toHaveLength(1);
     expect(v3.calls[0].method).toBe("observe");
     expect(v3.calls[0].model).toBe(modelConfig);
+  });
+
+  it("fillFormTool passes variables through to v3.observe()", async () => {
+    const v3 = createMockV3();
+    const variables = {
+      username: {
+        value: "john@example.com",
+        description: "The login email",
+      },
+    };
+    const tool = fillFormTool(v3, undefined, variables);
+    await tool.execute!(
+      {
+        fields: [{ action: "type into the email field", value: "%username%" }],
+      },
+      {
+        toolCallId: "t3-variables",
+        messages: [],
+        abortSignal: new AbortController().signal,
+      },
+    );
+
+    expect(v3.calls).toHaveLength(1);
+    expect(v3.calls[0].method).toBe("observe");
+    expect(v3.calls[0].variables).toBe(variables);
   });
 
   it("actTool passes undefined when no executionModel is set", async () => {

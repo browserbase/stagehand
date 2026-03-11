@@ -32,6 +32,7 @@ import type {
 import type { ModelConfiguration } from "./types/public/model.js";
 import { toJsonSchema } from "./zodCompat.js";
 import type { StagehandZodSchema } from "./zodCompat.js";
+import { flattenVariables } from "./agent/utils/variables.js";
 
 // =============================================================================
 // Multi-region API URL mapping
@@ -364,6 +365,9 @@ export class StagehandAPIClient {
       if (Object.keys(restOptions).length > 0) {
         if (restOptions.model) {
           restOptions.model = this.prepareModelConfig(restOptions.model);
+        }
+        if (restOptions.variables) {
+          restOptions.variables = flattenVariables(restOptions.variables);
         }
         wireOptions = restOptions as unknown as Api.ObserveRequest["options"];
       }
