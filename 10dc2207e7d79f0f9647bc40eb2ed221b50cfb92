@@ -1,0 +1,57 @@
+packages/core/tests/unit/api-client-observe-variables.test.ts
+  4c9e99a311a794ca 1-46
+packages/docs/v3/references/observe.mdx
+  4c9e99a311a794ca 34,41-46,86-89,231-253,255
+packages/core/lib/v3/types/public/api.ts
+  4c9e99a311a794ca 543-550
+packages/core/lib/v3/v3.ts
+  4c9e99a311a794ca 1353,1376
+packages/core/lib/inference.ts
+  4c9e99a311a794ca 20,249,258,305-306
+packages/core/lib/prompt.ts
+  4c9e99a311a794ca 115,120-127,137
+packages/docs/v3/basics/observe.mdx
+  4c9e99a311a794ca 104,115-138
+packages/core/lib/v3/api.ts
+  4c9e99a311a794ca 35,369-370
+packages/server-v4/test/integration/v4/observe.test.ts
+  4c9e99a311a794ca 159-197
+packages/core/tests/unit/agent-execution-model.test.ts
+  4c9e99a311a794ca 12,20,24-25,33,39,43-44,52,56-57,126-148
+packages/core/examples/observe_variables_login.ts
+  4c9e99a311a794ca 1-115
+packages/server-v3/test/integration/v3/observe.test.ts
+  4c9e99a311a794ca 159-197
+packages/core/lib/v3/agent/tools/fillform.ts
+  4c9e99a311a794ca 53-54
+packages/core/lib/v3/handlers/observeHandler.ts
+  4c9e99a311a794ca 67,119
+packages/core/lib/v3/types/public/methods.ts
+  4c9e99a311a794ca 76
+packages/core/lib/v3/types/private/handlers.ts
+  4c9e99a311a794ca 26
+packages/core/tests/unit/timeout-handlers.test.ts
+  4c9e99a311a794ca 901-960
+packages/core/tests/unit/public-api/public-types.test.ts
+  4c9e99a311a794ca 167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "10dc2207e7d79f0f9647bc40eb2ed221b50cfb92",
+  "prompts": {
+    "4c9e99a311a794ca": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cdbde-6fb8-79f2-8c2e-501ca7923325",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Filip Michalsky <filip@paywithsoap.com>",
+      "messages": [],
+      "total_additions": 2981,
+      "total_deletions": 95,
+      "accepted_lines": 2944,
+      "overriden_lines": 0
+    }
+  }
+}
