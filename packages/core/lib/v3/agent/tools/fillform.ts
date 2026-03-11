@@ -81,6 +81,13 @@ export const fillFormTool = (
             replayableActions.push(...(actResult.actions as Action[]));
           }
         }
+        if (fillIndex < fields.length) {
+          v3.logger({
+            category: "agent",
+            message: `fillForm: observe returned fewer fill actions (${fillIndex}) than provided fields (${fields.length}); ${fields.length - fillIndex} field value(s) were not applied`,
+            level: 1,
+          });
+        }
         v3.recordAgentReplayStep({
           type: "fillForm",
           fields,
