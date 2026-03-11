@@ -12,7 +12,7 @@ const os = require("os");
 const { setupLLMClient, PlaywrightRecorder } = require("../../stagehand-utils");
 
 const TIMEOUT = 150_000;
-setTimeout(() => { console.error("\n⏰ Global timeout"); process.exit(1); }, TIMEOUT);
+const watchdog = setTimeout(() => { console.error("\n⏰ Global timeout"); process.exit(1); }, TIMEOUT);
 
 function getTempProfileDir(site = "ticketmaster") {
   const tmp = path.join(os.tmpdir(), `${site}_chrome_profile_${Date.now()}`);
@@ -126,7 +126,7 @@ if __name__ == "__main__":
   console.log("  Ticketmaster – Concerts in Los Angeles");
   console.log("═══════════════════════════════════════════════════════════════\n");
 
-  const llmClient = setupLLMClient("hybrid");
+  const llmClient = setupLLMClient("copilot");
   const tmpProfile = getTempProfileDir();
   const stagehand = new Stagehand({
     env: "LOCAL", verbose: 0, llmClient,
@@ -138,7 +138,7 @@ if __name__ == "__main__":
 
   try {
     console.log("🔍 Navigating to Ticketmaster...");
-    await page.goto("https://www.ticketmaster.com/search?q=concerts&loc=Los+Angeles%2C+CA", { waitUntil: "domcontentloaded", timeout: 30_000 });
+    await page.goto("https://www.ticketmaster.com/search?q=concerts&loc=Los+Angeles%2C+CA&daterange=thisweekend", { waitUntil: "domcontentloaded", timeout: 30_000 });
     await page.waitForTimeout(4_000);
     recorder.record("goto", "Search concerts in LA");
 
@@ -147,15 +147,9 @@ if __name__ == "__main__":
       try { const el = page.locator(s).first(); if (await el.isVisible({ timeout: 500 })) await el.click({ timeout: 1000 }); } catch {}
     }
 
-    // Try to filter by This Weekend
-    console.log("🔧 Filtering by This Weekend...");
-    try {
-      await stagehand.act("click on date filter or 'This Weekend' option");
-      await page.waitForTimeout(2000);
-      await stagehand.act("select 'This Weekend'");
-      await page.waitForTimeout(3000);
-      recorder.record("act", "Filter by This Weekend");
-    } catch (e) { console.log(`   ⚠ Filter: ${e.message}`); }
+    // Use direct URL filter rather than UI actions to avoid flaky action schema issues.
+    console.log("🔧 Filtering by This Weekend via query params...");
+    await page.waitForTimeout(2000);
 
     for (let i = 0; i < 5; i++) { await page.evaluate(() => window.scrollBy(0, 500)); await page.waitForTimeout(600); }
 
@@ -192,6 +186,7 @@ if __name__ == "__main__":
     console.log(`\n✅ Python saved`);
     fs.writeFileSync(path.join(__dirname, "recorded_actions.json"), JSON.stringify(recorder.actions, null, 2), "utf-8");
   } finally {
+    clearTimeout(watchdog);
     await stagehand.close();
     fs.rmSync(tmpProfile, { recursive: true, force: true });
     console.log("🎊 Done!");

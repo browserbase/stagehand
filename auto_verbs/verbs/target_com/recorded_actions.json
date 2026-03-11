@@ -62,7 +62,7 @@
     "59": "k",
     "60": "e",
     "61": "r",
-    "timestamp": 769,
+    "timestamp": 858,
     "type": "goto"
   },
   {
@@ -96,7 +96,7 @@
     "27": "l",
     "28": "t",
     "29": "s",
-    "timestamp": 4769,
+    "timestamp": 4859,
     "type": "wait"
   },
   {
@@ -122,7 +122,7 @@
     "19": "c",
     "20": "t",
     "21": "s",
-    "timestamp": 14877,
+    "timestamp": 24943,
     "type": "extract"
   }
 ]

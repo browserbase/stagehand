@@ -1,0 +1,9 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.groupon.com/
+
+* Concrete task
+- Search for deals using the keyword "synthetic oil change".
+- compose a list of the first 5 deals. Each deal has its name, deal price, and discount percentage.
+- print the list.

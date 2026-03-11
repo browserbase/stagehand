@@ -1,0 +1,22 @@
+[
+  {
+    "timestamp": 8246,
+    "type": "goto",
+    "description": "Open https://www.groupon.com/"
+  },
+  {
+    "timestamp": 12576,
+    "type": "fill",
+    "description": "Type search keyword: synthetic oil change"
+  },
+  {
+    "timestamp": 12618,
+    "type": "press",
+    "description": "Press Enter to search"
+  },
+  {
+    "timestamp": 22847,
+    "type": "extract",
+    "description": "Extract top 5 deals"
+  }
+]

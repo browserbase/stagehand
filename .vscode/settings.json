@@ -1,4 +1,10 @@
 {
   "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "editor.formatOnSave": true
+  "editor.formatOnSave": true,
+  "terminal.integrated.env.linux": {
+    "CHROME_PATH": "/usr/bin/google-chrome"
+  },
+  "terminal.integrated.env.windows": {
+    "CHROME_PATH": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+  }
 }
