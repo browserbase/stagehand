@@ -23,12 +23,22 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
-      actions: read # Required for Claude to read CI results on PRs
+      actions: write # Required for Claude to read CI results on PRs / rerun actions that failed
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+        with:
+          use-prebuilt-artifacts: "false"
+          restore-turbo-cache: "false"
+          node-version: 20.x
+
+      - name: Run Build
+        run: |
+          pnpm exec turbo run build
 
       - name: Run Claude Code
         id: claude
@@ -40,11 +50,20 @@ jobs:
           additional_permissions: |
             actions: read
 
-          # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
-          # prompt: 'Update the pull request description to include a summary of changes.'
+          track_progress: true
 
+          # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
+          prompt: 'Make sure "turbo run lint" and "turbo run build" pass before pushing and make sure to check present CI status for the branch and fix any easy failures. Prefer using the Github MCP tools over bash for Github operations, fall back to Bash(gh) for anything not supported by the MCP tools.'
+
+          branch_prefix: 'claude-'
           # Optional: Add claude_args to customize behavior and configuration
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr:*)'
+          claude_args: |
+            --allowed-tools mcp__github_inline_comment__create_inline_comment,Bash,View,Glob,GlobTool,GrepTool,Grep,BatchTool,WebSearch,LS,Edit,MultiEdit,Write,Read
 
+
+# consider adding in the future:
+# - https://github.com/anthropics/claude-code-action/blob/main/examples/test-failure-analysis.yml
+# - https://github.com/anthropics/claude-code-action/blob/main/examples/ci-failure-auto-fix.yml
+# - https://github.com/anthropics/claude-code-action/blob/main/examples/issue-deduplication.yml
