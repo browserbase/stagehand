@@ -28,7 +28,12 @@ function createMockV3(
     recordAgentReplayStep: vi.fn(),
     act: vi.fn(async (res: { method: string; arguments: string[] }) => {
       actCalls.push({ method: res.method, arguments: [...res.arguments] });
-      return { success: true, message: "ok", actionDescription: "done", actions: [] };
+      return {
+        success: true,
+        message: "ok",
+        actionDescription: "done",
+        actions: [],
+      };
     }),
     observe: vi.fn(async () => observeResults),
     actCalls,
@@ -65,8 +70,14 @@ describe("fillForm value override (#1789)", () => {
     await tool.execute!(
       {
         fields: [
-          { action: "type email into email field", value: "tiwa@trysplendor.com" },
-          { action: "type password into password field", value: "actualSecret!" },
+          {
+            action: "type email into email field",
+            value: "tiwa@trysplendor.com",
+          },
+          {
+            action: "type password into password field",
+            value: "actualSecret!",
+          },
         ],
       },
       toolCtx,
@@ -176,7 +187,9 @@ describe("fillForm value override (#1789)", () => {
     expect(v3.logger).toHaveBeenCalledWith(
       expect.objectContaining({
         category: "agent",
-        message: expect.stringContaining("more fill actions than provided fields"),
+        message: expect.stringContaining(
+          "more fill actions than provided fields",
+        ),
       }),
     );
   });
