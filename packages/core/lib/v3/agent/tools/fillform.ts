@@ -13,11 +13,12 @@ export const fillFormTool = (
 ) => {
   const hasVariables = variables && Object.keys(variables).length > 0;
   const actionDescription = hasVariables
-    ? `Typing action with the value to type and target field. Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}. Example: "type %email% into the email field"`
-    : 'Typing action with the value to type and target field, e.g. "type foo@bar.com into the email field"';
+    ? `Must follow the pattern: "type <exact value> into the <field name> <fieldType>". Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}. Examples: "type %email% into the email input", "type %password% into the password input"`
+    : 'Must follow the pattern: "type <exact value> into the <field name> <fieldType>". Examples: "type john@example.com into the email input", "type John into the first name input"';
 
   return tool({
-    description: `📝 FORM FILL - MULTI-FIELD INPUT TOOL\nFor any form with 2+ inputs/textareas. Faster than individual typing.`,
+    description:
+      '📝 FORM FILL - MULTI-FIELD INPUT TOOL\nFill 2+ form inputs/textareas at once. Each action MUST include the exact text to type and the target field, e.g. "type john@example.com into the email field".',
     inputSchema: z.object({
       fields: z
         .array(
