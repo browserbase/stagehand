@@ -163,4 +163,29 @@ describe("CaptchaSolver", () => {
       errored: false,
     });
   });
+
+  it("marks errored when detached mid-solve due to page change", async () => {
+    const firstPage = new MockPage();
+    const secondPage = new MockPage();
+    let activePage = firstPage;
+
+    const solver = new CaptchaSolver();
+    solver.init(async () => activePage as never);
+
+    await solver.ensureAttached();
+    firstPage.emitConsole(SOLVING_STARTED);
+
+    const wait = solver.waitIfSolving();
+
+    // Switch to a new page while the solve is in progress
+    activePage = secondPage;
+    await solver.waitIfSolving();
+    await wait;
+
+    // The interrupted solve should be reported as errored
+    expect(solver.consumeSolveResult()).toEqual({
+      solved: false,
+      errored: true,
+    });
+  });
 });

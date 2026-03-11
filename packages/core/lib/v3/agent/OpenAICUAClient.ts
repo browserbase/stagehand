@@ -166,7 +166,14 @@ export class OpenAICUAClient extends AgentClient {
         // Store the previous response ID for the next request
         previousResponseId = result.responseId;
 
+        // Only auto-continue past follow-up questions when a captcha was
+        // just solved — we don't want to silently bypass legitimate model
+        // confirmation requests (e.g. "Should I delete this?").
+        const captchaJustSolved = this.pendingContextNotes.some((note) =>
+          note.toLowerCase().includes("captcha"),
+        );
         const shouldContinueWithoutConfirmation =
+          captchaJustSolved &&
           completed &&
           result.actions.length === 0 &&
           this.isFollowUpQuestion(result.message);

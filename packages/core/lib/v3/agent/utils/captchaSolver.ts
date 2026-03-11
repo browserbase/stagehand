@@ -147,6 +147,11 @@ export class CaptchaSolver {
       this.attachedPage.off("console", this.listener);
     }
     this.listener = null;
+    // If a solve was in progress, mark it as errored so consumers
+    // know it was interrupted (consistent with the timeout path).
+    if (this.solving) {
+      this._erroredSinceLastConsume = true;
+    }
     // Reset solving state so waiters aren't stuck waiting for events
     // that can never arrive from the detached page.
     this.solving = false;
