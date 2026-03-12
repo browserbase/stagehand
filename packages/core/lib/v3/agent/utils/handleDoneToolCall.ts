@@ -107,6 +107,10 @@ Call the "done" tool with:
     messages: [...inputMessages, userPrompt],
     tools: { done: doneTool } as ToolSet,
     toolChoice: { type: "tool", toolName: "done" },
+    providerOptions: {
+      google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
+      openai: { store: false },
+    },
   });
 
   const doneToolCall = result.toolCalls.find((tc) => tc.toolName === "done");
