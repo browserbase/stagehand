@@ -1692,6 +1692,9 @@ program
         }
 
         await fs.writeFile(getContextPath(session), newConfig);
+      } else {
+        // No --context-id: clear any stale context file so the daemon starts clean
+        try { await fs.unlink(getContextPath(session)); } catch {}
       }
 
       const result = await runCommand("open", [
