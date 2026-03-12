@@ -1516,30 +1516,6 @@ program
   .action(async (cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     const session = getSession(opts);
-
-    // Warn if stopping a remote session that had no context persistence
-    const currentMode = await readCurrentMode(session);
-    if (currentMode === "browserbase") {
-      let hasContext = false;
-      try {
-        const raw = await fs.readFile(getContextPath(session), "utf-8");
-        const ctx = JSON.parse(raw);
-        hasContext = Boolean(ctx?.id);
-        if (hasContext && !ctx?.persist) {
-          console.error(
-            "Warning: Session has a context but persist is not enabled. Browser state changes will be lost.\n" +
-            "Use `browse open <url> --context-id <id> --persist` to save state back to the context.",
-          );
-        }
-      } catch {}
-      if (!hasContext) {
-        console.error(
-          "Warning: Remote session has no context. Browser state (cookies, localStorage, etc.) will be lost.\n" +
-          "Use `browse open <url> --context-id <id> --persist` next time to preserve browser state.",
-        );
-      }
-    }
-
     // Clear any explicit env override so next start uses env var detection
     try { await fs.unlink(getModeOverridePath(session)); } catch {}
     try {
