@@ -202,14 +202,21 @@ async function isDaemonRunning(session: string): Promise<boolean> {
   }
 }
 
+/** Daemon state files — cleaned on both startup (stale) and shutdown. */
+const DAEMON_STATE_FILES = (session: string) => [
+  getSocketPath(session),
+  getPidPath(session),
+  getWsPath(session),
+  getChromePidPath(session),
+  getLockPath(session),
+  getModePath(session),
+];
+
 async function cleanupStaleFiles(session: string): Promise<void> {
   const files = [
-    getSocketPath(session),
-    getPidPath(session),
-    getWsPath(session),
-    getChromePidPath(session),
-    getLockPath(session),
-    getModePath(session),
+    ...DAEMON_STATE_FILES(session),
+    // Context is client-written config, only cleaned on full shutdown
+    getContextPath(session),
   ];
 
   for (const file of files) {
@@ -217,9 +224,11 @@ async function cleanupStaleFiles(session: string): Promise<void> {
   }
 }
 
-/** Remove the context config file (called explicitly on stop, not during cleanup) */
-async function cleanupContextFile(session: string): Promise<void> {
-  try { await fs.unlink(getContextPath(session)); } catch {}
+/** Like cleanupStaleFiles but preserves client-written config (context). */
+async function cleanupDaemonStateFiles(session: string): Promise<void> {
+  for (const file of DAEMON_STATE_FILES(session)) {
+    try { await fs.unlink(file); } catch {}
+  }
 }
 
 /** Find and kill Chrome processes for this session */
@@ -265,7 +274,8 @@ interface DaemonResponse {
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
 
 async function runDaemon(session: string, headless: boolean): Promise<void> {
-  await cleanupStaleFiles(session);
+  // Only clean daemon state files (socket, pid, etc.), not client-written config (context)
+  await cleanupDaemonStateFiles(session);
 
   // Write daemon PID file and initial mode so status is immediately available
   await fs.writeFile(getPidPath(session), String(process.pid));
@@ -1520,13 +1530,11 @@ program
     try { await fs.unlink(getModeOverridePath(session)); } catch {}
     try {
       await sendCommand(session, "stop", []);
-      await cleanupContextFile(session);
       console.log(JSON.stringify({ status: "stopped", session }));
     } catch {
       if (cmdOpts.force) {
         await killChromeProcesses(session);
         await cleanupStaleFiles(session);
-        await cleanupContextFile(session);
         console.log(JSON.stringify({ status: "force stopped", session }));
       } else {
         console.log(JSON.stringify({ status: "not running", session }));
