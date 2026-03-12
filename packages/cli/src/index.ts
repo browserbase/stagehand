@@ -210,12 +210,16 @@ async function cleanupStaleFiles(session: string): Promise<void> {
     getChromePidPath(session),
     getLockPath(session),
     getModePath(session),
-    getContextPath(session),
   ];
 
   for (const file of files) {
     try { await fs.unlink(file); } catch {}
   }
+}
+
+/** Remove the context config file (called explicitly on stop, not during cleanup) */
+async function cleanupContextFile(session: string): Promise<void> {
+  try { await fs.unlink(getContextPath(session)); } catch {}
 }
 
 /** Find and kill Chrome processes for this session */
@@ -1540,11 +1544,13 @@ program
     try { await fs.unlink(getModeOverridePath(session)); } catch {}
     try {
       await sendCommand(session, "stop", []);
+      await cleanupContextFile(session);
       console.log(JSON.stringify({ status: "stopped", session }));
     } catch {
       if (cmdOpts.force) {
         await killChromeProcesses(session);
         await cleanupStaleFiles(session);
+        await cleanupContextFile(session);
         console.log(JSON.stringify({ status: "force stopped", session }));
       } else {
         console.log(JSON.stringify({ status: "not running", session }));
