@@ -142,6 +142,10 @@ function getModeOverridePath(session: string): string {
   return path.join(SOCKET_DIR, `browse-${session}.mode-override`);
 }
 
+function getContextPath(session: string): string {
+  return path.join(SOCKET_DIR, `browse-${session}.context`);
+}
+
 type BrowseMode = "browserbase" | "local";
 
 function hasBrowserbaseCredentials(): boolean {
@@ -198,17 +202,31 @@ async function isDaemonRunning(session: string): Promise<boolean> {
   }
 }
 
+/** Daemon state files — cleaned on both startup (stale) and shutdown. */
+const DAEMON_STATE_FILES = (session: string) => [
+  getSocketPath(session),
+  getPidPath(session),
+  getWsPath(session),
+  getChromePidPath(session),
+  getLockPath(session),
+  getModePath(session),
+];
+
 async function cleanupStaleFiles(session: string): Promise<void> {
   const files = [
-    getSocketPath(session),
-    getPidPath(session),
-    getWsPath(session),
-    getChromePidPath(session),
-    getLockPath(session),
-    getModePath(session),
+    ...DAEMON_STATE_FILES(session),
+    // Context is client-written config, only cleaned on full shutdown
+    getContextPath(session),
   ];
 
   for (const file of files) {
+    try { await fs.unlink(file); } catch {}
+  }
+}
+
+/** Like cleanupStaleFiles but preserves client-written config (context). */
+async function cleanupDaemonStateFiles(session: string): Promise<void> {
+  for (const file of DAEMON_STATE_FILES(session)) {
     try { await fs.unlink(file); } catch {}
   }
 }
@@ -256,7 +274,8 @@ interface DaemonResponse {
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
 
 async function runDaemon(session: string, headless: boolean): Promise<void> {
-  await cleanupStaleFiles(session);
+  // Only clean daemon state files (socket, pid, etc.), not client-written config (context)
+  await cleanupDaemonStateFiles(session);
 
   // Write daemon PID file and initial mode so status is immediately available
   await fs.writeFile(getPidPath(session), String(process.pid));
@@ -295,6 +314,13 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
       assertModeSupported(desiredMode);
       const useBrowserbase = desiredMode === "browserbase";
 
+      // Read context config if present (written by `browse open --context-id`)
+      let contextConfig: { id: string; persist?: boolean } | null = null;
+      try {
+        const raw = await fs.readFile(getContextPath(session), "utf-8");
+        contextConfig = JSON.parse(raw);
+      } catch {}
+
       stagehand = new Stagehand({
         env: useBrowserbase ? "BROWSERBASE" : "LOCAL",
         verbose: 0,
@@ -302,6 +328,15 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
         ...(useBrowserbase
           ? {
               disableAPI: true,
+              ...(contextConfig
+                ? {
+                    browserbaseSessionCreateParams: {
+                      browserSettings: {
+                        context: contextConfig,
+                      },
+                    },
+                  }
+                : {}),
             }
           : { localBrowserLaunchOptions: { headless, viewport: DEFAULT_VIEWPORT } }
         ),
@@ -1621,9 +1656,47 @@ program
     "load",
   )
   .option("-t, --timeout <ms>", "Navigation timeout in milliseconds", "30000")
+  .option("--context-id <id>", "Browserbase context ID to load browser state (remote mode only)")
+  .option("--persist", "Persist context changes back after session ends (requires --context-id)", false)
   .action(async (url: string, cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     try {
+      // Validate context flags
+      if (cmdOpts.persist && !cmdOpts.contextId) {
+        console.error("Error: --persist requires --context-id");
+        process.exit(1);
+      }
+
+      const session = getSession(opts);
+
+      if (cmdOpts.contextId) {
+        // Contexts only work with Browserbase remote sessions
+        const desiredMode = await getDesiredMode(session);
+        if (desiredMode === "local") {
+          console.error("Error: --context-id is only supported in remote mode. Run `browse env remote` first.");
+          process.exit(1);
+        }
+
+        const newConfig = JSON.stringify({ id: cmdOpts.contextId, persist: cmdOpts.persist ?? false });
+
+        // If daemon is already running with a different context, restart it
+        // (context is baked into the Browserbase session at creation time)
+        if (await isDaemonRunning(session)) {
+          let currentConfig: string | null = null;
+          try {
+            currentConfig = await fs.readFile(getContextPath(session), "utf-8");
+          } catch {}
+          if (currentConfig !== newConfig) {
+            await stopDaemonAndCleanup(session);
+          }
+        }
+
+        await fs.writeFile(getContextPath(session), newConfig);
+      } else {
+        // No --context-id: clear any stale context file so the daemon starts clean
+        try { await fs.unlink(getContextPath(session)); } catch {}
+      }
+
       const result = await runCommand("open", [
         url,
         cmdOpts.wait,
