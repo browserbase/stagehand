@@ -26,7 +26,7 @@ export default [
       // Allow explicit any for CLI flexibility
       "@typescript-eslint/no-explicit-any": "off",
       // Allow empty catch blocks (used for cleanup/ignoring expected errors)
-      "no-empty": ["error", { "allowEmptyCatch": true }],
+      "no-empty": ["error", { allowEmptyCatch: true }],
     },
   },
 ];
