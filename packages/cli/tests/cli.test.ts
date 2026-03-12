@@ -11,14 +11,7 @@
  * - Error handling
  */
 
-import {
-  describe,
-  it,
-  expect,
-  beforeAll,
-  afterAll,
-  afterEach,
-} from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { exec } from "child_process";
 import * as fs from "fs/promises";
 import * as path from "path";
