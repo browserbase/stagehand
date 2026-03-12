@@ -15,6 +15,7 @@ on:
 
 permissions:
   actions: read
+  checks: write
   contents: write
   pull-requests: write
   issues: write
@@ -83,6 +84,39 @@ env:
         if (!branch) return fallback;
         const allowed = new RegExp(`^external-contributor-pr-${prNumber}(?:-[A-Za-z0-9._-]+)?$`);
         return allowed.test(branch) ? branch : fallback;
+      }
+
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      async function rerequestCheckSuites(github, context, ref) {
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+          const { data } = await github.request('GET /repos/{owner}/{repo}/commits/{ref}/check-suites', {
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            ref,
+            per_page: 100,
+          });
+          const suites = data.check_suites || [];
+          if (!suites.length) {
+            if (attempt < 5) await sleep(5000);
+            continue;
+          }
+
+          for (const suite of suites) {
+            try {
+              await github.request('POST /repos/{owner}/{repo}/check-suites/{check_suite_id}/rerequest', {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                check_suite_id: suite.id,
+              });
+            } catch (error) {
+              if (error.status !== 403 && error.status !== 422) throw error;
+            }
+          }
+          return;
+        }
       }
 
       async function upsertComment(github, context, issueNumber, marker, lines) {
@@ -255,6 +289,7 @@ env:
 
         core.setOutput('should-claim', 'true');
         core.setOutput('claimer', handoff.reviewer);
+        core.setOutput('source-author', pr.user.login);
         core.setOutput('pr-number', String(pr.number));
         core.setOutput('source-sha', pr.head.sha);
         core.setOutput('previous-source-sha', latestClaim?.sourceSha || '');
@@ -278,6 +313,7 @@ env:
           existingMerged,
           refreshStatus,
           refreshReason,
+          sourceAuthor,
         } = input;
 
         if (refreshStatus !== 'updated') {
@@ -324,12 +360,18 @@ env:
           ownedPr = data;
         }
 
-        await github.rest.issues.addAssignees({
-          owner: context.repo.owner,
-          repo: context.repo.repo,
-          issue_number: ownedPr.number,
-          assignees: [claimer],
-        });
+        for (const assignee of [...new Set([claimer, sourceAuthor].filter(Boolean))]) {
+          try {
+            await github.rest.issues.addAssignees({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ownedPr.number,
+              assignees: [assignee],
+            });
+          } catch (error) {
+            if (error.status !== 422) throw error;
+          }
+        }
         await syncLabels(github, context, prNumber, ['external-contributor', 'external-contributor:mirrored']);
         await syncLabels(github, context, ownedPr.number, ['external-contributor', 'external-contributor:mirrored']);
         await upsertComment(github, context, ownedPr.number, '<!-- external-contributor-pr:owned-status -->', [
@@ -338,10 +380,11 @@ env:
           '',
           'When the external PR gets new commits, this same internal PR will be refreshed in place after the latest external commit is approved.',
         ]);
+        await rerequestCheckSuites(github, context, branch);
 
         const marker = `<!-- external-contributor-pr:claim owned-pr=${ownedPr.number} source-sha=${sourceSha} claimer=${claimer} branch=${branch} -->`;
         const comments = await listComments(github, context, prNumber);
-        if (!comments.some((comment) => comment.body?.includes(marker))) {
+        if (!comments.some((comment) => isManagedComment(comment) && comment.body?.includes(marker))) {
           await github.rest.issues.createComment({
             owner: context.repo.owner,
             repo: context.repo.repo,
@@ -576,6 +619,7 @@ jobs:
                 sourceSha: ${{ toJson(steps.prepare-claim.outputs.source-sha) }},
                 branch: ${{ toJson(steps.prepare-claim.outputs.branch) }},
                 claimer: ${{ toJson(steps.prepare-claim.outputs.claimer) }},
+                sourceAuthor: ${{ toJson(steps.prepare-claim.outputs.source-author) }},
                 title: ${{ toJson(steps.prepare-claim.outputs.title) }},
                 body: ${{ toJson(steps.prepare-claim.outputs.body) }},
                 existingNumber: ${{ toJson(steps.prepare-claim.outputs.owned-pr-number) }},
