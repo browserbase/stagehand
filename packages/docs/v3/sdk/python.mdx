@@ -228,6 +228,24 @@ See this table for the available options:
 
 Keyword arguments take precedence over environment variables.
 
+Use `base_url` to select the Stagehand API region:
+
+```python
+from stagehand import AsyncStagehand
+
+client = AsyncStagehand(
+    browserbase_api_key="My Browserbase API Key",
+    browserbase_project_id="My Browserbase Project ID",
+    model_api_key="My Model API Key",
+    base_url="https://api.euc1.stagehand.browserbase.com",
+)
+```
+
+For hosted Stagehand API, prefer selecting the regional endpoint with `base_url`.
+`browserbaseSessionCreateParams.region` is retained for compatibility, but the
+hosted API determines the actual browser region from the Stagehand API endpoint
+you call.
+
 > [!TIP]
 > Don't create more than one client in the same application. Each client has a connection pool, which is more efficient to share between requests.
 

@@ -225,6 +225,24 @@ go run examples/basic.go
 
 The example demonstrates the full Stagehand workflow: starting a session, navigating to a page, observing actions, clicking elements, extracting data, and running an autonomous agent.
 
+## Client configuration
+
+Use `option.WithBaseURL()` to select the Stagehand API region:
+
+```go
+client := stagehand.NewClient(
+	option.WithBrowserbaseAPIKey("My Browserbase API Key"),
+	option.WithBrowserbaseProjectID("My Browserbase Project ID"),
+	option.WithModelAPIKey("My Model API Key"),
+	option.WithBaseURL("https://api.euc1.stagehand.browserbase.com"),
+)
+```
+
+For hosted Stagehand API, prefer selecting the regional endpoint with `baseUrl`.
+`browserbaseSessionCreateParams.region` is retained for compatibility, but the
+hosted API determines the actual browser region from the Stagehand API endpoint
+you call.
+
 ### Request fields
 
 The stagehand library uses the [`omitzero`](https://tip.golang.org/doc/go1.24#encodingjsonpkgencodingjson)

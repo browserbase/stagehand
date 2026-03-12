@@ -79,6 +79,9 @@ targets:
 # "production") to the corresponding url to use.
 environments:
   production: https://api.stagehand.browserbase.com
+  us_east_1: https://api.use1.stagehand.browserbase.com
+  eu_central_1: https://api.euc1.stagehand.browserbase.com
+  ap_southeast_1: https://api.apse1.stagehand.browserbase.com
   # dev: https://api.stagehand.dev.browserbase.com
   # local: http://stagehand-api.localhost
 
@@ -153,6 +156,18 @@ openapi:
         target: "$.components.schemas.StreamEventSystemDataOutput.properties.result"
         value:
           x-stainless-any: true
+    - command: merge
+      reason: Mark hosted-region compatibility field as deprecated
+      args:
+        target: "$.components.schemas.BrowserbaseSessionCreateParams.properties.region"
+        value:
+          deprecated: true
+    - command: merge
+      reason: Mark hosted-region compatibility field as deprecated
+      args:
+        target: "$.components.schemas.BrowserbaseSessionCreateParamsOutput.properties.region"
+        value:
+          deprecated: true
 
 # `resources` define the structure and organization for your API, such as how
 # methods and models are grouped together and accessed. See the [configuration
