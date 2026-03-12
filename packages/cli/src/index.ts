@@ -237,7 +237,7 @@ async function cleanupStaleFiles(session: string): Promise<void> {
   for (const file of files) {
     try {
       await fs.unlink(file);
-    } catch {}
+   } catch {}
   }
 }
 

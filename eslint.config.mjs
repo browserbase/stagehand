@@ -19,6 +19,10 @@ export default [
     languageOptions: { globals: globals.node },
   },
   {
+    files: ["packages/cli/**/*.{js,cjs,mjs,ts}"],
+    languageOptions: { globals: globals.node },
+  },
+  {
     ignores: [
       "**/dist/**",
       "**/node_modules/**",

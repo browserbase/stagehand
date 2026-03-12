@@ -257,6 +257,24 @@ jobs:
             packages/server-v4/openapi.v4.yaml
           retention-days: 1
 
+  run-cli-tests:
+    name: CLI Tests
+    runs-on: ubuntu-latest
+    needs: [run-build, determine-changes]
+    if: needs.determine-changes.outputs.cli == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+        with:
+          use-prebuilt-artifacts: "true"
+          restore-turbo-cache: "false"
+
+      - name: Run CLI Tests
+        run: pnpm exec turbo run test:cli --filter=@browserbasehq/browse-cli
+
   discover-core-tests:
     runs-on: ubuntu-latest
     needs: [determine-changes]
