@@ -142,6 +142,10 @@ function getModeOverridePath(session: string): string {
   return path.join(SOCKET_DIR, `browse-${session}.mode-override`);
 }
 
+function getContextPath(session: string): string {
+  return path.join(SOCKET_DIR, `browse-${session}.context`);
+}
+
 type BrowseMode = "browserbase" | "local";
 
 function hasBrowserbaseCredentials(): boolean {
@@ -206,6 +210,7 @@ async function cleanupStaleFiles(session: string): Promise<void> {
     getChromePidPath(session),
     getLockPath(session),
     getModePath(session),
+    getContextPath(session),
   ];
 
   for (const file of files) {
@@ -295,6 +300,13 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
       assertModeSupported(desiredMode);
       const useBrowserbase = desiredMode === "browserbase";
 
+      // Read context config if present (written by `browse open --context-id`)
+      let contextConfig: { id: string; persist?: boolean } | null = null;
+      try {
+        const raw = await fs.readFile(getContextPath(session), "utf-8");
+        contextConfig = JSON.parse(raw);
+      } catch {}
+
       stagehand = new Stagehand({
         env: useBrowserbase ? "BROWSERBASE" : "LOCAL",
         verbose: 0,
@@ -302,6 +314,15 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
         ...(useBrowserbase
           ? {
               disableAPI: true,
+              ...(contextConfig
+                ? {
+                    browserbaseSessionCreateParams: {
+                      browserSettings: {
+                        context: contextConfig,
+                      },
+                    },
+                  }
+                : {}),
             }
           : { localBrowserLaunchOptions: { headless, viewport: DEFAULT_VIEWPORT } }
         ),
@@ -1491,6 +1512,30 @@ program
   .action(async (cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     const session = getSession(opts);
+
+    // Warn if stopping a remote session that had no context persistence
+    const currentMode = await readCurrentMode(session);
+    if (currentMode === "browserbase") {
+      let hasContext = false;
+      try {
+        const raw = await fs.readFile(getContextPath(session), "utf-8");
+        const ctx = JSON.parse(raw);
+        hasContext = Boolean(ctx?.id);
+        if (hasContext && !ctx?.persist) {
+          console.error(
+            "Warning: Session has a context but persist is not enabled. Browser state changes will be lost.\n" +
+            "Use `browse open <url> --context-id <id> --persist` to save state back to the context.",
+          );
+        }
+      } catch {}
+      if (!hasContext) {
+        console.error(
+          "Warning: Remote session has no context. Browser state (cookies, localStorage, etc.) will be lost.\n" +
+          "Use `browse open <url> --context-id <id> --persist` next time to preserve browser state.",
+        );
+      }
+    }
+
     // Clear any explicit env override so next start uses env var detection
     try { await fs.unlink(getModeOverridePath(session)); } catch {}
     try {
@@ -1621,9 +1666,44 @@ program
     "load",
   )
   .option("-t, --timeout <ms>", "Navigation timeout in milliseconds", "30000")
+  .option("--context-id <id>", "Browserbase context ID to load browser state (remote mode only)")
+  .option("--persist", "Persist context changes back after session ends (requires --context-id)", false)
   .action(async (url: string, cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     try {
+      // Validate context flags
+      if (cmdOpts.persist && !cmdOpts.contextId) {
+        console.error("Error: --persist requires --context-id");
+        process.exit(1);
+      }
+
+      const session = getSession(opts);
+
+      if (cmdOpts.contextId) {
+        // Contexts only work with Browserbase remote sessions
+        const desiredMode = await getDesiredMode(session);
+        if (desiredMode === "local") {
+          console.error("Error: --context-id is only supported in remote mode. Run `browse env remote` first.");
+          process.exit(1);
+        }
+
+        const newConfig = JSON.stringify({ id: cmdOpts.contextId, persist: cmdOpts.persist ?? false });
+
+        // If daemon is already running with a different context, restart it
+        // (context is baked into the Browserbase session at creation time)
+        if (await isDaemonRunning(session)) {
+          let currentConfig: string | null = null;
+          try {
+            currentConfig = await fs.readFile(getContextPath(session), "utf-8");
+          } catch {}
+          if (currentConfig !== newConfig) {
+            await stopDaemonAndCleanup(session);
+          }
+        }
+
+        await fs.writeFile(getContextPath(session), newConfig);
+      }
+
       const result = await runCommand("open", [
         url,
         cmdOpts.wait,
