@@ -67,4 +67,37 @@ describe("getAISDKLanguageModel", () => {
       expect(model).toBeDefined();
     });
   });
+
+  describe("providerOptions flattening", () => {
+    it("flattens providerOptions into the AI SDK constructor args", () => {
+      // Bedrock with providerOptions should work — the flattening merges
+      // providerOptions into the top-level options before calling createAmazonBedrock
+      const model = getAISDKLanguageModel(
+        "bedrock",
+        "anthropic.claude-3-7-sonnet-20250219-v1:0",
+        {
+          apiKey: "bedrock-bearer-token",
+          providerOptions: {
+            region: "us-west-2",
+          },
+        },
+      );
+      expect(model).toBeDefined();
+    });
+
+    it("works without providerOptions", () => {
+      const model = getAISDKLanguageModel("openai", "gpt-4o", {
+        apiKey: "test-key",
+      });
+      expect(model).toBeDefined();
+    });
+
+    it("works with empty providerOptions", () => {
+      const model = getAISDKLanguageModel("openai", "gpt-4o", {
+        apiKey: "test-key",
+        providerOptions: {},
+      });
+      expect(model).toBeDefined();
+    });
+  });
 });
