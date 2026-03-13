@@ -184,7 +184,7 @@ export class FlowLogger {
   }
 
   static get currentContext(): FlowLoggerContext {
-    const ctx = loggerContext.getStore();
+    const ctx = loggerContext.getStore() ?? null;
     if (!ctx) {
       throw new Error("FlowLogger context is missing.");
     }
@@ -252,6 +252,10 @@ export class FlowLogger {
         },
         () => originalMethod(...params),
       );
+
+    if (!options.context && !(loggerContext.getStore() ?? null)) {
+      return originalMethod(...params);
+    }
 
     return options.context
       ? loggerContext.run(FlowLogger.cloneContext(options.context), execute)
