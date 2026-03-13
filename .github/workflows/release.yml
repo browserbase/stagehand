@@ -46,8 +46,28 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check for stagehand changesets
+        id: check_changesets
+        run: |
+          set -euo pipefail
+          rm -f changeset-status.json
+          pnpm changeset status --output changeset-status.json || true
+          node <<'NODE'
+          const fs = require('fs');
+          if (!fs.existsSync('changeset-status.json')) {
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'has_changesets=false\n');
+            process.exit(0);
+          }
+          const status = JSON.parse(fs.readFileSync('changeset-status.json', 'utf8'));
+          const changesets = Array.isArray(status.changesets) ? status.changesets : [];
+          const hasStagehand = changesets.some((cs) =>
+            (cs.releases || []).some((r) => r?.name === '@browserbasehq/stagehand')
+          );
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `has_changesets=${hasStagehand}\n`);
+          NODE
+
       - name: Publish Canary
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.check_changesets.outputs.has_changesets == 'true'
         run: |
           git checkout main
           pnpm run release-canary
