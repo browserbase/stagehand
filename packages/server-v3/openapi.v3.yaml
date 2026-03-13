@@ -37,7 +37,8 @@ components:
       type: apiKey
       in: header
       name: x-model-api-key
-      description: API key for the AI model provider (OpenAI, Anthropic, etc.)
+      description: Fallback API key for the AI model provider when auth is not
+        supplied in the request body
   links:
     SessionAct:
       operationId: SessionAct
@@ -194,16 +195,63 @@ components:
           type: string
           format: uri
         headers:
-          description: Custom headers sent with every request to the model provider
+          description: Custom headers for the model provider
+          example:
+            X-Custom-Header: value
           type: object
           propertyNames:
             type: string
           additionalProperties:
             type: string
+        providerOptions:
+          description: "Provider-specific options passed through to the AI SDK provider
+            constructor. For Bedrock: { region, accessKeyId, secretAccessKey,
+            sessionToken }. For Vertex: { project, location, googleAuthOptions
+            }."
+          example:
+            region: us-east-1
+            accessKeyId: AKIAIOSFODNN7EXAMPLE
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties: {}
       required:
         - modelName
     ModelConfig:
       $ref: "#/components/schemas/ModelConfigObject"
+    ModelClientOptions:
+      type: object
+      properties:
+        apiKey:
+          description: API key for the model provider
+          example: sk-some-openai-api-key
+          type: string
+        baseURL:
+          description: Base URL for the model provider
+          example: https://api.openai.com/v1
+          type: string
+          format: uri
+        headers:
+          description: Custom headers for the model provider
+          example:
+            X-Custom-Header: value
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
+        providerOptions:
+          description: "Provider-specific options passed through to the AI SDK provider
+            constructor. For Bedrock: { region, accessKeyId, secretAccessKey,
+            sessionToken }. For Vertex: { project, location, googleAuthOptions
+            }."
+          example:
+            region: us-east-1
+            accessKeyId: AKIAIOSFODNN7EXAMPLE
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties: {}
     Action:
       description: Action object returned by observe and used by act
       type: object
@@ -233,29 +281,6 @@ components:
       required:
         - selector
         - description
-    VariablePrimitive:
-      anyOf:
-        - type: string
-        - type: number
-        - type: boolean
-    VariableValue:
-      anyOf:
-        - $ref: "#/components/schemas/VariablePrimitive"
-        - type: object
-          properties:
-            value:
-              $ref: "#/components/schemas/VariablePrimitive"
-            description:
-              type: string
-          required:
-            - value
-          additionalProperties: false
-    Variables:
-      type: object
-      propertyNames:
-        type: string
-      additionalProperties:
-        $ref: "#/components/schemas/VariableValue"
     BrowserConfig:
       type: object
       properties:
@@ -443,6 +468,10 @@ components:
           description: Model name to use for AI operations
           example: openai/gpt-5.4-mini
           type: string
+        modelClientOptions:
+          description: Optional provider-specific configuration for the session model (for
+            example Bedrock region and credentials)
+          $ref: "#/components/schemas/ModelClientOptions"
         domSettleTimeoutMs:
           description: Timeout in ms to wait for DOM to settle
           example: 5000
@@ -508,14 +537,14 @@ components:
             - $ref: "#/components/schemas/ModelConfig"
             - type: string
         variables:
-          description: Variables to substitute in the action instruction. Accepts flat
-            primitives or { value, description? } objects.
+          description: Variables to substitute in the action instruction
           example:
             username: john_doe
-            password:
-              value: secret123
-              description: The login password
-          $ref: "#/components/schemas/Variables"
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
         timeout:
           description: Timeout in ms for the action
           example: 30000
@@ -638,17 +667,6 @@ components:
           anyOf:
             - $ref: "#/components/schemas/ModelConfig"
             - type: string
-        variables:
-          description: Variables whose names are exposed to the model so observe() returns
-            %variableName% placeholders in suggested action arguments instead of
-            literal values. Accepts flat primitives or { value, description? }
-            objects.
-          example:
-            username:
-              value: john@example.com
-              description: The login email
-            rememberMe: true
-          $ref: "#/components/schemas/Variables"
         timeout:
           description: Timeout in ms for the observation
           example: 30000
@@ -824,15 +842,6 @@ components:
           description: Whether to visually highlight the cursor during execution
           example: true
           type: boolean
-        useSearch:
-          description: Whether to enable the web search tool powered by Browserbase Search
-            API
-          example: true
-          type: boolean
-        toolTimeout:
-          description: Timeout in milliseconds for each agent tool call
-          example: 30000
-          type: number
       required:
         - instruction
     AgentExecuteRequest:
@@ -1233,17 +1242,65 @@ components:
           type: string
           format: uri
         headers:
-          description: Custom headers sent with every request to the model provider
+          description: Custom headers for the model provider
+          example:
+            X-Custom-Header: value
           type: object
           propertyNames:
             type: string
           additionalProperties:
             type: string
+        providerOptions:
+          description: "Provider-specific options passed through to the AI SDK provider
+            constructor. For Bedrock: { region, accessKeyId, secretAccessKey,
+            sessionToken }. For Vertex: { project, location, googleAuthOptions
+            }."
+          example:
+            region: us-east-1
+            accessKeyId: AKIAIOSFODNN7EXAMPLE
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties: {}
       required:
         - modelName
       additionalProperties: false
     ModelConfigOutput:
       $ref: "#/components/schemas/ModelConfigObjectOutput"
+    ModelClientOptionsOutput:
+      type: object
+      properties:
+        apiKey:
+          description: API key for the model provider
+          example: sk-some-openai-api-key
+          type: string
+        baseURL:
+          description: Base URL for the model provider
+          example: https://api.openai.com/v1
+          type: string
+          format: uri
+        headers:
+          description: Custom headers for the model provider
+          example:
+            X-Custom-Header: value
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
+        providerOptions:
+          description: "Provider-specific options passed through to the AI SDK provider
+            constructor. For Bedrock: { region, accessKeyId, secretAccessKey,
+            sessionToken }. For Vertex: { project, location, googleAuthOptions
+            }."
+          example:
+            region: us-east-1
+            accessKeyId: AKIAIOSFODNN7EXAMPLE
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties: {}
+      additionalProperties: false
     ActionOutput:
       description: Action object returned by observe and used by act
       type: object
@@ -1494,14 +1551,14 @@ components:
             - $ref: "#/components/schemas/ModelConfigOutput"
             - type: string
         variables:
-          description: Variables to substitute in the action instruction. Accepts flat
-            primitives or { value, description? } objects.
+          description: Variables to substitute in the action instruction
           example:
             username: john_doe
-            password:
-              value: secret123
-              description: The login password
-          $ref: "#/components/schemas/Variables"
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
         timeout:
           description: Timeout in ms for the action
           example: 30000
@@ -1583,17 +1640,6 @@ components:
           anyOf:
             - $ref: "#/components/schemas/ModelConfigOutput"
             - type: string
-        variables:
-          description: Variables whose names are exposed to the model so observe() returns
-            %variableName% placeholders in suggested action arguments instead of
-            literal values. Accepts flat primitives or { value, description? }
-            objects.
-          example:
-            username:
-              value: john@example.com
-              description: The login email
-            rememberMe: true
-          $ref: "#/components/schemas/Variables"
         timeout:
           description: Timeout in ms for the observation
           example: 30000
@@ -1730,15 +1776,6 @@ components:
           description: Whether to visually highlight the cursor during execution
           example: true
           type: boolean
-        useSearch:
-          description: Whether to enable the web search tool powered by Browserbase Search
-            API
-          example: true
-          type: boolean
-        toolTimeout:
-          description: Timeout in milliseconds for each agent tool call
-          example: 30000
-          type: number
       required:
         - instruction
       additionalProperties: false
@@ -1924,8 +1961,8 @@ components:
       additionalProperties: false
     StreamEvent:
       description: "Server-Sent Event emitted during streaming responses. Events are
-        sent as `event: <status>\\ndata: <JSON>\\n\\n`, where the JSON payload
-        has the shape `{ data, type, id }`."
+        sent as `data: <JSON>\\n\\n`. Key order: data (with status first), type,
+        id."
       type: object
       properties:
         data:

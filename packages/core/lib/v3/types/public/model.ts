@@ -109,11 +109,13 @@ export type ClientOptions = {
   baseURL?: string;
   /** Custom headers for the model provider */
   headers?: Record<string, string>;
-  /** Provider-specific options passed through to the AI SDK provider constructor */
+  /** Provider-specific options passed through to the AI SDK provider constructor.
+   * Use BedrockProviderOptions for Bedrock (region, accessKeyId, etc.)
+   * or GoogleVertexProviderSettings for Vertex (project, location, etc.).
+   * Other providers can pass arbitrary options via type assertion. */
   providerOptions?:
     | BedrockProviderOptions
-    | GoogleVertexProviderSettings
-    | Record<string, unknown>;
+    | GoogleVertexProviderSettings;
   /** OpenAI organization ID */
   organization?: string;
   /** Delay between agent actions in ms */
