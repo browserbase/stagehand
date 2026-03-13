@@ -8,6 +8,7 @@ import { AppError } from "./errorHandler.js";
 import {
   getModelApiKey,
   getModelName,
+  getRequestModelConfig,
   getOptionalHeader,
   shouldRespondWithSSE,
 } from "./header.js";
@@ -132,6 +133,7 @@ export async function createStreamingResponse<TV3>({
 
   const requestContext: RequestContext = {
     modelApiKey,
+    modelConfig: getRequestModelConfig(request),
     logger: shouldStreamResponse
       ? (message) => {
           sendData("running", "log", { status: "running", message });

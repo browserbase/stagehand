@@ -29,7 +29,11 @@ import type {
   SerializableResponse,
   AgentCacheTransferPayload,
 } from "./types/private/index.js";
-import type { ModelConfiguration } from "./types/public/model.js";
+import type {
+  BedrockProviderSettings,
+  ClientOptions,
+  ModelConfiguration,
+} from "./types/public/model.js";
 import { toJsonSchema } from "./zodCompat.js";
 import type { StagehandZodSchema } from "./zodCompat.js";
 
@@ -101,11 +105,14 @@ interface StagehandAPIConstructorParams {
  *
  * Wire format: Api.SessionStartRequest (modelApiKey sent via header, not body)
  */
-interface ClientSessionStartParams extends Api.SessionStartRequest {
+interface ClientSessionStartParams
+  extends Omit<Api.SessionStartRequest, "modelClientOptions"> {
   /** Model API key - sent via x-model-api-key header, not in request body.
    *  Optional: when omitted, requests are sent without the x-model-api-key header
    *  and the server is expected to handle model authentication on its own. */
   modelApiKey?: string;
+  /** SDK model client options - serialized to the API wire format before send */
+  modelClientOptions?: ClientOptions;
 }
 
 /**
@@ -179,6 +186,8 @@ export class StagehandAPIClient {
   private projectId?: string;
   private sessionId?: string;
   private modelApiKey?: string;
+  private modelClientOptions: ClientOptions = {};
+  private modelName?: string;
   private modelProvider?: string;
   private region?: BrowserbaseRegion;
   private logger: (message: LogLine) => void;
@@ -204,6 +213,7 @@ export class StagehandAPIClient {
   async init({
     modelName,
     modelApiKey,
+    modelClientOptions,
     domSettleTimeoutMs,
     verbose,
     systemPrompt,
@@ -213,6 +223,13 @@ export class StagehandAPIClient {
     // browser,  TODO for local browsers
   }: ClientSessionStartParams): Promise<Api.SessionStartResult> {
     this.modelApiKey = modelApiKey;
+    this.modelName = modelName;
+    this.modelClientOptions = {
+      ...(modelClientOptions ?? {}),
+      ...(modelApiKey && !modelClientOptions?.apiKey
+        ? { apiKey: modelApiKey }
+        : {}),
+    } as ClientOptions;
     // Extract provider from modelName (e.g., "openai/gpt-5-nano" -> "openai")
     this.modelProvider = modelName?.includes("/")
       ? modelName.split("/")[0]
@@ -230,6 +247,8 @@ export class StagehandAPIClient {
     // Build wire-format request body (Api.SessionStartRequest shape)
     const requestBody: Api.SessionStartRequest = {
       modelName,
+      modelClientOptions:
+        this.toSessionStartModelClientOptions(modelClientOptions),
       domSettleTimeoutMs,
       verbose,
       systemPrompt,
@@ -290,8 +309,15 @@ export class StagehandAPIClient {
       if (Object.keys(restOptions).length > 0) {
         if (restOptions.model) {
           restOptions.model = this.prepareModelConfig(restOptions.model);
+        } else {
+          restOptions.model = this.getDefaultModelConfig();
         }
         wireOptions = restOptions as unknown as Api.ActRequest["options"];
+      }
+    } else {
+      const defaultModel = this.getDefaultModelConfig();
+      if (defaultModel) {
+        wireOptions = { model: defaultModel };
       }
     }
 
@@ -328,8 +354,15 @@ export class StagehandAPIClient {
       if (Object.keys(restOptions).length > 0) {
         if (restOptions.model) {
           restOptions.model = this.prepareModelConfig(restOptions.model);
+        } else {
+          restOptions.model = this.getDefaultModelConfig();
         }
         wireOptions = restOptions as unknown as Api.ExtractRequest["options"];
+      }
+    } else {
+      const defaultModel = this.getDefaultModelConfig();
+      if (defaultModel) {
+        wireOptions = { model: defaultModel };
       }
     }
 
@@ -363,8 +396,15 @@ export class StagehandAPIClient {
       if (Object.keys(restOptions).length > 0) {
         if (restOptions.model) {
           restOptions.model = this.prepareModelConfig(restOptions.model);
+        } else {
+          restOptions.model = this.getDefaultModelConfig();
         }
         wireOptions = restOptions as unknown as Api.ObserveRequest["options"];
+      }
+    } else {
+      const defaultModel = this.getDefaultModelConfig();
+      if (defaultModel) {
+        wireOptions = { model: defaultModel };
       }
     }
 
@@ -424,7 +464,7 @@ export class StagehandAPIClient {
       cua: agentConfig.mode === undefined ? agentConfig.cua : undefined,
       model: agentConfig.model
         ? this.prepareModelConfig(agentConfig.model)
-        : undefined,
+        : this.getDefaultModelConfig(),
       executionModel: agentConfig.executionModel
         ? this.prepareModelConfig(agentConfig.executionModel)
         : undefined,
@@ -603,41 +643,102 @@ export class StagehandAPIClient {
    *
    * In API mode, we only attempt to load an API key from env vars when the
    * model provider differs from the one used to init the session.
-   */
+  */
   private prepareModelConfig(
     model: ModelConfiguration,
-  ): { modelName: string; apiKey?: string } & Record<string, unknown> {
+  ): { modelName: string } & Record<string, unknown> {
     if (typeof model === "string") {
-      // Extract provider from model string (e.g., "openai/gpt-5-nano" -> "openai")
-      const provider = model.includes("/") ? model.split("/")[0] : undefined;
-      const apiKey =
-        provider && provider !== this.modelProvider
-          ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
-          : this.modelApiKey;
+      const provider = this.getProviderForModelName(model);
       return {
         modelName: model,
-        ...(apiKey ? { apiKey } : {}),
+        ...this.resolveModelClientOptions(provider),
       };
     }
 
-    if (!model.apiKey) {
-      const provider = model.modelName?.includes("/")
-        ? model.modelName.split("/")[0]
-        : undefined;
-      const apiKey =
-        provider && provider !== this.modelProvider
-          ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
-          : this.modelApiKey;
-      return {
-        ...model,
-        ...(apiKey ? { apiKey } : {}),
-      };
+    const provider =
+      this.getProviderForModelName(model.modelName) ?? model.provider;
+    return {
+      ...this.resolveModelClientOptions(provider, model),
+      ...model,
+    } as { modelName: string } & Record<string, unknown>;
+  }
+
+  private getDefaultModelConfig(): Api.ModelConfig | undefined {
+    if (!this.modelName || Object.keys(this.modelClientOptions).length === 0) {
+      return undefined;
+    }
+    return this.prepareModelConfig({
+      modelName: this.modelName,
+      ...this.modelClientOptions,
+    }) as Api.ModelConfig;
+  }
+
+  private getProviderForModelName(modelName: string | undefined): string | undefined {
+    return modelName?.includes("/") ? modelName.split("/")[0] : undefined;
+  }
+
+  private toSessionStartModelClientOptions(
+    options?: ClientOptions,
+  ): Api.ModelClientOptions | undefined {
+    if (!options) {
+      return undefined;
     }
 
-    return model as { modelName: string; apiKey: string } & Record<
-      string,
-      unknown
-    >;
+    const requestOptions = { ...options } as Record<string, unknown>;
+    delete requestOptions.provider;
+
+    const headers = requestOptions.headers;
+    if (
+      headers !== undefined &&
+      (headers === null ||
+        typeof headers !== "object" ||
+        Array.isArray(headers) ||
+        "then" in headers ||
+        Object.values(headers as Record<string, unknown>).some(
+          (value) => typeof value !== "string",
+        ))
+    ) {
+      delete requestOptions.headers;
+    }
+
+    return requestOptions as Api.ModelClientOptions;
+  }
+
+  private resolveModelClientOptions(
+    provider: string | undefined,
+    overrides?: ClientOptions,
+  ): ClientOptions {
+    const baseOptions =
+      provider && provider === this.modelProvider
+        ? { ...this.modelClientOptions }
+        : {};
+    const mergedOptions = {
+      ...baseOptions,
+      ...(overrides ?? {}),
+    } as ClientOptions;
+    const bedrockOptions = mergedOptions as Partial<BedrockProviderSettings>;
+    const hasExplicitAwsCredentials =
+      bedrockOptions.accessKeyId !== undefined ||
+      bedrockOptions.secretAccessKey !== undefined ||
+      bedrockOptions.sessionToken !== undefined;
+
+    if (mergedOptions.apiKey !== undefined || hasExplicitAwsCredentials) {
+      return mergedOptions;
+    }
+
+    const fallbackApiKey =
+      provider && provider !== this.modelProvider
+        ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
+        : this.modelApiKey;
+
+    if (!fallbackApiKey) {
+      return mergedOptions;
+    }
+
+    return {
+      ...mergedOptions,
+      apiKey: fallbackApiKey,
+    };
   }
 
   private consumeFinishedEventData<T>(): T | null {
@@ -847,10 +948,13 @@ export class StagehandAPIClient {
       "x-bb-session-id": this.sessionId,
       // we want real-time logs, so we stream the response
       "x-stream-response": "true",
-      ...(this.modelApiKey ? { "x-model-api-key": this.modelApiKey } : {}),
       "x-language": "typescript",
       "x-sdk-version": STAGEHAND_VERSION,
     };
+
+    if (this.modelApiKey) {
+      defaultHeaders["x-model-api-key"] = this.modelApiKey;
+    }
 
     // Add cache bypass header if caching is disabled
     if (!this.shouldUseCache(serverCache)) {

@@ -75,6 +75,22 @@ export const ModelConfigObjectSchema = z
       description: "API key for the model provider",
       example: "sk-some-openai-api-key",
     }),
+    region: z.string().optional().meta({
+      description:
+        "Provider region for models that require it (for example, Amazon Bedrock)",
+      example: "us-east-1",
+    }),
+    accessKeyId: z.string().optional().meta({
+      description: "Access key ID for providers that use multi-field auth",
+      example: "AKIAIOSFODNN7EXAMPLE",
+    }),
+    secretAccessKey: z.string().optional().meta({
+      description: "Secret access key for providers that use multi-field auth",
+    }),
+    sessionToken: z.string().optional().meta({
+      description:
+        "Session token for temporary credentials used by multi-field auth providers",
+    }),
     baseURL: z.string().url().optional().meta({
       description: "Base URL for the model provider",
       example: "https://api.openai.com/v1",
@@ -82,6 +98,7 @@ export const ModelConfigObjectSchema = z
     headers: z.record(z.string(), z.string()).optional().meta({
       description:
         "Custom headers sent with every request to the model provider",
+      example: { "X-Custom-Header": "value" },
     }),
   })
   .meta({ id: "ModelConfigObject" });
@@ -89,6 +106,14 @@ export const ModelConfigObjectSchema = z
 /** Model configuration */
 export const ModelConfigSchema = ModelConfigObjectSchema.meta({
   id: "ModelConfig",
+});
+
+/** Session-level model client options used when initializing the session model */
+export const ModelClientOptionsSchema = ModelConfigObjectSchema.omit({
+  modelName: true,
+  provider: true,
+}).meta({
+  id: "ModelClientOptions",
 });
 
 /** Action object returned by observe and used by act */
@@ -314,6 +339,10 @@ export const SessionStartRequestSchema = z
     modelName: z.string().meta({
       description: "Model name to use for AI operations",
       example: "openai/gpt-5.4-mini",
+    }),
+    modelClientOptions: ModelClientOptionsSchema.optional().meta({
+      description:
+        "Optional provider-specific configuration for the session model (for example Bedrock region and credentials)",
     }),
     domSettleTimeoutMs: z.number().optional().meta({
       description: "Timeout in ms to wait for DOM to settle",
@@ -977,7 +1006,8 @@ export const openApiSecuritySchemes = {
     type: "apiKey",
     in: "header",
     name: "x-model-api-key",
-    description: "API key for the AI model provider (OpenAI, Anthropic, etc.)",
+    description:
+      "Fallback API key for the AI model provider when auth is not supplied in the request body",
   },
 } as const;
 
@@ -1116,6 +1146,7 @@ type _BrowserbaseSessionCreateParamsCheck =
     : never;
 
 // /sessions/start
+export type ModelClientOptions = z.infer<typeof ModelClientOptionsSchema>;
 export type SessionStartRequest = z.infer<typeof SessionStartRequestSchema>;
 export type SessionStartResult = z.infer<typeof SessionStartResultSchema>;
 export type SessionStartResponse = z.infer<typeof SessionStartResponseSchema>;

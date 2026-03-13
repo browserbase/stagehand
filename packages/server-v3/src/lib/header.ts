@@ -39,23 +39,41 @@ export const getOptionalHeader = (
   return headerValue;
 };
 
+export function getRequestModelConfig(
+  request: FastifyRequest,
+): Record<string, unknown> | undefined {
+  const body = request.body as Record<string, unknown> | undefined;
+  const options = body?.options as Record<string, unknown> | undefined;
+  const model = options?.model as Record<string, unknown> | undefined;
+
+  if (model && typeof model === "object") {
+    return model;
+  }
+
+  const modelClientOptions = body?.modelClientOptions as
+    | Record<string, unknown>
+    | undefined;
+  const modelName = typeof body?.modelName === "string" ? body.modelName : undefined;
+
+  if (!modelClientOptions && !modelName) {
+    return undefined;
+  }
+
+  return {
+    ...(modelClientOptions ?? {}),
+    ...(modelName ? { modelName } : {}),
+  };
+}
+
 /**
  * Extracts model name from request body, supporting V3 structure.
  * - V3: body.options.model.modelName
  */
 export function getModelName(request: FastifyRequest): string | undefined {
-  const body = request.body as Record<string, unknown> | undefined;
-  const options = body?.options as Record<string, unknown> | undefined;
-  const model = options?.model as Record<string, unknown> | undefined;
-
-  if (typeof model?.modelName === "string" && model.modelName) {
-    return model.modelName;
+  const modelConfig = getRequestModelConfig(request);
+  if (typeof modelConfig?.modelName === "string" && modelConfig.modelName) {
+    return modelConfig.modelName;
   }
-
-  if (typeof body?.modelName === "string" && body.modelName) {
-    return body.modelName;
-  }
-
   return undefined;
 }
 
@@ -65,12 +83,9 @@ export function getModelName(request: FastifyRequest): string | undefined {
  * 2. Per-request header x-model-api-key
  */
 export function getModelApiKey(request: FastifyRequest): string | undefined {
-  const body = request.body as Record<string, unknown> | undefined;
-  const options = body?.options as Record<string, unknown> | undefined;
-  const model = options?.model as Record<string, unknown> | undefined;
-
-  if (typeof model?.apiKey === "string" && model.apiKey) {
-    return model.apiKey;
+  const modelConfig = getRequestModelConfig(request);
+  if (typeof modelConfig?.apiKey === "string" && modelConfig.apiKey) {
+    return modelConfig.apiKey;
   }
 
   return getOptionalHeader(request, "x-model-api-key");

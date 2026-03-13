@@ -74,6 +74,7 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
       },
       security: [
         { BrowserbaseApiKey: [], BrowserbaseProjectId: [], ModelApiKey: [] },
+        { BrowserbaseApiKey: [], BrowserbaseProjectId: [] },
       ],
     },
     ...fastifyZodOpenApiTransformers,

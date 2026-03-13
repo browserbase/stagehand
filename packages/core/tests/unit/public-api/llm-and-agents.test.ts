@@ -15,6 +15,28 @@ describe("LLM and Agents public API types", () => {
 
       void googleConfig;
     });
+
+    it("accepts Bedrock bearer token settings in model config", () => {
+      const bedrockConfig = {
+        modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
+        apiKey: "bedrock-bearer-token",
+        region: "us-east-1",
+      } satisfies Stagehand.ModelConfiguration;
+
+      void bedrockConfig;
+    });
+
+    it("accepts Bedrock AWS credential settings in model config", () => {
+      const bedrockConfig = {
+        modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
+        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+        secretAccessKey: "secret",
+        sessionToken: "session-token",
+        region: "us-east-1",
+      } satisfies Stagehand.ModelConfiguration;
+
+      void bedrockConfig;
+    });
   });
 
   describe("AISdkClient", () => {
