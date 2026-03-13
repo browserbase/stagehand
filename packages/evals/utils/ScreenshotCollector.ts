@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import { V3 } from "@browserbasehq/stagehand";
 import sharp from "sharp";
 import { ScreenshotCollectorOptions } from "../types/screenshotCollector.js";
@@ -191,19 +190,6 @@ export class ScreenshotCollector {
     } finally {
       this.isCapturing = false;
     }
-  }
-
-  /**
-   * Queue a screenshot file to be read from disk and added to the collection.
-   * Use this with flow events that carry a screenshot artifact path.
-   */
-  async addScreenshotFromPath(screenshotPath: string): Promise<void> {
-    if (!screenshotPath || this.stopped) {
-      return;
-    }
-
-    const screenshot = await fs.promises.readFile(screenshotPath);
-    await this.addScreenshot(screenshot);
   }
 
   private async calculateMSE(img1: Buffer, img2: Buffer): Promise<number> {
