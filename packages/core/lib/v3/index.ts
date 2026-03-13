@@ -52,7 +52,6 @@ export {
   injectUrls,
   providerEnvVarMap,
   loadApiKeyFromEnv,
-  toTitleCase,
   trimTrailingTextNode,
   jsonSchemaToZod,
 } from "../utils.js";
@@ -62,15 +61,6 @@ export { connectToMCPServer } from "./mcp/connection.js";
 export { V3Evaluator } from "../v3Evaluator.js";
 export { tool } from "ai";
 export { getAISDKLanguageModel } from "./llm/LLMProvider.js";
-export {
-  FileEventStore,
-  aggregateFlowEventMetrics,
-  getConfigDir as getFlowLogConfigDir,
-  getEventStore,
-  setEventStore,
-  destroyEventStore,
-} from "./eventStore.js";
-export { FlowEvent, FlowLogger } from "./flowLogger.js";
 export { __internalCreateInMemoryAgentCacheHandle } from "./cache/serverAgentCache.js";
 export { maybeRunShutdownSupervisorFromArgv as __internalMaybeRunShutdownSupervisorFromArgv } from "./shutdown/supervisor.js";
 export type { ServerAgentCacheHandle } from "./cache/serverAgentCache.js";
@@ -93,13 +83,6 @@ export type {
   InferStagehandSchema,
   JsonSchemaDocument,
 } from "./zodCompat.js";
-export type {
-  FlowEventAggregateMetrics,
-  EventStore,
-  EventStoreListener,
-  EventStoreQuery,
-} from "./eventStore.js";
-export type { FlowEventInput, FlowLoggerContext } from "./flowLogger.js";
 
 export type { JsonSchema, JsonSchemaProperty } from "../utils.js";
 
