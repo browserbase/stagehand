@@ -16,7 +16,7 @@ import {
 } from "ai";
 import { StagehandZodObject } from "../zodCompat.js";
 import { processMessages } from "../agent/utils/messageProcessing.js";
-import { persistAgentScreenshotArtifact } from "../agent/utils/persistAgentScreenshotArtifact.js";
+import { persistAgentScreenshotArtifact } from "../agent/utils/screenshotHandler.js";
 import { LLMClient } from "../llm/LLMClient.js";
 import { FlowLogger } from "../flowLogger.js";
 import {
