@@ -59,7 +59,13 @@ export const onlineMind2Web: EvalFunction = async ({
         return;
       }
 
-      void screenshotCollector?.addScreenshotFromPath(screenshotPath);
+      void screenshotCollector?.addScreenshotFromPath(screenshotPath).catch((error) => {
+        logger.log({
+          category: "evaluation",
+          message: `Failed to read screenshot at ${screenshotPath}: ${String(error)}`,
+          level: 1,
+        });
+      });
     };
     v3.bus.on("AgentScreenshotTakenEvent", screenshotHandler);
 
