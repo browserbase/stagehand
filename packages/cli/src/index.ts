@@ -9,24 +9,20 @@
  */
 
 import { Command } from "commander";
-import { Stagehand } from "@browserbasehq/stagehand";
+import { Stagehand, type Page as BrowsePage } from "@browserbasehq/stagehand";
 import { promises as fs } from "fs";
 import * as path from "path";
 import * as os from "os";
 import * as net from "net";
 import { spawn } from "child_process";
 import * as readline from "readline";
-import { createRequire } from "module";
-
-// Load version from package.json
-const require = createRequire(import.meta.url);
-const { version: VERSION } = require("../package.json");
+import type { Protocol } from "devtools-protocol";
+import { version as VERSION } from "../package.json";
 
 const program = new Command();
 
-// Type aliases - using any for flexibility with Stagehand internals
+// Type aliases
 type BrowseContext = Stagehand["context"];
-type BrowsePage = ReturnType<BrowseContext["pages"]>[number];
 
 // ==================== DAEMON INFRASTRUCTURE ====================
 
@@ -377,145 +373,12 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
 
       // Try to save Chrome info for reference (best effort)
       try {
-        const wsUrl = (context as any).conn?.wsUrl || "unknown";
+        const wsUrl = stagehand.connectURL();
         await fs.writeFile(getWsPath(session), wsUrl);
       } catch {}
 
       // Store session name for network capture
       networkSession = session;
-
-      // Setup network capture helpers (called when network is enabled)
-      const setupNetworkCapture = async (targetPage: BrowsePage) => {
-        const cdpSession = targetPage.mainFrame().session;
-
-        // Track request start times for duration calculation
-        const requestStartTimes = new Map<string, number>();
-        const requestDirs = new Map<string, string>();
-
-        cdpSession.on("Network.requestWillBeSent", async (params: any) => {
-          if (!networkEnabled || !networkDir) return;
-
-          const request: PendingRequest = {
-            id: params.requestId,
-            timestamp: new Date().toISOString(),
-            method: params.request.method,
-            url: params.request.url,
-            headers: params.request.headers || {},
-            body: params.request.postData || null,
-            resourceType: params.type || "Other",
-          };
-
-          pendingRequests.set(params.requestId, request);
-          requestStartTimes.set(params.requestId, Date.now());
-
-          // Write request immediately
-          const requestDir = await writeRequestToFs(request);
-          if (requestDir) {
-            requestDirs.set(params.requestId, requestDir);
-          }
-        });
-
-        cdpSession.on("Network.responseReceived", async (params: any) => {
-          if (!networkEnabled) return;
-
-          const requestDir = requestDirs.get(params.requestId);
-          if (!requestDir) return;
-
-          // Store response info for when we get the body
-          const startTime =
-            requestStartTimes.get(params.requestId) || Date.now();
-          const duration = Date.now() - startTime;
-
-          // Response info without body (body comes later)
-          const responseInfo = {
-            id: params.requestId,
-            status: params.response.status,
-            statusText: params.response.statusText || "",
-            headers: params.response.headers || {},
-            mimeType: params.response.mimeType || "",
-            body: null as string | null,
-            duration,
-          };
-
-          // Store for body retrieval
-          (params as any)._responseInfo = responseInfo;
-          (params as any)._requestDir = requestDir;
-        });
-
-        cdpSession.on("Network.loadingFinished", async (params: any) => {
-          if (!networkEnabled) return;
-
-          const requestDir = requestDirs.get(params.requestId);
-          const pending = pendingRequests.get(params.requestId);
-          if (!requestDir || !pending) return;
-
-          const startTime =
-            requestStartTimes.get(params.requestId) || Date.now();
-          const duration = Date.now() - startTime;
-
-          let body: string | null = null;
-          try {
-            const result = await cdpSession.send("Network.getResponseBody", {
-              requestId: params.requestId,
-            });
-            body = (result as any).body || null;
-            if ((result as any).base64Encoded && body) {
-              body = `[base64] ${body.slice(0, 100)}...`;
-            }
-          } catch {
-            // Body not available (e.g., for redirects)
-          }
-
-          const responseData = {
-            id: params.requestId,
-            status: 0,
-            statusText: "",
-            headers: {} as Record<string, string>,
-            mimeType: "",
-            body,
-            duration,
-          };
-
-          await writeResponseToFs(requestDir, responseData);
-
-          // Cleanup
-          pendingRequests.delete(params.requestId);
-          requestStartTimes.delete(params.requestId);
-          requestDirs.delete(params.requestId);
-        });
-
-        cdpSession.on("Network.loadingFailed", async (params: any) => {
-          if (!networkEnabled) return;
-
-          const requestDir = requestDirs.get(params.requestId);
-          if (!requestDir) return;
-
-          const startTime =
-            requestStartTimes.get(params.requestId) || Date.now();
-          const duration = Date.now() - startTime;
-
-          const responseData = {
-            id: params.requestId,
-            status: 0,
-            statusText: "Failed",
-            headers: {},
-            mimeType: "",
-            body: null,
-            duration,
-            error: params.errorText || "Unknown error",
-          };
-
-          await writeResponseToFs(requestDir, responseData);
-
-          // Cleanup
-          pendingRequests.delete(params.requestId);
-          requestStartTimes.delete(params.requestId);
-          requestDirs.delete(params.requestId);
-        });
-      }; // Close setupNetworkCapture function
-
-      // Store the setup function for use when network is enabled
-      (context as any)._setupNetworkCapture = setupNetworkCapture;
 
       return { stagehand, context };
     } finally {
@@ -565,7 +428,7 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
 
   // Graceful shutdown handler
   let shuttingDown = false;
-  const shutdown = async (_signal?: string) => {
+  const shutdown = async () => {
     if (shuttingDown) return;
     shuttingDown = true;
 
@@ -582,16 +445,16 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
   };
 
   // Handle all termination signals
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
-  process.on("SIGINT", () => shutdown("SIGINT"));
-  process.on("SIGHUP", () => shutdown("SIGHUP"));
+  process.on("SIGTERM", () => shutdown());
+  process.on("SIGINT", () => shutdown());
+  process.on("SIGHUP", () => shutdown());
   process.on("uncaughtException", (err) => {
     console.error("Uncaught exception:", err);
-    shutdown("uncaughtException");
+    shutdown();
   });
   process.on("unhandledRejection", (reason) => {
     console.error("Unhandled rejection:", reason);
-    shutdown("unhandledRejection");
+    shutdown();
   });
 
   // Keep daemon running (signal already sent above)
@@ -602,11 +465,9 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
 /** Cached ref maps from the last snapshot - allows @ref syntax in commands */
 let refMap: {
   xpathMap: Record<string, string>;
-  cssMap: Record<string, string>;
   urlMap: Record<string, string>;
 } = {
   xpathMap: {},
-  cssMap: {},
   urlMap: {},
 };
 
@@ -730,7 +591,7 @@ function parseRef(selector: string): string | null {
   if (
     selector.startsWith("[") &&
     selector.endsWith("]") &&
-    /^\[\d+-\d+\]$/.test(selector)
+    /^\[\d+-\d+]$/.test(selector)
   ) {
     return selector.slice(1, -1);
   }
@@ -785,7 +646,7 @@ async function executeCommand(
       const [url, waitUntil, timeout] = args as [string, string?, number?];
       await page!.goto(url, {
         waitUntil: waitUntil as "load" | "domcontentloaded" | "networkidle",
-        timeout: timeout ?? 30000,
+        timeoutMs: timeout ?? 30000,
       });
       return { url: page!.url() };
     }
@@ -834,7 +695,7 @@ async function executeCommand(
         clickCount: opts?.clickCount ?? 1,
       });
       if (opts?.returnXPath) {
-        return { clicked: true, xpath: result?.xpath };
+        return { clicked: true, xpath: result };
       }
       return { clicked: true };
     }
@@ -842,7 +703,7 @@ async function executeCommand(
       const [x, y, opts] = args as [number, number, { returnXPath?: boolean }];
       const result = await page!.hover(x, y);
       if (opts?.returnXPath) {
-        return { hovered: true, xpath: result?.xpath };
+        return { hovered: true, xpath: result };
       }
       return { hovered: true };
     }
@@ -856,7 +717,7 @@ async function executeCommand(
       ];
       const result = await page!.scroll(x, y, deltaX, deltaY);
       if (opts?.returnXPath) {
-        return { scrolled: true, xpath: result?.xpath };
+        return { scrolled: true, xpath: result };
       }
       return { scrolled: true };
     }
@@ -903,7 +764,10 @@ async function executeCommand(
         string,
         { delay?: number; mistakes?: boolean },
       ];
-      await page!.type(text, { delay: opts?.delay, humanize: opts?.mistakes });
+      await page!.type(text, {
+        delay: opts?.delay,
+        withMistakes: opts?.mistakes,
+      });
       return { typed: true };
     }
     case "press": {
@@ -1045,7 +909,6 @@ async function executeCommand(
 
       refMap = {
         xpathMap: snapshot.xpathMap ?? {},
-        cssMap: snapshot.cssMap ?? {},
         urlMap: snapshot.urlMap ?? {},
       };
 
@@ -1056,7 +919,6 @@ async function executeCommand(
         tree: snapshot.formattedTree,
         xpathMap: snapshot.xpathMap,
         urlMap: snapshot.urlMap,
-        cssMap: snapshot.cssMap,
       };
     }
 
@@ -1177,7 +1039,6 @@ async function executeCommand(
       return {
         count: Object.keys(refMap.xpathMap).length,
         xpathMap: refMap.xpathMap,
-        cssMap: refMap.cssMap,
         urlMap: refMap.urlMap,
       };
     }
@@ -1200,10 +1061,113 @@ async function executeCommand(
         maxResourceBufferSize: 5000000,
       });
 
-      const setupFn = (context as any)._setupNetworkCapture;
-      if (setupFn) {
-        await setupFn(page!);
-      }
+      // Set up CDP event listeners for network capture
+      const requestStartTimes = new Map<string, number>();
+      const requestDirs = new Map<string, string>();
+
+      cdpSession.on(
+        "Network.requestWillBeSent",
+        async (params: Protocol.Network.RequestWillBeSentEvent) => {
+          if (!networkEnabled || !networkDir) return;
+
+          const request: PendingRequest = {
+            id: params.requestId,
+            timestamp: new Date().toISOString(),
+            method: params.request.method,
+            url: params.request.url,
+            headers: params.request.headers || {},
+            body: params.request.postData || null,
+            resourceType: params.type || "Other",
+          };
+
+          pendingRequests.set(params.requestId, request);
+          requestStartTimes.set(params.requestId, Date.now());
+
+          const requestDir = await writeRequestToFs(request);
+          if (requestDir) {
+            requestDirs.set(params.requestId, requestDir);
+          }
+        },
+      );
+
+      cdpSession.on(
+        "Network.loadingFinished",
+        async (params: Protocol.Network.LoadingFinishedEvent) => {
+          if (!networkEnabled) return;
+
+          const requestDir = requestDirs.get(params.requestId);
+          const pending = pendingRequests.get(params.requestId);
+          if (!requestDir || !pending) return;
+
+          const startTime =
+            requestStartTimes.get(params.requestId) || Date.now();
+          const duration = Date.now() - startTime;
+
+          let body: string | null = null;
+          try {
+            const result =
+              await cdpSession.send<Protocol.Network.GetResponseBodyResponse>(
+                "Network.getResponseBody",
+                {
+                  requestId: params.requestId,
+                },
+              );
+            body = result.body || null;
+            if (result.base64Encoded && body) {
+              body = `[base64] ${body.slice(0, 100)}...`;
+            }
+          } catch {
+            // Body not available (e.g., for redirects)
+          }
+
+          const responseData = {
+            id: params.requestId,
+            status: 0,
+            statusText: "",
+            headers: {} as Record<string, string>,
+            mimeType: "",
+            body,
+            duration,
+          };
+
+          await writeResponseToFs(requestDir, responseData);
+
+          pendingRequests.delete(params.requestId);
+          requestStartTimes.delete(params.requestId);
+          requestDirs.delete(params.requestId);
+        },
+      );
+
+      cdpSession.on(
+        "Network.loadingFailed",
+        async (params: Protocol.Network.LoadingFailedEvent) => {
+          if (!networkEnabled) return;
+
+          const requestDir = requestDirs.get(params.requestId);
+          if (!requestDir) return;
+
+          const startTime =
+            requestStartTimes.get(params.requestId) || Date.now();
+          const duration = Date.now() - startTime;
+
+          const responseData = {
+            id: params.requestId,
+            status: 0,
+            statusText: "Failed",
+            headers: {},
+            mimeType: "",
+            body: null,
+            duration,
+            error: params.errorText || "Unknown error",
+          };
+
+          await writeResponseToFs(requestDir, responseData);
+
+          pendingRequests.delete(params.requestId);
+          requestStartTimes.delete(params.requestId);
+          requestDirs.delete(params.requestId);
+        },
+      );
 
       networkEnabled = true;
       return { enabled: true, path: networkDir };
@@ -1215,8 +1179,7 @@ async function executeCommand(
       }
 
       try {
-        const cdpSession = page!.mainFrame().session;
-        await cdpSession.send("Network.disable");
+        await page!.mainFrame().session.send("Network.disable");
       } catch {}
 
       networkEnabled = false;
@@ -2086,7 +2049,6 @@ program
         tree: string;
         xpathMap?: Record<string, string>;
         urlMap?: Record<string, string>;
-        cssMap?: Record<string, string>;
       };
       if (cmdOpts.compact && !opts.json) {
         console.log(result.tree);

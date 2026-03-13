@@ -17,8 +17,8 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import * as os from "os";
 
-// CLI executable path - use tsx for development testing
-const CLI_PATH = path.join(__dirname, "../src/index.ts");
+// CLI executable path - use the built dist for testing (daemon spawns via process.argv[0])
+const CLI_PATH = path.join(__dirname, "../dist/index.js");
 
 // Test session name to avoid conflicts
 const TEST_SESSION = `test-${Date.now()}`;
@@ -32,7 +32,7 @@ async function browse(
   const timeout = options.timeout ?? 30000;
 
   return new Promise((resolve) => {
-    const fullArgs = `tsx ${CLI_PATH} --session ${session} ${args}`;
+    const fullArgs = `node ${CLI_PATH} --headless --session ${session} ${args}`;
     exec(fullArgs, { timeout }, (error, stdout, stderr) => {
       resolve({
         stdout: stdout.trim(),
@@ -44,9 +44,9 @@ async function browse(
 }
 
 // Helper to parse JSON output
-function parseJson(output: string): any {
+function parseJson<T = Record<string, unknown>>(output: string): T {
   try {
-    return JSON.parse(output);
+    return JSON.parse(output) as T;
   } catch {
     throw new Error(`Failed to parse JSON: ${output}`);
   }
@@ -254,7 +254,7 @@ describe("Browse CLI", () => {
 
     it("should take screenshot and return base64", async () => {
       const result = await browse("screenshot");
-      const data = parseJson(result.stdout);
+      const data = parseJson<{ base64: string }>(result.stdout);
       expect(data.base64).toBeTruthy();
       expect(data.base64.length).toBeGreaterThan(100);
     });
@@ -292,7 +292,10 @@ describe("Browse CLI", () => {
 
       // Find a clickable ref
       const refsResult = await browse("refs");
-      const refs = parseJson(refsResult.stdout);
+      const refs = parseJson<{
+        count: number;
+        xpathMap: Record<string, string>;
+      }>(refsResult.stdout);
 
       if (refs.count > 0) {
         const firstRef = Object.keys(refs.xpathMap)[0];
@@ -361,7 +364,9 @@ describe("Browse CLI", () => {
     it("should list pages", async () => {
       await browse("open https://example.com");
       const result = await browse("pages");
-      const data = parseJson(result.stdout);
+      const data = parseJson<{ pages: { index: number; url: string }[] }>(
+        result.stdout,
+      );
 
       expect(data.pages).toBeInstanceOf(Array);
       expect(data.pages.length).toBeGreaterThan(0);
@@ -371,7 +376,7 @@ describe("Browse CLI", () => {
 
     it("should create new page", async () => {
       const beforeResult = await browse("pages");
-      const beforeData = parseJson(beforeResult.stdout);
+      const beforeData = parseJson<{ pages: unknown[] }>(beforeResult.stdout);
       const beforeCount = beforeData.pages.length;
 
       const newResult = await browse("newpage https://github.com");
@@ -379,7 +384,7 @@ describe("Browse CLI", () => {
       expect(newData.created).toBe(true);
 
       const afterResult = await browse("pages");
-      const afterData = parseJson(afterResult.stdout);
+      const afterData = parseJson<{ pages: unknown[] }>(afterResult.stdout);
       expect(afterData.pages.length).toBe(beforeCount + 1);
     });
 
@@ -398,14 +403,16 @@ describe("Browse CLI", () => {
       await browse("newpage https://github.com");
 
       const beforeResult = await browse("pages");
-      const beforeCount = parseJson(beforeResult.stdout).pages.length;
+      const beforeCount = parseJson<{ pages: unknown[] }>(beforeResult.stdout)
+        .pages.length;
 
       const closeResult = await browse("tab_close");
       const closeData = parseJson(closeResult.stdout);
       expect(closeData.closed).toBe(true);
 
       const afterResult = await browse("pages");
-      const afterCount = parseJson(afterResult.stdout).pages.length;
+      const afterCount = parseJson<{ pages: unknown[] }>(afterResult.stdout)
+        .pages.length;
       expect(afterCount).toBe(beforeCount - 1);
     });
   });
@@ -465,7 +472,7 @@ describe("Browse CLI", () => {
     it("should capture requests to filesystem", async () => {
       await browse("network on");
       const pathResult = await browse("network path");
-      const networkDir = parseJson(pathResult.stdout).path;
+      const networkDir = parseJson<{ path: string }>(pathResult.stdout).path;
 
       // Navigate to trigger requests
       await browse("open https://example.com");
@@ -513,7 +520,9 @@ describe("Browse CLI", () => {
 
     it("should set viewport size", async () => {
       const result = await browse("viewport 1920 1080");
-      const data = parseJson(result.stdout);
+      const data = parseJson<{ viewport: { width: number; height: number } }>(
+        result.stdout,
+      );
       expect(data.viewport.width).toBe(1920);
       expect(data.viewport.height).toBe(1080);
     });

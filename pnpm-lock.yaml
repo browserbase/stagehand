@@ -81,6 +81,9 @@ importers:
       '@types/node':
         specifier: ^20.11.30
         version: 20.17.32
+      devtools-protocol:
+        specifier: ^0.0.1464554
+        version: 0.0.1464554
       eslint:
         specifier: ^10.0.2
         version: 10.0.2(jiti@1.21.7)

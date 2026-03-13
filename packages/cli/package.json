@@ -63,6 +63,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.30",
+    "devtools-protocol": "^0.0.1464554",
     "eslint": "^10.0.2",
     "tsup": "^8.2.1",
     "tsx": "^4.10.5",

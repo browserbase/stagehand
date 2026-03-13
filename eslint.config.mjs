@@ -77,4 +77,10 @@ export default [
       ],
     },
   },
+  {
+    files: ["packages/cli/**/*.{js,cjs,mjs,ts}"],
+    rules: {
+      "no-empty": ["error", { allowEmptyCatch: true }],
+    },
+  },
 ];
