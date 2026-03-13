@@ -260,6 +260,7 @@ export class FlowLogger {
   static logAgentScreenshotTakenEvent(data: {
     byteLength: number;
     currentUrl?: string;
+    screenshotPath?: string;
   }): void {
     FlowLogger.emit({
       eventIdSuffix: "3",
