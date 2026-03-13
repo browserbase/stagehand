@@ -22,9 +22,9 @@ import { compressConversationImages } from "./utils/imageCompression.js";
 import { toJsonSchema } from "../zodCompat.js";
 import type { StagehandZodSchema } from "../zodCompat.js";
 import {
-  SessionFileLogger,
-  formatCuaPromptPreview,
-  formatCuaResponsePreview,
+  FlowLogger,
+  extractLlmCuaPromptSummary,
+  extractLlmCuaResponseSummary,
 } from "../flowLogger.js";
 import { v7 as uuidv7 } from "uuid";
 
@@ -511,11 +511,10 @@ export class AnthropicCUAClient extends AgentClient {
 
       // Log LLM request
       const llmRequestId = uuidv7();
-      SessionFileLogger.logLlmRequest({
+      FlowLogger.logLlmRequest({
         requestId: llmRequestId,
         model: this.modelName,
-        operation: "CUA.getAction",
-        prompt: formatCuaPromptPreview(messages),
+        prompt: extractLlmCuaPromptSummary(messages),
       });
 
       const startTime = Date.now();
@@ -531,11 +530,10 @@ export class AnthropicCUAClient extends AgentClient {
       };
 
       // Log LLM response
-      SessionFileLogger.logLlmResponse({
+      FlowLogger.logLlmResponse({
         requestId: llmRequestId,
         model: this.modelName,
-        operation: "CUA.getAction",
-        output: formatCuaResponsePreview(response.content),
+        output: extractLlmCuaResponseSummary(response.content),
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
       });

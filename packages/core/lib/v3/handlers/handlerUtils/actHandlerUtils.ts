@@ -6,7 +6,8 @@ import { MouseButton } from "../../types/public/locator.js";
 import { resolveLocatorWithHops } from "../../understudy/deepLocator.js";
 import type { Page } from "../../understudy/page.js";
 import { v3Logger } from "../../logger.js";
-import { SessionFileLogger } from "../../flowLogger.js";
+import { FlowLogger } from "../../flowLogger.js";
+import { toTitleCase } from "../../toTitleCase.js";
 import {
   StagehandClickError,
   UnderstudyCommandException,
@@ -71,41 +72,50 @@ export async function performUnderstudyMethod(
     domSettleTimeoutMs,
   };
 
-  SessionFileLogger.logUnderstudyActionEvent({
-    actionType: `Understudy.${method}`,
-    target: selectorRaw,
-    args: Array.from(args),
-  });
+  const eventType = `Understudy${toTitleCase(method)}`; // e.g. "UnderstudyClick"
 
   try {
-    const handler = METHOD_HANDLER_MAP[method] ?? null;
+    await FlowLogger.runWithLogging(
+      {
+        eventType,
+        eventIdSuffix: "5",
+        data: {
+          target: selectorRaw,
+        },
+      },
+      async (..._loggedArgs: typeof args) => {
+        const handler = METHOD_HANDLER_MAP[method] ?? null;
 
-    if (handler) {
-      await handler(ctx);
-    } else {
-      // Accept a few common locator method aliases
-      switch (method) {
-        case "click":
-          await clickElement(ctx);
-          break;
-        case "fill":
-          await fillOrType(ctx);
-          break;
-        case "type":
-          await typeText(ctx);
-          break;
-        default:
-          v3Logger({
-            category: "action",
-            message: "chosen method is invalid",
-            level: 1,
-            auxiliary: { method: { value: method, type: "string" } },
-          });
-          throw new UnderstudyCommandException(
-            `Method ${method} not supported`,
-          );
-      }
-    }
+        if (handler) {
+          await handler(ctx);
+          return;
+        }
+
+        // Accept a few common locator method aliases
+        switch (method) {
+          case "click":
+            await clickElement(ctx);
+            return;
+          case "fill":
+            await fillOrType(ctx);
+            return;
+          case "type":
+            await typeText(ctx);
+            return;
+          default:
+            v3Logger({
+              category: "action",
+              message: "chosen method is invalid",
+              level: 1,
+              auxiliary: { method: { value: method, type: "string" } },
+            });
+            throw new UnderstudyCommandException(
+              `Method ${method} not supported`,
+            );
+        }
+      },
+      args,
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : undefined;
@@ -126,7 +136,7 @@ export async function performUnderstudyMethod(
     }
     throw new UnderstudyCommandException(msg, e);
   } finally {
-    SessionFileLogger.logUnderstudyActionCompleted();
+    navWatcher?.dispose();
   }
 }
 

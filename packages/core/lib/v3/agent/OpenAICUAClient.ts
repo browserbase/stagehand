@@ -20,9 +20,9 @@ import {
 } from "../types/public/sdkErrors.js";
 import { ToolSet } from "ai";
 import {
-  SessionFileLogger,
-  formatCuaPromptPreview,
-  formatCuaResponsePreview,
+  FlowLogger,
+  extractLlmCuaPromptSummary,
+  extractLlmCuaResponseSummary,
 } from "../flowLogger.js";
 import { v7 as uuidv7 } from "uuid";
 
@@ -466,11 +466,10 @@ export class OpenAICUAClient extends AgentClient {
 
       // Log LLM request
       const llmRequestId = uuidv7();
-      SessionFileLogger.logLlmRequest({
+      FlowLogger.logLlmRequest({
         requestId: llmRequestId,
         model: this.modelName,
-        operation: "CUA.getAction",
-        prompt: formatCuaPromptPreview(inputItems),
+        prompt: extractLlmCuaPromptSummary(inputItems),
       });
 
       const startTime = Date.now();
@@ -488,11 +487,10 @@ export class OpenAICUAClient extends AgentClient {
       };
 
       // Log LLM response
-      SessionFileLogger.logLlmResponse({
+      FlowLogger.logLlmResponse({
         requestId: llmRequestId,
         model: this.modelName,
-        operation: "CUA.getAction",
-        output: formatCuaResponsePreview(response.output),
+        output: extractLlmCuaResponseSummary(response.output),
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
       });
