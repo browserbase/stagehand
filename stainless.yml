@@ -79,9 +79,7 @@ targets:
 # "production") to the corresponding url to use.
 environments:
   production: https://api.stagehand.browserbase.com
-  us_east_1: https://api.use1.stagehand.browserbase.com
-  eu_central_1: https://api.euc1.stagehand.browserbase.com
-  ap_southeast_1: https://api.apse1.stagehand.browserbase.com
+  regional: https://api.{region}.stagehand.browserbase.com
   # dev: https://api.stagehand.dev.browserbase.com
   # local: http://stagehand-api.localhost
 
@@ -236,6 +234,12 @@ settings:
 # arguments (used for authentication), retry behavior, idempotency, etc.
 client_settings:
   opts:
+    region:
+      type: string
+      nullable: true
+      description: Short regional Stagehand API host segment to use for regional routing, for example `use1`, `euc1`, or `apse1`.
+      example: use1
+      server_variable: region
     BROWSERBASE_API_KEY:
       type: string
       read_env: BROWSERBASE_API_KEY
