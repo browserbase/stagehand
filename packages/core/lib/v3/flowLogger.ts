@@ -114,13 +114,7 @@ export class FlowLogger {
     originalMethod: AsyncOriginalMethod<[], TResult>,
   ): Promise<TResult> {
     const ctx = FlowLogger.currentContext;
-    const {
-      context: _context,
-      data,
-      eventParentIds,
-      eventType,
-      eventIdSuffix,
-    } = options;
+    const { data, eventParentIds, eventType, eventIdSuffix } = options;
     let caughtError: unknown = null;
 
     // if eventParentIds is explicitly [], this is a root event, clear the parent events in context
@@ -251,22 +245,6 @@ export class FlowLogger {
     return options.context
       ? loggerContext.run(FlowLogger.cloneContext(options.context), execute)
       : execute();
-  }
-
-  // ===========================================================================
-  // Agent Events
-  // ===========================================================================
-
-  static logAgentScreenshotTakenEvent(data: {
-    byteLength: number;
-    currentUrl?: string;
-    screenshotPath?: string;
-  }): void {
-    FlowLogger.emit({
-      eventIdSuffix: "3",
-      eventType: "AgentScreenshotTakenEvent",
-      data,
-    });
   }
 
   // ===========================================================================
@@ -637,7 +615,7 @@ function extractLlmMessageSummary(
     result.text = result.text.replace(/^[Ii]nstruction: /, "");
   }
 
-  let text = result.text;
+  const text = result.text;
   if (!text && result.extras.length === 0) return undefined;
 
   let summary = text || "";

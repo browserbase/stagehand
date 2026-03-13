@@ -106,7 +106,10 @@ function sanitizeSinkValue(value: unknown): unknown {
 
   if (value && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value).map(([key, entry]) => [key, sanitizeSinkValue(entry)]),
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        sanitizeSinkValue(entry),
+      ]),
     );
   }
 
@@ -217,7 +220,9 @@ function prettifyEvent(event: FlowEvent): string | null {
     error?: string;
     msg?: string;
   };
-  const argsStr = data?.params ? formatArgs(data.params) : formatArgs(event.data);
+  const argsStr = data?.params
+    ? formatArgs(data.params)
+    : formatArgs(event.data);
   const durationSec = data?.durationMs
     ? (data.durationMs / 1000).toFixed(2)
     : null;

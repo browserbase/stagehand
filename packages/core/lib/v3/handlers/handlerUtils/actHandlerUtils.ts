@@ -83,7 +83,7 @@ export async function performUnderstudyMethod(
           target: selectorRaw,
         },
       },
-      async (..._loggedArgs: typeof args) => {
+      async () => {
         const handler = METHOD_HANDLER_MAP[method] ?? null;
 
         if (handler) {

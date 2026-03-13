@@ -16,7 +16,6 @@ import {
 } from "ai";
 import { StagehandZodObject } from "../zodCompat.js";
 import { processMessages } from "../agent/utils/messageProcessing.js";
-import { persistAgentScreenshotArtifact } from "../agent/utils/screenshotHandler.js";
 import { LLMClient } from "../llm/LLMClient.js";
 import { FlowLogger } from "../flowLogger.js";
 import {
@@ -250,19 +249,6 @@ export class V3AgentHandler {
           }
         }
         state.currentPageUrl = (await this.v3.context.awaitActivePage()).url();
-
-        // Capture screenshot after tool execution (only for evals)
-        if (process.env.EVALS === "true") {
-          try {
-            await this.captureAndEmitScreenshot();
-          } catch (e) {
-            this.logger({
-              category: "agent",
-              message: `Warning: Failed to capture screenshot: ${getErrorMessage(e)}`,
-              level: 1,
-            });
-          }
-        }
       }
 
       if (userCallback) {
@@ -657,31 +643,5 @@ export class V3AgentHandler {
       messages: [...messages, ...doneResult.messages],
       output: doneResult.output,
     };
-  }
-
-  /**
-   * Capture a screenshot and emit it via the event bus
-   */
-  private async captureAndEmitScreenshot(): Promise<void> {
-    try {
-      const page = await this.v3.context.awaitActivePage();
-      const screenshot = await page.screenshot({ fullPage: false });
-      const screenshotPath = await persistAgentScreenshotArtifact(
-        FlowLogger.currentContext.sessionId,
-        screenshot,
-      );
-
-      FlowLogger.logAgentScreenshotTakenEvent({
-        byteLength: screenshot.length,
-        currentUrl: page.url(),
-        screenshotPath,
-      });
-    } catch (error) {
-      this.logger({
-        category: "agent",
-        message: `Error capturing screenshot: ${getErrorMessage(error)}`,
-        level: 0,
-      });
-    }
   }
 }

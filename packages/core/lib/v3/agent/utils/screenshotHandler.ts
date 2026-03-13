@@ -1,10 +1,4 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { randomUUID } from "node:crypto";
-
 import type { Page } from "../../understudy/page.js";
-import { getConfigDir } from "../../eventStore.js";
 
 /**
  * Default delay in milliseconds to wait after vision actions before capturing screenshot.
@@ -31,32 +25,6 @@ export async function waitAndCaptureScreenshot(
   try {
     const buffer = await page.screenshot({ fullPage: false });
     return buffer.toString("base64");
-  } catch {
-    return undefined;
-  }
-}
-
-export async function persistAgentScreenshotArtifact(
-  sessionId: string,
-  screenshot: Buffer,
-): Promise<string | undefined> {
-  try {
-    const rootDir = getConfigDir() || path.join(os.tmpdir(), "stagehand");
-    const screenshotDir = path.join(
-      rootDir,
-      "sessions",
-      sessionId,
-      "artifacts",
-      "agent-screenshots",
-    );
-    const screenshotPath = path.join(
-      screenshotDir,
-      `${Date.now()}-${randomUUID()}.png`,
-    );
-
-    await fs.promises.mkdir(screenshotDir, { recursive: true });
-    await fs.promises.writeFile(screenshotPath, screenshot);
-    return screenshotPath;
   } catch {
     return undefined;
   }

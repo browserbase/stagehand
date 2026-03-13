@@ -14,7 +14,6 @@ import {
   injectUrls,
   providerEnvVarMap,
   loadApiKeyFromEnv,
-  toTitleCase,
   trimTrailingTextNode,
   jsonSchemaToZod,
 } from "../utils.js";
