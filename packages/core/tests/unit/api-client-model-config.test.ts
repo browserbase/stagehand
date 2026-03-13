@@ -48,7 +48,7 @@ describe("StagehandAPIClient model config handling", () => {
     });
   });
 
-  it("reuses the default session model config on API requests", async () => {
+  it("does not inject default model config on act calls without options", async () => {
     const client = new StagehandAPIClient({
       apiKey: "bb-api-key",
       projectId: "bb-project-id",
@@ -63,20 +63,13 @@ describe("StagehandAPIClient model config handling", () => {
 
     Object.assign(
       client as unknown as {
-        modelName: string;
+        modelApiKey: string | undefined;
         modelProvider: string;
-        modelClientOptions: Record<string, unknown>;
         execute: typeof execute;
       },
       {
-        modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
+        modelApiKey: undefined,
         modelProvider: "bedrock",
-        modelClientOptions: {
-          accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-          secretAccessKey: "secret",
-          sessionToken: "session-token",
-          region: "us-east-1",
-        },
         execute,
       },
     );
@@ -88,16 +81,7 @@ describe("StagehandAPIClient model config handling", () => {
         method: "act",
         args: {
           input: "click the login button",
-          options: {
-            model: {
-              modelName:
-                "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
-              accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-              secretAccessKey: "secret",
-              sessionToken: "session-token",
-              region: "us-east-1",
-            },
-          },
+          options: undefined,
           frameId: undefined,
         },
       }),
