@@ -222,11 +222,13 @@ export class FlowLogger {
   }
 
   // closure runner to wrap some async work with automatic started/completed/error events
+  // Standard case: the logged params are the same tuple passed to the wrapped method.
   static runWithLogging<TMethod extends AsyncOriginalMethod>(
     options: FlowLoggerLogOptions,
     originalMethod: TMethod,
     params: Readonly<Parameters<TMethod>>,
   ): Promise<Awaited<ReturnType<TMethod>>>;
+  // Special case: log an arbitrary params tuple while executing a zero-arg closure.
   static runWithLogging<TResult>(
     options: FlowLoggerLogOptions,
     originalMethod: AsyncOriginalMethod<[], TResult>,
