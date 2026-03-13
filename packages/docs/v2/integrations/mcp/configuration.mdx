@@ -43,7 +43,7 @@ Your Browserbase project ID
 | `--cookies [json]` | JSON array of cookies to inject into the browser |
 | `--browserWidth <width>` | Browser viewport width (default: 1024) |
 | `--browserHeight <height>` | Browser viewport height (default: 768) |
-| `--modelName <model>` | The model to use for Stagehand (default: gemini-2.0-flash) |
+| `--modelName <model>` | The model to use for Stagehand (default: google/gemini-2.5-flash-lite) |
 | `--modelApiKey <key>` | API key for the custom model provider (required when using custom models) |
 | `--experimental` | Enable experimental features (default: false) |
 
@@ -270,7 +270,7 @@ Cookies must be in [Playwright Cookie format](https://playwright.dev/docs/api/cl
 
 ## Model Configuration
 
-Configure AI models for enhanced browser automation. Stagehand defaults to Google's Gemini 2.0 Flash but supports multiple providers.
+Configure AI models for enhanced browser automation. Stagehand defaults to Google's Gemini 2.5 Flash Lite but supports multiple providers.
 
 <Warning>
 When using any custom model (non-default), you must provide your own API key for that model provider using the `--modelApiKey` flag.
@@ -279,7 +279,7 @@ When using any custom model (non-default), you must provide your own API key for
 <Tabs>
 <Tab title="Available Models">
 **Google Gemini** (Default)
-- `google/gemini-2.0-flash` (default)
+- `google/gemini-2.5-flash-lite` (default)
 - `google/gemini-1.5-pro`
 - `google/gemini-1.5-flash`
 
