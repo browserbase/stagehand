@@ -9,9 +9,13 @@ import type {
 import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { ensureXPath } from "../utils/xpath.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
+import { resolvePage } from "../utils/resolvePage.js";
+import type { AgentToolFactoryOptions } from "./types.js";
 
-export const clickTool = (v3: V3, provider?: string) =>
-  tool({
+export const clickTool = (v3: V3, options: AgentToolFactoryOptions = {}) => {
+  const { provider, page } = options;
+
+  return tool({
     description:
       "Click on an element using its coordinates (this is the most reliable way to click on an element, always use this over act, unless the element is not visible in the screenshot, but shown in ariaTree)",
     inputSchema: z.object({
@@ -26,7 +30,7 @@ export const clickTool = (v3: V3, provider?: string) =>
     }),
     execute: async ({ describe, coordinates }): Promise<ClickToolResult> => {
       try {
-        const page = await v3.context.awaitActivePage();
+        const activePage = await resolvePage(v3, page);
         const processed = processCoordinates(
           coordinates[0],
           coordinates[1],
@@ -48,11 +52,11 @@ export const clickTool = (v3: V3, provider?: string) =>
 
         // Only request XPath when caching is enabled to avoid unnecessary computation
         const shouldCollectXpath = v3.isAgentReplayActive();
-        const xpath = await page.click(processed.x, processed.y, {
+        const xpath = await activePage.click(processed.x, processed.y, {
           returnXpath: shouldCollectXpath,
         });
 
-        const screenshotBase64 = await waitAndCaptureScreenshot(page);
+        const screenshotBase64 = await waitAndCaptureScreenshot(activePage);
 
         // Record as an "act" step with proper Action for deterministic replay (only when caching)
         if (shouldCollectXpath) {
@@ -114,3 +118,4 @@ export const clickTool = (v3: V3, provider?: string) =>
       return { type: "content", value: content };
     },
   });
+};

@@ -5,14 +5,16 @@ import type { Action } from "../../types/public/methods.js";
 import type {
   TypeToolResult,
   ModelOutputContentItem,
-  Variables,
 } from "../../types/public/agent.js";
 import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { ensureXPath } from "../utils/xpath.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
 import { substituteVariables } from "../utils/variables.js";
+import { resolvePage } from "../utils/resolvePage.js";
+import type { AgentToolFactoryOptions } from "./types.js";
 
-export const typeTool = (v3: V3, provider?: string, variables?: Variables) => {
+export const typeTool = (v3: V3, options: AgentToolFactoryOptions = {}) => {
+  const { provider, variables, page } = options;
   const hasVariables = variables && Object.keys(variables).length > 0;
   const textDescription = hasVariables
     ? `The text to type into the element. Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}`
@@ -38,7 +40,7 @@ export const typeTool = (v3: V3, provider?: string, variables?: Variables) => {
       text,
     }): Promise<TypeToolResult> => {
       try {
-        const page = await v3.context.awaitActivePage();
+        const activePage = await resolvePage(v3, page);
         const processed = processCoordinates(
           coordinates[0],
           coordinates[1],
@@ -63,13 +65,13 @@ export const typeTool = (v3: V3, provider?: string, variables?: Variables) => {
 
         // Only request XPath when caching is enabled to avoid unnecessary computation
         const shouldCollectXpath = v3.isAgentReplayActive();
-        const xpath = await page.click(processed.x, processed.y, {
+        const xpath = await activePage.click(processed.x, processed.y, {
           returnXpath: shouldCollectXpath,
         });
 
-        await page.type(actualText);
+        await activePage.type(actualText);
 
-        const screenshotBase64 = await waitAndCaptureScreenshot(page);
+        const screenshotBase64 = await waitAndCaptureScreenshot(activePage);
 
         // Record as an "act" step with proper Action for deterministic replay (only when caching)
         if (shouldCollectXpath) {

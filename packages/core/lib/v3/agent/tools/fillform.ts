@@ -2,15 +2,11 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
-import type { AgentModelConfig, Variables } from "../../types/public/agent.js";
 import { TimeoutError } from "../../types/public/sdkErrors.js";
+import type { AgentToolFactoryOptions } from "./types.js";
 
-export const fillFormTool = (
-  v3: V3,
-  executionModel?: string | AgentModelConfig,
-  variables?: Variables,
-  toolTimeout?: number,
-) => {
+export const fillFormTool = (v3: V3, options: AgentToolFactoryOptions = {}) => {
+  const { executionModel, variables, toolTimeout, page } = options;
   const hasVariables = variables && Object.keys(variables).length > 0;
   const valueDescription = hasVariables
     ? `Text to type into the target. Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}`
@@ -50,16 +46,16 @@ export const fillFormTool = (
           .join(", ")}`;
 
         const observeOptions = executionModel
-          ? { model: executionModel, timeout: toolTimeout }
-          : { timeout: toolTimeout };
+          ? { model: executionModel, timeout: toolTimeout, page }
+          : { timeout: toolTimeout, page };
         const observeResults = await v3.observe(instruction, observeOptions);
 
         const completed = [] as unknown[];
         const replayableActions: Action[] = [];
         for (const res of observeResults) {
           const actOptions = variables
-            ? { variables, timeout: toolTimeout }
-            : { timeout: toolTimeout };
+            ? { variables, timeout: toolTimeout, page }
+            : { timeout: toolTimeout, page };
           const actResult = await v3.act(res, actOptions);
           completed.push(actResult);
           if (Array.isArray(actResult.actions)) {

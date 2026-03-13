@@ -1,9 +1,13 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
+import { resolvePage } from "../utils/resolvePage.js";
+import type { AgentToolFactoryOptions } from "./types.js";
 
-export const gotoTool = (v3: V3) =>
-  tool({
+export const gotoTool = (v3: V3, options: AgentToolFactoryOptions = {}) => {
+  const { page } = options;
+
+  return tool({
     description: "Navigate to a specific URL",
     inputSchema: z.object({
       url: z.string().describe("The URL to navigate to"),
@@ -21,8 +25,8 @@ export const gotoTool = (v3: V3) =>
             },
           },
         });
-        const page = await v3.context.awaitActivePage();
-        await page.goto(url, { waitUntil: "load" });
+        const activePage = await resolvePage(v3, page);
+        await activePage.goto(url, { waitUntil: "load" });
         v3.recordAgentReplayStep({ type: "goto", url, waitUntil: "load" });
         return { success: true, url };
       } catch (error) {
@@ -30,3 +34,4 @@ export const gotoTool = (v3: V3) =>
       }
     },
   });
+};
