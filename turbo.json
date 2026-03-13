@@ -551,7 +551,7 @@
       ]
     },
     "test:cli": {
-      "dependsOn": [],
+      "dependsOn": ["build"],
       "outputs": [],
       "cache": false,
       "inputs": [
