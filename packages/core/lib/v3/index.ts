@@ -14,6 +14,7 @@ import {
   injectUrls,
   providerEnvVarMap,
   loadApiKeyFromEnv,
+  toTitleCase,
   trimTrailingTextNode,
   jsonSchemaToZod,
 } from "../utils.js";
@@ -52,6 +53,7 @@ export {
   injectUrls,
   providerEnvVarMap,
   loadApiKeyFromEnv,
+  toTitleCase,
   trimTrailingTextNode,
   jsonSchemaToZod,
 } from "../utils.js";
@@ -70,7 +72,6 @@ export {
   destroyEventStore,
 } from "./eventStore.js";
 export { FlowEvent, FlowLogger } from "./flowLogger.js";
-export { toTitleCase } from "./toTitleCase.js";
 export { __internalCreateInMemoryAgentCacheHandle } from "./cache/serverAgentCache.js";
 export { maybeRunShutdownSupervisorFromArgv as __internalMaybeRunShutdownSupervisorFromArgv } from "./shutdown/supervisor.js";
 export type { ServerAgentCacheHandle } from "./cache/serverAgentCache.js";

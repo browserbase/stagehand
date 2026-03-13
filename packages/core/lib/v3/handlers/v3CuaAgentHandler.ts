@@ -19,7 +19,7 @@ import {
 import { LogLine } from "../types/public/logs.js";
 import { type Action, V3FunctionName } from "../types/public/methods.js";
 import { FlowLogger } from "../flowLogger.js";
-import { toTitleCase } from "../toTitleCase.js";
+import { toTitleCase } from "../../utils.js";
 import { StagehandClosedError } from "../types/public/sdkErrors.js";
 
 export class V3CuaAgentHandler {
