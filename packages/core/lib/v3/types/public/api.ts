@@ -75,22 +75,6 @@ export const ModelConfigObjectSchema = z
       description: "API key for the model provider",
       example: "sk-some-openai-api-key",
     }),
-    region: z.string().optional().meta({
-      description:
-        "Provider region for models that require it (for example, Amazon Bedrock)",
-      example: "us-east-1",
-    }),
-    accessKeyId: z.string().optional().meta({
-      description: "Access key ID for providers that use multi-field auth",
-      example: "AKIAIOSFODNN7EXAMPLE",
-    }),
-    secretAccessKey: z.string().optional().meta({
-      description: "Secret access key for providers that use multi-field auth",
-    }),
-    sessionToken: z.string().optional().meta({
-      description:
-        "Session token for temporary credentials used by multi-field auth providers",
-    }),
     baseURL: z.string().url().optional().meta({
       description: "Base URL for the model provider",
       example: "https://api.openai.com/v1",
@@ -99,6 +83,13 @@ export const ModelConfigObjectSchema = z
       description:
         "Custom headers sent with every request to the model provider",
       example: { "X-Custom-Header": "value" },
+    }),
+    providerOptions: z.record(z.string(), z.unknown()).optional().meta({
+      description:
+        "Provider-specific options passed through to the AI SDK provider constructor. " +
+        "For Bedrock: { region, accessKeyId, secretAccessKey, sessionToken }. " +
+        "For Vertex: { project, location, googleAuthOptions }.",
+      example: { region: "us-east-1", accessKeyId: "AKIAIOSFODNN7EXAMPLE" },
     }),
   })
   .meta({ id: "ModelConfigObject" });

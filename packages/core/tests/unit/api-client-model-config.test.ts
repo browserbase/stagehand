@@ -29,7 +29,7 @@ describe("StagehandAPIClient model config handling", () => {
       modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
       modelClientOptions: {
         apiKey: "bedrock-bearer-token",
-        region: "us-east-1",
+        providerOptions: { region: "us-east-1" },
       },
     });
 
@@ -43,7 +43,7 @@ describe("StagehandAPIClient model config handling", () => {
       modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
       modelClientOptions: {
         apiKey: "bedrock-bearer-token",
-        region: "us-east-1",
+        providerOptions: { region: "us-east-1" },
       },
     });
   });

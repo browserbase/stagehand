@@ -21,15 +21,15 @@ describe("header model config helpers", () => {
     const request = createMockRequest({
       modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
       modelClientOptions: {
-        region: "us-east-1",
         apiKey: "bedrock-bearer-token",
+        providerOptions: { region: "us-east-1" },
       },
     });
 
     assert.deepEqual(getRequestModelConfig(request), {
       modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
-      region: "us-east-1",
       apiKey: "bedrock-bearer-token",
+      providerOptions: { region: "us-east-1" },
     });
     assert.equal(
       getModelName(request),
@@ -43,16 +43,20 @@ describe("header model config helpers", () => {
       options: {
         model: {
           modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
-          region: "us-east-1",
-          accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+          providerOptions: {
+            region: "us-east-1",
+            accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+          },
         },
       },
     });
 
     assert.deepEqual(getRequestModelConfig(request), {
       modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
-      region: "us-east-1",
-      accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+      providerOptions: {
+        region: "us-east-1",
+        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+      },
     });
     assert.equal(
       getModelName(request),

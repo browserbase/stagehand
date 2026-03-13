@@ -41,15 +41,9 @@ export type GoogleVertexProviderSettings = Pick<
   };
 };
 
-export type BedrockProviderSettings = Pick<
+export type BedrockProviderOptions = Pick<
   AmazonBedrockProviderSettingsBase,
-  | "apiKey"
-  | "region"
-  | "accessKeyId"
-  | "secretAccessKey"
-  | "sessionToken"
-  | "baseURL"
-  | "headers"
+  "region" | "accessKeyId" | "secretAccessKey" | "sessionToken"
 >;
 
 export type AnthropicJsonSchemaObject = {
@@ -109,15 +103,17 @@ export type ModelProvider =
   | "google"
   | "aisdk";
 
-export type ClientOptions = (
-  | OpenAIClientOptions
-  | AnthropicClientOptions
-  | BedrockProviderSettings
-  | GoogleVertexProviderSettings
-) & {
+export type ClientOptions = {
   apiKey?: string;
   provider?: AgentProviderType;
   baseURL?: string;
+  /** Custom headers for the model provider */
+  headers?: Record<string, string>;
+  /** Provider-specific options passed through to the AI SDK provider constructor */
+  providerOptions?:
+    | BedrockProviderOptions
+    | GoogleVertexProviderSettings
+    | Record<string, unknown>;
   /** OpenAI organization ID */
   organization?: string;
   /** Delay between agent actions in ms */

@@ -3,13 +3,15 @@ import * as Stagehand from "@browserbasehq/stagehand";
 
 describe("LLM and Agents public API types", () => {
   describe("ModelConfiguration", () => {
-    it("accepts Vertex headers in model config", () => {
+    it("accepts Vertex providerOptions in model config", () => {
       const googleConfig = {
         modelName: "google/gemini-3-flash-preview",
-        project: "test-project",
-        location: "global",
         headers: {
           "X-Goog-Priority": "high",
+        },
+        providerOptions: {
+          project: "test-project",
+          location: "global",
         },
       } satisfies Stagehand.ModelConfiguration;
 
@@ -20,7 +22,7 @@ describe("LLM and Agents public API types", () => {
       const bedrockConfig = {
         modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
         apiKey: "bedrock-bearer-token",
-        region: "us-east-1",
+        providerOptions: { region: "us-east-1" },
       } satisfies Stagehand.ModelConfiguration;
 
       void bedrockConfig;
@@ -29,10 +31,12 @@ describe("LLM and Agents public API types", () => {
     it("accepts Bedrock AWS credential settings in model config", () => {
       const bedrockConfig = {
         modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
-        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-        secretAccessKey: "secret",
-        sessionToken: "session-token",
-        region: "us-east-1",
+        providerOptions: {
+          accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+          secretAccessKey: "secret",
+          sessionToken: "session-token",
+          region: "us-east-1",
+        },
       } satisfies Stagehand.ModelConfiguration;
 
       void bedrockConfig;
