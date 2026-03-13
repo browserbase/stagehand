@@ -5,6 +5,7 @@ import { AgentClient } from "../agent/AgentClient.js";
 import { AgentProvider } from "../agent/AgentProvider.js";
 import { GoogleCUAClient } from "../agent/GoogleCUAClient.js";
 import { OpenAICUAClient } from "../agent/OpenAICUAClient.js";
+import { persistAgentScreenshotArtifact } from "../agent/utils/persistAgentScreenshotArtifact.js";
 import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping.js";
 import { ensureXPath } from "../agent/utils/xpath.js";
 import {
@@ -603,9 +604,15 @@ export class V3CuaAgentHandler {
       const screenshotBuffer = await page.screenshot({ fullPage: false });
 
       const currentUrl = page.url();
+      const screenshotPath = await persistAgentScreenshotArtifact(
+        FlowLogger.currentContext.sessionId,
+        screenshotBuffer,
+      );
+
       FlowLogger.logAgentScreenshotTakenEvent({
         byteLength: screenshotBuffer.length,
         currentUrl,
+        screenshotPath,
       });
       return await this.agentClient.captureScreenshot({
         base64Image: screenshotBuffer.toString("base64"),

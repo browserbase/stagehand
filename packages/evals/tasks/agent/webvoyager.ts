@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals.js";
-import { V3Evaluator } from "@browserbasehq/stagehand";
+import { FlowEvent, V3Evaluator } from "@browserbasehq/stagehand";
 import { ScreenshotCollector } from "../../utils/ScreenshotCollector.js";
 import { imageResize } from "../../utils/imageResize.js";
 
@@ -13,7 +13,7 @@ export const webvoyager: EvalFunction = async ({
 }) => {
   // Track resources that need cleanup
   let screenshotCollector: ScreenshotCollector | null = null;
-  let screenshotHandler: ((buffer: Buffer) => void) | null = null;
+  let screenshotHandler: ((event: FlowEvent) => void) | null = null;
 
   try {
     const params = ((input && input.params) || {}) as {
@@ -43,16 +43,24 @@ export const webvoyager: EvalFunction = async ({
       systemPrompt: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await page.title()}`,
     });
 
-    // Set up event-driven screenshot collection via the V3 event bus
+    // Set up flow-event-driven screenshot collection via the V3 event bus
     screenshotCollector = new ScreenshotCollector(v3, {
       maxScreenshots: 7,
     });
 
-    // Subscribe to screenshot events from the agent
-    screenshotHandler = (buffer: Buffer) => {
-      screenshotCollector?.addScreenshot(buffer);
+    // Subscribe to disk-backed screenshot events from the agent
+    screenshotHandler = (event: FlowEvent) => {
+      const screenshotPath =
+        typeof event.data.screenshotPath === "string"
+          ? event.data.screenshotPath
+          : null;
+      if (!screenshotPath) {
+        return;
+      }
+
+      void screenshotCollector?.addScreenshotFromPath(screenshotPath);
     };
-    v3.bus.on("agent_screenshot_taken_event", screenshotHandler);
+    v3.bus.on("AgentScreenshotTakenEvent", screenshotHandler);
 
     const agentResult = await agent.execute({
       instruction: params.ques,
@@ -60,7 +68,7 @@ export const webvoyager: EvalFunction = async ({
     });
 
     // Clean up event listener and stop collecting
-    v3.bus.off("agent_screenshot_taken_event", screenshotHandler);
+    v3.bus.off("AgentScreenshotTakenEvent", screenshotHandler);
     // Stop collecting and get all screenshots
     let screenshots = await screenshotCollector.stop();
 
@@ -110,7 +118,7 @@ export const webvoyager: EvalFunction = async ({
     // Always clean up event listener and stop collector to prevent hanging
     if (screenshotHandler) {
       try {
-        v3.bus.off("agent_screenshot_taken_event", screenshotHandler);
+        v3.bus.off("AgentScreenshotTakenEvent", screenshotHandler);
       } catch {
         // Ignore errors during cleanup
       }
