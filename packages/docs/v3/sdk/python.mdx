@@ -242,9 +242,9 @@ client = AsyncStagehand(
 ```
 
 For hosted Stagehand API, prefer selecting the regional endpoint with `base_url`.
-`browserbaseSessionCreateParams.region` is retained for compatibility, but the
-hosted API determines the actual browser region from the Stagehand API endpoint
-you call.
+The request-level `region` field is retained for compatibility, but the hosted
+API determines the actual browser region from the Stagehand API endpoint you
+call.
 
 > [!TIP]
 > Don't create more than one client in the same application. Each client has a connection pool, which is more efficient to share between requests.

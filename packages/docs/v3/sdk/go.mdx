@@ -238,10 +238,10 @@ client := stagehand.NewClient(
 )
 ```
 
-For hosted Stagehand API, prefer selecting the regional endpoint with `baseUrl`.
-`browserbaseSessionCreateParams.region` is retained for compatibility, but the
-hosted API determines the actual browser region from the Stagehand API endpoint
-you call.
+For hosted Stagehand API, prefer selecting the regional endpoint with `option.WithBaseURL()`.
+The request-level `region` field is retained for compatibility, but the hosted
+API determines the actual browser region from the Stagehand API endpoint you
+call.
 
 ### Request fields
 

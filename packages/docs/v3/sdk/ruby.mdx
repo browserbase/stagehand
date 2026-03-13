@@ -160,9 +160,9 @@ client = Stagehand::Client.new(
 ```
 
 For hosted Stagehand API, prefer selecting the regional endpoint with `base_url`.
-`browserbaseSessionCreateParams.region` is retained for compatibility, but the
-hosted API determines the actual browser region from the Stagehand API endpoint
-you call.
+The request-level `region` field is retained for compatibility, but the hosted
+API determines the actual browser region from the Stagehand API endpoint you
+call.
 
 ### Streaming
 
