@@ -83,8 +83,7 @@ export async function performUnderstudyMethod(
           target: selectorRaw,
         },
       },
-      async (..._ignored: typeof args): Promise<void> => {
-        void _ignored;
+      async () => {
         const handler = METHOD_HANDLER_MAP[method] ?? null;
 
         if (handler) {

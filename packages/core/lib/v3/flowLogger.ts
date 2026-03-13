@@ -226,20 +226,29 @@ export class FlowLogger {
     options: FlowLoggerLogOptions,
     originalMethod: TMethod,
     params: Readonly<Parameters<TMethod>>,
-  ): Promise<Awaited<ReturnType<TMethod>>> {
+  ): Promise<Awaited<ReturnType<TMethod>>>;
+  static runWithLogging<TResult>(
+    options: FlowLoggerLogOptions,
+    originalMethod: AsyncOriginalMethod<[], TResult>,
+    params: ReadonlyArray<unknown>,
+  ): Promise<Awaited<TResult>>;
+  static runWithLogging(
+    options: FlowLoggerLogOptions,
+    originalMethod: AsyncOriginalMethod<unknown[], unknown>,
+    params: ReadonlyArray<unknown>,
+  ): Promise<unknown> {
     const eventData = {
       ...(options.data ?? {}),
       params: [...params],
     };
 
-    const execute = (): Promise<Awaited<ReturnType<TMethod>>> =>
+    const execute = (): Promise<unknown> =>
       FlowLogger.runWithAutoStatusEventLogging(
         {
           ...options,
           data: eventData,
         },
-        () =>
-          originalMethod(...params) as Promise<Awaited<ReturnType<TMethod>>>,
+        () => originalMethod(...params),
       );
 
     return options.context
