@@ -17,7 +17,7 @@ import {
 import { StagehandZodObject } from "../zodCompat.js";
 import { processMessages } from "../agent/utils/messageProcessing.js";
 import { LLMClient } from "../llm/LLMClient.js";
-import { SessionFileLogger } from "../flowLogger.js";
+import { FlowLogger } from "../flowLogger.js";
 import {
   AgentExecuteOptions,
   AgentStreamExecuteOptions,
@@ -151,7 +151,7 @@ export class V3AgentHandler {
       const wrappedModel = wrapLanguageModel({
         model: baseModel,
         middleware: {
-          ...SessionFileLogger.createLlmLoggingMiddleware(baseModel.modelId),
+          ...FlowLogger.createLlmLoggingMiddleware(baseModel.modelId),
         },
       });
 
@@ -665,7 +665,10 @@ export class V3AgentHandler {
     try {
       const page = await this.v3.context.awaitActivePage();
       const screenshot = await page.screenshot({ fullPage: false });
-      this.v3.bus.emit("agent_screenshot_taken_event", screenshot);
+      FlowLogger.logAgentScreenshotTakenEvent({
+        byteLength: screenshot.length,
+        currentUrl: page.url(),
+      });
     } catch (error) {
       this.logger({
         category: "agent",
