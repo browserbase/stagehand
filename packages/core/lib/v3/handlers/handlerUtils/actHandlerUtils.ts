@@ -91,28 +91,13 @@ export async function performUnderstudyMethod(
           return;
         }
 
-        // Accept a few common locator method aliases
-        switch (method) {
-          case "click":
-            await clickElement(ctx);
-            return;
-          case "fill":
-            await fillOrType(ctx);
-            return;
-          case "type":
-            await typeText(ctx);
-            return;
-          default:
-            v3Logger({
-              category: "action",
-              message: "chosen method is invalid",
-              level: 1,
-              auxiliary: { method: { value: method, type: "string" } },
-            });
-            throw new UnderstudyCommandException(
-              `Method ${method} not supported`,
-            );
-        }
+        v3Logger({
+          category: "action",
+          message: "chosen method is invalid",
+          level: 1,
+          auxiliary: { method: { value: method, type: "string" } },
+        });
+        throw new UnderstudyCommandException(`Method ${method} not supported`);
       },
       args,
     );
@@ -135,8 +120,6 @@ export async function performUnderstudyMethod(
       throw e;
     }
     throw new UnderstudyCommandException(msg, e);
-  } finally {
-    navWatcher?.dispose();
   }
 }
 
