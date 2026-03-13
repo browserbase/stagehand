@@ -183,6 +183,8 @@ export class StagehandAPIClient {
   private sessionId?: string;
   private modelApiKey?: string;
   private modelProvider?: string;
+  /** Serialized session model config, resent on each request for hosted deployments */
+  private sessionModelConfig?: Api.ModelConfig;
   private region?: BrowserbaseRegion;
   private logger: (message: LogLine) => void;
   private fetchWithCookies;
@@ -217,6 +219,17 @@ export class StagehandAPIClient {
     // browser,  TODO for local browsers
   }: ClientSessionStartParams): Promise<Api.SessionStartResult> {
     this.modelApiKey = modelApiKey;
+
+    // Store session model config to resend on each request (for hosted deployments
+    // that don't persist modelClientOptions server-side).
+    const serializedMco = this.toSessionStartModelClientOptions(modelClientOptions);
+    if (modelName && serializedMco && Object.keys(serializedMco).length > 0) {
+      this.sessionModelConfig = {
+        modelName,
+        ...serializedMco,
+      } as Api.ModelConfig;
+    }
+
     // Extract provider from modelName (e.g., "openai/gpt-5-nano" -> "openai")
     this.modelProvider = modelName?.includes("/")
       ? modelName.split("/")[0]
@@ -300,6 +313,7 @@ export class StagehandAPIClient {
         wireOptions = restOptions as unknown as Api.ActRequest["options"];
       }
     }
+    wireOptions = this.ensureModelConfig(wireOptions);
 
     // Build wire-format request body
     const requestBody: Api.ActRequest = {
@@ -338,6 +352,7 @@ export class StagehandAPIClient {
         wireOptions = restOptions as unknown as Api.ExtractRequest["options"];
       }
     }
+    wireOptions = this.ensureModelConfig(wireOptions);
 
     // Build wire-format request body
     const requestBody: Api.ExtractRequest = {
@@ -373,6 +388,7 @@ export class StagehandAPIClient {
         wireOptions = restOptions as unknown as Api.ObserveRequest["options"];
       }
     }
+    wireOptions = this.ensureModelConfig(wireOptions);
 
     // Build wire-format request body
     const requestBody: Api.ObserveRequest = {
@@ -430,7 +446,7 @@ export class StagehandAPIClient {
       cua: agentConfig.mode === undefined ? agentConfig.cua : undefined,
       model: agentConfig.model
         ? this.prepareModelConfig(agentConfig.model)
-        : undefined,
+        : this.sessionModelConfig,
       executionModel: agentConfig.executionModel
         ? this.prepareModelConfig(agentConfig.executionModel)
         : undefined,
@@ -643,6 +659,26 @@ export class StagehandAPIClient {
     }
 
     return model as { modelName: string } & Record<string, unknown>;
+  }
+
+  /**
+   * If no model config is present in the wire options, inject the session
+   * defaults. This ensures hosted deployments (which don't persist
+   * modelClientOptions server-side) receive the model config on every request.
+   */
+  private ensureModelConfig<
+    T extends { model?: unknown } | undefined,
+  >(wireOptions: T): T {
+    if (!this.sessionModelConfig) {
+      return wireOptions;
+    }
+    if (wireOptions?.model) {
+      return wireOptions;
+    }
+    return {
+      ...(wireOptions ?? {}),
+      model: this.sessionModelConfig,
+    } as T;
   }
 
   private toSessionStartModelClientOptions(

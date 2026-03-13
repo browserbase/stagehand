@@ -48,7 +48,7 @@ describe("StagehandAPIClient model config handling", () => {
     });
   });
 
-  it("does not inject default model config on act calls without options", async () => {
+  it("resends session model config on act calls without explicit model", async () => {
     const client = new StagehandAPIClient({
       apiKey: "bb-api-key",
       projectId: "bb-project-id",
@@ -65,11 +65,67 @@ describe("StagehandAPIClient model config handling", () => {
       client as unknown as {
         modelApiKey: string | undefined;
         modelProvider: string;
+        sessionModelConfig: Record<string, unknown>;
         execute: typeof execute;
       },
       {
         modelApiKey: undefined,
         modelProvider: "bedrock",
+        sessionModelConfig: {
+          modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
+          providerOptions: {
+            region: "us-east-1",
+            accessKeyId: "AKIATEST",
+          },
+        },
+        execute,
+      },
+    );
+
+    await client.act({ input: "click the login button" });
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "act",
+        args: {
+          input: "click the login button",
+          options: {
+            model: {
+              modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
+              providerOptions: {
+                region: "us-east-1",
+                accessKeyId: "AKIATEST",
+              },
+            },
+          },
+          frameId: undefined,
+        },
+      }),
+    );
+  });
+
+  it("does not inject session model config when no modelClientOptions provided", async () => {
+    const client = new StagehandAPIClient({
+      apiKey: "bb-api-key",
+      projectId: "bb-project-id",
+      logger: () => {},
+    });
+    const execute = vi.fn().mockResolvedValue({
+      actions: [],
+      actionDescription: "noop",
+      message: "ok",
+      success: true,
+    });
+
+    Object.assign(
+      client as unknown as {
+        modelApiKey: string;
+        modelProvider: string;
+        execute: typeof execute;
+      },
+      {
+        modelApiKey: "sk-openai-key",
+        modelProvider: "openai",
         execute,
       },
     );
