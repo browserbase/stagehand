@@ -7,7 +7,7 @@ import { resolveLocatorWithHops } from "../../understudy/deepLocator.js";
 import type { Page } from "../../understudy/page.js";
 import { v3Logger } from "../../logger.js";
 import { FlowLogger } from "../../flowLogger.js";
-import { toTitleCase } from "../../toTitleCase.js";
+import { toTitleCase } from "../../../utils.js";
 import {
   StagehandClickError,
   UnderstudyCommandException,
