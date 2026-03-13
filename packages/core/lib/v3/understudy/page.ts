@@ -959,7 +959,10 @@ export class Page {
   /**
    * Navigate forward in history if possible; optionally wait for a lifecycle state.
    */
-  @FlowLogger.wrapWithLogging({ eventType: "PageGoForward", eventIdSuffix: "5" })
+  @FlowLogger.wrapWithLogging({
+    eventType: "PageGoForward",
+    eventIdSuffix: "5",
+  })
   async goForward(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
@@ -1089,7 +1092,10 @@ export class Page {
    * timeout error is thrown.
    * @param options.type Image format (`"png"` by default).
    */
-  @FlowLogger.wrapWithLogging({ eventType: "PageScreenshot", eventIdSuffix: "5" })
+  @FlowLogger.wrapWithLogging({
+    eventType: "PageScreenshot",
+    eventIdSuffix: "5",
+  })
   async screenshot(options?: ScreenshotOptions): Promise<Buffer> {
     const opts = options ?? {};
     const type = opts.type ?? "png";
@@ -1262,7 +1268,10 @@ export class Page {
    * Wait until the page reaches a lifecycle state on the current main frame.
    * Mirrors Playwright's API signatures.
    */
-  @FlowLogger.wrapWithLogging({ eventType: "PageWaitForLoadState", eventIdSuffix: "5" })
+  @FlowLogger.wrapWithLogging({
+    eventType: "PageWaitForLoadState",
+    eventIdSuffix: "5",
+  })
   async waitForLoadState(state: LoadState, timeoutMs?: number): Promise<void> {
     await this.waitForMainLoadState(state, timeoutMs ?? 15000);
   }
@@ -1290,7 +1299,10 @@ export class Page {
    * @returns True when the condition is met
    * @throws Error if timeout is reached before the condition is met
    */
-  @FlowLogger.wrapWithLogging({ eventType: "PageWaitForSelector", eventIdSuffix: "5" })
+  @FlowLogger.wrapWithLogging({
+    eventType: "PageWaitForSelector",
+    eventIdSuffix: "5",
+  })
   async waitForSelector(
     selector: string,
     options?: {
@@ -1598,7 +1610,10 @@ export class Page {
    * Drag from (fromX, fromY) to (toX, toY) using mouse events.
    * Sends mouseMoved → mousePressed → mouseMoved (steps) → mouseReleased.
    */
-  @FlowLogger.wrapWithLogging({ eventType: "PageDragAndDrop", eventIdSuffix: "5" })
+  @FlowLogger.wrapWithLogging({
+    eventType: "PageDragAndDrop",
+    eventIdSuffix: "5",
+  })
   async dragAndDrop(
     fromX: number,
     fromY: number,
