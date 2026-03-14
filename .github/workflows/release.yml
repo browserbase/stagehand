@@ -46,25 +46,28 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check for stagehand changesets
+      - name: Check for stagehand changesets in this push
         id: check_changesets
         run: |
           set -euo pipefail
-          rm -f changeset-status.json
-          pnpm changeset status --output changeset-status.json || true
-          node <<'NODE'
-          const fs = require('fs');
-          if (!fs.existsSync('changeset-status.json')) {
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'has_changesets=false\n');
-            process.exit(0);
-          }
-          const status = JSON.parse(fs.readFileSync('changeset-status.json', 'utf8'));
-          const changesets = Array.isArray(status.changesets) ? status.changesets : [];
-          const hasStagehand = changesets.some((cs) =>
-            (cs.releases || []).some((r) => r?.name === '@browserbasehq/stagehand')
-          );
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `has_changesets=${hasStagehand}\n`);
-          NODE
+
+          # Get changeset files added/modified in this push only
+          new_changesets=$(git diff --name-only --diff-filter=AM ${{ github.event.before }} ${{ github.sha }} -- '.changeset/*.md' | grep -v README.md || true)
+
+          if [ -z "$new_changesets" ]; then
+            echo "has_changesets=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Check if any of the new changesets reference @browserbasehq/stagehand
+          has_stagehand=false
+          for file in $new_changesets; do
+            if grep -q '"@browserbasehq/stagehand"' "$file"; then
+              has_stagehand=true
+              break
+            fi
+          done
+          echo "has_changesets=$has_stagehand" >> $GITHUB_OUTPUT
 
       - name: Publish Canary
         if: github.ref == 'refs/heads/main' && steps.check_changesets.outputs.has_changesets == 'true'
