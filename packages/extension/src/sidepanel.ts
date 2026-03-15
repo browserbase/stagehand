@@ -53,16 +53,27 @@ let serverPort = 3000;
 // Connect to background service worker
 // ──────────────────────────────────────────────────────────
 
-const port = chrome.runtime.connect({ name: "stagehand-sidebar" });
+let port: chrome.runtime.Port;
 
-port.onMessage.addListener((msg: TabStateMessage) => {
-  if (msg.type === "tab-state") {
-    handleTabState(msg);
-  }
-});
+function connectPort(): void {
+  port = chrome.runtime.connect({ name: "stagehand-sidebar" });
 
-// Request initial state
-port.postMessage({ type: "get-state" });
+  port.onMessage.addListener((msg: TabStateMessage) => {
+    if (msg.type === "tab-state") {
+      handleTabState(msg);
+    }
+  });
+
+  port.onDisconnect.addListener(() => {
+    // MV3 service worker may have restarted — reconnect after a short delay
+    setTimeout(connectPort, 500);
+  });
+
+  // Request initial state
+  port.postMessage({ type: "get-state" });
+}
+
+connectPort();
 
 // ──────────────────────────────────────────────────────────
 // Persisted settings

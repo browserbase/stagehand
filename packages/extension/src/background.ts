@@ -183,7 +183,7 @@ function scheduleReconnect(): void {
 // ──────────────────────────────────────────────────────────
 
 function isRestrictedUrl(url: string | undefined): boolean {
-  if (!url) return false;
+  if (!url) return true;
   const restrictedPrefixes = [
     "chrome://",
     "chrome-extension://",
