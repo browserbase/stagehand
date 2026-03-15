@@ -23,7 +23,6 @@
     "ws": "^8.18.0"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
     "@browserbasehq/stagehand": "workspace:*"
   }
 }
