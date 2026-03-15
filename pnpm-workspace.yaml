@@ -5,3 +5,4 @@ packages:
   - "packages/docs"
   - "packages/server-v3"
   - "packages/server-v4"
+  - "packages/extension"
