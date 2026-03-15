@@ -4,7 +4,6 @@ import {
   parseBrowserUseResult,
   resolveBrowserUseProvider,
 } from "../../lib/agents/harnesses/browserUse.js";
-import { getAgentBrowserHarnessMessage } from "../../lib/agents/harnesses/agentBrowser.js";
 
 describe("BrowserUseHarness helpers", () => {
   it("maps Anthropic-prefixed models to the Anthropic provider", () => {
@@ -48,13 +47,5 @@ describe("BrowserUseHarness helpers", () => {
         },
       },
     });
-  });
-});
-
-describe("AgentBrowserHarness helpers", () => {
-  it("explains why agent-browser is not treated as a harness", () => {
-    expect(getAgentBrowserHarnessMessage()).toContain(
-      "not an LLM agent harness",
-    );
   });
 });

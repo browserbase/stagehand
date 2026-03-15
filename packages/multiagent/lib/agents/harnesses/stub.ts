@@ -11,7 +11,6 @@ export class StubHarness extends BaseHarness {
     readonly name:
       | "gemini-cli"
       | "opencode"
-      | "agent-browser"
       | "browser-use",
     options: AgentHarnessOptions,
   ) {

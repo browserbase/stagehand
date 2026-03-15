@@ -166,7 +166,6 @@ That makes it easier to add new harnesses and toolsets without rewriting the orc
 | `opencode` | implemented, manually verified | Verified with Playwright MCP + local browser via the native OpenCode binary |
 | `browser-use` | implemented, manually verified | Verified with shared local browser via CDP; currently uses browser-use native tools instead of external MCP bridging |
 | `stagehand` | implemented | In-process Stagehand V3 harness; supports `dom`, `hybrid`, and `cua` modes |
-| `agent-browser` | not supported as a harness | Upstream `agent-browser` is a browser automation CLI/runtime, not an LLM agent loop in this architecture |
 
 ### MCP servers / toolsets
 
@@ -254,12 +253,6 @@ That makes it easier to add new harnesses and toolsets without rewriting the orc
 - Model support: forwarded into `V3` and `agent(...)`
 - Auth/setup: depends on whatever model/provider config Stagehand uses in your environment
 - Best fit: native Stagehand agent loop over the shared browser
-
-### `agent-browser`
-
-- Status: intentionally not implemented as a harness
-- Reason: upstream `agent-browser` is a browser automation CLI/runtime, not an LLM agent loop with a prompt/response harness contract
-- Recommended usage: use the `agent-browser` MCP/tool adapter with another harness instead
 
 ## Toolset reference
 
@@ -512,7 +505,6 @@ Supported keys come from `AgentHarnessOptions`:
   - `opencode`
   - `browser-use`
   - `stagehand`
-  - `agent-browser` is accepted but intentionally returns a clear unsupported-harness error
 - `model`
 - `cwd`
 - `env`

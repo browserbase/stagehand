@@ -3,7 +3,6 @@ export type AgentHarnessName =
   | "codex"
   | "gemini-cli"
   | "opencode"
-  | "agent-browser"
   | "browser-use"
   | "stagehand";
 

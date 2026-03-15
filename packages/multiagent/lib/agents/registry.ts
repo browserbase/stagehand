@@ -1,7 +1,6 @@
 import type { BrowserSession } from "../browser/session.js";
 import type { AgentHarnessOptions } from "../types.js";
 import { UnsupportedAdapterError } from "../utils/errors.js";
-import { AgentBrowserHarness } from "./harnesses/agentBrowser.js";
 import { BrowserUseHarness } from "./harnesses/browserUse.js";
 import type { AgentHarness } from "./harnesses/base.js";
 import { ClaudeCodeHarness } from "./harnesses/claudeCode.js";
@@ -23,8 +22,6 @@ export function createAgentHarness(
       return new GeminiCliHarness(options);
     case "opencode":
       return new OpencodeHarness(options);
-    case "agent-browser":
-      return new AgentBrowserHarness(options);
     case "browser-use":
       return new BrowserUseHarness(options, browserSession);
     case "stagehand":
