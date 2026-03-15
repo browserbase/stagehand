@@ -1,0 +1,23 @@
+pnpm-workspace.yaml
+  a1ae832e21c2bc3f 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.11",
+  "base_commit_sha": "34fd0e27e7447c2cb07a0193c6d954d561009f7b",
+  "prompts": {
+    "a1ae832e21c2bc3f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cf05c-de21-72a3-80bf-727a8434cdfc",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>",
+      "messages": [],
+      "total_additions": 38989,
+      "total_deletions": 2495,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
