@@ -7,12 +7,9 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "jsx": "react-jsx",
-    "jsxImportSource": "react",
     "outDir": "./dist",
-    "rootDir": "./src",
-    "types": ["chrome"]
+    "types": ["chrome", "node"]
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "test/**/*"],
   "exclude": ["node_modules", "dist"]
 }
