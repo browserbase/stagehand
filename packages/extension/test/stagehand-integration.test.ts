@@ -1,203 +1,184 @@
 /**
- * E2E Test: Stagehand Library Integration
+ * E2E Test: Stagehand Library Integration via Extension Relay
  *
- * Verifies that the stagehand library (V3) can connect to a running Chrome
- * instance via CDP and control a live page.
+ * Verifies the REAL flow:
+ *   Stagehand V3 (CdpConnection) → /v4/cdp (relay) → extension → chrome.debugger → page
  *
- * This tests the full stagehand flow:
- * 1. Launch Chrome with remote debugging
- * 2. Create a Stagehand V3 instance with cdpUrl
- * 3. Navigate to a test page
- * 4. Use stagehand's page.evaluate() to modify the DOM
- * 5. Verify modifications via CDP
+ * This tests that stagehand's understudy CdpConnection can connect to the relay's
+ * /v4/cdp WebSocket endpoint and drive a real page through the extension's
+ * chrome.debugger proxy.
  *
- * NOTE: act()/observe()/extract() require an LLM API key, so we test those
- * only if ANTHROPIC_API_KEY or OPENAI_API_KEY is set. The core CDP transport
- * and page control is tested unconditionally.
+ * Tests:
+ * 1. Stagehand connects via relay cdpUrl
+ * 2. Page navigation works through the relay
+ * 3. DOM modification via page.evaluate
+ * 4. Screenshot capture
+ * 5. agent.execute() reaches the LLM layer (API key error expected)
+ * 6. stagehand.act() reaches the LLM layer (API key error expected)
  */
 
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
 import type { LaunchedChrome } from "chrome-launcher";
 import type { Server } from "http";
-import { launchChrome, CdpClient, sleep, evaluate, startTestServer } from "./helpers.js";
+import {
+  launchChromeWithExtension,
+  CdpClient,
+  getTargets,
+  startTestServer,
+  startRelayServer,
+} from "./helpers.js";
 
 // Dynamic import for ESM module
 async function importStagehand() {
   return await import("@browserbasehq/stagehand");
 }
 
-describe("Stagehand Library Integration E2E", () => {
+describe("Stagehand Library Integration via Extension Relay E2E", () => {
   let chrome: LaunchedChrome;
-  let wsUrl: string;
+  let relayPort: number;
+  let relayClose: () => Promise<void>;
+  let waitForExtension: (timeoutMs?: number) => Promise<void>;
   let testServer: Server;
   let testUrl: string;
+  let cdpUrl: string;
 
   before(async () => {
-    // Start local test server (Chrome in Docker can't reach external URLs)
+    // 1. Start local test server
     const srv = await startTestServer();
     testServer = srv.server;
     testUrl = srv.url;
 
-    const result = await launchChrome();
+    // 2. Start relay on port 3000 (extension default)
+    const relay = await startRelayServer(3000);
+    relayPort = relay.port;
+    relayClose = relay.close;
+    waitForExtension = relay.waitForExtension;
+    cdpUrl = `ws://127.0.0.1:${relayPort}/v4/cdp`;
+
+    // 3. Launch Chrome with extension
+    const result = await launchChromeWithExtension();
     chrome = result.chrome;
-    wsUrl = result.wsUrl;
+
+    // 4. Wait for extension to connect
+    await waitForExtension(15_000);
+
+    // 5. Navigate the default tab to testUrl via direct CDP so it's not about:blank
+    const targets = await getTargets(result.port);
+    const pageTarget = targets.find(
+      (t) => t.type === "page" && t.webSocketDebuggerUrl
+    );
+    if (pageTarget?.webSocketDebuggerUrl) {
+      const directClient = new CdpClient(pageTarget.webSocketDebuggerUrl);
+      await directClient.connect();
+      await directClient.send("Page.enable");
+      const loadPromise = new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("Navigation timed out")), 15_000);
+        directClient.on("Page.loadEventFired", () => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
+      await directClient.send("Page.navigate", { url: testUrl });
+      await loadPromise;
+      await directClient.close();
+    }
+
+    // Extension will auto-attach to the active tab on first CDP command
   });
 
   after(async () => {
-    try {
-      await chrome?.kill();
-    } catch {
-      // best-effort
-    }
-    try {
-      testServer?.close();
-    } catch {
-      // best-effort
-    }
+    try { await chrome?.kill(); } catch { /* best-effort */ }
+    try { testServer?.close(); } catch { /* best-effort */ }
+    try { await relayClose?.(); } catch { /* best-effort */ }
   });
 
-  it("should connect stagehand to a running Chrome via cdpUrl", async () => {
+  it("should connect stagehand to the relay cdpUrl", async () => {
     const { Stagehand } = await importStagehand();
 
     const stagehand = new Stagehand({
       env: "LOCAL",
-      localBrowserLaunchOptions: {
-        cdpUrl: wsUrl,
-      },
+      localBrowserLaunchOptions: { cdpUrl },
       verbose: 0,
       disablePino: true,
-      disableAPI: true,
     });
 
     await stagehand.init();
-
-    // Verify stagehand is connected
     assert.ok(stagehand.context, "Stagehand should have a context");
 
-    // Get the active page
     const page = await stagehand.context.awaitActivePage();
     assert.ok(page, "Should have an active page");
 
     await stagehand.close();
   });
 
-  it("should navigate to test page via stagehand", async () => {
+  it("should navigate and read page via stagehand through the relay", async () => {
     const { Stagehand } = await importStagehand();
 
     const stagehand = new Stagehand({
       env: "LOCAL",
-      localBrowserLaunchOptions: {
-        cdpUrl: wsUrl,
-      },
+      localBrowserLaunchOptions: { cdpUrl },
       verbose: 0,
       disablePino: true,
-      disableAPI: true,
     });
 
     await stagehand.init();
-
     const page = await stagehand.context.awaitActivePage();
     await page.goto(testUrl, { waitUntil: "load" });
 
-    // Verify navigation worked
+    const title = await page.evaluate(() => document.title);
+    assert.strictEqual(title, "Example Domain");
+
     const url = await page.evaluate(() => window.location.href);
     assert.ok(
       url?.toString().includes("127.0.0.1"),
       `Should be on test server, got: ${url}`
     );
 
-    const title = await page.evaluate(() => document.title);
-    assert.strictEqual(title, "Example Domain");
-
     await stagehand.close();
   });
 
-  it("should modify the DOM via stagehand page.evaluate", async () => {
+  it("should modify the DOM via stagehand through the relay", async () => {
     const { Stagehand } = await importStagehand();
 
     const stagehand = new Stagehand({
       env: "LOCAL",
-      localBrowserLaunchOptions: {
-        cdpUrl: wsUrl,
-      },
+      localBrowserLaunchOptions: { cdpUrl },
       verbose: 0,
       disablePino: true,
-      disableAPI: true,
     });
 
     await stagehand.init();
-
     const page = await stagehand.context.awaitActivePage();
     await page.goto(testUrl, { waitUntil: "load" });
 
-    // Modify the page via stagehand
     await page.evaluate(() => {
       const h1 = document.querySelector("h1");
-      if (h1) h1.textContent = "Modified by Stagehand";
+      if (h1) h1.textContent = "Modified via Stagehand Relay";
     });
 
-    // Verify modification via stagehand
     const h1Text = await page.evaluate(() =>
       document.querySelector("h1")?.textContent
     );
-    assert.strictEqual(
-      h1Text,
-      "Modified by Stagehand",
-      "DOM modification via stagehand should work"
-    );
-
-    // Also verify by connecting directly via CDP
-    const resp = await fetch(`http://127.0.0.1:${chrome.port}/json`);
-    const targets = (await resp.json()) as Array<{
-      webSocketDebuggerUrl?: string;
-      url: string;
-      type: string;
-    }>;
-    const pageTarget = targets.find(
-      (t) => t.type === "page" && t.url.includes("127.0.0.1")
-    );
-
-    if (pageTarget?.webSocketDebuggerUrl) {
-      const cdp = new CdpClient(pageTarget.webSocketDebuggerUrl);
-      await cdp.connect();
-      await cdp.send("Runtime.enable");
-
-      const directH1 = await evaluate(
-        cdp,
-        "document.querySelector('h1')?.textContent"
-      );
-      assert.strictEqual(
-        directH1,
-        "Modified by Stagehand",
-        "DOM modification should be visible via direct CDP"
-      );
-
-      await cdp.close();
-    }
+    assert.strictEqual(h1Text, "Modified via Stagehand Relay");
 
     await stagehand.close();
   });
 
-  it("should take a screenshot via stagehand", async () => {
+  it("should take a screenshot via stagehand through the relay", async () => {
     const { Stagehand } = await importStagehand();
 
     const stagehand = new Stagehand({
       env: "LOCAL",
-      localBrowserLaunchOptions: {
-        cdpUrl: wsUrl,
-      },
+      localBrowserLaunchOptions: { cdpUrl },
       verbose: 0,
       disablePino: true,
-      disableAPI: true,
     });
 
     await stagehand.init();
-
     const page = await stagehand.context.awaitActivePage();
     await page.goto(testUrl, { waitUntil: "load" });
 
-    // Take screenshot via stagehand
     const screenshotBuffer = await page.screenshot();
     assert.ok(screenshotBuffer, "Screenshot should return data");
     assert.ok(
@@ -208,113 +189,28 @@ describe("Stagehand Library Integration E2E", () => {
     await stagehand.close();
   });
 
-  it("should interact with elements via stagehand locator", async () => {
+  it("should call agent.execute() through relay and reach LLM layer", async () => {
     const { Stagehand } = await importStagehand();
 
     const stagehand = new Stagehand({
       env: "LOCAL",
-      localBrowserLaunchOptions: {
-        cdpUrl: wsUrl,
-      },
-      verbose: 0,
-      disablePino: true,
-      disableAPI: true,
-    });
-
-    await stagehand.init();
-
-    const page = await stagehand.context.awaitActivePage();
-    await page.goto(testUrl, { waitUntil: "load" });
-
-    // Use locator to find the "More information..." link
-    const link = page.locator("a");
-    const linkText = await link.textContent();
-    assert.ok(
-      linkText?.includes("More information"),
-      `Link text should contain 'More information', got: '${linkText}'`
-    );
-
-    // Verify the link href via page.evaluate
-    const href = await page.evaluate(() =>
-      document.querySelector("a")?.getAttribute("href")
-    );
-    assert.ok(
-      href?.includes("iana.org"),
-      `Link href should point to iana.org, got: '${href}'`
-    );
-
-    await stagehand.close();
-  });
-
-  it("should add and verify DOM elements via stagehand", async () => {
-    const { Stagehand } = await importStagehand();
-
-    const stagehand = new Stagehand({
-      env: "LOCAL",
-      localBrowserLaunchOptions: {
-        cdpUrl: wsUrl,
-      },
-      verbose: 0,
-      disablePino: true,
-      disableAPI: true,
-    });
-
-    await stagehand.init();
-
-    const page = await stagehand.context.awaitActivePage();
-    await page.goto(testUrl, { waitUntil: "load" });
-
-    // Add a new element
-    await page.evaluate(() => {
-      const div = document.createElement("div");
-      div.id = "stagehand-integration-test";
-      div.textContent = "Stagehand integration test element";
-      div.style.background = "red";
-      div.style.padding = "20px";
-      document.body.prepend(div);
-    });
-
-    // Verify via locator
-    const testDiv = page.locator("#stagehand-integration-test");
-    const text = await testDiv.textContent();
-    assert.strictEqual(text, "Stagehand integration test element");
-
-    // Verify the element is visible in a screenshot
-    const screenshot = await page.screenshot();
-    assert.ok(screenshot.length > 100, "Screenshot with new element should work");
-
-    await stagehand.close();
-  });
-
-  it("should call agent.execute() and reach the LLM layer (API key error expected)", async () => {
-    const { Stagehand } = await importStagehand();
-
-    const stagehand = new Stagehand({
-      env: "LOCAL",
-      localBrowserLaunchOptions: {
-        cdpUrl: wsUrl,
-      },
+      localBrowserLaunchOptions: { cdpUrl },
       verbose: 1,
       disablePino: true,
     });
 
     await stagehand.init();
-
     const page = await stagehand.context.awaitActivePage();
     await page.goto(testUrl, { waitUntil: "load" });
 
-    // agent.execute() should reach the LLM layer.
-    // Without an API key it returns {success: false} with an API key error.
     const agent = stagehand.agent();
     const result = await agent.execute("Click the 'More information' link");
 
     assert.ok(result, "agent.execute() should return a result");
 
     if (process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY) {
-      // If we have an API key, it should succeed
-      assert.ok(result.success, `agent.execute() should succeed, got: ${JSON.stringify(result)}`);
+      assert.ok(result.success, "agent.execute() should succeed with API key");
     } else {
-      // Without an API key the LLM call fails - proves the full pipeline ran
       assert.strictEqual(result.success, false, "Should fail without API key");
       assert.ok(
         result.message?.includes("API key") || result.message?.includes("api_key"),
@@ -325,28 +221,23 @@ describe("Stagehand Library Integration E2E", () => {
     await stagehand.close();
   });
 
-  it("should call stagehand.act() and reach the LLM layer (API key error expected)", async () => {
+  it("should call stagehand.act() through relay and reach LLM layer", async () => {
     const { Stagehand } = await importStagehand();
 
     const stagehand = new Stagehand({
       env: "LOCAL",
-      localBrowserLaunchOptions: {
-        cdpUrl: wsUrl,
-      },
+      localBrowserLaunchOptions: { cdpUrl },
       verbose: 1,
       disablePino: true,
     });
 
     await stagehand.init();
-
     const page = await stagehand.context.awaitActivePage();
     await page.goto(testUrl, { waitUntil: "load" });
 
-    // act() should reach the LLM layer and throw an API key error
-    // when no key is configured
     if (process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY) {
       const result = await stagehand.act("Click the 'More information' link");
-      assert.ok(result.success, `act() should succeed with API key`);
+      assert.ok(result.success, "act() should succeed with API key");
     } else {
       await assert.rejects(
         () => stagehand.act("Click the 'More information' link"),

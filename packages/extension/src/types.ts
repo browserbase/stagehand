@@ -16,23 +16,20 @@ export interface TabInfo {
   errorText?: string;
 }
 
-/** Overall extension state */
-export interface ExtensionState {
-  /** Currently active (foreground) tab ID */
-  activeTabId: number | undefined;
-  /** Map of tabId -> TabInfo for all attached tabs */
-  tabs: Map<number, TabInfo>;
-  /** Whether the sidebar is open */
-  sidebarOpen: boolean;
-}
-
 // ──────────────────────────────────────────────────────────
 // Messages between background service worker and sidebar
 // ──────────────────────────────────────────────────────────
 
+/** Background -> Sidebar: tab state changed */
+export interface TabStateMessage {
+  type: "tab-state";
+  activeTabId: number | undefined;
+  tabs: [number, TabInfo][];
+}
+
 /**
- * Background → Sidebar: CDP command response.
- * Used by the background service worker for responding to CDP commands.
+ * Background -> Sidebar: CDP command response.
+ * Used by the background service worker when responding to CDP commands.
  */
 export interface CdpCommandResponse {
   type: "cdp-response";
@@ -42,8 +39,8 @@ export interface CdpCommandResponse {
 }
 
 /**
- * Background → Sidebar: forwarded CDP event.
- * Used by the background service worker for forwarding CDP events.
+ * Background -> Sidebar: forwarded CDP event.
+ * Used by the background service worker when forwarding CDP events.
  */
 export interface CdpEventMessage {
   type: "cdp-event";
@@ -53,14 +50,7 @@ export interface CdpEventMessage {
   params?: unknown;
 }
 
-/** Background → Sidebar: tab state changed */
-export interface TabStateMessage {
-  type: "tab-state";
-  activeTabId: number | undefined;
-  tabs: [number, TabInfo][];
-}
-
-/** Sidebar → Background: request to send a CDP command */
+/** Sidebar -> Background: request to send a CDP command */
 export interface CdpCommandRequest {
   type: "cdp-command";
   id: number;
@@ -70,7 +60,7 @@ export interface CdpCommandRequest {
   params?: Record<string, unknown>;
 }
 
-/** Sidebar → Background: attach/detach requests */
+/** Sidebar -> Background: attach/detach requests */
 export interface AttachRequest {
   type: "attach-tab";
   tabId: number;
@@ -81,7 +71,7 @@ export interface DetachRequest {
   tabId: number;
 }
 
-/** Sidebar → Background: get current state */
+/** Sidebar -> Background: get current state */
 export interface GetStateRequest {
   type: "get-state";
 }
@@ -93,14 +83,8 @@ export type SidebarMessage =
   | DetachRequest
   | GetStateRequest;
 
-/** Any message from background to sidebar */
-export type BackgroundMessage =
-  | CdpCommandResponse
-  | CdpEventMessage
-  | TabStateMessage;
-
 // ──────────────────────────────────────────────────────────
-// Chat / AI interface types
+// Chat / AI interface types (used by the sidebar panel)
 // ──────────────────────────────────────────────────────────
 
 export type StagehandAction = "act" | "observe" | "extract" | "agent";

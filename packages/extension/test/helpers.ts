@@ -2,11 +2,13 @@
  * Test helpers for the Stagehand extension E2E tests.
  *
  * Launches Chrome with the extension loaded and remote debugging enabled,
- * connects via CDP WebSocket, and provides utilities for test assertions.
+ * connects via CDP WebSocket, starts a minimal relay server that mimics
+ * the server-v4 /v4/extension + /v4/cdp WebSocket endpoints, and provides
+ * utilities for test assertions.
  */
 
 import { launch, type LaunchedChrome } from "chrome-launcher";
-import WebSocket from "ws";
+import WebSocket, { WebSocketServer } from "ws";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { createServer, type Server } from "http";
@@ -19,14 +21,6 @@ export const CHROMIUM_PATH =
   "/root/.cache/ms-playwright/chromium-1194/chrome-linux/chrome";
 
 export const EXTENSION_DIST = resolve(__dirname, "..", "dist");
-
-/**
- * Build Chrome proxy flags from environment variables.
- * Disabled: Chrome in Docker can't use the JWT-auth proxy. Tests use a local server.
- */
-function getProxyFlags(): string[] {
-  return [];
-}
 
 /**
  * Wait for a WebSocket debugger URL from Chrome's /json/version endpoint.
@@ -50,14 +44,12 @@ async function waitForWsUrl(port: number, timeoutMs = 15_000): Promise<string> {
 
 /**
  * Launch Chrome with the extension loaded and remote debugging enabled.
- * Returns the LaunchedChrome instance and the CDP WebSocket URL.
  */
 export async function launchChromeWithExtension(opts?: {
   headless?: boolean;
 }): Promise<{ chrome: LaunchedChrome; wsUrl: string; port: number }> {
   const headless = opts?.headless ?? true;
 
-  // Chrome flags for extension loading + remote debugging
   const chromeFlags = [
     headless ? "--headless=new" : "",
     `--disable-extensions-except=${EXTENSION_DIST}`,
@@ -71,7 +63,6 @@ export async function launchChromeWithExtension(opts?: {
     "--disable-background-timer-throttling",
     "--disable-backgrounding-occluded-windows",
     "--disable-renderer-backgrounding",
-    ...getProxyFlags(),
   ].filter(Boolean);
 
   const chrome = await launch({
@@ -87,7 +78,6 @@ export async function launchChromeWithExtension(opts?: {
 
 /**
  * Launch a plain Chrome instance with remote debugging (no extension).
- * Used for testing stagehand library connecting to a running Chrome.
  */
 export async function launchChrome(): Promise<{
   chrome: LaunchedChrome;
@@ -102,7 +92,6 @@ export async function launchChrome(): Promise<{
     "--disable-dev-shm-usage",
     "--no-sandbox",
     "--disable-gpu",
-    ...getProxyFlags(),
   ];
 
   const chrome = await launch({
@@ -156,11 +145,13 @@ export class CdpClient {
     await this.ready;
   }
 
-  async send(method: string, params?: object): Promise<unknown> {
+  async send(method: string, params?: object, sessionId?: string): Promise<unknown> {
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      this.ws.send(JSON.stringify({ id, method, params }));
+      const msg: Record<string, unknown> = { id, method, params };
+      if (sessionId) msg.sessionId = sessionId;
+      this.ws.send(JSON.stringify(msg));
     });
   }
 
@@ -210,7 +201,6 @@ const EXAMPLE_HTML = `<!DOCTYPE html>
 
 /**
  * Start a local HTTP server serving example.com-like HTML.
- * Used because Chrome in Docker can't reach external URLs through the proxy.
  */
 export async function startTestServer(): Promise<{ server: Server; url: string }> {
   const server = createServer((_req, res) => {
@@ -271,4 +261,204 @@ export async function evaluate(
   }
 
   return result.result.value;
+}
+
+// ──────────────────────────────────────────────────────────
+// Minimal CDP Relay Server (mirrors server-v4 extensionRelay.ts)
+// ──────────────────────────────────────────────────────────
+
+interface InflightRequest {
+  clientWs: WebSocket;
+  originalId: number;
+}
+
+/**
+ * Start a minimal WebSocket relay server that mimics the server-v4
+ * /v4/extension and /v4/cdp endpoints.
+ *
+ * This allows tests to verify the full flow:
+ * stagehand client → /v4/cdp → relay → /v4/extension → extension → chrome.debugger → page
+ */
+export async function startRelayServer(port = 0): Promise<{
+  server: Server;
+  port: number;
+  waitForExtension: (timeoutMs?: number) => Promise<void>;
+  close: () => Promise<void>;
+}> {
+  let extensionWs: WebSocket | null = null;
+  const cdpClients = new Set<WebSocket>();
+  const inflightRequests = new Map<number, InflightRequest>();
+  let nextRelayId = 1;
+  let extensionConnectedResolve: (() => void) | null = null;
+
+  const extensionWss = new WebSocketServer({ noServer: true });
+  const cdpWss = new WebSocketServer({ noServer: true });
+
+  // Extension endpoint
+  extensionWss.on("connection", (ws: WebSocket) => {
+    if (extensionWs && extensionWs.readyState === WebSocket.OPEN) {
+      extensionWs.close(1000, "Replaced");
+    }
+    extensionWs = ws;
+    console.log("[relay] Extension connected");
+
+    if (extensionConnectedResolve) {
+      extensionConnectedResolve();
+      extensionConnectedResolve = null;
+    }
+
+    ws.on("message", (data) => {
+      let msg: {
+        id?: number;
+        result?: unknown;
+        error?: string;
+        method?: string;
+        params?: { method?: string; sessionId?: string; params?: unknown };
+      };
+      try {
+        msg = JSON.parse(data.toString());
+      } catch { return; }
+
+      if (msg.method === "forwardCDPEvent" && msg.params) {
+        // Broadcast CDP event to all clients
+        const cdpEvent: Record<string, unknown> = {
+          method: msg.params.method,
+          params: msg.params.params,
+        };
+        if (msg.params.sessionId) cdpEvent.sessionId = msg.params.sessionId;
+        const eventStr = JSON.stringify(cdpEvent);
+        for (const client of cdpClients) {
+          if (client.readyState === WebSocket.OPEN) client.send(eventStr);
+        }
+      } else if (msg.id !== undefined) {
+        // Route response to originating client
+        const inflight = inflightRequests.get(msg.id);
+        if (!inflight) return;
+        inflightRequests.delete(msg.id);
+
+        const response: Record<string, unknown> = { id: inflight.originalId };
+        if (msg.error) {
+          response.error = { code: -32000, message: msg.error };
+        } else {
+          response.result = msg.result ?? {};
+        }
+        if (inflight.clientWs.readyState === WebSocket.OPEN) {
+          inflight.clientWs.send(JSON.stringify(response));
+        }
+      }
+    });
+
+    ws.on("close", () => {
+      if (extensionWs === ws) extensionWs = null;
+      console.log("[relay] Extension disconnected");
+      for (const [relayId, inflight] of inflightRequests) {
+        inflightRequests.delete(relayId);
+        if (inflight.clientWs.readyState === WebSocket.OPEN) {
+          inflight.clientWs.send(JSON.stringify({
+            id: inflight.originalId,
+            error: { code: -32001, message: "Extension disconnected" },
+          }));
+        }
+      }
+    });
+  });
+
+  // CDP client endpoint
+  cdpWss.on("connection", (ws: WebSocket) => {
+    cdpClients.add(ws);
+    console.log("[relay] CDP client connected");
+
+    ws.on("message", (data) => {
+      let msg: { id?: number; method?: string; params?: unknown; sessionId?: string };
+      try {
+        msg = JSON.parse(data.toString());
+      } catch { return; }
+
+      if (msg.id === undefined || !msg.method) return;
+
+      if (!extensionWs || extensionWs.readyState !== WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          id: msg.id,
+          error: { code: -32000, message: "No extension connected" },
+        }));
+        return;
+      }
+
+      const relayId = nextRelayId++;
+      inflightRequests.set(relayId, { clientWs: ws, originalId: msg.id });
+
+      const wrapped: Record<string, unknown> = {
+        id: relayId,
+        method: "forwardCDPCommand",
+        params: { method: msg.method, params: msg.params },
+      };
+      if (msg.sessionId) {
+        (wrapped.params as Record<string, unknown>).sessionId = msg.sessionId;
+      }
+      extensionWs.send(JSON.stringify(wrapped));
+    });
+
+    ws.on("close", () => {
+      cdpClients.delete(ws);
+      for (const [relayId, inflight] of inflightRequests) {
+        if (inflight.clientWs === ws) inflightRequests.delete(relayId);
+      }
+    });
+  });
+
+  // HTTP server for WebSocket upgrade
+  const httpServer = createServer((_req, res) => {
+    res.writeHead(404);
+    res.end();
+  });
+
+  httpServer.on("upgrade", (request, socket, head) => {
+    const url = new URL(request.url ?? "", `http://${request.headers.host}`);
+    if (url.pathname === "/v4/extension") {
+      extensionWss.handleUpgrade(request, socket, head, (ws) => {
+        extensionWss.emit("connection", ws, request);
+      });
+    } else if (url.pathname === "/v4/cdp") {
+      cdpWss.handleUpgrade(request, socket, head, (ws) => {
+        cdpWss.emit("connection", ws, request);
+      });
+    } else {
+      socket.destroy();
+    }
+  });
+
+  return new Promise((resolve) => {
+    httpServer.listen(port, "127.0.0.1", () => {
+      const addr = httpServer.address();
+      const actualPort = typeof addr === "object" && addr ? addr.port : 0;
+      console.log(`[relay] Listening on port ${actualPort}`);
+
+      resolve({
+        server: httpServer,
+        port: actualPort,
+        waitForExtension: (timeoutMs = 15_000) => {
+          if (extensionWs && extensionWs.readyState === WebSocket.OPEN) {
+            return Promise.resolve();
+          }
+          return new Promise<void>((res, rej) => {
+            const timer = setTimeout(
+              () => rej(new Error("Timed out waiting for extension to connect")),
+              timeoutMs
+            );
+            extensionConnectedResolve = () => {
+              clearTimeout(timer);
+              res();
+            };
+          });
+        },
+        close: async () => {
+          for (const client of cdpClients) client.close();
+          extensionWs?.close();
+          extensionWss.close();
+          cdpWss.close();
+          await new Promise<void>((r) => httpServer.close(() => r()));
+        },
+      });
+    });
+  });
 }

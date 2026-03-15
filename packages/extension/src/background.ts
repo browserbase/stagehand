@@ -1,21 +1,19 @@
 /**
  * Stagehand Extension - Background Service Worker
  *
- * Manages chrome.debugger attachment to tabs and proxies CDP commands/events
- * between the sidebar panel and the browser's debugging protocol.
+ * Connects to the Stagehand server's WebSocket relay and proxies CDP
+ * commands/events between the server and the browser's debugging protocol.
  *
- * Architecture (inspired by playwriter):
- * - chrome.debugger.attach() to connect to a tab's CDP target
- * - chrome.debugger.sendCommand() to forward CDP methods
- * - chrome.debugger.onEvent to receive CDP events and forward to sidebar
- * - Synthetic session IDs to multiplex multiple tabs
- * - Tab activation tracking to keep sidebar in sync with foreground tab
+ * Architecture:
+ * - WebSocket connection to ws://<host>:<port>/v4/extension (relay)
+ * - Receives CDP commands from the relay, executes via chrome.debugger
+ * - Forwards CDP events from chrome.debugger back to the relay
+ * - Sidebar communication via chrome.runtime.Port for UI state only
  */
 
 import type {
   TabInfo,
   TabStateMessage,
-  CdpCommandResponse,
   CdpEventMessage,
   SidebarMessage,
 } from "./types.js";
@@ -51,11 +49,23 @@ let autoAttachParams: Record<string, unknown> | null = null;
 /** Ports from the sidebar panel */
 const sidebarPorts = new Set<chrome.runtime.Port>();
 
+/** WebSocket connection to the relay server */
+let ws: WebSocket | null = null;
+
+/** Whether we intentionally closed the WebSocket (skip reconnect) */
+let wsIntentionallyClosed = false;
+
+/** Current reconnect attempt count for exponential backoff */
+let reconnectAttempt = 0;
+
+/** Handle for the pending reconnect timer */
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
 // ──────────────────────────────────────────────────────────
-// Messaging helpers
+// Sidebar messaging helpers
 // ──────────────────────────────────────────────────────────
 
-function broadcastToSidebar(message: TabStateMessage | CdpEventMessage | CdpCommandResponse): void {
+function broadcastToSidebar(message: TabStateMessage | CdpEventMessage): void {
   const json = JSON.stringify(message, (_key, value) => {
     if (value instanceof Map) return Array.from(value.entries());
     return value;
@@ -78,6 +88,97 @@ function sendTabState(): void {
 }
 
 // ──────────────────────────────────────────────────────────
+// WebSocket relay connection
+// ──────────────────────────────────────────────────────────
+
+/** Send a JSON message over the WebSocket if connected */
+function wsSend(message: Record<string, unknown>): void {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(message));
+  }
+}
+
+/** Read server host/port from chrome.storage.local */
+async function getServerConfig(): Promise<{ host: string; port: number }> {
+  const result = await chrome.storage.local.get(["serverHost", "serverPort"]);
+  return {
+    host: result.serverHost || "127.0.0.1",
+    port: result.serverPort || 3000,
+  };
+}
+
+/** Connect (or reconnect) to the relay WebSocket */
+async function connectWebSocket(): Promise<void> {
+  // Clean up any existing connection
+  if (ws) {
+    wsIntentionallyClosed = true;
+    ws.close();
+    ws = null;
+  }
+
+  wsIntentionallyClosed = false;
+
+  const { host, port } = await getServerConfig();
+  const url = `ws://${host}:${port}/v4/extension`;
+
+  console.log(`[stagehand] Connecting to relay: ${url}`);
+
+  try {
+    ws = new WebSocket(url);
+  } catch (err) {
+    console.error("[stagehand] WebSocket constructor error:", err);
+    scheduleReconnect();
+    return;
+  }
+
+  ws.onopen = () => {
+    console.log("[stagehand] WebSocket connected to relay");
+    reconnectAttempt = 0;
+  };
+
+  ws.onmessage = (event) => {
+    let msg: { id?: number; method?: string; params?: Record<string, unknown> };
+    try {
+      msg = JSON.parse(event.data as string);
+    } catch {
+      console.error("[stagehand] Invalid JSON from relay:", event.data);
+      return;
+    }
+    handleRelayMessage(msg);
+  };
+
+  ws.onclose = () => {
+    console.log("[stagehand] WebSocket closed");
+    ws = null;
+    if (!wsIntentionallyClosed) {
+      scheduleReconnect();
+    }
+  };
+
+  ws.onerror = (err) => {
+    console.error("[stagehand] WebSocket error:", err);
+    // onclose will fire after onerror, which handles reconnection
+  };
+}
+
+/** Schedule a reconnection with exponential backoff */
+function scheduleReconnect(): void {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+  }
+  // Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 30s
+  const delay = Math.min(1000 * Math.pow(2, reconnectAttempt), 30000);
+  reconnectAttempt++;
+  console.log(
+    `[stagehand] Reconnecting in ${delay}ms (attempt ${reconnectAttempt})`
+  );
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectWebSocket();
+  }, delay);
+}
+
+// ──────────────────────────────────────────────────────────
 // Tab attachment (chrome.debugger)
 // ──────────────────────────────────────────────────────────
 
@@ -88,7 +189,6 @@ function isRestrictedUrl(url: string | undefined): boolean {
     "chrome-extension://",
     "devtools://",
     "edge://",
-    "about:",
     "https://chrome.google.com/",
     "https://chromewebstore.google.com/",
   ];
@@ -166,14 +266,23 @@ function detachTab(tabId: number): void {
 
   console.log(`[stagehand] Detaching tab ${tabId}`);
 
-  // Clean up child sessions for this tab
+  // Clean up child sessions for this tab and notify via WebSocket
   for (const [childSessionId, parent] of childSessions.entries()) {
     if (parent.tabId === tabId) {
-      broadcastToSidebar({
+      const detachEvent: CdpEventMessage = {
         type: "cdp-event",
         tabId,
         method: "Target.detachedFromTarget",
         params: { sessionId: childSessionId, targetId: parent.targetId },
+      };
+      broadcastToSidebar(detachEvent);
+      wsSend({
+        method: "forwardCDPEvent",
+        params: {
+          method: "Target.detachedFromTarget",
+          sessionId: childSessionId,
+          params: { sessionId: childSessionId, targetId: parent.targetId },
+        },
       });
       childSessions.delete(childSessionId);
     }
@@ -181,11 +290,20 @@ function detachTab(tabId: number): void {
 
   // Emit detach event for the main session
   if (tab.sessionId && tab.targetId) {
-    broadcastToSidebar({
+    const detachEvent: CdpEventMessage = {
       type: "cdp-event",
       tabId,
       method: "Target.detachedFromTarget",
       params: { sessionId: tab.sessionId, targetId: tab.targetId },
+    };
+    broadcastToSidebar(detachEvent);
+    wsSend({
+      method: "forwardCDPEvent",
+      params: {
+        method: "Target.detachedFromTarget",
+        sessionId: tab.sessionId,
+        params: { sessionId: tab.sessionId, targetId: tab.targetId },
+      },
     });
   }
 
@@ -195,10 +313,12 @@ function detachTab(tabId: number): void {
 }
 
 // ──────────────────────────────────────────────────────────
-// CDP command handling
+// CDP command handling (shared by relay and sidebar)
 // ──────────────────────────────────────────────────────────
 
-function resolveTabForSession(sessionId: string | undefined): { tabId: number; tab: TabInfo } | undefined {
+function resolveTabForSession(
+  sessionId: string | undefined
+): { tabId: number; tab: TabInfo } | undefined {
   if (!sessionId) return undefined;
 
   // Check main tab sessions
@@ -211,6 +331,26 @@ function resolveTabForSession(sessionId: string | undefined): { tabId: number; t
   if (child) {
     const tab = tabs.get(child.tabId);
     if (tab) return { tabId: child.tabId, tab };
+  }
+
+  return undefined;
+}
+
+/** Get the primary attached tab (active tab if attached, otherwise first attached) */
+function getPrimaryAttachedTab(): { tabId: number; tab: TabInfo } | undefined {
+  // Prefer the active tab if it's attached
+  if (activeTabId !== undefined) {
+    const tab = tabs.get(activeTabId);
+    if (tab && tab.state === "attached") {
+      return { tabId: activeTabId, tab };
+    }
+  }
+
+  // Fall back to the first attached tab
+  for (const [tabId, tab] of tabs) {
+    if (tab.state === "attached") {
+      return { tabId, tab };
+    }
   }
 
   return undefined;
@@ -230,6 +370,7 @@ async function handleCdpCommand(
   const debuggee: chrome.debugger.Debuggee = { tabId };
 
   // Handle Target.setAutoAttach at root level - apply to all attached tabs
+  // and synthesize Target.attachedToTarget events for existing targets
   if (method === "Target.setAutoAttach" && !sessionId) {
     autoAttachParams = params ?? null;
     const attachedTabIds = Array.from(tabs.entries())
@@ -239,12 +380,46 @@ async function handleCdpCommand(
     await Promise.all(
       attachedTabIds.map(async (id) => {
         try {
-          await chrome.debugger.sendCommand({ tabId: id }, "Target.setAutoAttach", params);
+          await chrome.debugger.sendCommand(
+            { tabId: id },
+            "Target.setAutoAttach",
+            params
+          );
         } catch {
           // Non-fatal per-tab failure
         }
       })
     );
+
+    // Synthesize Target.attachedToTarget events for all attached tabs
+    for (const [tid, info] of tabs) {
+      if (info.state === "attached" && info.targetId && info.sessionId) {
+        try {
+          const chromeTab = await chrome.tabs.get(tid);
+          wsSend({
+            method: "forwardCDPEvent",
+            params: {
+              method: "Target.attachedToTarget",
+              params: {
+                sessionId: info.sessionId,
+                targetInfo: {
+                  targetId: info.targetId,
+                  type: "page",
+                  title: chromeTab.title || "",
+                  url: chromeTab.url || "",
+                  attached: true,
+                  canAccessOpener: false,
+                },
+                waitingForDebugger: !!(params?.waitForDebuggerOnStart),
+              },
+            },
+          });
+        } catch {
+          // Tab may have been closed
+        }
+      }
+    }
+
     return {};
   }
 
@@ -271,12 +446,92 @@ async function handleCdpCommand(
     return { success: false };
   }
 
+  // Handle Target.setDiscoverTargets → no-op (not supported by chrome.debugger)
+  if (method === "Target.setDiscoverTargets") {
+    return {};
+  }
+
+  // Handle Target.attachToTarget → find the tab with matching targetId
+  if (method === "Target.attachToTarget") {
+    const targetId = params?.targetId as string | undefined;
+    if (targetId) {
+      for (const [tid, info] of tabs) {
+        if (info.targetId === targetId && info.sessionId) {
+          // Synthesize Target.attachedToTarget event
+          try {
+            const chromeTab = await chrome.tabs.get(tid);
+            wsSend({
+              method: "forwardCDPEvent",
+              params: {
+                method: "Target.attachedToTarget",
+                params: {
+                  sessionId: info.sessionId,
+                  targetInfo: {
+                    targetId: info.targetId,
+                    type: "page",
+                    title: chromeTab.title || "",
+                    url: chromeTab.url || "",
+                    attached: true,
+                    canAccessOpener: false,
+                  },
+                  waitingForDebugger: false,
+                },
+              },
+            });
+          } catch {
+            // Tab may have been closed
+          }
+          return { sessionId: info.sessionId };
+        }
+      }
+    }
+    return {};
+  }
+
+  // Handle Target.activateTarget → no-op
+  if (method === "Target.activateTarget") {
+    return {};
+  }
+
+  // Handle Runtime.runIfWaitingForDebugger → no-op
+  if (method === "Runtime.runIfWaitingForDebugger") {
+    return {};
+  }
+
+  // Handle Target.getTargets → return info about attached tabs
+  if (method === "Target.getTargets") {
+    const targetInfos: Array<{
+      targetId: string;
+      type: string;
+      title: string;
+      url: string;
+      attached: boolean;
+    }> = [];
+
+    for (const [tid, info] of tabs) {
+      if (info.state === "attached" && info.targetId) {
+        try {
+          const chromeTab = await chrome.tabs.get(tid);
+          targetInfos.push({
+            targetId: info.targetId,
+            type: "page",
+            title: chromeTab.title || "",
+            url: chromeTab.url || "",
+            attached: true,
+          });
+        } catch {
+          // Tab may have been closed
+        }
+      }
+    }
+
+    return { targetInfos };
+  }
+
   // Build a debugger target, optionally scoped to a child session.
-  // chrome.debugger.sendCommand accepts { tabId, sessionId? } at runtime,
-  // even though the TS type for Debuggee doesn't declare sessionId.
   const childSessionId = sessionId !== tab.sessionId ? sessionId : undefined;
   const target = childSessionId
-    ? { tabId, sessionId: childSessionId } as chrome.debugger.Debuggee
+    ? ({ tabId, sessionId: childSessionId } as chrome.debugger.Debuggee)
     : debuggee;
 
   // For Runtime.enable, reset first to ensure contexts are re-sent
@@ -291,6 +546,94 @@ async function handleCdpCommand(
 
   // Default: forward the CDP command directly
   return await chrome.debugger.sendCommand(target, method, params);
+}
+
+// ──────────────────────────────────────────────────────────
+// Relay message handling
+// ──────────────────────────────────────────────────────────
+
+async function handleRelayMessage(msg: {
+  id?: number;
+  method?: string;
+  params?: Record<string, unknown>;
+}): Promise<void> {
+  if (msg.method !== "forwardCDPCommand" || msg.id === undefined) {
+    return;
+  }
+
+  const cdpMethod = msg.params?.method as string | undefined;
+  const cdpSessionId = msg.params?.sessionId as string | undefined;
+  const cdpParams = msg.params?.params as Record<string, unknown> | undefined;
+
+  if (!cdpMethod) {
+    wsSend({ id: msg.id, error: "Missing CDP method" });
+    return;
+  }
+
+  try {
+    // Resolve which tab to target
+    let tabId: number | undefined;
+
+    if (cdpSessionId) {
+      const resolved = resolveTabForSession(cdpSessionId);
+      if (resolved) {
+        tabId = resolved.tabId;
+      }
+    }
+
+    // If no session match, use the primary attached tab
+    if (tabId === undefined) {
+      let primary = getPrimaryAttachedTab();
+
+      // Auto-attach to the active tab if nothing is attached yet
+      if (!primary && activeTabId !== undefined) {
+        try {
+          const chromeTab = await chrome.tabs.get(activeTabId);
+          if (chromeTab && !isRestrictedUrl(chromeTab.url)) {
+            await attachTab(activeTabId);
+            primary = getPrimaryAttachedTab();
+          }
+        } catch {
+          // Tab may not exist
+        }
+      }
+
+      // If still no attached tab, try to find any non-restricted tab
+      if (!primary) {
+        try {
+          const allTabs = await chrome.tabs.query({});
+          const candidate = allTabs.find(
+            (t) => t.id && !isRestrictedUrl(t.url)
+          );
+          if (candidate?.id) {
+            await attachTab(candidate.id);
+            primary = getPrimaryAttachedTab();
+          }
+        } catch {
+          // Ignore
+        }
+      }
+
+      if (!primary) {
+        wsSend({ id: msg.id, error: "No attached tab available" });
+        return;
+      }
+      tabId = primary.tabId;
+    }
+
+    const result = await handleCdpCommand(
+      tabId,
+      cdpSessionId,
+      cdpMethod,
+      cdpParams
+    );
+    wsSend({ id: msg.id, result: result ?? {} });
+  } catch (err: unknown) {
+    wsSend({
+      id: msg.id,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 // ──────────────────────────────────────────────────────────
@@ -330,13 +673,26 @@ function onDebuggerEvent(
     }
   }
 
-  // Forward to sidebar with the correct session ID
+  const eventSessionId =
+    (source as { sessionId?: string }).sessionId || tab.sessionId;
+
+  // Forward to sidebar for UI
   broadcastToSidebar({
     type: "cdp-event",
     tabId,
-    sessionId: (source as { sessionId?: string }).sessionId || tab.sessionId,
+    sessionId: eventSessionId,
     method,
     params,
+  });
+
+  // Forward to relay server via WebSocket
+  wsSend({
+    method: "forwardCDPEvent",
+    params: {
+      method,
+      sessionId: eventSessionId,
+      params,
+    },
   });
 }
 
@@ -394,10 +750,9 @@ chrome.action.onClicked.addListener(async (tab) => {
   // If this tab is restricted, don't try to attach
   if (isRestrictedUrl(tab.url)) return;
 
-  // Toggle: if already attached, detach; otherwise attach
+  // If already attached, nothing to do
   const existing = tabs.get(tab.id);
   if (existing?.state === "attached") {
-    // Already attached, sidebar will just show it
     return;
   }
 
@@ -410,7 +765,7 @@ chrome.action.onClicked.addListener(async (tab) => {
 });
 
 // ──────────────────────────────────────────────────────────
-// Sidebar port communication
+// Sidebar port communication (UI state only, no CDP proxying)
 // ──────────────────────────────────────────────────────────
 
 chrome.runtime.onConnect.addListener((port) => {
@@ -442,29 +797,6 @@ chrome.runtime.onConnect.addListener((port) => {
         detachTab(msg.tabId);
         break;
       }
-
-      case "cdp-command": {
-        try {
-          const result = await handleCdpCommand(
-            msg.tabId,
-            msg.sessionId,
-            msg.method,
-            msg.params
-          );
-          broadcastToSidebar({
-            type: "cdp-response",
-            id: msg.id,
-            result,
-          });
-        } catch (err: unknown) {
-          broadcastToSidebar({
-            type: "cdp-response",
-            id: msg.id,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-        break;
-      }
     }
   });
 
@@ -475,7 +807,20 @@ chrome.runtime.onConnect.addListener((port) => {
 });
 
 // ──────────────────────────────────────────────────────────
-// Register CDP event listeners
+// Listen for config changes and reconnect
+// ──────────────────────────────────────────────────────────
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "local") return;
+  if (changes.serverHost || changes.serverPort) {
+    console.log("[stagehand] Server config changed, reconnecting WebSocket");
+    reconnectAttempt = 0;
+    connectWebSocket();
+  }
+});
+
+// ──────────────────────────────────────────────────────────
+// Register CDP event listeners and initialize
 // ──────────────────────────────────────────────────────────
 
 chrome.debugger.onEvent.addListener(onDebuggerEvent);
@@ -487,5 +832,8 @@ chrome.tabs.query({ active: true, currentWindow: true }).then((activeTabs) => {
     activeTabId = activeTabs[0].id;
   }
 });
+
+// Start the WebSocket connection to the relay server
+connectWebSocket();
 
 console.log("[stagehand] Background service worker started");
