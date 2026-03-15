@@ -1,0 +1,53 @@
+{
+  "name": "@browserbasehq/multiagent",
+  "version": "0.1.0",
+  "description": "Multi-agent browser automation driver for combining agents, MCP servers, and shared browser sessions.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "multiagent": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "pnpm -w --dir ../.. exec tsc -p packages/multiagent/tsconfig.json",
+    "typecheck": "pnpm -w --dir ../.. exec tsc -p packages/multiagent/tsconfig.json --noEmit",
+    "lint": "cd ../.. && prettier --check packages/multiagent && cd packages/multiagent && eslint . && pnpm run typecheck",
+    "test": "pnpm -w --dir ../.. exec vitest run packages/multiagent/tests/unit"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.17.2",
+    "@playwright/mcp": "0.0.68",
+    "agent-browser": "^0.20.6",
+    "agent-browser-mcp": "^0.1.3",
+    "chrome-devtools-mcp": "^0.20.0",
+    "puppeteer-core": "^24.39.1",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.13.1",
+    "eslint": "10.0.2",
+    "prettier": "^3.2.5",
+    "tsx": "*",
+    "vitest": "^4.0.8"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/browserbase/stagehand.git",
+    "directory": "packages/multiagent"
+  },
+  "bugs": {
+    "url": "https://github.com/browserbase/stagehand/issues"
+  },
+  "homepage": "https://stagehand.dev"
+}

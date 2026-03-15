@@ -1,6 +1,7 @@
 packages:
   - "packages/core"
   - "packages/cli"
+  - "packages/multiagent"
   - "packages/evals"
   - "packages/docs"
   - "packages/server-v3"
