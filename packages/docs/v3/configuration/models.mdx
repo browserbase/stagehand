@@ -8,7 +8,7 @@ import { V3Banner } from '/snippets/v3-banner.mdx';
 <V3Banner />
 
 
-Understand web pages, plan actions, and interact with complex interfaces with Google, OpenAI, Anthropic, xAI, DeepSeek, Perplexity, Azure, Ollama, the [Vercel AI Gateway](https://vercel.com/docs/ai-gateway), or any other LLM model from [the Vercel AI SDK](https://sdk.vercel.ai/providers).
+Understand web pages, plan actions, and interact with complex interfaces with Google, OpenAI, Anthropic, MiniMax, xAI, DeepSeek, Perplexity, Azure, Ollama, the [Vercel AI Gateway](https://vercel.com/docs/ai-gateway), or any other LLM model from [the Vercel AI SDK](https://sdk.vercel.ai/providers).
 
 ---
 
@@ -216,6 +216,28 @@ await stagehand.init();
 
 </CodeGroup>
 [View all supported Groq models →](https://console.groq.com/docs/models)
+</Tab>
+
+<Tab title="MiniMax">
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "minimax/MiniMax-M2.5"
+  // API key auto-loads from MINIMAX_API_KEY - set in your .env
+});
+
+await stagehand.init();
+```
+
+</CodeGroup>
+
+Available models: `MiniMax-M2.5` (204K context), `MiniMax-M2.5-highspeed` (204K context, optimized for speed).
+
+[View all supported MiniMax models →](https://platform.minimaxi.com/document/Models)
 </Tab>
 
 <Tab title="Mistral">
@@ -830,6 +852,12 @@ The following models work without the `provider/` prefix in the model parameter 
 - `moonshotai/kimi-k2-instruct`
 
 </Accordion>
+<Accordion title="MiniMax">
+
+- `minimax-MiniMax-M2.5`
+- `minimax-MiniMax-M2.5-highspeed`
+
+</Accordion>
 </AccordionGroup>
 
 ---
@@ -856,6 +884,7 @@ The following models work without the `provider/` prefix in the model parameter 
 | Cerebras   | `CEREBRAS_API_KEY`             |
 | DeepSeek   | `DEEPSEEK_API_KEY`             |
 | Groq       | `GROQ_API_KEY`                 |
+| MiniMax    | `MINIMAX_API_KEY`              |
 | Mistral    | `MISTRAL_API_KEY`              |
 | Ollama     | None (local)                   |
 | Perplexity | `PERPLEXITY_API_KEY`           |
