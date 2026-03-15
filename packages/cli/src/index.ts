@@ -288,7 +288,11 @@ interface DaemonResponse {
 // Default viewport matching Stagehand core
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
 
-async function runDaemon(session: string, headless: boolean, connectUrl?: string): Promise<void> {
+async function runDaemon(
+  session: string,
+  headless: boolean,
+  connectUrl?: string,
+): Promise<void> {
   // Only clean daemon state files (socket, pid, etc.), not client-written config (context)
   await cleanupDaemonStateFiles(session);
 
@@ -1351,7 +1355,11 @@ async function stopDaemonAndCleanup(session: string): Promise<void> {
   await cleanupStaleFiles(session);
 }
 
-async function ensureDaemon(session: string, headless: boolean, connectUrl?: string): Promise<void> {
+async function ensureDaemon(
+  session: string,
+  headless: boolean,
+  connectUrl?: string,
+): Promise<void> {
   const wantMode = await getDesiredMode(session);
   assertModeSupported(wantMode);
 
