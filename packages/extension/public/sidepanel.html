@@ -282,8 +282,12 @@
   </div>
 
   <div class="settings-bar">
-    <label for="apiKeyInput">API Key:</label>
-    <input type="password" id="apiKeyInput" placeholder="ANTHROPIC_API_KEY" />
+    <label for="serverHostInput">Host:</label>
+    <input type="text" id="serverHostInput" placeholder="127.0.0.1" value="127.0.0.1" style="max-width: 100px;" />
+    <label for="serverPortInput">Port:</label>
+    <input type="number" id="serverPortInput" placeholder="3000" value="3000" style="max-width: 60px;" />
+    <label for="apiKeyInput">Model API Key:</label>
+    <input type="password" id="apiKeyInput" placeholder="API key" />
   </div>
 
   <div id="attachPrompt" class="attach-prompt" style="display: none;">

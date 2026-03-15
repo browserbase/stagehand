@@ -16,21 +16,19 @@ import {
 } from "fastify-zod-openapi";
 import { StatusCodes } from "http-status-codes";
 
+import { error as sendError } from "./lib/response.js";
 import { logging } from "./lib/logging/index.js";
+import { browserSessionOpenApiComponents } from "./schemas/v4/browserSession.js";
+import { buildErrorResponse, pageOpenApiComponents } from "./schemas/v4/page.js";
 import {
   destroySessionStore,
   initializeSessionStore,
 } from "./lib/sessionStoreManager.js";
 import healthcheckRoute from "./routes/healthcheck.js";
 import readinessRoute, { setReady, setUnready } from "./routes/readiness.js";
-import actRoute from "./routes/v4/sessions/_id/act.js";
-import agentExecuteRoute from "./routes/v4/sessions/_id/agentExecute.js";
-import endRoute from "./routes/v4/sessions/_id/end.js";
-import extractRoute from "./routes/v4/sessions/_id/extract.js";
-import navigateRoute from "./routes/v4/sessions/_id/navigate.js";
-import observeRoute from "./routes/v4/sessions/_id/observe.js";
-import replayRoute from "./routes/v4/sessions/_id/replay.js";
-import startRoute from "./routes/v4/sessions/start.js";
+import { browserSessionRoutes } from "./routes/v4/browsersession/routes.js";
+import { pageRoutes } from "./routes/v4/page/routes.js";
+import { registerExtensionRelay } from "./routes/v4/extensionRelay.js";
 
 // Constants for graceful shutdown
 const READY_WAIT_PERIOD = 10_000; // 10 seconds
@@ -67,6 +65,27 @@ const app = fastify({
 
   return503OnClosing: false,
 });
+
+const isPageRoute = (request: { routeOptions?: { url?: string }; url: string }) => {
+  const routeUrl = request.routeOptions?.url ?? "";
+  return (
+    routeUrl.startsWith("/page/") ||
+    routeUrl.startsWith("/v4/page/") ||
+    request.url.startsWith("/v4/page/")
+  );
+};
+
+const isBrowserSessionRoute = (request: {
+  routeOptions?: { url?: string };
+  url: string;
+}) => {
+  const routeUrl = request.routeOptions?.url ?? "";
+  return (
+    routeUrl.startsWith("/browsersession") ||
+    routeUrl.startsWith("/v4/browsersession") ||
+    request.url.startsWith("/v4/browsersession")
+  );
+};
 
 export const logger = app.log;
 
@@ -150,7 +169,14 @@ const start = async () => {
     app.setValidatorCompiler(validatorCompiler);
     app.setSerializerCompiler(serializerCompiler);
 
-    await app.register(fastifyZodOpenApiPlugin);
+    await app.register(fastifyZodOpenApiPlugin, {
+      components: {
+        schemas: {
+          ...browserSessionOpenApiComponents.schemas,
+          ...pageOpenApiComponents.schemas,
+        },
+      },
+    });
 
     await app.register(fastifySwagger, {
       openapi: {
@@ -185,6 +211,22 @@ const start = async () => {
           .map((err) => (err as RequestValidationError).params.issue);
 
         request.log.warn({ zodIssues }, "request validation failed");
+        if (isPageRoute(request)) {
+          return reply.status(StatusCodes.BAD_REQUEST).send(
+            buildErrorResponse({
+              error: error instanceof Error ? error.message : String(error),
+              statusCode: StatusCodes.BAD_REQUEST,
+              stack: error instanceof Error ? (error.stack ?? null) : null,
+            }),
+          );
+        }
+        if (isBrowserSessionRoute(request)) {
+          return sendError(
+            reply,
+            "Request validation failed",
+            StatusCodes.BAD_REQUEST,
+          );
+        }
         return reply.status(StatusCodes.BAD_REQUEST).send({
           error: "Request validation failed",
           issues: zodIssues,
@@ -193,6 +235,24 @@ const start = async () => {
 
       if (error instanceof ResponseSerializationError) {
         request.log.error({ err: error }, "response serialization failed");
+        if (isPageRoute(request)) {
+          return reply
+            .status(StatusCodes.INTERNAL_SERVER_ERROR)
+            .send(
+              buildErrorResponse({
+                error: error.message,
+                statusCode: StatusCodes.INTERNAL_SERVER_ERROR,
+                stack: error.stack ?? null,
+              }),
+            );
+        }
+        if (isBrowserSessionRoute(request)) {
+          return sendError(
+            reply,
+            "Response validation failed",
+            StatusCodes.INTERNAL_SERVER_ERROR,
+          );
+        }
         return reply
           .status(StatusCodes.INTERNAL_SERVER_ERROR)
           .send({ error: "Response validation failed" });
@@ -205,6 +265,19 @@ const start = async () => {
       const statusCode =
         (error as { statusCode?: number }).statusCode ??
         StatusCodes.INTERNAL_SERVER_ERROR;
+
+      if (isPageRoute(request)) {
+        return reply.status(statusCode).send(
+          buildErrorResponse({
+            error: errorMessage,
+            statusCode,
+            stack: error instanceof Error ? (error.stack ?? null) : null,
+          }),
+        );
+      }
+      if (isBrowserSessionRoute(request)) {
+        return sendError(reply, errorMessage, statusCode);
+      }
 
       reply.status(statusCode).send({
         error:
@@ -238,14 +311,12 @@ const start = async () => {
 
     await appWithTypes.register(
       (instance, _opts, done) => {
-        instance.route(actRoute);
-        instance.route(endRoute);
-        instance.route(extractRoute);
-        instance.route(navigateRoute);
-        instance.route(observeRoute);
-        instance.route(replayRoute);
-        instance.route(startRoute);
-        instance.route(agentExecuteRoute);
+        for (const route of browserSessionRoutes) {
+          instance.route(route);
+        }
+        for (const route of pageRoutes) {
+          instance.route(route);
+        }
         done();
       },
       { prefix: "/v4" },
@@ -256,6 +327,10 @@ const start = async () => {
     // Register health and readiness routes at the root level
     appWithTypes.route(healthcheckRoute);
     appWithTypes.route(readinessRoute);
+
+    // Register WebSocket relay for Chrome extension CDP bridging
+    registerExtensionRelay(app);
+
     await app.ready();
 
     await app.listen({

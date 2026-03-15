@@ -30,17 +30,10 @@ export interface ExtensionState {
 // Messages between background service worker and sidebar
 // ──────────────────────────────────────────────────────────
 
-/** Sidebar → Background: request to send a CDP command */
-export interface CdpCommandRequest {
-  type: "cdp-command";
-  id: number;
-  tabId: number;
-  sessionId?: string;
-  method: string;
-  params?: Record<string, unknown>;
-}
-
-/** Background → Sidebar: CDP command response */
+/**
+ * Background → Sidebar: CDP command response.
+ * Used by the background service worker for responding to CDP commands.
+ */
 export interface CdpCommandResponse {
   type: "cdp-response";
   id: number;
@@ -48,7 +41,10 @@ export interface CdpCommandResponse {
   error?: string;
 }
 
-/** Background → Sidebar: forwarded CDP event */
+/**
+ * Background → Sidebar: forwarded CDP event.
+ * Used by the background service worker for forwarding CDP events.
+ */
 export interface CdpEventMessage {
   type: "cdp-event";
   tabId: number;
@@ -62,6 +58,16 @@ export interface TabStateMessage {
   type: "tab-state";
   activeTabId: number | undefined;
   tabs: [number, TabInfo][];
+}
+
+/** Sidebar → Background: request to send a CDP command */
+export interface CdpCommandRequest {
+  type: "cdp-command";
+  id: number;
+  tabId: number;
+  sessionId?: string;
+  method: string;
+  params?: Record<string, unknown>;
 }
 
 /** Sidebar → Background: attach/detach requests */
