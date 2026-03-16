@@ -35,6 +35,7 @@ import { V3FunctionName } from "../types/public/methods.js";
 import { mapToolResultToActions } from "../agent/utils/actionMapping.js";
 import {
   MissingLLMConfigurationError,
+  MissingEnvironmentVariableError,
   StreamingCallbacksInNonStreamingModeError,
   AgentAbortError,
 } from "../types/public/sdkErrors.js";
@@ -116,12 +117,24 @@ export class V3AgentHandler {
         isBrowserbase: this.v3.isBrowserbase,
         excludeTools: options.excludeTools,
         variables: options.variables,
+        useSearch: options.useSearch,
       });
+
+      if (options.useSearch) {
+        const bbApiKey = this.v3.browserbaseApiKey;
+        if (!bbApiKey) {
+          throw new MissingEnvironmentVariableError(
+            "BROWSERBASE_API_KEY",
+            "agent search (useSearch: true)",
+          );
+        }
+      }
 
       const tools = this.createTools(
         options.excludeTools,
         options.variables,
         options.toolTimeout,
+        options.useSearch,
       );
       const allTools: ToolSet = { ...tools, ...this.mcpTools };
 
@@ -340,7 +353,10 @@ export class V3AgentHandler {
       );
     } catch (error) {
       // Re-throw validation errors that should propagate to the caller
-      if (error instanceof StreamingCallbacksInNonStreamingModeError) {
+      if (
+        error instanceof StreamingCallbacksInNonStreamingModeError ||
+        error instanceof MissingEnvironmentVariableError
+      ) {
         throw error;
       }
 
@@ -551,6 +567,7 @@ export class V3AgentHandler {
     excludeTools?: string[],
     variables?: Variables,
     toolTimeout?: number,
+    useSearch?: boolean,
   ) {
     const provider = this.llmClient?.getLanguageModel?.()?.provider;
     return createAgentTools(this.v3, {
@@ -561,6 +578,8 @@ export class V3AgentHandler {
       excludeTools,
       variables,
       toolTimeout,
+      useSearch,
+      browserbaseApiKey: useSearch ? this.v3.browserbaseApiKey : undefined,
     });
   }
 

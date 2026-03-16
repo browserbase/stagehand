@@ -219,6 +219,7 @@ describe("Stagehand public API types", () => {
       callbacks?: Stagehand.AgentExecuteCallbacks;
       variables?: Stagehand.Variables;
       toolTimeout?: number;
+      useSearch?: boolean;
     };
 
     it("matches expected type shape", () => {
@@ -239,6 +240,7 @@ describe("Stagehand public API types", () => {
       callbacks?: Stagehand.AgentStreamCallbacks;
       variables?: Stagehand.Variables;
       toolTimeout?: number;
+      useSearch?: boolean;
     };
 
     it("matches expected type shape", () => {

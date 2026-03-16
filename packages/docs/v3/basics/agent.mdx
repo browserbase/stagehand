@@ -426,7 +426,7 @@ The tools you can exclude depend on the agent mode:
 | `screenshot` | Take a screenshot |
 | `think` | Agent reasoning/planning step |
 | `wait` | Wait for time or condition |
-| `search` | Web search (requires `BRAVE_API_KEY`) |
+| `search` | Web search (requires `useSearch: true` and `BROWSERBASE_API_KEY`) |
 
 </Tab>
 
@@ -449,7 +449,7 @@ The tools you can exclude depend on the agent mode:
 | `screenshot` | Take screenshot |
 | `think` | Agent reasoning step |
 | `wait` | Wait for time/condition |
-| `search` | Web search (requires `BRAVE_API_KEY`) |
+| `search` | Web search (requires `useSearch: true` and `BROWSERBASE_API_KEY`) |
 
 </Tab>
 </Tabs>
@@ -473,6 +473,20 @@ const result = await agent.execute({
 const result = await agent.execute({
   instruction: "Find information on the current page",
   excludeTools: ["search"],
+});
+```
+
+## Web Search
+
+Enable the `search` tool by setting `useSearch: true` in `agent.execute()`. This gives the agent the ability to perform web searches using the Browserbase Search API, which is useful when the agent needs to find URLs or gather information before navigating.
+
+<Note>Requires a valid Browserbase API key. Set `BROWSERBASE_API_KEY` in your environment, or pass `apiKey` in the Stagehand constructor.</Note>
+
+```typescript
+const result = await agent.execute({
+  instruction: "Find the latest pricing for Browserbase",
+  useSearch: true,
+  maxSteps: 20,
 });
 ```
 
