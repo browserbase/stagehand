@@ -284,7 +284,7 @@ describe("POST /v1/sessions/:id/extract (V3)", () => {
     );
   });
 
-  it("should extract with google/gemini-2.5-flash-lite model", async () => {
+  it("should extract with google/gemini-2.5-flash model", async () => {
     const url = getBaseUrl();
     const geminiApiKey = requireEnv("GEMINI_API_KEY", GEMINI_API_KEY);
 
@@ -309,7 +309,7 @@ describe("POST /v1/sessions/:id/extract (V3)", () => {
           },
           options: {
             model: {
-              modelName: "google/gemini-2.5-flash-lite",
+              modelName: "google/gemini-2.5-flash",
               apiKey: geminiApiKey,
             },
           },

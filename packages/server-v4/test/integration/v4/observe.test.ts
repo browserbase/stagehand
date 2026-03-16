@@ -196,7 +196,7 @@ describe("POST /v4/sessions/:id/observe (V3)", () => {
     );
   });
 
-  it("should observe with google/gemini-2.5-flash-lite model", async () => {
+  it("should observe with google/gemini-2.5-flash model", async () => {
     const url = getBaseUrl();
     const geminiApiKey = requireEnv("GEMINI_API_KEY", GEMINI_API_KEY);
 
@@ -217,7 +217,7 @@ describe("POST /v4/sessions/:id/observe (V3)", () => {
           instruction: "Find any link on the page",
           options: {
             model: {
-              modelName: "google/gemini-2.5-flash-lite",
+              modelName: "google/gemini-2.5-flash",
               apiKey: geminiApiKey,
             },
           },
@@ -228,7 +228,7 @@ describe("POST /v4/sessions/:id/observe (V3)", () => {
     assertFetchStatus(
       ctx,
       HTTP_OK,
-      "Observe with google/gemini-2.5-flash-lite model should succeed",
+      "Observe with google/gemini-2.5-flash model should succeed",
     );
     assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
     assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
