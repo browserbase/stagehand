@@ -134,7 +134,7 @@ export function buildAgentSystemPrompt(
   const cdata = (text: string) => `<![CDATA[${text}]]>`;
 
   const isHybridMode = mode === "hybrid";
-  const hasSearch = useSearch;
+  const hasSearch = useSearch || Boolean(process.env.BRAVE_API_KEY);
 
   // Tools section differs based on mode and excluded tools
   const toolsSection = buildToolsSection(isHybridMode, hasSearch, excludeTools);
