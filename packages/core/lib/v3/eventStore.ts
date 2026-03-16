@@ -285,7 +285,7 @@ abstract class FileEventSink implements EventSink {
     await writeToStream(stream, serialized);
   }
 
-  async query(_query: EventStoreQuery): Promise<FlowEvent[]> {
+  async query(): Promise<FlowEvent[]> {
     return [];
   }
 
@@ -344,7 +344,7 @@ export class PrettyStderrEventSink implements EventSink {
     });
   }
 
-  async query(_query: EventStoreQuery): Promise<FlowEvent[]> {
+  async query(): Promise<FlowEvent[]> {
     return [];
   }
 
