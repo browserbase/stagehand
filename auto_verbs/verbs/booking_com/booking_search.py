@@ -11,6 +11,7 @@ Uses Playwright's native locator API with the user's Chrome profile.
 """
 
 import re
+from dataclasses import dataclass
 import os
 from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
@@ -23,23 +24,44 @@ from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_f
 import shutil
 
 
-def compute_dates():
-    today = date.today()
-    checkin = today + relativedelta(months=2)
-    checkout = checkin + timedelta(days=2)
-    return checkin, checkout
+@dataclass(frozen=True)
+class BookingSearchRequest:
+    destination: str
+    checkin_date: date
+    checkout_date: date
+    max_results: int
 
 
-def run(
-    playwright: Playwright,
-    destination: str = "Chicago",
-    max_results: int = 5,
-) -> list:
-    checkin, checkout = compute_dates()
+@dataclass(frozen=True)
+class BookingHotel:
+    name: str
+    price_per_night: str
+    total_price: str
+
+
+@dataclass(frozen=True)
+class BookingSearchResult:
+    destination: str
+    checkin_date: date
+    checkout_date: date
+    hotels: list[BookingHotel]
+
+
+# Searches Booking.com for hotels at a destination over the given dates,
+# returning up to max_results hotels with name and per-night price.
+def search_booking_hotels(
+    playwright,
+    request: BookingSearchRequest,
+) -> BookingSearchResult:
+    destination = request.destination
+    max_results = request.max_results
+    checkin = request.checkin_date
+    checkout = request.checkout_date
     checkin_str = checkin.strftime("%Y-%m-%d")
     checkout_str = checkout.strftime("%Y-%m-%d")
     checkin_display = checkin.strftime("%m/%d/%Y")
     checkout_display = checkout.strftime("%m/%d/%Y")
+    raw_results = []
 
     print(f"  Destination: {destination}")
     print(f"  Check-in: {checkin_display}  Check-out: {checkout_display}  (2 nights)\n")
@@ -51,7 +73,7 @@ def run(
     browser = playwright.chromium.connect_over_cdp(ws_url)
     context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
-    results = []
+    raw_results = []
     seen_names = set()
 
     try:
@@ -210,7 +232,7 @@ def run(
         search_btn.evaluate("el => el.click()")
         print("  Clicked Search button")
 
-        # Wait for results
+        # Wait for raw_results
         try:
             page.wait_for_url("**/searchresults**", timeout=15000)
             print(f"  Navigated to: {page.url}")
@@ -233,7 +255,7 @@ def run(
         print(f"  Found {count} hotel cards")
 
         for i in range(count):
-            if len(results) >= max_results:
+            if len(raw_results) >= max_results:
                 break
             card = hotel_cards.nth(i)
             try:
@@ -290,7 +312,7 @@ def run(
                     per_night_val = raw // 2
                     per_night = f"${per_night_val:,}"
 
-                results.append({
+                raw_results.append({
                     "name": name,
                     "total_price": price,
                     "per_night_price": per_night,
@@ -299,13 +321,13 @@ def run(
                 continue
 
         # Fallback: regex on page text
-        if not results:
+        if not raw_results:
             print("  Card extraction failed, trying text fallback...")
             body_text = page.evaluate("document.body.innerText") or ""
             # Look for patterns like hotel name followed by price
             lines = body_text.split("\n")
             for i, line in enumerate(lines):
-                if len(results) >= max_results:
+                if len(raw_results) >= max_results:
                     break
                 pm = re.search(r"\$[\d,]+", line)
                 if pm and len(line.strip()) < 200:
@@ -319,21 +341,23 @@ def run(
                         total = pm.group(0)
                         raw = int(total.replace("$", "").replace(",", ""))
                         per_night = f"${raw // 2:,}"
-                        results.append({
+                        raw_results.append({
                             "name": name,
                             "total_price": total,
                             "per_night_price": per_night,
                         })
 
-        # ── Print results ─────────────────────────────────────────────────
-        print(f"\nFound {len(results)} hotels in '{destination}':")
+        # ── Print raw_results ─────────────────────────────────────────────────
+        print(f"\nFound {len(raw_results)} hotels in '{destination}':")
         print(f"  Check-in: {checkin_display}  Check-out: {checkout_display}  (2 nights)\n")
-        for i, hotel in enumerate(results, 1):
+        for i, hotel in enumerate(raw_results, 1):
             print(f"  {i}. {hotel['name']}")
             print(f"     Per-night Price: {hotel['per_night_price']}  (Total: {hotel['total_price']})")
 
     except Exception as e:
         import traceback
+
+
         print(f"Error: {e}")
         traceback.print_exc()
     finally:
@@ -344,10 +368,30 @@ def run(
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
 
-    return results
+    return BookingSearchResult(
+        destination=destination,
+        checkin_date=request.checkin_date,
+        checkout_date=request.checkout_date,
+        hotels=[BookingHotel(name=r["name"], price_per_night=r["per_night_price"], total_price=r.get("total_price","")) for r in raw_results],
+    )
+def test_search_booking_hotels() -> None:
+    from dateutil.relativedelta import relativedelta
+    from datetime import timedelta
+    from playwright.sync_api import sync_playwright
+    today = date.today()
+    checkin = today + relativedelta(months=2)
+    request = BookingSearchRequest(
+        destination="Chicago",
+        checkin_date=checkin,
+        checkout_date=checkin + timedelta(days=2),
+        max_results=5,
+    )
+    with sync_playwright() as playwright:
+        result = search_booking_hotels(playwright, request)
+    assert result.destination == request.destination
+    assert len(result.hotels) <= request.max_results
+    print(f"\nTotal hotels found: {len(result.hotels)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        items = run(playwright)
-        print(f"\nTotal hotels found: {len(items)}")
+    test_search_booking_hotels()

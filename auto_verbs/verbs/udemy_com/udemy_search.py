@@ -8,10 +8,32 @@ from playwright.sync_api import Playwright, sync_playwright
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, launch_chrome, wait_for_cdp_ws
 
-MAX_RESULTS = 5
+from dataclasses import dataclass
 
 
-def run(playwright: Playwright) -> list:
+
+
+@dataclass(frozen=True)
+class UdemySearchRequest:
+    query: str = "Python programming"
+    max_results: int = 5
+
+
+@dataclass(frozen=True)
+class UdemyCourse:
+    title: str
+    instructor: str
+    rating: str
+    price: str
+
+
+@dataclass(frozen=True)
+class UdemySearchResult:
+    query: str
+    courses: list
+
+
+def search_udemy_courses(playwright, request: UdemySearchRequest) -> UdemySearchResult:
     port = get_free_port()
     profile_dir = tempfile.mkdtemp(prefix="udemy_")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -54,7 +76,7 @@ def run(playwright: Playwright) -> list:
         lines = [l.strip() for l in body.splitlines() if l.strip()]
 
         i = 0
-        while i < len(lines) and len(courses) < MAX_RESULTS:
+        while i < len(lines) and len(courses) < request.max_results:
             # Look for "Instructor:" marker
             if lines[i] == "Instructor:":
                 instructor = lines[i + 1] if i + 1 < len(lines) else "N/A"
@@ -100,9 +122,9 @@ def run(playwright: Playwright) -> list:
             i += 1
 
         # Strategy 2: look for "Rating: X.X out of 5" lines — title is nearby
-        if len(courses) < MAX_RESULTS:
+        if len(courses) < request.max_results:
             i = 0
-            while i < len(lines) and len(courses) < MAX_RESULTS:
+            while i < len(lines) and len(courses) < request.max_results:
                 rm = re.match(r'^Rating:\s+(\d\.\d)\s+out of\s+5', lines[i])
                 if rm:
                     rating = rm.group(1)
@@ -141,7 +163,7 @@ def run(playwright: Playwright) -> list:
             print("   Strategy 1 found 0 — trying h3 tags...")
             h3s = page.locator("h3").all()
             for h3 in h3s:
-                if len(courses) >= MAX_RESULTS:
+                if len(courses) >= request.max_results:
                     break
                 try:
                     text = h3.inner_text(timeout=1500).strip()
@@ -176,9 +198,22 @@ def run(playwright: Playwright) -> list:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return courses
+    return UdemySearchResult(
+        query=request.query,
+        courses=[UdemyCourse(title=c['title'], instructor=c['instructor'],
+                             rating=c['rating'], price=c['price']) for c in courses],
+    )
+
+
+def test_udemy_courses():
+    from playwright.sync_api import sync_playwright
+    request = UdemySearchRequest(query="Python programming", max_results=5)
+    with sync_playwright() as pl:
+        result = search_udemy_courses(pl, request)
+    print(f"\nTotal courses: {len(result.courses)}")
+    for i, c in enumerate(result.courses, 1):
+        print(f"  {i}. {c.title}  {c.rating}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_udemy_courses()

@@ -21,17 +21,38 @@ _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 import shutil
 
+from dataclasses import dataclass
 
-def run(
-    playwright: Playwright,
-    location: str = "Redmond, WA 98052",
-    max_results: int = 5,
-) -> list:
+@dataclass(frozen=True)
+class BoaLocatorRequest:
+    location: str
+    max_results: int
+
+@dataclass(frozen=True)
+class BoaLocation:
+    name: str
+    address: str
+    distance: str
+
+@dataclass(frozen=True)
+class BoaLocatorResult:
+    location: str
+    locations: list[BoaLocation]
+
+
+# Locates Bank of America branches and ATMs near a location, returning up to max_results results.
+def locate_boa_branches(
+    playwright,
+    request: BoaLocatorRequest,
+) -> BoaLocatorResult:
+    location = request.location
+    max_results = request.max_results
+    raw_results = []
     print("=" * 59)
     print("  Bank of America – Branch & ATM Locator")
     print("=" * 59)
     print(f"  Location: {location}")
-    print(f"  Max results: {max_results}\n")
+    print(f"  Max raw_results: {max_results}\n")
 
     port = get_free_port()
     profile_dir = get_temp_profile_dir("bankofamerica_com")
@@ -40,7 +61,7 @@ def run(
     browser = playwright.chromium.connect_over_cdp(ws_url)
     context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
-    results = []
+    raw_results = []
 
     try:
         # ── Navigate ──────────────────────────────────────────────────────
@@ -116,8 +137,8 @@ def run(
         page.wait_for_timeout(5000)
         print(f"  URL: {page.url}")
 
-        # ── STEP 3: Extract results ───────────────────────────────────────
-        print(f"STEP 3: Extract up to {max_results} results...")
+        # ── STEP 3: Extract raw_results ───────────────────────────────────────
+        print(f"STEP 3: Extract up to {max_results} raw_results...")
 
         # Wait for result cards to load
         page.wait_for_timeout(3000)
@@ -134,7 +155,7 @@ def run(
 
         seen_names = set()
         for i in range(count):
-            if len(results) >= max_results:
+            if len(raw_results) >= max_results:
                 break
             card = cards.nth(i)
             try:
@@ -179,7 +200,7 @@ def run(
                     continue
                 seen_names.add(name_key)
 
-                results.append({
+                raw_results.append({
                     "name": name,
                     "address": address,
                     "distance": distance,
@@ -188,12 +209,12 @@ def run(
                 continue
 
         # Fallback: regex-based extraction from full page text
-        if not results:
+        if not raw_results:
             print("  Card extraction failed, trying text fallback...")
             body_text = page.evaluate("document.body.innerText") or ""
             lines = [l.strip() for l in body_text.split("\n") if l.strip()]
             for i, line in enumerate(lines):
-                if len(results) >= max_results:
+                if len(raw_results) >= max_results:
                     break
                 dm = re.search(r"([\d.]+)\s*mi", line, re.IGNORECASE)
                 if dm and len(line) < 20:
@@ -206,15 +227,15 @@ def run(
                             address = candidate
                         elif len(candidate) > 3 and name == "N/A" and candidate not in ("Make my favorite",):
                             name = candidate
-                    results.append({
+                    raw_results.append({
                         "name": name,
                         "address": address,
                         "distance": dm.group(0),
                     })
 
-        # ── Print results ─────────────────────────────────────────────────
-        print(f"\nFound {len(results)} locations near '{location}':\n")
-        for i, loc in enumerate(results, 1):
+        # ── Print raw_results ─────────────────────────────────────────────────
+        print(f"\nFound {len(raw_results)} locations near '{location}':\n")
+        for i, loc in enumerate(raw_results, 1):
             print(f"  {i}. {loc['name']}")
             print(f"     Address:  {loc['address']}")
             print(f"     Distance: {loc['distance']}")
@@ -229,10 +250,19 @@ def run(
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return results
+    return BoaLocatorResult(
+        location=location,
+        locations=[BoaLocation(name=r["name"], address=r["address"], distance=r["distance"]) for r in raw_results],
+    )
+def test_locate_boa_branches() -> None:
+    from playwright.sync_api import sync_playwright
+    request = BoaLocatorRequest(location="Redmond, WA 98052", max_results=5)
+    with sync_playwright() as playwright:
+        result = locate_boa_branches(playwright, request)
+    assert result.location == request.location
+    assert len(result.locations) <= request.max_results
+    print(f"\nTotal locations found: {len(result.locations)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        items = run(playwright)
-        print(f"\nTotal locations: {len(items)}")
+    test_locate_boa_branches()

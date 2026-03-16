@@ -1,0 +1,16 @@
+# Fetches the most popular IRS forms and publications, returning up to max_results items with form name and URL.
+
+@dataclass(frozen=True)
+class IrsFormsRequest:
+    max_results: int
+
+@dataclass(frozen=True)
+class IrsForm:
+    form: str
+    url: str
+
+@dataclass(frozen=True)
+class IrsFormsResult:
+    forms: list[IrsForm]
+
+def get_irs_popular_forms(playwright, request: IrsFormsRequest) -> IrsFormsResult

@@ -12,6 +12,12 @@ import os
 import time
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
+import sys as _sys, os as _os, shutil, time
+_sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..'))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
+from dataclasses import dataclass
+
+
 
 QUERY = "wireless earbuds"
 SORT = "best_seller"
@@ -185,62 +191,87 @@ def extract_products(page, max_products=5):
     return products
 
 
-def main():
-    user_data_dir = get_chrome_default_profile()
-    print(f"Using Chrome profile: {user_data_dir}")
-    print("NOTE: Close ALL Chrome windows before running!\n")
-    
-    with sync_playwright() as pw:
-        context = pw.chromium.launch_persistent_context(
-            user_data_dir,
-            channel="chrome",
-            headless=False,
-            viewport={"width": 1280, "height": 900},
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--disable-infobars",
-                "--disable-extensions",
-                "--start-maximized",
-            ],
-        )
-        page = context.pages[0] if context.pages else context.new_page()
-        
-        try:
-            print(f"Loading: {URL}")
-            page.goto(URL, wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_timeout(3000)
-            dismiss_popups(page)
-            page.wait_for_timeout(2000)
-            
-            # Scroll to load more products
-            for _ in range(3):
-                page.evaluate("window.scrollBy(0, 500)")
-                page.wait_for_timeout(500)
-            page.evaluate("window.scrollTo(0, 0)")
-            page.wait_for_timeout(1000)
-            
-            products = extract_products(page, MAX)
-            
+
+@dataclass(frozen=True)
+class WalmartSearchRequest:
+    search_query: str = "wireless earbuds"
+    max_results: int = 5
+
+
+@dataclass(frozen=True)
+class WalmartProduct:
+    name: str
+    price: str
+    rating: str
+
+
+@dataclass(frozen=True)
+class WalmartSearchResult:
+    search_query: str
+    products: list
+
+
+def search_walmart_products(playwright, request: WalmartSearchRequest) -> WalmartSearchResult:
+    url = f"https://www.walmart.com/search?q={request.search_query.replace(' ', '+')}&sort=best_seller"
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("walmart_com")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
+    page = context.pages[0] if context.pages else context.new_page()
+    products = []
+    try:
+        print(f"Loading: {url}")
+        page.goto(url, wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_timeout(4000)
+        dismiss_popups(page)
+        page.wait_for_timeout(2000)
+
+        for _ in range(3):
+            page.evaluate("window.scrollBy(0, 500)")
+            page.wait_for_timeout(500)
+        page.evaluate("window.scrollTo(0, 0)")
+        page.wait_for_timeout(1000)
+
+        products = extract_products(page, request.max_results)
+
+        print()
+        print("=" * 60)
+        print(f"  Walmart – Top {request.max_results} {request.search_query}")
+        print("=" * 60)
+        for idx, p in enumerate(products, 1):
+            print(f"  {idx}. {p['name']}")
+            print(f"     Price:  {p['price']}")
+            print(f"     Rating: {p['rating']}")
             print()
-            print("=" * 60)
-            print(f"  Walmart – Top {MAX} wireless earbuds (Best Seller)")
-            print("=" * 60)
-            for idx, p in enumerate(products, 1):
-                print(f"  {idx}. {p['name']}")
-                print(f"     Price:  {p['price']}")
-                print(f"     Rating: {p['rating']}")
-                print()
-            
-            if not products:
-                print("  No products extracted from page text.")
-                print(f"  Current URL: {page.url}")
-        
-        finally:
-            try:
-                context.close()
-            except Exception:
-                pass
+
+        if not products:
+            print("  No products extracted from page text.")
+
+        browser.close()
+
+    except Exception as e:
+        print(f"Error: {e}")
+        import traceback; traceback.print_exc()
+    finally:
+        chrome_proc.terminate()
+        shutil.rmtree(profile_dir, ignore_errors=True)
+
+    return WalmartSearchResult(
+        search_query=request.search_query,
+        products=[WalmartProduct(name=p['name'], price=p['price'], rating=p['rating']) for p in products],
+    )
+
+def test_walmart_products():
+    from playwright.sync_api import sync_playwright
+    request = WalmartSearchRequest(search_query="wireless earbuds", max_results=5)
+    with sync_playwright() as pl:
+        result = search_walmart_products(pl, request)
+    print(f"\nTotal products: {len(result.products)}")
+    for i, p in enumerate(result.products, 1):
+        print(f"  {i}. {p.name}  {p.price}")
 
 
 if __name__ == "__main__":
-    main()
+    test_walmart_products()

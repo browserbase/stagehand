@@ -1,0 +1,19 @@
+# Searches YouTube for videos matching a query and returns the top max_results results.
+
+@dataclass(frozen=True)
+class YoutubeSearchRequest:
+    search_query: str
+    max_results: int
+
+@dataclass(frozen=True)
+class YoutubeVideo:
+    title: str
+    url: str
+    duration: str
+
+@dataclass(frozen=True)
+class YoutubeSearchResult:
+    search_query: str
+    videos: list[YoutubeVideo]
+
+def search_youtube_videos(playwright, request: YoutubeSearchRequest) -> YoutubeSearchResult

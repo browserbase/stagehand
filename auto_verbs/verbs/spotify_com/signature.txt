@@ -1,0 +1,19 @@
+# Searches Spotify for tracks or playlists matching a query and returns up to max_results.
+
+@dataclass(frozen=True)
+class SpotifySearchRequest:
+    search_query: str
+    max_results: int
+
+@dataclass(frozen=True)
+class SpotifyTrack:
+    title: str
+    artist: str
+    duration: str
+
+@dataclass(frozen=True)
+class SpotifySearchResult:
+    search_query: str
+    tracks: list[SpotifyTrack]
+
+def search_spotify_tracks(playwright, request: SpotifySearchRequest) -> SpotifySearchResult

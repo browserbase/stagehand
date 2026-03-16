@@ -5,6 +5,7 @@ Search: "vintage mechanical keyboard" | Filter: Buy It Now | Sort: Price + Shipp
 Pure Playwright – no AI. Uses .s-item CSS class selectors discovered via exploration.
 """
 
+from datetime import date, timedelta
 import re
 import os
 import shutil
@@ -17,8 +18,9 @@ import os as _os
 _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
-QUERY = "vintage mechanical keyboard"
-MAX_RESULTS = 5
+from dataclasses import dataclass
+
+
 URL = "https://www.ebay.com/sch/i.html?_nkw=vintage%20mechanical%20keyboard&LH_BIN=1&_sop=15"
 
 
@@ -55,17 +57,40 @@ def dismiss_popups(page):
             pass
 
 
-def run(
-    playwright: Playwright,
-    search_query: str = QUERY,
-    max_results: int = MAX_RESULTS,
-) -> list:
+@dataclass(frozen=True)
+class EbaySearchRequest:
+    search_query: str
+    max_results: int
+
+
+@dataclass(frozen=True)
+class EbayListing:
+    title: str
+    price: str
+    shipping: str
+
+
+@dataclass(frozen=True)
+class EbaySearchResult:
+    search_query: str
+    listings: list[EbayListing]
+
+
+# Searches eBay for listings matching a query and returns up to max_results
+# results with title, price, and shipping cost.
+def search_ebay_listings(
+    playwright,
+    request: EbaySearchRequest,
+) -> EbaySearchResult:
+    search_query = request.search_query
+    max_results = request.max_results
+    raw_results = []
     print("=" * 60)
     print("  eBay – Vintage Mechanical Keyboard Search")
     print("=" * 60)
     print(f'  Query: "{search_query}"')
     print(f"  Filter: Buy It Now | Sort: Price + Shipping lowest")
-    print(f"  Max results: {max_results}\n")
+    print(f"  Max raw_results: {max_results}\n")
 
     port = get_free_port()
     profile_dir = get_temp_profile_dir("ebay_com")
@@ -74,18 +99,18 @@ def run(
     browser = playwright.chromium.connect_over_cdp(ws_url)
     context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
-    results = []
+    raw_results = []
 
     try:
-        print("STEP 1: Navigate to eBay search results...")
+        print("STEP 1: Navigate to eBay search raw_results...")
         page.goto(URL, wait_until="domcontentloaded", timeout=30000)
         page.wait_for_timeout(2000)
         dismiss_popups(page)
         print(f"   Loaded: {page.url}\n")
 
-        # Wait for results to render — try most likely selector first
+        # Wait for raw_results to render — try most likely selector first
         loaded = False
-        for wait_sel in [".srp-results", "li.s-item", ".s-item__title", "[data-viewport]"]:
+        for wait_sel in [".srp-raw_results", "li.s-item", ".s-item__title", "[data-viewport]"]:
             try:
                 page.wait_for_selector(wait_sel, timeout=5000)
                 print(f"   ✅ Selector '{wait_sel}' appeared")
@@ -109,18 +134,18 @@ def run(
         # ──────────────────────────────────────────────────────
         # Strategy 1: Single JS evaluate — extracts all at once, no per-element timeouts
         # ──────────────────────────────────────────────────────
-        skip_phrases = ["shop on ebay", "picks for you", "results matching", "related:", "save this search", "trending on", "see all", "sponsored"]
+        skip_phrases = ["shop on ebay", "picks for you", "raw_results matching", "related:", "save this search", "trending on", "see all", "sponsored"]
 
         all_items = page.evaluate("""(max) => {
-            const results = [];
-            const skip = ["shop on ebay", "picks for you", "results matching", "related:", "save this search", "trending on", "see all", "sponsored"];
+            const raw_results = [];
+            const skip = ["shop on ebay", "picks for you", "raw_results matching", "related:", "save this search", "trending on", "see all", "sponsored"];
 
-            // Try .s-item first, then .srp-results > li
+            // Try .s-item first, then .srp-raw_results > li
             let items = document.querySelectorAll('li.s-item');
-            if (items.length === 0) items = document.querySelectorAll('.srp-results > li');
+            if (items.length === 0) items = document.querySelectorAll('.srp-raw_results > li');
 
             for (const item of items) {
-                if (results.length >= max) break;
+                if (raw_results.length >= max) break;
 
                 // Title: try .s-item__title, then role=heading, then first link
                 let title = '';
@@ -157,25 +182,25 @@ def run(
                     }
                 }
 
-                if (title && price) results.push({ title: title.substring(0, 120), price, shipping });
+                if (title && price) raw_results.push({ title: title.substring(0, 120), price, shipping });
             }
-            return results;
+            return raw_results;
         }""", max_results)
 
         if all_items:
-            results = all_items
-            print(f"   ✅ JS evaluate extracted {len(results)} items")
+            raw_results = all_items
+            print(f"   ✅ JS evaluate extracted {len(raw_results)} items")
 
         # ──────────────────────────────────────────────────────
         # Strategy 2: Fallback — full page text with regex
         # ──────────────────────────────────────────────────────
-        if not results:
+        if not raw_results:
             print("   ⚠ JS evaluate returned 0 — trying text fallback...")
             body = page.locator("body").inner_text(timeout=15000)
             lines = [l.strip() for l in body.split("\n") if l.strip()]
 
             i = 0
-            while i < len(lines) and len(results) < max_results:
+            while i < len(lines) and len(raw_results) < max_results:
                 line = lines[i]
                 if (len(line) >= 20 and not line.startswith("$")
                     and not any(line.lower().startswith(p) for p in skip_phrases)
@@ -192,7 +217,7 @@ def run(
                         if re.search(r"(shipping|free\s)", nxt, re.IGNORECASE) and shipping == "N/A":
                             shipping = nxt.strip()[:80]
                     if price:
-                        results.append({"title": line[:120], "price": price, "shipping": shipping})
+                        raw_results.append({"title": line[:120], "price": price, "shipping": shipping})
                         i += 5
                     else:
                         i += 1
@@ -200,9 +225,9 @@ def run(
                     i += 1
 
         print(f"\n" + "=" * 60)
-        print(f"  DONE – {len(results)} results")
+        print(f"  DONE – {len(raw_results)} raw_results")
         print("=" * 60)
-        for i, r in enumerate(results, 1):
+        for i, r in enumerate(raw_results, 1):
             print(f"  {i}. {r['title']}")
             print(f"     Price:    {r['price']}")
             print(f"     Shipping: {r['shipping']}")
@@ -219,10 +244,19 @@ def run(
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
 
-    return results
+    return EbaySearchResult(
+        search_query=search_query,
+        listings=[EbayListing(title=r["title"], price=r["price"], shipping=r["shipping"]) for r in raw_results],
+    )
+def test_search_ebay_listings() -> None:
+    from playwright.sync_api import sync_playwright
+    request = EbaySearchRequest(search_query="mechanical keyboard", max_results=5)
+    with sync_playwright() as playwright:
+        result = search_ebay_listings(playwright, request)
+    assert result.search_query == request.search_query
+    assert len(result.listings) <= request.max_results
+    print(f"\nTotal listings found: {len(result.listings)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        items = run(playwright)
-        print(f"Total results: {len(items)}")
+    test_search_ebay_listings()

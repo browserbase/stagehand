@@ -8,11 +8,13 @@ Uses Playwright persistent context with real Chrome Default profile.
 IMPORTANT: Close ALL Chrome windows before running!
 """
 
-import re
-import json
-import os
-import traceback
-from playwright.sync_api import Playwright, sync_playwright, TimeoutError as PwTimeout
+import re, json, os, shutil, traceback
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
+from playwright.sync_api import sync_playwright
+from dataclasses import dataclass
+
 
 
 def get_chrome_default_profile() -> str:
@@ -26,36 +28,41 @@ def get_chrome_default_profile() -> str:
     raise FileNotFoundError("Could not find Chrome Default profile")
 
 
-def run(
-    playwright,
-    pickup: str = "Seattle-Tacoma International Airport",
-    dropoff: str = "Downtown Seattle",
-    max_results: int = 10,
-) -> list:
+
+@dataclass(frozen=True)
+class UberRideSearchRequest:
+    pickup: str = "Seattle-Tacoma International Airport"
+    dropoff: str = "Downtown Seattle"
+    max_results: int = 5
+
+
+@dataclass(frozen=True)
+class UberRideEstimate:
+    ride_type: str
+    price_range: str
+
+
+@dataclass(frozen=True)
+class UberRideSearchResult:
+    pickup: str
+    dropoff: str
+    estimates: list
+
+
+
+def search_uber_rides(playwright, request: UberRideSearchRequest) -> UberRideSearchResult:
     print("=" * 59)
     print("  Uber - Ride Price Estimate")
     print("=" * 59)
-    print(f"  Pickup:  {pickup}")
-    print(f"  Dropoff: {dropoff}\n")
+    print(f"  Pickup:  {request.pickup}")
+    print(f"  Dropoff: {request.dropoff}\n")
 
-    # Use REAL Chrome Default profile (Chrome must be closed first!)
-    user_data_dir = get_chrome_default_profile()
-    print(f"  Using Chrome profile: {user_data_dir}")
-    print("  NOTE: Close ALL Chrome windows before running!\n")
-    
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport={"width": 1920, "height": 1080},
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-            "--start-maximized",
-            "--window-size=1920,1080",
-        ],
-    )
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("uber_com")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
     results = []
 
@@ -214,13 +221,32 @@ def run(
         traceback.print_exc()
     finally:
         try:
-            context.close()
+            browser.close()
         except Exception:
             pass
-    return results
+        chrome_proc.terminate()
+        shutil.rmtree(profile_dir, ignore_errors=True)
+    return UberRideSearchResult(
+        pickup=request.pickup,
+        dropoff=request.dropoff,
+        estimates=[UberRideEstimate(ride_type=r['rideType'], price_range=r['priceRange']) for r in results],
+    )
+
+
+
+def test_uber_rides():
+    from playwright.sync_api import sync_playwright
+    request = UberRideSearchRequest(
+        pickup="Seattle-Tacoma International Airport",
+        dropoff="Downtown Seattle",
+        max_results=5,
+    )
+    with sync_playwright() as pl:
+        result = search_uber_rides(pl, request)
+    print(f"\nTotal estimates: {len(result.estimates)}")
+    for i, e in enumerate(result.estimates, 1):
+        print(f"  {i}. {e.ride_type}  {e.price_range}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        items = run(playwright)
-        print(f"\nTotal estimates: {len(items)}")
+    test_uber_rides()

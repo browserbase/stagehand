@@ -1,0 +1,19 @@
+# Locates Bank of America branches and ATMs near a location, returning up to max_results results.
+
+@dataclass(frozen=True)
+class BoaLocatorRequest:
+    location: str
+    max_results: int
+
+@dataclass(frozen=True)
+class BoaLocation:
+    name: str
+    address: str
+    distance: str
+
+@dataclass(frozen=True)
+class BoaLocatorResult:
+    location: str
+    locations: list[BoaLocation]
+
+def locate_boa_branches(playwright, request: BoaLocatorRequest) -> BoaLocatorResult

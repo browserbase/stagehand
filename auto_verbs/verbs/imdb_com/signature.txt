@@ -1,0 +1,19 @@
+# Searches IMDb for movies/shows/people matching a query, returning up to max_results results.
+
+@dataclass(frozen=True)
+class ImdbSearchRequest:
+    query: str
+    max_results: int
+
+@dataclass(frozen=True)
+class ImdbTitle:
+    title: str
+    year: str
+    rating: str
+
+@dataclass(frozen=True)
+class ImdbSearchResult:
+    query: str
+    titles: list[ImdbTitle]
+
+def search_imdb_titles(playwright, request: ImdbSearchRequest) -> ImdbSearchResult

@@ -8,12 +8,36 @@ from playwright.sync_api import Playwright, sync_playwright
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
+from dataclasses import dataclass
+
+
 ADDRESS = "Seattle, WA 98101"
 QUERY = "sushi"
-MAX_RESULTS = 5
 
 
-def run(playwright: Playwright) -> list:
+@dataclass(frozen=True)
+class UberEatsSearchRequest:
+    address: str = "Seattle, WA 98101"
+    query: str = "sushi"
+    max_results: int = 5
+
+
+@dataclass(frozen=True)
+class UberEatsRestaurant:
+    name: str
+    rating: str
+    delivery_fee: str
+    est_time: str
+
+
+@dataclass(frozen=True)
+class UberEatsSearchResult:
+    address: str
+    query: str
+    restaurants: list
+
+
+def search_ubereats_restaurants(playwright, request: UberEatsSearchRequest) -> UberEatsSearchResult:
     port = get_free_port()
     profile_dir = get_temp_profile_dir("ubereats_com")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -137,7 +161,7 @@ def run(playwright: Playwright) -> list:
             "[class*='store-card']",
         ]
         for sel in card_sels:
-            if len(restaurants) >= MAX_RESULTS:
+            if len(restaurants) >= request.max_results:
                 break
             try:
                 cards = page.locator(sel).all()
@@ -145,7 +169,7 @@ def run(playwright: Playwright) -> list:
                     continue
                 print(f"   Selector '{sel}' → {len(cards)} elements")
                 for card in cards:
-                    if len(restaurants) >= MAX_RESULTS:
+                    if len(restaurants) >= request.max_results:
                         break
                     try:
                         text = card.inner_text(timeout=2000).strip()
@@ -196,7 +220,7 @@ def run(playwright: Playwright) -> list:
             body = page.inner_text("body")
             lines = [l.strip() for l in body.splitlines() if l.strip()]
             i = 0
-            while i < len(lines) and len(restaurants) < MAX_RESULTS:
+            while i < len(lines) and len(restaurants) < request.max_results:
                 ln = lines[i]
                 # Look for restaurant-like names followed by rating/delivery info
                 if (len(ln) > 5 and len(ln) < 80
@@ -252,9 +276,23 @@ def run(playwright: Playwright) -> list:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return restaurants
+    return UberEatsSearchResult(
+        address=request.address,
+        query=request.query,
+        restaurants=[UberEatsRestaurant(name=r['name'], rating=r['rating'],
+                                        delivery_fee=r['delivery_fee'], est_time=r['est_time']) for r in restaurants],
+    )
+
+
+def test_ubereats_restaurants():
+    from playwright.sync_api import sync_playwright
+    request = UberEatsSearchRequest(address="Seattle, WA 98101", query="sushi", max_results=5)
+    with sync_playwright() as pl:
+        result = search_ubereats_restaurants(pl, request)
+    print(f"\nTotal restaurants: {len(result.restaurants)}")
+    for i, r in enumerate(result.restaurants, 1):
+        print(f"  {i}. {r.name}  {r.rating}  {r.delivery_fee}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_ubereats_restaurants()

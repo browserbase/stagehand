@@ -18,6 +18,9 @@ _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 import shutil
 
+from dataclasses import dataclass
+
+
 
 def clear_cart(playwright: Playwright) -> bool:
     """Clear all items from the Amazon shopping cart.
@@ -109,7 +112,4 @@ def clear_cart(playwright: Playwright) -> bool:
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        result = clear_cart(playwright)
-        print(f"\nSuccess: {result}")
-        sys.exit(0 if result else 1)
+    test_clear_amazon_cart()

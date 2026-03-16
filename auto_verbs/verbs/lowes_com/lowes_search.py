@@ -2,16 +2,43 @@
 Lowe's – Search "refrigerator" → extract top 5 products with name, price, rating.
 Pure Playwright – no AI.
 """
+from datetime import date, timedelta
 import re, os, sys, traceback, shutil, tempfile
 from playwright.sync_api import Playwright, sync_playwright
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
-MAX_RESULTS = 5
+from dataclasses import dataclass
 
 
-def run(playwright: Playwright) -> list:
+@dataclass(frozen=True)
+class LowesSearchRequest:
+    search_query: str
+    max_results: int
+
+
+@dataclass(frozen=True)
+class LowesProduct:
+    name: str
+    price: str
+    rating: str
+
+
+@dataclass(frozen=True)
+class LowesSearchResult:
+    search_query: str
+    products: list[LowesProduct]
+
+
+# Searches Lowe's for products matching a query and returns up to max_results listings with name, price, and rating.
+def search_lowes_products(
+    playwright,
+    request: LowesSearchRequest,
+) -> LowesSearchResult:
+    search_query = request.search_query
+    max_results = request.max_results
+    raw_results = []
     port = get_free_port()
     profile_dir = get_temp_profile_dir("lowes_com")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -19,7 +46,7 @@ def run(playwright: Playwright) -> list:
     browser = playwright.chromium.connect_over_cdp(ws_url)
     context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
-    products = []
+    raw_results = []
     try:
         # Navigate to main page first (avoid direct search URL block)
         print("STEP 1: Navigate to Lowe's homepage...")
@@ -44,7 +71,7 @@ def run(playwright: Playwright) -> list:
             if "Access Denied" in body_check:
                 print("   ⚠ Homepage blocked. Lowe's bot detection is active.")
                 print("❌ ERROR: Cannot access Lowe's due to bot detection.")
-                return products
+                return raw_results
         except Exception:
             pass
 
@@ -98,7 +125,7 @@ def run(playwright: Playwright) -> list:
         except Exception:
             pass
 
-        print("STEP 3: Extract products...")
+        print("STEP 3: Extract raw_results...")
 
         # Strategy 1: product cards
         seen = set()
@@ -117,7 +144,7 @@ def run(playwright: Playwright) -> list:
                 break
 
         for card in cards:
-            if len(products) >= MAX_RESULTS:
+            if len(raw_results) >= request.max_results:
                 break
             try:
                 text = card.inner_text(timeout=2000).strip()
@@ -166,7 +193,7 @@ def run(playwright: Playwright) -> list:
 
                 if name and name.lower() not in seen:
                     seen.add(name.lower())
-                    products.append({
+                    raw_results.append({
                         "name": name,
                         "price": price or "N/A",
                         "rating": rating or "N/A",
@@ -175,12 +202,12 @@ def run(playwright: Playwright) -> list:
                 continue
 
         # Strategy 2: body text fallback
-        if not products:
+        if not raw_results:
             print("   Strategy 1 found 0 — trying body text...")
             body = page.inner_text("body")
             lines = [l.strip() for l in body.splitlines() if l.strip()]
             for i, ln in enumerate(lines):
-                if len(products) >= MAX_RESULTS:
+                if len(raw_results) >= request.max_results:
                     break
                 # Look for price on a line
                 pm = re.search(r'\$[\d,]+\.?\d*', ln)
@@ -192,18 +219,18 @@ def run(playwright: Playwright) -> list:
                             key = name.lower()
                             if key not in seen:
                                 seen.add(key)
-                                products.append({
+                                raw_results.append({
                                     "name": name,
                                     "price": pm.group(0),
                                     "rating": "N/A",
                                 })
                             break
 
-        if not products:
-            print("❌ ERROR: Extraction failed — no products found from the page.")
+        if not raw_results:
+            print("❌ ERROR: Extraction failed — no raw_results found from the page.")
 
-        print(f"\nDONE – Top {len(products)} Lowe's Refrigerators:")
-        for i, p in enumerate(products, 1):
+        print(f"\nDONE – Top {len(raw_results)} Lowe's Refrigerators:")
+        for i, p in enumerate(raw_results, 1):
             print(f"  {i}. {p['name']}")
             print(f"     Price: {p['price']}  |  Rating: {p['rating']}")
 
@@ -217,9 +244,21 @@ def run(playwright: Playwright) -> list:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return products
+    return LowesSearchResult(
+        search_query=search_query,
+        products=[LowesProduct(name=r["name"], price=r["price"], rating=r["rating"]) for r in raw_results],
+    )
+
+
+def test_lowes_products() -> None:
+    from playwright.sync_api import sync_playwright
+    request = LowesSearchRequest(search_query="refrigerator", max_results=5)
+    with sync_playwright() as playwright:
+        result = search_lowes_products(playwright, request)
+    assert result.search_query == request.search_query
+    assert len(result.products) <= request.max_results
+    print(f"\nTotal products found: {len(result.products)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_lowes_products()

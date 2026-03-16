@@ -1,0 +1,18 @@
+# Searches Costco for products matching a query and returns up to max_results listings with name and price.
+
+@dataclass(frozen=True)
+class CostcoSearchRequest:
+    search_query: str
+    max_results: int
+
+@dataclass(frozen=True)
+class CostcoProduct:
+    name: str
+    price: str
+
+@dataclass(frozen=True)
+class CostcoSearchResult:
+    search_query: str
+    products: list[CostcoProduct]
+
+def search_costco_products(playwright, request: CostcoSearchRequest) -> CostcoSearchResult

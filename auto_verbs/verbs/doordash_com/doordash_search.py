@@ -3,14 +3,16 @@ DoorDash – Pizza Restaurants in Redmond, WA
 Generated: 2026-02-28T22:57:09.763Z
 Pure Playwright – no AI.
 """
+from datetime import date, timedelta
 import re, time, os, traceback, sys, shutil
 from playwright.sync_api import Playwright, sync_playwright
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
-ADDRESS = "Redmond, WA 98052"
-QUERY = "pizza"
+from dataclasses import dataclass
+
+
 
 
 def dismiss_login_modal(page):
@@ -224,7 +226,38 @@ def extract_restaurants(page, max_count=5):
     return restaurants
 
 
-def run(playwright: Playwright) -> list:
+@dataclass(frozen=True)
+class DoorDashSearchRequest:
+    address: str
+    query: str
+    max_results: int
+
+
+@dataclass(frozen=True)
+class DoorDashRestaurant:
+    name: str
+    rating: str
+    delivery_fee: str
+    est_time: str
+
+
+@dataclass(frozen=True)
+class DoorDashSearchResult:
+    address: str
+    query: str
+    restaurants: list[DoorDashRestaurant]
+
+
+# Searches DoorDash for restaurants matching a query near an address,
+# returning up to max_results results with name, rating, delivery fee, and time.
+def search_doordash_restaurants(
+    playwright,
+    request: DoorDashSearchRequest,
+) -> DoorDashSearchResult:
+    ADDRESS = request.address
+    QUERY = request.query
+    MAX_RESULTS = request.max_results
+    raw_results = []
     port = get_free_port()
     profile_dir = get_temp_profile_dir("doordash_com")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -232,7 +265,7 @@ def run(playwright: Playwright) -> list:
     browser = playwright.chromium.connect_over_cdp(ws_url)
     context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
-    restaurants = []
+    raw_results = []
     try:
         # STEP 1: Go to homepage first (avoids some anti-bot redirects)
         print("STEP 1: Navigate to DoorDash homepage...")
@@ -265,15 +298,15 @@ def run(playwright: Playwright) -> list:
         page.evaluate("window.scrollTo(0, 0)")
         page.wait_for_timeout(1500)
 
-        # STEP 4: Extract restaurants
+        # STEP 4: Extract raw_results
         print("STEP 4: Extract restaurant data...")
-        restaurants = extract_restaurants(page)
+        raw_results = extract_restaurants(page)
 
-        if not restaurants:
-            print("  Extraction found no restaurants.")
+        if not raw_results:
+            print("  Extraction found no raw_results.")
 
-        print(f"\nDONE – Top {len(restaurants)} Pizza Restaurants:")
-        for i, r in enumerate(restaurants, 1):
+        print(f"\nDONE – Top {len(raw_results)} Pizza Restaurants:")
+        for i, r in enumerate(raw_results, 1):
             print(f"  {i}. {r.get('name', 'N/A')} | rating {r.get('rating', 'N/A')} | Fee: {r.get('delivery_fee', 'N/A')} | {r.get('est_time', 'N/A')}")
 
     except Exception as e:
@@ -286,8 +319,25 @@ def run(playwright: Playwright) -> list:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return restaurants
+    return DoorDashSearchResult(
+        address=request.address,
+        query=request.query,
+        restaurants=[DoorDashRestaurant(
+            name=r.get("name",""),
+            rating=r.get("rating",""),
+            delivery_fee=r.get("delivery_fee",""),
+            est_time=r.get("est_time",""),
+        ) for r in raw_results],
+    )
+def test_search_doordash_restaurants() -> None:
+    from playwright.sync_api import sync_playwright
+    request = DoorDashSearchRequest(address="Redmond, WA 98052", query="pizza", max_results=5)
+    with sync_playwright() as playwright:
+        result = search_doordash_restaurants(playwright, request)
+    assert result.address == request.address
+    assert len(result.restaurants) <= request.max_results
+    print(f"\nTotal restaurants found: {len(result.restaurants)}")
+
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_search_doordash_restaurants()

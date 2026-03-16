@@ -1,0 +1,19 @@
+# Searches Target for products matching a query and returns up to max_results listings.
+
+@dataclass(frozen=True)
+class TargetSearchRequest:
+    search_query: str
+    max_results: int
+
+@dataclass(frozen=True)
+class TargetProduct:
+    name: str
+    price: str
+    rating: str
+
+@dataclass(frozen=True)
+class TargetSearchResult:
+    search_query: str
+    products: list[TargetProduct]
+
+def search_target_products(playwright, request: TargetSearchRequest) -> TargetSearchResult

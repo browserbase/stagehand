@@ -1,0 +1,21 @@
+# Gets the current weather forecast for a location from weather.com and returns conditions and temperature.
+
+@dataclass(frozen=True)
+class WeatherForecastRequest:
+    location: str
+
+@dataclass(frozen=True)
+class WeatherDay:
+    date: str
+    condition: str
+    high: str
+    low: str
+
+@dataclass(frozen=True)
+class WeatherForecastResult:
+    location: str
+    current_temp: str
+    current_condition: str
+    forecast: list[WeatherDay]
+
+def get_weather_forecast(playwright, request: WeatherForecastRequest) -> WeatherForecastResult

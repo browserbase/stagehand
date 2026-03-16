@@ -8,10 +8,37 @@ from playwright.sync_api import Playwright, sync_playwright
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
-MAX_RESULTS = 5
+from dataclasses import dataclass
 
 
-def run(playwright: Playwright) -> list:
+@dataclass(frozen=True)
+class ZillowSearchRequest:
+    location: str = "Bellevue, WA"
+    min_price: int = 500000
+    max_price: int = 1000000
+    min_beds: int = 3
+    max_results: int = 5
+
+
+@dataclass(frozen=True)
+class ZillowListing:
+    address: str
+    price: str
+    beds: str
+    baths: str
+    sqft: str
+
+
+@dataclass(frozen=True)
+class ZillowSearchResult:
+    location: str
+    listings: list
+
+
+
+
+
+def search_zillow_homes(playwright, request: ZillowSearchRequest) -> ZillowSearchResult:
     port = get_free_port()
     profile_dir = get_temp_profile_dir("zillow_com")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -59,7 +86,7 @@ def run(playwright: Playwright) -> list:
             "ul[class*='photo-cards'] li",
         ]
         for sel in card_sels:
-            if len(listings) >= MAX_RESULTS:
+            if len(listings) >= request.max_results:
                 break
             try:
                 cards = page.locator(sel).all()
@@ -67,7 +94,7 @@ def run(playwright: Playwright) -> list:
                     continue
                 print(f"   Selector '{sel}' → {len(cards)} elements")
                 for card in cards:
-                    if len(listings) >= MAX_RESULTS:
+                    if len(listings) >= request.max_results:
                         break
                     try:
                         text = card.inner_text(timeout=2000).strip()
@@ -128,7 +155,7 @@ def run(playwright: Playwright) -> list:
             body = page.inner_text("body")
             lines = [l.strip() for l in body.splitlines() if l.strip()]
             i = 0
-            while i < len(lines) and len(listings) < MAX_RESULTS:
+            while i < len(lines) and len(listings) < request.max_results:
                 ln = lines[i]
                 if re.search(r"\$[\d,]+", ln):
                     price = ln
@@ -185,9 +212,28 @@ def run(playwright: Playwright) -> list:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return listings
+    return ZillowSearchResult(
+        location=request.location,
+        listings=[ZillowListing(address=l['address'], price=l['price'], beds=l['beds'], baths=l['baths'], sqft=l['sqft']) for l in listings],
+    )
+
+
+def test_zillow_homes():
+    from playwright.sync_api import sync_playwright
+    request = ZillowSearchRequest(
+        location="Bellevue, WA",
+        min_price=500000,
+        max_price=1000000,
+        min_beds=3,
+        max_results=5,
+    )
+    with sync_playwright() as pl:
+        result = search_zillow_homes(pl, request)
+    print(f"\nLocation: {result.location}")
+    print(f"Total listings: {len(result.listings)}")
+    for i, l in enumerate(result.listings, 1):
+        print(f"  {i}. {l.address}  {l.price}  {l.beds}bd/{l.baths}ba  {l.sqft} sqft")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_zillow_homes()

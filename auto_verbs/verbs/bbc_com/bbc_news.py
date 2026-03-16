@@ -19,11 +19,29 @@ _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 import shutil
 
+from dataclasses import dataclass
 
-def run(
-    playwright: Playwright,
-    max_results: int = 5,
-) -> list:
+@dataclass(frozen=True)
+class BbcNewsRequest:
+    max_results: int
+
+@dataclass(frozen=True)
+class BbcHeadline:
+    headline: str
+    url: str
+
+@dataclass(frozen=True)
+class BbcNewsResult:
+    headlines: list[BbcHeadline]
+
+
+# Extracts the top headline stories from the BBC News homepage, returning up to max_results items.
+def extract_bbc_headlines(
+    playwright,
+    request: BbcNewsRequest,
+) -> BbcNewsResult:
+    max_results = request.max_results
+    raw_results = []
     print("=" * 59)
     print("  BBC News – Top Headlines Extraction")
     print("=" * 59)
@@ -36,7 +54,7 @@ def run(
     browser = playwright.chromium.connect_over_cdp(ws_url)
     context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
-    results = []
+    raw_results = []
 
     try:
         # ── Navigate to BBC News ──────────────────────────────────────────
@@ -75,7 +93,7 @@ def run(
 
         seen = set()
         for i in range(count):
-            if len(results) >= max_results:
+            if len(raw_results) >= max_results:
                 break
             h_el = headlines_els.nth(i)
             try:
@@ -100,16 +118,16 @@ def run(
                     }"""
                 ) or "N/A"
 
-                results.append({
+                raw_results.append({
                     "headline": headline,
                     "url": url,
                 })
             except Exception:
                 continue
 
-        # ── Print results ─────────────────────────────────────────────────
-        print(f"\nFound {len(results)} headline stories:\n")
-        for i, story in enumerate(results, 1):
+        # ── Print raw_results ─────────────────────────────────────────────────
+        print(f"\nFound {len(raw_results)} headline stories:\n")
+        for i, story in enumerate(raw_results, 1):
             print(f"  {i}. {story['headline']}")
             print(f"     URL: {story['url']}")
             print()
@@ -124,10 +142,17 @@ def run(
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return results
+    return BbcNewsResult(
+        headlines=[BbcHeadline(headline=r["headline"], url=r["url"]) for r in raw_results],
+    )
+def test_extract_bbc_headlines() -> None:
+    from playwright.sync_api import sync_playwright
+    request = BbcNewsRequest(max_results=5)
+    with sync_playwright() as playwright:
+        result = extract_bbc_headlines(playwright, request)
+    assert len(result.headlines) <= request.max_results
+    print(f"\nTotal headlines found: {len(result.headlines)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        items = run(playwright)
-        print(f"Total stories: {len(items)}")
+    test_extract_bbc_headlines()

@@ -1,0 +1,25 @@
+# Searches Alaska Airlines for round-trip flights between origin and destination
+# on the given dates, returning up to max_results economy-class flight options.
+
+@dataclass(frozen=True)
+class AlaskaFlightSearchRequest:
+    origin: str
+    destination: str
+    departure_date: date
+    return_date: date
+    max_results: int
+
+@dataclass(frozen=True)
+class AlaskaFlight:
+    itinerary: str
+    economy_price: str
+
+@dataclass(frozen=True)
+class AlaskaFlightSearchResult:
+    origin: str
+    destination: str
+    departure_date: date
+    return_date: date
+    flights: list[AlaskaFlight]
+
+def search_alaska_flights(playwright: Playwright, request: AlaskaFlightSearchRequest) -> AlaskaFlightSearchResult

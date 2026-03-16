@@ -12,9 +12,29 @@ import os as _os
 _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, launch_chrome, wait_for_cdp_ws
 
-MAX_RESULTS = 5
+from dataclasses import dataclass
 
-def run(playwright: Playwright) -> list:
+
+
+@dataclass(frozen=True)
+class SpotifySearchRequest:
+    query: str = "jazz playlist"
+    max_results: int = 5
+
+
+@dataclass(frozen=True)
+class SpotifyPlaylist:
+    name: str
+    creator: str
+
+
+@dataclass(frozen=True)
+class SpotifySearchResult:
+    query: str
+    playlists: list
+
+
+def search_spotify_playlists(playwright, request: SpotifySearchRequest) -> SpotifySearchResult:
     port = get_free_port()
     profile_dir = tempfile.mkdtemp(prefix="spotify_")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -57,7 +77,7 @@ def run(playwright: Playwright) -> list:
         print(f"   Found {len(cards)} .Card elements")
 
         for card in cards:
-            if len(playlists) >= MAX_RESULTS:
+            if len(playlists) >= request.max_results:
                 break
             try:
                 txt = card.inner_text(timeout=3000)
@@ -82,7 +102,7 @@ def run(playwright: Playwright) -> list:
             body = page.inner_text("body")
             lines = [l.strip() for l in body.splitlines() if l.strip()]
             i = 0
-            while i < len(lines) - 1 and len(playlists) < MAX_RESULTS:
+            while i < len(lines) - 1 and len(playlists) < request.max_results:
                 ln = lines[i]
                 # Look for "By ..." on one of the next 2 non-empty lines
                 for j in range(i + 1, min(i + 3, len(lines))):
@@ -113,8 +133,21 @@ def run(playwright: Playwright) -> list:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return playlists
+    return SpotifySearchResult(
+        query=request.query,
+        playlists=[SpotifyPlaylist(name=p['name'], creator=p['creator']) for p in playlists],
+    )
+
+
+def test_spotify_playlists():
+    from playwright.sync_api import sync_playwright
+    request = SpotifySearchRequest(query="jazz playlist", max_results=5)
+    with sync_playwright() as pl:
+        result = search_spotify_playlists(pl, request)
+    print(f"\nTotal playlists: {len(result.playlists)}")
+    for i, p in enumerate(result.playlists, 1):
+        print(f"  {i}. {p.name}  by {p.creator}")
+
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_spotify_playlists()

@@ -8,10 +8,31 @@ from playwright.sync_api import Playwright, sync_playwright
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, launch_chrome, wait_for_cdp_ws
 
-MAX_RESULTS = 5
+from dataclasses import dataclass
 
 
-def run(playwright: Playwright) -> list:
+
+
+@dataclass(frozen=True)
+class NYTimesSearchRequest:
+    query: str = "artificial intelligence"
+    max_results: int = 5
+
+
+@dataclass(frozen=True)
+class NYTimesArticle:
+    headline: str
+    author: str
+    date: str
+
+
+@dataclass(frozen=True)
+class NYTimesSearchResult:
+    query: str
+    articles: list
+
+
+def search_nytimes_articles(playwright, request: NYTimesSearchRequest) -> NYTimesSearchResult:
     port = get_free_port()
     profile_dir = tempfile.mkdtemp(prefix="nyt_")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -59,7 +80,7 @@ def run(playwright: Playwright) -> list:
         print(f"   Found {len(result_items)} search result elements")
 
         for item in result_items:
-            if len(articles) >= MAX_RESULTS:
+            if len(articles) >= request.max_results:
                 break
             try:
                 text = item.inner_text(timeout=2000).strip()
@@ -115,7 +136,7 @@ def run(playwright: Playwright) -> list:
             body = page.inner_text("body")
             lines = [l.strip() for l in body.splitlines() if l.strip()]
             i = 0
-            while i < len(lines) and len(articles) < MAX_RESULTS:
+            while i < len(lines) and len(articles) < request.max_results:
                 # Look for a line that looks like a headline (long text)
                 if len(lines[i]) > 30 and not lines[i].startswith("By "):
                     headline = lines[i]
@@ -156,9 +177,21 @@ def run(playwright: Playwright) -> list:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return articles
+    return NYTimesSearchResult(
+        query=request.query,
+        articles=[NYTimesArticle(headline=a['headline'], author=a['author'], date=a['date']) for a in articles],
+    )
+
+
+def test_nytimes_articles():
+    from playwright.sync_api import sync_playwright
+    request = NYTimesSearchRequest(query="artificial intelligence", max_results=5)
+    with sync_playwright() as pl:
+        result = search_nytimes_articles(pl, request)
+    print(f"\nTotal articles: {len(result.articles)}")
+    for i, a in enumerate(result.articles, 1):
+        print(f"  {i}. {a.headline}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_nytimes_articles()

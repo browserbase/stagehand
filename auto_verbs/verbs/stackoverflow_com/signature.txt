@@ -1,0 +1,20 @@
+# Searches Stack Overflow for questions and returns up to max_results results with answers.
+
+@dataclass(frozen=True)
+class StackOverflowRequest:
+    query: str
+    max_results: int
+
+@dataclass(frozen=True)
+class StackOverflowQuestion:
+    title: str
+    url: str
+    score: str
+    answer_count: str
+
+@dataclass(frozen=True)
+class StackOverflowResult:
+    query: str
+    questions: list[StackOverflowQuestion]
+
+def search_stackoverflow(playwright, request: StackOverflowRequest) -> StackOverflowResult

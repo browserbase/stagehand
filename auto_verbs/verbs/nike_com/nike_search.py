@@ -12,10 +12,31 @@ _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 import shutil
 
-QUERY = "running shoes men"
-MAX_RESULTS = 5
+from dataclasses import dataclass
 
-def run(playwright: Playwright) -> list:
+
+# QUERY = "running shoes men"
+
+@dataclass(frozen=True)
+class NikeSearchRequest:
+    query: str = "running shoes men"
+    max_results: int = 5
+
+
+@dataclass(frozen=True)
+class NikeProduct:
+    name: str
+    price: str
+    colors: str
+
+
+@dataclass(frozen=True)
+class NikeSearchResult:
+    query: str
+    products: list
+
+
+def search_nike_products(playwright, request: NikeSearchRequest) -> NikeSearchResult:
     port = get_free_port()
     profile_dir = get_temp_profile_dir("nike_com")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -49,7 +70,7 @@ def run(playwright: Playwright) -> list:
         print(f"   Found {len(cards)} product cards")
 
         for card in cards:
-            if len(results) >= MAX_RESULTS:
+            if len(results) >= request.max_results:
                 break
             try:
                 name = ""
@@ -96,8 +117,21 @@ def run(playwright: Playwright) -> list:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return results
+    return NikeSearchResult(
+        query=request.query,
+        products=[NikeProduct(name=r['name'], price=r['price'], colors=r['colors']) for r in results],
+    )
+
+
+def test_nike_products():
+    from playwright.sync_api import sync_playwright
+    request = NikeSearchRequest(query="running shoes men", max_results=5)
+    with sync_playwright() as pl:
+        result = search_nike_products(pl, request)
+    print(f"\nTotal products: {len(result.products)}")
+    for i, p in enumerate(result.products, 1):
+        print(f"  {i}. {p.name}  {p.price}")
+
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_nike_products()

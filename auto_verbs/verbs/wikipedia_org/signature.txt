@@ -1,0 +1,13 @@
+# Searches Wikipedia for an article and extracts its summary paragraph and key infobox facts.
+
+@dataclass(frozen=True)
+class WikipediaArticleRequest:
+    search_term: str
+
+@dataclass(frozen=True)
+class WikipediaArticleResult:
+    title: str
+    summary: str
+    infobox: dict[str, str]
+
+def search_wikipedia_article(playwright, request: WikipediaArticleRequest) -> WikipediaArticleResult

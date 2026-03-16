@@ -1,0 +1,24 @@
+# Searches Booking.com for hotels at a destination over the given dates,
+# returning up to max_results hotels with name and per-night price.
+
+@dataclass(frozen=True)
+class BookingSearchRequest:
+    destination: str
+    checkin_date: date
+    checkout_date: date
+    max_results: int
+
+@dataclass(frozen=True)
+class BookingHotel:
+    name: str
+    price_per_night: str
+    total_price: str
+
+@dataclass(frozen=True)
+class BookingSearchResult:
+    destination: str
+    checkin_date: date
+    checkout_date: date
+    hotels: list[BookingHotel]
+
+def search_booking_hotels(playwright, request: BookingSearchRequest) -> BookingSearchResult

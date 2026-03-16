@@ -8,10 +8,26 @@ from playwright.sync_api import Playwright, sync_playwright
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
-TRACKING_NUMBER = "9400111899223456789012"
+from dataclasses import dataclass
 
 
-def run(playwright: Playwright) -> dict:
+
+
+@dataclass(frozen=True)
+class UspsTrackingRequest:
+    tracking_number: str
+
+
+@dataclass(frozen=True)
+class UspsTrackingResult:
+    tracking_number: str
+    status: str
+    last_update: str
+    expected_delivery: str
+    location: str
+
+
+def lookup_usps_tracking(playwright, request: UspsTrackingRequest) -> UspsTrackingResult:
     port = get_free_port()
     profile_dir = get_temp_profile_dir("usps_com")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -23,7 +39,7 @@ def run(playwright: Playwright) -> dict:
     try:
         print("STEP 1: Navigate to USPS tracking page...")
         page.goto(
-            f"https://tools.usps.com/go/TrackConfirmAction?tLabels={TRACKING_NUMBER}",
+            f"https://tools.usps.com/go/TrackConfirmAction?tLabels={request.tracking_number}",
             wait_until="domcontentloaded", timeout=30000,
         )
         page.wait_for_timeout(6000)
@@ -135,7 +151,7 @@ def run(playwright: Playwright) -> dict:
         if not has_data:
             print("❌ ERROR: Could not extract tracking info.")
 
-        print(f"\nDONE – Tracking Result for {TRACKING_NUMBER}:")
+        print(f"\nDONE – Tracking Result for {request.tracking_number}:")
         print(f"  Status:            {result['status'] or 'N/A'}")
         print(f"  Last Update:       {result['last_update'] or 'N/A'}")
         print(f"  Expected Delivery: {result['expected_delivery'] or 'N/A'}")
@@ -151,9 +167,24 @@ def run(playwright: Playwright) -> dict:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return result
+    return UspsTrackingResult(
+        tracking_number=request.tracking_number,
+        status=result.get('status','N/A'),
+        last_update=result.get('last_update','N/A'),
+        expected_delivery=result.get('expected_delivery','N/A'),
+        location=result.get('location','N/A'),
+    )
+
+
+def test_usps_tracking():
+    from playwright.sync_api import sync_playwright
+    request = UspsTrackingRequest(tracking_number="9400111899223456789012")
+    with sync_playwright() as pl:
+        result = lookup_usps_tracking(pl, request)
+    print(f"\nStatus: {result.status}")
+    print(f"Expected: {result.expected_delivery}")
+    print(f"Location: {result.location}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_usps_tracking()

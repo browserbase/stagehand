@@ -13,7 +13,45 @@ _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 import shutil
 
-def run(playwright: Playwright) -> list:
+from dataclasses import dataclass
+from dateutil.relativedelta import relativedelta
+
+
+@dataclass(frozen=True)
+class KayakFlightSearchRequest:
+    origin: str
+    destination: str
+    departure_date: date
+    return_date: date
+    max_results: int
+
+
+@dataclass(frozen=True)
+class KayakFlight:
+    airline: str
+    itinerary: str
+    price: str
+
+
+@dataclass(frozen=True)
+class KayakFlightSearchResult:
+    origin: str
+    destination: str
+    departure_date: date
+    return_date: date
+    flights: list[KayakFlight]
+
+
+# Searches Kayak for round-trip flights between origin and destination on given
+# dates, returning up to max_results options sorted by price.
+def search_kayak_flights(
+    playwright,
+    request: KayakFlightSearchRequest,
+) -> KayakFlightSearchResult:
+    depart = request.departure_date
+    ret    = request.return_date
+    max_results = request.max_results
+    raw_results = []
     port = get_free_port()
     profile_dir = get_temp_profile_dir("kayak_com")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -23,13 +61,13 @@ def run(playwright: Playwright) -> list:
     page = context.pages[0] if context.pages else context.new_page()
     flights = []
     try:
-        depart = date.today() + timedelta(days=60)
-        ret = depart + timedelta(days=4)
+        depart = request.departure_date
+        ret = request.return_date
         d_str = depart.strftime("%Y-%m-%d")
         r_str = ret.strftime("%Y-%m-%d")
 
-        print(f"STEP 1: Navigate to Kayak (BOS→MIA, {d_str} to {r_str})...")
-        url = f"https://www.kayak.com/flights/BOS-MIA/{d_str}/{r_str}?sort=price_a"
+        print(f"STEP 1: Navigate to Kayak ({request.origin}→{request.destination}, {d_str} to {r_str})...")
+        url = f"https://www.kayak.com/flights/{request.origin}-{request.destination}/{d_str}/{r_str}?sort=price_a"
         page.goto(url, wait_until="domcontentloaded", timeout=30000)
         page.wait_for_timeout(10000)
 
@@ -117,8 +155,33 @@ def run(playwright: Playwright) -> list:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return flights
+    return KayakFlightSearchResult(
+        origin=request.origin,
+        destination=request.destination,
+        departure_date=request.departure_date,
+        return_date=request.return_date,
+        flights=[KayakFlight(airline=f.get('airline','N/A'), itinerary=f.get('itinerary','N/A'), price=f.get('price','N/A')) for f in flights],
+    )
+
+
+def test_search_kayak_flights() -> None:
+    from dateutil.relativedelta import relativedelta
+    from playwright.sync_api import sync_playwright
+    today = date.today()
+    departure = today + relativedelta(months=2)
+    request = KayakFlightSearchRequest(
+        origin="BOS",
+        destination="MIA",
+        departure_date=departure,
+        return_date=departure + timedelta(days=7),
+        max_results=5,
+    )
+    with sync_playwright() as playwright:
+        result = search_kayak_flights(playwright, request)
+    assert result.origin == request.origin
+    assert len(result.flights) <= request.max_results
+    print(f"\nTotal flights found: {len(result.flights)}")
+
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_search_kayak_flights()

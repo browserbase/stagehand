@@ -3,16 +3,39 @@ IRS.gov – Popular Forms & Publications
 Extract up to 10 popular IRS forms with form number and URL.
 Pure Playwright – no AI.
 """
+from datetime import date, timedelta
 import re, os, sys, traceback, shutil, tempfile
 from playwright.sync_api import Playwright, sync_playwright
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, launch_chrome, wait_for_cdp_ws
 
-MAX_RESULTS = 10
+from dataclasses import dataclass
 
 
-def run(playwright: Playwright) -> list:
+@dataclass(frozen=True)
+class IrsFormsRequest:
+    max_results: int
+
+
+@dataclass(frozen=True)
+class IrsForm:
+    form: str
+    url: str
+
+
+@dataclass(frozen=True)
+class IrsFormsResult:
+    forms: list[IrsForm]
+
+
+# Fetches the most popular IRS forms and publications, returning up to max_results items with form name and URL.
+def get_irs_popular_forms(
+    playwright,
+    request: IrsFormsRequest,
+) -> IrsFormsResult:
+    max_results = request.max_results
+    raw_results = []
     port = get_free_port()
     profile_dir = tempfile.mkdtemp(prefix="irs_")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -48,7 +71,7 @@ def run(playwright: Playwright) -> list:
         form_links = page.locator("a[href*='/forms-pubs/'], a[href*='/pub/irs-pdf/']").all()
         seen = set()
         for link in form_links:
-            if len(forms) >= MAX_RESULTS:
+            if len(forms) >= request.max_results:
                 break
             try:
                 text = link.inner_text(timeout=1500).strip()
@@ -69,7 +92,7 @@ def run(playwright: Playwright) -> list:
             body = page.inner_text("body")
             lines = [l.strip() for l in body.splitlines() if l.strip()]
             for ln in lines:
-                if len(forms) >= MAX_RESULTS:
+                if len(forms) >= request.max_results:
                     break
                 m = re.match(r'^(Form\s+[\w-]+(?:\s*\(.*?\))?)', ln)
                 if m and len(ln) < 120:
@@ -96,9 +119,21 @@ def run(playwright: Playwright) -> list:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return forms
+    return IrsFormsResult(
+        forms=[IrsForm(form=f['form'], url=f['url']) for f in forms],
+    )
+
+
+
+
+def test_get_irs_popular_forms() -> None:
+    from playwright.sync_api import sync_playwright
+    request = IrsFormsRequest(max_results=5)
+    with sync_playwright() as playwright:
+        result = get_irs_popular_forms(playwright, request)
+    assert len(result.forms) <= request.max_results
+    print(f"\nTotal forms found: {len(result.forms)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_get_irs_popular_forms()

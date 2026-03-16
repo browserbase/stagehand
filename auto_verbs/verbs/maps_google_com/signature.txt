@@ -1,0 +1,18 @@
+# Gets driving directions between two locations using Google Maps, returning
+# route summary, estimated travel time, distance, and turn-by-turn steps.
+
+@dataclass(frozen=True)
+class MapsDirectionsRequest:
+    origin: str
+    destination: str
+
+@dataclass(frozen=True)
+class MapsDirectionsResult:
+    origin: str
+    destination: str
+    route: str
+    time: str
+    distance: str
+    steps: tuple
+
+def get_maps_directions(playwright, request: MapsDirectionsRequest) -> MapsDirectionsResult

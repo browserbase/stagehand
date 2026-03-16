@@ -1,0 +1,26 @@
+# Searches Southwest Airlines for round-trip flights and returns up to max_results options.
+
+@dataclass(frozen=True)
+class SouthwestSearchRequest:
+    origin: str
+    destination: str
+    departure_date: date
+    return_date: date
+    max_results: int
+
+@dataclass(frozen=True)
+class SouthwestFlight:
+    departure_time: str
+    arrival_time: str
+    price: str
+    stops: str
+
+@dataclass(frozen=True)
+class SouthwestSearchResult:
+    origin: str
+    destination: str
+    departure_date: date
+    return_date: date
+    flights: list[SouthwestFlight]
+
+def search_southwest_flights(playwright, request: SouthwestSearchRequest) -> SouthwestSearchResult

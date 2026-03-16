@@ -1,0 +1,19 @@
+# Searches Best Buy for products matching a search term, sorted by customer rating, returning up to max_results.
+
+@dataclass(frozen=True)
+class BestBuySearchRequest:
+    search_term: str
+    max_results: int
+
+@dataclass(frozen=True)
+class BestBuyProduct:
+    name: str
+    price: str
+    rating: str
+
+@dataclass(frozen=True)
+class BestBuySearchResult:
+    search_term: str
+    products: list[BestBuyProduct]
+
+def search_bestbuy_products(playwright, request: BestBuySearchRequest) -> BestBuySearchResult

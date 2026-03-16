@@ -1,0 +1,26 @@
+# Searches Kayak for round-trip flights between origin and destination on given
+# dates, returning up to max_results options sorted by price.
+
+@dataclass(frozen=True)
+class KayakFlightSearchRequest:
+    origin: str
+    destination: str
+    departure_date: date
+    return_date: date
+    max_results: int
+
+@dataclass(frozen=True)
+class KayakFlight:
+    airline: str
+    itinerary: str
+    price: str
+
+@dataclass(frozen=True)
+class KayakFlightSearchResult:
+    origin: str
+    destination: str
+    departure_date: date
+    return_date: date
+    flights: list[KayakFlight]
+
+def search_kayak_flights(playwright, request: KayakFlightSearchRequest) -> KayakFlightSearchResult

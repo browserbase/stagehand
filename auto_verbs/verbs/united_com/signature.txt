@@ -1,0 +1,26 @@
+# Searches United Airlines for round-trip flights and returns up to max_results options.
+
+@dataclass(frozen=True)
+class UnitedSearchRequest:
+    origin: str
+    destination: str
+    departure_date: date
+    return_date: date
+    max_results: int
+
+@dataclass(frozen=True)
+class UnitedFlight:
+    departure_time: str
+    arrival_time: str
+    price: str
+    duration: str
+
+@dataclass(frozen=True)
+class UnitedSearchResult:
+    origin: str
+    destination: str
+    departure_date: date
+    return_date: date
+    flights: list[UnitedFlight]
+
+def search_united_flights(playwright, request: UnitedSearchRequest) -> UnitedSearchResult

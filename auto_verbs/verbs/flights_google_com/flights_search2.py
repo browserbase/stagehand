@@ -12,6 +12,7 @@ Step 6: Uses JS extraction to find flight number, itinerary, and price.
 """
 
 import re
+from dataclasses import dataclass
 import os
 from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
@@ -24,24 +25,48 @@ from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_f
 import shutil
 
 
-def compute_dates():
-    today = date.today()
-    departure = today + relativedelta(months=2)
-    ret = departure + timedelta(days=4)
-    return departure, ret
+@dataclass(frozen=True)
+class GoogleFlightSearchRequest:
+    origin: str
+    destination: str
+    departure_date: date
+    return_date: date
+    max_results: int
 
 
-def run(
-    playwright: Playwright,
-    origin: str = "Seattle",
-    destination: str = "Chicago",
-    max_results: int = 5,
-) -> list:
-    departure, return_date = compute_dates()
+@dataclass(frozen=True)
+class GoogleFlight:
+    flight_number: str
+    itinerary: str
+    price: str
+
+
+@dataclass(frozen=True)
+class GoogleFlightSearchResult:
+    origin: str
+    destination: str
+    departure_date: date
+    return_date: date
+    flights: list[GoogleFlight]
+
+
+# Searches Google Flights for round-trip flights between origin and destination
+# on specified dates, returning up to max_results options with flight number,
+# itinerary, and economy price.
+def search_google_flights(
+    playwright,
+    request: GoogleFlightSearchRequest,
+) -> GoogleFlightSearchResult:
+    origin = request.origin
+    destination = request.destination
+    departure = request.departure_date
+    return_date = request.return_date
+    max_results = request.max_results
     dep_str = departure.strftime("%Y-%m-%d")
     ret_str = return_date.strftime("%Y-%m-%d")
     dep_display = departure.strftime("%m/%d/%Y")
     ret_display = return_date.strftime("%m/%d/%Y")
+    raw_results = []
 
     print(f"  {origin} → {destination}")
     print(f"  Departure: {dep_display}  Return: {ret_display}\n")
@@ -53,7 +78,7 @@ def run(
     browser = playwright.chromium.connect_over_cdp(ws_url)
     context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
-    results = []
+    raw_results = []
 
     try:
         # ── Navigate ──────────────────────────────────────────────────────
@@ -381,7 +406,7 @@ def run(
         # 6a: Extract basic info (airline, itinerary, price) from summary cards
         print("  Extracting basic flight info from result cards...")
         basic_flights = page.evaluate(r'''() => {
-            const results = [];
+            const raw_results = [];
             const items = document.querySelectorAll('li');
             for (const item of items) {
                 const text = item.innerText || '';
@@ -407,14 +432,14 @@ def run(
                 if (durMatch && !itinerary.includes(durMatch[0])) {
                     itinerary += ' | ' + durMatch[0];
                 }
-                results.push({
+                raw_results.push({
                     airline: airline,
                     itinerary: itinerary || lines.slice(0, 3).join(' | '),
                     price: priceMatch[0],
                 });
-                if (results.length >= 10) break;
+                if (raw_results.length >= 10) break;
             }
-            return results;
+            return raw_results;
         }''')
         print(f"  Found {len(basic_flights)} flight cards")
 
@@ -560,7 +585,7 @@ def run(
 
                 print(f"    Flight number: {flight_num}")
 
-                results.append({
+                raw_results.append({
                     'flightNumber': flight_num,
                     'itinerary': f"{basic['airline']} · {basic['itinerary']}",
                     'price': basic['price'],
@@ -580,22 +605,24 @@ def run(
 
             except Exception as card_err:
                 print(f"    Failed to expand card {i+1}: {card_err}")
-                results.append({
+                raw_results.append({
                     'flightNumber': 'N/A',
                     'itinerary': f"{basic['airline']} · {basic['itinerary']}",
                     'price': basic['price'],
                 })
 
-        # ── Print results ─────────────────────────────────────────────────
-        print(f"\nFound {len(results)} flights ({origin} → {destination}):")
+        # ── Print raw_results ─────────────────────────────────────────────────
+        print(f"\nFound {len(raw_results)} flights ({origin} → {destination}):")
         print(f"  Departure: {dep_display}  Return: {ret_display}\n")
-        for i, flight in enumerate(results, 1):
+        for i, flight in enumerate(raw_results, 1):
             print(f"  {i}. Flight: {flight['flightNumber']}")
             print(f"     {flight['itinerary']}")
             print(f"     Price: {flight['price']} (Economy)")
 
     except Exception as e:
         import traceback
+
+
         print(f"Error: {e}")
         traceback.print_exc()
     finally:
@@ -606,10 +633,35 @@ def run(
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
 
-    return results
+    return GoogleFlightSearchResult(
+        origin=origin,
+        destination=destination,
+        departure_date=request.departure_date,
+        return_date=request.return_date,
+        flights=[GoogleFlight(
+            flight_number=f["flightNumber"],
+            itinerary=f["itinerary"],
+            price=f["price"],
+        ) for f in raw_results],
+    )
+def test_search_google_flights() -> None:
+    from dateutil.relativedelta import relativedelta
+    from playwright.sync_api import sync_playwright
+    today = date.today()
+    departure = today + relativedelta(months=2)
+    request = GoogleFlightSearchRequest(
+        origin="Seattle",
+        destination="Chicago",
+        departure_date=departure,
+        return_date=departure + timedelta(days=4),
+        max_results=5,
+    )
+    with sync_playwright() as playwright:
+        result = search_google_flights(playwright, request)
+    assert result.origin == request.origin
+    assert len(result.flights) <= request.max_results
+    print(f"\nTotal flights found: {len(result.flights)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        items = run(playwright)
-        print(f"\nTotal flights found: {len(items)}")
+    test_search_google_flights()

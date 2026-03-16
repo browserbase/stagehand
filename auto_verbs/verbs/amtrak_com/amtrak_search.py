@@ -19,6 +19,7 @@ DOM structure:
 """
 
 import re
+from dataclasses import dataclass
 import os
 import traceback
 from datetime import date
@@ -37,12 +38,33 @@ MONTHS = [
 ]
 
 
-def compute_date():
-    today = date.today()
-    return today + relativedelta(months=2)
+@dataclass(frozen=True)
+class AmtrakSearchRequest:
+    origin: str
+    destination: str
+    departure_date: "date"
+    max_results: int
 
 
-# -- Step 0: Dismiss popups + remove OneTrust overlay -------------------------
+@dataclass(frozen=True)
+class AmtrakTrain:
+    train_number: str
+    train_name: str
+    departure: str
+    arrival: str
+    duration: str
+    price: str
+
+
+@dataclass(frozen=True)
+class AmtrakSearchResult:
+    origin: str
+    destination: str
+    departure_date: "date"
+    trains: list["AmtrakTrain"]
+
+
+
 def dismiss_popups(page):
     """Dismiss cookie popups and remove OneTrust overlay that blocks clicks."""
     page.wait_for_timeout(2000)
@@ -417,17 +439,25 @@ def extract_trains(page, from_code, to_code, max_results=5):
 
 
 # -- Main ---------------------------------------------------------------------
-def run(
+
+
+# Searches Amtrak for one-way train tickets from origin to destination
+# on the given departure date, returning up to max_results train options.
+def search_amtrak_trains(
     playwright,
-    origin: str = "Seattle, WA",
-    destination: str = "Portland, OR",
-    max_results: int = 5,
-) -> list:
-    dep = compute_date()
+    request: AmtrakSearchRequest,
+) -> AmtrakSearchResult:
+    origin = request.origin
+    destination = request.destination
+    dep = request.departure_date
+    max_results = request.max_results
     dep_display = dep.strftime("%m/%d/%Y")
     dep_iso = dep.strftime("%Y-%m-%d")
     from_code = "SEA"
     to_code = "PDX"
+
+    raw_trains = []
+
 
     print("=" * 59)
     print("  Amtrak - Train Ticket Search (One-Way)  v9")
@@ -442,8 +472,6 @@ def run(
     browser = playwright.chromium.connect_over_cdp(ws_url)
     context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
-    results = []
-
     try:
         print("Loading Amtrak...")
         page.goto("https://www.amtrak.com")
@@ -482,10 +510,40 @@ def run(
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return results
+    return AmtrakSearchResult(
+        origin=origin,
+        destination=destination,
+        departure_date=dep,
+        trains=[
+            AmtrakTrain(
+                train_number=t["trainNumber"],
+                train_name=t["trainName"],
+                departure=t["departure"],
+                arrival=t["arrival"],
+                duration=t["duration"],
+                price=t["price"],
+            )
+            for t in results
+        ],
+    )
+
+
+def test_search_amtrak_trains() -> None:
+    from dateutil.relativedelta import relativedelta
+    today = date.today()
+    request = AmtrakSearchRequest(
+        origin="Seattle, WA",
+        destination="Portland, OR",
+        departure_date=today + relativedelta(months=2),
+        max_results=5,
+    )
+    with sync_playwright() as playwright:
+        result = search_amtrak_trains(playwright, request)
+    assert result.origin == request.origin
+    assert result.destination == request.destination
+    assert len(result.trains) <= request.max_results
+    print(f"\nTotal trains found: {len(result.trains)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        items = run(playwright)
-        print(f"\nTotal trains found: {len(items)}")
+    test_search_amtrak_trains()

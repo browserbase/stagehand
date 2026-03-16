@@ -1,0 +1,20 @@
+# Searches eBay for listings matching a query and returns up to max_results
+# results with title, price, and shipping cost.
+
+@dataclass(frozen=True)
+class EbaySearchRequest:
+    search_query: str
+    max_results: int
+
+@dataclass(frozen=True)
+class EbayListing:
+    title: str
+    price: str
+    shipping: str
+
+@dataclass(frozen=True)
+class EbaySearchResult:
+    search_query: str
+    listings: list[EbayListing]
+
+def search_ebay_listings(playwright, request: EbaySearchRequest) -> EbaySearchResult

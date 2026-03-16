@@ -1,0 +1,22 @@
+# Searches LinkedIn for public job postings matching keywords and location, returning up to max_results listings.
+
+@dataclass(frozen=True)
+class LinkedInSearchRequest:
+    keywords: str
+    location: str
+    max_results: int
+
+@dataclass(frozen=True)
+class LinkedInJob:
+    title: str
+    company: str
+    location: str
+    posted_date: str
+
+@dataclass(frozen=True)
+class LinkedInSearchResult:
+    keywords: str
+    location: str
+    jobs: list[LinkedInJob]
+
+def search_linkedin_jobs(playwright, request: LinkedInSearchRequest) -> LinkedInSearchResult

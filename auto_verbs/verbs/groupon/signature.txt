@@ -1,0 +1,21 @@
+# Searches Groupon for deals matching a keyword and returns up to max_results deals
+# with name, deal price, and discount percentage.
+
+@dataclass(frozen=True)
+class GrouponSearchRequest:
+    keyword: str
+    max_results: int
+
+@dataclass(frozen=True)
+class GrouponDeal:
+    name: str
+    deal_price: str
+    discount_percentage: str
+    url: str
+
+@dataclass(frozen=True)
+class GrouponSearchResult:
+    keyword: str
+    deals: list[GrouponDeal]
+
+def search_groupon_deals(playwright, request: GrouponSearchRequest) -> GrouponSearchResult

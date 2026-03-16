@@ -1,0 +1,24 @@
+# Automates Airbnb search for a destination and guest count over a provided date range,
+# then returns up to max_results listings with title, price per night, and rating.
+
+dataclass AirbnbSearchRequest:
+  destination: str
+  num_guests: int
+  checkin_date: date
+  checkout_date: date
+  max_results: int
+
+dataclass AirbnbListing:
+  title: str
+  price_per_night: str
+  rating: str
+
+dataclass AirbnbSearchResult:
+  destination: str
+  checkin_date: date
+  checkout_date: date
+  num_guests: int
+  nights: int
+  listings: list[AirbnbListing]
+
+def search_airbnb_listings(playwright: Playwright, request: AirbnbSearchRequest) -> AirbnbSearchResult

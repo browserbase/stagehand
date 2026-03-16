@@ -161,9 +161,35 @@ def navigate_to_day(page, aria, aria_pad, max_months=12):
 
 # ── main ─────────────────────────────────────────────────
 
-def main():
-    pickup  = date.today() + timedelta(days=60)
-    dropoff = pickup + timedelta(days=5)
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class HertzSearchRequest:
+    pickup_location: str
+    pickup_date: object      # datetime.date
+    dropoff_date: object     # datetime.date
+    max_results: int = 5
+
+
+@dataclass(frozen=True)
+class HertzCar:
+    car_name: str
+    daily_price: str
+    total_price: str
+
+
+@dataclass(frozen=True)
+class HertzSearchResult:
+    pickup_location: str
+    pickup_date: object
+    dropoff_date: object
+    cars: list
+
+
+def search_hertz_cars(playwright, request: HertzSearchRequest) -> HertzSearchResult:
+    pickup  = request.pickup_date
+    dropoff = request.dropoff_date
     pu_iso  = pickup.strftime("%Y-%m-%d")
     do_iso  = dropoff.strftime("%Y-%m-%d")
 
@@ -209,139 +235,147 @@ def main():
         if not ws_url:
             raise TimeoutError("Chrome CDP not ready")
 
-        with sync_playwright() as pw:
-            browser = pw.chromium.connect_over_cdp(ws_url)
-            context = browser.contexts[0]
-            page = context.pages[0] if context.pages else context.new_page()
+        browser = playwright.chromium.connect_over_cdp(ws_url)
+        context = browser.contexts[0]
+        page = context.pages[0] if context.pages else context.new_page()
 
-            # ── STEP 1: Load reservation search page ──
-            print(f"STEP 1: Navigate to Hertz reservation page…")
-            page.goto("https://www.hertz.com/rentacar/reservation/",
-                      wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_timeout(5000)
-            dismiss_popups(page)
-            page.wait_for_timeout(500)
+        # ── STEP 1: Load reservation search page ──
+        print(f"STEP 1: Navigate to Hertz reservation page…")
+        page.goto("https://www.hertz.com/rentacar/reservation/",
+                  wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_timeout(5000)
+        dismiss_popups(page)
+        page.wait_for_timeout(500)
 
-            # ── STEP 2: Fill pickup location ──
-            print("STEP 2: Setting pickup location to LAX…")
-            page.locator("#locationInput").evaluate("el => el.click()")
-            page.locator("#locationInput").fill("LAX")
-            page.wait_for_timeout(2500)
-            if page.locator("li[role='option']").count() > 0:
-                page.locator("li[role='option']").first.evaluate("el => el.click()")
-            page.wait_for_timeout(1500)
+        # ── STEP 2: Fill pickup location ──
+        print("STEP 2: Setting pickup location to LAX…")
+        page.locator("#locationInput").evaluate("el => el.click()")
+        page.locator("#locationInput").fill("LAX")
+        page.wait_for_timeout(2500)
+        if page.locator("li[role='option']").count() > 0:
+            page.locator("li[role='option']").first.evaluate("el => el.click()")
+        page.wait_for_timeout(1500)
 
-            # ── STEP 3: Set pickup date ──
-            print(f"STEP 3: Setting pickup date ({pu_aria})…")
-            ensure_calendar_open(page, "#dateTimePickerTriggerFrom")
-            pu_found = navigate_to_day(page, pu_aria, pu_aria_pad)
-            print(f"  Pickup date {'set' if pu_found else 'NOT found'}")
-            page.wait_for_timeout(1000)
+        # ── STEP 3: Set pickup date ──
+        print(f"STEP 3: Setting pickup date ({pu_aria})…")
+        ensure_calendar_open(page, "#dateTimePickerTriggerFrom")
+        pu_found = navigate_to_day(page, pu_aria, pu_aria_pad)
+        print(f"  Pickup date {'set' if pu_found else 'NOT found'}")
+        page.wait_for_timeout(1000)
 
-            # ── STEP 4: Set return date ──
-            print(f"STEP 4: Setting return date ({do_aria})…")
-            do_found = False
-            # Calendar may still be open after picking pickup date
+        # ── STEP 4: Set return date ──
+        print(f"STEP 4: Setting return date ({do_aria})…")
+        do_found = False
+        # Calendar may still be open after picking pickup date
+        page.wait_for_timeout(800)
+        cell = find_day_cell(page, do_aria, do_aria_pad)
+        if cell:
+            cell.evaluate("el => el.click()")
             page.wait_for_timeout(800)
-            cell = find_day_cell(page, do_aria, do_aria_pad)
-            if cell:
-                cell.evaluate("el => el.click()")
-                page.wait_for_timeout(800)
-                do_found = True
-            if not do_found and is_calendar_open(page):
-                do_found = navigate_to_day(page, do_aria, do_aria_pad, max_months=6)
-            if not do_found:
-                ensure_calendar_open(page, "#dateTimePickerTriggerTo")
-                do_found = navigate_to_day(page, do_aria, do_aria_pad, max_months=6)
-            print(f"  Return date {'set' if do_found else 'NOT found'}")
-            page.wait_for_timeout(500)
+            do_found = True
+        if not do_found and is_calendar_open(page):
+            do_found = navigate_to_day(page, do_aria, do_aria_pad, max_months=6)
+        if not do_found:
+            ensure_calendar_open(page, "#dateTimePickerTriggerTo")
+            do_found = navigate_to_day(page, do_aria, do_aria_pad, max_months=6)
+        print(f"  Return date {'set' if do_found else 'NOT found'}")
+        page.wait_for_timeout(500)
 
-            # Close calendar
-            page.evaluate(
-                "(() => { document.dispatchEvent(new KeyboardEvent('keydown',"
-                " {key:'Escape',code:'Escape',bubbles:true}));"
-                " document.activeElement?.blur(); })()"
-            )
+        # Close calendar
+        page.evaluate(
+            "(() => { document.dispatchEvent(new KeyboardEvent('keydown',"
+            " {key:'Escape',code:'Escape',bubbles:true}));"
+            " document.activeElement?.blur(); })()"
+        )
+        page.wait_for_timeout(1000)
+        if is_calendar_open(page):
+            try:
+                page.locator("header").first.evaluate("el => el.click()")
+            except Exception:
+                pass
             page.wait_for_timeout(1000)
-            if is_calendar_open(page):
-                try:
-                    page.locator("header").first.evaluate("el => el.click()")
-                except Exception:
-                    pass
-                page.wait_for_timeout(1000)
 
-            # ── STEP 5: Submit search ──
-            print("STEP 5: Submitting search…")
-            page.evaluate(
-                "(() => { const b = document.querySelector(\"button[type='submit']\");"
-                " if (b) b.click(); })()"
+        # ── STEP 5: Submit search ──
+        print("STEP 5: Submitting search…")
+        page.evaluate(
+            "(() => { const b = document.querySelector(\"button[type='submit']\");"
+            " if (b) b.click(); })()"
+        )
+        page.wait_for_timeout(12000)
+        print(f"  URL: {page.url[:120]}")
+
+        # Fallback: if still on search page, navigate directly
+        if "/book/vehicles" not in page.url and "/reservation/vehicle" not in page.url:
+            vehicle_url = (
+                f"https://www.hertz.com/us/en/book/vehicles?"
+                f"pid=LAXT15&did=LAXT15"
+                f"&pdate={pu_iso}T12%3A00%3A00&ddate={do_iso}T12%3A00%3A00"
+                f"&age=25"
             )
+            print(f"  Form submit didn't navigate — going directly…")
+            page.goto(vehicle_url, wait_until="domcontentloaded", timeout=30000)
             page.wait_for_timeout(12000)
             print(f"  URL: {page.url[:120]}")
 
-            # Fallback: if still on search page, navigate directly
-            if "/book/vehicles" not in page.url and "/reservation/vehicle" not in page.url:
-                vehicle_url = (
-                    f"https://www.hertz.com/us/en/book/vehicles?"
-                    f"pid=LAXT15&did=LAXT15"
-                    f"&pdate={pu_iso}T12%3A00%3A00&ddate={do_iso}T12%3A00%3A00"
-                    f"&age=25"
-                )
-                print(f"  Form submit didn't navigate — going directly…")
-                page.goto(vehicle_url, wait_until="domcontentloaded", timeout=30000)
-                page.wait_for_timeout(12000)
-                print(f"  URL: {page.url[:120]}")
+        # Check for error page
+        snippet = page.evaluate("document.body.innerText.substring(0, 500)")
+        if any(kw in snippet.lower() for kw in ["bad request", "something went wrong", "oops"]):
+            print("  ⚠ Error page — reloading…")
+            page.reload(wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_timeout(10000)
 
-            # Check for error page
-            snippet = page.evaluate("document.body.innerText.substring(0, 500)")
-            if any(kw in snippet.lower() for kw in ["bad request", "something went wrong", "oops"]):
-                print("  ⚠ Error page — reloading…")
-                page.reload(wait_until="domcontentloaded", timeout=30000)
-                page.wait_for_timeout(10000)
+        # Scroll to trigger lazy-loaded cards
+        for _ in range(5):
+            page.evaluate("window.scrollBy(0, 600)")
+            page.wait_for_timeout(600)
 
-            # Scroll to trigger lazy-loaded cards
-            for _ in range(5):
-                page.evaluate("window.scrollBy(0, 600)")
-                page.wait_for_timeout(600)
+        # ── STEP 6: Extract car listings ──
+        print("STEP 6: Extracting car listings…")
+        raw_cars = extract_cars(page, 5)
 
-            # ── STEP 6: Extract car listings ──
-            print("STEP 6: Extracting car listings…")
-            cars = extract_cars(page, 5)
+        # Fallback: body text scan
+        if not cars:
+            print("  DOM extraction returned 0 — falling back to body text…")
+            body = page.evaluate("document.body.innerText")
+            lines = [l.strip() for l in body.split("\n") if l.strip()]
+            for i, line in enumerate(lines):
+                if "or similar" in line.lower() and 5 < len(line) < 80:
+                    car_class = lines[i - 1] if i > 0 and len(lines[i - 1]) < 60 else ""
+                    display = (car_class + " – " + line) if car_class else line
+                    price = "N/A"
+                    for j in range(i + 1, min(i + 8, len(lines))):
+                        m = re.search(r"\$(\d[\d,]*)", lines[j])
+                        if m:
+                            price = "$" + m.group(1) + "/day"
+                            break
+                    raw_cars.append({"car_name": display, "daily_price": price,
+                                 "total_price": "N/A"})
+                if len(cars) >= 5:
+                    break
 
-            # Fallback: body text scan
-            if not cars:
-                print("  DOM extraction returned 0 — falling back to body text…")
-                body = page.evaluate("document.body.innerText")
-                lines = [l.strip() for l in body.split("\n") if l.strip()]
-                for i, line in enumerate(lines):
-                    if "or similar" in line.lower() and 5 < len(line) < 80:
-                        car_class = lines[i - 1] if i > 0 and len(lines[i - 1]) < 60 else ""
-                        display = (car_class + " – " + line) if car_class else line
-                        price = "N/A"
-                        for j in range(i + 1, min(i + 8, len(lines))):
-                            m = re.search(r"\$(\d[\d,]*)", lines[j])
-                            if m:
-                                price = "$" + m.group(1) + "/day"
-                                break
-                        cars.append({"car_name": display, "daily_price": price,
-                                     "total_price": "N/A"})
-                    if len(cars) >= 5:
-                        break
-
-            browser.close()
+        browser.close()
 
         # ── display ──
         print()
         print("=" * 60)
         print(f"  Hertz – LAX Car Rentals  ({pu_iso} → {do_iso})")
         print("=" * 60)
-        for idx, c in enumerate(cars, 1):
+        for idx, c in enumerate(raw_cars, 1):
             print(f"  {idx}. {c['car_name']}")
             print(f"     Daily: {c['daily_price']}   Total: {c.get('total_price', 'N/A')}")
             print()
 
-        if not cars:
+        if not raw_cars:
             print("  ⚠ No cars extracted.")
+
+
+        return HertzSearchResult(
+            pickup_location=request.pickup_location,
+            pickup_date=request.pickup_date,
+            dropoff_date=request.dropoff_date,
+            cars=[HertzCar(car_name=c['car_name'], daily_price=c['daily_price'],
+                          total_price=c.get('total_price','N/A')) for c in raw_cars],
+        )
 
     except Exception as e:
         print(f"Error: {e}")
@@ -351,5 +385,24 @@ def main():
         shutil.rmtree(profile_dir, ignore_errors=True)
 
 
+
+
+def test_hertz_cars():
+    from playwright.sync_api import sync_playwright
+    pickup  = date.today() + timedelta(days=60)
+    dropoff = pickup + timedelta(days=5)
+    request = HertzSearchRequest(
+        pickup_location='LAX',
+        pickup_date=pickup,
+        dropoff_date=dropoff,
+        max_results=5,
+    )
+    with sync_playwright() as pl:
+        result = search_hertz_cars(pl, request)
+    print(f'\nTotal cars: {len(result.cars)}')
+    for i, c in enumerate(result.cars, 1):
+        print(f'  {i}. {c.car_name}  {c.daily_price}')
+
+
 if __name__ == "__main__":
-    main()
+    test_hertz_cars()

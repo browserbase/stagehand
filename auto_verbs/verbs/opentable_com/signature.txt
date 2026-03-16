@@ -1,0 +1,24 @@
+# Searches OpenTable for available restaurants at a location and date and returns up to max_results.
+
+@dataclass(frozen=True)
+class OpentableSearchRequest:
+    location: str
+    date: date
+    party_size: int
+    max_results: int
+
+@dataclass(frozen=True)
+class OpentableRestaurant:
+    name: str
+    cuisine: str
+    rating: str
+    available_times: list[str]
+
+@dataclass(frozen=True)
+class OpentableSearchResult:
+    location: str
+    date: date
+    party_size: int
+    restaurants: list[OpentableRestaurant]
+
+def search_opentable_restaurants(playwright, request: OpentableSearchRequest) -> OpentableSearchResult

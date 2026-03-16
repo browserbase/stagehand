@@ -1,0 +1,26 @@
+# Searches Ctrip for train tickets between two stations on a given date,
+# returning up to max_results options with train number, times, and price.
+
+@dataclass(frozen=True)
+class CtripSearchRequest:
+    from_station: str
+    to_station: str
+    departure_date: date
+    max_results: int
+
+@dataclass(frozen=True)
+class CtripTrain:
+    train_number: str
+    departure_time: str
+    arrival_time: str
+    duration: str
+    price: str
+
+@dataclass(frozen=True)
+class CtripSearchResult:
+    from_station: str
+    to_station: str
+    departure_date: date
+    trains: list[CtripTrain]
+
+def search_ctrip_trains(playwright, request: CtripSearchRequest) -> CtripSearchResult

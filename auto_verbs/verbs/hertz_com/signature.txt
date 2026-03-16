@@ -1,0 +1,24 @@
+# Searches Hertz for available rental cars at a pickup location over given dates,
+# returning up to max_results options with car name and daily price.
+
+@dataclass(frozen=True)
+class HertzSearchRequest:
+    pickup_location: str
+    pickup_date: date
+    dropoff_date: date
+    max_results: int
+
+@dataclass(frozen=True)
+class HertzCar:
+    car_name: str
+    daily_price: str
+    total_price: str
+
+@dataclass(frozen=True)
+class HertzSearchResult:
+    pickup_location: str
+    pickup_date: date
+    dropoff_date: date
+    cars: list[HertzCar]
+
+def search_hertz_cars(playwright, request: HertzSearchRequest) -> HertzSearchResult

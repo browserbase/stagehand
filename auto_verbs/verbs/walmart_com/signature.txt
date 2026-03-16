@@ -1,0 +1,19 @@
+# Searches Walmart for products matching a query and returns up to max_results listings.
+
+@dataclass(frozen=True)
+class WalmartSearchRequest:
+    search_query: str
+    max_results: int
+
+@dataclass(frozen=True)
+class WalmartProduct:
+    name: str
+    price: str
+    rating: str
+
+@dataclass(frozen=True)
+class WalmartSearchResult:
+    search_query: str
+    products: list[WalmartProduct]
+
+def search_walmart_products(playwright, request: WalmartSearchRequest) -> WalmartSearchResult

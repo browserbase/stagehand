@@ -1,0 +1,20 @@
+# Searches Udemy for courses matching a query and returns up to max_results listings.
+
+@dataclass(frozen=True)
+class UdemySearchRequest:
+    search_query: str
+    max_results: int
+
+@dataclass(frozen=True)
+class UdemyCourse:
+    title: str
+    instructor: str
+    price: str
+    rating: str
+
+@dataclass(frozen=True)
+class UdemySearchResult:
+    search_query: str
+    courses: list[UdemyCourse]
+
+def search_udemy_courses(playwright, request: UdemySearchRequest) -> UdemySearchResult

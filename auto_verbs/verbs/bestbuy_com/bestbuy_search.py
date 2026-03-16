@@ -11,6 +11,7 @@ Uses Playwright's native locator API with the user's Chrome profile.
 """
 
 import os
+from dataclasses import dataclass
 import traceback
 from urllib.parse import quote
 from playwright.sync_api import Playwright, sync_playwright
@@ -21,12 +22,31 @@ _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 import shutil
 
+@dataclass(frozen=True)
+class BestBuySearchRequest:
+    search_term: str
+    max_results: int
 
-def run(
-    playwright: Playwright,
-    search_term: str = "4K monitor",
-    max_results: int = 5,
-) -> list:
+@dataclass(frozen=True)
+class BestBuyProduct:
+    name: str
+    price: str
+    rating: str
+
+@dataclass(frozen=True)
+class BestBuySearchResult:
+    search_term: str
+    products: list[BestBuyProduct]
+
+
+# Searches Best Buy for products matching a search term, sorted by customer rating, returning up to max_results.
+def search_bestbuy_products(
+    playwright,
+    request: BestBuySearchRequest,
+) -> BestBuySearchResult:
+    search_term = request.search_term
+    max_results = request.max_results
+    raw_results = []
     print("=" * 59)
     print("  Best Buy – Product Search")
     print("=" * 59)
@@ -41,12 +61,12 @@ def run(
     browser = playwright.chromium.connect_over_cdp(ws_url)
     context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
-    results = []
+    raw_results = []
 
     try:
-        # ── Navigate directly to sorted search results ────────────────────
+        # ── Navigate directly to sorted search raw_results ────────────────────
         search_url = f"https://www.bestbuy.com/site/searchpage.jsp?st={quote(search_term)}&sp=%2Bcustomerrating"
-        print(f"Loading search results (sorted by Customer Rating)...")
+        print(f"Loading search raw_results (sorted by Customer Rating)...")
         print(f"  URL: {search_url}")
         page.goto(search_url)
         page.wait_for_load_state("domcontentloaded")
@@ -70,7 +90,7 @@ def run(
 
         seen = set()
         for i in range(count):
-            if len(results) >= max_results:
+            if len(raw_results) >= max_results:
                 break
             item = items.nth(i)
             try:
@@ -100,6 +120,8 @@ def run(
                 # Price
                 price = "N/A"
                 import re as _re
+
+
                 price_match = _re.search(r'\$[\d,]+\.?\d*', text)
                 if price_match:
                     price = price_match.group(0)
@@ -114,7 +136,7 @@ def run(
                     if alt_match:
                         rating = f"{alt_match.group(1)}/5"
 
-                results.append({
+                raw_results.append({
                     "name": name,
                     "price": price,
                     "rating": rating,
@@ -122,9 +144,9 @@ def run(
             except Exception:
                 continue
 
-        # ── Print results ─────────────────────────────────────────────────
-        print(f"\nFound {len(results)} products:\n")
-        for i, prod in enumerate(results, 1):
+        # ── Print raw_results ─────────────────────────────────────────────────
+        print(f"\nFound {len(raw_results)} products:\n")
+        for i, prod in enumerate(raw_results, 1):
             print(f"  {i}. {prod['name']}")
             print(f"     Price:  {prod['price']}")
             print(f"     Rating: {prod['rating']}")
@@ -140,10 +162,19 @@ def run(
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return results
+    return BestBuySearchResult(
+        search_term=search_term,
+        products=[BestBuyProduct(name=r["name"], price=r["price"], rating=r["rating"]) for r in raw_results],
+    )
+def test_search_bestbuy_products() -> None:
+    from playwright.sync_api import sync_playwright
+    request = BestBuySearchRequest(search_term="4K monitor", max_results=5)
+    with sync_playwright() as playwright:
+        result = search_bestbuy_products(playwright, request)
+    assert result.search_term == request.search_term
+    assert len(result.products) <= request.max_results
+    print(f"\nTotal products found: {len(result.products)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        items = run(playwright)
-        print(f"Total products: {len(items)}")
+    test_search_bestbuy_products()

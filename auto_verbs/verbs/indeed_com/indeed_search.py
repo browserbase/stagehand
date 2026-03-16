@@ -3,16 +3,47 @@ Indeed – Search "Data Analyst" jobs in "Remote", sort by Date
 Extract top 5 job postings with title, company, salary, posted date.
 Pure Playwright – no AI.
 """
+from datetime import date, timedelta
 import re, os, sys, traceback, shutil, tempfile
 from playwright.sync_api import Playwright, sync_playwright
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, launch_chrome, wait_for_cdp_ws
 
-MAX_RESULTS = 5
+from dataclasses import dataclass
 
 
-def run(playwright: Playwright) -> list:
+@dataclass(frozen=True)
+class IndeedSearchRequest:
+    job_title: str
+    location: str
+    max_results: int
+
+
+@dataclass(frozen=True)
+class IndeedJob:
+    title: str
+    company: str
+    salary: str
+    posted: str
+
+
+@dataclass(frozen=True)
+class IndeedSearchResult:
+    job_title: str
+    location: str
+    jobs: list[IndeedJob]
+
+
+# Searches Indeed for job postings matching a title and location, returning up to max_results results.
+def search_indeed_jobs(
+    playwright,
+    request: IndeedSearchRequest,
+) -> IndeedSearchResult:
+    job_title = request.job_title
+    location = request.location
+    max_results = request.max_results
+    raw_results = []
     port = get_free_port()
     profile_dir = tempfile.mkdtemp(prefix="indeed_")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -63,7 +94,7 @@ def run(playwright: Playwright) -> list:
 
         seen_titles = set()
         for card in cards:
-            if len(jobs) >= MAX_RESULTS:
+            if len(jobs) >= request.max_results:
                 break
             try:
                 txt = card.inner_text(timeout=3000)
@@ -129,7 +160,7 @@ def run(playwright: Playwright) -> list:
             body = page.inner_text("body")
             lines = [l.strip() for l in body.splitlines() if l.strip()]
             i = 0
-            while i < len(lines) and len(jobs) < MAX_RESULTS:
+            while i < len(lines) and len(jobs) < request.max_results:
                 ln = lines[i]
                 # Job titles often have "Analyst" or "Data" in them
                 if ("analyst" in ln.lower() or "data" in ln.lower()) and 5 < len(ln) < 100:
@@ -163,9 +194,25 @@ def run(playwright: Playwright) -> list:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return jobs
+    return IndeedSearchResult(
+        job_title=request.job_title,
+        location=request.location,
+        jobs=[IndeedJob(title=j['title'], company=j['company'],
+                        salary=j['salary'], posted=j['posted']) for j in jobs],
+    )
+
+
+
+
+def test_indeed_jobs() -> None:
+    from playwright.sync_api import sync_playwright
+    request = IndeedSearchRequest(job_title="Data Analyst", location="Remote", max_results=5)
+    with sync_playwright() as playwright:
+        result = search_indeed_jobs(playwright, request)
+    assert result.job_title == request.job_title
+    assert len(result.jobs) <= request.max_results
+    print(f"\nTotal jobs found: {len(result.jobs)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_indeed_jobs()

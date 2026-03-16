@@ -1,0 +1,19 @@
+# Searches Nike for products matching a query and returns up to max_results listings.
+
+@dataclass(frozen=True)
+class NikeSearchRequest:
+    search_query: str
+    max_results: int
+
+@dataclass(frozen=True)
+class NikeProduct:
+    name: str
+    price: str
+    color: str
+
+@dataclass(frozen=True)
+class NikeSearchResult:
+    search_query: str
+    products: list[NikeProduct]
+
+def search_nike_products(playwright, request: NikeSearchRequest) -> NikeSearchResult

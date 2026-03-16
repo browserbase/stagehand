@@ -17,6 +17,35 @@ import os as _os
 _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
+from dataclasses import dataclass
+from dateutil.relativedelta import relativedelta
+
+
+@dataclass(frozen=True)
+class SouthwestFlightSearchRequest:
+    origin: str
+    destination: str
+    departure_date: object  # datetime.date
+    return_date: object     # datetime.date
+    max_results: int = 5
+
+
+@dataclass(frozen=True)
+class SouthwestFlight:
+    flight_number: str
+    itinerary: str
+    wanna_get_away_price: str
+
+
+@dataclass(frozen=True)
+class SouthwestFlightSearchResult:
+    origin: str
+    destination: str
+    departure_date: object
+    return_date: object
+    flights: list
+
+
 
 def select_airport(page, input_selector: str, code: str) -> str:
     """Type airport code into combobox and select from autocomplete dropdown."""
@@ -95,7 +124,7 @@ def fill_date_field(page, input_selector: str, mm_dd: str):
     return val
 
 
-def run(playwright: Playwright) -> list:
+def search_southwest_flights(playwright, request: SouthwestFlightSearchRequest) -> SouthwestFlightSearchResult:
     port = get_free_port()
     profile_dir = get_temp_profile_dir("southwest_com")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -106,8 +135,8 @@ def run(playwright: Playwright) -> list:
     flights: list[dict] = []
 
     try:
-        depart = date.today() + timedelta(days=60)
-        ret = depart + timedelta(days=5)
+        depart = request.departure_date
+        ret = request.return_date
         dep_mmdd = depart.strftime("%m/%d")  # e.g. "04/28"
         ret_mmdd = ret.strftime("%m/%d")     # e.g. "05/03"
 
@@ -136,13 +165,13 @@ def run(playwright: Playwright) -> list:
         print("STEP 2: Fill flight search form...")
 
         # Origin airport
-        print(f"  Setting origin: DEN")
-        select_airport(page, "#originationAirportCode", "DEN")
+        print(f"  Setting origin: {request.origin}")
+        select_airport(page, "#originationAirportCode", request.origin)
         page.wait_for_timeout(1000)
 
         # Destination airport
-        print(f"  Setting destination: LAX")
-        select_airport(page, "#destinationAirportCode", "LAX")
+        print(f"  Setting destination: {request.destination}")
+        select_airport(page, "#destinationAirportCode", request.destination)
         page.wait_for_timeout(1000)
 
         # Departure date (MM/DD)
@@ -238,7 +267,7 @@ def run(playwright: Playwright) -> list:
             lines = [l.strip() for l in body.split("\n") if l.strip()]
 
             i = 0
-            while i < len(lines) and len(flights) < 5:
+            while i < len(lines) and len(flights) < request.max_results:
                 line = lines[i]
                 # Look for flight number pattern "# NNNN"
                 fnum_match = re.search(r"#\s*(\d{2,5})", line)
@@ -266,7 +295,7 @@ def run(playwright: Playwright) -> list:
                 i += 1
 
         # ── Results ───────────────────────────────────────────────────
-        print(f"\nDONE – {len(flights)} Southwest Flights (DEN → LAX):")
+        print(f"\nDONE – {len(flights)} Southwest Flights ({request.origin} → {request.destination}):")
         for i, f in enumerate(flights, 1):
             print(f"  {i}. {f['itinerary']} | Wanna Get Away: {f['wanna_get_away_price']}")
 
@@ -280,9 +309,37 @@ def run(playwright: Playwright) -> list:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return flights
+    return SouthwestFlightSearchResult(
+        origin=request.origin,
+        destination=request.destination,
+        departure_date=request.departure_date,
+        return_date=request.return_date,
+        flights=[SouthwestFlight(
+            flight_number=f.get('flight_number','N/A'),
+            itinerary=f.get('itinerary','N/A'),
+            wanna_get_away_price=f.get('wanna_get_away_price','N/A'),
+        ) for f in flights],
+    )
+
+
+def test_southwest_flights():
+    from playwright.sync_api import sync_playwright
+    from dateutil.relativedelta import relativedelta
+    today = date.today()
+    departure = today + relativedelta(months=2)
+    request = SouthwestFlightSearchRequest(
+        origin="DEN",
+        destination="LAX",
+        departure_date=departure,
+        return_date=departure + timedelta(days=5),
+        max_results=5,
+    )
+    with sync_playwright() as pl:
+        result = search_southwest_flights(pl, request)
+    print(f"\nTotal flights: {len(result.flights)}")
+    for i, f in enumerate(result.flights, 1):
+        print(f"  {i}. {f.itinerary}  {f.wanna_get_away_price}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_southwest_flights()

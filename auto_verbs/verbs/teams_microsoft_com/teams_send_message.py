@@ -17,8 +17,24 @@ _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 import shutil
 
+from dataclasses import dataclass
 
-def run(playwright: Playwright, recipient: str = "johndoe@contoso.com", message: str = "Hello John") -> bool:
+
+@dataclass(frozen=True)
+class TeamsMessageRequest:
+    recipient: str
+    message: str
+
+
+@dataclass(frozen=True)
+class TeamsMessageResult:
+    recipient: str
+    message: str
+    success: bool
+
+
+
+def send_teams_message(playwright, request: TeamsMessageRequest) -> TeamsMessageResult:
     """
     Send a message to a recipient in Microsoft Teams.
     Returns True if the message was successfully sent, False otherwise.
@@ -55,12 +71,12 @@ def run(playwright: Playwright, recipient: str = "johndoe@contoso.com", message:
         if not to_field.is_visible(timeout=3000):
             to_field = page.locator("[role='combobox'] [role='textbox']").first
         to_field.evaluate("el => el.click()")
-        to_field.press_sequentially(recipient, delay=30)
+        to_field.press_sequentially(request.recipient, delay=30)
         page.wait_for_timeout(2000)
 
         # Select the recipient from the suggestions dropdown
         try:
-            suggestion = page.get_by_role("option", name=re.compile(re.escape(recipient.split("@")[0]), re.IGNORECASE)).first
+            suggestion = page.get_by_role("option", name=re.compile(re.escape(request.recipient.split("@")[0]), re.IGNORECASE)).first
             suggestion.evaluate("el => el.click()")
         except Exception:
             # Try clicking a listbox item or pressing Enter to confirm
@@ -77,7 +93,7 @@ def run(playwright: Playwright, recipient: str = "johndoe@contoso.com", message:
         if not compose_box.is_visible(timeout=3000):
             compose_box = page.locator("[data-tid='ckeditor-replyConversation'], [role='textbox']").first
         compose_box.evaluate("el => el.click()")
-        compose_box.press_sequentially(message, delay=50)
+        compose_box.press_sequentially(request.message, delay=50)
         page.wait_for_timeout(1000)
 
         # Send the message (click Send button or press Ctrl+Enter)
@@ -93,11 +109,11 @@ def run(playwright: Playwright, recipient: str = "johndoe@contoso.com", message:
             # Check the compose box is cleared after sending
             compose_box_after = page.get_by_role("textbox", name=re.compile(r"message|type|compose|new message", re.IGNORECASE)).first
             inner = compose_box_after.inner_text(timeout=3000)
-            if message not in inner:
+            if request.message not in inner:
                 success = True
             else:
                 # Also check if the message appears in the chat history area
-                chat_msg = page.locator(f"[data-tid*='message'] :text('{message}'), .message-body :text('{message}')").first
+                chat_msg = page.locator(f"[data-tid*='message'] :text('{request.message}'), .message-body :text('{message}')").first
                 if chat_msg.is_visible(timeout=3000):
                     success = True
         except Exception:
@@ -117,10 +133,16 @@ def run(playwright: Playwright, recipient: str = "johndoe@contoso.com", message:
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
 
-    return success
+    return TeamsMessageResult(recipient=request.recipient, message=request.message, success=success)
+
+
+def test_send_teams_message():
+    from playwright.sync_api import sync_playwright
+    request = TeamsMessageRequest(recipient="johndoe@contoso.com", message="Hello John")
+    with sync_playwright() as pl:
+        result = send_teams_message(pl, request)
+    print(f"\nMessage sent: {result.success}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        result = run(playwright)
-        print(f"\nResult: {result}")
+    test_send_teams_message()

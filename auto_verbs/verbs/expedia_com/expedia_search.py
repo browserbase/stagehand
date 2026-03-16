@@ -12,6 +12,7 @@ Uses shared cdp_utils for Chrome launch.
 """
 
 import json
+from dataclasses import dataclass
 import re
 import os
 import sys
@@ -24,6 +25,7 @@ from urllib.request import urlopen, Request
 from playwright.sync_api import Playwright, sync_playwright
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from dateutil.relativedelta import relativedelta
 from cdp_utils import (
     get_free_port,
     launch_chrome,
@@ -31,8 +33,6 @@ from cdp_utils import (
     cdp_cleanup,
 )
 
-DEST = "San Diego, CA"
-MAX_RESULTS = 5
 
 
 # ── Destination resolver ─────────────────────────────────────────────────
@@ -116,11 +116,43 @@ def dismiss_popups(page):
 
 # ── Main ──────────────────────────────────────────────────────────────────
 
-def run(
-    playwright: Playwright,
-    destination: str = DEST,
-    max_results: int = MAX_RESULTS,
-) -> list:
+
+@dataclass(frozen=True)
+class ExpediaSearchRequest:
+    destination: str
+    checkin_date: date
+    checkout_date: date
+    max_results: int
+
+
+@dataclass(frozen=True)
+class ExpediaHotel:
+    name: str
+    price_per_night: str
+    rating: str
+
+
+@dataclass(frozen=True)
+class ExpediaSearchResult:
+    destination: str
+    checkin_date: date
+    checkout_date: date
+    hotels: list[ExpediaHotel]
+
+
+# Searches Expedia for hotels at a destination over given dates,
+# returning up to max_results hotels with name, per-night price, and rating.
+def search_expedia_hotels(
+    playwright,
+    request: ExpediaSearchRequest,
+) -> ExpediaSearchResult:
+    destination = request.destination
+    max_results = request.max_results
+    checkin = request.checkin_date
+    checkout = request.checkout_date
+    checkin_str = checkin.strftime("%Y-%m-%d")
+    checkout_str = checkout.strftime("%Y-%m-%d")
+    raw_results = []
     print("=" * 60)
     print(f"  Expedia – Hotels in {destination}")
     print("=" * 60)
@@ -147,7 +179,7 @@ def run(
     port = get_free_port()
     chrome_proc = None
     browser = None
-    hotels = []
+    raw_results = []
 
     print(f"  Temp profile: {tmp_profile}")
     print(f"  CDP port: {port}")
@@ -201,7 +233,7 @@ def run(
         # ──────────────────────────────────────────────────────
         # Strategy 1: page.evaluate() — Expedia data-stid selectors + h3 fallback
         # ──────────────────────────────────────────────────────
-        hotels = page.evaluate("""(max) => {
+        raw_results = page.evaluate("""(max) => {
             const results = [];
             const seen = new Set();
 
@@ -280,13 +312,13 @@ def run(
             return results;
         }""", max_results)
 
-        if hotels:
-            print(f"   ✅ Strategy 1 (cards + h3 scan): {len(hotels)} hotels")
+        if raw_results:
+            print(f"   ✅ Strategy 1 (cards + h3 scan): {len(raw_results)} raw_results")
 
         # ──────────────────────────────────────────────────────
         # Strategy 2: Text fallback — parse body text with regex
         # ──────────────────────────────────────────────────────
-        if not hotels:
+        if not raw_results:
             print("   ⚠ Strategy 1 returned 0 — trying text fallback…")
             body = page.locator("body").inner_text(timeout=15000)
             lines = [l.strip() for l in body.split("\n") if l.strip()]
@@ -306,7 +338,7 @@ def run(
             ]
 
             i = 0
-            while i < len(lines) and len(hotels) < max_results:
+            while i < len(lines) and len(raw_results) < max_results:
                 line = lines[i]
                 lower = line.lower()
 
@@ -320,18 +352,18 @@ def run(
                         if m:
                             price = "$" + m.group(1)
                             break
-                    hotels.append({"name": line[:100], "price_per_night": price, "rating": "N/A"})
+                    raw_results.append({"name": line[:100], "price_per_night": price, "rating": "N/A"})
                     i += 6
                 else:
                     i += 1
 
-            if hotels:
-                print(f"   ✅ Strategy 2 (text parsing): {len(hotels)} hotels")
+            if raw_results:
+                print(f"   ✅ Strategy 2 (text parsing): {len(raw_results)} raw_results")
 
         print(f"\n" + "=" * 60)
-        print(f"  DONE – {len(hotels)} hotels")
+        print(f"  DONE – {len(raw_results)} raw_results")
         print("=" * 60)
-        for i, h in enumerate(hotels, 1):
+        for i, h in enumerate(raw_results, 1):
             print(f"  {i}. {h['name']}")
             print(f"     Price/night: {h['price_per_night']}")
             if h.get('rating', 'N/A') != 'N/A':
@@ -344,10 +376,29 @@ def run(
     finally:
         cdp_cleanup(browser, chrome_proc, tmp_profile)
 
-    return hotels
+    return ExpediaSearchResult(
+        destination=destination,
+        checkin_date=request.checkin_date,
+        checkout_date=request.checkout_date,
+        hotels=[ExpediaHotel(name=r["name"], price_per_night=r["price_per_night"], rating=r["rating"]) for r in raw_results],
+    )
+def test_search_expedia_hotels() -> None:
+    from dateutil.relativedelta import relativedelta
+    from playwright.sync_api import sync_playwright
+    today = date.today()
+    checkin = today + relativedelta(months=2)
+    request = ExpediaSearchRequest(
+        destination="Chicago",
+        checkin_date=checkin,
+        checkout_date=checkin + timedelta(days=2),
+        max_results=5,
+    )
+    with sync_playwright() as playwright:
+        result = search_expedia_hotels(playwright, request)
+    assert result.destination == request.destination
+    assert len(result.hotels) <= request.max_results
+    print(f"\nTotal hotels found: {len(result.hotels)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        items = run(playwright)
-        print(f"Total results: {len(items)}")
+    test_search_expedia_hotels()

@@ -21,15 +21,33 @@ _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 import shutil
 
+from dataclasses import dataclass
 
-def run(
-    playwright: Playwright,
-    search_term: str = "Space Needle",
-) -> dict:
+
+@dataclass(frozen=True)
+class WikipediaSearchRequest:
+    search_term: str = "Space Needle"
+
+
+@dataclass(frozen=True)
+class WikipediaInfoboxFacts:
+    location: str
+    height: str
+    opened: str
+
+
+@dataclass(frozen=True)
+class WikipediaArticleResult:
+    search_term: str
+    summary: str
+    infobox: WikipediaInfoboxFacts
+
+
+def search_wikipedia_article(playwright, request: WikipediaSearchRequest) -> WikipediaArticleResult:
     print("=" * 59)
     print("  Wikipedia – Article Search & Extract")
     print("=" * 59)
-    print(f'  Search: "{search_term}"\n')
+    print(f'  Search: "{request.search_term}"\n')
 
     port = get_free_port()
     profile_dir = get_temp_profile_dir("wikipedia_org")
@@ -48,12 +66,12 @@ def run(
         page.wait_for_timeout(2000)
 
         # ── Search for the article ────────────────────────────────────
-        print(f'Searching for "{search_term}"...')
+        print(f'Searching for "{request.search_term}"...')
         search_input = page.locator("#searchInput, input[name='search']").first
         search_input.evaluate("el => el.click()")
         page.wait_for_timeout(300)
         search_input.press("Control+a")
-        search_input.fill(search_term)
+        search_input.fill(request.search_term)
         page.wait_for_timeout(500)
         search_input.press("Enter")
         page.wait_for_timeout(3000)
@@ -120,10 +138,29 @@ def run(
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return result
+    ib = result.get("infobox", {})
+    return WikipediaArticleResult(
+        search_term=request.search_term,
+        summary=result.get("summary", ""),
+        infobox=WikipediaInfoboxFacts(
+            location=ib.get("location", "N/A"),
+            height=ib.get("height", "N/A"),
+            opened=ib.get("opened", "N/A"),
+        ),
+    )
+
+
+
+
+def test_wikipedia_article():
+    from playwright.sync_api import sync_playwright
+    request = WikipediaSearchRequest(search_term="Space Needle")
+    with sync_playwright() as pl:
+        result = search_wikipedia_article(pl, request)
+    print(f"\nSearch term: {result.search_term}")
+    print(f"Summary: {result.summary[:200]}...")
+    print(f"Infobox: location={result.infobox.location}, height={result.infobox.height}, opened={result.infobox.opened}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        data = run(playwright)
-        print(f"Done — extracted {len(data)} fields")
+    test_wikipedia_article()

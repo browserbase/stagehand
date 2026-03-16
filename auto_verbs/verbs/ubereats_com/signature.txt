@@ -1,0 +1,22 @@
+# Searches UberEats for restaurants in a location and returns up to max_results options.
+
+@dataclass(frozen=True)
+class UberEatsSearchRequest:
+    address: str
+    cuisine: str
+    max_results: int
+
+@dataclass(frozen=True)
+class UberEatsRestaurant:
+    name: str
+    rating: str
+    delivery_fee: str
+    delivery_time: str
+
+@dataclass(frozen=True)
+class UberEatsSearchResult:
+    address: str
+    cuisine: str
+    restaurants: list[UberEatsRestaurant]
+
+def search_ubereats_restaurants(playwright, request: UberEatsSearchRequest) -> UberEatsSearchResult

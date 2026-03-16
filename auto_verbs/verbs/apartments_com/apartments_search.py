@@ -22,6 +22,9 @@ from playwright.sync_api import Playwright, sync_playwright, TimeoutError as PwT
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
+from dataclasses import dataclass
+
+
 
 def _kill_chrome():
     """Kill all Chrome processes to release the profile lock."""
@@ -485,6 +488,4 @@ def run(
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        items = run(playwright)
-        print(f"\nTotal listings: {len(items)}")
+    test_search_apartments()

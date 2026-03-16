@@ -1,0 +1,21 @@
+# Searches for CVS store locations near a ZIP code and returns up to max_results results.
+
+@dataclass(frozen=True)
+class CvsSearchRequest:
+    zip_code: str
+    max_results: int
+
+@dataclass(frozen=True)
+class CvsStore:
+    address: str
+    phone: str
+    hours: str
+    has_pharmacy: str
+    has_minuteclinic: str
+
+@dataclass(frozen=True)
+class CvsSearchResult:
+    zip_code: str
+    stores: list[CvsStore]
+
+def search_cvs_stores(playwright, request: CvsSearchRequest) -> CvsSearchResult

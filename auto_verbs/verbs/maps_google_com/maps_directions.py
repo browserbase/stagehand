@@ -2,17 +2,41 @@
 Google Maps – Driving Directions (Space Needle → Pike Place Market)
 Pure Playwright – no AI.
 """
+from datetime import date, timedelta
 import re, os, sys, traceback, shutil, tempfile
 from playwright.sync_api import Playwright, sync_playwright
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
-ORIGIN = "Space Needle, Seattle, WA"
-DESTINATION = "Pike Place Market, Seattle, WA"
+from dataclasses import dataclass
 
 
-def run(playwright: Playwright) -> dict:
+@dataclass(frozen=True)
+class MapsDirectionsRequest:
+    origin: str
+    destination: str
+
+
+@dataclass(frozen=True)
+class MapsDirectionsResult:
+    origin: str
+    destination: str
+    route: str
+    time: str
+    distance: str
+    steps: tuple
+
+
+# Gets driving directions between two locations using Google Maps, returning
+# route summary, estimated travel time, distance, and turn-by-turn steps.
+def get_maps_directions(
+    playwright,
+    request: MapsDirectionsRequest,
+) -> MapsDirectionsResult:
+    ORIGIN = request.origin
+    DESTINATION = request.destination
+    result = {"route": "", "time": "", "distance": "", "steps": []}
     port = get_free_port()
     profile_dir = get_temp_profile_dir("maps_google_com")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -196,9 +220,27 @@ def run(playwright: Playwright) -> dict:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return result
+    return MapsDirectionsResult(
+        origin=request.origin,
+        destination=request.destination,
+        route=result.get("route",""),
+        time=result.get("time",""),
+        distance=result.get("distance",""),
+        steps=tuple(result.get("steps",[])),
+    )
+def test_get_maps_directions() -> None:
+    from playwright.sync_api import sync_playwright
+    request = MapsDirectionsRequest(
+        origin="Space Needle, Seattle, WA",
+        destination="Pike Place Market, Seattle, WA",
+    )
+    with sync_playwright() as playwright:
+        result = get_maps_directions(playwright, request)
+    assert result.origin == request.origin
+    print(f"\nRoute: {result.route}")
+    print(f"  Time: {result.time}  Distance: {result.distance}")
+    print(f"  Steps: {len(result.steps)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_get_maps_directions()

@@ -12,6 +12,7 @@ Uses Playwright's native locator API with the user's Chrome profile.
 """
 
 import os
+from dataclasses import dataclass
 import re
 import time
 import traceback
@@ -23,18 +24,38 @@ _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 import shutil
 
+@dataclass(frozen=True)
+class CourseraSearchRequest:
+    search_term: str
+    max_results: int
 
-def run(
-    playwright: Playwright,
-    search_term: str = "machine learning",
-    max_results: int = 5,
-) -> list:
+@dataclass(frozen=True)
+class CourseraCourse:
+    title: str
+    provider: str
+    rating: str
+    enrollment: str
+
+@dataclass(frozen=True)
+class CourseraSearchResult:
+    search_term: str
+    courses: list[CourseraCourse]
+
+
+# Searches Coursera for free courses matching a search term and returns up to max_results results.
+def search_coursera_courses(
+    playwright,
+    request: CourseraSearchRequest,
+) -> CourseraSearchResult:
+    search_term = request.search_term
+    max_results = request.max_results
+    raw_results = []
     print("=" * 59)
     print("  Coursera – Course Search")
     print("=" * 59)
     print(f"  Search: \"{search_term}\"")
     print(f"  Filter: Free")
-    print(f"  Extract up to {max_results} results\n")
+    print(f"  Extract up to {max_results} raw_results\n")
 
     port = get_free_port()
     profile_dir = get_temp_profile_dir("coursera_org")
@@ -43,11 +64,13 @@ def run(
     browser = playwright.chromium.connect_over_cdp(ws_url)
     context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
-    results = []
+    raw_results = []
 
     try:
-        # ── Navigate to search results directly ──────────────────────
+        # ── Navigate to search raw_results directly ──────────────────────
         from urllib.parse import quote_plus
+
+
         search_url = f"https://www.coursera.org/search?query={quote_plus(search_term)}&productFree=true"
         print(f"Loading: {search_url}")
         page.goto(search_url)
@@ -71,8 +94,8 @@ def run(
             except Exception:
                 pass
 
-        # ── Extract results ───────────────────────────────────────────
-        print(f"Extracting up to {max_results} results...\n")
+        # ── Extract raw_results ───────────────────────────────────────────
+        print(f"Extracting up to {max_results} raw_results...\n")
 
         # Scroll to load content
         for _ in range(3):
@@ -89,7 +112,7 @@ def run(
         skip_prefixes = [
             "status:", "skills you", "coursera", "filter", "sort",
             "topic", "duration", "language", "level", "learning product",
-            "all results", "show more", "you might", "skip to",
+            "all raw_results", "show more", "you might", "skip to",
             "for individuals", "for businesses", "for universities",
             "for governments", "explore", "degrees", "log in", "join",
             "ai overview", "understanding", "start with", "begin with",
@@ -99,7 +122,7 @@ def run(
 
         seen = set()
         for i, line in enumerate(lines):
-            if len(results) >= max_results:
+            if len(raw_results) >= max_results:
                 break
             # Look for rating patterns like "4.8" or "4.9(10K reviews)"
             if re.search(r'^\d\.\d\b', line):
@@ -138,16 +161,16 @@ def run(
                 key = title.lower()
                 if key not in seen and title != "Unknown":
                     seen.add(key)
-                    results.append({
+                    raw_results.append({
                         "title": title,
                         "provider": provider,
                         "rating": rating,
                         "enrollment": enrollment,
                     })
 
-        # ── Print results ─────────────────────────────────────────────
-        print(f"\nFound {len(results)} courses:\n")
-        for i, c in enumerate(results, 1):
+        # ── Print raw_results ─────────────────────────────────────────────
+        print(f"\nFound {len(raw_results)} courses:\n")
+        for i, c in enumerate(raw_results, 1):
             print(f"  {i}. {c['title']}")
             print(f"     Provider:   {c['provider']}")
             print(f"     Rating:     {c['rating']}")
@@ -164,10 +187,19 @@ def run(
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return results
+    return CourseraSearchResult(
+        search_term=search_term,
+        courses=[CourseraCourse(title=r["title"], provider=r["provider"], rating=r["rating"], enrollment=r["enrollment"]) for r in raw_results],
+    )
+def test_search_coursera_courses() -> None:
+    from playwright.sync_api import sync_playwright
+    request = CourseraSearchRequest(search_term="machine learning", max_results=5)
+    with sync_playwright() as playwright:
+        result = search_coursera_courses(playwright, request)
+    assert result.search_term == request.search_term
+    assert len(result.courses) <= request.max_results
+    print(f"\nTotal courses found: {len(result.courses)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        items = run(playwright)
-        print(f"Total results: {len(items)}")
+    test_search_coursera_courses()

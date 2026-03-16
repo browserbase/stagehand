@@ -6,6 +6,8 @@ The public StackExchange API doesn't require authentication and bypasses
 all anti-bot measures since it's meant for programmatic access.
 """
 import re
+from dataclasses import dataclass
+
 import sys
 import json
 import html as html_module
@@ -14,6 +16,27 @@ from urllib.request import urlopen, Request
 
 MAX_RESULTS = 5
 DEFAULT_QUERY = "how to parse JSON in Python"
+
+@dataclass(frozen=True)
+class StackOverflowSearchRequest:
+    query: str = "how to parse JSON in Python"
+    max_results: int = 5
+
+
+@dataclass(frozen=True)
+class StackOverflowAnswer:
+    votes: str
+    author: str
+    url: str
+    summary: str
+
+
+@dataclass(frozen=True)
+class StackOverflowSearchResult:
+    query: str
+    answers: list
+
+
 
 
 def search_stackoverflow_api(query: str, max_results: int = 5) -> list:
@@ -69,7 +92,7 @@ def strip_html(html: str) -> str:
     return text
 
 
-def run(query: str = DEFAULT_QUERY, max_results: int = MAX_RESULTS) -> list:
+def search_stackoverflow(request: StackOverflowSearchRequest) -> StackOverflowSearchResult:
     """
     Search StackOverflow for a question and get top answers.
     Uses API for reliability (no browser anti-bot issues).
@@ -77,12 +100,12 @@ def run(query: str = DEFAULT_QUERY, max_results: int = MAX_RESULTS) -> list:
     print("=" * 59)
     print("  StackOverflow – Search & Extract Answers (API)")
     print("=" * 59)
-    print(f'  Query: "{query}"')
-    print(f"  Max results: {max_results}\n")
+    print(f'  Query: "{request.query}"')
+    print(f"  Max results: {request.max_results}\n")
     
     # ── STEP 1: Search for questions ──────────────────────────────
     print("STEP 1: Search StackOverflow API...")
-    questions = search_stackoverflow_api(query, max_results=1)
+    questions = search_stackoverflow_api(request.query, max_results=1)
     
     if not questions:
         print("❌ ERROR: No questions found.")
@@ -101,7 +124,7 @@ def run(query: str = DEFAULT_QUERY, max_results: int = MAX_RESULTS) -> list:
     
     # ── STEP 2: Get answers ───────────────────────────────────────
     print("STEP 2: Fetch top answers from API...")
-    api_answers = get_answers_api(question_id, max_results=max_results)
+    api_answers = get_answers_api(question_id, max_results=request.max_results)
     
     if not api_answers:
         print("❌ ERROR: No answers found.")
@@ -135,11 +158,20 @@ def run(query: str = DEFAULT_QUERY, max_results: int = MAX_RESULTS) -> list:
         print(f"     {a['summary'][:120]}...")
         print()
     
-    return results
+    return StackOverflowSearchResult(
+        query=request.query,
+        answers=[StackOverflowAnswer(votes=str(a['votes']), author=a['author'],
+                                     url=a['url'], summary=a['summary']) for a in results],
+    )
+
+
+def test_stackoverflow_search():
+    request = StackOverflowSearchRequest(query="how to parse JSON in Python", max_results=5)
+    result = search_stackoverflow(request)
+    print(f"\nTotal answers: {len(result.answers)}")
+    for i, a in enumerate(result.answers, 1):
+        print(f"  {i}. [{a.votes} votes] by {a.author}")
 
 
 if __name__ == "__main__":
-    # Accept query as command line argument, or use default
-    query = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else DEFAULT_QUERY
-    print(f"Query: {query}\n")
-    run(query=query)
+    test_stackoverflow_search()

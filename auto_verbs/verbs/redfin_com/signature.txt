@@ -1,0 +1,20 @@
+# Searches Redfin for homes for sale in a location and returns up to max_results listings.
+
+@dataclass(frozen=True)
+class RedfinSearchRequest:
+    location: str
+    max_results: int
+
+@dataclass(frozen=True)
+class RedfinHome:
+    address: str
+    price: str
+    beds: str
+    sqft: str
+
+@dataclass(frozen=True)
+class RedfinSearchResult:
+    location: str
+    homes: list[RedfinHome]
+
+def search_redfin_homes(playwright, request: RedfinSearchRequest) -> RedfinSearchResult

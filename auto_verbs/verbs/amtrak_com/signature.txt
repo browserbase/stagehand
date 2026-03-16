@@ -1,0 +1,24 @@
+# Searches Amtrak for one-way train tickets and returns up to max_results options.
+
+@dataclass(frozen=True)
+class AmtrakSearchRequest:
+    origin: str
+    destination: str
+    departure_date: date
+    max_results: int
+
+@dataclass(frozen=True)
+class AmtrakTrain:
+    departure_time: str
+    arrival_time: str
+    duration: str
+    price: str
+
+@dataclass(frozen=True)
+class AmtrakSearchResult:
+    origin: str
+    destination: str
+    departure_date: date
+    trains: list[AmtrakTrain]
+
+def search_amtrak_trains(playwright, request: AmtrakSearchRequest) -> AmtrakSearchResult

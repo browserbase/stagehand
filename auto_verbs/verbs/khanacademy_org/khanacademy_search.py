@@ -2,14 +2,36 @@
 Khan Academy – Search for "calculus" → extract course title, description, units.
 Pure Playwright – no AI.
 """
+from datetime import date, timedelta
 import re, os, sys, traceback, shutil, tempfile
 from playwright.sync_api import Playwright, sync_playwright
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, launch_chrome, wait_for_cdp_ws
 
+from dataclasses import dataclass
 
-def run(playwright: Playwright) -> list:
+
+@dataclass(frozen=True)
+class KhanAcademyCourseRequest:
+    course_url: str
+
+
+@dataclass(frozen=True)
+class KhanAcademyCourseResult:
+    course_url: str
+    title: str
+    description: str
+    units: tuple
+
+
+# Fetches a Khan Academy course page and extracts the course title, description,
+# and list of unit names.
+def get_khanacademy_course(
+    playwright,
+    request: KhanAcademyCourseRequest,
+) -> KhanAcademyCourseResult:
+    results = {}
     port = get_free_port()
     profile_dir = tempfile.mkdtemp(prefix="khan_")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -121,9 +143,21 @@ def run(playwright: Playwright) -> list:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return results
+    return KhanAcademyCourseResult(
+        course_url=request.course_url,
+        title=results.get("title","") if isinstance(results, dict) else "",
+        description=results.get("description","") if isinstance(results, dict) else "",
+        units=tuple(results.get("units",[])) if isinstance(results, dict) else (),
+    )
+def test_get_khanacademy_course() -> None:
+    from playwright.sync_api import sync_playwright
+    request = KhanAcademyCourseRequest(course_url="https://www.khanacademy.org/math/calculus-1")
+    with sync_playwright() as playwright:
+        result = get_khanacademy_course(playwright, request)
+    assert result.course_url == request.course_url
+    print(f"\nCourse: {result.title}")
+    print(f"  Units: {len(result.units)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_get_khanacademy_course()

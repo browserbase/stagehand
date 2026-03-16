@@ -132,7 +132,29 @@ def dismiss(page):
 
 # ── main ─────────────────────────────────────────────────
 
-def main():
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class HomedepotSearchRequest:
+    search_query: str
+    max_results: int = 5
+
+
+@dataclass(frozen=True)
+class HomedepotProduct:
+    name: str
+    price: str
+    rating: str
+
+
+@dataclass(frozen=True)
+class HomedepotSearchResult:
+    search_query: str
+    products: list
+
+
+def search_homedepot_products(playwright, request: HomedepotSearchRequest) -> HomedepotSearchResult:
     port = get_free_port()
     profile_dir = tempfile.mkdtemp(prefix="homedepot_chrome_")
     chrome_proc = _launch_chrome_with_url(URL, port, profile_dir)
@@ -146,53 +168,71 @@ def main():
         ws_url = _wait_cdp(port)
         print("Connecting Playwright for extraction …")
 
-        with sync_playwright() as pw:
-            browser = pw.chromium.connect_over_cdp(ws_url)
-            context = browser.contexts[0]
+        browser = playwright.chromium.connect_over_cdp(ws_url)
+        context = browser.contexts[0]
 
-            # Find the Home Depot page
-            page = None
+        # Find the Home Depot page
+        page = None
+        for p in context.pages:
+            if "homedepot" in p.url:
+                page = p
+                break
+        if not page:
+            print("ERROR: Home Depot page not found among open pages.")
             for p in context.pages:
-                if "homedepot" in p.url:
-                    page = p
-                    break
-            if not page:
-                print("ERROR: Home Depot page not found among open pages.")
-                for p in context.pages:
-                    print(f"  → {p.url[:80]}")
-                return
+                print(f"  → {p.url[:80]}")
+            return
 
-            print(f"Page URL: {page.url[:100]}")
-            dismiss(page)
+        print(f"Page URL: {page.url[:100]}")
+        dismiss(page)
 
-            # Check for error page
-            snippet = page.evaluate("document.body.innerText.substring(0, 300)")
-            if "Something went wrong" in snippet or "Oops" in snippet:
-                print("ERROR: Home Depot returned error page.")
-                print(f"  body: {snippet[:200]}")
-                return
+        # Check for error page
+        snippet = page.evaluate("document.body.innerText.substring(0, 300)")
+        if "Something went wrong" in snippet or "Oops" in snippet:
+            print("ERROR: Home Depot returned error page.")
+            print(f"  body: {snippet[:200]}")
+            return
 
-            products = _extract_products(page, MAX)
-            browser.close()
+        raw_products = _extract_products(page, request.max_results)
+        browser.close()
 
         # ── display ──
         print()
         print("=" * 60)
         print(f"  Home Depot – Top {MAX} '{QUERY}' (Top Rated)")
         print("=" * 60)
-        for idx, p in enumerate(products, 1):
+        for idx, p in enumerate(raw_products, 1):
             print(f"  {idx}. {p['name']}")
             print(f"     Price:  {p['price']}")
             print(f"     Rating: {p['rating']}")
             print()
 
-        if not products:
+        if not raw_products:
             print("  ⚠ No products extracted from live page.")
+
+
+        return HomedepotSearchResult(
+            search_query=request.search_query,
+            products=[HomedepotProduct(name=p['name'], price=p['price'],
+                                       rating=p['rating']) for p in raw_products],
+        )
 
     finally:
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
 
 
+
+
+def test_homedepot_products():
+    from playwright.sync_api import sync_playwright
+    request = HomedepotSearchRequest(search_query='cordless drill', max_results=5)
+    with sync_playwright() as pl:
+        result = search_homedepot_products(pl, request)
+    print(f'\nTotal products: {len(result.products)}')
+    for i, p in enumerate(result.products, 1):
+        print(f'  {i}. {p.name}  {p.price}  ({p.rating})')
+
+
 if __name__ == "__main__":
-    main()
+    test_homedepot_products()

@@ -1,0 +1,7 @@
+# Clears all items from the Amazon shopping cart and returns True on success.
+
+@dataclass(frozen=True)
+class AmazonClearCartResult:
+    success: bool
+
+def clear_amazon_cart(playwright) -> AmazonClearCartResult

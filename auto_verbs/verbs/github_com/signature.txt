@@ -1,0 +1,22 @@
+# Searches GitHub for repositories matching a search term, returning up to
+# max_results repos with owner, name, stars, language, and description.
+
+@dataclass(frozen=True)
+class GithubSearchRequest:
+    search_term: str
+    max_results: int
+
+@dataclass(frozen=True)
+class GithubRepo:
+    owner: str
+    name: str
+    stars: str
+    language: str
+    description: str
+
+@dataclass(frozen=True)
+class GithubSearchResult:
+    search_term: str
+    repos: list[GithubRepo]
+
+def search_github_repos(playwright, request: GithubSearchRequest) -> GithubSearchResult

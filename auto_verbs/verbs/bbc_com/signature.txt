@@ -1,0 +1,16 @@
+# Extracts the top headline stories from the BBC News homepage, returning up to max_results items.
+
+@dataclass(frozen=True)
+class BbcNewsRequest:
+    max_results: int
+
+@dataclass(frozen=True)
+class BbcHeadline:
+    headline: str
+    url: str
+
+@dataclass(frozen=True)
+class BbcNewsResult:
+    headlines: list[BbcHeadline]
+
+def extract_bbc_headlines(playwright, request: BbcNewsRequest) -> BbcNewsResult

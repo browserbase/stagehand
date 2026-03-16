@@ -13,42 +13,49 @@ import re
 import traceback
 from playwright.sync_api import Playwright, sync_playwright
 
-
-def get_chrome_default_profile() -> str:
-    """Get the Chrome Default profile path."""
-    user_data_dir = os.path.join(
-        os.environ["USERPROFILE"],
-        "AppData", "Local", "Google", "Chrome", "User Data", "Default",
-    )
-    if os.path.isdir(user_data_dir):
-        return user_data_dir
-    raise FileNotFoundError("Could not find Chrome Default profile")
+import sys as _sys, os as _os, shutil
+_sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..'))
+from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
+from dataclasses import dataclass, field
 
 
-def run(
-    playwright: Playwright,
-    location: str = "Seattle, WA",
-) -> dict:
+
+
+
+
+@dataclass(frozen=True)
+class WeatherForecastRequest:
+    location: str = "Seattle, WA"
+
+
+@dataclass(frozen=True)
+class WeatherDay:
+    day: str
+    high: str
+    low: str
+    conditions: str
+
+
+@dataclass(frozen=True)
+class WeatherForecastResult:
+    location: str
+    current_temp: str
+    current_conditions: str
+    forecast: list
+
+
+def get_weather_forecast(playwright, request: WeatherForecastRequest) -> WeatherForecastResult:
     print("=" * 59)
     print("  Weather.com – Weather Forecast")
     print("=" * 59)
-    print(f'  Location: "{location}"\n')
+    print(f'  Location: "{request.location}"\n')
     
-    user_data_dir = get_chrome_default_profile()
-    print(f"Using Chrome profile: {user_data_dir}")
-    print("NOTE: Close ALL Chrome windows before running!\n")
-    
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir,
-        channel="chrome",
-        headless=False,
-        viewport={"width": 1280, "height": 900},
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-infobars",
-            "--disable-extensions",
-        ],
-    )
+    port = get_free_port()
+    profile_dir = get_temp_profile_dir("weather_com")
+    chrome_proc = launch_chrome(profile_dir, port)
+    ws_url = wait_for_cdp_ws(port)
+    browser = playwright.chromium.connect_over_cdp(ws_url)
+    context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
     result = {"current": {"temperature": "N/A", "conditions": "N/A"}, "forecast": []}
 
@@ -76,8 +83,8 @@ def run(
             except Exception:
                 pass
 
-        # ── Search for location ───────────────────────────────────────
-        print(f'Searching for "{location}"...')
+        # ── Search for the location ────────────────────────────────────────
+        print(f'Searching for "{request.location}"...')
         search_input = page.locator(
             "input[aria-label='Search for a location'], "
             "#LocationSearch_input, "
@@ -87,7 +94,7 @@ def run(
         search_input.evaluate("el => el.click()")
         page.wait_for_timeout(500)
         search_input.press("Control+a")
-        search_input.fill(location)
+        search_input.fill(request.location)
         page.wait_for_timeout(2000)
 
         # Click the first suggestion
@@ -237,13 +244,32 @@ def run(
         traceback.print_exc()
     finally:
         try:
-            context.close()
+            browser.close()
         except Exception:
             pass
-    return result
+        chrome_proc.terminate()
+        shutil.rmtree(profile_dir, ignore_errors=True)
+
+    current = result.get('current', {})
+    return WeatherForecastResult(
+        location=request.location,
+        current_temp=current.get('temperature', 'N/A'),
+        current_conditions=current.get('conditions', 'N/A'),
+        forecast=[WeatherDay(day=d['day'], high=d['high'], low=d['low'], conditions=d['conditions']) for d in result.get('forecast', [])],
+    )
+
+
+
+def test_weather_forecast():
+    from playwright.sync_api import sync_playwright
+    request = WeatherForecastRequest(location="Seattle, WA")
+    with sync_playwright() as pl:
+        result = get_weather_forecast(pl, request)
+    print(f"\nLocation: {result.location}")
+    print(f"Current: {result.current_temp}, {result.current_conditions}")
+    for d in result.forecast:
+        print(f"  {d.day}: High {d.high}, Low {d.low} — {d.conditions}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        data = run(playwright)
-        print(f"Done — current temp: {data['current'].get('temperature', 'N/A')}, {len(data['forecast'])} forecast days")
+    test_weather_forecast()

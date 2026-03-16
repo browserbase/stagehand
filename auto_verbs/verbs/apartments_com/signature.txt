@@ -1,0 +1,21 @@
+# Searches Apartments.com for listings in a location within a price range, returns up to max_results.
+
+@dataclass(frozen=True)
+class ApartmentsSearchRequest:
+    location: str
+    price_min: int
+    price_max: int
+    max_results: int
+
+@dataclass(frozen=True)
+class ApartmentListing:
+    name: str
+    price: str
+    beds: str
+
+@dataclass(frozen=True)
+class ApartmentsSearchResult:
+    location: str
+    listings: list[ApartmentListing]
+
+def search_apartments(playwright, request: ApartmentsSearchRequest) -> ApartmentsSearchResult

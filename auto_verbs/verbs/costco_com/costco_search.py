@@ -17,8 +17,32 @@ _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 import shutil
 
+from dataclasses import dataclass
 
-def run(playwright: Playwright, search_query: str = "kids winter jacket", max_results: int = 5) -> list:
+@dataclass(frozen=True)
+class CostcoSearchRequest:
+    search_query: str
+    max_results: int
+
+@dataclass(frozen=True)
+class CostcoProduct:
+    name: str
+    price: str
+
+@dataclass(frozen=True)
+class CostcoSearchResult:
+    search_query: str
+    products: list[CostcoProduct]
+
+
+# Searches Costco for products matching a query and returns up to max_results listings with name and price.
+def search_costco_products(
+    playwright,
+    request: CostcoSearchRequest,
+) -> CostcoSearchResult:
+    search_query = request.search_query
+    max_results = request.max_results
+    raw_results = []
     """
     Search Costco.com for the given query and return up to max_results items,
     each with name and price.
@@ -31,7 +55,7 @@ def run(playwright: Playwright, search_query: str = "kids winter jacket", max_re
     context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
 
-    results = []
+    raw_results = []
 
     try:
         # Navigate to Costco
@@ -54,11 +78,11 @@ def run(playwright: Playwright, search_query: str = "kids winter jacket", max_re
         except Exception:
             search_input.press("Enter")
 
-        # Wait for search results to load
+        # Wait for search raw_results to load
         page.wait_for_load_state("domcontentloaded")
         page.wait_for_timeout(5000)
 
-        # Extract product listings from the results page
+        # Extract product listings from the raw_results page
         # Costco uses MUI and product links have '.product.' in href
         all_links = page.get_by_role("link").all()
         product_candidates = []
@@ -92,14 +116,14 @@ def run(playwright: Playwright, search_query: str = "kids winter jacket", max_re
                         break
             except Exception:
                 pass
-            results.append({"name": name, "price": price})
+            raw_results.append({"name": name, "price": price})
 
-        if not results:
+        if not raw_results:
             print("Warning: Could not find product listings.")
 
-        # Print results
-        print(f"\nFound {len(results)} results for '{search_query}':\n")
-        for i, item in enumerate(results, 1):
+        # Print raw_results
+        print(f"\nFound {len(raw_results)} raw_results for '{search_query}':\n")
+        for i, item in enumerate(raw_results, 1):
             print(f"  {i}. {item['name']}")
             print(f"     Price: {item['price']}")
 
@@ -113,10 +137,19 @@ def run(playwright: Playwright, search_query: str = "kids winter jacket", max_re
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
 
-    return results
+    return CostcoSearchResult(
+        search_query=search_query,
+        products=[CostcoProduct(name=r["name"], price=r["price"]) for r in raw_results],
+    )
+def test_search_costco_products() -> None:
+    from playwright.sync_api import sync_playwright
+    request = CostcoSearchRequest(search_query="kids winter jacket", max_results=5)
+    with sync_playwright() as playwright:
+        result = search_costco_products(playwright, request)
+    assert result.search_query == request.search_query
+    assert len(result.products) <= request.max_results
+    print(f"\nTotal products found: {len(result.products)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        items = run(playwright)
-        print(f"\nTotal items found: {len(items)}")
+    test_search_costco_products()

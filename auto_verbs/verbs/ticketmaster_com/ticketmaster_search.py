@@ -9,7 +9,30 @@ from playwright.sync_api import Playwright, sync_playwright
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
-def run(playwright: Playwright) -> list:
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class TicketmasterSearchRequest:
+    location: str = "Los Angeles"
+    max_results: int = 5
+
+
+@dataclass(frozen=True)
+class TicketmasterEvent:
+    name: str
+    venue: str
+    datetime: str
+    price: str
+
+
+@dataclass(frozen=True)
+class TicketmasterSearchResult:
+    location: str
+    events: list
+
+
+def search_ticketmaster_events(playwright, request: TicketmasterSearchRequest) -> TicketmasterSearchResult:
     port = get_free_port()
     profile_dir = get_temp_profile_dir("ticketmaster_com")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -60,7 +83,7 @@ def run(playwright: Playwright) -> list:
                     current_event["datetime"] = line[:60]
                 elif len(line) > 5 and len(line) < 100 and not current_event.get("name"):
                     current_event["name"] = line
-                if len(events) >= 5:
+                if len(events) >= request.max_results:
                     break
 
         print(f"\nDONE – Top {len(events)} Events:")
@@ -83,8 +106,24 @@ def run(playwright: Playwright) -> list:
         chrome_proc.terminate()
 
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return events
+    return TicketmasterSearchResult(
+        location=request.location,
+        events=[TicketmasterEvent(
+            name=e.get('name','N/A'), venue=e.get('venue','N/A'),
+            datetime=e.get('datetime','N/A'), price=e.get('price','N/A'),
+        ) for e in events],
+    )
+
+
+def test_ticketmaster_events():
+    from playwright.sync_api import sync_playwright
+    request = TicketmasterSearchRequest(location="Los Angeles", max_results=5)
+    with sync_playwright() as pl:
+        result = search_ticketmaster_events(pl, request)
+    print(f"\nTotal events: {len(result.events)}")
+    for i, e in enumerate(result.events, 1):
+        print(f"  {i}. {e.name}  {e.venue}  {e.datetime}")
+
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_ticketmaster_events()

@@ -1,0 +1,20 @@
+# Searches Coursera for free courses matching a search term and returns up to max_results results.
+
+@dataclass(frozen=True)
+class CourseraSearchRequest:
+    search_term: str
+    max_results: int
+
+@dataclass(frozen=True)
+class CourseraCourse:
+    title: str
+    provider: str
+    rating: str
+    enrollment: str
+
+@dataclass(frozen=True)
+class CourseraSearchResult:
+    search_term: str
+    courses: list[CourseraCourse]
+
+def search_coursera_courses(playwright, request: CourseraSearchRequest) -> CourseraSearchResult

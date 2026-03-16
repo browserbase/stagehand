@@ -22,17 +22,38 @@ _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 import shutil
 
+from dataclasses import dataclass
 
-def run(
-    playwright: Playwright,
-    search_term: str = "Seattle, WA 98101",
-    max_results: int = 5,
-) -> list:
+@dataclass(frozen=True)
+class ChaseSearchRequest:
+    search_term: str
+    max_results: int
+
+@dataclass(frozen=True)
+class ChaseBranch:
+    name: str
+    address: str
+    hours: str
+
+@dataclass(frozen=True)
+class ChaseSearchResult:
+    search_term: str
+    branches: list[ChaseBranch]
+
+
+# Searches for Chase Bank branches and ATMs near a location, returning up to max_results results.
+def search_chase_branches(
+    playwright,
+    request: ChaseSearchRequest,
+) -> ChaseSearchResult:
+    search_term = request.search_term
+    max_results = request.max_results
+    raw_results = []
     print("=" * 59)
     print("  Chase – Branch / ATM Locator")
     print("=" * 59)
     print(f"  Search: \"{search_term}\"")
-    print(f"  Extract up to {max_results} results\n")
+    print(f"  Extract up to {max_results} raw_results\n")
 
     port = get_free_port()
     profile_dir = get_temp_profile_dir("chase_com")
@@ -41,7 +62,7 @@ def run(
     browser = playwright.chromium.connect_over_cdp(ws_url)
     context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
-    results = []
+    raw_results = []
 
     try:
         # ── Navigate to Chase locator ─────────────────────────────────────
@@ -108,8 +129,8 @@ def run(
         page.wait_for_timeout(8000)
         print(f"  Results loaded: {page.url}\n")
 
-        # ── Extract results ───────────────────────────────────────────────
-        print(f"Extracting up to {max_results} results...\n")
+        # ── Extract raw_results ───────────────────────────────────────────────
+        print(f"Extracting up to {max_results} raw_results...\n")
 
         # Scroll to load lazy content
         for _ in range(3):
@@ -124,7 +145,7 @@ def run(
 
         # Look for blocks that contain addresses (state + ZIP pattern)
         i = 0
-        while i < len(lines) and len(results) < max_results:
+        while i < len(lines) and len(raw_results) < max_results:
             line = lines[i]
             # Look for lines with a state abbreviation + ZIP code
             match = re.search(r'[A-Z]{2}\s+\d{5}', line)
@@ -152,13 +173,13 @@ def run(
 
                 # Avoid duplicates
                 key = name.lower()
-                if key not in [r["name"].lower() for r in results]:
-                    results.append({"name": name, "address": address, "hours": hours})
+                if key not in [r["name"].lower() for r in raw_results]:
+                    raw_results.append({"name": name, "address": address, "hours": hours})
             i += 1
 
-        # ── Print results ─────────────────────────────────────────────────
-        print(f"\nFound {len(results)} locations:\n")
-        for i, loc in enumerate(results, 1):
+        # ── Print raw_results ─────────────────────────────────────────────────
+        print(f"\nFound {len(raw_results)} locations:\n")
+        for i, loc in enumerate(raw_results, 1):
             print(f"  {i}. {loc['name']}")
             print(f"     Address: {loc['address']}")
             print(f"     Hours:   {loc['hours']}")
@@ -174,10 +195,19 @@ def run(
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return results
+    return ChaseSearchResult(
+        search_term=search_term,
+        branches=[ChaseBranch(name=r["name"], address=r["address"], hours=r["hours"]) for r in raw_results],
+    )
+def test_search_chase_branches() -> None:
+    from playwright.sync_api import sync_playwright
+    request = ChaseSearchRequest(search_term="Seattle, WA 98101", max_results=5)
+    with sync_playwright() as playwright:
+        result = search_chase_branches(playwright, request)
+    assert result.search_term == request.search_term
+    assert len(result.branches) <= request.max_results
+    print(f"\nTotal branches found: {len(result.branches)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        items = run(playwright)
-        print(f"Total results: {len(items)}")
+    test_search_chase_branches()

@@ -1,0 +1,19 @@
+# Searches Lowe's for products matching a query and returns up to max_results listings with name, price, and rating.
+
+@dataclass(frozen=True)
+class LowesSearchRequest:
+    search_query: str
+    max_results: int
+
+@dataclass(frozen=True)
+class LowesProduct:
+    name: str
+    price: str
+    rating: str
+
+@dataclass(frozen=True)
+class LowesSearchResult:
+    search_query: str
+    products: list[LowesProduct]
+
+def search_lowes_products(playwright, request: LowesSearchRequest) -> LowesSearchResult

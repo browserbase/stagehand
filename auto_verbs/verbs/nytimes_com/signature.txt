@@ -1,0 +1,17 @@
+# Extracts top headlines from the New York Times homepage and returns up to max_results articles.
+
+@dataclass(frozen=True)
+class NytimesRequest:
+    max_results: int
+
+@dataclass(frozen=True)
+class NytimesArticle:
+    title: str
+    section: str
+    url: str
+
+@dataclass(frozen=True)
+class NytimesResult:
+    articles: list[NytimesArticle]
+
+def extract_nytimes_headlines(playwright, request: NytimesRequest) -> NytimesResult

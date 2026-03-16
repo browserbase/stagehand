@@ -1,0 +1,15 @@
+# Fetches a Khan Academy course page and extracts the course title, description,
+# and list of unit names.
+
+@dataclass(frozen=True)
+class KhanAcademyCourseRequest:
+    course_url: str
+
+@dataclass(frozen=True)
+class KhanAcademyCourseResult:
+    course_url: str
+    title: str
+    description: str
+    units: tuple
+
+def get_khanacademy_course(playwright, request: KhanAcademyCourseRequest) -> KhanAcademyCourseResult

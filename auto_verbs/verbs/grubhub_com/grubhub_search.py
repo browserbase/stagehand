@@ -4,6 +4,7 @@ Pure Playwright CDP – no AI, no hardcoded results.
 Navigates Grubhub, sets delivery address, searches for Thai food,
 and extracts top 5 restaurants from the live page.
 """
+from datetime import date, timedelta
 import re
 import os
 import traceback
@@ -14,12 +15,40 @@ from playwright.sync_api import Playwright, sync_playwright
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
-ADDRESS = "Chicago, IL 60601"
-QUERY = "Thai food"
-MAX_RESULTS = 5
+from dataclasses import dataclass
 
 
-def run(playwright: Playwright) -> list:
+@dataclass(frozen=True)
+class GrubhubSearchRequest:
+    address: str
+    query: str
+    max_results: int
+
+
+@dataclass(frozen=True)
+class GrubhubRestaurant:
+    name: str
+    rating: str
+    est_time: str
+
+
+@dataclass(frozen=True)
+class GrubhubSearchResult:
+    address: str
+    query: str
+    restaurants: list[GrubhubRestaurant]
+
+
+# Searches Grubhub for restaurants matching a query near a delivery address,
+# returning up to max_results results with name, rating, and delivery time.
+def search_grubhub_restaurants(
+    playwright,
+    request: GrubhubSearchRequest,
+) -> GrubhubSearchResult:
+    ADDRESS = request.address
+    QUERY = request.query
+    MAX_RESULTS = request.max_results
+    raw_results = []
     port = get_free_port()
     profile_dir = get_temp_profile_dir("grubhub_com")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -27,7 +56,7 @@ def run(playwright: Playwright) -> list:
     browser = playwright.chromium.connect_over_cdp(ws_url)
     context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
-    restaurants = []
+    raw_results = []
 
     try:
         # ── STEP 1: Navigate to Grubhub ──────────────────────────────
@@ -95,7 +124,7 @@ def run(playwright: Playwright) -> list:
         # ── STEP 4: Extract restaurant data from DOM ──────────────────
         print("STEP 4: Extracting restaurant data...")
 
-        restaurants = page.evaluate(
+        raw_results = page.evaluate(
             """(maxResults) => {
             const results = [];
             const cards = document.querySelectorAll('[data-testid="restaurant-card"]');
@@ -134,12 +163,12 @@ def run(playwright: Playwright) -> list:
             MAX_RESULTS,
         )
 
-        print(f"  Extracted {len(restaurants)} restaurants")
+        print(f"  Extracted {len(raw_results)} raw_results")
 
         # ── Fallback: broader extraction if primary failed ────────────
-        if not restaurants:
+        if not raw_results:
             print("  Trying fallback extraction with a[href*='/restaurant/']...")
-            restaurants = page.evaluate(
+            raw_results = page.evaluate(
                 """(maxResults) => {
                 const results = [];
                 const seen = new Set();
@@ -168,11 +197,11 @@ def run(playwright: Playwright) -> list:
             }""",
                 MAX_RESULTS,
             )
-            print(f"  Fallback extracted {len(restaurants)} restaurants")
+            print(f"  Fallback extracted {len(raw_results)} raw_results")
 
         # ── Print results ─────────────────────────────────────────────
-        print(f"\nDONE – Top {len(restaurants)} Thai Restaurants:")
-        for i, r in enumerate(restaurants, 1):
+        print(f"\nDONE – Top {len(raw_results)} Thai Restaurants:")
+        for i, r in enumerate(raw_results, 1):
             print(f"  {i}. {r.get('name', 'N/A')} | rating {r.get('rating', 'N/A')} | {r.get('est_time', 'N/A')}")
 
     except Exception as e:
@@ -185,9 +214,24 @@ def run(playwright: Playwright) -> list:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return restaurants
+    return GrubhubSearchResult(
+        address=request.address,
+        query=request.query,
+        restaurants=[GrubhubRestaurant(
+            name=r.get("name",""),
+            rating=r.get("rating",""),
+            est_time=r.get("est_time",""),
+        ) for r in raw_results],
+    )
+def test_search_grubhub_restaurants() -> None:
+    from playwright.sync_api import sync_playwright
+    request = GrubhubSearchRequest(address="Chicago, IL 60601", query="Thai food", max_results=5)
+    with sync_playwright() as playwright:
+        result = search_grubhub_restaurants(playwright, request)
+    assert result.address == request.address
+    assert len(result.restaurants) <= request.max_results
+    print(f"\nTotal restaurants found: {len(result.restaurants)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_search_grubhub_restaurants()

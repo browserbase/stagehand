@@ -3,15 +3,38 @@ Fidelity – MSFT Stock Quote
 Generated: 2026-02-28T22:13:37.740Z
 Pure Playwright – no AI. Uses CDP to avoid automation detection.
 """
+from datetime import date, timedelta
 import re, os, sys, traceback, shutil
 from playwright.sync_api import Playwright, sync_playwright
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
-SYMBOL = "MSFT"
+from dataclasses import dataclass
 
-def run(playwright: Playwright) -> dict:
+
+@dataclass(frozen=True)
+class FidelityQuoteRequest:
+    symbol: str
+
+
+@dataclass(frozen=True)
+class FidelityQuote:
+    symbol: str
+    price: str
+    day_change: str
+    week52_low: str
+    week52_high: str
+
+
+# Fetches a stock quote from Fidelity for the given ticker symbol,
+# returning price, day change, and 52-week range.
+def get_fidelity_quote(
+    playwright,
+    request: FidelityQuoteRequest,
+) -> FidelityQuote:
+    SYMBOL = request.symbol
+    result = {}
     port = get_free_port()
     profile_dir = get_temp_profile_dir("fidelity_com")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -91,8 +114,23 @@ def run(playwright: Playwright) -> dict:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return result
+    return FidelityQuote(
+        symbol=request.symbol,
+        price=result.get("price",""),
+        day_change=result.get("day_change",""),
+        week52_low=result.get("week52_low",""),
+        week52_high=result.get("week52_high",""),
+    )
+def test_get_fidelity_quote() -> None:
+    from playwright.sync_api import sync_playwright
+    request = FidelityQuoteRequest(symbol="MSFT")
+    with sync_playwright() as playwright:
+        result = get_fidelity_quote(playwright, request)
+    assert result.symbol == request.symbol
+    print(f"\nSymbol: {result.symbol}")
+    print(f"  Price: {result.price}  Change: {result.day_change}")
+    print(f"  52w Low: {result.week52_low}  52w High: {result.week52_high}")
+
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_get_fidelity_quote()

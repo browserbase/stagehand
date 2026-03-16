@@ -10,14 +10,41 @@ from playwright.sync_api import Playwright, sync_playwright
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
-MAX_RESULTS = 5
+from dataclasses import dataclass
+from dateutil.relativedelta import relativedelta
+
+
 
 # Search parameters - use city names, not airport codes
 ORIGIN_CITY = "San Francisco, CA"
 DESTINATION_CITY = "Newark, NJ"
 
 
-def run(playwright: Playwright) -> list:
+@dataclass(frozen=True)
+class UnitedFlightSearchRequest:
+    origin_city: str
+    destination_city: str
+    departure_date: object  # datetime.date
+    return_date: object     # datetime.date
+    max_results: int = 5
+
+
+@dataclass(frozen=True)
+class UnitedFlight:
+    itinerary: str
+    economy_price: str
+
+
+@dataclass(frozen=True)
+class UnitedFlightSearchResult:
+    origin_city: str
+    destination_city: str
+    departure_date: object
+    return_date: object
+    flights: list
+
+
+def search_united_flights(playwright, request: UnitedFlightSearchRequest) -> UnitedFlightSearchResult:
     port = get_free_port()
     profile_dir = get_temp_profile_dir("united_com")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -271,14 +298,14 @@ def run(playwright: Playwright) -> list:
             "li[class*='flight']",
         ]
         for sel in card_sels:
-            if len(flights) >= MAX_RESULTS:
+            if len(flights) >= request.max_results:
                 break
             try:
                 cards = page.locator(sel).all()
                 if not cards:
                     continue
                 for card in cards:
-                    if len(flights) >= MAX_RESULTS:
+                    if len(flights) >= request.max_results:
                         break
                     try:
                         text = card.inner_text(timeout=2000).strip()
@@ -329,7 +356,7 @@ def run(playwright: Playwright) -> list:
             lines = [l.strip() for l in body.splitlines() if l.strip()]
 
             i = 0
-            while i < len(lines) and len(flights) < MAX_RESULTS:
+            while i < len(lines) and len(flights) < request.max_results:
                 ln = lines[i]
                 # Flight block marker: "NONSTOP" or "1 stop" etc.
                 if re.match(r"^(NONSTOP|\d+\s*STOP)", ln, re.IGNORECASE):
@@ -382,7 +409,7 @@ def run(playwright: Playwright) -> list:
             body = page.inner_text("body")
             lines = [l.strip() for l in body.splitlines() if l.strip()]
             for i, ln in enumerate(lines):
-                if len(flights) >= MAX_RESULTS:
+                if len(flights) >= request.max_results:
                     break
                 m = re.search(r"\$[\d,]+", ln)
                 if m and re.search(r"economy|cabin|class|from\s*\$", ln, re.IGNORECASE):
@@ -412,7 +439,7 @@ def run(playwright: Playwright) -> list:
             else:
                 print("❌ ERROR: Extraction failed — no flights found.")
 
-        print(f"\nDONE – {len(flights)} United Flights ({ORIGIN_CITY} → {DESTINATION_CITY}):")
+        print(f"\nDONE – {len(flights)} United Flights ({request.origin_city} → {request.destination_city}):")
         for i, f in enumerate(flights, 1):
             print(f"  {i}. {f['itinerary']} | Economy: {f['economy_price']}")
 
@@ -426,9 +453,33 @@ def run(playwright: Playwright) -> list:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return flights
+    return UnitedFlightSearchResult(
+        origin_city=request.origin_city,
+        destination_city=request.destination_city,
+        departure_date=request.departure_date,
+        return_date=request.return_date,
+        flights=[UnitedFlight(itinerary=f['itinerary'], economy_price=f['economy_price']) for f in flights],
+    )
+
+
+def test_united_flights():
+    from playwright.sync_api import sync_playwright
+    from dateutil.relativedelta import relativedelta
+    today = date.today()
+    departure = today + relativedelta(months=2)
+    request = UnitedFlightSearchRequest(
+        origin_city="San Francisco, CA",
+        destination_city="Newark, NJ",
+        departure_date=departure,
+        return_date=departure + timedelta(days=3),
+        max_results=5,
+    )
+    with sync_playwright() as pl:
+        result = search_united_flights(pl, request)
+    print(f"\nTotal flights: {len(result.flights)}")
+    for i, f in enumerate(result.flights, 1):
+        print(f"  {i}. {f.itinerary}  {f.economy_price}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_united_flights()

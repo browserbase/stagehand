@@ -1,0 +1,20 @@
+# Searches Home Depot for top-rated products matching a query, returning up to
+# max_results results with name, price, and customer rating.
+
+@dataclass(frozen=True)
+class HomeDepotSearchRequest:
+    search_query: str
+    max_results: int
+
+@dataclass(frozen=True)
+class HomeDepotProduct:
+    name: str
+    price: str
+    rating: str
+
+@dataclass(frozen=True)
+class HomeDepotSearchResult:
+    search_query: str
+    products: list[HomeDepotProduct]
+
+def search_homedepot_products(playwright, request: HomeDepotSearchRequest) -> HomeDepotSearchResult

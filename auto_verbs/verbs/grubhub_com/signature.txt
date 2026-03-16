@@ -1,0 +1,22 @@
+# Searches Grubhub for restaurants matching a query near a delivery address,
+# returning up to max_results results with name, rating, and delivery time.
+
+@dataclass(frozen=True)
+class GrubhubSearchRequest:
+    address: str
+    query: str
+    max_results: int
+
+@dataclass(frozen=True)
+class GrubhubRestaurant:
+    name: str
+    rating: str
+    est_time: str
+
+@dataclass(frozen=True)
+class GrubhubSearchResult:
+    address: str
+    query: str
+    restaurants: list[GrubhubRestaurant]
+
+def search_grubhub_restaurants(playwright, request: GrubhubSearchRequest) -> GrubhubSearchResult

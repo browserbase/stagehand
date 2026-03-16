@@ -1,0 +1,16 @@
+# Fetches a stock quote from Fidelity for the given ticker symbol,
+# returning price, day change, and 52-week range.
+
+@dataclass(frozen=True)
+class FidelityQuoteRequest:
+    symbol: str
+
+@dataclass(frozen=True)
+class FidelityQuote:
+    symbol: str
+    price: str
+    day_change: str
+    week52_low: str
+    week52_high: str
+
+def get_fidelity_quote(playwright, request: FidelityQuoteRequest) -> FidelityQuote

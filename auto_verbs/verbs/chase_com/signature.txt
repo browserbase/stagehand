@@ -1,0 +1,19 @@
+# Searches for Chase Bank branches and ATMs near a location, returning up to max_results results.
+
+@dataclass(frozen=True)
+class ChaseSearchRequest:
+    search_term: str
+    max_results: int
+
+@dataclass(frozen=True)
+class ChaseBranch:
+    name: str
+    address: str
+    hours: str
+
+@dataclass(frozen=True)
+class ChaseSearchResult:
+    search_term: str
+    branches: list[ChaseBranch]
+
+def search_chase_branches(playwright, request: ChaseSearchRequest) -> ChaseSearchResult

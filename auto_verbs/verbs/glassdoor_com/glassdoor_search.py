@@ -2,14 +2,37 @@
 Glassdoor – Microsoft Company Reviews
 Pure Playwright – no AI.
 """
+from datetime import date, timedelta
 import re, os, sys, traceback, shutil, tempfile
 from playwright.sync_api import Playwright, sync_playwright
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
+from dataclasses import dataclass
 
-def run(playwright: Playwright) -> dict:
+
+@dataclass(frozen=True)
+class GlassdoorSearchRequest:
+    company_name: str
+
+
+@dataclass(frozen=True)
+class GlassdoorReview:
+    company_name: str
+    overall_rating: str
+    ceo_approval: str
+    pros: tuple
+    cons: tuple
+
+
+# Fetches Glassdoor company reviews for a company, returning overall rating,
+# CEO approval, and top pros/cons from employee reviews.
+def get_glassdoor_review(
+    playwright,
+    request: GlassdoorSearchRequest,
+) -> GlassdoorReview:
+    result = {"overall_rating": "", "ceo_approval": "", "pros": [], "cons": []}
     port = get_free_port()
     profile_dir = get_temp_profile_dir("glassdoor_com")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -221,9 +244,24 @@ def run(playwright: Playwright) -> dict:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return result
+    return GlassdoorReview(
+        company_name=request.company_name,
+        overall_rating=result.get("overall_rating",""),
+        ceo_approval=result.get("ceo_approval",""),
+        pros=result.get("pros",[]),
+        cons=result.get("cons",[]),
+    )
+def test_get_glassdoor_review() -> None:
+    from playwright.sync_api import sync_playwright
+    request = GlassdoorSearchRequest(company_name="Microsoft")
+    with sync_playwright() as playwright:
+        result = get_glassdoor_review(playwright, request)
+    assert result.company_name == request.company_name
+    print(f"\nCompany: {result.company_name}")
+    print(f"  Rating: {result.overall_rating}  CEO: {result.ceo_approval}")
+    print(f"  Pros: {result.pros[:2]}")
+    print(f"  Cons: {result.cons[:2]}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_get_glassdoor_review()

@@ -1,0 +1,22 @@
+# Searches Indeed for job postings matching a title and location, returning up to max_results results.
+
+@dataclass(frozen=True)
+class IndeedSearchRequest:
+    job_title: str
+    location: str
+    max_results: int
+
+@dataclass(frozen=True)
+class IndeedJob:
+    title: str
+    company: str
+    salary: str
+    posted: str
+
+@dataclass(frozen=True)
+class IndeedSearchResult:
+    job_title: str
+    location: str
+    jobs: list[IndeedJob]
+
+def search_indeed_jobs(playwright, request: IndeedSearchRequest) -> IndeedSearchResult

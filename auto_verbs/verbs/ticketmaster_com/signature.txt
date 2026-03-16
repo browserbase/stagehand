@@ -1,0 +1,22 @@
+# Searches Ticketmaster for events matching a query and returns up to max_results listings.
+
+@dataclass(frozen=True)
+class TicketmasterSearchRequest:
+    search_query: str
+    location: str
+    max_results: int
+
+@dataclass(frozen=True)
+class TicketmasterEvent:
+    name: str
+    date: str
+    venue: str
+    price: str
+
+@dataclass(frozen=True)
+class TicketmasterSearchResult:
+    search_query: str
+    location: str
+    events: list[TicketmasterEvent]
+
+def search_ticketmaster_events(playwright, request: TicketmasterSearchRequest) -> TicketmasterSearchResult

@@ -1,0 +1,14 @@
+# Sends a Microsoft Teams message to a recipient and returns True on success.
+
+@dataclass(frozen=True)
+class TeamsSendRequest:
+    recipient: str
+    message: str
+
+@dataclass(frozen=True)
+class TeamsSendResult:
+    success: bool
+    recipient: str
+    message: str
+
+def send_teams_message(playwright, request: TeamsSendRequest) -> TeamsSendResult

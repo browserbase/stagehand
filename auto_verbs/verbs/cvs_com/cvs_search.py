@@ -22,12 +22,35 @@ _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 import shutil
 
+from dataclasses import dataclass
 
-def run(
-    playwright: Playwright,
-    zip_code: str = "10001",
-    max_results: int = 5,
-) -> list:
+@dataclass(frozen=True)
+class CvsSearchRequest:
+    zip_code: str
+    max_results: int
+
+@dataclass(frozen=True)
+class CvsStore:
+    address: str
+    phone: str
+    hours: str
+    has_pharmacy: str
+    has_minuteclinic: str
+
+@dataclass(frozen=True)
+class CvsSearchResult:
+    zip_code: str
+    stores: list[CvsStore]
+
+
+# Searches for CVS store locations near a ZIP code and returns up to max_results results.
+def search_cvs_stores(
+    playwright,
+    request: CvsSearchRequest,
+) -> CvsSearchResult:
+    zip_code = request.zip_code
+    max_results = request.max_results
+    raw_results = []
     print("=" * 59)
     print("  CVS – Store Locator")
     print("=" * 59)
@@ -41,7 +64,7 @@ def run(
     browser = playwright.chromium.connect_over_cdp(ws_url)
     context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
-    results = []
+    raw_results = []
 
     try:
         # ── Navigate to store locator landing page ──────────────────
@@ -87,7 +110,7 @@ def run(
         page.evaluate("window.scrollTo(0, 0)")
         page.wait_for_timeout(1000)
 
-        # ── Extract results ───────────────────────────────────────────
+        # ── Extract raw_results ───────────────────────────────────────────
         print(f"Extracting up to {max_results} stores...\n")
 
         # CVS uses web components (shadow DOM) for store cards, so
@@ -117,7 +140,7 @@ def run(
         }""") or ""
         lines = [l.strip() for l in body_text.split("\n") if l.strip()]
 
-        # ── Extract results using CVS page structure ────────────────
+        # ── Extract raw_results using CVS page structure ────────────────
         # CVS store listings follow a consistent pattern:
         #   [number] -> address -> CITY, ST, ZIP -> ... phone -> hours -> services
         # Find store blocks by looking for lines that are just a single number (1-9)
@@ -130,7 +153,7 @@ def run(
                     store_starts.append(k)
 
         for si, start_idx in enumerate(store_starts):
-            if len(results) >= max_results:
+            if len(raw_results) >= max_results:
                 break
             # Determine end of this store block
             end_idx = store_starts[si + 1] - 2 if si + 1 < len(store_starts) else min(start_idx + 25, len(lines))
@@ -181,11 +204,11 @@ def run(
                     store["has_minuteclinic"] = "Yes"
 
             if store["address"] != "N/A":
-                results.append(store)
+                raw_results.append(store)
 
-        # ── Print results ─────────────────────────────────────────────
-        print(f"\nFound {len(results)} stores:\n")
-        for i, s in enumerate(results, 1):
+        # ── Print raw_results ─────────────────────────────────────────────
+        print(f"\nFound {len(raw_results)} stores:\n")
+        for i, s in enumerate(raw_results, 1):
             print(f"  {i}. {s['address']}")
             print(f"     Phone:        {s['phone']}")
             print(f"     Hours:        {s['hours']}")
@@ -203,10 +226,25 @@ def run(
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return results
+    return CvsSearchResult(
+        zip_code=zip_code,
+        stores=[CvsStore(
+            address=r.get("address",""),
+            phone=r.get("phone",""),
+            hours=r.get("hours",""),
+            has_pharmacy=r.get("has_pharmacy",""),
+            has_minuteclinic=r.get("has_minuteclinic",""),
+        ) for r in raw_results],
+    )
+def test_search_cvs_stores() -> None:
+    from playwright.sync_api import sync_playwright
+    request = CvsSearchRequest(zip_code="10001", max_results=5)
+    with sync_playwright() as playwright:
+        result = search_cvs_stores(playwright, request)
+    assert result.zip_code == request.zip_code
+    assert len(result.stores) <= request.max_results
+    print(f"\nTotal stores found: {len(result.stores)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        items = run(playwright)
-        print(f"Total results: {len(items)}")
+    test_search_cvs_stores()

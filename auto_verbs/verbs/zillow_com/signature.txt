@@ -1,0 +1,20 @@
+# Searches Zillow for homes for sale in a location and returns up to max_results listings.
+
+@dataclass(frozen=True)
+class ZillowSearchRequest:
+    location: str
+    max_results: int
+
+@dataclass(frozen=True)
+class ZillowHome:
+    address: str
+    price: str
+    beds: str
+    sqft: str
+
+@dataclass(frozen=True)
+class ZillowSearchResult:
+    location: str
+    homes: list[ZillowHome]
+
+def search_zillow_homes(playwright, request: ZillowSearchRequest) -> ZillowSearchResult

@@ -1,0 +1,20 @@
+# Searches Etsy for handmade/vintage listings matching a query, returning
+# up to max_results items with title, price, and seller name.
+
+@dataclass(frozen=True)
+class EtsySearchRequest:
+    search_query: str
+    max_results: int
+
+@dataclass(frozen=True)
+class EtsyListing:
+    title: str
+    price: str
+    seller: str
+
+@dataclass(frozen=True)
+class EtsySearchResult:
+    search_query: str
+    listings: list[EtsyListing]
+
+def search_etsy_listings(playwright, request: EtsySearchRequest) -> EtsySearchResult

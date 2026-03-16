@@ -12,9 +12,33 @@ import os as _os
 _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, launch_chrome, wait_for_cdp_ws
 
-MAX_RESULTS = 5
+from dataclasses import dataclass
+from dateutil.relativedelta import relativedelta
 
-def run(playwright: Playwright) -> list:
+
+
+@dataclass(frozen=True)
+class OpentableSearchRequest:
+    location: str = "Seattle"
+    covers: int = 2
+    max_results: int = 5
+
+
+@dataclass(frozen=True)
+class OpentableRestaurant:
+    name: str
+    cuisine: str
+    rating: str
+    available_times: str
+
+
+@dataclass(frozen=True)
+class OpentableSearchResult:
+    location: str
+    restaurants: list
+
+
+def search_opentable_restaurants(playwright, request: OpentableSearchRequest) -> OpentableSearchResult:
     port = get_free_port()
     profile_dir = tempfile.mkdtemp(prefix="opentable_")
     chrome_proc = launch_chrome(profile_dir, port)
@@ -52,7 +76,7 @@ def run(playwright: Playwright) -> list:
         print(f"   Found {len(cards)} restaurant cards")
 
         for card in cards:
-            if len(restaurants) >= MAX_RESULTS:
+            if len(restaurants) >= request.max_results:
                 break
             try:
                 txt = card.inner_text(timeout=3000)
@@ -117,7 +141,7 @@ def run(playwright: Playwright) -> list:
             lines = [l.strip() for l in body.splitlines() if l.strip()]
             rating_labels = {"Exceptional", "Awesome", "Good", "Great"}
             i = 0
-            while i < len(lines) - 3 and len(restaurants) < MAX_RESULTS:
+            while i < len(lines) - 3 and len(restaurants) < request.max_results:
                 ln = lines[i]
                 # A restaurant name is followed by an optional "Promoted",
                 # then a rating label
@@ -171,8 +195,24 @@ def run(playwright: Playwright) -> list:
             pass
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
-    return restaurants
+    return OpentableSearchResult(
+        location=request.location,
+        restaurants=[OpentableRestaurant(
+            name=r['name'], cuisine=r['cuisine'],
+            rating=r['rating'], available_times=r['available_times']
+        ) for r in restaurants],
+    )
+
+
+def test_opentable_restaurants():
+    from playwright.sync_api import sync_playwright
+    request = OpentableSearchRequest(location="Seattle", covers=2, max_results=5)
+    with sync_playwright() as pl:
+        result = search_opentable_restaurants(pl, request)
+    print(f"\nTotal restaurants: {len(result.restaurants)}")
+    for i, r in enumerate(result.restaurants, 1):
+        print(f"  {i}. {r.name}  {r.cuisine}  {r.rating}")
+
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        run(playwright)
+    test_opentable_restaurants()

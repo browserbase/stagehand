@@ -6,6 +6,7 @@ Generated: 2026-02-28T06:32:38.178Z
 Pure Playwright – no AI. Uses Etsy listing card selectors.
 """
 
+from datetime import date, timedelta
 import re
 import os
 import traceback
@@ -17,8 +18,9 @@ _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
 from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 import shutil
 
-QUERY = "handmade ceramic mug"
-MAX_RESULTS = 5
+from dataclasses import dataclass
+
+
 URL = "https://www.etsy.com/search?q=handmade%20ceramic%20mug&order=highest_reviews"
 
 
@@ -39,17 +41,40 @@ def dismiss_popups(page):
             pass
 
 
-def run(
-    playwright: Playwright,
-    search_query: str = QUERY,
-    max_results: int = MAX_RESULTS,
-) -> list:
+@dataclass(frozen=True)
+class EtsySearchRequest:
+    search_query: str
+    max_results: int
+
+
+@dataclass(frozen=True)
+class EtsyListing:
+    title: str
+    price: str
+    seller: str
+
+
+@dataclass(frozen=True)
+class EtsySearchResult:
+    search_query: str
+    listings: list[EtsyListing]
+
+
+# Searches Etsy for handmade/vintage listings matching a query, returning
+# up to max_results items with title, price, and seller name.
+def search_etsy_listings(
+    playwright,
+    request: EtsySearchRequest,
+) -> EtsySearchResult:
+    search_query = request.search_query
+    max_results = request.max_results
+    raw_results = []
     print("=" * 60)
     print("  Etsy – Handmade Ceramic Mug Search")
     print("=" * 60)
     print(f'  Query: "{search_query}"')
     print(f"  Sort: Top Customer Reviews")
-    print(f"  Max results: {max_results}\n")
+    print(f"  Max raw_results: {max_results}\n")
 
     port = get_free_port()
     profile_dir = get_temp_profile_dir("etsy_com")
@@ -58,7 +83,7 @@ def run(
     browser = playwright.chromium.connect_over_cdp(ws_url)
     context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
-    results = []
+    raw_results = []
 
     try:
         # Visit homepage first so DataDome sets session cookies
@@ -68,14 +93,14 @@ def run(
         dismiss_popups(page)
         print(f"   Homepage loaded: {page.title()}")
 
-        print("STEP 1b: Navigate to Etsy search results...")
+        print("STEP 1b: Navigate to Etsy search raw_results...")
         page.goto(URL, wait_until="domcontentloaded", timeout=30000)
         page.wait_for_timeout(3000)
         dismiss_popups(page)
         print(f"   Loaded: {page.url}\n")
 
         print("STEP 2: Extract listings...")
-        card_loc = page.locator("[data-search-results] .v2-listing-card")
+        card_loc = page.locator("[data-search-raw_results] .v2-listing-card")
         total = card_loc.count()
         if total == 0:
             card_loc = page.locator(".search-listing-card")
@@ -84,7 +109,7 @@ def run(
 
         seen_titles = set()
         idx = 0
-        while len(results) < max_results and idx < total:
+        while len(raw_results) < max_results and idx < total:
             card = card_loc.nth(idx)
             idx += 1
             try:
@@ -118,14 +143,14 @@ def run(
                 except Exception:
                     pass
 
-                results.append({"title": title, "price": price, "seller": seller})
+                raw_results.append({"title": title, "price": price, "seller": seller})
             except Exception:
                 continue
 
         print(f"\n" + "=" * 60)
-        print(f"  DONE – {len(results)} results")
+        print(f"  DONE – {len(raw_results)} raw_results")
         print("=" * 60)
-        for i, r in enumerate(results, 1):
+        for i, r in enumerate(raw_results, 1):
             print(f"  {i}. {r['title']}")
             print(f"     Price:  {r['price']}")
             print(f"     Seller: {r['seller']}")
@@ -142,10 +167,19 @@ def run(
         chrome_proc.terminate()
         shutil.rmtree(profile_dir, ignore_errors=True)
 
-    return results
+    return EtsySearchResult(
+        search_query=search_query,
+        listings=[EtsyListing(title=r["title"], price=r["price"], seller=r["seller"]) for r in raw_results],
+    )
+def test_search_etsy_listings() -> None:
+    from playwright.sync_api import sync_playwright
+    request = EtsySearchRequest(search_query="handmade ceramic mug", max_results=5)
+    with sync_playwright() as playwright:
+        result = search_etsy_listings(playwright, request)
+    assert result.search_query == request.search_query
+    assert len(result.listings) <= request.max_results
+    print(f"\nTotal listings found: {len(result.listings)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        items = run(playwright)
-        print(f"Total results: {len(items)}")
+    test_search_etsy_listings()

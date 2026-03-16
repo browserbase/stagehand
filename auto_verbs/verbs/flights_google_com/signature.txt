@@ -1,0 +1,27 @@
+# Searches Google Flights for round-trip flights between origin and destination
+# on specified dates, returning up to max_results options with flight number,
+# itinerary, and economy price.
+
+@dataclass(frozen=True)
+class GoogleFlightSearchRequest:
+    origin: str
+    destination: str
+    departure_date: date
+    return_date: date
+    max_results: int
+
+@dataclass(frozen=True)
+class GoogleFlight:
+    flight_number: str
+    itinerary: str
+    price: str
+
+@dataclass(frozen=True)
+class GoogleFlightSearchResult:
+    origin: str
+    destination: str
+    departure_date: date
+    return_date: date
+    flights: list[GoogleFlight]
+
+def search_google_flights(playwright, request: GoogleFlightSearchRequest) -> GoogleFlightSearchResult

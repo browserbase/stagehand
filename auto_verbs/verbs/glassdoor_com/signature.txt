@@ -1,0 +1,16 @@
+# Fetches Glassdoor company reviews for a company, returning overall rating,
+# CEO approval, and top pros/cons from employee reviews.
+
+@dataclass(frozen=True)
+class GlassdoorSearchRequest:
+    company_name: str
+
+@dataclass(frozen=True)
+class GlassdoorReview:
+    company_name: str
+    overall_rating: str
+    ceo_approval: str
+    pros: tuple
+    cons: tuple
+
+def get_glassdoor_review(playwright, request: GlassdoorSearchRequest) -> GlassdoorReview

@@ -11,14 +11,14 @@ import re
 import os
 import urllib.parse
 from datetime import date, timedelta
+from dataclasses import dataclass
 from dateutil.relativedelta import relativedelta
 from playwright.sync_api import Playwright, sync_playwright
 
 import sys as _sys
 import os as _os
 _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
-from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
-import shutil
+from cdp_utils import cdp_cleanup, get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
 
 MONTH_NAMES = [
@@ -27,21 +27,45 @@ MONTH_NAMES = [
 ]
 
 
-def compute_dates(nights: int = 3):
-    today = date.today()
-    checkin = today + relativedelta(months=2)
-    checkout = checkin + timedelta(days=nights)
-    return checkin, checkout
+@dataclass(frozen=True)
+class AirbnbSearchRequest:
+    destination: str
+    num_guests: int
+    checkin_date: date
+    checkout_date: date
+    max_results: int
 
 
-def run(
+@dataclass(frozen=True)
+class AirbnbListing:
+    title: str
+    price_per_night: str
+    rating: str
+
+
+@dataclass(frozen=True)
+class AirbnbSearchResult:
+    destination: str
+    checkin_date: date
+    checkout_date: date
+    num_guests: int
+    nights: int
+    listings: list[AirbnbListing]
+
+
+# Automates Airbnb search for a destination and guest count over a provided date range,
+# then returns up to max_results listings with title, price per night, and rating.
+def search_airbnb_listings(
     playwright: Playwright,
-    destination: str = "Lake Tahoe",
-    num_guests: int = 2,
-    nights: int = 3,
-    max_results: int = 5,
-) -> list:
-    checkin, checkout = compute_dates(nights)
+    request: AirbnbSearchRequest,
+) -> AirbnbSearchResult:
+    destination = request.destination
+    num_guests = request.num_guests
+    checkin = request.checkin_date
+    checkout = request.checkout_date
+    nights = (checkout - checkin).days
+    max_results = request.max_results
+
     checkin_str = checkin.strftime("%Y-%m-%d")
     checkout_str = checkout.strftime("%Y-%m-%d")
     checkin_display = checkin.strftime("%m/%d/%Y")
@@ -52,14 +76,17 @@ def run(
 
     port = get_free_port()
     profile_dir = get_temp_profile_dir("airbnb_com")
-    chrome_proc = launch_chrome(profile_dir, port)
-    ws_url = wait_for_cdp_ws(port)
-    browser = playwright.chromium.connect_over_cdp(ws_url)
-    context = browser.contexts[0]
-    page = context.pages[0] if context.pages else context.new_page()
-    results = []
+    chrome_proc = None
+    browser = None
+    results: list[AirbnbListing] = []
 
     try:
+        chrome_proc = launch_chrome(profile_dir, port)
+        ws_url = wait_for_cdp_ws(port)
+        browser = playwright.chromium.connect_over_cdp(ws_url)
+        context = browser.contexts[0]
+        page = context.pages[0] if context.pages else context.new_page()
+
         # ── Navigate ──────────────────────────────────────────────────
         print("Loading Airbnb...")
         page.goto("https://www.airbnb.com")
@@ -299,7 +326,11 @@ def run(
         )
 
         results = [
-            {"title": l["title"], "price": l["price"], "rating": l["rating"]}
+            AirbnbListing(
+                title=l["title"],
+                price_per_night=l["price"],
+                rating=l["rating"],
+            )
             for l in js_listings
         ]
 
@@ -313,11 +344,11 @@ def run(
                 pm = re.search(r"\$(\d[\d,]*)", line)
                 if pm and 10 < len(line.strip()) < 200:
                     results.append(
-                        {
-                            "title": line.strip()[:100],
-                            "price": "$" + pm.group(1),
-                            "rating": "N/A",
-                        }
+                        AirbnbListing(
+                            title=line.strip()[:100],
+                            price_per_night="$" + pm.group(1),
+                            rating="N/A",
+                        )
                     )
 
         # ── Print results ─────────────────────────────────────────────
@@ -327,8 +358,8 @@ def run(
             f"  ({nights} nights, {num_guests} guests)\n"
         )
         for i, listing in enumerate(results, 1):
-            print(f"  {i}. {listing['title']}")
-            print(f"     Price: {listing['price']}/night  Rating: {listing['rating']}")
+            print(f"  {i}. {listing.title}")
+            print(f"     Price: {listing.price_per_night}/night  Rating: {listing.rating}")
 
     except Exception as e:
         import traceback
@@ -336,17 +367,43 @@ def run(
         print(f"Error: {e}")
         traceback.print_exc()
     finally:
-        try:
-            browser.close()
-        except Exception:
-            pass
-        chrome_proc.terminate()
-        shutil.rmtree(profile_dir, ignore_errors=True)
+        cdp_cleanup(browser, chrome_proc, profile_dir)
 
-    return results
+    return AirbnbSearchResult(
+        destination=destination,
+        checkin_date=checkin,
+        checkout_date=checkout,
+        num_guests=num_guests,
+        nights=nights,
+        listings=results,
+    )
+
+
+def test_search_airbnb_listings() -> None:
+    today = date.today()
+    checkin = today + relativedelta(months=2)
+    checkout = checkin + timedelta(days=3)
+
+    request = AirbnbSearchRequest(
+        destination="Lake Tahoe",
+        num_guests=2,
+        checkin_date=checkin,
+        checkout_date=checkout,
+        max_results=5,
+    )
+
+    with sync_playwright() as playwright:
+        result = search_airbnb_listings(playwright, request)
+
+    assert result.destination == request.destination
+    assert result.num_guests == request.num_guests
+    assert result.checkin_date == request.checkin_date
+    assert result.checkout_date == request.checkout_date
+    assert result.nights == (request.checkout_date - request.checkin_date).days
+    assert len(result.listings) <= request.max_results
+
+    print(f"\nTotal listings found: {len(result.listings)}")
 
 
 if __name__ == "__main__":
-    with sync_playwright() as playwright:
-        items = run(playwright)
-        print(f"\nTotal listings found: {len(items)}")
+    test_search_airbnb_listings()

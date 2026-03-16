@@ -1,0 +1,14 @@
+# Looks up USPS ZIP code information for a given address and returns location details.
+
+@dataclass(frozen=True)
+class UspsZipRequest:
+    address: str
+
+@dataclass(frozen=True)
+class UspsZipResult:
+    address: str
+    zip_code: str
+    city: str
+    state: str
+
+def lookup_usps_zip(playwright, request: UspsZipRequest) -> UspsZipResult

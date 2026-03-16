@@ -1,0 +1,24 @@
+# Searches Expedia for hotels at a destination over given dates,
+# returning up to max_results hotels with name, per-night price, and rating.
+
+@dataclass(frozen=True)
+class ExpediaSearchRequest:
+    destination: str
+    checkin_date: date
+    checkout_date: date
+    max_results: int
+
+@dataclass(frozen=True)
+class ExpediaHotel:
+    name: str
+    price_per_night: str
+    rating: str
+
+@dataclass(frozen=True)
+class ExpediaSearchResult:
+    destination: str
+    checkin_date: date
+    checkout_date: date
+    hotels: list[ExpediaHotel]
+
+def search_expedia_hotels(playwright, request: ExpediaSearchRequest) -> ExpediaSearchResult

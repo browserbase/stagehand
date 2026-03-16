@@ -1,0 +1,20 @@
+# Searches Trulia for homes for sale or rent in a location and returns up to max_results listings.
+
+@dataclass(frozen=True)
+class TruliaSearchRequest:
+    location: str
+    max_results: int
+
+@dataclass(frozen=True)
+class TruliaHome:
+    address: str
+    price: str
+    beds: str
+    sqft: str
+
+@dataclass(frozen=True)
+class TruliaSearchResult:
+    location: str
+    homes: list[TruliaHome]
+
+def search_trulia_homes(playwright, request: TruliaSearchRequest) -> TruliaSearchResult

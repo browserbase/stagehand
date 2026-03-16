@@ -1,0 +1,23 @@
+# Searches DoorDash for restaurants matching a query near an address,
+# returning up to max_results results with name, rating, delivery fee, and time.
+
+@dataclass(frozen=True)
+class DoorDashSearchRequest:
+    address: str
+    query: str
+    max_results: int
+
+@dataclass(frozen=True)
+class DoorDashRestaurant:
+    name: str
+    rating: str
+    delivery_fee: str
+    est_time: str
+
+@dataclass(frozen=True)
+class DoorDashSearchResult:
+    address: str
+    query: str
+    restaurants: list[DoorDashRestaurant]
+
+def search_doordash_restaurants(playwright, request: DoorDashSearchRequest) -> DoorDashSearchResult

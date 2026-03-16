@@ -1,0 +1,9 @@
+In the current folder (for this case), please read the python code that automates the trajectory, as well as prompt-create-trajectory.txt.
+I want you to generalize the code into a function and a test that call the function.
+
+* Please identify parameters and the return value of the function
+* Please make the  parameters and the return value properly typed. Do not use some generic types such as JSONObject. I want each type to have explicit data members.
+* Please make the test and the function in the single py file. When the file runs, the test is executed, Meanwhile, the file can be used as a module.
+* When prompt-create-trajectory.txt mentions a date that is obtained by a calculation (e.g., 2 months from today), please consider it a paramter in the automation function. Do not perform the date calculation in the function. Instead, the calculation should be in the test code.
+* Please add a comment before the generated automation function to describe its functionality.
+* Please generate a separate txt file, named signature.txt, which contains the function signature (including the comment) and all the type defs of the paramters and return value.
