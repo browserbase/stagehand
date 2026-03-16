@@ -318,7 +318,7 @@ export interface AgentExecuteOptionsBase {
    * - `think` - Agent reasoning/planning step
    * - `wait` - Wait for time or condition
    * - `done` - Mark task as complete
-   * - `search` - Web search (requires BRAVE_API_KEY)
+   * - `search` - Web search (requires useSearch: true and BROWSERBASE_API_KEY)
    *
    * **Hybrid mode:**
    * - `click` - Click at specific coordinates
@@ -337,7 +337,7 @@ export interface AgentExecuteOptionsBase {
    * - `think` - Agent reasoning step
    * - `wait` - Wait for time/condition
    * - `done` - Mark task complete
-   * - `search` - Web search (requires BRAVE_API_KEY)
+   * - `search` - Web search (requires useSearch: true and BROWSERBASE_API_KEY)
    *
    * @experimental
    * @example
@@ -402,6 +402,20 @@ export interface AgentExecuteOptionsBase {
    * @default 45000 (45 seconds)
    */
   toolTimeout?: number;
+  /**
+   * Enable the web search tool powered by Browserbase Search API.
+   * Requires a valid Browserbase API key (BROWSERBASE_API_KEY).
+   * When set to true, the agent gains access to a `search` tool for web searches.
+   *
+   * @example
+   * ```typescript
+   * const result = await agent.execute({
+   *   instruction: "Find the latest news about AI",
+   *   useSearch: true,
+   * });
+   * ```
+   */
+  useSearch?: boolean;
 }
 
 /**

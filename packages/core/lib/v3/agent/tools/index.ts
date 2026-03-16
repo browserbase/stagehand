@@ -14,7 +14,8 @@ import { clickAndHoldTool } from "./clickAndHold.js";
 import { keysTool } from "./keys.js";
 import { fillFormVisionTool } from "./fillFormVision.js";
 import { thinkTool } from "./think.js";
-import { searchTool } from "./search.js";
+import { searchTool as browserbaseSearchTool } from "./browserbaseSearch.js";
+import { searchTool as braveSearchTool } from "./braveSearch.js";
 
 import type { ToolSet, InferUITools } from "ai";
 import type { V3 } from "../../v3.js";
@@ -53,6 +54,16 @@ export interface V3AgentToolOptions {
    * Forwarded to the underlying v3 call's `timeout` option.
    */
   toolTimeout?: number;
+  /**
+   * Whether to enable the Browserbase-powered web search tool.
+   * Requires a valid Browserbase API key.
+   */
+  useSearch?: boolean;
+  /**
+   * The Browserbase API key used for the search tool.
+   * Resolved from BROWSERBASE_API_KEY env var or the Stagehand constructor.
+   */
+  browserbaseApiKey?: string;
 }
 
 /**
@@ -116,8 +127,10 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     wait: waitTool(v3, mode),
   };
 
-  if (process.env.BRAVE_API_KEY) {
-    allTools.search = searchTool(v3);
+  if (options?.useSearch && options.browserbaseApiKey) {
+    allTools.search = browserbaseSearchTool(v3, options.browserbaseApiKey);
+  } else if (process.env.BRAVE_API_KEY) {
+    allTools.search = braveSearchTool(v3);
   }
 
   return filterTools(allTools, mode, excludeTools);
@@ -127,7 +140,7 @@ export type AgentTools = ReturnType<typeof createAgentTools>;
 
 /**
  * Type map of all agent tools for strong typing of tool calls and results.
- * Note: `search` is optional as it's only available when BRAVE_API_KEY is configured.
+ * Note: `search` is optional — enabled via useSearch: true (Browserbase) or BRAVE_API_KEY env var (legacy).
  */
 export type AgentToolTypesMap = {
   act: ReturnType<typeof actTool>;
@@ -143,7 +156,9 @@ export type AgentToolTypesMap = {
   navback: ReturnType<typeof navBackTool>;
   screenshot: ReturnType<typeof screenshotTool>;
   scroll: ReturnType<typeof scrollTool> | ReturnType<typeof scrollVisionTool>;
-  search?: ReturnType<typeof searchTool>;
+  search?:
+    | ReturnType<typeof browserbaseSearchTool>
+    | ReturnType<typeof braveSearchTool>;
   think: ReturnType<typeof thinkTool>;
   type: ReturnType<typeof typeTool>;
   wait: ReturnType<typeof waitTool>;
