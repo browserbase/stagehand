@@ -1479,11 +1479,7 @@ export class V3 {
    * Returns undefined if no key is found (does not throw).
    */
   public get browserbaseApiKey(): string | undefined {
-    return (
-      this.opts.apiKey ??
-      process.env.BROWSERBASE_API_KEY ??
-      process.env.BB_API_KEY
-    );
+    return this.opts.apiKey ?? process.env.BROWSERBASE_API_KEY;
   }
 
   /** Guard: ensure Browserbase credentials exist in options. */
