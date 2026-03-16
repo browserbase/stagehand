@@ -2,67 +2,61 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
 
-export interface BraveSearchResult {
+export interface SearchResult {
   title: string;
   url: string;
-  description?: string;
+  publishedDate?: string;
 }
 
 interface SearchResponse {
   data?: {
-    results: BraveSearchResult[];
+    results: SearchResult[];
   };
   error?: string;
 }
 
-interface BraveWebResult {
+interface BrowserbaseSearchResult {
   title?: string;
   url?: string;
-  description?: string;
-  age?: string;
-  meta_url?: {
-    favicon?: string;
-  };
+  publishedDate?: string;
 }
 
-interface BraveApiResponse {
-  web?: {
-    results?: BraveWebResult[];
-  };
+interface BrowserbaseApiResponse {
+  results?: BrowserbaseSearchResult[];
 }
 
-async function performBraveSearch(query: string): Promise<SearchResponse> {
+async function performBrowserbaseSearch(
+  query: string,
+  apiKey: string,
+  numResults: number = 5,
+): Promise<SearchResponse> {
   try {
-    const encodedQuery = encodeURIComponent(query);
-    const response = await fetch(
-      `https://api.search.brave.com/res/v1/web/search?q=${encodedQuery}`,
-      {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          "Accept-Encoding": "gzip",
-          "X-Subscription-Token": process.env.BRAVE_API_KEY!,
-        },
+    const response = await fetch("https://api.browserbase.com/v1/search", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-bb-api-key": apiKey,
       },
-    );
+      body: JSON.stringify({ query, numResults }),
+    });
 
     if (!response.ok) {
       return {
-        error: `Brave API error: ${response.status} ${response.statusText}`,
+        error: `Browserbase Search API error: ${response.status} ${response.statusText}`,
         data: { results: [] },
       };
     }
 
-    const data = (await response.json()) as BraveApiResponse;
-    const results: BraveSearchResult[] = [];
+    const data = (await response.json()) as BrowserbaseApiResponse;
+    const results: SearchResult[] = [];
 
-    if (data?.web?.results && Array.isArray(data.web.results)) {
-      for (const item of data.web.results.slice(0, 5)) {
+    if (data?.results && Array.isArray(data.results)) {
+      for (const item of data.results.slice(0, numResults)) {
         if (item.title && item.url) {
           results.push({
             title: item.title,
             url: item.url,
-            description: item.description,
+            publishedDate: item.publishedDate,
           });
         }
       }
@@ -78,7 +72,7 @@ async function performBraveSearch(query: string): Promise<SearchResponse> {
   }
 }
 
-export const searchTool = (v3: V3) =>
+export const searchTool = (v3: V3, apiKey: string) =>
   tool({
     description:
       "Perform a web search and returns results. Use this tool when you need information from the web or when you are unsure of the exact URL you want to navigate to. This can be used to find the ideal entry point, resulting in a task that is easier to complete due to starting further in the process.",
@@ -98,8 +92,7 @@ export const searchTool = (v3: V3) =>
         },
       });
 
-      const result = await performBraveSearch(query);
-
+      const result = await performBrowserbaseSearch(query, apiKey);
       v3.recordAgentReplayStep({
         type: "search",
         instruction: query,

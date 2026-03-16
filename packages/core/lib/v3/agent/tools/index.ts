@@ -53,6 +53,16 @@ export interface V3AgentToolOptions {
    * Forwarded to the underlying v3 call's `timeout` option.
    */
   toolTimeout?: number;
+  /**
+   * Whether to enable the Browserbase-powered web search tool.
+   * Requires a valid Browserbase API key.
+   */
+  useSearch?: boolean;
+  /**
+   * The Browserbase API key used for the search tool.
+   * Resolved from BROWSERBASE_API_KEY / BB_API_KEY env vars or the Stagehand constructor.
+   */
+  browserbaseApiKey?: string;
 }
 
 /**
@@ -116,8 +126,8 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     wait: waitTool(v3, mode),
   };
 
-  if (process.env.BRAVE_API_KEY) {
-    allTools.search = searchTool(v3);
+  if (options?.useSearch && options.browserbaseApiKey) {
+    allTools.search = searchTool(v3, options.browserbaseApiKey);
   }
 
   return filterTools(allTools, mode, excludeTools);
@@ -127,7 +137,7 @@ export type AgentTools = ReturnType<typeof createAgentTools>;
 
 /**
  * Type map of all agent tools for strong typing of tool calls and results.
- * Note: `search` is optional as it's only available when BRAVE_API_KEY is configured.
+ * Note: `search` is optional as it's only available when useSearch: true is set with a valid Browserbase API key.
  */
 export type AgentToolTypesMap = {
   act: ReturnType<typeof actTool>;
