@@ -43,8 +43,8 @@ async function performBrowserbaseSearch(
     const data = (await response.json()) as BrowserbaseApiResponse;
     const results: SearchResult[] = (data?.results ?? []).map(
       ({ title, url, publishedDate }) => ({
-        title: title ?? "",
-        url: url ?? "",
+        title: title,
+        url: url,
         ...(publishedDate && { publishedDate }),
       }),
     );
