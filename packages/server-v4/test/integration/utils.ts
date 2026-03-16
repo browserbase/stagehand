@@ -30,13 +30,167 @@ export const {
   ANTHROPIC_API_KEY,
 } = process.env;
 
+function maskSecret(value: string | undefined): string {
+  if (!value) return "<unset>";
+  if (value.length <= 8) return `${value.slice(0, 2)}...${value.slice(-2)}`;
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
+}
+
+function describeEnvVar(name: string, value: string | undefined): string {
+  if (!value) {
+    return `${name}=<unset>`;
+  }
+  return `${name}=present (${maskSecret(value)})`;
+}
+
+function getEnvFormatWarning(
+  name: string,
+  value: string | undefined,
+): string | null {
+  if (!value) return null;
+
+  switch (name) {
+    case "OPENAI_API_KEY":
+      return value.startsWith("sk-")
+        ? null
+        : `${name} does not start with "sk-"`;
+    case "ANTHROPIC_API_KEY":
+      return value.startsWith("sk-ant-")
+        ? null
+        : `${name} does not start with "sk-ant-"`;
+    case "BROWSERBASE_API_KEY":
+      return /^bb_(live|test)_/u.test(value)
+        ? null
+        : `${name} does not look like a Browserbase API key`;
+    case "GEMINI_API_KEY":
+      return /^[A-Za-z0-9_-]{20,}$/u.test(value)
+        ? null
+        : `${name} does not look like a Google AI API key`;
+    default:
+      return null;
+  }
+}
+
+function formatCommonSetupDiagnostics(names: string[]): string {
+  const diagnostics = names.map((name) => {
+    const value = process.env[name];
+    const warning = getEnvFormatWarning(name, value);
+    return warning
+      ? `${describeEnvVar(name, value)} [warning: ${warning}]`
+      : describeEnvVar(name, value);
+  });
+
+  const chromePath = process.env.CHROME_PATH;
+  diagnostics.push(
+    chromePath
+      ? `CHROME_PATH=${chromePath} (exists=${fs.existsSync(chromePath)})`
+      : "CHROME_PATH=<unset> (using Playwright Chromium if installed)",
+  );
+
+  return diagnostics.join("\n");
+}
+
+function formatRequestSetupDiagnostics(
+  url: string,
+  options: RequestInit,
+): string | null {
+  const diagnostics: string[] = [];
+  const relevantEnv = new Set<string>(["OPENAI_API_KEY"]);
+
+  const headerMap = new Map<string, string>();
+  const headers = new Headers(options.headers);
+  headers.forEach((value, key) => {
+    headerMap.set(key.toLowerCase(), value);
+  });
+
+  const rawBody = typeof options.body === "string" ? options.body : null;
+  let parsedBody: Record<string, unknown> | null = null;
+  if (rawBody) {
+    try {
+      const candidate = JSON.parse(rawBody) as unknown;
+      if (candidate && typeof candidate === "object") {
+        parsedBody = candidate as Record<string, unknown>;
+      }
+    } catch {
+      parsedBody = null;
+    }
+  }
+
+  const bodyOptions =
+    parsedBody?.options && typeof parsedBody.options === "object"
+      ? (parsedBody.options as Record<string, unknown>)
+      : null;
+  const bodyModel =
+    bodyOptions?.model && typeof bodyOptions.model === "object"
+      ? (bodyOptions.model as Record<string, unknown>)
+      : null;
+  const bodyBrowser =
+    parsedBody?.browser && typeof parsedBody.browser === "object"
+      ? (parsedBody.browser as Record<string, unknown>)
+      : null;
+
+  const modelName =
+    typeof bodyModel?.modelName === "string"
+      ? bodyModel.modelName
+      : typeof parsedBody?.modelName === "string"
+        ? parsedBody.modelName
+        : null;
+  if (modelName) {
+    diagnostics.push(`request model: ${modelName}`);
+    if (modelName.startsWith("google/")) {
+      relevantEnv.add("GEMINI_API_KEY");
+    } else if (modelName.startsWith("anthropic/")) {
+      relevantEnv.add("ANTHROPIC_API_KEY");
+    }
+  }
+
+  const bodyApiKey =
+    typeof bodyModel?.apiKey === "string" ? bodyModel.apiKey : undefined;
+  const headerModelApiKey = headerMap.get("x-model-api-key");
+  if (bodyApiKey) {
+    diagnostics.push(`body model apiKey: ${maskSecret(bodyApiKey)}`);
+  }
+  if (headerModelApiKey !== undefined) {
+    diagnostics.push(
+      `x-model-api-key header: ${
+        headerModelApiKey ? maskSecret(headerModelApiKey) : "<empty>"
+      }`,
+    );
+  }
+  if (bodyApiKey && headerModelApiKey) {
+    diagnostics.push(
+      "warning: both body model.apiKey and x-model-api-key are set; mixed-provider requests are a common local setup mistake",
+    );
+  }
+
+  const browserType =
+    typeof bodyBrowser?.type === "string" ? bodyBrowser.type : null;
+  if (browserType === "browserbase") {
+    relevantEnv.add("BROWSERBASE_API_KEY");
+    relevantEnv.add("BROWSERBASE_PROJECT_ID");
+  }
+  if (
+    headerMap.has("x-bb-api-key") ||
+    headerMap.has("x-bb-project-id") ||
+    url.includes("multiRegion")
+  ) {
+    relevantEnv.add("BROWSERBASE_API_KEY");
+    relevantEnv.add("BROWSERBASE_PROJECT_ID");
+  }
+
+  diagnostics.push(formatCommonSetupDiagnostics([...relevantEnv]));
+  return diagnostics.length > 0 ? diagnostics.join("\n  ") : null;
+}
+
 // =============================================================================
 // Utility Functions
 // =============================================================================
 
 export function requireEnv(name: string, value: string | undefined): string {
   if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
+    throw new Error(
+      `Missing required environment variable: ${name}\n${formatCommonSetupDiagnostics([name])}`,
+    );
   }
   return value;
 }
@@ -552,6 +706,7 @@ export async function fetchWithContext<T = unknown>(
   url: string,
   options: RequestInit,
 ): Promise<FetchResult<T>> {
+  const setupDiagnostics = formatRequestSetupDiagnostics(url, options);
   const startTime = Date.now();
   let response: Response;
 
@@ -568,7 +723,12 @@ export async function fetchWithContext<T = unknown>(
       durationMs,
       headers: new Headers(),
       debugSummary() {
-        return `Fetch failed after ${durationMs}ms: ${errorMsg}`;
+        return [
+          `Fetch failed after ${durationMs}ms: ${errorMsg}`,
+          setupDiagnostics ? `  Setup:\n  ${setupDiagnostics}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n");
       },
     };
   }
@@ -611,6 +771,10 @@ export async function fetchWithContext<T = unknown>(
       if (status >= 400 || !body) {
         const truncated = raw.slice(0, 500);
         summary += `\n  Response: ${truncated}${raw.length > 500 ? "..." : ""}`;
+      }
+
+      if (setupDiagnostics) {
+        summary += `\n  Setup:\n  ${setupDiagnostics}`;
       }
 
       return summary;

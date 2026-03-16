@@ -58,7 +58,10 @@ describe("POST /v1/sessions/:id/extract (V3)", () => {
       `${url}/v1/sessions/${sessionId}/extract`,
       {
         method: "POST",
-        headers: getHeaders("3.0.0"),
+        headers: {
+          ...getHeaders("3.0.0"),
+          "x-model-api-key": "",
+        },
         body: JSON.stringify({
           instruction: "extract the page title",
           schema: {
