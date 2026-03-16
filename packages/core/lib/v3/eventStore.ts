@@ -1,21 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
-import { Writable } from "node:stream";
 import type { EventEmitter } from "node:events";
-import pino from "pino";
 
 import type { V3Options } from "./types/public/index.js";
 import { type FlowEvent } from "./flowLogger.js";
 
 const MAX_LINE_LENGTH = 160;
 const CONFIG_DIR = process.env.BROWSERBASE_CONFIG_DIR || "";
-
-export interface FlowEventAggregateMetrics {
-  llmRequests: number;
-  inputTokens: number;
-  outputTokens: number;
-  cdpEvents: number;
-}
+const SENSITIVE_KEYS =
+  /apikey|api_key|key|secret|token|password|passwd|pwd|credential|auth/i;
 
 export interface EventStoreQuery {
   sessionId?: string;
@@ -26,65 +19,110 @@ export interface EventStoreQuery {
 
 export type EventStoreListener = (event: FlowEvent) => void;
 
-export interface EventStore {
-  initializeSession(sessionId: string, v3Options?: V3Options): Promise<void>;
-  appendEvent(event: FlowEvent): Promise<void>;
-  attachBus(sessionId: string, bus: EventEmitter): () => void;
-  listEvents(query: EventStoreQuery): Promise<FlowEvent[]>;
-  subscribe(query: EventStoreQuery, listener: EventStoreListener): () => void;
+export interface EventSink {
+  emit(event: FlowEvent): Promise<void>;
+  query(query: EventStoreQuery): Promise<FlowEvent[]>;
   destroy(): Promise<void>;
 }
 
-// helper to take a list of events and compute aggregate metrics
-export function aggregateFlowEventMetrics(
-  events: FlowEvent[],
-): FlowEventAggregateMetrics {
-  return events.reduce<FlowEventAggregateMetrics>(
-    (totals, event) => {
-      if (event.eventType === "LlmRequestEvent") {
-        totals.llmRequests += 1;
-      }
+function matchesQuery(event: FlowEvent, query: EventStoreQuery): boolean {
+  if (query.sessionId && event.sessionId !== query.sessionId) return false;
 
-      if (event.eventType === "LlmResponseEvent") {
-        const data = event.data as {
-          inputTokens?: number;
-          outputTokens?: number;
-        };
-        totals.inputTokens += data?.inputTokens ?? 0;
-        totals.outputTokens += data?.outputTokens ?? 0;
-      }
+  if (query.eventId) {
+    const matchesEvent =
+      event.eventId === query.eventId ||
+      event.eventParentIds.includes(query.eventId);
+    if (!matchesEvent) {
+      return false;
+    }
+  }
 
-      if (event.eventType === "CdpCallEvent") {
-        totals.cdpEvents += 1;
-      }
+  if (query.eventType) {
+    const pattern = new RegExp(
+      `^${query.eventType
+        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+        .replace(/\\\*/g, ".*")}$`,
+    );
+    if (!pattern.test(event.eventType)) {
+      return false;
+    }
+  }
 
-      return totals;
-    },
-    {
-      llmRequests: 0,
-      inputTokens: 0,
-      outputTokens: 0,
-      cdpEvents: 0,
-    },
-  );
+  return true;
 }
 
-interface SessionContext {
-  logger: pino.Logger | null;
-  sessionId: string;
-  sessionDir: string;
-  configDir: string;
-  initPromise: Promise<void>;
-  initialized: boolean;
-  fileStreams: {
-    pretty: fs.WriteStream | null;
-    jsonl: fs.WriteStream | null;
+function isWritable(stream: fs.WriteStream | null): stream is fs.WriteStream {
+  return !!(stream && !stream.destroyed && stream.writable);
+}
+
+function writeToStream(stream: fs.WriteStream, value: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    try {
+      stream.write(value, (error?: Error | null) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+function sanitizeOptions(options: V3Options): Record<string, unknown> {
+  const sanitize = (value: unknown): unknown => {
+    if (typeof value !== "object" || value === null) return value;
+    if (Array.isArray(value)) return value.map(sanitize);
+
+    const result: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value)) {
+      result[key] = SENSITIVE_KEYS.test(key) ? "******" : sanitize(entry);
+    }
+    return result;
   };
+
+  return sanitize({ ...options }) as Record<string, unknown>;
 }
 
-interface EventSubscriber {
-  listener: EventStoreListener;
-  query: EventStoreQuery;
+export function getConfigDir(): string {
+  return CONFIG_DIR ? path.resolve(CONFIG_DIR) : "";
+}
+
+async function createSessionDir(
+  sessionId: string,
+  options?: V3Options,
+): Promise<string | null> {
+  const configDir = getConfigDir();
+  if (!configDir) {
+    return null;
+  }
+
+  const sessionDir = path.join(configDir, "sessions", sessionId);
+  await fs.promises.mkdir(sessionDir, { recursive: true });
+
+  if (options) {
+    await fs.promises.writeFile(
+      path.join(sessionDir, "session.json"),
+      JSON.stringify(sanitizeOptions(options), null, 2),
+      "utf-8",
+    );
+  }
+
+  const latestLink = path.join(configDir, "sessions", "latest");
+  try {
+    try {
+      await fs.promises.unlink(latestLink);
+    } catch {
+      // ignore missing link
+    }
+    await fs.promises.symlink(sessionId, latestLink, "dir");
+  } catch {
+    // symlink best effort only
+  }
+
+  return sessionDir;
 }
 
 function truncateCdpIds(value: string): string {
@@ -95,20 +133,20 @@ function truncateCdpIds(value: string): string {
   );
 }
 
-function sanitizeSinkValue(value: unknown): unknown {
+function sanitizePrettyValue(value: unknown): unknown {
   if (typeof value === "string") {
     return truncateCdpIds(value);
   }
 
   if (Array.isArray(value)) {
-    return value.map((entry) => sanitizeSinkValue(entry));
+    return value.map((entry) => sanitizePrettyValue(entry));
   }
 
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value).map(([key, entry]) => [
         key,
-        sanitizeSinkValue(entry),
+        sanitizePrettyValue(entry),
       ]),
     );
   }
@@ -116,14 +154,14 @@ function sanitizeSinkValue(value: unknown): unknown {
   return value;
 }
 
-function sanitizeEventForFileStore(event: FlowEvent): FlowEvent {
+function sanitizePrettyEvent(event: FlowEvent): FlowEvent {
   if (!event.eventType.startsWith("Cdp")) {
     return event;
   }
 
   return {
     ...event,
-    data: sanitizeSinkValue(event.data) as Record<string, unknown>,
+    data: sanitizePrettyValue(event.data) as Record<string, unknown>,
   };
 }
 
@@ -166,28 +204,10 @@ function shortId(id: string | null | undefined): string {
 }
 
 let nonce = 0;
-function formatTimestamp(): string {
-  const date = new Date();
+
+function formatTimestamp(date: Date): string {
   const pad = (value: number, width = 2) => String(value).padStart(width, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}${pad(nonce++ % 100)}`;
-}
-
-const SENSITIVE_KEYS =
-  /apikey|api_key|key|secret|token|password|passwd|pwd|credential|auth/i;
-
-function sanitizeOptions(options: V3Options): Record<string, unknown> {
-  const sanitize = (value: unknown): unknown => {
-    if (typeof value !== "object" || value === null) return value;
-    if (Array.isArray(value)) return value.map(sanitize);
-
-    const result: Record<string, unknown> = {};
-    for (const [key, entry] of Object.entries(value)) {
-      result[key] = SENSITIVE_KEYS.test(key) ? "******" : sanitize(entry);
-    }
-    return result;
-  };
-
-  return sanitize({ ...options }) as Record<string, unknown>;
 }
 
 function removeQuotes(value: string): string {
@@ -197,19 +217,7 @@ function removeQuotes(value: string): string {
     .trim();
 }
 
-function formatEventTimestamp(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return formatTimestamp();
-  }
-
-  const pad = (entry: number, width = 2) => String(entry).padStart(width, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}${pad(nonce++ % 100)}`;
-}
-
 function prettifyEvent(event: FlowEvent): string | null {
-  const indent = "  ".repeat(event.eventParentIds.length);
-  const tag = `[#${shortId(event.eventId)}]`;
   const data = event.data as {
     params?: unknown;
     prompt?: unknown;
@@ -220,25 +228,19 @@ function prettifyEvent(event: FlowEvent): string | null {
     error?: string;
     msg?: string;
   };
-  const argsStr = data?.params
-    ? formatArgs(data.params)
-    : formatArgs(event.data);
   const durationSec = data?.durationMs
     ? (data.durationMs / 1000).toFixed(2)
     : null;
-  const promptStr = data?.prompt ? ` ${String(data.prompt)}` : "";
-  const outputStr = data?.output ? ` ${String(data.output)}` : "";
   const hasTokens =
     data?.inputTokens !== undefined || data?.outputTokens !== undefined;
-  const tokenStr = hasTokens
-    ? ` ꜛ${data?.inputTokens ?? 0} ꜜ${data?.outputTokens ?? 0}`
-    : "";
   const details = [
     event.eventType,
-    argsStr ? `(${argsStr})` : "",
-    promptStr,
-    outputStr,
-    tokenStr,
+    formatArgs(data?.params ? data.params : event.data)
+      ? `(${formatArgs(data?.params ? data.params : event.data)})`
+      : "",
+    data?.prompt ? ` ${String(data.prompt)}` : "",
+    data?.output ? ` ${String(data.output)}` : "",
+    hasTokens ? ` ꜛ${data?.inputTokens ?? 0} ꜜ${data?.outputTokens ?? 0}` : "",
     durationSec ? ` ${durationSec}s` : "",
     data?.msg ? ` ${data.msg}` : "",
     data?.error ? ` ERROR ${data.error}` : "",
@@ -248,213 +250,116 @@ function prettifyEvent(event: FlowEvent): string | null {
     return null;
   }
 
-  const fullLine = `${formatEventTimestamp(event.createdAt)} ${indent}${tag} ${details}`;
-  const cleaned = removeQuotes(fullLine);
-  return truncateLine(cleaned, MAX_LINE_LENGTH);
+  const createdAt = new Date(event.createdAt);
+  const timestamp = Number.isNaN(createdAt.getTime())
+    ? formatTimestamp(new Date())
+    : formatTimestamp(createdAt);
+  const line = `${timestamp} ${"  ".repeat(event.eventParentIds.length)}[#${shortId(event.eventId)}] ${details}`;
+  return truncateLine(removeQuotes(line), MAX_LINE_LENGTH);
 }
 
-function isWritable(stream: fs.WriteStream | null): stream is fs.WriteStream {
-  return !!(stream && !stream.destroyed && stream.writable);
+abstract class FileEventSink implements EventSink {
+  private readonly streamPromise: Promise<fs.WriteStream | null>;
+
+  constructor(sessionDirPromise: Promise<string | null>, fileName: string) {
+    this.streamPromise = sessionDirPromise.then((sessionDir) =>
+      sessionDir
+        ? fs.createWriteStream(path.join(sessionDir, fileName), { flags: "a" })
+        : null,
+    );
+  }
+
+  protected abstract serialize(event: FlowEvent): string | null;
+
+  async emit(event: FlowEvent): Promise<void> {
+    const stream = await this.streamPromise;
+    if (!isWritable(stream)) {
+      return;
+    }
+
+    const serialized = this.serialize(event);
+    if (!serialized) {
+      return;
+    }
+
+    await writeToStream(stream, serialized);
+  }
+
+  async query(_query: EventStoreQuery): Promise<FlowEvent[]> {
+    return [];
+  }
+
+  async destroy(): Promise<void> {
+    const stream = await this.streamPromise.catch((): null => null);
+    if (!isWritable(stream)) {
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      stream.end(resolve);
+    });
+  }
 }
 
-function createJsonlStream(ctx: SessionContext): Writable {
-  return new Writable({
-    objectMode: true,
-    write(chunk: string, _, cb) {
-      if (ctx.initialized && isWritable(ctx.fileStreams.jsonl)) {
-        ctx.fileStreams.jsonl.write(chunk, cb);
-        return;
-      }
+export class JsonlFileEventSink extends FileEventSink {
+  constructor(sessionDirPromise: Promise<string | null>) {
+    super(sessionDirPromise, "session_events.jsonl");
+  }
 
-      cb();
-    },
-  });
+  protected serialize(event: FlowEvent): string {
+    return `${JSON.stringify(event)}\n`;
+  }
 }
 
-function createPrettyStream(ctx: SessionContext): Writable {
-  return new Writable({
-    objectMode: true,
-    write(chunk: string, _, cb) {
-      const stream = ctx.fileStreams.pretty;
-      if (!ctx.initialized || !isWritable(stream)) {
-        cb();
-        return;
-      }
+export class PrettyLogFileEventSink extends FileEventSink {
+  constructor(sessionDirPromise: Promise<string | null>) {
+    super(sessionDirPromise, "session_events.log");
+  }
 
+  protected serialize(event: FlowEvent): string | null {
+    const line = prettifyEvent(sanitizePrettyEvent(event));
+    return line ? `${line}\n` : null;
+  }
+}
+
+export class PrettyStderrEventSink implements EventSink {
+  async emit(event: FlowEvent): Promise<void> {
+    const line = prettifyEvent(sanitizePrettyEvent(event));
+    if (!line) {
+      return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
       try {
-        const event = JSON.parse(chunk) as FlowEvent;
-        const line = prettifyEvent(event);
-        if (line) {
-          stream.write(line + "\n", cb);
-          return;
-        }
-      } catch {
-        // fall through
+        process.stderr.write(`${line}\n`, (error?: Error | null) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      } catch (error) {
+        reject(error);
       }
+    });
+  }
 
-      cb();
-    },
-  });
+  async query(_query: EventStoreQuery): Promise<FlowEvent[]> {
+    return [];
+  }
+
+  async destroy(): Promise<void> {}
 }
 
-export function getConfigDir(): string {
-  return CONFIG_DIR ? path.resolve(CONFIG_DIR) : "";
-}
+export class InMemoryEventSink implements EventSink {
+  private readonly events: FlowEvent[] = [];
 
-function matchesQuery(event: FlowEvent, query: EventStoreQuery): boolean {
-  if (query.sessionId && event.sessionId !== query.sessionId) return false;
-  if (query.eventId) {
-    const matchesEvent =
-      event.eventId === query.eventId ||
-      event.eventParentIds.includes(query.eventId);
-    if (!matchesEvent) {
-      return false;
-    }
-  }
-  if (query.eventType) {
-    const pattern = new RegExp(
-      `^${query.eventType
-        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-        .replace(/\\\*/g, ".*")}$`,
-    );
-    if (!pattern.test(event.eventType)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-export class FileEventStore implements EventStore {
-  private readonly sessionContexts = new Map<string, SessionContext>();
-  private readonly eventsBySession = new Map<string, FlowEvent[]>();
-  private readonly subscribers = new Set<EventSubscriber>();
-
-  async initializeSession(
-    sessionId: string,
-    v3Options?: V3Options,
-  ): Promise<void> {
-    const existing = this.sessionContexts.get(sessionId);
-    if (existing) {
-      await existing.initPromise;
-      return;
-    }
-
-    const configDir = getConfigDir();
-    const sessionDir = configDir
-      ? path.join(configDir, "sessions", sessionId)
-      : "";
-
-    const ctx: SessionContext = {
-      logger: null,
-      sessionId,
-      sessionDir,
-      configDir,
-      initPromise: Promise.resolve(),
-      initialized: false,
-      fileStreams: {
-        pretty: null,
-        jsonl: null,
-      },
-    };
-
-    ctx.initPromise = this.initSessionContext(ctx, v3Options);
-    this.sessionContexts.set(sessionId, ctx);
-    await ctx.initPromise;
+  async emit(event: FlowEvent): Promise<void> {
+    this.events.push(event);
   }
 
-  private async initSessionContext(
-    ctx: SessionContext,
-    v3Options?: V3Options,
-  ): Promise<void> {
-    if (!ctx.configDir) {
-      ctx.initialized = true;
-      return;
-    }
-
-    await fs.promises.mkdir(ctx.sessionDir, { recursive: true });
-
-    if (v3Options) {
-      const sessionJsonPath = path.join(ctx.sessionDir, "session.json");
-      await fs.promises.writeFile(
-        sessionJsonPath,
-        JSON.stringify(sanitizeOptions(v3Options), null, 2),
-        "utf-8",
-      );
-    }
-
-    const latestLink = path.join(ctx.configDir, "sessions", "latest");
-    try {
-      try {
-        await fs.promises.unlink(latestLink);
-      } catch {
-        // ignore missing link
-      }
-      await fs.promises.symlink(ctx.sessionId, latestLink, "dir");
-    } catch {
-      // symlink best effort only
-    }
-
-    ctx.fileStreams.pretty = fs.createWriteStream(
-      path.join(ctx.sessionDir, "session_events.log"),
-      { flags: "a" },
-    );
-    ctx.fileStreams.jsonl = fs.createWriteStream(
-      path.join(ctx.sessionDir, "session_events.jsonl"),
-      { flags: "a" },
-    );
-
-    ctx.initialized = true;
-    ctx.logger = pino(
-      { level: "info" },
-      pino.multistream([
-        { stream: createJsonlStream(ctx) },
-        { stream: createPrettyStream(ctx) },
-      ]),
-    );
-  }
-
-  async appendEvent(event: FlowEvent): Promise<void> {
-    const storedEvent = sanitizeEventForFileStore(event);
-    const existing = this.eventsBySession.get(storedEvent.sessionId) ?? [];
-    existing.push(storedEvent);
-    this.eventsBySession.set(storedEvent.sessionId, existing);
-
-    for (const subscriber of this.subscribers) {
-      if (matchesQuery(storedEvent, subscriber.query)) {
-        subscriber.listener(storedEvent);
-      }
-    }
-
-    const ctx = this.sessionContexts.get(storedEvent.sessionId);
-    if (!ctx) {
-      return;
-    }
-
-    await ctx.initPromise;
-    ctx.logger?.info(storedEvent);
-  }
-
-  attachBus(sessionId: string, bus: EventEmitter): () => void {
-    const emit = bus.emit.bind(bus);
-    bus.emit = ((eventName: string | symbol, ...args: [FlowEvent]) => {
-      const [event] = args;
-      if (event.sessionId === sessionId) {
-        void this.appendEvent(event);
-      }
-      return emit(eventName, ...args);
-    }) as typeof bus.emit;
-
-    return () => {
-      bus.emit = emit;
-    };
-  }
-
-  async listEvents(query: EventStoreQuery): Promise<FlowEvent[]> {
-    const sourceEvents = query.sessionId
-      ? [...(this.eventsBySession.get(query.sessionId) ?? [])]
-      : [...this.eventsBySession.values()].flat();
-
-    const filtered = sourceEvents.filter((event) => matchesQuery(event, query));
+  async query(query: EventStoreQuery): Promise<FlowEvent[]> {
+    const filtered = this.events.filter((event) => matchesQuery(event, query));
     filtered.sort((left, right) => {
       const createdAtOrder = left.createdAt.localeCompare(right.createdAt);
       if (createdAtOrder !== 0) {
@@ -463,63 +368,164 @@ export class FileEventStore implements EventStore {
 
       return left.eventId.localeCompare(right.eventId);
     });
-
-    if (!query.limit) {
-      return filtered;
-    }
-
-    return filtered.slice(0, query.limit);
-  }
-
-  subscribe(query: EventStoreQuery, listener: EventStoreListener): () => void {
-    const subscriber: EventSubscriber = { query, listener };
-    this.subscribers.add(subscriber);
-
-    return () => {
-      this.subscribers.delete(subscriber);
-    };
+    return query.limit ? filtered.slice(0, query.limit) : filtered;
   }
 
   async destroy(): Promise<void> {
-    this.subscribers.clear();
-    this.eventsBySession.clear();
+    this.events.length = 0;
+  }
+}
+
+export class EventStore {
+  private readonly listeners = new Set<(event: FlowEvent) => Promise<void>>();
+  private readonly sinkDetachers = new Map<EventSink, () => void>();
+  private readonly ownedSinks = new Set<EventSink>();
+  private querySink: EventSink | null = null;
+  private destroyed = false;
+
+  constructor(
+    public readonly sessionId: string,
+    options?: V3Options,
+  ) {
+    const sessionDirPromise = createSessionDir(sessionId, options);
+
+    if (getConfigDir()) {
+      this.attachOwnedSink(new JsonlFileEventSink(sessionDirPromise));
+      this.attachOwnedSink(new PrettyLogFileEventSink(sessionDirPromise));
+    }
+
+    if (options?.verbose === 2) {
+      this.attachOwnedSink(new PrettyStderrEventSink());
+    }
+  }
+
+  private attachOwnedSink(sink: EventSink): void {
+    this.ownedSinks.add(sink);
+    this.attachSink(sink);
+  }
+
+  attachSink(sink: EventSink): () => void {
+    const existing = this.sinkDetachers.get(sink);
+    if (existing) {
+      return existing;
+    }
+
+    const unsubscribe = this.subscribe({}, async (event) => {
+      await sink.emit(event);
+    });
+
+    const detach = () => {
+      unsubscribe();
+      this.sinkDetachers.delete(sink);
+      if (this.querySink === sink) {
+        this.querySink = null;
+      }
+    };
+
+    this.sinkDetachers.set(sink, detach);
+    return detach;
+  }
+
+  attachStore(sink: EventSink): () => void {
+    if (this.querySink && this.querySink !== sink) {
+      throw new Error(
+        "A queryable event sink is already attached. Detach it before attaching another.",
+      );
+    }
+
+    const wasAttached = this.sinkDetachers.has(sink);
+    const detachSink = wasAttached
+      ? (this.sinkDetachers.get(sink) as () => void)
+      : this.attachSink(sink);
+
+    this.querySink = sink;
+
+    return () => {
+      if (this.querySink === sink) {
+        this.querySink = null;
+      }
+      if (!wasAttached) {
+        detachSink();
+      }
+    };
+  }
+
+  subscribe(query: EventStoreQuery, listener: EventStoreListener): () => void {
+    const normalizedQuery =
+      query.sessionId === undefined
+        ? query
+        : { ...query, sessionId: query.sessionId };
+
+    const wrapped = async (event: FlowEvent): Promise<void> => {
+      if (matchesQuery(event, normalizedQuery)) {
+        listener(event);
+      }
+    };
+
+    this.listeners.add(wrapped);
+    return () => {
+      this.listeners.delete(wrapped);
+    };
+  }
+
+  async emit(event: FlowEvent): Promise<void> {
+    if (this.destroyed || event.sessionId !== this.sessionId) {
+      return;
+    }
+
+    await Promise.all([...this.listeners].map((listener) => listener(event)));
+  }
+
+  attachBus(bus: EventEmitter): () => void {
+    const originalEmit = bus.emit.bind(bus);
+    bus.emit = ((eventName: string | symbol, ...args: [FlowEvent]) => {
+      const [event] = args;
+      if (event?.sessionId === this.sessionId) {
+        void this.emit(event);
+      }
+      return originalEmit(eventName, ...args);
+    }) as typeof bus.emit;
+
+    return () => {
+      bus.emit = originalEmit;
+    };
+  }
+
+  async query(query: EventStoreQuery): Promise<FlowEvent[]> {
+    if (query.sessionId && query.sessionId !== this.sessionId) {
+      return [];
+    }
+
+    return (
+      (await this.querySink?.query({
+        ...query,
+        sessionId: this.sessionId,
+      })) ?? []
+    );
+  }
+
+  async destroy(): Promise<void> {
+    if (this.destroyed) {
+      return;
+    }
+
+    this.destroyed = true;
+    const ownedSinks = [...this.ownedSinks];
+    for (const detach of [...this.sinkDetachers.values()]) {
+      detach();
+    }
 
     await Promise.all(
-      [...this.sessionContexts.values()].flatMap((ctx) =>
-        Object.values(ctx.fileStreams)
-          .filter(Boolean)
-          .map(
-            (stream) =>
-              new Promise<void>((resolve) => {
-                stream!.end(resolve);
-              }),
-          ),
+      ownedSinks.map((sink) =>
+        sink.destroy().catch(() => {
+          // best effort cleanup
+        }),
       ),
-    ).catch(() => {});
+    );
 
-    this.sessionContexts.clear();
+    this.querySink = null;
+    this.listeners.clear();
+    this.sinkDetachers.clear();
+    this.ownedSinks.clear();
   }
-}
-
-let eventStore: EventStore | null = null;
-
-export function setEventStore(store: EventStore): void {
-  eventStore = store;
-}
-
-export function getEventStore(): EventStore {
-  if (!eventStore) {
-    eventStore = new FileEventStore();
-  }
-
-  return eventStore;
-}
-
-export async function destroyEventStore(): Promise<void> {
-  if (!eventStore) {
-    return;
-  }
-
-  await eventStore.destroy();
-  eventStore = null;
 }

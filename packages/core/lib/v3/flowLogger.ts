@@ -95,6 +95,37 @@ export class FlowLogger {
     };
   }
 
+  private static resolveReentryContext(
+    context: FlowLoggerContext,
+  ): FlowLoggerContext {
+    const currentContext = loggerContext.getStore() ?? null;
+    if (!currentContext || currentContext.sessionId !== context.sessionId) {
+      return FlowLogger.cloneContext(context);
+    }
+
+    const providedParentIds = context.parentEvents.map(
+      (event) => event.eventId,
+    );
+    const currentParentIds = currentContext.parentEvents.map(
+      (event) => event.eventId,
+    );
+    const currentExtendsProvided = providedParentIds.every(
+      (eventId, index) => currentParentIds[index] === eventId,
+    );
+    if (currentExtendsProvided) {
+      return FlowLogger.cloneContext(currentContext);
+    }
+
+    const providedExtendsCurrent = currentParentIds.every(
+      (eventId, index) => providedParentIds[index] === eventId,
+    );
+    if (providedExtendsCurrent) {
+      return FlowLogger.cloneContext(context);
+    }
+
+    return FlowLogger.cloneContext(currentContext);
+  }
+
   private static emit(event: FlowEventInput): FlowEvent | null {
     const ctx = FlowLogger.currentContext;
 
@@ -266,7 +297,10 @@ export class FlowLogger {
     }
 
     return options.context
-      ? loggerContext.run(FlowLogger.cloneContext(options.context), execute)
+      ? loggerContext.run(
+          FlowLogger.resolveReentryContext(options.context),
+          execute,
+        )
       : execute();
   }
 
@@ -276,7 +310,7 @@ export class FlowLogger {
    * only needs AsyncLocalStorage propagation.
    */
   static withContext<T>(context: FlowLoggerContext, fn: () => T): T {
-    return loggerContext.run(FlowLogger.cloneContext(context), fn);
+    return loggerContext.run(FlowLogger.resolveReentryContext(context), fn);
   }
 
   // ===========================================================================

@@ -86,7 +86,7 @@ import { StagehandAPIClient } from "./api.js";
 import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures.js";
 import { flattenVariables } from "./agent/utils/variables.js";
 import { FlowLogger, type FlowLoggerContext } from "./flowLogger.js";
-import { getEventStore } from "./eventStore.js";
+import { EventStore } from "./eventStore.js";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard.js";
 import { ActTimeoutError } from "./types/public/sdkErrors.js";
 
@@ -232,6 +232,7 @@ export class V3 {
   private _history: Array<HistoryEntry> = [];
   private readonly instanceId: string;
   private readonly sessionId: string;
+  public readonly eventStore: EventStore;
   public readonly flowLoggerContext: FlowLoggerContext;
   private static _processGuardsInstalled = false;
   private static _instances: Set<V3> = new Set();
@@ -379,12 +380,9 @@ export class V3 {
 
     this.opts = opts;
 
-    void getEventStore().initializeSession(this.sessionId, opts);
+    this.eventStore = new EventStore(this.sessionId, opts);
     this.flowLoggerContext = FlowLogger.init(this.sessionId, this.bus);
-    this.detachEventStoreListener = getEventStore().attachBus(
-      this.sessionId,
-      this.bus,
-    );
+    this.detachEventStoreListener = this.eventStore.attachBus(this.bus);
 
     // Track instance for global process guard handling
     V3._instances.add(this);
@@ -1475,6 +1473,11 @@ export class V3 {
       try {
         this.detachEventStoreListener?.();
         this.detachEventStoreListener = null;
+      } catch {
+        // ignore
+      }
+      try {
+        await this.eventStore.destroy();
       } catch {
         // ignore
       }

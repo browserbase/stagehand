@@ -41,37 +41,6 @@ export async function performUnderstudyMethod(
   domSettleTimeoutMs?: number,
 ): Promise<void> {
   const selectorRaw = normalizeRootXPath(rawXPath);
-  // Unified resolver: supports '>>' hops and XPath across iframes
-  const locator: Locator = await resolveLocatorWithHops(
-    page,
-    frame,
-    selectorRaw,
-  );
-
-  const initialUrl = await getFrameUrl(frame);
-
-  v3Logger({
-    category: "action",
-    message: "performing understudy method",
-    level: 2,
-    auxiliary: {
-      xpath: { value: selectorRaw, type: "string" },
-      method: { value: method, type: "string" },
-      url: { value: initialUrl, type: "string" },
-    },
-  });
-
-  const ctx: UnderstudyMethodHandlerContext = {
-    method,
-    locator,
-    xpath: selectorRaw,
-    args: args.map((a) => (a == null ? "" : String(a))),
-    frame,
-    page,
-    initialUrl,
-    domSettleTimeoutMs,
-  };
-
   const eventType = `Understudy${toTitleCase(method)}`; // e.g. "UnderstudyClick"
 
   try {
@@ -84,6 +53,35 @@ export async function performUnderstudyMethod(
         },
       },
       async () => {
+        // Unified resolver: supports '>>' hops and XPath across iframes.
+        const locator: Locator = await resolveLocatorWithHops(
+          page,
+          frame,
+          selectorRaw,
+        );
+        const initialUrl = await getFrameUrl(frame);
+
+        v3Logger({
+          category: "action",
+          message: "performing understudy method",
+          level: 2,
+          auxiliary: {
+            xpath: { value: selectorRaw, type: "string" },
+            method: { value: method, type: "string" },
+            url: { value: initialUrl, type: "string" },
+          },
+        });
+
+        const ctx: UnderstudyMethodHandlerContext = {
+          method,
+          locator,
+          xpath: selectorRaw,
+          args: args.map((a) => (a == null ? "" : String(a))),
+          frame,
+          page,
+          initialUrl,
+          domSettleTimeoutMs,
+        };
         const handler = METHOD_HANDLER_MAP[method] ?? null;
 
         if (handler) {
