@@ -85,7 +85,8 @@ import { resolveModel } from "../modelUtils.js";
 import { StagehandAPIClient } from "./api.js";
 import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures.js";
 import { flattenVariables } from "./agent/utils/variables.js";
-import { SessionFileLogger, logStagehandStep } from "./flowLogger.js";
+import { FlowLogger, type FlowLoggerContext } from "./flowLogger.js";
+import { getEventStore } from "./eventStore.js";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard.js";
 import { ActTimeoutError } from "./types/public/sdkErrors.js";
 
@@ -230,6 +231,8 @@ export class V3 {
   private stagehandLogger: StagehandLogger;
   private _history: Array<HistoryEntry> = [];
   private readonly instanceId: string;
+  private readonly sessionId: string;
+  public readonly flowLoggerContext: FlowLoggerContext;
   private static _processGuardsInstalled = false;
   private static _instances: Set<V3> = new Set();
   private cacheStorage: CacheStorage;
@@ -238,6 +241,11 @@ export class V3 {
   private apiClient: StagehandAPIClient | null = null;
   private keepAlive?: boolean;
   private shutdownSupervisor: ShutdownSupervisorHandle | null = null;
+  private detachEventStoreListener: (() => void) | null = null;
+
+  private withLoggingContext<T>(fn: () => T): T {
+    return withInstanceLogContext(this.instanceId, fn);
+  }
 
   public stagehandMetrics: StagehandMetrics = {
     actPromptTokens: 0,
@@ -271,6 +279,7 @@ export class V3 {
     this.externalLogger = opts.logger;
     this.verbose = opts.verbose ?? 1;
     this.instanceId = uuidv7();
+    this.sessionId = opts.sessionId ?? this.instanceId;
     this.keepAlive =
       opts.keepAlive ?? opts.browserbaseSessionCreateParams?.keepAlive;
 
@@ -374,13 +383,16 @@ export class V3 {
 
     this.opts = opts;
 
-    // Initialize session file logger
-    SessionFileLogger.init(this.instanceId, opts);
+    void getEventStore().initializeSession(this.sessionId, opts);
+    this.flowLoggerContext = FlowLogger.init(this.sessionId, this.bus);
+    this.detachEventStoreListener = getEventStore().attachBus(
+      this.sessionId,
+      this.bus,
+    );
 
     // Track instance for global process guard handling
     V3._instances.add(this);
   }
-
   /**
    * Async property for metrics so callers can `await v3.metrics`.
    * When using API mode, fetches metrics from the API. Otherwise returns local metrics.
@@ -638,7 +650,7 @@ export class V3 {
    */
   async init(): Promise<void> {
     try {
-      return await withInstanceLogContext(this.instanceId, async () => {
+      return await this.withLoggingContext(async () => {
         this.actHandler = new ActHandler(
           this.llmClient,
           this.modelName,
@@ -749,11 +761,7 @@ export class V3 {
               env: "LOCAL",
               cdpHeaders: lbo.cdpHeaders,
             });
-            const logCtx = SessionFileLogger.getContext();
-            this.ctx.conn.cdpLogger = (info) =>
-              SessionFileLogger.logCdpCallEvent(info, logCtx);
-            this.ctx.conn.cdpEventLogger = (info) =>
-              SessionFileLogger.logCdpMessageEvent(info, logCtx);
+            this.ctx.conn.flowLoggerContext = this.flowLoggerContext;
             this.ctx.conn.onTransportClosed(this._onCdpClosed);
             this.state = {
               kind: "LOCAL",
@@ -853,11 +861,7 @@ export class V3 {
             env: "LOCAL",
             localBrowserLaunchOptions: lbo,
           });
-          const logCtx = SessionFileLogger.getContext();
-          this.ctx.conn.cdpLogger = (info) =>
-            SessionFileLogger.logCdpCallEvent(info, logCtx);
-          this.ctx.conn.cdpEventLogger = (info) =>
-            SessionFileLogger.logCdpMessageEvent(info, logCtx);
+          this.ctx.conn.flowLoggerContext = this.flowLoggerContext;
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
           this.state = {
             kind: "LOCAL",
@@ -953,11 +957,7 @@ export class V3 {
             env: "BROWSERBASE",
             apiClient: this.apiClient,
           });
-          const logCtx = SessionFileLogger.getContext();
-          this.ctx.conn.cdpLogger = (info) =>
-            SessionFileLogger.logCdpCallEvent(info, logCtx);
-          this.ctx.conn.cdpEventLogger = (info) =>
-            SessionFileLogger.logCdpMessageEvent(info, logCtx);
+          this.ctx.conn.flowLoggerContext = this.flowLoggerContext;
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
           this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
           this.browserbaseSessionId = sessionId;
@@ -1021,6 +1021,12 @@ export class V3 {
           // ignore cleanup errors
         }
       }
+      try {
+        this.detachEventStoreListener?.();
+        this.detachEventStoreListener = null;
+      } catch {
+        // ignore cleanup errors
+      }
       throw error;
     }
   }
@@ -1076,9 +1082,12 @@ export class V3 {
   async act(instruction: string, options?: ActOptions): Promise<ActResult>;
   async act(action: Action, options?: ActOptions): Promise<ActResult>;
 
-  @logStagehandStep("Stagehand.act", "ACT")
+  @FlowLogger.wrapWithLogging({
+    eventType: "StagehandAct",
+    eventIdSuffix: "4",
+  })
   async act(input: string | Action, options?: ActOptions): Promise<ActResult> {
-    return await withInstanceLogContext(this.instanceId, async () => {
+    return await this.withLoggingContext(async () => {
       if (!this.actHandler) throw new StagehandNotInitializedError("act()");
 
       let actResult: ActResult;
@@ -1230,13 +1239,16 @@ export class V3 {
     options?: ExtractOptions,
   ): Promise<InferStagehandSchema<T>>;
 
-  @logStagehandStep("Stagehand.extract", "EXTRACT")
+  @FlowLogger.wrapWithLogging({
+    eventType: "StagehandExtract",
+    eventIdSuffix: "4",
+  })
   async extract(
     a?: string | ExtractOptions,
     b?: StagehandZodSchema | ExtractOptions,
     c?: ExtractOptions,
   ): Promise<unknown> {
-    return await withInstanceLogContext(this.instanceId, async () => {
+    return await this.withLoggingContext(async () => {
       if (!this.extractHandler) {
         throw new StagehandNotInitializedError("extract()");
       }
@@ -1324,12 +1336,15 @@ export class V3 {
     instruction: string,
     options?: ObserveOptions,
   ): Promise<Action[]>;
-  @logStagehandStep("Stagehand.observe", "OBSERVE")
+  @FlowLogger.wrapWithLogging({
+    eventType: "StagehandObserve",
+    eventIdSuffix: "4",
+  })
   async observe(
     a?: string | ObserveOptions,
     b?: ObserveOptions,
   ): Promise<Action[]> {
-    return await withInstanceLogContext(this.instanceId, async () => {
+    return await this.withLoggingContext(async () => {
       if (!this.observeHandler) {
         throw new StagehandNotInitializedError("observe()");
       }
@@ -1426,7 +1441,7 @@ export class V3 {
     try {
       // Close session file logger
       try {
-        await SessionFileLogger.close();
+        await FlowLogger.close(this.flowLoggerContext);
       } catch {
         // ignore
       }
@@ -1458,6 +1473,12 @@ export class V3 {
       this.resetBrowserbaseSessionMetadata();
       try {
         unbindInstanceLogger(this.instanceId);
+      } catch {
+        // ignore
+      }
+      try {
+        this.detachEventStoreListener?.();
+        this.detachEventStoreListener = null;
       } catch {
         // ignore
       }
@@ -1839,9 +1860,14 @@ export class V3 {
 
       const agentConfigSignature =
         this.agentCache.buildConfigSignature(options);
-      return {
-        execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
-          withInstanceLogContext(this.instanceId, async () => {
+      const execute = FlowLogger.wrapWithLogging({
+        eventType: "AgentExecute",
+        eventIdSuffix: "3",
+      })(
+        async (
+          instructionOrOptions: string | AgentExecuteOptions,
+        ): Promise<AgentResult> =>
+          this.withLoggingContext(async () => {
             validateExperimentalFeatures({
               isExperimental: this.experimental,
               agentConfig: options,
@@ -1851,10 +1877,6 @@ export class V3 {
                   : null,
             });
 
-            SessionFileLogger.logAgentTaskStarted({
-              invocation: "Agent.execute",
-              args: [instructionOrOptions],
-            });
             const tools = options?.integrations
               ? await resolveTools(options.integrations, options.tools)
               : (options?.tools ?? {});
@@ -1909,7 +1931,6 @@ export class V3 {
               if (cacheContext) {
                 const replayed = await this.agentCache.tryReplay(cacheContext);
                 if (replayed) {
-                  SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
                   return replayed;
                 }
               }
@@ -1961,24 +1982,28 @@ export class V3 {
               if (shouldRecordLocally) {
                 this.discardAgentReplayRecording();
               }
-              SessionFileLogger.logAgentTaskCompleted();
             }
           }),
+      );
+      return {
+        execute,
       };
     }
 
     // Default: AISDK tools-based agent
     const agentConfigSignature = this.agentCache.buildConfigSignature(options);
     const isStreaming = options?.stream ?? false;
-
-    return {
-      execute: async (
+    const execute = FlowLogger.wrapWithLogging({
+      eventType: "AgentExecute",
+      eventIdSuffix: "3",
+    })(
+      async (
         instructionOrOptions:
           | string
           | AgentExecuteOptions
           | AgentStreamExecuteOptions,
       ): Promise<AgentResult | AgentStreamResult> =>
-        withInstanceLogContext(this.instanceId, async () => {
+        this.withLoggingContext(async () => {
           validateExperimentalFeatures({
             isExperimental: this.experimental,
             agentConfig: options,
@@ -1987,10 +2012,6 @@ export class V3 {
                 ? instructionOrOptions
                 : null,
             isStreaming,
-          });
-          SessionFileLogger.logAgentTaskStarted({
-            invocation: "Agent.execute",
-            args: [instructionOrOptions],
           });
 
           // Streaming mode
@@ -2008,7 +2029,6 @@ export class V3 {
                 llmClient,
               );
               if (replayed) {
-                SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
                 return replayed;
               }
             }
@@ -2025,13 +2045,9 @@ export class V3 {
                 () => this.endAgentReplayRecording(),
                 () => this.discardAgentReplayRecording(),
               );
-              // Log completion when stream is returned (stream completes asynchronously)
-              SessionFileLogger.logAgentTaskCompleted();
               return wrappedStream;
             }
 
-            // Log completion when stream is returned (stream completes asynchronously)
-            SessionFileLogger.logAgentTaskCompleted();
             return streamResult;
           }
 
@@ -2049,7 +2065,6 @@ export class V3 {
               llmClient,
             );
             if (replayed) {
-              SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
               return replayed;
             }
           }
@@ -2102,9 +2117,12 @@ export class V3 {
             if (shouldRecordLocally) {
               this.discardAgentReplayRecording();
             }
-            SessionFileLogger.logAgentTaskCompleted();
           }
         }),
+    );
+
+    return {
+      execute,
     };
   }
 }
