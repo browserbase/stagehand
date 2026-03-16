@@ -207,8 +207,16 @@ export class FlowLogger {
         this: ThisParameterType<TWrappedMethod>,
         ...args: Parameters<TWrappedMethod>
       ): Promise<Awaited<ReturnType<TWrappedMethod>>> {
+        const context =
+          options.context ??
+          (this as { flowLoggerContext?: FlowLoggerContext } | null | undefined)
+            ?.flowLoggerContext;
+
         return await FlowLogger.runWithLogging(
-          options,
+          {
+            ...options,
+            context,
+          },
           (...boundArgs: Parameters<TWrappedMethod>) =>
             originalMethod.apply(this, boundArgs) as Promise<
               Awaited<ReturnType<TWrappedMethod>>
