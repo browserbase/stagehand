@@ -60,7 +60,7 @@ export interface V3AgentToolOptions {
   useSearch?: boolean;
   /**
    * The Browserbase API key used for the search tool.
-   * Resolved from BROWSERBASE_API_KEY / BB_API_KEY env vars or the Stagehand constructor.
+   * Resolved from BROWSERBASE_API_KEY env var or the Stagehand constructor.
    */
   browserbaseApiKey?: string;
 }

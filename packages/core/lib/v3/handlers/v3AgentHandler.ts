@@ -366,7 +366,10 @@ export class V3AgentHandler {
       );
     } catch (error) {
       // Re-throw validation errors that should propagate to the caller
-      if (error instanceof StreamingCallbacksInNonStreamingModeError) {
+      if (
+        error instanceof StreamingCallbacksInNonStreamingModeError ||
+        error instanceof MissingEnvironmentVariableError
+      ) {
         throw error;
       }
 

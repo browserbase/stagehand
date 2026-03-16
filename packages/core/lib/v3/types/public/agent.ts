@@ -404,7 +404,7 @@ export interface AgentExecuteOptionsBase {
   toolTimeout?: number;
   /**
    * Enable the web search tool powered by Browserbase Search API.
-   * Requires a valid Browserbase API key (BROWSERBASE_API_KEY or BB_API_KEY).
+   * Requires a valid Browserbase API key (BROWSERBASE_API_KEY).
    * When set to true, the agent gains access to a `search` tool for web searches.
    *
    * @example

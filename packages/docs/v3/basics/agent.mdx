@@ -472,7 +472,6 @@ const result = await agent.execute({
 // Disable web search capability
 const result = await agent.execute({
   instruction: "Find information on the current page",
-  useSearch: true,
   excludeTools: ["search"],
 });
 ```
@@ -481,7 +480,7 @@ const result = await agent.execute({
 
 Enable the `search` tool by setting `useSearch: true` in `agent.execute()`. This gives the agent the ability to perform web searches using the Browserbase Search API, which is useful when the agent needs to find URLs or gather information before navigating.
 
-<Note>Requires a valid Browserbase API key. Set `BROWSERBASE_API_KEY` (or `BB_API_KEY`) in your environment, or pass `apiKey` in the Stagehand constructor.</Note>
+<Note>Requires a valid Browserbase API key. Set `BROWSERBASE_API_KEY` in your environment, or pass `apiKey` in the Stagehand constructor.</Note>
 
 ```typescript
 const result = await agent.execute({
