@@ -42,7 +42,7 @@ export function requireEnv(name: string, value: string | undefined): string {
 }
 
 export function getBaseUrl(): string {
-  return STAGEHAND_API_URL ?? "http://127.0.0.1:3107";
+  return STAGEHAND_API_URL ?? "http://127.0.0.1:3106";
 }
 
 // =============================================================================
