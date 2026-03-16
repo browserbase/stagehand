@@ -19,6 +19,7 @@ interface BrowserbaseApiResponse {
 }
 
 async function performBrowserbaseSearch(
+  v3: V3,
   query: string,
   apiKey: string,
   numResults: number = 5,
@@ -51,7 +52,11 @@ async function performBrowserbaseSearch(
 
     return { results };
   } catch (error) {
-    console.error("Search error", error);
+    v3.logger({
+      category: "agent",
+      message: `Search error: ${(error as Error).message}`,
+      level: 0,
+    });
     return {
       results: [],
       error: `Error performing search: ${(error as Error).message}`,
@@ -79,7 +84,7 @@ export const searchTool = (v3: V3, apiKey: string) =>
         },
       });
 
-      const result = await performBrowserbaseSearch(query, apiKey);
+      const result = await performBrowserbaseSearch(v3, query, apiKey);
 
       v3.recordAgentReplayStep({
         type: "search",
