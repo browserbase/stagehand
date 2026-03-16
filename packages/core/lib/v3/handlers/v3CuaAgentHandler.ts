@@ -17,7 +17,8 @@ import {
 } from "../types/public/agent.js";
 import { LogLine } from "../types/public/logs.js";
 import { type Action, V3FunctionName } from "../types/public/methods.js";
-import { SessionFileLogger } from "../flowLogger.js";
+import { FlowLogger } from "../flowLogger.js";
+import { toTitleCase } from "../../utils.js";
 import { StagehandClosedError } from "../types/public/sdkErrors.js";
 
 export class V3CuaAgentHandler {
@@ -92,17 +93,22 @@ export class V3CuaAgentHandler {
         // Skip logging for screenshot actions - they're no-ops, the actual
         // Page.screenshot in captureAndSendScreenshot() is logged separately
         const shouldLog = action.type !== "screenshot";
+        const eventType = `V3Cua${toTitleCase(action.type)}`; // e.g. "V3CuaClick"
         if (shouldLog) {
-          SessionFileLogger.logUnderstudyActionEvent({
-            actionType: `v3CUA.${action.type}`,
-            target: this.computePointerTarget(action),
-            args: [action],
-          });
-        }
-        try {
+          await FlowLogger.runWithLogging(
+            {
+              eventType,
+              eventIdSuffix: "5",
+              data: {
+                target: this.computePointerTarget(action),
+              },
+            },
+            async (loggedAction: typeof action) =>
+              await this.executeAction(loggedAction),
+            [action],
+          );
+        } else {
           await this.executeAction(action);
-        } finally {
-          if (shouldLog) SessionFileLogger.logUnderstudyActionCompleted();
         }
 
         action.timestamp = Date.now();
@@ -596,8 +602,6 @@ export class V3CuaAgentHandler {
       const page = await this.v3.context.awaitActivePage();
       const screenshotBuffer = await page.screenshot({ fullPage: false });
 
-      // Emit screenshot event via the bus
-      this.v3.bus.emit("agent_screenshot_taken_event", screenshotBuffer);
       const currentUrl = page.url();
       return await this.agentClient.captureScreenshot({
         base64Image: screenshotBuffer.toString("base64"),

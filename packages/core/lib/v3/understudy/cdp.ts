@@ -3,6 +3,11 @@ import WebSocket from "ws";
 import type { Protocol } from "devtools-protocol";
 import { STAGEHAND_VERSION } from "../../version.js";
 import {
+  FlowLogger,
+  type FlowEvent,
+  type FlowLoggerContext,
+} from "../flowLogger.js";
+import {
   CdpConnectionClosedError,
   PageNotFoundError,
 } from "../types/public/sdkErrors.js";
@@ -31,6 +36,8 @@ type Inflight = {
   params?: object;
   stack?: string;
   ts: number;
+  flowLoggerContext?: FlowLoggerContext | null;
+  cdpCallEvent?: Pick<FlowEvent, "eventId" | "eventParentIds"> | null;
 };
 
 type EventHandler = (params: unknown) => void;
@@ -55,6 +62,13 @@ export class CdpConnection implements CDPSessionLike {
   private ws: WebSocket;
   private nextId = 1;
   private inflight = new Map<number, Inflight>();
+  private latestCdpCallEvent = new Map<
+    string | null,
+    {
+      flowLoggerContext: FlowLoggerContext;
+      cdpCallEvent: Pick<FlowEvent, "eventId" | "eventParentIds">;
+    }
+  >();
   private eventHandlers = new Map<string, Set<EventHandler>>();
   private sessions = new Map<string, CdpSession>();
   /** Maps sessionId -> targetId (1:1 mapping) */
@@ -63,19 +77,7 @@ export class CdpConnection implements CDPSessionLike {
   public readonly id: string | null = null; // root
   private transportCloseHandlers = new Set<(why: string) => void>();
 
-  /** Optional CDP logger - set this to receive all outgoing CDP method calls */
-  public cdpLogger?: (info: {
-    method: string;
-    params?: object;
-    targetId?: string | null;
-  }) => void;
-
-  /** Optional CDP event logger - set this to receive all incoming CDP events */
-  public cdpEventLogger?: (info: {
-    method: string;
-    params?: unknown;
-    targetId?: string | null;
-  }) => void;
+  public flowLoggerContext?: FlowLoggerContext;
 
   public onTransportClosed(handler: (why: string) => void): void {
     this.transportCloseHandlers.add(handler);
@@ -142,6 +144,25 @@ export class CdpConnection implements CDPSessionLike {
     const id = this.nextId++;
     const payload = { id, method, params };
     const stack = new Error().stack?.split("\n").slice(1, 4).join("\n");
+    let flowLoggerContext: FlowLoggerContext | null = null;
+    try {
+      flowLoggerContext = FlowLogger.currentContext;
+    } catch {
+      flowLoggerContext = this.flowLoggerContext ?? null;
+    }
+    const cdpCallEvent = flowLoggerContext
+      ? FlowLogger.logCdpCallEvent(flowLoggerContext, {
+          method,
+          params,
+          targetId: null,
+        })
+      : null;
+    if (flowLoggerContext && cdpCallEvent) {
+      this.latestCdpCallEvent.set(null, {
+        flowLoggerContext,
+        cdpCallEvent,
+      });
+    }
     const p = new Promise<R>((resolve, reject) => {
       this.inflight.set(id, {
         resolve,
@@ -151,11 +172,12 @@ export class CdpConnection implements CDPSessionLike {
         params,
         stack,
         ts: Date.now(),
+        flowLoggerContext,
+        cdpCallEvent,
       });
     });
     // Prevent unhandledRejection if a session detaches before the caller awaits.
     void p.catch(() => {});
-    this.cdpLogger?.({ method, params, targetId: null });
     this.ws.send(JSON.stringify(payload));
     return p;
   }
@@ -184,6 +206,7 @@ export class CdpConnection implements CDPSessionLike {
       entry.reject(new CdpConnectionClosedError(why));
       this.inflight.delete(id);
     }
+    this.latestCdpCallEvent.clear();
     for (const waiter of Array.from(this.sessionDispatchWaiters)) {
       waiter.reject(new CdpConnectionClosedError(why));
     }
@@ -248,8 +271,38 @@ export class CdpConnection implements CDPSessionLike {
       this.inflight.delete(msg.id);
 
       if ("error" in msg && msg.error) {
+        if (rec.flowLoggerContext && rec.cdpCallEvent) {
+          const targetId =
+            rec.sessionId != null
+              ? (this.sessionToTarget.get(rec.sessionId) ?? rec.sessionId)
+              : null;
+          FlowLogger.logCdpResponseEvent(
+            rec.flowLoggerContext,
+            rec.cdpCallEvent,
+            {
+              method: rec.method,
+              error: `${msg.error.code} ${msg.error.message}`,
+              targetId,
+            },
+          );
+        }
         rec.reject(new Error(`${msg.error.code} ${msg.error.message}`));
       } else {
+        if (rec.flowLoggerContext && rec.cdpCallEvent) {
+          const targetId =
+            rec.sessionId != null
+              ? (this.sessionToTarget.get(rec.sessionId) ?? rec.sessionId)
+              : null;
+          FlowLogger.logCdpResponseEvent(
+            rec.flowLoggerContext,
+            rec.cdpCallEvent,
+            {
+              method: rec.method,
+              result: (msg as { result?: unknown }).result,
+              targetId,
+            },
+          );
+        }
         rec.resolve((msg as { result?: unknown }).result);
       }
       return;
@@ -287,22 +340,39 @@ export class CdpConnection implements CDPSessionLike {
         }
         this.sessions.delete(p.sessionId);
         this.sessionToTarget.delete(p.sessionId);
+        this.latestCdpCallEvent.delete(p.sessionId);
       } else if (msg.method === "Target.targetDestroyed") {
         const p = (msg as { params: { targetId: string } }).params;
         // Remove any session mapping for this target
         for (const [sessionId, targetId] of this.sessionToTarget.entries()) {
           if (targetId === p.targetId) {
             this.sessionToTarget.delete(sessionId);
+            this.latestCdpCallEvent.delete(sessionId);
             break;
           }
         }
       }
 
       const { method, params, sessionId } = msg;
+      const latestCdpCallEvent =
+        this.latestCdpCallEvent.get(sessionId ?? null) ??
+        (sessionId ? this.latestCdpCallEvent.get(null) : null);
+      const targetId =
+        sessionId != null
+          ? (this.sessionToTarget.get(sessionId) ?? sessionId)
+          : null;
 
-      // Log incoming CDP events
-      const targetId = this.sessionToTarget.get(sessionId) || sessionId;
-      this.cdpEventLogger?.({ method, params, targetId });
+      if (latestCdpCallEvent) {
+        FlowLogger.logCdpMessageEvent(
+          latestCdpCallEvent.flowLoggerContext,
+          latestCdpCallEvent.cdpCallEvent,
+          {
+            method,
+            params,
+            targetId,
+          },
+        );
+      }
 
       if (sessionId) {
         const session = this.sessions.get(sessionId);
@@ -330,6 +400,26 @@ export class CdpConnection implements CDPSessionLike {
     const id = this.nextId++;
     const payload = { id, method, params, sessionId };
     const stack = new Error().stack?.split("\n").slice(1, 4).join("\n");
+    let flowLoggerContext: FlowLoggerContext | null = null;
+    try {
+      flowLoggerContext = FlowLogger.currentContext;
+    } catch {
+      flowLoggerContext = this.flowLoggerContext ?? null;
+    }
+    const targetId = this.sessionToTarget.get(sessionId) ?? null;
+    const cdpCallEvent = flowLoggerContext
+      ? FlowLogger.logCdpCallEvent(flowLoggerContext, {
+          method,
+          params,
+          targetId,
+        })
+      : null;
+    if (flowLoggerContext && cdpCallEvent) {
+      this.latestCdpCallEvent.set(sessionId, {
+        flowLoggerContext,
+        cdpCallEvent,
+      });
+    }
 
     const p = new Promise<R>((resolve, reject) => {
       this.inflight.set(id, {
@@ -340,12 +430,12 @@ export class CdpConnection implements CDPSessionLike {
         params,
         stack,
         ts: Date.now(),
+        flowLoggerContext,
+        cdpCallEvent,
       });
     });
     // Prevent unhandledRejection if a session detaches before the caller awaits.
     void p.catch(() => {});
-    const targetId = this.sessionToTarget.get(sessionId) ?? null;
-    this.cdpLogger?.({ method, params, targetId });
     for (const waiter of Array.from(this.sessionDispatchWaiters)) {
       if (waiter.sessionId !== sessionId) continue;
       if (waiter.method !== method) continue;
