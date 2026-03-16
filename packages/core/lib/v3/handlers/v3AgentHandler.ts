@@ -40,6 +40,7 @@ import {
   AgentAbortError,
 } from "../types/public/sdkErrors.js";
 import { handleDoneToolCall } from "../agent/utils/handleDoneToolCall.js";
+import { isTerminalDoneToolCall } from "../agent/utils/doneToolCall.js";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -225,15 +226,24 @@ export class V3AgentHandler {
             });
           }
 
-          if (toolCall.toolName === "done") {
+          const isTerminalDoneCall = isTerminalDoneToolCall(toolCall);
+          if (toolCall.toolName === "done" && !isTerminalDoneCall) {
+            this.logger({
+              category: "agent",
+              message: "Ignoring non-terminal done tool call during main loop",
+              level: 1,
+            });
+            continue;
+          }
+
+          if (isTerminalDoneCall) {
             state.completed = true;
-            if (args?.taskComplete) {
-              const doneReasoning = args.reasoning;
-              const allReasoning = state.collectedReasoning.join(" ");
-              state.finalMessage = doneReasoning
-                ? `${allReasoning} ${doneReasoning}`.trim()
-                : allReasoning || "Task completed successfully";
-            }
+            const doneArgs = args as { reasoning?: string };
+            const doneReasoning = doneArgs.reasoning;
+            const allReasoning = state.collectedReasoning.join(" ");
+            state.finalMessage = doneReasoning
+              ? `${allReasoning} ${doneReasoning}`.trim()
+              : allReasoning || "Task completed successfully";
           }
           const mappedActions = mapToolResultToActions({
             toolCallName: toolCall.toolName,
@@ -588,7 +598,7 @@ export class V3AgentHandler {
     maxSteps: number,
   ): boolean | PromiseLike<boolean> {
     const lastStep = result.steps[result.steps.length - 1];
-    if (lastStep?.toolCalls?.some((tc) => tc.toolName === "done")) {
+    if (lastStep?.toolCalls?.some((tc) => isTerminalDoneToolCall(tc))) {
       return true;
     }
     return stepCountIs(maxSteps)(result);
