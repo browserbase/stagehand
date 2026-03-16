@@ -243,10 +243,6 @@ export class V3 {
   private shutdownSupervisor: ShutdownSupervisorHandle | null = null;
   private detachEventStoreListener: (() => void) | null = null;
 
-  private withLoggingContext<T>(fn: () => T): T {
-    return withInstanceLogContext(this.instanceId, fn);
-  }
-
   public stagehandMetrics: StagehandMetrics = {
     actPromptTokens: 0,
     actCompletionTokens: 0,
@@ -650,7 +646,8 @@ export class V3 {
    */
   async init(): Promise<void> {
     try {
-      return await this.withLoggingContext(async () => {
+      return await withInstanceLogContext(this.instanceId, () =>
+        FlowLogger.withContext(this.flowLoggerContext, async () => {
         this.actHandler = new ActHandler(
           this.llmClient,
           this.modelName,
@@ -1011,7 +1008,8 @@ export class V3 {
 
         const neverEnv: never = this.opts.env;
         throw new StagehandInitError(`Unsupported env: ${neverEnv}`);
-      });
+        }),
+      );
     } catch (error) {
       // Cleanup instanceLoggers map on init failure to prevent memory leak
       if (this.externalLogger) {
@@ -1087,7 +1085,8 @@ export class V3 {
     eventIdSuffix: "4",
   })
   async act(input: string | Action, options?: ActOptions): Promise<ActResult> {
-    return await this.withLoggingContext(async () => {
+    return await withInstanceLogContext(this.instanceId, () =>
+      FlowLogger.withContext(this.flowLoggerContext, async () => {
       if (!this.actHandler) throw new StagehandNotInitializedError("act()");
 
       let actResult: ActResult;
@@ -1211,7 +1210,8 @@ export class V3 {
         await this.actCache.store(actCacheContext, actResult);
       }
       return actResult;
-    });
+      }),
+    );
   }
 
   /**
@@ -1248,7 +1248,8 @@ export class V3 {
     b?: StagehandZodSchema | ExtractOptions,
     c?: ExtractOptions,
   ): Promise<unknown> {
-    return await this.withLoggingContext(async () => {
+    return await withInstanceLogContext(this.instanceId, () =>
+      FlowLogger.withContext(this.flowLoggerContext, async () => {
       if (!this.extractHandler) {
         throw new StagehandNotInitializedError("extract()");
       }
@@ -1324,7 +1325,8 @@ export class V3 {
         result,
       );
       return result;
-    });
+      }),
+    );
   }
 
   /**
@@ -1344,7 +1346,8 @@ export class V3 {
     a?: string | ObserveOptions,
     b?: ObserveOptions,
   ): Promise<Action[]> {
-    return await this.withLoggingContext(async () => {
+    return await withInstanceLogContext(this.instanceId, () =>
+      FlowLogger.withContext(this.flowLoggerContext, async () => {
       if (!this.observeHandler) {
         throw new StagehandNotInitializedError("observe()");
       }
@@ -1392,7 +1395,8 @@ export class V3 {
         results,
       );
       return results;
-    });
+      }),
+    );
   }
 
   /** Return the browser-level CDP WebSocket endpoint. */
@@ -1875,7 +1879,8 @@ export class V3 {
         async (
           instructionOrOptions: string | AgentExecuteOptions,
         ): Promise<AgentResult> =>
-          this.withLoggingContext(async () => {
+          withInstanceLogContext(this.instanceId, () =>
+            FlowLogger.withContext(this.flowLoggerContext, async () => {
             validateExperimentalFeatures({
               isExperimental: this.experimental,
               agentConfig: options,
@@ -1991,7 +1996,8 @@ export class V3 {
                 this.discardAgentReplayRecording();
               }
             }
-          }),
+            }),
+          ),
       );
       return {
         execute,
@@ -2011,7 +2017,8 @@ export class V3 {
           | AgentExecuteOptions
           | AgentStreamExecuteOptions,
       ): Promise<AgentResult | AgentStreamResult> =>
-        this.withLoggingContext(async () => {
+        withInstanceLogContext(this.instanceId, () =>
+          FlowLogger.withContext(this.flowLoggerContext, async () => {
           validateExperimentalFeatures({
             isExperimental: this.experimental,
             agentConfig: options,
@@ -2126,7 +2133,8 @@ export class V3 {
               this.discardAgentReplayRecording();
             }
           }
-        }),
+          }),
+        ),
     );
 
     return {

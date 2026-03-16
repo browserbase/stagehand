@@ -262,6 +262,15 @@ export class FlowLogger {
       : execute();
   }
 
+  /**
+   * Re-enters an existing FlowLogger context without emitting wrapper events.
+   * Use this when work already belongs to a known session/parent chain and
+   * only needs AsyncLocalStorage propagation.
+   */
+  static withContext<T>(context: FlowLoggerContext, fn: () => T): T {
+    return loggerContext.run(FlowLogger.cloneContext(context), fn);
+  }
+
   // ===========================================================================
   // CDP Events
   // ===========================================================================
