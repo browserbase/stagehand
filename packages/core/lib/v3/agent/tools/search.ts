@@ -8,28 +8,21 @@ export interface SearchResult {
   publishedDate?: string;
 }
 
-interface SearchResponse {
-  data?: {
-    results: SearchResult[];
-  };
-  error?: string;
-}
-
-interface BrowserbaseSearchResult {
+interface BrowserbaseRawResult {
   title?: string;
   url?: string;
   publishedDate?: string;
 }
 
 interface BrowserbaseApiResponse {
-  results?: BrowserbaseSearchResult[];
+  results?: BrowserbaseRawResult[];
 }
 
 async function performBrowserbaseSearch(
   query: string,
   apiKey: string,
   numResults: number = 5,
-): Promise<SearchResponse> {
+): Promise<{ results: SearchResult[]; error?: string }> {
   try {
     const response = await fetch("https://api.browserbase.com/v1/search", {
       method: "POST",
@@ -42,32 +35,26 @@ async function performBrowserbaseSearch(
 
     if (!response.ok) {
       return {
+        results: [],
         error: `Browserbase Search API error: ${response.status} ${response.statusText}`,
-        data: { results: [] },
       };
     }
 
     const data = (await response.json()) as BrowserbaseApiResponse;
-    const results: SearchResult[] = [];
+    const results: SearchResult[] = (data?.results ?? []).map(
+      ({ title, url, publishedDate }) => ({
+        title: title ?? "",
+        url: url ?? "",
+        ...(publishedDate && { publishedDate }),
+      }),
+    );
 
-    if (data?.results && Array.isArray(data.results)) {
-      for (const item of data.results.slice(0, numResults)) {
-        if (item.title && item.url) {
-          results.push({
-            title: item.title,
-            url: item.url,
-            publishedDate: item.publishedDate,
-          });
-        }
-      }
-    }
-
-    return { data: { results } };
+    return { results };
   } catch (error) {
     console.error("Search error", error);
     return {
+      results: [],
       error: `Error performing search: ${(error as Error).message}`,
-      data: { results: [] },
     };
   }
 }
@@ -93,17 +80,14 @@ export const searchTool = (v3: V3, apiKey: string) =>
       });
 
       const result = await performBrowserbaseSearch(query, apiKey);
+
       v3.recordAgentReplayStep({
         type: "search",
         instruction: query,
         playwrightArguments: { query },
-        message:
-          result.error ?? `Found ${result.data?.results.length ?? 0} results`,
+        message: result.error ?? `Found ${result.results.length} results`,
       });
 
-      return {
-        ...result,
-        timestamp: Date.now(),
-      };
+      return { ...result, timestamp: Date.now() };
     },
   });
