@@ -1,0 +1,25 @@
+packages/server-v4/scripts/build-sea.ts
+  041b30a0079f39cd 26,123-130,179,182-185,192,201-205,230-233,504
+packages/server-v3/scripts/build-sea.ts
+  041b30a0079f39cd 26,123-130,179,182-185,192,201-205,230-233,504
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.11",
+  "base_commit_sha": "276ddc3e4df6873d5f1bc28292677a50665c3b8f",
+  "prompts": {
+    "041b30a0079f39cd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cf045-2918-7e53-82fb-68570af374e9",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>",
+      "messages": [],
+      "total_additions": 54,
+      "total_deletions": 6,
+      "accepted_lines": 54,
+      "overriden_lines": 0
+    }
+  }
+}
