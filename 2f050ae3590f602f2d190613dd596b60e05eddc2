@@ -1,0 +1,23 @@
+packages/core/lib/v3/understudy/cdp.ts
+  6dec7dcc42b5ac08 147,155,157,170,407,416,418,432
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "2f050ae3590f602f2d190613dd596b60e05eddc2",
+  "prompts": {
+    "6dec7dcc42b5ac08": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cf9a9-5ecf-72d0-a32a-30cea5c1bc07",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>",
+      "messages": [],
+      "total_additions": 18,
+      "total_deletions": 42,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    }
+  }
+}
