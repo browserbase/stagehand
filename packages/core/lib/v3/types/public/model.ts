@@ -126,8 +126,6 @@ export type ClientOptions = (
   apiKey?: string;
   provider?: AgentProviderType;
   baseURL?: string;
-  /** Custom headers for the model provider */
-  headers?: Record<string, string>;
   /** Provider-specific config normalized before calling the underlying AI SDK provider. */
   providerConfig?: ProviderConfig;
   /** OpenAI organization ID */
