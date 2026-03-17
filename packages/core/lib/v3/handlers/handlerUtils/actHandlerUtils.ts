@@ -77,6 +77,12 @@ export async function performUnderstudyMethod(
     args: Array.from(args),
   });
 
+  // Arm the watcher before the action so we do not miss very fast URL changes,
+  // but start the timeout window only after the click returns.
+  const navWatcher = shouldWaitForPostClickSettle(method)
+    ? watchMainFrameUrlChangeStart(page, page.url())
+    : null;
+
   try {
     const handler = METHOD_HANDLER_MAP[method] ?? null;
 
@@ -106,6 +112,11 @@ export async function performUnderstudyMethod(
           );
       }
     }
+    if (navWatcher && (await navWatcher.wait(400))) {
+      await waitForDomNetworkQuiet(page.mainFrame(), domSettleTimeoutMs).catch(
+        () => {},
+      );
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : undefined;
@@ -126,8 +137,109 @@ export async function performUnderstudyMethod(
     }
     throw new UnderstudyCommandException(msg, e);
   } finally {
+    navWatcher?.dispose();
     SessionFileLogger.logUnderstudyActionCompleted();
   }
+}
+
+function shouldWaitForPostClickSettle(method: string): boolean {
+  return method === "click" || method === "doubleClick";
+}
+
+function watchMainFrameUrlChangeStart(
+  page: Page,
+  initialUrl: string,
+): {
+  wait: (timeoutMs: number) => Promise<boolean>;
+  dispose: () => void;
+} {
+  const session = page.mainFrame().session;
+  const initialMainFrameId = page.mainFrameId();
+  let matched = false;
+  let disposed = false;
+  let waiter:
+    | {
+        resolve: (value: boolean) => void;
+        timer: ReturnType<typeof setTimeout>;
+      }
+    | undefined;
+
+  const finish = (value: boolean) => {
+    if (disposed) return;
+    // Latch a successful match so wait() can return immediately when a very
+    // fast navigation starts before the post-click timeout window begins.
+    if (value) matched = true;
+    if (waiter) {
+      clearTimeout(waiter.timer);
+      const current = waiter;
+      waiter = undefined;
+      current.resolve(value);
+    }
+  };
+
+  const dispose = () => {
+    // dispose() is called from cleanup paths that can overlap, so it must be
+    // safe to run more than once.
+    if (disposed) return;
+    disposed = true;
+    session.off("Page.frameNavigated", onFrameNavigated);
+    session.off("Page.navigatedWithinDocument", onNavigatedWithinDocument);
+    if (waiter) {
+      clearTimeout(waiter.timer);
+      waiter.resolve(false);
+      waiter = undefined;
+    }
+  };
+
+  // Main-frame identity can shift during navigation. Treat both the original
+  // root frame id and the current page.mainFrameId() as authoritative.
+  const isMainFrame = (frameId: string): boolean =>
+    frameId === initialMainFrameId || frameId === page.mainFrameId();
+
+  // We only treat main-frame events with an actual URL change as navigation
+  // start. Real pages can emit same-URL history events that should not trigger
+  // a post-click settle wait.
+  const onFrameNavigated = (event: Protocol.Page.FrameNavigatedEvent) => {
+    if (
+      isMainFrame(event.frame.id) &&
+      event.frame.url &&
+      event.frame.url !== initialUrl
+    ) {
+      finish(true);
+    }
+  };
+
+  const onNavigatedWithinDocument = (
+    event: Protocol.Page.NavigatedWithinDocumentEvent,
+  ) => {
+    if (isMainFrame(event.frameId) && event.url !== initialUrl) {
+      finish(true);
+    }
+  };
+
+  session.on("Page.frameNavigated", onFrameNavigated);
+  session.on("Page.navigatedWithinDocument", onNavigatedWithinDocument);
+
+  return {
+    wait: async (timeoutMs: number) => {
+      // If navigation started while the click was still in flight, surface that
+      // immediately instead of burning the full timeout budget after the click.
+      if (matched) return true;
+      if (disposed) return false;
+      return await new Promise<boolean>((resolve) => {
+        waiter = {
+          resolve,
+          timer: setTimeout(() => {
+            // Clear waiter before resolving so a late navigation event cannot
+            // race in and resolve the same wait() call twice.
+            waiter = undefined;
+            resolve(false);
+          }, timeoutMs),
+        };
+      });
+    },
+    dispose,
+  };
 }
 
 /* ===================== Handlers & Map ===================== */
