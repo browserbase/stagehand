@@ -1,0 +1,25 @@
+packages/core/lib/v3/understudy/cdp.ts
+  6dec7dcc42b5ac08 270-280,294-304,369-379,429-435
+packages/core/lib/v3/eventStore.ts
+  6dec7dcc42b5ac08 925-930
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "acadcc4d9a9a09fd43a79b3f4b4bf3d57471d70f",
+  "prompts": {
+    "6dec7dcc42b5ac08": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cf9a9-5ecf-72d0-a32a-30cea5c1bc07",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>",
+      "messages": [],
+      "total_additions": 89,
+      "total_deletions": 59,
+      "accepted_lines": 46,
+      "overriden_lines": 0
+    }
+  }
+}
