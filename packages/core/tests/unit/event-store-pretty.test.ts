@@ -1,10 +1,51 @@
-import { EventEmitter } from "node:events";
 import { afterEach, describe, expect, it } from "vitest";
 import { EventStore } from "../../lib/v3/eventStore.js";
-import { FlowEvent } from "../../lib/v3/flowLogger.js";
+import {
+  EventEmitterWithWildcardSupport,
+  FlowEvent,
+} from "../../lib/v3/flowLogger.js";
 
 function waitForAsyncEmit(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function attachStoreToBus(
+  store: EventStore,
+  bus: EventEmitterWithWildcardSupport,
+): () => void {
+  const onFlowEvent = (event: unknown) => {
+    if (event instanceof FlowEvent) {
+      void store.emit(event);
+    }
+  };
+
+  bus.on("*", onFlowEvent);
+  return () => {
+    bus.off("*", onFlowEvent);
+  };
+}
+
+function createVerboseStoreHarness(): {
+  writes: string[];
+  store: EventStore;
+  bus: EventEmitterWithWildcardSupport;
+  detachBus: () => void;
+} {
+  const writes: string[] = [];
+  process.stderr.write = ((
+    chunk: string,
+    cb?: (error?: Error | null) => void,
+  ) => {
+    writes.push(String(chunk));
+    cb?.(null);
+    return true;
+  }) as typeof process.stderr.write;
+
+  const store = new EventStore("session-test", { verbose: 2 } as never);
+  const bus = new EventEmitterWithWildcardSupport();
+  const detachBus = attachStoreToBus(store, bus);
+
+  return { writes, store, bus, detachBus };
 }
 
 describe("EventStore pretty formatting", () => {
@@ -22,7 +63,7 @@ describe("EventStore pretty formatting", () => {
         eventType: "StagehandExtractEvent",
         sessionId: "session-test",
         eventId: "stagehand-1234",
-        createdAt: "2026-03-16T21:45:00.000Z",
+        eventCreatedAt: "2026-03-16T21:45:00.000Z",
         data: { params: ["grab title"] },
       }),
     );
@@ -42,7 +83,7 @@ describe("EventStore pretty formatting", () => {
         eventType: "LlmRequestEvent",
         sessionId: "session-test",
         eventId: "llm-1234",
-        createdAt: "2026-03-16T21:45:00.000Z",
+        eventCreatedAt: "2026-03-16T21:45:00.000Z",
         data: {
           prompt: [{ type: "image_url", image_url: { url: "huge" } }],
           output: "huge",
@@ -59,34 +100,22 @@ describe("EventStore pretty formatting", () => {
   });
 
   it("renders semantic hierarchy tags for non-cdp stderr events only", async () => {
-    const writes: string[] = [];
     // Intercept stderr so the pretty sink can be asserted without polluting the
     // real test runner output.
-    process.stderr.write = ((
-      chunk: string,
-      cb?: (error?: Error | null) => void,
-    ) => {
-      writes.push(String(chunk));
-      cb?.(null);
-      return true;
-    }) as typeof process.stderr.write;
-
-    const store = new EventStore("session-test", { verbose: 2 } as never);
-    const bus = new EventEmitter();
-    const detachBus = store.attachBus(bus);
+    const { writes, store, bus, detachBus } = createVerboseStoreHarness();
 
     const stepEvent = new FlowEvent({
       eventType: "StagehandExtractEvent",
       sessionId: "session-test",
       eventId: "stagehand-1234",
-      createdAt: "2026-03-16T21:45:00.000Z",
+      eventCreatedAt: "2026-03-16T21:45:00.000Z",
       data: { params: ["grab title"] },
     });
     const cdpEvent = new FlowEvent({
       eventType: "CdpCallEvent",
       sessionId: "session-test",
       eventId: "cdp-call-5678",
-      createdAt: "2026-03-16T21:45:00.100Z",
+      eventCreatedAt: "2026-03-16T21:45:00.100Z",
       eventParentIds: [stepEvent.eventId],
       data: {
         method: "Runtime.evaluate",
@@ -111,19 +140,7 @@ describe("EventStore pretty formatting", () => {
   });
 
   it("renders generic stagehand events without crashing the stderr sink", async () => {
-    const writes: string[] = [];
-    process.stderr.write = ((
-      chunk: string,
-      cb?: (error?: Error | null) => void,
-    ) => {
-      writes.push(String(chunk));
-      cb?.(null);
-      return true;
-    }) as typeof process.stderr.write;
-
-    const store = new EventStore("session-test", { verbose: 2 } as never);
-    const bus = new EventEmitter();
-    const detachBus = store.attachBus(bus);
+    const { writes, store, bus, detachBus } = createVerboseStoreHarness();
 
     // `StagehandEvent` has no action suffix, so this guards the formatter path
     // that cannot assume a method name exists.
@@ -133,7 +150,7 @@ describe("EventStore pretty formatting", () => {
         eventType: "StagehandEvent",
         sessionId: "session-test",
         eventId: "stagehand-0001",
-        createdAt: "2026-03-16T21:45:00.000Z",
+        eventCreatedAt: "2026-03-16T21:45:00.000Z",
         data: { params: ["noop"] },
       }),
     );
@@ -148,32 +165,20 @@ describe("EventStore pretty formatting", () => {
   });
 
   it("keeps agent ancestry and start ids for completion events after many child events", async () => {
-    const writes: string[] = [];
-    process.stderr.write = ((
-      chunk: string,
-      cb?: (error?: Error | null) => void,
-    ) => {
-      writes.push(String(chunk));
-      cb?.(null);
-      return true;
-    }) as typeof process.stderr.write;
-
-    const store = new EventStore("session-test", { verbose: 2 } as never);
-    const bus = new EventEmitter();
-    const detachBus = store.attachBus(bus);
+    const { writes, store, bus, detachBus } = createVerboseStoreHarness();
 
     const agentEvent = new FlowEvent({
       eventType: "AgentExecuteEvent",
       sessionId: "session-test",
       eventId: "agent-1234",
-      createdAt: "2026-03-16T21:45:00.000Z",
+      eventCreatedAt: "2026-03-16T21:45:00.000Z",
       data: { params: [{ instruction: "click the button" }] },
     });
     const actEvent = new FlowEvent({
       eventType: "StagehandActEvent",
       sessionId: "session-test",
       eventId: "stagehand-2222",
-      createdAt: "2026-03-16T21:45:00.001Z",
+      eventCreatedAt: "2026-03-16T21:45:00.001Z",
       eventParentIds: [agentEvent.eventId],
       data: { params: ["click the button"] },
     });
@@ -181,7 +186,7 @@ describe("EventStore pretty formatting", () => {
       eventType: "UnderstudyClickEvent",
       sessionId: "session-test",
       eventId: "action-3333",
-      createdAt: "2026-03-16T21:45:00.002Z",
+      eventCreatedAt: "2026-03-16T21:45:00.002Z",
       eventParentIds: [agentEvent.eventId, actEvent.eventId],
       data: { target: "xpath=/button[1]" },
     });
@@ -199,7 +204,7 @@ describe("EventStore pretty formatting", () => {
           eventType: "CdpCallEvent",
           sessionId: "session-test",
           eventId: `cdp-${String(index).padStart(4, "0")}`,
-          createdAt: `2026-03-16T21:45:00.${String(index + 10).padStart(3, "0")}Z`,
+          eventCreatedAt: `2026-03-16T21:45:00.${String(index + 10).padStart(3, "0")}Z`,
           eventParentIds: [
             agentEvent.eventId,
             actEvent.eventId,
@@ -220,7 +225,7 @@ describe("EventStore pretty formatting", () => {
         eventType: "UnderstudyClickCompletedEvent",
         sessionId: "session-test",
         eventId: "done-4444",
-        createdAt: "2026-03-16T21:45:01.000Z",
+        eventCreatedAt: "2026-03-16T21:45:01.000Z",
         eventParentIds: [
           agentEvent.eventId,
           actEvent.eventId,
@@ -235,7 +240,7 @@ describe("EventStore pretty formatting", () => {
         eventType: "StagehandActCompletedEvent",
         sessionId: "session-test",
         eventId: "done-5555",
-        createdAt: "2026-03-16T21:45:01.001Z",
+        eventCreatedAt: "2026-03-16T21:45:01.001Z",
         eventParentIds: [agentEvent.eventId, actEvent.eventId],
         data: { durationMs: 500 },
       }),
@@ -246,7 +251,7 @@ describe("EventStore pretty formatting", () => {
         eventType: "AgentExecuteCompletedEvent",
         sessionId: "session-test",
         eventId: "done-6666",
-        createdAt: "2026-03-16T21:45:01.002Z",
+        eventCreatedAt: "2026-03-16T21:45:01.002Z",
         eventParentIds: [agentEvent.eventId],
         data: { durationMs: 750 },
       }),

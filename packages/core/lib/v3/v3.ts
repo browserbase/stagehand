@@ -1,4 +1,3 @@
-import { EventEmitter } from "events";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -85,7 +84,12 @@ import { resolveModel } from "../modelUtils.js";
 import { StagehandAPIClient } from "./api.js";
 import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures.js";
 import { flattenVariables } from "./agent/utils/variables.js";
-import { FlowLogger, type FlowLoggerContext } from "./flowLogger.js";
+import {
+  FlowEvent,
+  EventEmitterWithWildcardSupport,
+  FlowLogger,
+  type FlowLoggerContext,
+} from "./flowLogger.js";
 import { EventStore } from "./eventStore.js";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard.js";
 import { ActTimeoutError } from "./types/public/sdkErrors.js";
@@ -154,7 +158,8 @@ export class V3 {
    * Event bus for internal communication.
    * Emits events like 'screenshot' when screenshots are captured during agent execution.
    */
-  public readonly bus: EventEmitter = new EventEmitter();
+  public readonly bus: EventEmitterWithWildcardSupport =
+    new EventEmitterWithWildcardSupport();
   private modelName: AvailableModel;
   private modelClientOptions: ClientOptions;
   private llmProvider: LLMProvider;
@@ -386,9 +391,20 @@ export class V3 {
     // enables the pretty/jsonl file sinks for this session.
     this.eventStore = new EventStore(this.sessionId, opts);
     this.flowLoggerContext = FlowLogger.init(this.sessionId, this.bus);
-    // Forward all FlowEvents emitted on the session bus into the per-instance
-    // EventStore so enabled sinks can consume them.
-    this.detachEventStoreListener = this.eventStore.attachBus(this.bus);
+    // Flow event pipeline:
+    // FlowLogger -> this.bus -> this.eventStore -> configured sinks/query history.
+    // V3 owns the bus for this session. EventStore is not another bus; it just
+    // receives already-emitted FlowEvents here, then fans them out to sinks and
+    // keeps the queryable per-session history used by /v4/log, parent/ancestor lookups, and tests.
+    const onFlowEvent = (event: unknown) => {
+      if (event instanceof FlowEvent && event.sessionId === this.sessionId) {
+        void this.eventStore.emit(event);
+      }
+    };
+    this.bus.on("*", onFlowEvent);
+    this.detachEventStoreListener = () => {
+      this.bus.off("*", onFlowEvent);
+    };
 
     // Track instance for global process guard handling
     V3._instances.add(this);
@@ -1087,7 +1103,6 @@ export class V3 {
 
   @FlowLogger.wrapWithLogging({
     eventType: "StagehandAct",
-    eventIdSuffix: "4",
   })
   async act(input: string | Action, options?: ActOptions): Promise<ActResult> {
     return await withInstanceLogContext(this.instanceId, async () => {
@@ -1244,7 +1259,6 @@ export class V3 {
 
   @FlowLogger.wrapWithLogging({
     eventType: "StagehandExtract",
-    eventIdSuffix: "4",
   })
   async extract(
     a?: string | ExtractOptions,
@@ -1341,7 +1355,6 @@ export class V3 {
   ): Promise<Action[]>;
   @FlowLogger.wrapWithLogging({
     eventType: "StagehandObserve",
-    eventIdSuffix: "4",
   })
   async observe(
     a?: string | ObserveOptions,
@@ -1879,7 +1892,6 @@ export class V3 {
       return {
         execute: FlowLogger.wrapWithLogging({
           eventType: "AgentExecute",
-          eventIdSuffix: "3",
           context: this.flowLoggerContext,
         })(
           async (
@@ -2024,7 +2036,6 @@ export class V3 {
     return {
       execute: FlowLogger.wrapWithLogging({
         eventType: "AgentExecute",
-        eventIdSuffix: "3",
         context: this.flowLoggerContext,
       })(
         async (

@@ -10,28 +10,39 @@ import type { LanguageModelMiddleware } from "ai";
 export type FlowEventData = Record<string, unknown>;
 export type FlowEventInput = Omit<
   FlowEvent,
-  "eventId" | "createdAt" | "sessionId" | "eventParentIds" | "data"
+  "eventId" | "eventCreatedAt" | "sessionId" | "eventParentIds" | "data"
 > & {
   eventId?: string;
-  eventIdSuffix?: string;
-  createdAt?: string;
+  eventCreatedAt?: string;
   sessionId?: string;
   eventParentIds?: string[];
   data?: FlowEventData;
 };
 
 export class FlowEvent {
-  // Builds a sortable UUID-like event id while preserving the caller-provided suffix used by downstream pretty printers and log readers.
-  static createEventId(eventIdSuffix: string): string {
+  // "ModuleMethodSomethingEvent" -> hashToSmallInt("Modu) -> 5. eventId = "...5"
+  private static deriveEventIdSuffix(eventType: string): string {
+    const prefixMatch = eventType.match(/^[A-Z][a-z0-9]*/);
+    const prefix = prefixMatch?.[0] ?? eventType.slice(0, 4);
+
+    let hash = 0;
+    for (const ch of prefix.slice(0, 4)) {
+      hash = (hash * 31 + ch.charCodeAt(0)) % 10;
+    }
+    return String(hash); // e.g. "0" or "9"
+  }
+
+  // Builds a sortable UUID-like event id while preserving a stable, human-friendly suffix derived from the event family.
+  static createEventId(eventType: string): string {
     const rawEventId = uuidv7();
-    return `${rawEventId.slice(0, -1)}${eventIdSuffix || "0"}`;
+    return `${rawEventId.slice(0, -1)}${FlowEvent.deriveEventIdSuffix(eventType)}`;
   }
 
   // Base required fields for all events:
   eventType: string;
   eventId: string;
   eventParentIds: string[];
-  createdAt: string;
+  eventCreatedAt: string;
   // `sessionId` usually matches `browserbaseSessionId` today, but FlowLogger treats it as a generic Stagehand session identifier because those may diverge in the future.
   sessionId: string;
   data: FlowEventData; // event payload (e.g. params, action, result, error, etc.)
@@ -41,32 +52,63 @@ export class FlowEvent {
     if (!input.sessionId) {
       throw new Error("FlowEvent.sessionId is required.");
     }
-    if (
-      input.eventId &&
-      input.eventIdSuffix &&
-      !input.eventId.endsWith(input.eventIdSuffix)
-    ) {
-      throw new Error("FlowEvent cannot take both eventId and eventIdSuffix.");
-    }
-
     if (input.eventType.endsWith("Event")) {
       this.eventType = input.eventType;
     } else {
       this.eventType = `${input.eventType}Event`;
     }
-    this.eventId =
-      input.eventId ?? FlowEvent.createEventId(input.eventIdSuffix ?? "0");
+    this.eventId = input.eventId ?? FlowEvent.createEventId(this.eventType);
     this.eventParentIds = input.eventParentIds ?? [];
-    this.createdAt = input.createdAt ?? new Date().toISOString();
+    this.eventCreatedAt = input.eventCreatedAt ?? new Date().toISOString();
     this.sessionId = input.sessionId;
     this.data = input.data ?? {};
+  }
+}
+
+type WildcardEventListener = (...args: unknown[]) => void;
+
+export class EventEmitterWithWildcardSupport extends EventEmitter {
+  private readonly wildcardListeners = new Set<WildcardEventListener>();
+
+  override on(
+    eventName: string | symbol,
+    listener: (...args: unknown[]) => void,
+  ): this {
+    if (eventName === "*") {
+      this.wildcardListeners.add(listener);
+      return this;
+    }
+
+    return super.on(eventName, listener);
+  }
+
+  override off(
+    eventName: string | symbol,
+    listener: (...args: unknown[]) => void,
+  ): this {
+    if (eventName === "*") {
+      this.wildcardListeners.delete(listener);
+      return this;
+    }
+
+    return super.off(eventName, listener);
+  }
+
+  override emit(eventName: string | symbol, ...args: unknown[]): boolean {
+    const handled = super.emit(eventName, ...args);
+
+    for (const listener of this.wildcardListeners) {
+      listener(...args);
+    }
+
+    return handled || this.wildcardListeners.size > 0;
   }
 }
 
 export interface FlowLoggerContext {
   // Mirrors `FlowEvent.sessionId`; it is currently the Stagehand session id and often matches `browserbaseSessionId`, but callers should not rely on that.
   sessionId: string;
-  eventBus: EventEmitter; // Shared per-session bus; `emit()` writes to it and `EventStore.attachBus()` forwards from it.
+  eventBus: EventEmitterWithWildcardSupport; // Shared per-session bus; `emit()` writes to it and V3 forwards wildcard events into the instance-owned EventStore.
   parentEvents: FlowEvent[]; // Active parent stack for the current async chain; wrappers push/pop this as logged work starts and ends.
 }
 
@@ -176,7 +218,7 @@ export class FlowLogger {
     originalMethod: AsyncOriginalMethod<[], TResult>,
   ): Promise<TResult> {
     const ctx = FlowLogger.currentContext;
-    const { data, eventParentIds, eventType, eventIdSuffix } = options;
+    const { data, eventParentIds, eventType } = options;
     let caughtError: unknown = null;
 
     // if eventParentIds is explicitly [], this is a root event, clear the parent events in context
@@ -185,7 +227,6 @@ export class FlowLogger {
     }
 
     const startedEvent = FlowLogger.emit({
-      eventIdSuffix,
       eventType,
       data,
       eventParentIds,
@@ -202,12 +243,12 @@ export class FlowLogger {
       // Error events attach directly under the started event even though the
       // stack is still live, so the failure edge is explicit in the tree.
       FlowLogger.emit({
-        eventIdSuffix,
         eventType: `${eventType}ErrorEvent`,
         eventParentIds: [...startedEvent.eventParentIds, startedEvent.eventId],
         data: {
           error: error instanceof Error ? error.message : String(error),
-          durationMs: Date.now() - new Date(startedEvent.createdAt).getTime(),
+          durationMs:
+            Date.now() - new Date(startedEvent.eventCreatedAt).getTime(),
         },
       });
       throw error;
@@ -218,14 +259,14 @@ export class FlowLogger {
       const parentEvent = ctx.parentEvents.pop();
       if (parentEvent?.eventId === startedEvent.eventId && !caughtError) {
         FlowLogger.emit({
-          eventIdSuffix,
           eventType: `${eventType}CompletedEvent`,
           eventParentIds: [
             ...startedEvent.eventParentIds,
             startedEvent.eventId,
           ],
           data: {
-            durationMs: Date.now() - new Date(startedEvent.createdAt).getTime(),
+            durationMs:
+              Date.now() - new Date(startedEvent.eventCreatedAt).getTime(),
           },
         });
       }
@@ -266,7 +307,6 @@ export class FlowLogger {
 
     return loggerContext.run(FlowLogger.cloneContext(context), () =>
       FlowLogger.emit({
-        eventIdSuffix: "6",
         eventType: FlowLogger.getCdpEventName(eventType),
         eventParentIds,
         data: {
@@ -389,7 +429,10 @@ export class FlowLogger {
   // =============================================================================
 
   // Initialize a new logging context. Call this at the start of a session.
-  static init(sessionId: string, eventBus: EventEmitter): FlowLoggerContext {
+  static init(
+    sessionId: string,
+    eventBus: EventEmitterWithWildcardSupport,
+  ): FlowLoggerContext {
     const ctx: FlowLoggerContext = {
       sessionId,
       eventBus,
@@ -604,7 +647,6 @@ export class FlowLogger {
     prompt?: string;
   }): void {
     FlowLogger.emitLlmEvent({
-      eventIdSuffix: "7",
       eventType: "LlmRequestEvent",
       data: {
         requestId,
@@ -629,7 +671,6 @@ export class FlowLogger {
     outputTokens?: number;
   }): void {
     FlowLogger.emitLlmEvent({
-      eventIdSuffix: "7",
       eventType: "LlmResponseEvent",
       data: {
         requestId,

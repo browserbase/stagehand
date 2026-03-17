@@ -1,11 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { EventEmitter } from "node:events";
-
 import { toTitleCase } from "../utils.js";
 import type { V3Options } from "./types/public/index.js";
 import { FlowEvent } from "./flowLogger.js";
-
 
 // per stagehand instance, max history size for event parent id lookups
 // (doesn't store event.data, only metadata fields e.g. eventId, eventParentIds, etc.)
@@ -14,7 +11,6 @@ const DEFAULT_IN_MEMORY_EVENT_LIMIT = 500;
 // session metadata + event logs get saved in  BROWSERBASE_CONFIG_DIR/sessions/<session-id>/*.{log,json,jsonl,...}
 const CONFIG_DIR = process.env.BROWSERBASE_CONFIG_DIR || "";
 // e.g. BROWSERBASE_CONFIG_DIR=~/.config/browserbase, BROWSERBASE_CONFIG_DIR=., BROWSERBASE_CONFIG_DIR=/tmp/bb
-
 
 // Some last-line-of-defense patterns that should be redacted at all costs when prettifying in log sinks
 const SENSITIVE_KEYS =
@@ -26,13 +22,11 @@ const MAX_LINE_LENGTH = 160; // Maximum width for a prettified log line
 // Public Contracts
 // =============================================================================
 
-
 export interface EventSink {
   emit(event: FlowEvent): Promise<void>;
   query(query: EventStoreQuery): Promise<FlowEvent[]>;
   destroy(): Promise<void>;
 }
-
 
 export interface EventStoreQuery {
   sessionId?: string;
@@ -41,15 +35,9 @@ export interface EventStoreQuery {
   limit?: number;
 }
 
-export type EventStoreListener = (event: FlowEvent) => void;
-
 export interface EventStoreApi {
   readonly sessionId: string;
-  attachSink(sink: EventSink): () => void;
-  attachStore(sink: EventSink): () => void;
-  subscribe(query: EventStoreQuery, listener: EventStoreListener): () => void;
   emit(event: FlowEvent): Promise<void>;
-  attachBus(bus: EventEmitter): () => void;
   query(query: EventStoreQuery): Promise<FlowEvent[]>;
   destroy(): Promise<void>;
 }
@@ -255,7 +243,6 @@ function truncateCdpIds(value: string): string {
   );
 }
 
-
 let nonce = 0;
 
 // Formats timestamps for pretty logs while appending a tiny nonce so lines emitted in the same millisecond remain stable and sortable.
@@ -299,38 +286,33 @@ function prettifyFormatMethodCall(
   return `▷ ${target}${member}(${prettifyFormatEventArgs(args)})`;
 }
 
-// Predicate used when building pretty ancestry tags.
+// Marks agent lifecycle events for ancestry tags.
 function prettifyIsAgentEvent(event: FlowEvent): boolean {
   return prettifyEventName(event.eventType).startsWith("Agent");
 }
-
-// Predicate used when building pretty ancestry tags.
+// Marks Stagehand lifecycle events for ancestry tags.
 function prettifyIsStagehandEvent(event: FlowEvent): boolean {
   return prettifyEventName(event.eventType).startsWith("Stagehand");
 }
-
-// Predicate used when building pretty ancestry tags.
+// Marks page and Understudy actions for the action tag.
 function prettifyIsActionEvent(event: FlowEvent): boolean {
-  const name = prettifyEventName(event.eventType);
-  return name.startsWith("Page") || name.startsWith("Understudy");
+  return /^(Page|Understudy)/.test(prettifyEventName(event.eventType));
 }
 
-// Predicate used to route events to the CDP pretty formatter.
+// Routes transport-level CDP traffic to the CDP formatter.
 function prettifyIsCdpEvent(event: FlowEvent): boolean {
   return prettifyEventName(event.eventType).startsWith("Cdp");
 }
-
-// Predicate used to route events to the LLM pretty formatter.
+// Routes LLM request/response events to the LLM formatter.
 function prettifyIsLlmEvent(event: FlowEvent): boolean {
   return prettifyEventName(event.eventType).startsWith("Llm");
 }
 
-// Predicate used when deciding whether tags should describe the event itself or its nearest started ancestor.
+// Completed events should inherit tags from the started operation.
 function prettifyIsCompletedEvent(event: FlowEvent): boolean {
   return event.eventType.endsWith("CompletedEvent");
 }
-
-// Predicate used when deciding whether tags should describe the event itself or its nearest started ancestor.
+// Error events should inherit tags from the started operation.
 function prettifyIsErrorEvent(event: FlowEvent): boolean {
   return event.eventType.endsWith("ErrorEvent");
 }
@@ -346,24 +328,18 @@ function prettifyFormatTag(
 
 // Formats duration values stored on completed/error events.
 function prettifyFormatDuration(durationMs?: unknown): string | null {
-  if (typeof durationMs !== "number") {
-    return null;
-  }
-
-  return `${(durationMs / 1000).toFixed(2)}s`;
+  return typeof durationMs === "number"
+    ? `${(durationMs / 1000).toFixed(2)}s`
+    : null;
 }
 
 // Summarizes a prompt or output payload down to a single displayable string for the LLM pretty formatter.
 function prettifySummarizePrompt(value: unknown): string | undefined {
-  if (typeof value === "string") {
-    return prettifyTruncateLine(value, MAX_LINE_LENGTH / 2);
-  }
-
-  if (value == null) {
-    return undefined;
-  }
-
-  return prettifyTruncateLine(prettifyFormatValue(value), MAX_LINE_LENGTH / 2);
+  return typeof value === "string"
+    ? prettifyTruncateLine(value, MAX_LINE_LENGTH / 2)
+    : value == null
+      ? undefined
+      : prettifyTruncateLine(prettifyFormatValue(value), MAX_LINE_LENGTH / 2);
 }
 
 // Replaces large object references from live runtime objects with placeholders before they are stringified for pretty output.
@@ -539,19 +515,17 @@ function prettifyFormatStartedDetails(event: FlowEvent): string {
     target?: string;
   };
   const name = prettifyEventName(event.eventType);
+  const method = prettifyEventAction(event.eventType);
 
   if (name.startsWith("Stagehand")) {
-    const method = prettifyEventAction(event.eventType);
     return prettifyFormatMethodCall("Stagehand", method, data.params);
   }
 
   if (name.startsWith("Page")) {
-    const method = prettifyEventAction(event.eventType);
     return prettifyFormatMethodCall("Page", method, data.params);
   }
 
   if (name.startsWith("Understudy")) {
-    const method = prettifyEventAction(event.eventType);
     const args = [
       data.target,
       ...(Array.isArray(data.params) ? data.params : []),
@@ -568,21 +542,15 @@ function prettifyFormatStartedDetails(event: FlowEvent): string {
 
 // Formats the details section for completed/error events.
 function prettifyFormatCompletedDetails(event: FlowEvent): string {
-  const label =
-    prettifyEventAction(event.eventType).toUpperCase() || event.eventType;
   const duration = prettifyFormatDuration(event.data.durationMs);
-  let prefix = `${label} completed`;
-  if (prettifyIsAgentEvent(event)) {
-    prefix = "Agent.execute() completed";
-  }
-
-  if (prettifyIsErrorEvent(event)) {
-    const message =
-      typeof event.data.error === "string" ? ` ERROR ${event.data.error}` : "";
-    return `✕ ${prefix}${duration ? ` in ${duration}` : ""}${message}`;
-  }
-
-  return `✓ ${prefix}${duration ? ` in ${duration}` : ""}`;
+  const prefix = prettifyIsAgentEvent(event)
+    ? "Agent.execute() completed"
+    : `${prettifyEventAction(event.eventType).toUpperCase() || event.eventType} completed`;
+  const message =
+    prettifyIsErrorEvent(event) && typeof event.data.error === "string"
+      ? ` ERROR ${event.data.error}`
+      : "";
+  return `${prettifyIsErrorEvent(event) ? "✕" : "✓"} ${prefix}${duration ? ` in ${duration}` : ""}${message}`;
 }
 
 // Formats CDP request/response/message details. These are rendered differently from normal Stagehand lifecycle events because they represent transport-level traffic rather than method envelopes.
@@ -595,14 +563,14 @@ function prettifyFormatCdpDetails(event: FlowEvent): string {
   };
   const method = data.method ?? "unknown";
   const icon = event.eventType === "CdpCallEvent" ? "⏵" : "⏴";
-  let payload: unknown = data.result;
-  if (event.eventType === "CdpCallEvent") {
-    payload = data.params;
-  } else if (data.error) {
-    payload = { error: data.error };
-  } else if (event.eventType === "CdpMessageEvent") {
-    payload = data.params;
-  }
+  const payload: unknown =
+    event.eventType === "CdpCallEvent"
+      ? data.params
+      : data.error
+        ? { error: data.error }
+        : event.eventType === "CdpMessageEvent"
+          ? data.params
+          : data.result;
 
   return `${icon} ${method}(${prettifyFormatEventArgs(payload)})`;
 }
@@ -623,10 +591,10 @@ function prettifyFormatLlmDetails(event: FlowEvent): string {
     return prompt ? `${model} ⏴ ${prompt}` : `${model} ⏴`;
   }
 
-  let tokenInfo = "";
-  if (data.inputTokens !== undefined || data.outputTokens !== undefined) {
-    tokenInfo = ` ꜛ${data.inputTokens ?? 0} ꜜ${data.outputTokens ?? 0}`;
-  }
+  const tokenInfo =
+    (data.inputTokens || data.outputTokens) > 0
+      ? ` ꜛ${data.inputTokens ?? 0} ꜜ${data.outputTokens ?? 0}`
+      : "";
   const output = prettifySummarizePrompt(data.output);
   return output ? `${model} ↳${tokenInfo} ${output}` : `${model} ↳${tokenInfo}`;
 }
@@ -656,7 +624,7 @@ async function prettifyEvent(
     return null;
   }
 
-  const createdAt = new Date(event.createdAt);
+  const createdAt = new Date(event.eventCreatedAt);
   let timestamp = formatTimestamp(createdAt);
   if (Number.isNaN(createdAt.getTime())) {
     timestamp = formatTimestamp(new Date());
@@ -822,7 +790,9 @@ export class InMemoryEventSink implements EventSink {
   async query(query: EventStoreQuery): Promise<FlowEvent[]> {
     const filtered = this.events.filter((event) => matchesQuery(event, query));
     filtered.sort((left, right) => {
-      const createdAtOrder = left.createdAt.localeCompare(right.createdAt);
+      const createdAtOrder = left.eventCreatedAt.localeCompare(
+        right.eventCreatedAt,
+      );
       if (createdAtOrder !== 0) {
         return createdAtOrder;
       }
@@ -844,7 +814,7 @@ export class ShallowInMemoryEventSink extends InMemoryEventSink {
     return new FlowEvent({
       eventType: event.eventType,
       eventId: event.eventId,
-      createdAt: event.createdAt,
+      eventCreatedAt: event.eventCreatedAt,
       sessionId: event.sessionId,
       eventParentIds: [...event.eventParentIds],
       data: {},
@@ -856,190 +826,92 @@ export class ShallowInMemoryEventSink extends InMemoryEventSink {
 // Event Store
 // =============================================================================
 
+// Per-session flow event sink manager.
+// This is not an event bus. V3 forwards already-emitted FlowEvents into it so
+// the store can fan them out to configured sinks, answer `query()` calls from
+// its one query sink, and tear down its sinks when the session closes.
+// We keep this as a separate object instead of wiring sinks directly with
+// `v3.bus.on("*", sink.emit)` because pretty sinks need access to a shared
+// query interface while rendering. Prettified lines often need to look up
+// related parent/child events to recover the readable ancestry tags and labels.
+// Passing sinks into each other to share that state gets messy quickly, so the
+// EventStore contains the circular dependency: all sinks live here, and any
+// sink that needs historical context can call the one `EventStore.query()`
+// entrypoint backed by the main query sink for this session.
 export class EventStore implements EventStoreApi {
-  private readonly listeners = new Set<(event: FlowEvent) => Promise<void>>(); // Active subscribers registered via `subscribe()` and used by attached sinks.
-  private readonly sinkDetachers = new Map<EventSink, () => void>(); // Per-sink unsubscribe hooks installed by `attachSink()` and consumed by `attachStore()` / `destroy()`.
-  private readonly ownedSinks = new Set<EventSink>(); // Sinks this store created itself and must destroy on shutdown.
-  private querySink: EventSink | null = null; // The single sink backing `query()`; initialized to the default shallow sink and replaceable by tests.
+  private readonly sinks = new Set<EventSink>(); // All sinks attached for this session; constructor registers them here and `destroy()` tears them down.
   private destroyed = false; // Flipped by `destroy()` so later emits and teardown calls become no-ops.
+  public query: (query: EventStoreQuery) => Promise<FlowEvent[]>; // Always reads from the one query sink chosen at construction time.
 
   // Creates the per-instance store owned by a single V3 session. This store is intentionally single-session; it ignores events for other session ids.
   constructor(
     // Usually matches `browserbaseSessionId` today, but it is the store's own Stagehand session identifier and may diverge in the future.
     public readonly sessionId: string,
     options?: V3Options,
+    querySink: EventSink = new ShallowInMemoryEventSink(
+      DEFAULT_IN_MEMORY_EVENT_LIMIT,
+    ),
   ) {
     const sessionDirPromise = createSessionDir(sessionId, options);
-    const defaultQuerySink = new ShallowInMemoryEventSink(
-      DEFAULT_IN_MEMORY_EVENT_LIMIT,
-    );
 
-    this.ownedSinks.add(defaultQuerySink);
-    this.attachSink(defaultQuerySink);
-    this.querySink = defaultQuerySink;
+    this.registerSink(querySink);
+    this.query = async (query) => {
+      if (query.sessionId && query.sessionId !== this.sessionId) {
+        return [];
+      }
+
+      return querySink.query({
+        ...query,
+        sessionId: this.sessionId,
+      });
+    };
 
     if (getConfigDir()) {
       const jsonlSink = new JsonlFileEventSink(sessionDirPromise);
       const prettyLogSink = new PrettyLogFileEventSink(sessionDirPromise, this);
-      this.ownedSinks.add(jsonlSink);
-      this.ownedSinks.add(prettyLogSink);
-      this.attachSink(jsonlSink);
-      this.attachSink(prettyLogSink);
+      this.registerSink(jsonlSink);
+      this.registerSink(prettyLogSink);
     }
 
     if (options?.verbose === 2) {
       const stderrSink = new PrettyStderrEventSink(this);
-      this.ownedSinks.add(stderrSink);
-      this.attachSink(stderrSink);
+      this.registerSink(stderrSink);
     }
   }
 
-  // Attaches a sink so every future emitted event is forwarded to it.
-  attachSink(sink: EventSink): () => void {
-    const existing = this.sinkDetachers.get(sink);
-    if (existing) {
-      return existing;
-    }
-
-    const unsubscribe = this.subscribe({}, async (event) => {
-      await sink.emit(event);
-    });
-
-    const detach = () => {
-      unsubscribe();
-      this.sinkDetachers.delete(sink);
-      if (this.querySink === sink) {
-        this.querySink = null;
-      }
-    };
-
-    this.sinkDetachers.set(sink, detach);
-    return detach;
+  // Adds a sink to the direct fanout list used by `emit()`.
+  private registerSink(sink: EventSink): void {
+    this.sinks.add(sink);
   }
 
-  // Attaches the single queryable sink used by `EventStore.query()`. Tests use this to replace the default shallow history with a full in-memory sink.
-  attachStore(sink: EventSink): () => void {
-    if (this.querySink && this.querySink !== sink) {
-      if (!this.ownedSinks.has(this.querySink)) {
-        throw new Error(
-          "A queryable event sink is already attached. Detach it before attaching another.",
-        );
-      }
-
-      // The default shallow sink is owned by the store, so replacing it means
-      // detaching and destroying it immediately to avoid retaining duplicate
-      // history in memory.
-      const previousQuerySink = this.querySink;
-      this.sinkDetachers.get(previousQuerySink)?.();
-      this.ownedSinks.delete(previousQuerySink);
-      void previousQuerySink.destroy().catch(() => {
-        // best effort cleanup
-      });
-    }
-
-    const wasAttached = this.sinkDetachers.has(sink);
-    let detachSink: () => void;
-    if (wasAttached) {
-      detachSink = this.sinkDetachers.get(sink) as () => void;
-    } else {
-      detachSink = this.attachSink(sink);
-    }
-
-    // `query()` always reads from exactly one sink so ancestry lookups stay
-    // deterministic even when other write-only sinks are attached.
-    this.querySink = sink;
-
-    return () => {
-      if (this.querySink === sink) {
-        this.querySink = null;
-      }
-      if (!wasAttached) {
-        detachSink();
-      }
-    };
-  }
-
-  // Subscribes a listener to future events matching the provided query.
-  subscribe(query: EventStoreQuery, listener: EventStoreListener): () => void {
-    const wrapped = async (event: FlowEvent): Promise<void> => {
-      if (matchesQuery(event, query)) {
-        listener(event);
-      }
-    };
-
-    this.listeners.add(wrapped);
-    return () => {
-      this.listeners.delete(wrapped);
-    };
-  }
-
-  // Emits an event to all attached sinks and listeners when it belongs to this store's single session.
+  // Emits an event to all attached sinks when it belongs to this store's single session.
   async emit(event: FlowEvent): Promise<void> {
     if (this.destroyed || event.sessionId !== this.sessionId) {
       return;
     }
 
-    await Promise.all([...this.listeners].map((listener) => listener(event)));
-  }
-
-  // Hooks the store into the shared session event bus by forwarding any emitted `FlowEvent` for this store's session into `EventStore.emit()`.
-  attachBus(bus: EventEmitter): () => void {
-    const originalEmit = bus.emit.bind(bus);
-    bus.emit = ((eventName: string | symbol, ...args: [FlowEvent]) => {
-      const [event] = args;
-      // Forward matching FlowEvents into the store before preserving the bus's
-      // original emit behavior for every other listener.
-      if (event?.sessionId === this.sessionId) {
-        void this.emit(event);
-      }
-      return originalEmit(eventName, ...args);
-    }) as typeof bus.emit;
-
-    return () => {
-      bus.emit = originalEmit;
-    };
-  }
-
-  // Queries the currently attached query sink for events from this store's session only.
-  async query(query: EventStoreQuery): Promise<FlowEvent[]> {
-    if (query.sessionId && query.sessionId !== this.sessionId) {
-      return [];
-    }
-
-    return (
-      (await this.querySink?.query({
-        ...query,
-        sessionId: this.sessionId,
-      })) ?? []
+    await Promise.all(
+      [...this.sinks].map(async (sink) => {
+        await sink.emit(event);
+      }),
     );
   }
 
-  // Detaches listeners and tears down all owned sinks when the V3 instance is closed.
+  // Tears down all sinks when the V3 instance is closed.
   async destroy(): Promise<void> {
     if (this.destroyed) {
       return;
     }
 
     this.destroyed = true;
-    const ownedSinks = [...this.ownedSinks];
-    // Detach first so no new events race into sinks while teardown is running.
-    for (const detach of [...this.sinkDetachers.values()]) {
-      detach();
-    }
-
-    // Only owned sinks are destroyed here; externally attached sinks keep their
-    // own lifecycle and are merely unsubscribed above.
     await Promise.all(
-      ownedSinks.map((sink) =>
+      [...this.sinks].map((sink) =>
         sink.destroy().catch(() => {
           // best effort cleanup
         }),
       ),
     );
 
-    this.querySink = null;
-    this.listeners.clear();
-    this.sinkDetachers.clear();
-    this.ownedSinks.clear();
+    this.sinks.clear();
   }
 }

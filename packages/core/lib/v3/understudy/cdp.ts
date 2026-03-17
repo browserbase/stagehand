@@ -62,7 +62,8 @@ export class CdpConnection implements CDPSessionLike {
   private ws: WebSocket;
   private nextId = 1;
   private inflight = new Map<number, Inflight>(); // Outstanding request records; `_sendViaSession()` inserts and `onMessage()` removes/resolves them.
-  private latestCdpCallEvent = new Map< // Most recent CDP call per session/root; `_sendViaSession()` refreshes it and later unsolicited messages reuse it as their parent anchor.
+  private latestCdpCallEvent = new Map<
+    // Most recent CDP call per session/root; `_sendViaSession()` refreshes it and later unsolicited messages reuse it as their parent anchor.
     string | null,
     {
       flowLoggerContext: FlowLoggerContext; // Flow context captured when the latest call on this session/root was emitted.

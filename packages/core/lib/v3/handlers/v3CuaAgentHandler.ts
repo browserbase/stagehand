@@ -98,7 +98,6 @@ export class V3CuaAgentHandler {
           await FlowLogger.runWithLogging(
             {
               eventType,
-              eventIdSuffix: "5",
               data: {
                 target: this.computePointerTarget(action),
               },

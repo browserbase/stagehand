@@ -47,7 +47,6 @@ export async function performUnderstudyMethod(
     await FlowLogger.runWithLogging(
       {
         eventType,
-        eventIdSuffix: "5",
         data: {
           target: selectorRaw,
         },

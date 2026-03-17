@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { z } from "zod";
 import { InMemoryEventSink } from "../../lib/v3/eventStore.js";
-import type { FlowEvent } from "../../lib/v3/flowLogger.js";
+import { FlowEvent } from "../../lib/v3/flowLogger.js";
 import { performUnderstudyMethod } from "../../lib/v3/handlers/handlerUtils/actHandlerUtils.js";
 import { V3 } from "../../lib/v3/v3.js";
 import {
@@ -21,7 +21,14 @@ function createFlowLoggerTestV3(
   overrides: Parameters<typeof getV3TestConfig>[0] = {},
 ): V3 {
   const v3 = new V3(getV3TestConfig(overrides));
-  v3.eventStore.attachStore(new InMemoryEventSink());
+  const sink = new InMemoryEventSink();
+  v3.bus.on("*", (event: unknown) => {
+    if (event instanceof FlowEvent) {
+      void sink.emit(event);
+    }
+  });
+  v3.eventStore.query = (query) =>
+    sink.query({ ...query, sessionId: v3.eventStore.sessionId });
   return v3;
 }
 
