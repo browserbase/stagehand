@@ -106,6 +106,41 @@ describe("EventStore pretty formatting", () => {
     await store.destroy();
   });
 
+  it("renders generic stagehand events without crashing the stderr sink", async () => {
+    const writes: string[] = [];
+    process.stderr.write = ((
+      chunk: string,
+      cb?: (error?: Error | null) => void,
+    ) => {
+      writes.push(String(chunk));
+      cb?.(null);
+      return true;
+    }) as typeof process.stderr.write;
+
+    const store = new EventStore("session-test", { verbose: 2 } as never);
+    const bus = new EventEmitter();
+    const detachBus = store.attachBus(bus);
+
+    bus.emit(
+      "StagehandEvent",
+      new FlowEvent({
+        eventType: "StagehandEvent",
+        sessionId: "session-test",
+        eventId: "stagehand-0001",
+        createdAt: "2026-03-16T21:45:00.000Z",
+        data: { params: ["noop"] },
+      }),
+    );
+    await waitForAsyncEmit();
+
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toContain("[🆂 #0001");
+    expect(writes[0]).toContain("Stagehand(");
+
+    detachBus();
+    await store.destroy();
+  });
+
   it("keeps agent ancestry and start ids for completion events after many child events", async () => {
     const writes: string[] = [];
     process.stderr.write = ((

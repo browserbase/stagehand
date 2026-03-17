@@ -144,13 +144,7 @@ export class CdpConnection implements CDPSessionLike {
     const id = this.nextId++;
     const payload = { id, method, params };
     const stack = new Error().stack?.split("\n").slice(1, 4).join("\n");
-    const flowLoggerContext = (() => {
-      try {
-        return FlowLogger.currentContext;
-      } catch {
-        return this.flowLoggerContext ?? null;
-      }
-    })();
+    const flowLoggerContext = FlowLogger.resolveContext(this.flowLoggerContext);
     const cdpCallEvent = flowLoggerContext
       ? FlowLogger.logCdpCallEvent(flowLoggerContext, {
           method,
@@ -158,15 +152,9 @@ export class CdpConnection implements CDPSessionLike {
           targetId: null,
         })
       : null;
-    const storedFlowLoggerContext = flowLoggerContext
-      ? FlowLogger.withContext(
-          flowLoggerContext,
-          () => FlowLogger.currentContext,
-        )
-      : null;
-    if (storedFlowLoggerContext && cdpCallEvent) {
+    if (flowLoggerContext && cdpCallEvent) {
       this.latestCdpCallEvent.set(null, {
-        flowLoggerContext: storedFlowLoggerContext,
+        flowLoggerContext,
         cdpCallEvent,
       });
     }
@@ -179,7 +167,7 @@ export class CdpConnection implements CDPSessionLike {
         params,
         stack,
         ts: Date.now(),
-        flowLoggerContext: storedFlowLoggerContext,
+        flowLoggerContext,
         cdpCallEvent,
       });
     });
@@ -416,13 +404,7 @@ export class CdpConnection implements CDPSessionLike {
     const id = this.nextId++;
     const payload = { id, method, params, sessionId };
     const stack = new Error().stack?.split("\n").slice(1, 4).join("\n");
-    const flowLoggerContext = (() => {
-      try {
-        return FlowLogger.currentContext;
-      } catch {
-        return this.flowLoggerContext ?? null;
-      }
-    })();
+    const flowLoggerContext = FlowLogger.resolveContext(this.flowLoggerContext);
     const targetId = this.sessionToTarget.get(sessionId) ?? null;
     const cdpCallEvent = flowLoggerContext
       ? FlowLogger.logCdpCallEvent(flowLoggerContext, {
@@ -431,15 +413,9 @@ export class CdpConnection implements CDPSessionLike {
           targetId,
         })
       : null;
-    const storedFlowLoggerContext = flowLoggerContext
-      ? FlowLogger.withContext(
-          flowLoggerContext,
-          () => FlowLogger.currentContext,
-        )
-      : null;
-    if (storedFlowLoggerContext && cdpCallEvent) {
+    if (flowLoggerContext && cdpCallEvent) {
       this.latestCdpCallEvent.set(sessionId, {
-        flowLoggerContext: storedFlowLoggerContext,
+        flowLoggerContext,
         cdpCallEvent,
       });
     }
@@ -453,7 +429,7 @@ export class CdpConnection implements CDPSessionLike {
         params,
         stack,
         ts: Date.now(),
-        flowLoggerContext: storedFlowLoggerContext,
+        flowLoggerContext,
         cdpCallEvent,
       });
     });

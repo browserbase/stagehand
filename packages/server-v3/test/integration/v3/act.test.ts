@@ -305,7 +305,7 @@ describe("POST /v1/sessions/:id/act (V3)", () => {
     );
   });
 
-  it("should perform action with google/gemini-2.5-flash model", async () => {
+  it("should perform action with google/gemini-2.5-flash-lite model", async () => {
     const url = getBaseUrl();
     const geminiApiKey = requireEnv("GEMINI_API_KEY", GEMINI_API_KEY);
 
@@ -321,7 +321,7 @@ describe("POST /v1/sessions/:id/act (V3)", () => {
           input: "click the Learn more link",
           options: {
             model: {
-              modelName: "google/gemini-2.5-flash",
+              modelName: "google/gemini-2.5-flash-lite",
               apiKey: geminiApiKey,
             },
           },
@@ -332,7 +332,7 @@ describe("POST /v1/sessions/:id/act (V3)", () => {
     assertFetchStatus(
       ctx,
       HTTP_OK,
-      "act with google/gemini-2.5-flash model should succeed",
+      "act with google/gemini-2.5-flash-lite model should succeed",
     );
     assertFetchOk(ctx.body !== null, "Response should have body", ctx);
     assertFetchOk(ctx.body.success, "Response should indicate success", ctx);

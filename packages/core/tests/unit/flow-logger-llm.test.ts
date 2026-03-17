@@ -1,0 +1,46 @@
+import { describe, expect, it } from "vitest";
+import { FlowLogger } from "../../lib/v3/flowLogger.js";
+
+describe("FlowLogger LLM logging", () => {
+  it("no-ops direct llm logging calls when no flow context is active", () => {
+    expect(() =>
+      FlowLogger.logLlmRequest({
+        requestId: "req-1",
+        model: "mock-model",
+        prompt: "hello",
+      }),
+    ).not.toThrow();
+
+    expect(() =>
+      FlowLogger.logLlmResponse({
+        requestId: "req-1",
+        model: "mock-model",
+        output: "world",
+        inputTokens: 1,
+        outputTokens: 1,
+      }),
+    ).not.toThrow();
+  });
+
+  it("does not throw from llm middleware when no flow context is active", async () => {
+    const middleware = FlowLogger.createLlmLoggingMiddleware("mock-model");
+
+    await expect(
+      middleware.wrapGenerate({
+        doGenerate: async () => ({
+          text: "done",
+          usage: {
+            inputTokens: 1,
+            outputTokens: 1,
+            totalTokens: 2,
+          },
+        }),
+        params: {
+          prompt: [],
+        },
+      } as never),
+    ).resolves.toMatchObject({
+      text: "done",
+    });
+  });
+});

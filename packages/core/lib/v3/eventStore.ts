@@ -235,6 +235,15 @@ function prettifyEventAction(eventType: string): string {
     .replace(/^Page/, "");
 }
 
+function prettifyFormatMethodCall(
+  target: string,
+  method: string,
+  args: unknown,
+): string {
+  const member = method ? `.${method[0].toLowerCase()}${method.slice(1)}` : "";
+  return `▷ ${target}${member}(${prettifyFormatEventArgs(args)})`;
+}
+
 function prettifyIsAgentEvent(event: FlowEvent): boolean {
   return prettifyEventName(event.eventType).startsWith("Agent");
 }
@@ -482,12 +491,12 @@ function prettifyFormatStartedDetails(event: FlowEvent): string {
 
   if (name.startsWith("Stagehand")) {
     const method = prettifyEventAction(event.eventType);
-    return `▷ Stagehand.${method[0].toLowerCase()}${method.slice(1)}(${prettifyFormatEventArgs(data.params)})`;
+    return prettifyFormatMethodCall("Stagehand", method, data.params);
   }
 
   if (name.startsWith("Page")) {
     const method = prettifyEventAction(event.eventType);
-    return `▷ Page.${method[0].toLowerCase()}${method.slice(1)}(${prettifyFormatEventArgs(data.params)})`;
+    return prettifyFormatMethodCall("Page", method, data.params);
   }
 
   if (name.startsWith("Understudy")) {
@@ -496,7 +505,7 @@ function prettifyFormatStartedDetails(event: FlowEvent): string {
       data.target,
       ...(Array.isArray(data.params) ? data.params : []),
     ].filter((entry) => entry !== undefined);
-    return `▷ Understudy.${method[0].toLowerCase()}${method.slice(1)}(${prettifyFormatEventArgs(args)})`;
+    return prettifyFormatMethodCall("Understudy", method, args);
   }
 
   if (name.startsWith("Agent")) {

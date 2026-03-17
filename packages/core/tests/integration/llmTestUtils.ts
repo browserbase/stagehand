@@ -32,6 +32,10 @@ type GenerateResponseValue =
       usage?: Partial<LanguageModelV2Usage>;
     });
 
+type ScriptedLanguageModel = LanguageModelV2 & {
+  doGenerateCalls: LanguageModelV2CallOptions[];
+};
+
 const DEFAULT_USAGE: LanguageModelV2Usage = {
   inputTokens: 1,
   outputTokens: 1,
@@ -176,15 +180,16 @@ export function createScriptedAisdkTestLlmClient(options?: {
   modelId?: string;
   jsonResponses?: Partial<Record<JsonResponseKey, JsonResponseScript>>;
   generateResponses?: GenerateResponseValue[];
-}) {
-  const jsonResponses = {
-    ...(options?.jsonResponses ?? {}),
-  };
+}): AISdkClient {
+  const jsonResponses = Object.fromEntries(
+    Object.entries(options?.jsonResponses ?? {}).map(([key, value]) => [
+      key,
+      Array.isArray(value) ? [...value] : value,
+    ]),
+  ) as Partial<Record<JsonResponseKey, JsonResponseScript>>;
   const generateResponses = [...(options?.generateResponses ?? [])];
 
-  const model: LanguageModelV2 & {
-    doGenerateCalls: LanguageModelV2CallOptions[];
-  } = {
+  const model: ScriptedLanguageModel = {
     provider: "mock",
     modelId: options?.modelId ?? "mock/stagehand-flow-logger",
     specificationVersion: "v2",
@@ -244,5 +249,5 @@ export function createScriptedAisdkTestLlmClient(options?: {
     },
   };
 
-  return Object.assign(new AISdkClient({ model }), { model });
+  return new AISdkClient({ model });
 }

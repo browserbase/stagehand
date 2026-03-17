@@ -223,6 +223,22 @@ export class FlowLogger {
     return ctx;
   }
 
+  /**
+   * Returns a cloned FlowLogger context for the current async call-chain when
+   * one exists, otherwise falls back to the provided instance-owned context.
+   * This is the non-throwing lookup for callers that can continue without ALS.
+   */
+  static resolveContext(
+    fallbackContext?: FlowLoggerContext | null,
+  ): FlowLoggerContext | null {
+    const currentContext = loggerContext.getStore() ?? null;
+    if (currentContext) {
+      return FlowLogger.cloneContext(currentContext);
+    }
+
+    return fallbackContext ? FlowLogger.cloneContext(fallbackContext) : null;
+  }
+
   // decorator method to wrap a class method with automatic started/completed/error events
   static wrapWithLogging<TMethod extends AsyncOriginalMethod>(
     options: FlowLoggerLogOptions,
@@ -437,14 +453,19 @@ export class FlowLogger {
     model: string;
     prompt?: string;
   }): void {
-    FlowLogger.emit({
-      eventIdSuffix: "7",
-      eventType: "LlmRequestEvent",
-      data: {
-        requestId,
-        model,
-        prompt,
-      },
+    const context = FlowLogger.resolveContext();
+    if (!context) return;
+
+    loggerContext.run(context, () => {
+      FlowLogger.emit({
+        eventIdSuffix: "7",
+        eventType: "LlmRequestEvent",
+        data: {
+          requestId,
+          model,
+          prompt,
+        },
+      });
     });
   }
 
@@ -461,16 +482,21 @@ export class FlowLogger {
     inputTokens?: number;
     outputTokens?: number;
   }): void {
-    FlowLogger.emit({
-      eventIdSuffix: "7",
-      eventType: "LlmResponseEvent",
-      data: {
-        requestId,
-        model,
-        output,
-        inputTokens,
-        outputTokens,
-      },
+    const context = FlowLogger.resolveContext();
+    if (!context) return;
+
+    loggerContext.run(context, () => {
+      FlowLogger.emit({
+        eventIdSuffix: "7",
+        eventType: "LlmResponseEvent",
+        data: {
+          requestId,
+          model,
+          output,
+          inputTokens,
+          outputTokens,
+        },
+      });
     });
   }
 

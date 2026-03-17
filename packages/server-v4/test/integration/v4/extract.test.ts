@@ -58,10 +58,7 @@ describe("POST /v4/sessions/:id/extract (V3)", () => {
       `${url}/v4/sessions/${sessionId}/extract`,
       {
         method: "POST",
-        headers: {
-          ...getHeaders("3.0.0"),
-          "x-model-api-key": "",
-        },
+        headers: getHeaders("3.0.0"),
         body: JSON.stringify({
           instruction: "extract the page title",
           schema: {
@@ -287,7 +284,7 @@ describe("POST /v4/sessions/:id/extract (V3)", () => {
     );
   });
 
-  it("should extract with google/gemini-2.5-flash model", async () => {
+  it("should extract with google/gemini-2.5-flash-lite model", async () => {
     const url = getBaseUrl();
     const geminiApiKey = requireEnv("GEMINI_API_KEY", GEMINI_API_KEY);
 
@@ -312,7 +309,7 @@ describe("POST /v4/sessions/:id/extract (V3)", () => {
           },
           options: {
             model: {
-              modelName: "google/gemini-2.5-flash",
+              modelName: "google/gemini-2.5-flash-lite",
               apiKey: geminiApiKey,
             },
           },

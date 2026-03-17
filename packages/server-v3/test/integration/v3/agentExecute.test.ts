@@ -567,7 +567,7 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - CUA flag compatibility", () 
         agentConfig: {
           cua: true,
           model: {
-            modelName: "google/gemini-2.5-flash",
+            modelName: "google/gemini-2.5-flash-lite",
             apiKey: geminiApiKey,
           },
         },
