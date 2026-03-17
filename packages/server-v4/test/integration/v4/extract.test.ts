@@ -10,7 +10,7 @@ import {
   endSession,
   fetchWithContext,
   GEMINI_API_KEY,
-  getBaseUrl,
+  BASE_URL,
   getHeaders,
   getMainFrameId,
   HTTP_OK,
@@ -46,7 +46,7 @@ after(async () => {
 
 describe("POST /v4/sessions/:id/extract (V3)", () => {
   it("should extract data with instruction and schema", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
     const frameId = await getMainFrameId(cdpUrl);
 
     interface ExtractResponse {
@@ -91,7 +91,7 @@ describe("POST /v4/sessions/:id/extract (V3)", () => {
   });
 
   it("should extract with instruction and options", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     interface ExtractResponse {
       success: boolean;
@@ -131,7 +131,7 @@ describe("POST /v4/sessions/:id/extract (V3)", () => {
   });
 
   it("should extract with CSS selector in options", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     interface ExtractResponse {
       success: boolean;
@@ -172,7 +172,7 @@ describe("POST /v4/sessions/:id/extract (V3)", () => {
   });
 
   it("should extract with XPath selector in options", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     interface ExtractResponse {
       success: boolean;
@@ -217,7 +217,7 @@ describe("POST /v4/sessions/:id/extract (V3)", () => {
   });
 
   it("should extract with instruction only (no schema)", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     interface ExtractResponse {
       success: boolean;
@@ -248,7 +248,7 @@ describe("POST /v4/sessions/:id/extract (V3)", () => {
   });
 
   it("should extract without instruction (extract all)", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     interface ExtractResponse {
       success: boolean;
@@ -285,7 +285,7 @@ describe("POST /v4/sessions/:id/extract (V3)", () => {
   });
 
   it("should extract with google/gemini-2.5-flash-lite model", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
     const geminiApiKey = requireEnv("GEMINI_API_KEY", GEMINI_API_KEY);
 
     interface ExtractResponse {
@@ -341,7 +341,7 @@ describe("POST /v4/sessions/:id/extract (V3)", () => {
 
 describe("POST /v4/sessions/:id/extract with SSE streaming (V3)", () => {
   it("should stream valid SSE events with correct structure", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const response = await fetch(`${url}/v4/sessions/${sessionId}/extract`, {
       method: "POST",
@@ -401,7 +401,7 @@ describe("POST /v4/sessions/:id/extract with SSE streaming (V3)", () => {
   });
 
   it("should have correct event sequence: starting -> connected -> finished", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const response = await fetch(`${url}/v4/sessions/${sessionId}/extract`, {
       method: "POST",
@@ -444,7 +444,7 @@ describe("POST /v4/sessions/:id/extract with SSE streaming (V3)", () => {
   });
 
   it("should have valid UUID for each event id", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const response = await fetch(`${url}/v4/sessions/${sessionId}/extract`, {
       method: "POST",
@@ -477,7 +477,7 @@ describe("POST /v4/sessions/:id/extract with SSE streaming (V3)", () => {
   });
 
   it("should extract data matching the provided schema", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const response = await fetch(`${url}/v4/sessions/${sessionId}/extract`, {
       method: "POST",

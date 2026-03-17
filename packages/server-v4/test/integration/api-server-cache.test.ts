@@ -7,7 +7,7 @@ import {
   createSession,
   endSession,
   fetchWithContext,
-  getBaseUrl,
+  BASE_URL,
   getHeaders,
   HTTP_OK,
   navigateSession,
@@ -35,7 +35,7 @@ after(async () => {
 // ---------------------------------------------------------------------------
 
 function extractUrl() {
-  return `${getBaseUrl()}/v4/sessions/${sessionId}/extract`;
+  return `${BASE_URL}/v4/sessions/${sessionId}/extract`;
 }
 
 function extractBody(instruction = "extract the page title") {

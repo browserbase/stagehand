@@ -1,157 +1,8 @@
-import fs from "node:fs";
-import path from "node:path";
-import { toTitleCase } from "../utils.js";
-import type { V3Options } from "./types/public/index.js";
-import { FlowEvent } from "./flowLogger.js";
+import { toTitleCase } from "../../utils.js";
+import { FlowEvent } from "./FlowLogger.js";
+import type { EventStoreApi } from "./EventStore.js";
 
-// per stagehand instance, max history size for event parent id lookups
-// (doesn't store event.data, only metadata fields e.g. eventId, eventParentIds, etc.)
-const DEFAULT_IN_MEMORY_EVENT_LIMIT = 500;
-
-// session metadata + event logs get saved in  BROWSERBASE_CONFIG_DIR/sessions/<session-id>/*.{log,json,jsonl,...}
-const CONFIG_DIR = process.env.BROWSERBASE_CONFIG_DIR || "";
-// e.g. BROWSERBASE_CONFIG_DIR=~/.config/browserbase, BROWSERBASE_CONFIG_DIR=., BROWSERBASE_CONFIG_DIR=/tmp/bb
-const FLOW_LOGS_ENABLED = process.env.BROWSERBASE_FLOW_LOGS === "1"; // Force-enables the pretty stderr flow sink even when `verbose !== 2`.
-
-// Some last-line-of-defense patterns that should be redacted at all costs when prettifying in log sinks
-const SENSITIVE_KEYS =
-  /key|secret|token|api-key|apikey|api_key|password|passwd|pwd|credential|auth/i;
-
-const MAX_LINE_LENGTH = 160; // Maximum width for a prettified log line
-
-// =============================================================================
-// Public Contracts
-// =============================================================================
-
-export interface EventSink {
-  emit(event: FlowEvent): Promise<void>;
-  query(query: EventStoreQuery): Promise<FlowEvent[]>;
-  destroy(): Promise<void>;
-}
-
-export interface EventStoreQuery {
-  sessionId?: string;
-  eventId?: string;
-  eventType?: string;
-  limit?: number;
-}
-
-export interface EventStoreApi {
-  readonly sessionId: string;
-  emit(event: FlowEvent): Promise<void>;
-  query(query: EventStoreQuery): Promise<FlowEvent[]>;
-  destroy(): Promise<void>;
-}
-
-// Checks whether an event matches a query used by subscribers and queryable sinks. `eventId` matches both the event itself and descendants of that event.
-function matchesQuery(event: FlowEvent, query: EventStoreQuery): boolean {
-  if (query.sessionId && event.sessionId !== query.sessionId) return false;
-
-  if (query.eventId) {
-    const matchesEvent =
-      event.eventId === query.eventId ||
-      event.eventParentIds.includes(query.eventId);
-    if (!matchesEvent) {
-      return false;
-    }
-  }
-
-  if (query.eventType) {
-    const pattern = new RegExp(
-      `^${query.eventType
-        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-        .replace(/\\\*/g, ".*")}$`,
-    );
-    if (!pattern.test(event.eventType)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-// =============================================================================
-// Filesystem Helpers
-// =============================================================================
-
-// Returns true when a file sink's stream is still open and writable.
-function isWritable(stream: fs.WriteStream | null): stream is fs.WriteStream {
-  return !!(stream && !stream.destroyed && stream.writable);
-}
-
-// Writes a serialized event to a file sink and converts callback-style stream completion into a promise.
-function writeToStream(stream: fs.WriteStream, value: string): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    try {
-      stream.write(value, (error?: Error | null) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve();
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
-
-// Redacts secrets before session options are written to `session.json` inside a config-dir-backed session directory.
-function sanitizeOptions(options: V3Options): Record<string, unknown> {
-  const sanitize = (value: unknown): unknown => {
-    if (typeof value !== "object" || value === null) return value;
-    if (Array.isArray(value)) return value.map(sanitize);
-
-    const result: Record<string, unknown> = {};
-    for (const [key, entry] of Object.entries(value)) {
-      result[key] = SENSITIVE_KEYS.test(key) ? "******" : sanitize(entry);
-    }
-    return result;
-  };
-
-  return sanitize({ ...options }) as Record<string, unknown>;
-}
-
-// Resolves the configured Browserbase config directory used by file sinks.
-export function getConfigDir(): string {
-  return CONFIG_DIR ? path.resolve(CONFIG_DIR) : "";
-}
-
-// Creates the per-session directory used by file sinks and writes best-effort metadata such as the sanitized `session.json` file and `latest` symlink.
-async function createSessionDir(
-  sessionId: string,
-  options?: V3Options,
-): Promise<string | null> {
-  const configDir = getConfigDir();
-  if (!configDir) {
-    return null;
-  }
-
-  const sessionDir = path.join(configDir, "sessions", sessionId);
-  await fs.promises.mkdir(sessionDir, { recursive: true });
-
-  if (options) {
-    await fs.promises.writeFile(
-      path.join(sessionDir, "session.json"),
-      JSON.stringify(sanitizeOptions(options), null, 2),
-      "utf-8",
-    );
-  }
-
-  const latestLink = path.join(configDir, "sessions", "latest");
-  try {
-    try {
-      await fs.promises.unlink(latestLink);
-    } catch {
-      // ignore missing link
-    }
-    await fs.promises.symlink(sessionId, latestLink, "dir");
-  } catch {
-    // symlink best effort only
-  }
-
-  return sessionDir;
-}
+const MAX_LINE_LENGTH = 160; // Maximum width for a prettified log line.
 
 // =============================================================================
 // Pretty Formatting
@@ -182,7 +33,7 @@ function prettifySanitizeValue(value: unknown): unknown {
 }
 
 // Produces a prettified-safe copy of the event without mutating the original event that other sinks may still need to serialize verbatim.
-function prettifySanitizeEvent(event: FlowEvent): FlowEvent {
+export function prettifySanitizeEvent(event: FlowEvent): FlowEvent {
   if (!event.eventType.startsWith("Cdp")) {
     return event;
   }
@@ -247,13 +98,13 @@ function truncateCdpIds(value: string): string {
 let nonce = 0;
 
 // Formats timestamps for pretty logs while appending a tiny nonce so lines emitted in the same millisecond remain stable and sortable.
-function formatTimestamp(date: Date): string {
+function prettifyFormatTimestamp(date: Date): string {
   const pad = (value: number, width = 2) => String(value).padStart(width, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}${pad(nonce++ % 100)}`;
 }
 
 // Removes noisy quoting artifacts from the final pretty line.
-function removeQuotes(value: string): string {
+function prettifyRemoveQuotes(value: string): string {
   return value
     .replace(/([^\\])["']/g, "$1")
     .replace(/^["']|["']$/g, "")
@@ -291,19 +142,22 @@ function prettifyFormatMethodCall(
 function prettifyIsAgentEvent(event: FlowEvent): boolean {
   return prettifyEventName(event.eventType).startsWith("Agent");
 }
+
 // Marks Stagehand lifecycle events for ancestry tags.
 function prettifyIsStagehandEvent(event: FlowEvent): boolean {
   return prettifyEventName(event.eventType).startsWith("Stagehand");
 }
+
 // Marks page and Understudy actions for the action tag.
 function prettifyIsActionEvent(event: FlowEvent): boolean {
   return /^(Page|Understudy)/.test(prettifyEventName(event.eventType));
 }
 
 // Routes transport-level CDP traffic to the CDP formatter.
-function prettifyIsCdpEvent(event: FlowEvent): boolean {
+export function prettifyIsCdpEvent(event: FlowEvent): boolean {
   return prettifyEventName(event.eventType).startsWith("Cdp");
 }
+
 // Routes LLM request/response events to the LLM formatter.
 function prettifyIsLlmEvent(event: FlowEvent): boolean {
   return prettifyEventName(event.eventType).startsWith("Llm");
@@ -313,6 +167,7 @@ function prettifyIsLlmEvent(event: FlowEvent): boolean {
 function prettifyIsCompletedEvent(event: FlowEvent): boolean {
   return event.eventType.endsWith("CompletedEvent");
 }
+
 // Error events should inherit tags from the started operation.
 function prettifyIsErrorEvent(event: FlowEvent): boolean {
   return event.eventType.endsWith("ErrorEvent");
@@ -336,11 +191,15 @@ function prettifyFormatDuration(durationMs?: unknown): string | null {
 
 // Summarizes a prompt or output payload down to a single displayable string for the LLM pretty formatter.
 function prettifySummarizePrompt(value: unknown): string | undefined {
-  return typeof value === "string"
-    ? prettifyTruncateLine(value, MAX_LINE_LENGTH / 2)
-    : value == null
-      ? undefined
-      : prettifyTruncateLine(prettifyFormatValue(value), MAX_LINE_LENGTH / 2);
+  if (typeof value === "string") {
+    return prettifyTruncateLine(value, MAX_LINE_LENGTH / 2);
+  }
+
+  if (value == null) {
+    return undefined;
+  }
+
+  return prettifyTruncateLine(prettifyFormatValue(value), MAX_LINE_LENGTH / 2);
 }
 
 // Replaces large object references from live runtime objects with placeholders before they are stringified for pretty output.
@@ -381,8 +240,7 @@ function prettifyFormatEventArgs(args?: unknown | unknown[]): string {
   return prettifyFormatArgs(prettifyCompactValue(args) as unknown | unknown[]);
 }
 
-// Finds the nearest event in the current parent chain that satisfies the given predicate.
-// Pretty tags use this to recover agent/stagehand/action/llm ancestry.
+// Finds the nearest event in the current parent chain that satisfies the given predicate. Pretty tags use this to recover agent/stagehand/action/llm ancestry.
 function prettifyFindNearestEvent(
   event: FlowEvent,
   parentMap: Map<string, FlowEvent>,
@@ -438,16 +296,19 @@ function prettifyBuildContextTags(
       includeSelf,
     },
   );
+
   let targetId: string | null = null;
   if (typeof event.data.targetId === "string") {
     targetId = event.data.targetId;
   }
+
   let stagehandLabel = "";
   if (stagehandEvent) {
     stagehandLabel = prettifyEventAction(
       stagehandEvent.eventType,
     ).toUpperCase();
   }
+
   let actionLabel = "";
   if (actionEvent) {
     actionLabel = prettifyEventAction(actionEvent.eventType).toUpperCase();
@@ -564,14 +425,16 @@ function prettifyFormatCdpDetails(event: FlowEvent): string {
   };
   const method = data.method ?? "unknown";
   const icon = event.eventType === "CdpCallEvent" ? "⏵" : "⏴";
-  const payload: unknown =
-    event.eventType === "CdpCallEvent"
-      ? data.params
-      : data.error
-        ? { error: data.error }
-        : event.eventType === "CdpMessageEvent"
-          ? data.params
-          : data.result;
+  let payload: unknown;
+  if (event.eventType === "CdpCallEvent") {
+    payload = data.params;
+  } else if (data.error) {
+    payload = { error: data.error };
+  } else if (event.eventType === "CdpMessageEvent") {
+    payload = data.params;
+  } else {
+    payload = data.result;
+  }
 
   return `${icon} ${method}(${prettifyFormatEventArgs(payload)})`;
 }
@@ -601,17 +464,16 @@ function prettifyFormatLlmDetails(event: FlowEvent): string {
 }
 
 // Converts a flow event into a single pretty log line by combining the current event payload with recent shallow ancestry fetched from the store query sink.
-async function prettifyEvent(
+export async function prettifyEvent(
   store: Pick<EventStoreApi, "query">,
   event: FlowEvent,
 ): Promise<string | null> {
-  const recentEvents = await store.query({
-    limit: DEFAULT_IN_MEMORY_EVENT_LIMIT,
-  });
+  const recentEvents = await store.query({ limit: 500 });
   const parentMap = new Map(
     recentEvents.map((recentEvent) => [recentEvent.eventId, recentEvent]),
   );
   const tags = prettifyBuildContextTags(event, parentMap);
+
   let details = prettifyFormatStartedDetails(event);
   if (prettifyIsCdpEvent(event)) {
     details = prettifyFormatCdpDetails(event);
@@ -626,20 +488,21 @@ async function prettifyEvent(
   }
 
   const createdAt = new Date(event.eventCreatedAt);
-  let timestamp = formatTimestamp(createdAt);
+  let timestamp = prettifyFormatTimestamp(createdAt);
   if (Number.isNaN(createdAt.getTime())) {
-    timestamp = formatTimestamp(new Date());
+    timestamp = prettifyFormatTimestamp(new Date());
   }
+
   const line = `${timestamp} ${tags.join(" ")} ${details}`;
-  const cleaned = removeQuotes(line);
-  let processed = cleaned;
-  if (prettifyIsCdpEvent(event)) {
-    processed = truncateCdpIds(cleaned);
-  }
+  const cleaned = prettifyRemoveQuotes(line);
+  const processed = prettifyIsCdpEvent(event)
+    ? truncateCdpIds(cleaned)
+    : cleaned;
   return prettifyTruncateLine(processed, MAX_LINE_LENGTH);
 }
 
-function prettifyColorStderrLine(line: string): string {
+// Adds subtle terminal color to stderr-only pretty lines without affecting file sinks.
+export function prettifyColorStderrLine(line: string): string {
   if (
     process.env.NO_COLOR !== undefined ||
     (process.env.FORCE_COLOR ?? "") === "0" ||
@@ -686,281 +549,4 @@ function prettifyColorStderrLine(line: string): string {
     )
     .replace(/ ✓ /g, ` ${color("32", "✓")} `)
     .replace(/ ✕ /g, ` ${color("31", "✕")} `);
-}
-
-// =============================================================================
-// Sink Implementations
-// =============================================================================
-
-abstract class FileEventSink implements EventSink {
-  private readonly streamPromise: Promise<fs.WriteStream | null>; // Lazily opens the one file stream owned by this sink when the session directory resolves.
-
-  // Creates a best-effort file sink bound to a single session directory.
-  constructor(sessionDirPromise: Promise<string | null>, fileName: string) {
-    this.streamPromise = sessionDirPromise.then((sessionDir) =>
-      sessionDir
-        ? fs.createWriteStream(path.join(sessionDir, fileName), { flags: "a" })
-        : null,
-    );
-  }
-
-  protected abstract serialize(event: FlowEvent): Promise<string | null>;
-
-  // Serializes and appends a single event. File sinks are intentionally best-effort and never allowed to affect library execution flow.
-  async emit(event: FlowEvent): Promise<void> {
-    try {
-      const stream = await this.streamPromise;
-      if (!isWritable(stream)) {
-        return;
-      }
-
-      const serialized = await this.serialize(event);
-      if (!serialized) {
-        return;
-      }
-
-      await writeToStream(stream, serialized);
-    } catch {
-      // best effort only
-    }
-  }
-
-  // File sinks are write-only and do not support query reads.
-  async query(): Promise<FlowEvent[]> {
-    return [];
-  }
-
-  // Closes the underlying file stream when the owning store shuts down.
-  async destroy(): Promise<void> {
-    const stream = await this.streamPromise.catch((): null => null);
-    if (!isWritable(stream)) {
-      return;
-    }
-
-    await new Promise<void>((resolve) => {
-      stream.end(resolve);
-    });
-  }
-}
-
-export class JsonlFileEventSink extends FileEventSink {
-  // Writes full verbatim events to `session_events.jsonl`.
-  constructor(sessionDirPromise: Promise<string | null>) {
-    super(sessionDirPromise, "session_events.jsonl");
-  }
-
-  // Serializes the full event for lossless machine-readable storage.
-  protected async serialize(event: FlowEvent): Promise<string> {
-    return `${JSON.stringify(event)}\n`;
-  }
-}
-
-export class PrettyLogFileEventSink extends FileEventSink {
-  // Writes human-readable pretty lines to `session_events.log`.
-  constructor(
-    sessionDirPromise: Promise<string | null>,
-    private readonly store: Pick<EventStoreApi, "query">, // Queried during prettification so each line can recover recent ancestry tags.
-  ) {
-    super(sessionDirPromise, "session_events.log");
-  }
-
-  // Pretty-prints the event using recent in-memory ancestry.
-  protected async serialize(event: FlowEvent): Promise<string | null> {
-    const line = await prettifyEvent(this.store, prettifySanitizeEvent(event));
-    return line ? `${line}\n` : null;
-  }
-}
-
-export class PrettyStderrEventSink implements EventSink {
-  // Writes pretty lines to stderr for verbose local debugging. CDP events are intentionally omitted here to keep stderr high-signal.
-  constructor(private readonly store: Pick<EventStoreApi, "query">) {} // Queried during prettification so stderr lines can include recent ancestry tags.
-
-  // Best-effort stderr writer used only for interactive debugging output.
-  async emit(event: FlowEvent): Promise<void> {
-    try {
-      if (prettifyIsCdpEvent(event)) {
-        return;
-      }
-
-      const line = await prettifyEvent(
-        this.store,
-        prettifySanitizeEvent(event),
-      );
-      if (!line) {
-        return;
-      }
-
-      await new Promise<void>((resolve, reject) => {
-        try {
-          process.stderr.write(
-            `${prettifyColorStderrLine(line)}\n`,
-            (error?: Error | null) => {
-              if (error) {
-                reject(error);
-                return;
-              }
-              resolve();
-            },
-          );
-        } catch (error) {
-          reject(error);
-        }
-      });
-    } catch {
-      // best effort only
-    }
-  }
-
-  // Stderr sink is write-only and does not support query reads.
-  async query(): Promise<FlowEvent[]> {
-    return [];
-  }
-
-  // No teardown is required for stderr.
-  async destroy(): Promise<void> {}
-}
-
-export class InMemoryEventSink implements EventSink {
-  // Retains recent events for query lookups. Tests usually attach this sink explicitly when they need full historical payloads.
-  constructor(protected readonly limit = Infinity) {}
-
-  protected readonly events: FlowEvent[] = []; // Retained history; `emit()` appends to it and trims old entries when `limit` is exceeded.
-
-  // Gives subclasses a hook to transform events before they are retained.
-  protected storeEvent(event: FlowEvent): FlowEvent {
-    return event;
-  }
-
-  // Stores a new event and trims the oldest retained entries once the sink exceeds its configured limit.
-  async emit(event: FlowEvent): Promise<void> {
-    this.events.push(this.storeEvent(event));
-    if (this.events.length > this.limit) {
-      this.events.splice(0, this.events.length - this.limit);
-    }
-  }
-
-  // Returns retained events that match the query, ordered by creation time.
-  async query(query: EventStoreQuery): Promise<FlowEvent[]> {
-    const filtered = this.events.filter((event) => matchesQuery(event, query));
-    filtered.sort((left, right) => {
-      const createdAtOrder = left.eventCreatedAt.localeCompare(
-        right.eventCreatedAt,
-      );
-      if (createdAtOrder !== 0) {
-        return createdAtOrder;
-      }
-
-      return left.eventId.localeCompare(right.eventId);
-    });
-    return query.limit ? filtered.slice(-query.limit) : filtered;
-  }
-
-  // Clears retained history when the owning store shuts down.
-  async destroy(): Promise<void> {
-    this.events.length = 0;
-  }
-}
-
-export class ShallowInMemoryEventSink extends InMemoryEventSink {
-  // Retains only ancestry metadata for the default query sink so verbose or long-running sessions do not hold onto large payloads such as screenshots.
-  protected override storeEvent(event: FlowEvent): FlowEvent {
-    return new FlowEvent({
-      eventType: event.eventType,
-      eventId: event.eventId,
-      eventCreatedAt: event.eventCreatedAt,
-      sessionId: event.sessionId,
-      eventParentIds: [...event.eventParentIds],
-      data: {},
-    });
-  }
-}
-
-// =============================================================================
-// Event Store
-// =============================================================================
-
-// Per-session flow event sink manager.
-// This is not an event bus. V3 forwards already-emitted FlowEvents into it so
-// the store can fan them out to configured sinks, answer `query()` calls from
-// its one query sink, and tear down its sinks when the session closes.
-// We keep this as a separate object instead of wiring sinks directly with
-// `v3.bus.on("*", sink.emit)` because pretty sinks need access to a shared
-// query interface while rendering. Prettified lines often need to look up
-// related parent/child events to recover the readable ancestry tags and labels.
-// Passing sinks into each other to share that state gets messy quickly, so the
-// EventStore contains the circular dependency: all sinks live here, and any
-// sink that needs historical context can call the one `EventStore.query()`
-// entrypoint backed by the main query sink for this session.
-export class EventStore implements EventStoreApi {
-  private readonly sinks = new Set<EventSink>(); // All sinks attached for this session; constructor registers them here and `destroy()` tears them down.
-  private destroyed = false; // Flipped by `destroy()` so later emits and teardown calls become no-ops.
-  public query: (query: EventStoreQuery) => Promise<FlowEvent[]>; // Always reads from the one query sink chosen at construction time.
-
-  // Creates the per-instance store owned by a single V3 session. This store is intentionally single-session; it ignores events for other session ids.
-  constructor(
-    // Usually matches `browserbaseSessionId` today, but it is the store's own Stagehand session identifier and may diverge in the future.
-    public readonly sessionId: string,
-    options?: V3Options,
-    querySink: EventSink = new ShallowInMemoryEventSink(
-      DEFAULT_IN_MEMORY_EVENT_LIMIT,
-    ),
-  ) {
-    const sessionDirPromise = createSessionDir(sessionId, options);
-
-    this.registerSink(querySink);
-    this.query = async (query) => {
-      if (query.sessionId && query.sessionId !== this.sessionId) {
-        return [];
-      }
-
-      return querySink.query({
-        ...query,
-        sessionId: this.sessionId,
-      });
-    };
-
-    if (getConfigDir()) {
-      const jsonlSink = new JsonlFileEventSink(sessionDirPromise);
-      const prettyLogSink = new PrettyLogFileEventSink(sessionDirPromise, this);
-      this.registerSink(jsonlSink);
-      this.registerSink(prettyLogSink);
-    }
-
-    if (options?.verbose === 2 || FLOW_LOGS_ENABLED) {
-      const stderrSink = new PrettyStderrEventSink(this);
-      this.registerSink(stderrSink);
-    }
-  }
-
-  // Adds a sink to the direct fanout list used by `emit()`.
-  private registerSink(sink: EventSink): void {
-    this.sinks.add(sink);
-  }
-
-  // Emits an event to all attached sinks when it belongs to this store's single session.
-  async emit(event: FlowEvent): Promise<void> {
-    if (this.destroyed || event.sessionId !== this.sessionId) {
-      return;
-    }
-
-    await Promise.allSettled([...this.sinks].map((sink) => sink.emit(event)));
-  }
-
-  // Tears down all sinks when the V3 instance is closed.
-  async destroy(): Promise<void> {
-    if (this.destroyed) {
-      return;
-    }
-
-    this.destroyed = true;
-    await Promise.all(
-      [...this.sinks].map((sink) =>
-        sink.destroy().catch(() => {
-          // best effort cleanup
-        }),
-      ),
-    );
-
-    this.sinks.clear();
-  }
 }

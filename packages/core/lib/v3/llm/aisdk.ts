@@ -17,7 +17,10 @@ import { v7 as uuidv7 } from "uuid";
 import { LogLine } from "../types/public/logs.js";
 import { AvailableModel } from "../types/public/model.js";
 import { CreateChatCompletionOptions, LLMClient } from "./LLMClient.js";
-import { FlowLogger, extractLlmPromptSummary } from "../flowLogger.js";
+import {
+  FlowLogger,
+  extractLlmPromptSummary,
+} from "../flowlogger/FlowLogger.js";
 import { toJsonSchema } from "../zodCompat.js";
 
 export class AISdkClient extends LLMClient {

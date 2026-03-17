@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { z } from "zod";
-import { InMemoryEventSink } from "../../lib/v3/eventStore.js";
-import { FlowEvent } from "../../lib/v3/flowLogger.js";
+import { InMemoryEventSink } from "../../lib/v3/flowlogger/EventSink.js";
+import { FlowEvent } from "../../lib/v3/flowlogger/FlowLogger.js";
 import { performUnderstudyMethod } from "../../lib/v3/handlers/handlerUtils/actHandlerUtils.js";
 import { V3 } from "../../lib/v3/v3.js";
 import {

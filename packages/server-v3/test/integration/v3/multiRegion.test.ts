@@ -5,7 +5,7 @@ import {
   assertFetchStatus,
   endSession,
   fetchWithContext,
-  getBaseUrl,
+  BASE_URL,
   getHeaders,
   HTTP_OK,
   LOCAL_BROWSER_BODY,
@@ -51,7 +51,7 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
   const localBrowser = LOCAL_BROWSER_BODY;
 
   it("should start session with us-west-2 region (default)", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const ctx = await fetchWithContext<StartResponse>(
       `${url}/v1/sessions/start`,
@@ -89,7 +89,7 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
   });
 
   it("should start session with us-east-1 region", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     // This test verifies that non-us-west-2 regions are now accepted.
     // Previously, this would have returned { available: false }.
@@ -129,7 +129,7 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
   });
 
   it("should start session with eu-central-1 region", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const ctx = await fetchWithContext<StartResponse>(
       `${url}/v1/sessions/start`,
@@ -167,7 +167,7 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
   });
 
   it("should start session with ap-southeast-1 region", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const ctx = await fetchWithContext<StartResponse>(
       `${url}/v1/sessions/start`,
@@ -205,7 +205,7 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
   });
 
   it("should start session without region (defaults to us-west-2)", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const ctx = await fetchWithContext<StartResponse>(
       `${url}/v1/sessions/start`,
@@ -241,7 +241,7 @@ describe("POST /v1/sessions/start - Multi-region support", () => {
   });
 
   it("should start session without browserbaseSessionCreateParams", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const ctx = await fetchWithContext<StartResponse>(
       `${url}/v1/sessions/start`,

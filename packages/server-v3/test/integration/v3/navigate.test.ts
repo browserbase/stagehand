@@ -9,7 +9,7 @@ import {
   createSessionWithCdp,
   endSession,
   fetchWithContext,
-  getBaseUrl,
+  BASE_URL,
   getHeaders,
   HTTP_BAD_REQUEST,
   HTTP_OK,
@@ -32,7 +32,7 @@ describe("POST /v1/sessions/:id/navigate (V3)", () => {
   });
 
   it("should navigate to a URL successfully and verify via CDP", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const ctx = await fetchWithContext<{
       success: boolean;
@@ -79,7 +79,7 @@ describe("POST /v1/sessions/:id/navigate (V3)", () => {
   });
 
   it("should navigate with options", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const ctx = await fetchWithContext<{
       success: boolean;
@@ -117,7 +117,7 @@ describe("POST /v1/sessions/:id/navigate (V3)", () => {
   // ===========================================================================
 
   it("should return 400 when url is missing", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const ctx = await fetchWithContext<{
       success?: boolean;

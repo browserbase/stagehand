@@ -8,7 +8,7 @@ import {
   createSession,
   endSession,
   fetchWithContext,
-  getBaseUrl,
+  BASE_URL,
   getHeaders,
   HTTP_BAD_REQUEST,
   HTTP_NOT_FOUND,
@@ -38,7 +38,7 @@ describe("POST /v4/sessions/:id/end (V3)", () => {
   });
 
   it("should return 200 if JSON content-type has an empty body", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
     // Create a fresh session for this test since we need to test error cases
     const testSessionId = await createSession(headers);
 
@@ -71,7 +71,7 @@ describe("POST /v4/sessions/:id/end (V3)", () => {
   });
 
   it("should return 400 if body contains extra keys", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
     const testSessionId = await createSession(headers);
 
     const ctx = await fetchWithContext<{ success?: boolean; message?: string }>(
@@ -94,7 +94,7 @@ describe("POST /v4/sessions/:id/end (V3)", () => {
   });
 
   it("should return 200 when body is {}", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
     const testSessionId = await createSession(headers);
 
     const ctx = await fetchWithContext<{ success: boolean }>(
@@ -112,7 +112,7 @@ describe("POST /v4/sessions/:id/end (V3)", () => {
   });
 
   it("should return 200 when body is 0 bytes (no body)", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
     const testSessionId = await createSession(headers);
 
     // Send request with no body at all
@@ -136,7 +136,7 @@ describe("POST /v4/sessions/:id/end (V3)", () => {
   });
 
   it("should end session successfully", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const ctx = await fetchWithContext<{ success: boolean }>(
       `${url}/v4/sessions/${sessionId}/end`,
@@ -153,7 +153,7 @@ describe("POST /v4/sessions/:id/end (V3)", () => {
   });
 
   it("should return error for non-existent session", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const ctx = await fetchWithContext<{ success?: boolean; message?: string }>(
       `${url}/v4/sessions/non-existent-session-id/end`,

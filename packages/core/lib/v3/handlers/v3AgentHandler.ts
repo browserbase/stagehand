@@ -17,7 +17,7 @@ import {
 import { StagehandZodObject } from "../zodCompat.js";
 import { processMessages } from "../agent/utils/messageProcessing.js";
 import { LLMClient } from "../llm/LLMClient.js";
-import { FlowLogger } from "../flowLogger.js";
+import { FlowLogger } from "../flowlogger/FlowLogger.js";
 import {
   AgentExecuteOptions,
   AgentStreamExecuteOptions,

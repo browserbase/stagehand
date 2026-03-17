@@ -6,7 +6,7 @@ import {
   FlowLogger,
   type FlowEvent,
   type FlowLoggerContext,
-} from "../flowLogger.js";
+} from "../flowlogger/FlowLogger.js";
 import {
   CdpConnectionClosedError,
   PageNotFoundError,

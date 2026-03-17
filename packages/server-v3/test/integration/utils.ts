@@ -30,26 +30,6 @@ export const {
   ANTHROPIC_API_KEY,
 } = process.env;
 
-const ENV_WARNINGS: Partial<Record<string, (value: string) => string | null>> =
-  {
-    OPENAI_API_KEY: (value) =>
-      value.startsWith("sk-")
-        ? null
-        : `OPENAI_API_KEY does not start with "sk-"`,
-    ANTHROPIC_API_KEY: (value) =>
-      value.startsWith("sk-ant-")
-        ? null
-        : `ANTHROPIC_API_KEY does not start with "sk-ant-"`,
-    BROWSERBASE_API_KEY: (value) =>
-      /^bb_(live|test)_/u.test(value)
-        ? null
-        : "BROWSERBASE_API_KEY does not look like a Browserbase API key",
-    GEMINI_API_KEY: (value) =>
-      /^[A-Za-z0-9_-]{20,}$/u.test(value)
-        ? null
-        : "GEMINI_API_KEY does not look like a Google AI API key",
-  };
-
 function maskSecret(value: string | undefined): string {
   return !value
     ? "<unset>"
@@ -59,8 +39,7 @@ function maskSecret(value: string | undefined): string {
 function formatCommonSetupDiagnostics(names: string[]): string {
   const diagnostics = [...new Set(names)].map((name) => {
     const value = process.env[name];
-    const warning = value ? ENV_WARNINGS[name]?.(value) : null;
-    return `${name}=${value ? `present (${maskSecret(value)})` : "<unset>"}${warning ? ` [warning: ${warning}]` : ""}`;
+    return `${name}=${value ? `present (${maskSecret(value)})` : "<unset>"}`;
   });
   const chromePath = process.env.CHROME_PATH;
   diagnostics.push(
@@ -72,96 +51,66 @@ function formatCommonSetupDiagnostics(names: string[]): string {
   return diagnostics.join("\n");
 }
 
-function formatRequestSetupDiagnostics(
+function parseJsonRequestBody(
+  options: RequestInit,
+): Record<string, unknown> | null {
+  if (typeof options.body !== "string") return null;
+  try {
+    const body = JSON.parse(options.body) as unknown;
+    return body && typeof body === "object"
+      ? (body as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function formatRequestEnvDiagnostics(
   url: string,
   options: RequestInit,
 ): string | null {
   const diagnostics: string[] = [];
   const relevantEnv = new Set<string>(["OPENAI_API_KEY"]);
-
-  const headerMap = new Map<string, string>();
   const headers = new Headers(options.headers);
-  headers.forEach((value, key) => {
-    headerMap.set(key.toLowerCase(), value);
-  });
-
-  const rawBody = typeof options.body === "string" ? options.body : null;
-  let parsedBody: Record<string, unknown> | null = null;
-  if (rawBody) {
-    try {
-      const candidate = JSON.parse(rawBody) as unknown;
-      if (candidate && typeof candidate === "object") {
-        parsedBody = candidate as Record<string, unknown>;
-      }
-    } catch {
-      parsedBody = null;
-    }
-  }
-
-  const bodyOptions =
-    parsedBody?.options && typeof parsedBody.options === "object"
-      ? (parsedBody.options as Record<string, unknown>)
-      : null;
-  const bodyModel =
-    bodyOptions?.model && typeof bodyOptions.model === "object"
-      ? (bodyOptions.model as Record<string, unknown>)
-      : null;
-  const bodyBrowser =
-    parsedBody?.browser && typeof parsedBody.browser === "object"
-      ? (parsedBody.browser as Record<string, unknown>)
-      : null;
-
+  const body = parseJsonRequestBody(options);
+  const bodyModel = body?.options as
+    | { model?: Record<string, unknown> }
+    | undefined;
+  const model = bodyModel?.model;
+  const browser = body?.browser as { type?: string } | undefined;
   const modelName =
-    typeof bodyModel?.modelName === "string"
-      ? bodyModel.modelName
-      : typeof parsedBody?.modelName === "string"
-        ? parsedBody.modelName
-        : null;
-  if (modelName) {
-    diagnostics.push(`request model: ${modelName}`);
-    if (modelName.startsWith("google/")) {
-      relevantEnv.add("GEMINI_API_KEY");
-    } else if (modelName.startsWith("anthropic/")) {
-      relevantEnv.add("ANTHROPIC_API_KEY");
-    }
-  }
-
+    typeof model?.modelName === "string"
+      ? model.modelName
+      : typeof body?.modelName === "string"
+        ? body.modelName
+        : undefined;
+  if (modelName) diagnostics.push(`request model: ${modelName}`);
+  if (modelName?.startsWith("google/")) relevantEnv.add("GEMINI_API_KEY");
+  if (modelName?.startsWith("anthropic/")) relevantEnv.add("ANTHROPIC_API_KEY");
   const bodyApiKey =
-    typeof bodyModel?.apiKey === "string" ? bodyModel.apiKey : undefined;
-  const headerModelApiKey = headerMap.get("x-model-api-key");
-  if (bodyApiKey) {
+    typeof model?.apiKey === "string" ? model.apiKey : undefined;
+  const headerApiKey = headers.get("x-model-api-key");
+  if (bodyApiKey)
     diagnostics.push(`body model apiKey: ${maskSecret(bodyApiKey)}`);
-  }
-  if (headerModelApiKey !== undefined) {
+  if (headerApiKey !== null)
     diagnostics.push(
-      `x-model-api-key header: ${
-        headerModelApiKey ? maskSecret(headerModelApiKey) : "<empty>"
-      }`,
+      `x-model-api-key header: ${headerApiKey ? maskSecret(headerApiKey) : "<empty>"}`,
     );
-  }
-  if (bodyApiKey && headerModelApiKey) {
+  if (bodyApiKey && headerApiKey)
     diagnostics.push(
       "warning: both body model.apiKey and x-model-api-key are set; mixed-provider requests are a common local setup mistake",
     );
-  }
-
-  const browserType =
-    typeof bodyBrowser?.type === "string" ? bodyBrowser.type : null;
-  if (browserType === "browserbase") {
-    relevantEnv.add("BROWSERBASE_API_KEY");
-    relevantEnv.add("BROWSERBASE_PROJECT_ID");
-  }
   if (
-    headerMap.has("x-bb-api-key") ||
-    headerMap.has("x-bb-project-id") ||
+    browser?.type === "browserbase" ||
+    headers.has("x-bb-api-key") ||
+    headers.has("x-bb-project-id") ||
     url.includes("multiRegion")
   ) {
     relevantEnv.add("BROWSERBASE_API_KEY");
     relevantEnv.add("BROWSERBASE_PROJECT_ID");
   }
-
   diagnostics.push(formatCommonSetupDiagnostics([...relevantEnv]));
-  return diagnostics.length > 0 ? diagnostics.join("\n  ") : null;
+  return diagnostics.join("\n  ");
 }
 
 // =============================================================================
@@ -177,9 +126,7 @@ export function requireEnv(name: string, value: string | undefined): string {
   return value;
 }
 
-export function getBaseUrl(): string {
-  return STAGEHAND_API_URL ?? "http://127.0.0.1:3106";
-}
+export const BASE_URL = STAGEHAND_API_URL ?? "http://127.0.0.1:3106";
 
 // =============================================================================
 // Header Generators
@@ -329,7 +276,7 @@ export async function createSessionWithCdp(
     ...createLocalBrowserBody(),
   };
 
-  const response = await fetch(`${getBaseUrl()}/v1/sessions/start`, {
+  const response = await fetch(`${BASE_URL}/v1/sessions/start`, {
     method: "POST",
     headers,
     body: JSON.stringify(startPayload),
@@ -377,7 +324,7 @@ export async function endSession(
   sessionId: string,
   headers: Record<string, string>,
 ): Promise<void> {
-  await fetch(`${getBaseUrl()}/v1/sessions/${sessionId}/end`, {
+  await fetch(`${BASE_URL}/v1/sessions/${sessionId}/end`, {
     method: "POST",
     headers,
     body: JSON.stringify({}),
@@ -393,7 +340,7 @@ export async function navigateSession(
   targetUrl: string,
   headers: Record<string, string>,
 ): Promise<Response> {
-  return fetch(`${getBaseUrl()}/v1/sessions/${sessionId}/navigate`, {
+  return fetch(`${BASE_URL}/v1/sessions/${sessionId}/navigate`, {
     method: "POST",
     headers,
     body: JSON.stringify({ url: targetUrl, frameId: "" }),
@@ -667,7 +614,7 @@ export async function fetchWithContext<T = unknown>(
   url: string,
   options: RequestInit,
 ): Promise<FetchResult<T>> {
-  const setupDiagnostics = formatRequestSetupDiagnostics(url, options);
+  const setupDiagnostics = formatRequestEnvDiagnostics(url, options);
   const startTime = Date.now();
   let response: Response;
 

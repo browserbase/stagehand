@@ -10,7 +10,7 @@ import {
   endSession,
   fetchWithContext,
   GEMINI_API_KEY,
-  getBaseUrl,
+  BASE_URL,
   getHeaders,
   getMainFrameId,
   HTTP_BAD_REQUEST,
@@ -53,7 +53,7 @@ describe("POST /v4/sessions/:id/agentExecute (V3) - Basic Config", () => {
   });
 
   it("should execute agent with basic config (empty agentConfig)", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
     const frameId = await getMainFrameId(cdpUrl);
 
     const ctx = await fetchWithContext<{
@@ -87,7 +87,7 @@ describe("POST /v4/sessions/:id/agentExecute (V3) - Basic Config", () => {
   });
 
   it("should execute agent with string agentConfig.model", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const ctx = await fetchWithContext<{
       success: boolean;
@@ -125,7 +125,7 @@ describe("POST /v4/sessions/:id/agentExecute (V3) - Basic Config", () => {
   });
 
   it("should execute agent with object model config (provider + modelName)", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const ctx = await fetchWithContext<{
       success: boolean;
@@ -166,7 +166,7 @@ describe("POST /v4/sessions/:id/agentExecute (V3) - Basic Config", () => {
   });
 
   it("should execute agent with systemPrompt and maxSteps", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const ctx = await fetchWithContext<{
       success: boolean;
@@ -235,7 +235,7 @@ describe("POST /v4/sessions/:id/agentExecute (V3) - Google Gemini with API key",
   });
 
   it("should execute agent with Google model object containing modelName and apiKey", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
     const geminiApiKey = requireEnv("GEMINI_API_KEY", GEMINI_API_KEY);
 
     const ctx = await fetchWithContext<{
@@ -277,7 +277,7 @@ describe("POST /v4/sessions/:id/agentExecute (V3) - Google Gemini with API key",
   });
 
   it("should execute agent with Google model object, systemPrompt, and maxSteps", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
     const geminiApiKey = requireEnv("GEMINI_API_KEY", GEMINI_API_KEY);
 
     const ctx = await fetchWithContext<{
@@ -351,7 +351,7 @@ describe("POST /v4/sessions/:id/agentExecute (V3) - OpenAI with API key", () => 
   });
 
   it("should execute agent with OpenAI model object containing modelName and apiKey", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
     const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
 
     const ctx = await fetchWithContext<{
@@ -423,7 +423,7 @@ describe("POST /v4/sessions/:id/agentExecute (V3) - CUA flag compatibility", () 
   });
 
   it("should execute agent with cua: true and CUA model (valid combination)", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
     const geminiApiKey = requireEnv("GEMINI_API_KEY", GEMINI_API_KEY);
 
     const ctx = await fetchWithContext<{
@@ -466,7 +466,7 @@ describe("POST /v4/sessions/:id/agentExecute (V3) - CUA flag compatibility", () 
   });
 
   it("should execute agent with cua: false and non-CUA model (valid combination)", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
     const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
 
     const ctx = await fetchWithContext<{
@@ -509,7 +509,7 @@ describe("POST /v4/sessions/:id/agentExecute (V3) - CUA flag compatibility", () 
   });
 
   it("should execute agent with cua: false and CUA model (works in non-CUA mode)", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
     const geminiApiKey = requireEnv("GEMINI_API_KEY", GEMINI_API_KEY);
 
     const ctx = await fetchWithContext<{
@@ -553,7 +553,7 @@ describe("POST /v4/sessions/:id/agentExecute (V3) - CUA flag compatibility", () 
   });
 
   it("should fail with cua: true and non-CUA model (invalid combination)", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
     const geminiApiKey = requireEnv("GEMINI_API_KEY", GEMINI_API_KEY);
 
     const ctx = await fetchWithContext<{
@@ -587,7 +587,7 @@ describe("POST /v4/sessions/:id/agentExecute (V3) - CUA flag compatibility", () 
   });
 
   it("should prefer mode over cua when both are provided", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
     const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
 
     const ctx = await fetchWithContext<{
@@ -661,7 +661,7 @@ describe("POST /v4/sessions/:id/agentExecute (V3) - executionModel serialization
   });
 
   it("should execute agent with string executionModel", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const ctx = await fetchWithContext<{
       success: boolean;
@@ -699,7 +699,7 @@ describe("POST /v4/sessions/:id/agentExecute (V3) - executionModel serialization
   });
 
   it("should execute agent with object executionModel (modelName and apiKey)", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
     const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
 
     const ctx = await fetchWithContext<{
@@ -741,7 +741,7 @@ describe("POST /v4/sessions/:id/agentExecute (V3) - executionModel serialization
   });
 
   it("should execute agent with both model and executionModel", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
     const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
 
     const ctx = await fetchWithContext<{
@@ -817,7 +817,7 @@ describe("POST /v4/sessions/:id/agentExecute - agentConfig.mode (V3)", () => {
   });
 
   it("should execute agent with mode: dom", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const ctx = await fetchWithContext<{
       success: boolean;
@@ -855,7 +855,7 @@ describe("POST /v4/sessions/:id/agentExecute - agentConfig.mode (V3)", () => {
   });
 
   it("should execute agent with mode: hybrid", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
     const geminiApiKey = requireEnv("GEMINI_API_KEY", GEMINI_API_KEY);
 
     const ctx = await fetchWithContext<{
@@ -899,7 +899,7 @@ describe("POST /v4/sessions/:id/agentExecute - agentConfig.mode (V3)", () => {
   });
 
   it("should execute agent with mode: cua and CUA model", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
     const geminiApiKey = requireEnv("GEMINI_API_KEY", GEMINI_API_KEY);
 
     const ctx = await fetchWithContext<{
@@ -972,7 +972,7 @@ describe("POST /v4/sessions/:id/agentExecute with SSE streaming (V3)", () => {
   });
 
   it("should stream SSE events with valid structure, sequence, and UUIDs", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const response = await fetch(
       `${url}/v4/sessions/${sessionId}/agentExecute`,
@@ -1109,7 +1109,7 @@ describe("POST /v4/sessions/:id/agentExecute - validation errors (V3)", () => {
   });
 
   it("should return 400 when agentConfig is missing", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const ctx = await fetchWithContext<{
       success?: boolean;
@@ -1134,7 +1134,7 @@ describe("POST /v4/sessions/:id/agentExecute - validation errors (V3)", () => {
   });
 
   it("should return 400 when executeOptions is missing", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const ctx = await fetchWithContext<{
       success?: boolean;
@@ -1161,7 +1161,7 @@ describe("POST /v4/sessions/:id/agentExecute - validation errors (V3)", () => {
   });
 
   it("should return 400 when instruction is missing", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const ctx = await fetchWithContext<{
       success?: boolean;
@@ -1191,7 +1191,7 @@ describe("POST /v4/sessions/:id/agentExecute - validation errors (V3)", () => {
   });
 
   it("should return 400 for invalid agentConfig.mode", async () => {
-    const url = getBaseUrl();
+    const url = BASE_URL;
 
     const ctx = await fetchWithContext<{
       success?: boolean;

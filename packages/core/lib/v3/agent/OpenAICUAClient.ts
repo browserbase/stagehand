@@ -23,7 +23,7 @@ import {
   FlowLogger,
   extractLlmCuaPromptSummary,
   extractLlmCuaResponseSummary,
-} from "../flowLogger.js";
+} from "../flowlogger/FlowLogger.js";
 import { v7 as uuidv7 } from "uuid";
 
 /**

@@ -6,7 +6,7 @@ import { MouseButton } from "../../types/public/locator.js";
 import { resolveLocatorWithHops } from "../../understudy/deepLocator.js";
 import type { Page } from "../../understudy/page.js";
 import { v3Logger } from "../../logger.js";
-import { FlowLogger } from "../../flowLogger.js";
+import { FlowLogger } from "../../flowlogger/FlowLogger.js";
 import { toTitleCase } from "../../../utils.js";
 import {
   StagehandClickError,

@@ -1,12 +1,13 @@
 import { EventEmitter } from "node:events";
 import { describe, it, expect } from "vitest";
 import { CdpConnection } from "../../lib/v3/understudy/cdp.js";
-import { EventStore, InMemoryEventSink } from "../../lib/v3/eventStore.js";
+import { InMemoryEventSink } from "../../lib/v3/flowlogger/EventSink.js";
+import { EventStore } from "../../lib/v3/flowlogger/EventStore.js";
 import {
   EventEmitterWithWildcardSupport,
   FlowEvent,
   FlowLogger,
-} from "../../lib/v3/flowLogger.js";
+} from "../../lib/v3/flowlogger/FlowLogger.js";
 
 class FakeSocket extends EventEmitter {
   sentPayloads: string[] = [];

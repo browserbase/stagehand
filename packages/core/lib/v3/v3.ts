@@ -88,8 +88,8 @@ import {
   EventEmitterWithWildcardSupport,
   FlowLogger,
   type FlowLoggerContext,
-} from "./flowLogger.js";
-import { EventStore } from "./eventStore.js";
+} from "./flowlogger/FlowLogger.js";
+import { EventStore } from "./flowlogger/EventStore.js";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard.js";
 import { ActTimeoutError } from "./types/public/sdkErrors.js";
 

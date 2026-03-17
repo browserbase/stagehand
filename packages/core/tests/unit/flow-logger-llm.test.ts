@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FlowLogger } from "../../lib/v3/flowLogger.js";
+import { FlowLogger } from "../../lib/v3/flowlogger/FlowLogger.js";
 
 describe("FlowLogger LLM logging", () => {
   it("no-ops direct llm logging calls when no flow context is active", () => {
