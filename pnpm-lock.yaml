@@ -116,7 +116,7 @@ importers:
         version: 1.24.0(@modelcontextprotocol/sdk@1.17.2)(bufferutil@4.0.9)
       '@langchain/openai':
         specifier: ^0.4.4
-        version: 0.4.9(@langchain/core@0.3.50(openai@4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1)))(ws@8.18.3(bufferutil@4.0.9))
+        version: 0.4.9(@langchain/core@0.3.80(@opentelemetry/api@1.9.0)(openai@4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1)))(ws@8.18.3(bufferutil@4.0.9))
       '@modelcontextprotocol/sdk':
         specifier: ^1.17.2
         version: 1.17.2
@@ -191,8 +191,8 @@ importers:
         specifier: ^2.0.26
         version: 2.0.26(zod@4.2.1)
       '@langchain/core':
-        specifier: ^0.3.40
-        version: 0.3.50(openai@4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1))
+        specifier: ^0.3.80
+        version: 0.3.80(@opentelemetry/api@1.9.0)(openai@4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1))
       bufferutil:
         specifier: ^4.0.9
         version: 4.0.9
@@ -1609,8 +1609,8 @@ packages:
   '@kwsites/promise-deferred@1.1.1':
     resolution: {integrity: sha512-GaHYm+c0O9MjZRu0ongGBRbinu8gVAMd2UZjji6jVmqKtZluZnptXGWhz1E8j8D2HJ3f/yMxKAUC0b+57wncIw==}
 
-  '@langchain/core@0.3.50':
-    resolution: {integrity: sha512-0MBVe7dZ4h3a3MJAg/YesWBvwkDg8t2rDIGg2Q11DxRBnxB7OqmvBlbZ1ftaDvoBZzxMY+8E58OsCLuay3Bk9w==}
+  '@langchain/core@0.3.80':
+    resolution: {integrity: sha512-vcJDV2vk1AlCwSh3aBm/urQ1ZrlXFFBocv11bz/NBUfLWD5/UDNMzwPdaAd2dKvNmTWa9FM2lirLU3+JCf4cRA==}
     engines: {node: '>=18'}
 
   '@langchain/openai@0.4.9':
@@ -4146,11 +4146,20 @@ packages:
     resolution: {integrity: sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==}
     engines: {node: '>=0.10.0'}
 
-  langsmith@0.3.23:
-    resolution: {integrity: sha512-6gfotO1YS3vqznSJutdFmJXL2Vxy27/RV2JA7YTsfWoJtxlmBR/1QE7kMIyEvuoEE5KGFHyZMuAh/fVeiRffLA==}
+  langsmith@0.3.87:
+    resolution: {integrity: sha512-XXR1+9INH8YX96FKWc5tie0QixWz6tOqAsAKfcJyPkE0xPep+NDz0IQLR32q4bn10QK3LqD2HN6T3n6z1YLW7Q==}
     peerDependencies:
+      '@opentelemetry/api': '*'
+      '@opentelemetry/exporter-trace-otlp-proto': '*'
+      '@opentelemetry/sdk-trace-base': '*'
       openai: '*'
     peerDependenciesMeta:
+      '@opentelemetry/api':
+        optional: true
+      '@opentelemetry/exporter-trace-otlp-proto':
+        optional: true
+      '@opentelemetry/sdk-trace-base':
+        optional: true
       openai:
         optional: true
 
@@ -7413,14 +7422,14 @@ snapshots:
 
   '@kwsites/promise-deferred@1.1.1': {}
 
-  '@langchain/core@0.3.50(openai@4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1))':
+  '@langchain/core@0.3.80(@opentelemetry/api@1.9.0)(openai@4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1))':
     dependencies:
       '@cfworker/json-schema': 4.1.1
       ansi-styles: 5.2.0
       camelcase: 6.3.0
       decamelize: 1.2.0
       js-tiktoken: 1.0.20
-      langsmith: 0.3.23(openai@4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1))
+      langsmith: 0.3.87(@opentelemetry/api@1.9.0)(openai@4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1))
       mustache: 4.2.0
       p-queue: 6.6.2
       p-retry: 4.6.2
@@ -7428,11 +7437,14 @@ snapshots:
       zod: 3.25.76
       zod-to-json-schema: 3.25.0(zod@3.25.76)
     transitivePeerDependencies:
+      - '@opentelemetry/api'
+      - '@opentelemetry/exporter-trace-otlp-proto'
+      - '@opentelemetry/sdk-trace-base'
       - openai
 
-  '@langchain/openai@0.4.9(@langchain/core@0.3.50(openai@4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1)))(ws@8.18.3(bufferutil@4.0.9))':
+  '@langchain/openai@0.4.9(@langchain/core@0.3.80(@opentelemetry/api@1.9.0)(openai@4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1)))(ws@8.18.3(bufferutil@4.0.9))':
     dependencies:
-      '@langchain/core': 0.3.50(openai@4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1))
+      '@langchain/core': 0.3.80(@opentelemetry/api@1.9.0)(openai@4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1))
       js-tiktoken: 1.0.20
       openai: 4.96.2(ws@8.18.3(bufferutil@4.0.9))(zod@3.25.76)
       zod: 3.25.76
@@ -10723,16 +10735,16 @@ snapshots:
 
   kind-of@6.0.3: {}
 
-  langsmith@0.3.23(openai@4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1)):
+  langsmith@0.3.87(@opentelemetry/api@1.9.0)(openai@4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1)):
     dependencies:
       '@types/uuid': 10.0.0
       chalk: 4.1.2
       console-table-printer: 2.12.1
       p-queue: 6.6.2
-      p-retry: 4.6.2
       semver: 7.7.3
       uuid: 10.0.0
     optionalDependencies:
+      '@opentelemetry/api': 1.9.0
       openai: 4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1)
 
   lcm@0.0.3:
