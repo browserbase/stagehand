@@ -164,6 +164,47 @@ describe("EventStore pretty formatting", () => {
     await store.destroy();
   });
 
+  it("colorizes pretty stderr output with ansi escapes when enabled", async () => {
+    const previousForceColor = process.env.FORCE_COLOR;
+    const previousNoColor = process.env.NO_COLOR;
+    delete process.env.NO_COLOR;
+    process.env.FORCE_COLOR = "1";
+
+    const { writes, store, bus, detachBus } = createVerboseStoreHarness();
+
+    try {
+      bus.emit(
+        "StagehandActEvent",
+        new FlowEvent({
+          eventType: "StagehandActEvent",
+          sessionId: "session-test",
+          eventId: "stagehand-0002",
+          eventCreatedAt: "2026-03-16T21:45:00.000Z",
+          data: { params: ["click submit"] },
+        }),
+      );
+      await waitForAsyncEmit();
+
+      expect(writes).toHaveLength(1);
+      expect(writes[0]).toContain("\u001B[");
+    } finally {
+      if (previousNoColor === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = previousNoColor;
+      }
+
+      if (previousForceColor === undefined) {
+        delete process.env.FORCE_COLOR;
+      } else {
+        process.env.FORCE_COLOR = previousForceColor;
+      }
+
+      detachBus();
+      await store.destroy();
+    }
+  });
+
   it("keeps agent ancestry and start ids for completion events after many child events", async () => {
     const { writes, store, bus, detachBus } = createVerboseStoreHarness();
 

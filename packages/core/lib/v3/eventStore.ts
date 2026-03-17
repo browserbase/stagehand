@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { chalkStderr } from "chalk";
 import { toTitleCase } from "../utils.js";
 import type { V3Options } from "./types/public/index.js";
 import { FlowEvent } from "./flowLogger.js";
@@ -641,40 +640,52 @@ async function prettifyEvent(
 }
 
 function prettifyColorStderrLine(line: string): string {
-  const purple = chalkStderr.hex("#a855f7");
-  const colors = {
-    "🅰": chalkStderr.cyan,
-    "🆂": chalkStderr.yellow,
-    "🆄": chalkStderr.green,
-    "🅻": purple,
-    "🅲": chalkStderr.gray,
-  } as const;
+  if (
+    process.env.NO_COLOR !== undefined ||
+    (process.env.FORCE_COLOR ?? "") === "0" ||
+    (!process.env.FORCE_COLOR &&
+      (!process.stderr.isTTY || process.env.TERM === "dumb"))
+  ) {
+    return line;
+  }
+
+  const color = (code: string, value: string) =>
+    `\u001B[${code}m${value}\u001B[0m`;
   return line
     .replace(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{5})/, (_, timestamp) =>
-      chalkStderr.dim(timestamp),
+      color("2", timestamp),
     )
     .replace(/\[([🅰🆂🆄🅻🅲])([^\]]*)\]/gu, (_, icon, rest) =>
-      (colors[icon as keyof typeof colors] ?? ((value: string) => value))(
+      color(
+        icon === "🅰"
+          ? "36"
+          : icon === "🆂"
+            ? "33"
+            : icon === "🆄"
+              ? "32"
+              : icon === "🅻"
+                ? "95"
+                : "90",
         `[${icon}${rest}]`,
       ),
     )
     .replace(
       / in (\d+(?:\.\d+)?s)/g,
-      (_, duration) => ` ${chalkStderr.dim("in")} ${chalkStderr.dim(duration)}`,
+      (_, duration) => ` ${color("2", "in")} ${color("2", duration)}`,
     )
-    .replace(/▷/g, chalkStderr.cyanBright("▷"))
-    .replace(/⏴/g, chalkStderr.cyanBright("⏴"))
-    .replace(/↳/g, purple("↳"))
-    .replace(/ꜛ/g, chalkStderr.yellow("ꜛ"))
-    .replace(/ꜜ/g, purple("ꜜ"))
-    .replace(/…/g, chalkStderr.blueBright("…"))
-    .replace(/[(){}=]/g, (char) => chalkStderr.blueBright(char))
+    .replace(/▷/g, color("96", "▷"))
+    .replace(/⏴/g, color("96", "⏴"))
+    .replace(/↳/g, color("95", "↳"))
+    .replace(/ꜛ/g, color("33", "ꜛ"))
+    .replace(/ꜜ/g, color("95", "ꜜ"))
+    .replace(/…/g, color("94", "…"))
+    .replace(/[(){}=]/g, (char) => color("94", char))
     .replace(
       /([A-Za-z])(\.)([A-Za-z])/g,
-      (_, left, dot, right) => `${left}${chalkStderr.blueBright(dot)}${right}`,
+      (_, left, dot, right) => `${left}${color("94", dot)}${right}`,
     )
-    .replace(/ ✓ /g, ` ${chalkStderr.green("✓")} `)
-    .replace(/ ✕ /g, ` ${chalkStderr.red("✕")} `);
+    .replace(/ ✓ /g, ` ${color("32", "✓")} `)
+    .replace(/ ✕ /g, ` ${color("31", "✕")} `);
 }
 
 // =============================================================================
