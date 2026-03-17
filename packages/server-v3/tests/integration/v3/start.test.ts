@@ -710,6 +710,72 @@ describe("POST /v1/sessions/start - V3 format", () => {
     await endSession(ctx.body.data.sessionId, headers);
   });
 
+  it("should start session with Bedrock API-key modelClientOptions", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<StartResponse>(
+      `${url}/v1/sessions/start`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          modelName: "bedrock/amazon.nova-pro-v1:0",
+          modelClientOptions: {
+            apiKey: "bedrock-short-term-api-key",
+            providerOptions: {
+              region: "us-east-1",
+            },
+          },
+          ...localBrowser,
+        }),
+      },
+    );
+
+    assertFetchStatus(ctx, HTTP_OK, "Request should succeed");
+    assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+    assertFetchOk(
+      isSuccessResponse(ctx.body),
+      "Should be a success response",
+      ctx,
+    );
+
+    await endSession(ctx.body.data.sessionId, headers);
+  });
+
+  it("should start session with Bedrock AWS credential modelClientOptions", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<StartResponse>(
+      `${url}/v1/sessions/start`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          modelName: "bedrock/amazon.nova-pro-v1:0",
+          modelClientOptions: {
+            providerOptions: {
+              region: "us-east-1",
+              accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+              secretAccessKey: "secret",
+              sessionToken: "session-token",
+            },
+          },
+          ...localBrowser,
+        }),
+      },
+    );
+
+    assertFetchStatus(ctx, HTTP_OK, "Request should succeed");
+    assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+    assertFetchOk(
+      isSuccessResponse(ctx.body),
+      "Should be a success response",
+      ctx,
+    );
+
+    await endSession(ctx.body.data.sessionId, headers);
+  });
+
   it("should return cdpUrl as a valid WebSocket URL for local browser", async () => {
     const url = getBaseUrl();
 

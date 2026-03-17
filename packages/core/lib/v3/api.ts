@@ -674,9 +674,9 @@ export class StagehandAPIClient {
    * defaults. This ensures hosted deployments (which don't persist
    * modelClientOptions server-side) receive the model config on every request.
    */
-  private ensureModelConfig<
-    T extends { model?: unknown } | undefined,
-  >(wireOptions: T): T {
+  private ensureModelConfig<T extends { model?: unknown } | undefined>(
+    wireOptions: T,
+  ): T {
     if (!this.sessionModelConfig) {
       return wireOptions;
     }

@@ -159,6 +159,13 @@ const ModelProviderSchema = z.enum([
   "bedrock",
 ]);
 
+const NonBedrockModelProviderSchema = z.enum([
+  "openai",
+  "anthropic",
+  "google",
+  "microsoft",
+]);
+
 const modelConfigSharedShape = {
   provider: ModelProviderSchema.optional().meta({
     description:
@@ -181,6 +188,15 @@ const modelConfigSharedShape = {
       description: "Custom headers for the model provider",
       example: { "X-Custom-Header": "value" },
     }),
+} as const;
+
+const nonBedrockModelConfigSharedShape = {
+  ...modelConfigSharedShape,
+  provider: NonBedrockModelProviderSchema.optional().meta({
+    description:
+      "AI provider for the model (or provide a baseURL endpoint instead)",
+    example: "openai",
+  }),
 } as const;
 
 const modelClientOptionsSharedShape = {
@@ -211,7 +227,7 @@ const bedrockModelNameSchema = z
 
 const GenericModelConfigObjectSchema = z
   .object({
-    ...modelConfigSharedShape,
+    ...nonBedrockModelConfigSharedShape,
     apiKey: z.string().optional().meta({
       description: "API key for the model provider",
       example: "sk-some-openai-api-key",
@@ -249,6 +265,10 @@ const BedrockApiKeyModelConfigObjectSchema = z
       example: "bedrock",
     }),
     modelName: bedrockModelNameSchema,
+    baseURL: z.string().url().optional().meta({
+      description: "Base URL for the model provider",
+      example: "https://bedrock-runtime.us-east-1.amazonaws.com",
+    }),
     apiKey: z.string().meta({
       description: "Short-term Bedrock API key for bearer-token auth",
       example: "bedrock-short-term-api-key",
@@ -268,6 +288,10 @@ const BedrockAwsCredentialsModelConfigObjectSchema = z
       example: "bedrock",
     }),
     modelName: bedrockModelNameSchema,
+    baseURL: z.string().url().optional().meta({
+      description: "Base URL for the model provider",
+      example: "https://bedrock-runtime.us-east-1.amazonaws.com",
+    }),
     providerOptions: BedrockAwsCredentialsProviderOptionsSchema.meta({
       example: {
         region: "us-east-1",

@@ -209,22 +209,37 @@ export class InMemorySessionStore implements SessionStore {
       typeof ctx.modelConfig?.modelName === "string"
         ? ctx.modelConfig.modelName
         : undefined;
-    const { modelName: _requestModelName, ...requestModelClientOptions } =
-      ctx.modelConfig ?? {};
+    const requestModelClientOptions = { ...(ctx.modelConfig ?? {}) };
+    delete requestModelClientOptions.modelName;
     const modelClientOptions = {
       ...(params.modelClientOptions ?? {}),
       ...requestModelClientOptions,
     };
+    const providerOptions =
+      modelClientOptions.providerOptions &&
+      typeof modelClientOptions.providerOptions === "object"
+        ? (modelClientOptions.providerOptions as Record<string, unknown>)
+        : undefined;
+    const hasExplicitAwsCredentials = Boolean(
+      providerOptions &&
+        (providerOptions.accessKeyId !== undefined ||
+          providerOptions.secretAccessKey !== undefined ||
+          providerOptions.sessionToken !== undefined),
+    );
 
-    if (ctx.modelApiKey && modelClientOptions.apiKey === undefined) {
+    if (
+      ctx.modelApiKey &&
+      modelClientOptions.apiKey === undefined &&
+      !hasExplicitAwsCredentials
+    ) {
       modelClientOptions.apiKey = ctx.modelApiKey;
     }
 
     const options: V3Options = {
       env: isBrowserbase ? "BROWSERBASE" : "LOCAL",
       model: {
-        modelName: requestModelName ?? params.modelName,
         ...modelClientOptions,
+        modelName: requestModelName ?? params.modelName,
       },
       verbose: params.verbose,
       systemPrompt: params.systemPrompt,

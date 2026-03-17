@@ -53,7 +53,8 @@ export function getRequestModelConfig(
   const modelClientOptions = body?.modelClientOptions as
     | Record<string, unknown>
     | undefined;
-  const modelName = typeof body?.modelName === "string" ? body.modelName : undefined;
+  const modelName =
+    typeof body?.modelName === "string" ? body.modelName : undefined;
 
   if (!modelClientOptions && !modelName) {
     return undefined;

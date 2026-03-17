@@ -22,8 +22,9 @@ describe("StagehandAPIClient model config handling", () => {
       ),
     );
 
-    (client as unknown as { fetchWithCookies: typeof fetchWithCookies })
-      .fetchWithCookies = fetchWithCookies;
+    (
+      client as unknown as { fetchWithCookies: typeof fetchWithCookies }
+    ).fetchWithCookies = fetchWithCookies;
 
     await client.init({
       modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
@@ -356,6 +357,37 @@ describe("StagehandAPIClient model config handling", () => {
     expect(model.providerConfig).toEqual({
       provider: "bedrock",
       options: { region: "us-east-1" },
+    });
+  });
+
+  it("omits non-plain Headers instances from session-start modelClientOptions", () => {
+    const client = new StagehandAPIClient({
+      apiKey: "bb-api-key",
+      projectId: "bb-project-id",
+      logger: () => {},
+    });
+
+    const serialized = (
+      client as unknown as {
+        toSessionStartModelClientOptions: (
+          options?: Record<string, unknown>,
+        ) => Record<string, unknown> | undefined;
+      }
+    ).toSessionStartModelClientOptions({
+      apiKey: "bedrock-bearer-token",
+      headers: new Headers({
+        Authorization: "Bearer test",
+      }) as unknown as Record<string, unknown>,
+      providerOptions: {
+        region: "us-east-1",
+      },
+    });
+
+    expect(serialized).toEqual({
+      apiKey: "bedrock-bearer-token",
+      providerOptions: {
+        region: "us-east-1",
+      },
     });
   });
 });
