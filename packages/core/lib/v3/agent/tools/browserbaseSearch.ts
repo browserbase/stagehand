@@ -1,6 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
+import { withTimeout } from "../../timeoutConfig.js";
+import { TimeoutError } from "../../types/public/sdkErrors.js";
 
 export interface SearchResult {
   title: string;
@@ -64,7 +66,7 @@ async function performBrowserbaseSearch(
   }
 }
 
-export const searchTool = (v3: V3, apiKey: string) =>
+export const searchTool = (v3: V3, apiKey: string, toolTimeout?: number) =>
   tool({
     description:
       "Perform a web search and returns results. Use this tool when you need information from the web or when you are unsure of the exact URL you want to navigate to. This can be used to find the ideal entry point, resulting in a task that is easier to complete due to starting further in the process.",
@@ -72,27 +74,54 @@ export const searchTool = (v3: V3, apiKey: string) =>
       query: z.string().describe("The search query to look for on the web"),
     }),
     execute: async ({ query }) => {
-      v3.logger({
-        category: "agent",
-        message: `Agent calling tool: search`,
-        level: 1,
-        auxiliary: {
-          arguments: {
-            value: JSON.stringify({ query }),
-            type: "object",
-          },
-        },
-      });
+      try {
+        return await withTimeout(
+          (async () => {
+            v3.logger({
+              category: "agent",
+              message: `Agent calling tool: search`,
+              level: 1,
+              auxiliary: {
+                arguments: {
+                  value: JSON.stringify({ query }),
+                  type: "object",
+                },
+              },
+            });
 
-      const result = await performBrowserbaseSearch(v3, query, apiKey);
+            const result = await performBrowserbaseSearch(v3, query, apiKey);
 
-      v3.recordAgentReplayStep({
-        type: "search",
-        instruction: query,
-        playwrightArguments: { query },
-        message: result.error ?? `Found ${result.results.length} results`,
-      });
+            v3.recordAgentReplayStep({
+              type: "search",
+              instruction: query,
+              playwrightArguments: { query },
+              message: result.error ?? `Found ${result.results.length} results`,
+            });
 
-      return { ...result, timestamp: Date.now() };
+            return { ...result, timestamp: Date.now() };
+          })(),
+          toolTimeout,
+          "search()",
+        );
+      } catch (error) {
+        if (error instanceof TimeoutError) {
+          const timeoutMessage = `TimeoutError: ${error.message}`;
+          v3.logger({
+            category: "agent",
+            message: timeoutMessage,
+            level: 0,
+          });
+          return {
+            results: [],
+            error: timeoutMessage,
+            timestamp: Date.now(),
+          };
+        }
+        return {
+          results: [],
+          error: `Error performing search: ${(error as Error).message}`,
+          timestamp: Date.now(),
+        };
+      }
     },
   });

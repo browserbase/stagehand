@@ -9,8 +9,10 @@ import type {
 import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { ensureXPath } from "../utils/xpath.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
+import { withTimeout } from "../../timeoutConfig.js";
+import { TimeoutError } from "../../types/public/sdkErrors.js";
 
-export const clickTool = (v3: V3, provider?: string) =>
+export const clickTool = (v3: V3, provider?: string, toolTimeout?: number) =>
   tool({
     description:
       "Click on an element using its coordinates (this is the most reliable way to click on an element, always use this over act, unless the element is not visible in the screenshot, but shown in ariaTree)",
@@ -26,60 +28,78 @@ export const clickTool = (v3: V3, provider?: string) =>
     }),
     execute: async ({ describe, coordinates }): Promise<ClickToolResult> => {
       try {
-        const page = await v3.context.awaitActivePage();
-        const processed = processCoordinates(
-          coordinates[0],
-          coordinates[1],
-          provider,
-          v3,
-        );
+        return await withTimeout(
+          (async () => {
+            const page = await v3.context.awaitActivePage();
+            const processed = processCoordinates(
+              coordinates[0],
+              coordinates[1],
+              provider,
+              v3,
+            );
 
-        v3.logger({
-          category: "agent",
-          message: `Agent calling tool: click`,
-          level: 1,
-          auxiliary: {
-            arguments: {
-              value: JSON.stringify({ describe }),
-              type: "object",
-            },
-          },
-        });
-
-        // Only request XPath when caching is enabled to avoid unnecessary computation
-        const shouldCollectXpath = v3.isAgentReplayActive();
-        const xpath = await page.click(processed.x, processed.y, {
-          returnXpath: shouldCollectXpath,
-        });
-
-        const screenshotBase64 = await waitAndCaptureScreenshot(page);
-
-        // Record as an "act" step with proper Action for deterministic replay (only when caching)
-        if (shouldCollectXpath) {
-          const normalizedXpath = ensureXPath(xpath);
-          if (normalizedXpath) {
-            const action: Action = {
-              selector: normalizedXpath,
-              description: describe,
-              method: "click",
-              arguments: [],
-            };
-            v3.recordAgentReplayStep({
-              type: "act",
-              instruction: describe,
-              actions: [action],
-              actionDescription: describe,
+            v3.logger({
+              category: "agent",
+              message: `Agent calling tool: click`,
+              level: 1,
+              auxiliary: {
+                arguments: {
+                  value: JSON.stringify({ describe }),
+                  type: "object",
+                },
+              },
             });
-          }
-        }
 
-        return {
-          success: true,
-          describe,
-          coordinates: [processed.x, processed.y],
-          screenshotBase64,
-        };
+            // Only request XPath when caching is enabled to avoid unnecessary computation
+            const shouldCollectXpath = v3.isAgentReplayActive();
+            const xpath = await page.click(processed.x, processed.y, {
+              returnXpath: shouldCollectXpath,
+            });
+
+            const screenshotBase64 = await waitAndCaptureScreenshot(page);
+
+            // Record as an "act" step with proper Action for deterministic replay (only when caching)
+            if (shouldCollectXpath) {
+              const normalizedXpath = ensureXPath(xpath);
+              if (normalizedXpath) {
+                const action: Action = {
+                  selector: normalizedXpath,
+                  description: describe,
+                  method: "click",
+                  arguments: [],
+                };
+                v3.recordAgentReplayStep({
+                  type: "act",
+                  instruction: describe,
+                  actions: [action],
+                  actionDescription: describe,
+                });
+              }
+            }
+
+            return {
+              success: true,
+              describe,
+              coordinates: [processed.x, processed.y],
+              screenshotBase64,
+            };
+          })(),
+          toolTimeout,
+          "click()",
+        );
       } catch (error) {
+        if (error instanceof TimeoutError) {
+          const timeoutMessage = `TimeoutError: ${error.message}`;
+          v3.logger({
+            category: "agent",
+            message: timeoutMessage,
+            level: 0,
+          });
+          return {
+            success: false,
+            error: timeoutMessage,
+          };
+        }
         return {
           success: false,
           error: `Error clicking: ${(error as Error).message}`,

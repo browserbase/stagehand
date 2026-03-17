@@ -11,8 +11,15 @@ import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { ensureXPath } from "../utils/xpath.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
 import { substituteVariables } from "../utils/variables.js";
+import { withTimeout } from "../../timeoutConfig.js";
+import { TimeoutError } from "../../types/public/sdkErrors.js";
 
-export const typeTool = (v3: V3, provider?: string, variables?: Variables) => {
+export const typeTool = (
+  v3: V3,
+  provider?: string,
+  variables?: Variables,
+  toolTimeout?: number,
+) => {
   const hasVariables = variables && Object.keys(variables).length > 0;
   const textDescription = hasVariables
     ? `The text to type into the element. Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}`
@@ -38,65 +45,83 @@ export const typeTool = (v3: V3, provider?: string, variables?: Variables) => {
       text,
     }): Promise<TypeToolResult> => {
       try {
-        const page = await v3.context.awaitActivePage();
-        const processed = processCoordinates(
-          coordinates[0],
-          coordinates[1],
-          provider,
-          v3,
-        );
+        return await withTimeout(
+          (async () => {
+            const page = await v3.context.awaitActivePage();
+            const processed = processCoordinates(
+              coordinates[0],
+              coordinates[1],
+              provider,
+              v3,
+            );
 
-        // Substitute any %variableName% tokens in the text
-        const actualText = substituteVariables(text, variables);
+            // Substitute any %variableName% tokens in the text
+            const actualText = substituteVariables(text, variables);
 
-        v3.logger({
-          category: "agent",
-          message: `Agent calling tool: type`,
-          level: 1,
-          auxiliary: {
-            arguments: {
-              value: JSON.stringify({ describe, text }),
-              type: "object",
-            },
-          },
-        });
-
-        // Only request XPath when caching is enabled to avoid unnecessary computation
-        const shouldCollectXpath = v3.isAgentReplayActive();
-        const xpath = await page.click(processed.x, processed.y, {
-          returnXpath: shouldCollectXpath,
-        });
-
-        await page.type(actualText);
-
-        const screenshotBase64 = await waitAndCaptureScreenshot(page);
-
-        // Record as an "act" step with proper Action for deterministic replay (only when caching)
-        if (shouldCollectXpath) {
-          const normalizedXpath = ensureXPath(xpath);
-          if (normalizedXpath) {
-            const action: Action = {
-              selector: normalizedXpath,
-              description: describe,
-              method: "type",
-              arguments: [text],
-            };
-            v3.recordAgentReplayStep({
-              type: "act",
-              instruction: describe,
-              actions: [action],
-              actionDescription: describe,
+            v3.logger({
+              category: "agent",
+              message: `Agent calling tool: type`,
+              level: 1,
+              auxiliary: {
+                arguments: {
+                  value: JSON.stringify({ describe, text }),
+                  type: "object",
+                },
+              },
             });
-          }
-        }
 
-        return {
-          success: true,
-          describe,
-          text, // Return original text (with %variableName% tokens) to avoid exposing sensitive values to LLM
-          screenshotBase64,
-        };
+            // Only request XPath when caching is enabled to avoid unnecessary computation
+            const shouldCollectXpath = v3.isAgentReplayActive();
+            const xpath = await page.click(processed.x, processed.y, {
+              returnXpath: shouldCollectXpath,
+            });
+
+            await page.type(actualText);
+
+            const screenshotBase64 = await waitAndCaptureScreenshot(page);
+
+            // Record as an "act" step with proper Action for deterministic replay (only when caching)
+            if (shouldCollectXpath) {
+              const normalizedXpath = ensureXPath(xpath);
+              if (normalizedXpath) {
+                const action: Action = {
+                  selector: normalizedXpath,
+                  description: describe,
+                  method: "type",
+                  arguments: [text],
+                };
+                v3.recordAgentReplayStep({
+                  type: "act",
+                  instruction: describe,
+                  actions: [action],
+                  actionDescription: describe,
+                });
+              }
+            }
+
+            return {
+              success: true,
+              describe,
+              text, // Return original text (with %variableName% tokens) to avoid exposing sensitive values to LLM
+              screenshotBase64,
+            };
+          })(),
+          toolTimeout,
+          "type()",
+        );
       } catch (error) {
+        if (error instanceof TimeoutError) {
+          const timeoutMessage = `TimeoutError: ${error.message}`;
+          v3.logger({
+            category: "agent",
+            message: timeoutMessage,
+            level: 0,
+          });
+          return {
+            success: false,
+            error: timeoutMessage,
+          };
+        }
         return {
           success: false,
           error: `Error typing: ${(error as Error).message}`,

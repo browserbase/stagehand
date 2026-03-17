@@ -11,11 +11,14 @@ import { processCoordinates } from "../utils/coordinateNormalization.js";
 import { ensureXPath } from "../utils/xpath.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
 import { substituteVariables } from "../utils/variables.js";
+import { withTimeout } from "../../timeoutConfig.js";
+import { TimeoutError } from "../../types/public/sdkErrors.js";
 
 export const fillFormVisionTool = (
   v3: V3,
   provider?: string,
   variables?: Variables,
+  toolTimeout?: number,
 ) => {
   const hasVariables = variables && Object.keys(variables).length > 0;
   const valueDescription = hasVariables
@@ -62,88 +65,106 @@ MANDATORY USE CASES (always use fillFormVision for these):
     }),
     execute: async ({ fields }): Promise<FillFormVisionToolResult> => {
       try {
-        const page = await v3.context.awaitActivePage();
+        return await withTimeout(
+          (async () => {
+            const page = await v3.context.awaitActivePage();
 
-        // Process coordinates and substitute variables for each field
-        // Keep original values (with %tokens%) for logging/caching, substituted values for typing
-        const processedFields = fields.map((field) => {
-          const processed = processCoordinates(
-            field.coordinates.x,
-            field.coordinates.y,
-            provider,
-            v3,
-          );
-          return {
-            ...field,
-            originalValue: field.value, // Keep original with %tokens% for cache
-            value: substituteVariables(field.value, variables),
-            coordinates: { x: processed.x, y: processed.y },
-          };
-        });
+            // Process coordinates and substitute variables for each field
+            // Keep original values (with %tokens%) for logging/caching, substituted values for typing
+            const processedFields = fields.map((field) => {
+              const processed = processCoordinates(
+                field.coordinates.x,
+                field.coordinates.y,
+                provider,
+                v3,
+              );
+              return {
+                ...field,
+                originalValue: field.value, // Keep original with %tokens% for cache
+                value: substituteVariables(field.value, variables),
+                coordinates: { x: processed.x, y: processed.y },
+              };
+            });
 
-        v3.logger({
-          category: "agent",
-          message: `Agent calling tool: fillFormVision`,
-          level: 1,
-          auxiliary: {
-            arguments: {
-              value: JSON.stringify({ fields }), // Don't log substituted values
-              type: "object",
-            },
-          },
-        });
+            v3.logger({
+              category: "agent",
+              message: `Agent calling tool: fillFormVision`,
+              level: 1,
+              auxiliary: {
+                arguments: {
+                  value: JSON.stringify({ fields }), // Don't log substituted values
+                  type: "object",
+                },
+              },
+            });
 
-        // Only request XPath when caching is enabled to avoid unnecessary computation
-        const shouldCollectXpath = v3.isAgentReplayActive();
-        const actions: Action[] = [];
+            // Only request XPath when caching is enabled to avoid unnecessary computation
+            const shouldCollectXpath = v3.isAgentReplayActive();
+            const actions: Action[] = [];
 
-        for (const field of processedFields) {
-          // Click the field, only requesting XPath when caching is enabled
-          const xpath = await page.click(
-            field.coordinates.x,
-            field.coordinates.y,
-            {
-              returnXpath: shouldCollectXpath,
-            },
-          );
-          await page.type(field.value);
+            for (const field of processedFields) {
+              // Click the field, only requesting XPath when caching is enabled
+              const xpath = await page.click(
+                field.coordinates.x,
+                field.coordinates.y,
+                {
+                  returnXpath: shouldCollectXpath,
+                },
+              );
+              await page.type(field.value);
 
-          // Build Action with XPath for deterministic replay (only when caching)
-          // Use originalValue (with %tokens%) so cache stores references, not sensitive values
-          if (shouldCollectXpath) {
-            const normalizedXpath = ensureXPath(xpath);
-            if (normalizedXpath) {
-              actions.push({
-                selector: normalizedXpath,
-                description: field.action,
-                method: "type",
-                arguments: [field.originalValue],
+              // Build Action with XPath for deterministic replay (only when caching)
+              // Use originalValue (with %tokens%) so cache stores references, not sensitive values
+              if (shouldCollectXpath) {
+                const normalizedXpath = ensureXPath(xpath);
+                if (normalizedXpath) {
+                  actions.push({
+                    selector: normalizedXpath,
+                    description: field.action,
+                    method: "type",
+                    arguments: [field.originalValue],
+                  });
+                }
+              }
+
+              // Small delay between fields
+              await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+
+            const screenshotBase64 = await waitAndCaptureScreenshot(page, 100);
+
+            // Record as "act" step with proper Actions for deterministic replay (only when caching)
+            if (shouldCollectXpath && actions.length > 0) {
+              v3.recordAgentReplayStep({
+                type: "act",
+                instruction: `Fill ${fields.length} form fields`,
+                actions,
+                actionDescription: `Fill ${fields.length} form fields`,
               });
             }
-          }
 
-          // Small delay between fields
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-
-        const screenshotBase64 = await waitAndCaptureScreenshot(page, 100);
-
-        // Record as "act" step with proper Actions for deterministic replay (only when caching)
-        if (shouldCollectXpath && actions.length > 0) {
-          v3.recordAgentReplayStep({
-            type: "act",
-            instruction: `Fill ${fields.length} form fields`,
-            actions,
-            actionDescription: `Fill ${fields.length} form fields`,
-          });
-        }
-
-        return {
-          success: true,
-          playwrightArguments: processedFields,
-          screenshotBase64,
-        };
+            return {
+              success: true,
+              playwrightArguments: processedFields,
+              screenshotBase64,
+            };
+          })(),
+          toolTimeout,
+          "fillFormVision()",
+        );
       } catch (error) {
+        if (error instanceof TimeoutError) {
+          const timeoutMessage = `TimeoutError: ${error.message}`;
+          v3.logger({
+            category: "agent",
+            message: timeoutMessage,
+            level: 0,
+          });
+          return {
+            success: false,
+            error: timeoutMessage,
+          };
+        }
         return {
           success: false,
           error: `Error filling form: ${(error as Error).message}`,
