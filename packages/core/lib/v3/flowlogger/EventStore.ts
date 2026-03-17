@@ -155,7 +155,7 @@ export class EventStore implements EventStoreApi {
   }
 
   // Emits an event to all attached sinks when it belongs to this store's single session.
-  async emit(event: FlowEvent): Promise<void> {
+  emit = async (event: FlowEvent): Promise<void> => {
     if (!(event instanceof FlowEvent)) {
       return;
     }
@@ -165,7 +165,7 @@ export class EventStore implements EventStoreApi {
     }
 
     await Promise.allSettled([...this.sinks].map((sink) => sink.emit(event)));
-  }
+  };
 
   // Tears down all sinks when the V3 instance is closed.
   async destroy(): Promise<void> {

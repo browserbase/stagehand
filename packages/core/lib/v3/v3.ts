@@ -391,10 +391,10 @@ export class V3 {
     // V3 owns the bus for this session. EventStore is not another bus; it just
     // receives already-emitted FlowEvents here, then fans them out to sinks and
     // keeps the queryable per-session history used by /v4/log, parent/ancestor lookups, and tests.
-    // `on()` stores a strong reference to the bound handler, so the EventStore
+    // `on()` stores a strong reference to the handler, so the EventStore
     // stays alive until this bus is garbage-collected with the rest of the V3
     // object graph.
-    this.bus.on("*", this.eventStore.emit.bind(this.eventStore));
+    this.bus.on("*", this.eventStore.emit);
 
     // Track instance for global process guard handling
     V3._instances.add(this);
