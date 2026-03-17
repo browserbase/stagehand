@@ -336,20 +336,18 @@ function readLaunchDiagnostics(launchOptions?: {
 export async function createSession(
   headers: Record<string, string>,
 ): Promise<string> {
-  const info = await createSessionWithCdp(headers);
-  return info.sessionId;
+  return (await createSessionWithCdp(headers)).sessionId;
 }
 
 export async function createSessionWithCdp(
   headers: Record<string, string>,
 ): Promise<SessionInfo> {
-  const url = getBaseUrl();
   const startPayload = {
     modelName: "gpt-4.1-nano",
     ...createLocalBrowserBody(),
   };
 
-  const response = await fetch(`${url}/v1/sessions/start`, {
+  const response = await fetch(`${getBaseUrl()}/v1/sessions/start`, {
     method: "POST",
     headers,
     body: JSON.stringify(startPayload),
@@ -374,22 +372,20 @@ export async function createSessionWithCdp(
       )}\n${launchDiagnostics}`,
     );
   }
-  if (!body.data?.available) {
+  const data = body.data;
+  if (!data?.available) {
     throw new Error(`Session not available`);
   }
-  if (!body.data.sessionId) {
-    throw new Error("No sessionId returned");
-  }
-  if (!body.data.cdpUrl) {
-    throw new Error("No cdpUrl returned");
+  if (!data.sessionId || !data.cdpUrl) {
+    throw new Error(!data.sessionId ? "No sessionId returned" : "No cdpUrl returned");
   }
 
   // Wait for session to be fully ready before returning
   await new Promise((resolve) => setTimeout(resolve, SESSION_READY_DELAY_MS));
 
   return {
-    sessionId: body.data.sessionId,
-    cdpUrl: body.data.cdpUrl,
+    sessionId: data.sessionId,
+    cdpUrl: data.cdpUrl,
   };
 }
 
@@ -397,9 +393,7 @@ export async function endSession(
   sessionId: string,
   headers: Record<string, string>,
 ): Promise<void> {
-  const url = getBaseUrl();
-
-  await fetch(`${url}/v1/sessions/${sessionId}/end`, {
+  await fetch(`${getBaseUrl()}/v1/sessions/${sessionId}/end`, {
     method: "POST",
     headers,
     body: JSON.stringify({}),
@@ -415,9 +409,7 @@ export async function navigateSession(
   targetUrl: string,
   headers: Record<string, string>,
 ): Promise<Response> {
-  const url = getBaseUrl();
-
-  return fetch(`${url}/v1/sessions/${sessionId}/navigate`, {
+  return fetch(`${getBaseUrl()}/v1/sessions/${sessionId}/navigate`, {
     method: "POST",
     headers,
     body: JSON.stringify({ url: targetUrl, frameId: "" }),
@@ -463,22 +455,7 @@ export interface SSEEvent {
 }
 
 export async function readSSEStream(response: Response): Promise<SSEEvent[]> {
-  const reader = response.body?.getReader() as
-    | ReadableStreamDefaultReader<Uint8Array>
-    | undefined;
-  if (!reader) {
-    throw new Error("No response body reader available");
-  }
-
-  const decoder = new TextDecoder();
-  let fullResponse = "";
-
-  for (;;) {
-    const result = await reader.read();
-    if (result.done) break;
-    fullResponse += decoder.decode(result.value, { stream: true });
-  }
-
+  const fullResponse = await readSSEStreamRaw(response);
   // Parse SSE events
   const events: SSEEvent[] = [];
   const rawEvents = fullResponse.split("\n\n").filter((e) => e.trim());
@@ -822,16 +799,19 @@ export class TestSession {
     this.headers = headers;
   }
 
+  // Returns the active session id or throws when the test forgot to call `start()`.
+  private requireSessionId(): string {
+    if (!this.sessionId) throw new Error("Session not started");
+    return this.sessionId;
+  }
+
   async start(): Promise<string> {
     this.sessionId = await createSession(this.headers);
     return this.sessionId;
   }
 
   async navigate(targetUrl: string): Promise<Response> {
-    if (!this.sessionId) {
-      throw new Error("Session not started");
-    }
-    return navigateSession(this.sessionId, targetUrl, this.headers);
+    return navigateSession(this.requireSessionId(), targetUrl, this.headers);
   }
 
   async end(): Promise<void> {
@@ -846,9 +826,6 @@ export class TestSession {
   }
 
   getSessionId(): string {
-    if (!this.sessionId) {
-      throw new Error("Session not started");
-    }
-    return this.sessionId;
+    return this.requireSessionId();
   }
 }
