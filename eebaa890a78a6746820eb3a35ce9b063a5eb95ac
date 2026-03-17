@@ -1,0 +1,44 @@
+packages/core/lib/v3/eventStore.ts
+  e77b9ebe52d57b02 289,293,297,299,302,306,311,315
+  6dec7dcc42b5ac08 331-333,338-342,518,546-550,553,566,568-573,594-597,627,793-794,817,829-840,842,844,851-853,857-861,863-867,872-873,878,882-884,894-896,900,908,915
+packages/core/lib/v3/flowLogger.ts
+  e77b9ebe52d57b02 24,27-31,33-36,38,60
+  6dec7dcc42b5ac08 13,16,23,25-26,32,45,62,68-107,111,251,269,434
+packages/core/lib/v3/understudy/page.ts
+  e77b9ebe52d57b02 654,799,862,909,1336,1390,1423,1515,1566,1716,1843,1895
+packages/core/lib/v3/v3.ts
+  6dec7dcc42b5ac08 88-89,91,161-162,394-407
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "eebaa890a78a6746820eb3a35ce9b063a5eb95ac",
+  "prompts": {
+    "6dec7dcc42b5ac08": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cf9a9-5ecf-72d0-a32a-30cea5c1bc07",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>",
+      "messages": [],
+      "total_additions": 222,
+      "total_deletions": 271,
+      "accepted_lines": 141,
+      "overriden_lines": 0
+    },
+    "e77b9ebe52d57b02": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cfaaf-3661-7b21-8595-42477ee1b276",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>",
+      "messages": [],
+      "total_additions": 53,
+      "total_deletions": 87,
+      "accepted_lines": 32,
+      "overriden_lines": 0
+    }
+  }
+}
