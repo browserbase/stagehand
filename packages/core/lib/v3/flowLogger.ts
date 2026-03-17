@@ -2,6 +2,8 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { EventEmitter } from "node:events";
 import { v7 as uuidv7 } from "uuid";
 import type { LanguageModelMiddleware } from "ai";
+import { toTitleCase } from "../utils.js";
+import { getEventStore } from "./eventStore.js";
 
 // =============================================================================
 // Constants
@@ -95,32 +97,37 @@ export class FlowLogger {
     };
   }
 
-  private static createFallbackContext(
-    event: Pick<FlowEventInput, "eventType" | "sessionId">,
-  ): FlowLoggerContext {
-    const sessionId = event.sessionId ?? `flow-orphan-${uuidv7()}`;
-    const eventBus = new EventEmitter();
-    const rootEvent = new FlowEvent({
+  /**
+   * Builds a synthetic root event for work that cannot be traced to an
+   * existing parent flow event. This keeps downstream events connected to a
+   * stable parent ID instead of crashing or producing detached children.
+   */
+  private static createPlaceholderRootEvent(
+    sessionId: string,
+    missingParentFor: string,
+  ): FlowEvent {
+    return new FlowEvent({
       sessionId,
       eventType: "FlowLoggerOrphanRoot",
       eventIdSuffix: "0",
       eventParentIds: [],
       data: {
         message:
-          "Created a placeholder FlowLogger root event because no AsyncLocalStorage context was available.",
-        missingParentFor: event.eventType,
+          "Created a placeholder FlowLogger root event because the current call could not be traced to a parent flow event.",
+        missingParentFor,
       },
     });
-
-    eventBus.emit(rootEvent.eventType, rootEvent);
-
-    return {
-      sessionId,
-      eventBus,
-      parentEvents: [rootEvent],
-    };
   }
 
+  /**
+   * Executes `fn` with the active FlowLogger ALS context when one exists.
+   *
+   * When code runs outside the originating async call-chain, AsyncLocalStorage
+   * can be empty even though FlowLogger instrumentation is still invoked. In
+   * that case we synthesize a fallback context, attach its bus to the event
+   * store, record an orphan root event, and run the callback inside that
+   * temporary context so logging degrades gracefully instead of throwing.
+   */
   private static runWithResolvedContext<TResult>(
     event: Pick<FlowEventInput, "eventType" | "sessionId">,
     fn: (context: FlowLoggerContext) => TResult,
@@ -130,7 +137,24 @@ export class FlowLogger {
       return fn(existingContext);
     }
 
-    const fallbackContext = FlowLogger.createFallbackContext(event);
+    // ALS is missing because execution escaped the original async chain
+    // (for example via a callback or another boundary that did not preserve the
+    // originating context). Create a short-lived fallback context so this log
+    // still gets recorded under a placeholder root event.
+    const sessionId = event.sessionId ?? `flow-orphan-${uuidv7()}`;
+    const eventBus = new EventEmitter();
+    void getEventStore().initializeSession(sessionId);
+    getEventStore().attachBus(sessionId, eventBus);
+    const rootEvent = FlowLogger.createPlaceholderRootEvent(
+      sessionId,
+      event.eventType,
+    );
+    eventBus.emit(rootEvent.eventType, rootEvent);
+    const fallbackContext: FlowLoggerContext = {
+      sessionId,
+      eventBus,
+      parentEvents: [rootEvent],
+    };
     console.error(
       `[Stagehand][FlowLogger] Missing async context while logging ${event.eventType}. Using orphan root event for session ${fallbackContext.sessionId}.`,
     );
@@ -349,17 +373,25 @@ export class FlowLogger {
       return null;
     }
 
-    return loggerContext.run(FlowLogger.cloneContext(context), () =>
+    const emittedEventType = `Cdp${toTitleCase(eventType)}Event`;
+
+    const childContext = FlowLogger.cloneContext(context);
+    if (childContext.parentEvents.length === 0) {
+      const rootEvent = FlowLogger.createPlaceholderRootEvent(
+        childContext.sessionId,
+        emittedEventType,
+      );
+      childContext.eventBus.emit(rootEvent.eventType, rootEvent);
+      childContext.parentEvents.push(rootEvent);
+      console.debug(
+        `[Stagehand][FlowLogger] Missing parent flow event while logging ${emittedEventType}. Using orphan root event for session ${childContext.sessionId}.`,
+      );
+    }
+
+    return loggerContext.run(childContext, () =>
       FlowLogger.emit({
         eventIdSuffix: "6",
-        eventType:
-          eventType === "call"
-            ? "CdpCallEvent"
-            : eventType === "response"
-              ? "CdpResponseEvent"
-              : eventType === "responseError"
-                ? "CdpResponseErrorEvent"
-                : "CdpMessageEvent",
+        eventType: emittedEventType,
         eventParentIds,
         data: {
           method,

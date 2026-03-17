@@ -1,5 +1,7 @@
+import { EventEmitter } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { FlowLogger } from "../../lib/v3/flowLogger.js";
+import { destroyEventStore, getEventStore } from "../../lib/v3/eventStore.js";
+import { FlowLogger, type FlowLoggerContext } from "../../lib/v3/flowLogger.js";
 import type { LLMClient } from "../../lib/v3/llm/LLMClient.js";
 import type { AgentResult } from "../../lib/v3/types/public/agent.js";
 import { V3 } from "../../lib/v3/v3.js";
@@ -33,6 +35,7 @@ describe("FlowLogger agent context recovery", () => {
       await v3.close({ force: true });
       v3 = null;
     }
+    await destroyEventStore();
   });
 
   it("re-enters the V3 flow context for agent.execute() calls made outside the original ALS scope", async () => {
@@ -65,6 +68,7 @@ describe("FlowLogger agent context recovery", () => {
         instruction: "test instruction",
         toolTimeout: 45_000,
       },
+      instruction: "test instruction",
       cacheContext: null,
       llmClient: v3.llmClient,
     });
@@ -94,5 +98,56 @@ describe("FlowLogger agent context recovery", () => {
     }).not.toThrow();
 
     expect(stderrSpy).toHaveBeenCalled();
+  });
+
+  it("records the orphan root event before an orphaned LLM event", async () => {
+    const recordedTypes: string[] = [];
+    const unsubscribe = getEventStore().subscribe({}, (event) => {
+      recordedTypes.push(event.eventType);
+    });
+
+    try {
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+      FlowLogger.logLlmRequest({
+        requestId: "req-recorded",
+        model: "mock/model",
+        prompt: "hello",
+      });
+    } finally {
+      unsubscribe();
+    }
+
+    expect(recordedTypes).toEqual([
+      "FlowLoggerOrphanRootEvent",
+      "LlmRequestEvent",
+    ]);
+  });
+
+  it("records a placeholder root before rootless CDP events", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const sessionId = "cdp-rootless-session";
+    const eventBus = new EventEmitter();
+    await getEventStore().initializeSession(sessionId);
+    getEventStore().attachBus(sessionId, eventBus);
+
+    const context: FlowLoggerContext = {
+      sessionId,
+      eventBus,
+      parentEvents: [],
+    };
+
+    const cdpEvent = FlowLogger.logCdpCallEvent(context, {
+      method: "Page.navigate",
+      params: { url: "https://example.com" },
+    });
+    const events = await getEventStore().listEvents({ sessionId });
+
+    expect(events.map((event) => event.eventType)).toEqual([
+      "FlowLoggerOrphanRootEvent",
+      "CdpCallEvent",
+    ]);
+    expect(cdpEvent?.eventParentIds).toEqual([events[0]!.eventId]);
   });
 });
