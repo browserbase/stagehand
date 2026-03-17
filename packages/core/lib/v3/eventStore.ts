@@ -922,9 +922,12 @@ export class EventStore {
     }
 
     const wasAttached = this.sinkDetachers.has(sink);
-    const detachSink = wasAttached
-      ? (this.sinkDetachers.get(sink) as () => void)
-      : this.attachSink(sink);
+    let detachSink: () => void;
+    if (wasAttached) {
+      detachSink = this.sinkDetachers.get(sink) as () => void;
+    } else {
+      detachSink = this.attachSink(sink);
+    }
 
     // `query()` always reads from exactly one sink so ancestry lookups stay
     // deterministic even when other write-only sinks are attached.

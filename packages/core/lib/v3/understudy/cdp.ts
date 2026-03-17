@@ -267,10 +267,17 @@ export class CdpConnection implements CDPSessionLike {
 
       if ("error" in msg && msg.error) {
         if (rec.flowLoggerContext && rec.cdpCallEvent) {
-          const targetId =
-            rec.sessionId != null
-              ? (this.sessionToTarget.get(rec.sessionId) ?? rec.sessionId)
-              : null;
+          let targetId: string | null;
+          if (rec.sessionId) {
+            const mappedTargetId = this.sessionToTarget.get(rec.sessionId);
+            if (mappedTargetId) {
+              targetId = mappedTargetId;
+            } else {
+              targetId = rec.sessionId;
+            }
+          } else {
+            targetId = null;
+          }
           FlowLogger.logCdpResponseEvent(
             rec.flowLoggerContext,
             rec.cdpCallEvent,
@@ -284,10 +291,17 @@ export class CdpConnection implements CDPSessionLike {
         rec.reject(new Error(`${msg.error.code} ${msg.error.message}`));
       } else {
         if (rec.flowLoggerContext && rec.cdpCallEvent) {
-          const targetId =
-            rec.sessionId != null
-              ? (this.sessionToTarget.get(rec.sessionId) ?? rec.sessionId)
-              : null;
+          let targetId: string | null;
+          if (rec.sessionId) {
+            const mappedTargetId = this.sessionToTarget.get(rec.sessionId);
+            if (mappedTargetId) {
+              targetId = mappedTargetId;
+            } else {
+              targetId = rec.sessionId;
+            }
+          } else {
+            targetId = null;
+          }
           FlowLogger.logCdpResponseEvent(
             rec.flowLoggerContext,
             rec.cdpCallEvent,
@@ -352,10 +366,17 @@ export class CdpConnection implements CDPSessionLike {
       const latestCdpCallEvent =
         this.latestCdpCallEvent.get(sessionId ?? null) ??
         (sessionId ? this.latestCdpCallEvent.get(null) : null);
-      const targetId =
-        sessionId != null
-          ? (this.sessionToTarget.get(sessionId) ?? sessionId)
-          : null;
+      let targetId: string | null;
+      if (sessionId) {
+        const mappedTargetId = this.sessionToTarget.get(sessionId);
+        if (mappedTargetId) {
+          targetId = mappedTargetId;
+        } else {
+          targetId = sessionId;
+        }
+      } else {
+        targetId = null;
+      }
 
       if (latestCdpCallEvent) {
         FlowLogger.logCdpMessageEvent(
@@ -405,7 +426,13 @@ export class CdpConnection implements CDPSessionLike {
     const payload = { id, method, params, sessionId };
     const stack = new Error().stack?.split("\n").slice(1, 4).join("\n");
     const flowLoggerContext = FlowLogger.resolveContext(this.flowLoggerContext);
-    const targetId = this.sessionToTarget.get(sessionId) ?? null;
+    let targetId: string | null;
+    const mappedTargetId = this.sessionToTarget.get(sessionId);
+    if (mappedTargetId) {
+      targetId = mappedTargetId;
+    } else {
+      targetId = null;
+    }
     const cdpCallEvent = flowLoggerContext
       ? FlowLogger.logCdpCallEvent(flowLoggerContext, {
           method,
