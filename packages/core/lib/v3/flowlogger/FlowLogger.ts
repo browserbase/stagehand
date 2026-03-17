@@ -1,25 +1,36 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { v7 as uuidv7 } from "uuid";
 import type { LanguageModelMiddleware } from "ai";
+import { z } from "zod";
 import { EventEmitterWithWildcardSupport } from "./EventEmitter.js";
 
 // =============================================================================
 // Flow Event Model
 // =============================================================================
 
-export type FlowEventData = Record<string, unknown>;
-export type FlowEventInput = Omit<
-  FlowEvent,
-  "eventId" | "eventCreatedAt" | "sessionId" | "eventParentIds" | "data"
-> & {
-  eventId?: string;
-  eventCreatedAt?: string;
-  sessionId?: string;
-  eventParentIds?: string[];
-  data?: FlowEventData;
+export const FlowEventDataSchema = z.record(z.string(), z.unknown());
+export const FlowEventInputSchema = z.object({
+  eventType: z.string(),
+  eventId: z.string().optional(),
+  eventParentIds: z.array(z.string()).optional(),
+  eventCreatedAt: z.string().optional(),
+  sessionId: z.string().optional(),
+  data: FlowEventDataSchema.optional(),
+});
+
+export type FlowEventData = z.infer<typeof FlowEventDataSchema>;
+export type FlowEventInput = z.input<typeof FlowEventInputSchema>;
+
+type FlowEventFields = {
+  eventType: string;
+  eventId: string;
+  eventParentIds: string[];
+  eventCreatedAt: string;
+  sessionId: string;
+  data: FlowEventData;
 };
 
-export class FlowEvent {
+export class FlowEvent implements FlowEventFields {
   // "ModuleMethodSomethingEvent" -> hashToSmallInt("Modu) -> 5. eventId = "...5"
   private static deriveEventIdSuffix(eventType: string): string {
     const prefixMatch = eventType.match(/^[A-Z][a-z0-9]*/);
@@ -123,7 +134,11 @@ export class FlowLogger {
     };
   }
 
-  // Chooses the safest context to re-enter when callers already have a stored context and ALS may or may not already contain one for the same session. If the current ALS stack extends the stored stack, we keep the richer ALS view. If the stored stack is deeper, we preserve that instead. If they diverge, we prefer the current ALS view because it reflects the currently executing call-chain.
+  // Chooses the safest context to re-enter when callers already have a stored context
+  // and ALS may or may not already contain one for the same session.
+  // If the current ALS stack extends the stored stack, we keep the richer ALS view.
+  // If the stored stack is deeper, we preserve that instead.
+  // If they diverge, we prefer the current ALS view because it reflects the currently executing call-chain.
   private static resolveReentryContext(
     context: FlowLoggerContext,
   ): FlowLoggerContext {
@@ -164,7 +179,9 @@ export class FlowLogger {
     return FlowLogger.cloneContext(currentContext);
   }
 
-  // Materializes and emits a single flow event on the active ALS context. This is the lowest-level write path used by all higher-level logging helpers after they have decided which parent chain and session the event belongs to.
+  // Materializes and emits a single flow event on the active ALS context.
+  // This is the lowest-level write path used by all higher-level logging helpers
+  // after they have decided which parent chain and session the event belongs to.
   private static emit(event: FlowEventInput): FlowEvent | null {
     const ctx = FlowLogger.currentContext;
 
@@ -179,7 +196,8 @@ export class FlowLogger {
     return emittedEvent;
   }
 
-  // Wraps a unit of async work with started/completed/error events while maintaining the parent stack inside the active context.
+  // Wraps a unit of async work with started/completed/error events while maintaining
+  // the parent stack inside the active context.
   private static async runWithAutoStatusEventLogging<TResult>(
     options: FlowLoggerLogOptions,
     originalMethod: AsyncOriginalMethod<[], TResult>,
@@ -240,7 +258,9 @@ export class FlowLogger {
     }
   }
 
-  // Emits a CDP event under a caller-supplied context. CDP transport code uses this instead of `runWithLogging()` because request/response/message events are separate lifecycle edges with explicit parent ids.
+  // Emits a CDP event under a caller-supplied context. CDP transport code uses this
+  // instead of `runWithLogging()` because request/response/message events
+  // are separate lifecycle edges with explicit parent ids.
   private static logCdpEvent(
     context: FlowLoggerContext,
     eventType: CdpLogEventType,
@@ -270,7 +290,8 @@ export class FlowLogger {
     );
   }
 
-  // Emits an LLM request/response event only when a flow context is active. LLM logging is best-effort, so callers should not fail if it is invoked outside a tracked async chain.
+  // Emits an LLM request/response event only when a flow context is active.
+  // LLM logging is best-effort, so callers should not fail if it is invoked outside a tracked async chain.
   private static emitLlmEvent(event: FlowEventInput): void {
     const context = FlowLogger.resolveContext();
     if (!context) {
@@ -393,14 +414,16 @@ export class FlowLogger {
     return ctx;
   }
 
-  // Clears the parent stack for a session when a V3 instance shuts down. This does not emit a final event; it just tears down in-memory context.
+  // Clears the parent stack for a session when a V3 instance shuts down.
+  // This does not emit a final event; it just tears down in-memory context.
   static async close(context?: FlowLoggerContext | null): Promise<void> {
     const ctx = context ?? loggerContext.getStore() ?? null;
     if (!ctx) return;
     ctx.parentEvents = [];
   }
 
-  // Returns the current ALS-backed flow context and throws when code executes outside a tracked flow. Use `resolveContext()` for best-effort lookups.
+  // Returns the current ALS-backed flow context and throws when code
+  // executes outside a tracked flow. Use `resolveContext()` for best-effort lookups.
   static get currentContext(): FlowLoggerContext {
     const ctx = loggerContext.getStore() ?? null;
     if (!ctx) {
@@ -410,7 +433,9 @@ export class FlowLogger {
     return ctx;
   }
 
-  // Returns a cloned FlowLogger context for the current async call-chain when one exists, otherwise falls back to the provided instance-owned context. This is the non-throwing lookup for callers that can continue without ALS.
+  // Returns a cloned FlowLogger context for the current async call-chain when one exists,
+  // otherwise falls back to the provided instance-owned context.
+  // This is the non-throwing lookup for callers that can continue without ALS.
   static resolveContext(
     fallbackContext?: FlowLoggerContext | null,
   ): FlowLoggerContext | null {
@@ -422,7 +447,9 @@ export class FlowLogger {
     return fallbackContext ? FlowLogger.cloneContext(fallbackContext) : null;
   }
 
-  // Decorator-style wrapper used on class methods that should emit their own started/completed/error envelope. It resolves the flow context from either the decorator options or `this.flowLoggerContext`, then delegates the actual lifecycle handling to `runWithLogging()`.
+  // Decorator-style wrapper used on class methods that should emit their own started/completed/error envelope.
+  // It resolves the flow context from either the decorator options or `this.flowLoggerContext`,
+  // then delegates the actual lifecycle handling to `runWithLogging()`.
   static wrapWithLogging<TMethod extends AsyncOriginalMethod>(
     options: FlowLoggerLogOptions,
   ) {
@@ -461,7 +488,9 @@ export class FlowLogger {
     };
   }
 
-  // Wraps an async function or zero-arg closure with flow events. This is the imperative entrypoint used by handlers that cannot use the decorator form. Standard case: the logged params are the same tuple passed to the wrapped method.
+  // Wraps an async function or zero-arg closure with flow events.
+  // This is the imperative entrypoint used by handlers that cannot use the decorator form.
+  // Standard case: the logged params are the same tuple passed to the wrapped method.
   static runWithLogging<TMethod extends AsyncOriginalMethod>(
     options: FlowLoggerLogOptions,
     originalMethod: TMethod,
@@ -512,7 +541,8 @@ export class FlowLogger {
     return execute();
   }
 
-  // Re-enters an existing FlowLogger context without emitting wrapper events. Use this when work already belongs to a known session/parent chain and only needs AsyncLocalStorage propagation.
+  // Re-enters an existing FlowLogger context without emitting wrapper events.
+  // Use this when work already belongs to a known parent and needs AsyncLocalStorage set manually.
   static withContext<T>(context: FlowLoggerContext, fn: () => T): T {
     return loggerContext.run(FlowLogger.resolveReentryContext(context), fn);
   }
@@ -535,7 +565,8 @@ export class FlowLogger {
     "Network.responseReceived",
   ]);
 
-  // Logs the start of a CDP command. CDP transport calls this before sending a message over the websocket so the eventual response can attach to it.
+  // Logs the start of a CDP command. CDP transport calls this before sending a
+  // message over the websocket so the eventual response can attach to it.
   static logCdpCallEvent(
     context: FlowLoggerContext,
     data: {
@@ -636,7 +667,8 @@ export class FlowLogger {
   // LLM Logging Middleware
   // ===========================================================================
 
-  // Creates AI SDK middleware that wraps a generate call with FlowLogger LLM request/response events while leaving model execution behavior unchanged.
+  // Creates AI SDK middleware that wraps a generate call with FlowLogger LLM request/response events
+  // while leaving model execution behavior unchanged.
   static createLlmLoggingMiddleware(
     modelId: string,
   ): Pick<LanguageModelMiddleware, "wrapGenerate"> {
@@ -690,7 +722,9 @@ type LlmMessageContent = {
   parts?: unknown[];
 };
 
-// Extracts text and image markers from an LLM content array. This is shared by the request-summary helpers below so different provider message shapes render consistently in the flow log.
+// Extracts text and image markers from an LLM content array.
+// This is shared by the request-summary helpers below so different provider message
+// shapes render consistently in the flow log.
 function extractLlmMessageContent(content: unknown[]): {
   text?: string;
   extras: string[];
@@ -732,7 +766,8 @@ function extractLlmMessageContent(content: unknown[]): {
   return result;
 }
 
-// Produces a single compact summary from a provider-specific message payload so request and tool-result logs stay readable.
+// Produces a single compact summary from a provider-specific message payload
+// so request and tool-result logs stay readable.
 function extractLlmMessageSummary(
   input: LlmMessageContent,
   options?: {
@@ -774,7 +809,8 @@ function extractLlmMessageSummary(
   return summary || undefined;
 }
 
-// Formats the last user-facing prompt into the one-line form used by standard LLM request logs, for example: `some text +{5.8kb image} +{schema}`.
+// Formats the last user-facing prompt into the one-line form used by standard LLM request logs,
+// for example: `some text +{5.8kb image} +{schema}`.
 export function extractLlmPromptSummary(
   messages: Array<{ role: string; content: unknown }>,
   options?: { toolCount?: number; hasSchema?: boolean },
@@ -795,7 +831,7 @@ export function extractLlmPromptSummary(
   }
 }
 
-// Extract a text summary from CUA-style messages. This accepts Anthropic, OpenAI, and Google-style content payloads.
+// Extract a text summary from CUA-style messages. This accepts Anthropic, OpenAI, and Google-style payloads.
 export function extractLlmCuaPromptSummary(
   messages: unknown[],
 ): string | undefined {

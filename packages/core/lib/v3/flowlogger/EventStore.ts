@@ -156,6 +156,10 @@ export class EventStore implements EventStoreApi {
 
   // Emits an event to all attached sinks when it belongs to this store's single session.
   async emit(event: FlowEvent): Promise<void> {
+    if (!(event instanceof FlowEvent)) {
+      return;
+    }
+
     if (this.destroyed || event.sessionId !== this.sessionId) {
       return;
     }
