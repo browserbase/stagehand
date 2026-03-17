@@ -93,11 +93,10 @@ export class V3CuaAgentHandler {
         // Skip logging for screenshot actions - they're no-ops, the actual
         // Page.screenshot in captureAndSendScreenshot() is logged separately
         const shouldLog = action.type !== "screenshot";
-        const eventType = `V3Cua${toTitleCase(action.type)}`; // e.g. "V3CuaClick"
         if (shouldLog) {
           await FlowLogger.runWithLogging(
             {
-              eventType,
+              eventType: `V3Cua${toTitleCase(action.type)}`, // e.g. "V3CuaClick"
               data: {
                 target: this.computePointerTarget(action),
               },

@@ -41,12 +41,11 @@ export async function performUnderstudyMethod(
   domSettleTimeoutMs?: number,
 ): Promise<void> {
   const selectorRaw = normalizeRootXPath(rawXPath);
-  const eventType = `Understudy${toTitleCase(method)}`; // e.g. "UnderstudyClick"
 
   try {
     await FlowLogger.runWithLogging(
       {
-        eventType,
+        eventType: `Understudy${toTitleCase(method)}`, // e.g. "UnderstudyClick"
         data: {
           target: selectorRaw,
         },

@@ -642,11 +642,26 @@ async function prettifyEvent(
 
 function prettifyColorStderrLine(line: string): string {
   const purple = chalkStderr.hex("#a855f7");
-  const colors = { "🅰": chalkStderr.cyan, "🆂": chalkStderr.yellow, "🆄": chalkStderr.green, "🅻": purple, "🅲": chalkStderr.gray } as const;
+  const colors = {
+    "🅰": chalkStderr.cyan,
+    "🆂": chalkStderr.yellow,
+    "🆄": chalkStderr.green,
+    "🅻": purple,
+    "🅲": chalkStderr.gray,
+  } as const;
   return line
-    .replace(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{5})/, (_, timestamp) => chalkStderr.dim(timestamp))
-    .replace(/\[([🅰🆂🆄🅻🅲])([^\]]*)\]/gu, (_, icon, rest) => (colors[icon as keyof typeof colors] ?? ((value: string) => value))(`[${icon}${rest}]`))
-    .replace(/ in (\d+(?:\.\d+)?s)/g, (_, duration) => ` ${chalkStderr.dim("in")} ${chalkStderr.dim(duration)}`)
+    .replace(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{5})/, (_, timestamp) =>
+      chalkStderr.dim(timestamp),
+    )
+    .replace(/\[([🅰🆂🆄🅻🅲])([^\]]*)\]/gu, (_, icon, rest) =>
+      (colors[icon as keyof typeof colors] ?? ((value: string) => value))(
+        `[${icon}${rest}]`,
+      ),
+    )
+    .replace(
+      / in (\d+(?:\.\d+)?s)/g,
+      (_, duration) => ` ${chalkStderr.dim("in")} ${chalkStderr.dim(duration)}`,
+    )
     .replace(/▷/g, chalkStderr.cyanBright("▷"))
     .replace(/⏴/g, chalkStderr.cyanBright("⏴"))
     .replace(/↳/g, purple("↳"))
@@ -654,7 +669,10 @@ function prettifyColorStderrLine(line: string): string {
     .replace(/ꜜ/g, purple("ꜜ"))
     .replace(/…/g, chalkStderr.blueBright("…"))
     .replace(/[(){}=]/g, (char) => chalkStderr.blueBright(char))
-    .replace(/([A-Za-z])(\.)([A-Za-z])/g, (_, left, dot, right) => `${left}${chalkStderr.blueBright(dot)}${right}`)
+    .replace(
+      /([A-Za-z])(\.)([A-Za-z])/g,
+      (_, left, dot, right) => `${left}${chalkStderr.blueBright(dot)}${right}`,
+    )
     .replace(/ ✓ /g, ` ${chalkStderr.green("✓")} `)
     .replace(/ ✕ /g, ` ${chalkStderr.red("✕")} `);
 }
