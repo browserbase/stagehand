@@ -11,9 +11,7 @@ export const onlineMind2Web: EvalFunction = async ({
   modelName,
   input,
 }) => {
-  // Track resources that need cleanup
   let screenshotCollector: ScreenshotCollector | null = null;
-  let screenshotHandler: ((buffer: Buffer) => void) | null = null;
 
   try {
     const params = ((input && input.params) || {}) as {
@@ -44,24 +42,18 @@ export const onlineMind2Web: EvalFunction = async ({
       systemPrompt: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await page.title()}. ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE.`,
     });
 
-    // Set up event-driven screenshot collection via the V3 event bus
     screenshotCollector = new ScreenshotCollector(v3, {
+      interval: 3000,
       maxScreenshots: 7,
     });
-
-    // Subscribe to screenshot events from the agent
-    screenshotHandler = (buffer: Buffer) => {
-      screenshotCollector?.addScreenshot(buffer);
-    };
-    v3.bus.on("agent_screenshot_taken_event", screenshotHandler);
+    screenshotCollector.start();
 
     const agentResult = await agent.execute({
       instruction: params.confirmed_task,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
     });
 
-    // Stop collecting, clean up event listener, and get all screenshots
-    v3.bus.off("agent_screenshot_taken_event", screenshotHandler);
+    // Stop collecting and get all screenshots
     let screenshots = await screenshotCollector.stop();
 
     // Resize screenshots if we have any
@@ -108,14 +100,6 @@ export const onlineMind2Web: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    // Always clean up event listener and stop collector to prevent hanging
-    if (screenshotHandler) {
-      try {
-        v3.bus.off("agent_screenshot_taken_event", screenshotHandler);
-      } catch {
-        // Ignore errors during cleanup
-      }
-    }
     if (screenshotCollector) {
       try {
         await screenshotCollector.stop();

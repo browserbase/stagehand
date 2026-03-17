@@ -144,8 +144,7 @@ export class ScreenshotCollector {
   }
 
   /**
-   * Manually add a screenshot to the collection.
-   * Use this with the V3 event bus for event-driven screenshot collection.
+   * Manually add a screenshot buffer to the collection.
    * @param screenshot The screenshot buffer to add
    */
   async addScreenshot(screenshot: Buffer): Promise<void> {

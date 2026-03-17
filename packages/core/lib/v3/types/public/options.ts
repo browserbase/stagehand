@@ -19,6 +19,13 @@ export type LocalBrowserLaunchOptions = z.infer<
 /** Constructor options for V3 */
 export interface V3Options {
   env: V3Env;
+  /**
+   * Optional external session identifier to use for flow logging/event storage.
+   * When omitted, Stagehand falls back to its internal instance id.
+   * This currently ends up 1:1 with the Browserbase session id when one exists,
+   * but callers should not rely on that remaining a permanent invariant.
+   */
+  sessionId?: string;
   // Browserbase (required when env = "BROWSERBASE")
   apiKey?: string;
   projectId?: string;

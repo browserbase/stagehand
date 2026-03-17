@@ -192,7 +192,7 @@ const serverTarget = (
   process.env.STAGEHAND_SERVER_TARGET ?? "sea"
 ).toLowerCase();
 const explicitBaseUrl = process.env.STAGEHAND_BASE_URL;
-const baseUrl = explicitBaseUrl ?? "http://stagehand-api.localhost:3107";
+const baseUrl = explicitBaseUrl ?? "http://stagehand-api.localhost:3106"; // different than server-v4 to avoid clash
 
 if (serverTarget === "remote" && !explicitBaseUrl) {
   console.error("Missing STAGEHAND_BASE_URL for remote server target.");
