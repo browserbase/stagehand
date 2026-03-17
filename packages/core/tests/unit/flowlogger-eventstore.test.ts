@@ -2,26 +2,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { EventStore } from "../../lib/v3/flowlogger/EventStore.js";
 import { EventEmitterWithWildcardSupport } from "../../lib/v3/flowlogger/EventEmitter.js";
 import { FlowEvent } from "../../lib/v3/flowlogger/FlowLogger.js";
-
-function waitForAsyncEmit(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
-}
-
-function attachStoreToBus(
-  store: EventStore,
-  bus: EventEmitterWithWildcardSupport,
-): () => void {
-  const onFlowEvent = (event: unknown) => {
-    if (event instanceof FlowEvent) {
-      void store.emit(event);
-    }
-  };
-
-  bus.on("*", onFlowEvent);
-  return () => {
-    bus.off("*", onFlowEvent);
-  };
-}
+import {
+  attachEventStoreToBus,
+  waitForAsyncEmit,
+} from "./helpers/flow-logger-test-utils.js";
 
 function createVerboseStoreHarness(): {
   writes: string[];
@@ -41,12 +25,12 @@ function createVerboseStoreHarness(): {
 
   const store = new EventStore("session-test", { verbose: 2 } as never);
   const bus = new EventEmitterWithWildcardSupport();
-  const detachBus = attachStoreToBus(store, bus);
+  const detachBus = attachEventStoreToBus(store, bus);
 
   return { writes, store, bus, detachBus };
 }
 
-describe("EventStore pretty formatting", () => {
+describe("flow logger event store", () => {
   const stderrWrite = process.stderr.write.bind(process.stderr);
 
   afterEach(() => {

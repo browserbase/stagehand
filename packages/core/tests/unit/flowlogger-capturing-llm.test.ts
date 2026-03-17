@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FlowLogger } from "../../lib/v3/flowlogger/FlowLogger.js";
 
-describe("FlowLogger LLM logging", () => {
+describe("flow logger llm logging", () => {
   it("no-ops direct llm logging calls when no flow context is active", () => {
     // These helpers are called from multiple model adapters, so they must stay
     // safe even when a test or utility invokes them outside any ALS flow scope.

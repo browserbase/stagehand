@@ -6,18 +6,18 @@ import { performUnderstudyMethod } from "../../lib/v3/handlers/handlerUtils/actH
 import { V3 } from "../../lib/v3/v3.js";
 import {
   createScriptedAisdkTestLlmClient,
+  closeV3,
   doneToolResponse,
   findLastEncodedId,
   toolCallResponse,
-} from "./llmTestUtils.js";
-import { closeV3 } from "./testUtils.js";
+} from "./testUtils.js";
 import { getV3TestConfig } from "./v3.config.js";
 
 function encodeHtml(html: string): string {
   return `data:text/html,${encodeURIComponent(html)}`;
 }
 
-function createFlowLoggerTestV3(
+function createRecordedFlowLoggerV3(
   overrides: Parameters<typeof getV3TestConfig>[0] = {},
 ): V3 {
   const v3 = new V3(getV3TestConfig(overrides));
@@ -32,20 +32,20 @@ function createFlowLoggerTestV3(
   return v3;
 }
 
-async function listSessionEvents(v3: V3): Promise<FlowEvent[]> {
+async function listRecordedFlowEvents(v3: V3): Promise<FlowEvent[]> {
   return v3.eventStore.query({});
 }
 
-async function captureBaseline(v3: V3): Promise<Set<string>> {
-  const events = await listSessionEvents(v3);
+async function captureFlowEventBaseline(v3: V3): Promise<Set<string>> {
+  const events = await listRecordedFlowEvents(v3);
   return new Set(events.map((event) => event.eventId));
 }
 
-async function listNewEvents(
+async function listRecordedFlowEventsSince(
   v3: V3,
   baseline: Set<string>,
 ): Promise<FlowEvent[]> {
-  const events = await listSessionEvents(v3);
+  const events = await listRecordedFlowEvents(v3);
   return events.filter((event) => !baseline.has(event.eventId));
 }
 
@@ -205,7 +205,7 @@ function assertNonCdpEventCounts(
   expect(sortCountRecord(actual)).toEqual(sortCountRecord(expected));
 }
 
-test.describe("flowLogger integration", () => {
+test.describe("flow logger integration", () => {
   test.describe.configure({ mode: "serial" });
 
   test("act emits a rooted tree with nested understudy, llm, and cdp events", async () => {
@@ -222,7 +222,7 @@ test.describe("flowLogger integration", () => {
       },
     });
 
-    const v3 = createFlowLoggerTestV3({
+    const v3 = createRecordedFlowLoggerV3({
       llmClient,
     });
 
@@ -246,9 +246,9 @@ test.describe("flowLogger integration", () => {
         `),
       );
 
-      const baseline = await captureBaseline(v3);
+      const baseline = await captureFlowEventBaseline(v3);
       const result = await v3.act(`Click the ${buttonText}`);
-      const events = await listNewEvents(v3, baseline);
+      const events = await listRecordedFlowEventsSince(v3, baseline);
 
       expect(result.success).toBe(true);
       expect(
@@ -315,7 +315,7 @@ test.describe("flowLogger integration", () => {
       },
     });
 
-    const v3 = createFlowLoggerTestV3({
+    const v3 = createRecordedFlowLoggerV3({
       llmClient,
     });
 
@@ -335,13 +335,13 @@ test.describe("flowLogger integration", () => {
         `),
       );
 
-      const observeBaseline = await captureBaseline(v3);
+      const observeBaseline = await captureFlowEventBaseline(v3);
       const observeResult = await v3.observe(`Find the ${observeText}`);
 
       expect(observeResult).toHaveLength(1);
       expect(observeResult[0].method).toBe("click");
 
-      const observeEvents = await listNewEvents(v3, observeBaseline);
+      const observeEvents = await listRecordedFlowEventsSince(v3, observeBaseline);
       const observeRoot = requireSingleEvent(
         observeEvents,
         "StagehandObserveEvent",
@@ -377,7 +377,7 @@ test.describe("flowLogger integration", () => {
       assertNoFloatingLlmEvents(observeEvents);
       assertNoFloatingCdpEvents(observeEvents);
 
-      const extractBaseline = await captureBaseline(v3);
+      const extractBaseline = await captureFlowEventBaseline(v3);
       const extractResult = await v3.extract(
         "Extract the title",
         z.object({ title: z.string() }),
@@ -385,7 +385,7 @@ test.describe("flowLogger integration", () => {
 
       expect(extractResult).toEqual({ title: extractTitle });
 
-      const extractEvents = await listNewEvents(v3, extractBaseline);
+      const extractEvents = await listRecordedFlowEventsSince(v3, extractBaseline);
       const extractRoot = requireSingleEvent(
         extractEvents,
         "StagehandExtractEvent",
@@ -442,7 +442,7 @@ test.describe("flowLogger integration", () => {
       ],
     });
 
-    const v3 = createFlowLoggerTestV3({
+    const v3 = createRecordedFlowLoggerV3({
       experimental: true,
       llmClient,
     });
@@ -467,12 +467,12 @@ test.describe("flowLogger integration", () => {
         `),
       );
 
-      const baseline = await captureBaseline(v3);
+      const baseline = await captureFlowEventBaseline(v3);
       const result = await v3.agent().execute({
         instruction: `Click the ${buttonText} and finish.`,
         maxSteps: 2,
       });
-      const events = await listNewEvents(v3, baseline);
+      const events = await listRecordedFlowEventsSince(v3, baseline);
 
       expect(result.success).toBe(true);
       expect(
@@ -557,7 +557,7 @@ test.describe("flowLogger integration", () => {
       ],
     });
 
-    const v3 = createFlowLoggerTestV3({
+    const v3 = createRecordedFlowLoggerV3({
       experimental: true,
       llmClient,
     });
@@ -577,12 +577,12 @@ test.describe("flowLogger integration", () => {
         `),
       );
 
-      const baseline = await captureBaseline(v3);
+      const baseline = await captureFlowEventBaseline(v3);
       const result = await v3.agent().execute({
         instruction: "Fill the form and finish.",
         maxSteps: 2,
       });
-      const events = await listNewEvents(v3, baseline);
+      const events = await listRecordedFlowEventsSince(v3, baseline);
 
       expect(result.success).toBe(true);
       expect(await page.locator("#name").inputValue()).toBe("hello");
@@ -680,7 +680,7 @@ test.describe("flowLogger integration", () => {
       ],
     });
 
-    const v3 = createFlowLoggerTestV3({
+    const v3 = createRecordedFlowLoggerV3({
       experimental: true,
       llmClient,
     });
@@ -700,7 +700,7 @@ test.describe("flowLogger integration", () => {
         `),
       );
 
-      const baseline = await captureBaseline(v3);
+      const baseline = await captureFlowEventBaseline(v3);
       const result = await v3.agent().execute({
         instruction: "Extract the title and finish.",
         maxSteps: 2,
@@ -708,7 +708,7 @@ test.describe("flowLogger integration", () => {
 
       expect(result.success).toBe(true);
 
-      const events = await listNewEvents(v3, baseline);
+      const events = await listRecordedFlowEventsSince(v3, baseline);
       const agentRoot = assertCompletedEnvelope(events, "AgentExecuteEvent");
       const extractRoot = requireSingleEvent(events, "StagehandExtractEvent");
       const extractCompleted = requireSingleEvent(
@@ -765,7 +765,7 @@ test.describe("flowLogger integration", () => {
       ],
     });
 
-    const agentV3 = createFlowLoggerTestV3({
+    const agentV3 = createRecordedFlowLoggerV3({
       experimental: true,
       llmClient: agentLlmClient,
     });
@@ -773,7 +773,7 @@ test.describe("flowLogger integration", () => {
     await agentV3.init();
 
     try {
-      const baseline = await captureBaseline(agentV3);
+      const baseline = await captureFlowEventBaseline(agentV3);
       const result = await agentV3.agent().execute({
         instruction: "Go to the test page, take a screenshot, and finish.",
         maxSteps: 3,
@@ -782,7 +782,7 @@ test.describe("flowLogger integration", () => {
       expect(result.success).toBe(true);
       expect(result.completed).toBe(true);
 
-      const events = await listNewEvents(agentV3, baseline);
+      const events = await listRecordedFlowEventsSince(agentV3, baseline);
       const root = assertCompletedEnvelope(events, "AgentExecuteEvent");
       const pageGoto = requireSingleEvent(events, "PageGotoEvent");
       const pageGotoCompleted = requireSingleEvent(
@@ -827,17 +827,17 @@ test.describe("flowLogger integration", () => {
       await closeV3(agentV3);
     }
 
-    const directV3 = createFlowLoggerTestV3();
+    const directV3 = createRecordedFlowLoggerV3();
     await directV3.init();
 
     try {
       const page = directV3.context.pages()[0];
-      const baseline = await captureBaseline(directV3);
+      const baseline = await captureFlowEventBaseline(directV3);
 
       await page.goto(agentPageUrl);
       await page.screenshot({ fullPage: false });
 
-      const events = await listNewEvents(directV3, baseline);
+      const events = await listRecordedFlowEventsSince(directV3, baseline);
       const pageGoto = requireSingleEvent(events, "PageGotoEvent");
       const pageGotoCompleted = requireSingleEvent(
         events,
@@ -870,7 +870,7 @@ test.describe("flowLogger integration", () => {
   });
 
   test("direct page methods, direct understudy calls, and direct sendCDP all attach complete event trees to the session", async () => {
-    const v3 = createFlowLoggerTestV3();
+    const v3 = createRecordedFlowLoggerV3();
     await v3.init();
 
     try {
@@ -892,9 +892,9 @@ test.describe("flowLogger integration", () => {
         `),
       );
 
-      let baseline = await captureBaseline(v3);
+      let baseline = await captureFlowEventBaseline(v3);
       await page.evaluate(() => document.getElementById("ready")?.textContent);
-      let events = await listNewEvents(v3, baseline);
+      let events = await listRecordedFlowEventsSince(v3, baseline);
       let root = assertCompletedEnvelope(events, "PageEvaluateEvent");
       assertAllParentIdsResolve(events);
       assertNonCdpEventCounts(events, {
@@ -907,9 +907,9 @@ test.describe("flowLogger integration", () => {
       expect(eventsOfType(events, "LlmResponseEvent")).toHaveLength(0);
       assertNoFloatingCdpEvents(events);
 
-      baseline = await captureBaseline(v3);
+      baseline = await captureFlowEventBaseline(v3);
       await page.snapshot();
-      events = await listNewEvents(v3, baseline);
+      events = await listRecordedFlowEventsSince(v3, baseline);
       root = assertCompletedEnvelope(events, "PageSnapshotEvent");
       assertAllParentIdsResolve(events);
       assertNonCdpEventCounts(events, {
@@ -922,7 +922,7 @@ test.describe("flowLogger integration", () => {
       expect(eventsOfType(events, "LlmResponseEvent")).toHaveLength(0);
       assertNoFloatingCdpEvents(events);
 
-      baseline = await captureBaseline(v3);
+      baseline = await captureFlowEventBaseline(v3);
       await performUnderstudyMethod(
         page,
         page.mainFrame(),
@@ -931,7 +931,7 @@ test.describe("flowLogger integration", () => {
         [],
         30_000,
       );
-      events = await listNewEvents(v3, baseline);
+      events = await listRecordedFlowEventsSince(v3, baseline);
       root = assertCompletedEnvelope(events, "UnderstudyClickEvent");
       assertAllParentIdsResolve(events);
       assertNonCdpEventCounts(events, {
@@ -947,14 +947,14 @@ test.describe("flowLogger integration", () => {
         await page.evaluate(() => document.body.dataset.directClick ?? ""),
       ).toBe("true");
 
-      baseline = await captureBaseline(v3);
+      baseline = await captureFlowEventBaseline(v3);
       const cdpResult = await page.sendCDP<{
         result?: { value?: number };
       }>("Runtime.evaluate", {
         expression: "2 + 2",
         returnByValue: true,
       });
-      events = await listNewEvents(v3, baseline);
+      events = await listRecordedFlowEventsSince(v3, baseline);
       expect(cdpResult.result?.value).toBe(4);
       expect(eventsOfType(events, "LlmRequestEvent")).toHaveLength(0);
       expect(eventsOfType(events, "LlmResponseEvent")).toHaveLength(0);

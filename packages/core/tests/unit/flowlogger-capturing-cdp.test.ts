@@ -5,6 +5,7 @@ import { InMemoryEventSink } from "../../lib/v3/flowlogger/EventSink.js";
 import { EventEmitterWithWildcardSupport } from "../../lib/v3/flowlogger/EventEmitter.js";
 import { EventStore } from "../../lib/v3/flowlogger/EventStore.js";
 import { FlowEvent, FlowLogger } from "../../lib/v3/flowlogger/FlowLogger.js";
+import { attachEventStoreToBus } from "./helpers/flow-logger-test-utils.js";
 
 class FakeSocket extends EventEmitter {
   sentPayloads: string[] = [];
@@ -39,23 +40,7 @@ function requireEvent(
   return match as FlowEvent;
 }
 
-function attachStoreToBus(
-  store: EventStore,
-  bus: EventEmitterWithWildcardSupport,
-): () => void {
-  const onFlowEvent = (event: unknown) => {
-    if (event instanceof FlowEvent) {
-      void store.emit(event);
-    }
-  };
-
-  bus.on("*", onFlowEvent);
-  return () => {
-    bus.off("*", onFlowEvent);
-  };
-}
-
-describe("CdpConnection flow logging context", () => {
+describe("flow logger cdp context", () => {
   it("preserves the active parent chain when a session event handler issues a nested CDP call", async () => {
     const sessionId = "session-test";
     const socket = new FakeSocket();
@@ -63,7 +48,7 @@ describe("CdpConnection flow logging context", () => {
     const sink = new InMemoryEventSink();
     const eventStore = new EventStore(sessionId, undefined, sink);
 
-    const detachBus = attachStoreToBus(eventStore, eventBus);
+    const detachBus = attachEventStoreToBus(eventStore, eventBus);
 
     const conn = createConnection(socket);
     conn.flowLoggerContext = FlowLogger.init(sessionId, eventBus);
