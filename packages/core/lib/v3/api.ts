@@ -704,6 +704,24 @@ export class StagehandAPIClient {
 
     const requestOptions = { ...normalizedOptions } as Record<string, unknown>;
     delete requestOptions.provider;
+    const providerOptions =
+      requestOptions.providerOptions &&
+      typeof requestOptions.providerOptions === "object"
+        ? (requestOptions.providerOptions as Record<string, unknown>)
+        : undefined;
+
+    // Hosted sessions may still receive a default x-model-api-key header on
+    // later requests. Mark non-API-key auth shapes so the server doesn't
+    // backfill that header into model.apiKey and override provider auth.
+    if (
+      requestOptions.apiKey === undefined &&
+      providerOptions &&
+      (providerOptions.accessKeyId !== undefined ||
+        providerOptions.secretAccessKey !== undefined ||
+        providerOptions.sessionToken !== undefined)
+    ) {
+      requestOptions.skipApiKeyFallback = true;
+    }
 
     const headers = requestOptions.headers;
     if (typeof Headers !== "undefined" && headers instanceof Headers) {

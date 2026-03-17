@@ -390,4 +390,35 @@ describe("StagehandAPIClient model config handling", () => {
       },
     });
   });
+
+  it("marks non-api-key provider auth to skip server apiKey fallback", () => {
+    const client = new StagehandAPIClient({
+      apiKey: "bb-api-key",
+      projectId: "bb-project-id",
+      logger: () => {},
+    });
+
+    const serialized = (
+      client as unknown as {
+        toSessionStartModelClientOptions: (
+          options?: Record<string, unknown>,
+        ) => Record<string, unknown> | undefined;
+      }
+    ).toSessionStartModelClientOptions({
+      providerOptions: {
+        region: "us-east-1",
+        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+        secretAccessKey: "secret",
+      },
+    });
+
+    expect(serialized).toEqual({
+      providerOptions: {
+        region: "us-east-1",
+        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+        secretAccessKey: "secret",
+      },
+      skipApiKeyFallback: true,
+    });
+  });
 });

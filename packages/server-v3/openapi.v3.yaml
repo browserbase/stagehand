@@ -103,6 +103,12 @@ components:
             type: string
           additionalProperties:
             type: string
+        skipApiKeyFallback:
+          description: When true, hosted sessions will not copy x-model-api-key into
+            model.apiKey. Use this when auth is carried through providerOptions
+            instead of an API key.
+          example: true
+          type: boolean
         apiKey:
           description: Short-term Bedrock API key for bearer-token auth
           example: bedrock-short-term-api-key
@@ -153,6 +159,12 @@ components:
             type: string
           additionalProperties:
             type: string
+        skipApiKeyFallback:
+          description: When true, hosted sessions will not copy x-model-api-key into
+            model.apiKey. Use this when auth is carried through providerOptions
+            instead of an API key.
+          example: true
+          type: boolean
         providerOptions:
           example:
             region: us-east-1
@@ -217,6 +229,12 @@ components:
             type: string
           additionalProperties:
             type: string
+        skipApiKeyFallback:
+          description: When true, hosted sessions will not copy x-model-api-key into
+            model.apiKey. Use this when auth is carried through providerOptions
+            instead of an API key.
+          example: true
+          type: boolean
         apiKey:
           description: API key for the model provider
           example: sk-some-openai-api-key
@@ -311,6 +329,12 @@ components:
             type: string
           additionalProperties:
             type: string
+        skipApiKeyFallback:
+          description: When true, hosted sessions will not copy x-model-api-key into
+            model.apiKey. Use this when auth is carried through providerOptions
+            instead of an API key.
+          example: true
+          type: boolean
         apiKey:
           description: Short-term Bedrock API key for bearer-token auth
           example: bedrock-short-term-api-key
@@ -340,6 +364,12 @@ components:
             type: string
           additionalProperties:
             type: string
+        skipApiKeyFallback:
+          description: When true, hosted sessions will not copy x-model-api-key into
+            model.apiKey. Use this when auth is carried through providerOptions
+            instead of an API key.
+          example: true
+          type: boolean
         providerOptions:
           example:
             region: us-east-1
@@ -366,6 +396,12 @@ components:
             type: string
           additionalProperties:
             type: string
+        skipApiKeyFallback:
+          description: When true, hosted sessions will not copy x-model-api-key into
+            model.apiKey. Use this when auth is carried through providerOptions
+            instead of an API key.
+          example: true
+          type: boolean
         apiKey:
           description: API key for the model provider
           example: sk-some-openai-api-key

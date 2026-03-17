@@ -188,6 +188,11 @@ const modelConfigSharedShape = {
       description: "Custom headers for the model provider",
       example: { "X-Custom-Header": "value" },
     }),
+  skipApiKeyFallback: z.boolean().optional().meta({
+    description:
+      "When true, hosted sessions will not copy x-model-api-key into model.apiKey. Use this when auth is carried through providerOptions instead of an API key.",
+    example: true,
+  }),
 } as const;
 
 const nonBedrockModelConfigSharedShape = {
@@ -211,6 +216,11 @@ const modelClientOptionsSharedShape = {
       description: "Custom headers for the model provider",
       example: { "X-Custom-Header": "value" },
     }),
+  skipApiKeyFallback: z.boolean().optional().meta({
+    description:
+      "When true, hosted sessions will not copy x-model-api-key into model.apiKey. Use this when auth is carried through providerOptions instead of an API key.",
+    example: true,
+  }),
 } as const;
 
 const bedrockModelNameSchema = z

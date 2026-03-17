@@ -753,6 +753,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
         body: JSON.stringify({
           modelName: "bedrock/amazon.nova-pro-v1:0",
           modelClientOptions: {
+            skipApiKeyFallback: true,
             providerOptions: {
               region: "us-east-1",
               accessKeyId: "AKIAIOSFODNN7EXAMPLE",
