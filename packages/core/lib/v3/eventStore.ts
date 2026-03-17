@@ -6,15 +6,33 @@ import { toTitleCase } from "../utils.js";
 import type { V3Options } from "./types/public/index.js";
 import { FlowEvent } from "./flowLogger.js";
 
-const MAX_LINE_LENGTH = 160; // Maximum width for a prettified log line.
-const DEFAULT_IN_MEMORY_EVENT_LIMIT = 500; // Default retained event count for shallow ancestry lookups.
-const CONFIG_DIR = process.env.BROWSERBASE_CONFIG_DIR || ""; // Enables on-disk session sinks when set.
+
+// per stagehand instance, max history size for event parent id lookups
+// (doesn't store event.data, only metadata fields e.g. eventId, eventParentIds, etc.)
+const DEFAULT_IN_MEMORY_EVENT_LIMIT = 500;
+
+// session metadata + event logs get saved in  BROWSERBASE_CONFIG_DIR/sessions/<session-id>/*.{log,json,jsonl,...}
+const CONFIG_DIR = process.env.BROWSERBASE_CONFIG_DIR || "";
+// e.g. BROWSERBASE_CONFIG_DIR=~/.config/browserbase, BROWSERBASE_CONFIG_DIR=., BROWSERBASE_CONFIG_DIR=/tmp/bb
+
+
+// Some last-line-of-defense patterns that should be redacted at all costs when prettifying in log sinks
 const SENSITIVE_KEYS =
-  /apikey|api_key|key|secret|token|password|passwd|pwd|credential|auth/i; // Keys that should be redacted in session.json.
+  /key|secret|token|api-key|apikey|api_key|password|passwd|pwd|credential|auth/i;
+
+const MAX_LINE_LENGTH = 160; // Maximum width for a prettified log line
 
 // =============================================================================
-// Query Types
+// Public Contracts
 // =============================================================================
+
+
+export interface EventSink {
+  emit(event: FlowEvent): Promise<void>;
+  query(query: EventStoreQuery): Promise<FlowEvent[]>;
+  destroy(): Promise<void>;
+}
+
 
 export interface EventStoreQuery {
   sessionId?: string;
@@ -25,8 +43,13 @@ export interface EventStoreQuery {
 
 export type EventStoreListener = (event: FlowEvent) => void;
 
-export interface EventSink {
+export interface EventStoreApi {
+  readonly sessionId: string;
+  attachSink(sink: EventSink): () => void;
+  attachStore(sink: EventSink): () => void;
+  subscribe(query: EventStoreQuery, listener: EventStoreListener): () => void;
   emit(event: FlowEvent): Promise<void>;
+  attachBus(bus: EventEmitter): () => void;
   query(query: EventStoreQuery): Promise<FlowEvent[]>;
   destroy(): Promise<void>;
 }
@@ -141,15 +164,6 @@ async function createSessionDir(
   return sessionDir;
 }
 
-// Shortens 32-character CDP ids so pretty logs stay readable while still leaving enough information to correlate related targets.
-function truncateCdpIds(value: string): string {
-  return value.replace(
-    /([iI]d:?"?)([0-9A-F]{32})(?="?[,})\s]|$)/g,
-    (_, prefix: string, id: string) =>
-      `${prefix}${id.slice(0, 4)}…${id.slice(-4)}`,
-  );
-}
-
 // =============================================================================
 // Pretty Formatting
 // =============================================================================
@@ -231,6 +245,16 @@ function prettifyFormatArgs(args?: unknown | unknown[]): string {
 function shortId(id: string | null | undefined): string {
   return id ? id.slice(-4) : "-";
 }
+
+// Shortens 32-character CDP ids so pretty logs stay readable while still leaving enough information to correlate related targets.
+function truncateCdpIds(value: string): string {
+  return value.replace(
+    /([iI]d:?"?)([0-9A-F]{32})(?="?[,})\s]|$)/g,
+    (_, prefix: string, id: string) =>
+      `${prefix}${id.slice(0, 4)}…${id.slice(-4)}`,
+  );
+}
+
 
 let nonce = 0;
 
@@ -380,7 +404,8 @@ function prettifyFormatEventArgs(args?: unknown | unknown[]): string {
   return prettifyFormatArgs(prettifyCompactValue(args) as unknown | unknown[]);
 }
 
-// Finds the nearest event in the current parent chain that satisfies the given predicate. Pretty tags use this to recover agent/stagehand/action ancestry.
+// Finds the nearest event in the current parent chain that satisfies the given predicate.
+// Pretty tags use this to recover agent/stagehand/action/llm ancestry.
 function prettifyFindNearestEvent(
   event: FlowEvent,
   parentMap: Map<string, FlowEvent>,
@@ -402,6 +427,7 @@ function prettifyFindNearestEvent(
 }
 
 // Builds the semantic ancestry tags shown on each pretty log line.
+// 2026-03-16 22:04:15.45540 [🅰 #1083] [🆂 #7bf4 ACT] [🆄 #2125 CLICK] [🅲 #8B8B CDP] ⏴ Network.policyUpdated({})
 function prettifyBuildContextTags(
   event: FlowEvent,
   parentMap: Map<string, FlowEvent>,
@@ -607,7 +633,7 @@ function prettifyFormatLlmDetails(event: FlowEvent): string {
 
 // Converts a flow event into a single pretty log line by combining the current event payload with recent shallow ancestry fetched from the store query sink.
 async function prettifyEvent(
-  store: Pick<EventStore, "query">,
+  store: Pick<EventStoreApi, "query">,
   event: FlowEvent,
 ): Promise<string | null> {
   const recentEvents = await store.query({
@@ -649,7 +675,7 @@ async function prettifyEvent(
 // =============================================================================
 
 abstract class FileEventSink implements EventSink {
-  private readonly streamPromise: Promise<fs.WriteStream | null>;
+  private readonly streamPromise: Promise<fs.WriteStream | null>; // Lazily opens the one file stream owned by this sink when the session directory resolves.
 
   // Creates a best-effort file sink bound to a single session directory.
   constructor(sessionDirPromise: Promise<string | null>, fileName: string) {
@@ -715,7 +741,7 @@ export class PrettyLogFileEventSink extends FileEventSink {
   // Writes human-readable pretty lines to `session_events.log`.
   constructor(
     sessionDirPromise: Promise<string | null>,
-    private readonly store: Pick<EventStore, "query">,
+    private readonly store: Pick<EventStoreApi, "query">, // Queried during prettification so each line can recover recent ancestry tags.
   ) {
     super(sessionDirPromise, "session_events.log");
   }
@@ -729,7 +755,7 @@ export class PrettyLogFileEventSink extends FileEventSink {
 
 export class PrettyStderrEventSink implements EventSink {
   // Writes pretty lines to stderr for verbose local debugging. CDP events are intentionally omitted here to keep stderr high-signal.
-  constructor(private readonly store: Pick<EventStore, "query">) {}
+  constructor(private readonly store: Pick<EventStoreApi, "query">) {} // Queried during prettification so stderr lines can include recent ancestry tags.
 
   // Best-effort stderr writer used only for interactive debugging output.
   async emit(event: FlowEvent): Promise<void> {
@@ -777,7 +803,7 @@ export class InMemoryEventSink implements EventSink {
   // Retains recent events for query lookups. Tests usually attach this sink explicitly when they need full historical payloads.
   constructor(protected readonly limit = Infinity) {}
 
-  protected readonly events: FlowEvent[] = [];
+  protected readonly events: FlowEvent[] = []; // Retained history; `emit()` appends to it and trims old entries when `limit` is exceeded.
 
   // Gives subclasses a hook to transform events before they are retained.
   protected storeEvent(event: FlowEvent): FlowEvent {
@@ -830,12 +856,12 @@ export class ShallowInMemoryEventSink extends InMemoryEventSink {
 // Event Store
 // =============================================================================
 
-export class EventStore {
-  private readonly listeners = new Set<(event: FlowEvent) => Promise<void>>();
-  private readonly sinkDetachers = new Map<EventSink, () => void>();
-  private readonly ownedSinks = new Set<EventSink>();
-  private querySink: EventSink | null = null;
-  private destroyed = false;
+export class EventStore implements EventStoreApi {
+  private readonly listeners = new Set<(event: FlowEvent) => Promise<void>>(); // Active subscribers registered via `subscribe()` and used by attached sinks.
+  private readonly sinkDetachers = new Map<EventSink, () => void>(); // Per-sink unsubscribe hooks installed by `attachSink()` and consumed by `attachStore()` / `destroy()`.
+  private readonly ownedSinks = new Set<EventSink>(); // Sinks this store created itself and must destroy on shutdown.
+  private querySink: EventSink | null = null; // The single sink backing `query()`; initialized to the default shallow sink and replaceable by tests.
+  private destroyed = false; // Flipped by `destroy()` so later emits and teardown calls become no-ops.
 
   // Creates the per-instance store owned by a single V3 session. This store is intentionally single-session; it ignores events for other session ids.
   constructor(

@@ -36,8 +36,8 @@ type Inflight = {
   params?: object;
   stack?: string;
   ts: number;
-  flowLoggerContext?: FlowLoggerContext | null;
-  cdpCallEvent?: Pick<FlowEvent, "eventId" | "eventParentIds"> | null;
+  flowLoggerContext?: FlowLoggerContext | null; // Snapshot of the flow context captured when the request was sent; response handling re-enters this if ALS is gone.
+  cdpCallEvent?: Pick<FlowEvent, "eventId" | "eventParentIds"> | null; // The emitted CdpCallEvent identity; later response/error events attach under this exact parent.
 };
 
 type EventHandler = (params: unknown) => void;
@@ -61,12 +61,12 @@ type RawMessage =
 export class CdpConnection implements CDPSessionLike {
   private ws: WebSocket;
   private nextId = 1;
-  private inflight = new Map<number, Inflight>();
-  private latestCdpCallEvent = new Map<
+  private inflight = new Map<number, Inflight>(); // Outstanding request records; `_sendViaSession()` inserts and `onMessage()` removes/resolves them.
+  private latestCdpCallEvent = new Map< // Most recent CDP call per session/root; `_sendViaSession()` refreshes it and later unsolicited messages reuse it as their parent anchor.
     string | null,
     {
-      flowLoggerContext: FlowLoggerContext;
-      cdpCallEvent: Pick<FlowEvent, "eventId" | "eventParentIds">;
+      flowLoggerContext: FlowLoggerContext; // Flow context captured when the latest call on this session/root was emitted.
+      cdpCallEvent: Pick<FlowEvent, "eventId" | "eventParentIds">; // Identity of that latest call event; unsolicited messages reuse it as their parent.
     }
   >();
   private eventHandlers = new Map<string, Set<EventHandler>>();
@@ -77,7 +77,7 @@ export class CdpConnection implements CDPSessionLike {
   public readonly id: string | null = null; // root
   private transportCloseHandlers = new Set<(why: string) => void>();
 
-  public flowLoggerContext?: FlowLoggerContext;
+  public flowLoggerContext?: FlowLoggerContext; // Instance-owned fallback flow context; V3 sets this once and later sends/callbacks re-enter it when ALS is absent.
 
   public onTransportClosed(handler: (why: string) => void): void {
     this.transportCloseHandlers.add(handler);
@@ -266,6 +266,9 @@ export class CdpConnection implements CDPSessionLike {
       this.inflight.delete(msg.id);
 
       if ("error" in msg && msg.error) {
+        // Response/error events only make sense if the original send captured
+        // both a flow context to re-enter and the emitted CdpCallEvent to hang
+        // the terminal edge under.
         if (rec.flowLoggerContext && rec.cdpCallEvent) {
           let targetId: string | null;
           if (rec.sessionId) {
@@ -290,6 +293,8 @@ export class CdpConnection implements CDPSessionLike {
         }
         rec.reject(new Error(`${msg.error.code} ${msg.error.message}`));
       } else {
+        // Successful responses reuse the same cached call context so the
+        // response lands under the exact CdpCallEvent emitted at send time.
         if (rec.flowLoggerContext && rec.cdpCallEvent) {
           let targetId: string | null;
           if (rec.sessionId) {
@@ -378,6 +383,9 @@ export class CdpConnection implements CDPSessionLike {
         targetId = null;
       }
 
+      // Unsolicited protocol messages are attached under the most recent call on
+      // that session/root when one is known, so later callbacks still show up
+      // in the same flow subtree.
       if (latestCdpCallEvent) {
         FlowLogger.logCdpMessageEvent(
           latestCdpCallEvent.flowLoggerContext,

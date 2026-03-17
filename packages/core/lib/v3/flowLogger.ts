@@ -66,8 +66,8 @@ export class FlowEvent {
 export interface FlowLoggerContext {
   // Mirrors `FlowEvent.sessionId`; it is currently the Stagehand session id and often matches `browserbaseSessionId`, but callers should not rely on that.
   sessionId: string;
-  eventBus: EventEmitter;
-  parentEvents: FlowEvent[];
+  eventBus: EventEmitter; // Shared per-session bus; `emit()` writes to it and `EventStore.attachBus()` forwards from it.
+  parentEvents: FlowEvent[]; // Active parent stack for the current async chain; wrappers push/pop this as logged work starts and ends.
 }
 
 type AsyncOriginalMethod<
