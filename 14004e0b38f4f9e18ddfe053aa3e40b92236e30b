@@ -1,0 +1,25 @@
+packages/core/lib/v3/eventStore.ts
+  bae67edee9a782c6 643-660,662-666,670,679,681-687,690,692-693
+packages/core/tests/unit/event-store-pretty.test.ts
+  bae67edee9a782c6 167-207
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "14004e0b38f4f9e18ddfe053aa3e40b92236e30b",
+  "prompts": {
+    "bae67edee9a782c6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cfb0c-f74e-7603-9b96-9ebb43ed757c",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>",
+      "messages": [],
+      "total_additions": 119,
+      "total_deletions": 62,
+      "accepted_lines": 76,
+      "overriden_lines": 0
+    }
+  }
+}
