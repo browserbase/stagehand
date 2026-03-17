@@ -144,12 +144,13 @@ export class CdpConnection implements CDPSessionLike {
     const id = this.nextId++;
     const payload = { id, method, params };
     const stack = new Error().stack?.split("\n").slice(1, 4).join("\n");
-    let flowLoggerContext: FlowLoggerContext | null = null;
-    try {
-      flowLoggerContext = FlowLogger.currentContext;
-    } catch {
-      flowLoggerContext = this.flowLoggerContext ?? null;
-    }
+    const flowLoggerContext = (() => {
+      try {
+        return FlowLogger.currentContext;
+      } catch {
+        return this.flowLoggerContext ?? null;
+      }
+    })();
     const cdpCallEvent = flowLoggerContext
       ? FlowLogger.logCdpCallEvent(flowLoggerContext, {
           method,
@@ -415,12 +416,13 @@ export class CdpConnection implements CDPSessionLike {
     const id = this.nextId++;
     const payload = { id, method, params, sessionId };
     const stack = new Error().stack?.split("\n").slice(1, 4).join("\n");
-    let flowLoggerContext: FlowLoggerContext | null = null;
-    try {
-      flowLoggerContext = FlowLogger.currentContext;
-    } catch {
-      flowLoggerContext = this.flowLoggerContext ?? null;
-    }
+    const flowLoggerContext = (() => {
+      try {
+        return FlowLogger.currentContext;
+      } catch {
+        return this.flowLoggerContext ?? null;
+      }
+    })();
     const targetId = this.sessionToTarget.get(sessionId) ?? null;
     const cdpCallEvent = flowLoggerContext
       ? FlowLogger.logCdpCallEvent(flowLoggerContext, {
