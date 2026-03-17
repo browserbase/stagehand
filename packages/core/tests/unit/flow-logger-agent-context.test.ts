@@ -85,9 +85,7 @@ describe("FlowLogger agent context recovery", () => {
   });
 
   it("does not throw when an LLM log call is orphaned from FlowLogger ALS", () => {
-    const stderrSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     expect(() => {
       FlowLogger.logLlmRequest({
@@ -96,8 +94,6 @@ describe("FlowLogger agent context recovery", () => {
         prompt: "hello",
       });
     }).not.toThrow();
-
-    expect(stderrSpy).toHaveBeenCalled();
   });
 
   it("records the orphan root event before an orphaned LLM event", async () => {

@@ -157,9 +157,6 @@ export class FlowLogger {
       eventBus,
       parentEvents: [rootEvent],
     };
-    console.error(
-      `[Stagehand][FlowLogger] Missing async context while logging ${event.eventType}. Using orphan root event for session ${fallbackContext.sessionId}.`,
-    );
 
     return loggerContext.run(fallbackContext, () => fn(fallbackContext));
   }
@@ -385,9 +382,6 @@ export class FlowLogger {
       );
       childContext.eventBus.emit(rootEvent.eventType, rootEvent);
       childContext.parentEvents.push(rootEvent);
-      console.debug(
-        `[Stagehand][FlowLogger] Missing parent flow event while logging ${emittedEventType}. Using orphan root event for session ${childContext.sessionId}.`,
-      );
     }
 
     return loggerContext.run(childContext, () =>
