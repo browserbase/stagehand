@@ -30,106 +30,19 @@ export const {
   ANTHROPIC_API_KEY,
 } = process.env;
 
-function maskSecret(value: string | undefined): string {
-  return !value
-    ? "<unset>"
-    : `${value.slice(0, value.length <= 8 ? 2 : 4)}...${value.slice(-(value.length <= 8 ? 2 : 4))}`;
-}
-
-function formatCommonSetupDiagnostics(names: string[]): string {
-  const diagnostics = [...new Set(names)].map((name) => {
-    const value = process.env[name];
-    return `${name}=${value ? `present (${maskSecret(value)})` : "<unset>"}`;
-  });
-  const chromePath = process.env.CHROME_PATH;
-  diagnostics.push(
-    chromePath
-      ? `CHROME_PATH=${chromePath} (exists=${fs.existsSync(chromePath)})`
-      : "CHROME_PATH=<unset> (using Playwright Chromium if installed)",
-  );
-
-  return diagnostics.join("\n");
-}
-
-function parseJsonRequestBody(
-  options: RequestInit,
-): Record<string, unknown> | null {
-  if (typeof options.body !== "string") return null;
-  try {
-    const body = JSON.parse(options.body) as unknown;
-    return body && typeof body === "object"
-      ? (body as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-function formatRequestEnvDiagnostics(
-  url: string,
-  options: RequestInit,
-): string | null {
-  const diagnostics: string[] = [];
-  const relevantEnv = new Set<string>(["OPENAI_API_KEY"]);
-  const headers = new Headers(options.headers);
-  const body = parseJsonRequestBody(options);
-  const bodyModel = body?.options as
-    | { model?: Record<string, unknown> }
-    | undefined;
-  const model = bodyModel?.model;
-  const browser = body?.browser as { type?: string } | undefined;
-  const modelName =
-    typeof model?.modelName === "string"
-      ? model.modelName
-      : typeof body?.modelName === "string"
-        ? body.modelName
-        : undefined;
-  if (modelName) diagnostics.push(`request model: ${modelName}`);
-  if (modelName?.startsWith("google/")) relevantEnv.add("GEMINI_API_KEY");
-  if (modelName?.startsWith("anthropic/")) relevantEnv.add("ANTHROPIC_API_KEY");
-  const bodyApiKey =
-    typeof model?.apiKey === "string" ? model.apiKey : undefined;
-  const headerApiKey = headers.get("x-model-api-key");
-  if (bodyApiKey)
-    diagnostics.push(`body model apiKey: ${maskSecret(bodyApiKey)}`);
-  if (headerApiKey !== null)
-    diagnostics.push(
-      `x-model-api-key header: ${headerApiKey ? maskSecret(headerApiKey) : "<empty>"}`,
-    );
-  if (bodyApiKey && headerApiKey)
-    diagnostics.push(
-      "warning: both body model.apiKey and x-model-api-key are set; mixed-provider requests are a common local setup mistake",
-    );
-  if (
-    browser?.type === "browserbase" ||
-    headers.has("x-bb-api-key") ||
-    headers.has("x-bb-project-id") ||
-    url.includes("multiRegion")
-  ) {
-    relevantEnv.add("BROWSERBASE_API_KEY");
-    relevantEnv.add("BROWSERBASE_PROJECT_ID");
-  }
-  diagnostics.push(formatCommonSetupDiagnostics([...relevantEnv]));
-  return diagnostics.join("\n  ");
-}
-
 // =============================================================================
 // Utility Functions
 // =============================================================================
 
 export function requireEnv(name: string, value: string | undefined): string {
   if (!value) {
-    throw new Error(
-      `Missing required environment variable: ${name}\n${formatCommonSetupDiagnostics([name])}`,
-    );
+    throw new Error(`Missing required environment variable: ${name}`);
   }
   return value;
 }
 
-export const BASE_URL = STAGEHAND_API_URL ?? "http://127.0.0.1:3107";
-
 export function getBaseUrl(): string {
-  return BASE_URL;
+  return STAGEHAND_API_URL ?? "http://127.0.0.1:3107";
 }
 
 // =============================================================================
@@ -276,7 +189,7 @@ export async function createSession(
 export async function createSessionWithCdp(
   headers: Record<string, string>,
 ): Promise<SessionInfo> {
-  const url = BASE_URL;
+  const url = getBaseUrl();
   const startPayload = {
     modelName: "gpt-4.1-nano",
     ...createLocalBrowserBody(),
@@ -330,7 +243,7 @@ export async function endSession(
   sessionId: string,
   headers: Record<string, string>,
 ): Promise<void> {
-  const url = BASE_URL;
+  const url = getBaseUrl();
 
   await fetch(`${url}/v4/sessions/${sessionId}/end`, {
     method: "POST",
@@ -348,7 +261,7 @@ export async function navigateSession(
   targetUrl: string,
   headers: Record<string, string>,
 ): Promise<Response> {
-  const url = BASE_URL;
+  const url = getBaseUrl();
 
   return fetch(`${url}/v4/sessions/${sessionId}/navigate`, {
     method: "POST",
@@ -639,7 +552,6 @@ export async function fetchWithContext<T = unknown>(
   url: string,
   options: RequestInit,
 ): Promise<FetchResult<T>> {
-  const setupDiagnostics = formatRequestEnvDiagnostics(url, options);
   const startTime = Date.now();
   let response: Response;
 
@@ -656,12 +568,7 @@ export async function fetchWithContext<T = unknown>(
       durationMs,
       headers: new Headers(),
       debugSummary() {
-        return [
-          `Fetch failed after ${durationMs}ms: ${errorMsg}`,
-          setupDiagnostics ? `  Setup:\n  ${setupDiagnostics}` : null,
-        ]
-          .filter(Boolean)
-          .join("\n");
+        return `Fetch failed after ${durationMs}ms: ${errorMsg}`;
       },
     };
   }
@@ -704,10 +611,6 @@ export async function fetchWithContext<T = unknown>(
       if (status >= 400 || !body) {
         const truncated = raw.slice(0, 500);
         summary += `\n  Response: ${truncated}${raw.length > 500 ? "..." : ""}`;
-      }
-
-      if (setupDiagnostics) {
-        summary += `\n  Setup:\n  ${setupDiagnostics}`;
       }
 
       return summary;
