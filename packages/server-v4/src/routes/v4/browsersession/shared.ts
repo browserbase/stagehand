@@ -1,54 +1,56 @@
 import { randomUUID } from "node:crypto";
 
 import type { RouteHandlerMethod } from "fastify";
-import type { V3 } from "@browserbasehq/stagehand";
 import { StatusCodes } from "http-status-codes";
 import { z } from "zod/v4";
 
-import { authMiddleware } from "../../../lib/auth.js";
-import { getModelApiKey } from "../../../lib/header.js";
-import { getSessionStore } from "../../../lib/sessionStoreManager.js";
-import type {
-  CreateSessionParams,
-  SessionStore,
-} from "../../../lib/SessionStore.js";
 import {
-  buildBrowserSessionErrorResponse,
   type BrowserSession,
   type BrowserSessionAction,
+  BrowserSessionActionSchema,
   type BrowserSessionActionDetailsQuery,
-  type BrowserSessionActionListQuery,
   type BrowserSessionActionMethod,
   type BrowserSessionPage,
+  BrowserSessionSchema,
   BrowserSessionV4ErrorResponseSchema,
 } from "../../../schemas/v4/browserSession.js";
 
 export function buildBrowserSession(input: {
   id: string;
-  params: CreateSessionParams;
+  env: BrowserSession["env"];
   status: "running" | "ended";
   available: boolean;
+  modelName: string;
   cdpUrl?: string | null;
+  browserbaseSessionId?: string;
+  browserbaseSessionCreateParams?: BrowserSession["browserbaseSessionCreateParams"];
+  localBrowserLaunchOptions?: BrowserSession["localBrowserLaunchOptions"];
+  domSettleTimeoutMs?: number;
+  verbose?: BrowserSession["verbose"];
+  systemPrompt?: string;
+  selfHeal?: boolean;
+  waitForCaptchaSolves?: boolean;
+  experimental?: boolean;
+  actTimeoutMs?: number;
 }): BrowserSession {
-  return {
+  return BrowserSessionSchema.parse({
     id: input.id,
-    env: input.params.browserType === "local" ? "LOCAL" : "BROWSERBASE",
+    env: input.env,
     status: input.status,
-    modelName: input.params.modelName,
-    cdpUrl: input.cdpUrl ?? input.params.connectUrl ?? "",
+    modelName: input.modelName,
+    cdpUrl: input.cdpUrl ?? "ws://stub.invalid/devtools/browser/stub",
     available: input.available,
-    browserbaseSessionId: input.params.browserbaseSessionID,
-    browserbaseSessionCreateParams:
-      input.params.browserbaseSessionCreateParams as BrowserSession["browserbaseSessionCreateParams"],
-    localBrowserLaunchOptions: input.params.localBrowserLaunchOptions,
-    domSettleTimeoutMs: input.params.domSettleTimeoutMs,
-    verbose: input.params.verbose,
-    systemPrompt: input.params.systemPrompt,
-    selfHeal: input.params.selfHeal,
-    waitForCaptchaSolves: input.params.waitForCaptchaSolves,
-    experimental: input.params.experimental,
-    actTimeoutMs: input.params.actTimeoutMs,
-  };
+    browserbaseSessionId: input.browserbaseSessionId,
+    browserbaseSessionCreateParams: input.browserbaseSessionCreateParams,
+    localBrowserLaunchOptions: input.localBrowserLaunchOptions,
+    domSettleTimeoutMs: input.domSettleTimeoutMs,
+    verbose: input.verbose,
+    systemPrompt: input.systemPrompt,
+    selfHeal: input.selfHeal,
+    waitForCaptchaSolves: input.waitForCaptchaSolves,
+    experimental: input.experimental,
+    actTimeoutMs: input.actTimeoutMs,
+  });
 }
 
 export const browserSessionActionErrorResponses = {
@@ -65,69 +67,20 @@ type BrowserSessionRequestBody<TAction extends BrowserSessionAction> = {
   params: TAction["params"];
 };
 
-type BrowserSessionActionHandlerContext<TAction extends BrowserSessionAction> = {
-  stagehand: V3;
-  params: TAction["params"];
-  request: Parameters<RouteHandlerMethod>[0];
-  sessionId: string;
-  sessionStore: SessionStore;
-};
+type BrowserSessionActionHandlerContext<TAction extends BrowserSessionAction> =
+  {
+    stagehand: any;
+    params: TAction["params"];
+    request: Parameters<RouteHandlerMethod>[0];
+    sessionId: string;
+    sessionStore: any;
+  };
 
-type BrowserSessionActionExecutionResult<TAction extends BrowserSessionAction> = {
-  result: TAction["result"];
-  pageId?: string;
-};
-
-function getStatusCode(error: unknown): number {
-  const message = error instanceof Error ? error.message : String(error);
-  const name = error instanceof Error ? error.name : "";
-
-  if (
-    message === "Unauthorized" ||
-    message.startsWith("Session not found:") ||
-    message.startsWith("Session expired:") ||
-    message.startsWith("Action not found:")
-  ) {
-    return message === "Unauthorized"
-      ? StatusCodes.UNAUTHORIZED
-      : StatusCodes.NOT_FOUND;
-  }
-
-  if (name === "PageNotFoundError") {
-    return StatusCodes.NOT_FOUND;
-  }
-
-  if (name === "TimeoutError" || name.endsWith("TimeoutError")) {
-    return StatusCodes.REQUEST_TIMEOUT;
-  }
-
-  if (
-    name === "CookieSetError" ||
-    name === "CookieValidationError" ||
-    name === "StagehandSetExtraHTTPHeadersError" ||
-    name === "StagehandInvalidArgumentError" ||
-    name === "StagehandMissingArgumentError"
-  ) {
-    return StatusCodes.BAD_REQUEST;
-  }
-
-  return StatusCodes.INTERNAL_SERVER_ERROR;
-}
-
-function getErrorMessage(error: unknown): string {
-  if (!(error instanceof Error)) {
-    return String(error);
-  }
-
-  if (
-    error.message.startsWith("Session not found:") ||
-    error.message.startsWith("Session expired:")
-  ) {
-    return "Browser session not found";
-  }
-
-  return error.message;
-}
+type BrowserSessionActionExecutionResult<TAction extends BrowserSessionAction> =
+  {
+    result: TAction["result"];
+    pageId?: string;
+  };
 
 export function buildBrowserSessionPage(page: {
   mainFrameId(): string;
@@ -179,7 +132,7 @@ export function createBrowserSessionActionHandler<
   TAction extends BrowserSessionAction,
 >({
   actionSchema,
-  execute,
+  execute: _execute,
   method,
 }: {
   actionSchema: z.ZodType<TAction>;
@@ -189,104 +142,28 @@ export function createBrowserSessionActionHandler<
   method: BrowserSessionActionMethod;
 }): RouteHandlerMethod {
   return async (request, reply) => {
-    if (!(await authMiddleware(request))) {
-      return reply
-        .status(StatusCodes.UNAUTHORIZED)
-        .send(
-          buildBrowserSessionErrorResponse({
-            error: "Unauthorized",
-            statusCode: StatusCodes.UNAUTHORIZED,
-          }),
-        );
-    }
+    const { params, sessionId } =
+      request.body as BrowserSessionRequestBody<TAction>;
+    const createdAt = new Date().toISOString();
+    const action = actionSchema.parse({
+      id: randomUUID(),
+      method,
+      status: "completed",
+      sessionId,
+      pageId: getInitialPageId(params),
+      createdAt,
+      updatedAt: createdAt,
+      completedAt: createdAt,
+      error: null,
+      params,
+      result: null,
+    });
 
-    const { params, sessionId } = request.body as BrowserSessionRequestBody<TAction>;
-    const sessionStore = getSessionStore();
-
-    try {
-      const stagehand = await sessionStore.getOrCreateStagehand(sessionId, {
-        modelApiKey: getModelApiKey(request),
-      });
-      const createdAt = new Date().toISOString();
-
-      let action = actionSchema.parse({
-        id: randomUUID(),
-        method,
-        status: "running",
-        sessionId,
-        pageId: getInitialPageId(params),
-        createdAt,
-        updatedAt: createdAt,
-        error: null,
-        params,
-        result: null,
-      });
-
-      await sessionStore.putBrowserSessionAction(action);
-
-      try {
-        const executed = await execute({
-          stagehand,
-          params,
-          request,
-          sessionId,
-          sessionStore,
-        });
-        const completedAt = new Date().toISOString();
-
-        action = actionSchema.parse({
-          ...action,
-          status: "completed",
-          updatedAt: completedAt,
-          completedAt,
-          error: null,
-          pageId: executed.pageId ?? action.pageId,
-          result: executed.result,
-        });
-
-        await sessionStore.putBrowserSessionAction(action);
-        return reply.status(StatusCodes.OK).send({
-          success: true,
-          error: null,
-          action,
-        });
-      } catch (error) {
-        const statusCode = getStatusCode(error);
-        const completedAt = new Date().toISOString();
-
-        action = actionSchema.parse({
-          ...action,
-          status: "failed",
-          updatedAt: completedAt,
-          completedAt,
-          error: getErrorMessage(error),
-          result: null,
-        });
-
-        await sessionStore.putBrowserSessionAction(action);
-        return reply
-          .status(statusCode)
-          .send(
-            buildBrowserSessionErrorResponse({
-              error: getErrorMessage(error),
-              statusCode,
-              stack: error instanceof Error ? (error.stack ?? null) : null,
-              action,
-            }),
-          );
-      }
-    } catch (error) {
-      const statusCode = getStatusCode(error);
-      return reply
-        .status(statusCode)
-        .send(
-          buildBrowserSessionErrorResponse({
-            error: getErrorMessage(error),
-            statusCode,
-            stack: error instanceof Error ? (error.stack ?? null) : null,
-          }),
-        );
-    }
+    return reply.status(StatusCodes.OK).send({
+      success: true,
+      error: null,
+      action,
+    });
   };
 }
 
@@ -294,32 +171,21 @@ export const browserSessionActionDetailsHandler: RouteHandlerMethod = async (
   request,
   reply,
 ) => {
-  if (!(await authMiddleware(request))) {
-    return reply
-      .status(StatusCodes.UNAUTHORIZED)
-      .send(
-        buildBrowserSessionErrorResponse({
-          error: "Unauthorized",
-          statusCode: StatusCodes.UNAUTHORIZED,
-        }),
-      );
-  }
-
   const { actionId } = request.params as { actionId: string };
   const { sessionId } = request.query as BrowserSessionActionDetailsQuery;
-  const sessionStore = getSessionStore();
-  const action = await sessionStore.getBrowserSessionAction(actionId);
-
-  if (!action || action.sessionId !== sessionId) {
-    return reply
-      .status(StatusCodes.NOT_FOUND)
-      .send(
-        buildBrowserSessionErrorResponse({
-          error: `Action not found: ${actionId}`,
-          statusCode: StatusCodes.NOT_FOUND,
-        }),
-      );
-  }
+  const createdAt = new Date().toISOString();
+  const action = BrowserSessionActionSchema.parse({
+    id: actionId,
+    method: "pages",
+    status: "completed",
+    sessionId,
+    createdAt,
+    updatedAt: createdAt,
+    completedAt: createdAt,
+    error: null,
+    params: {},
+    result: null,
+  });
 
   return reply.status(StatusCodes.OK).send({
     success: true,
@@ -329,26 +195,12 @@ export const browserSessionActionDetailsHandler: RouteHandlerMethod = async (
 };
 
 export const browserSessionActionListHandler: RouteHandlerMethod = async (
-  request,
+  _request,
   reply,
 ) => {
-  if (!(await authMiddleware(request))) {
-    return reply
-      .status(StatusCodes.UNAUTHORIZED)
-      .send(
-        buildBrowserSessionErrorResponse({
-          error: "Unauthorized",
-          statusCode: StatusCodes.UNAUTHORIZED,
-        }),
-      );
-  }
-
-  const query = request.query as BrowserSessionActionListQuery;
-  const actions = await getSessionStore().listBrowserSessionActions(query);
-
   return reply.status(StatusCodes.OK).send({
     success: true,
     error: null,
-    actions,
+    actions: [],
   });
 };

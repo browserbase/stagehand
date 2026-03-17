@@ -444,6 +444,151 @@ components:
           enum:
             - "true"
             - "false"
+    BrowserSessionAddInitScriptResult:
+      type: object
+      properties:
+        added:
+          type: boolean
+      required:
+        - added
+      additionalProperties: false
+    BrowserSessionSetExtraHTTPHeadersResult:
+      type: object
+      properties:
+        headers:
+          $ref: "#/components/schemas/PageHeaders"
+      required:
+        - headers
+      additionalProperties: false
+    BrowserSessionPagesResult:
+      type: object
+      properties:
+        pages:
+          type: array
+          items:
+            $ref: "#/components/schemas/BrowserSessionPage"
+      required:
+        - pages
+      additionalProperties: false
+    BrowserSessionOptionalPageResult:
+      type: object
+      properties:
+        page:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionPage"
+            - type: "null"
+      required:
+        - page
+      additionalProperties: false
+    BrowserSessionPageResult:
+      type: object
+      properties:
+        page:
+          $ref: "#/components/schemas/BrowserSessionPage"
+      required:
+        - page
+      additionalProperties: false
+    BrowserSessionFrameTreeResult:
+      type: object
+      properties:
+        frameTree: {}
+      required:
+        - frameTree
+      additionalProperties: false
+    BrowserSessionCookiesResult:
+      type: object
+      properties:
+        cookies:
+          type: array
+          items:
+            $ref: "#/components/schemas/BrowserSessionCookie"
+      required:
+        - cookies
+      additionalProperties: false
+    BrowserSessionAddCookiesResult:
+      type: object
+      properties:
+        added:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - added
+      additionalProperties: false
+    BrowserSessionClearCookiesResult:
+      type: object
+      properties:
+        cleared:
+          type: boolean
+      required:
+        - cleared
+      additionalProperties: false
+    BrowserSessionConnectURLResult:
+      type: object
+      properties:
+        connectURL:
+          type: string
+      required:
+        - connectURL
+      additionalProperties: false
+    BrowserSessionConfiguredViewportResult:
+      $ref: "#/components/schemas/BrowserSessionViewport"
+    BrowserSessionBrowserbaseSessionIDResult:
+      type: object
+      properties:
+        browserbaseSessionID:
+          anyOf:
+            - type: string
+            - type: "null"
+      required:
+        - browserbaseSessionID
+      additionalProperties: false
+    BrowserSessionBrowserbaseSessionURLResult:
+      type: object
+      properties:
+        browserbaseSessionURL:
+          anyOf:
+            - type: string
+            - type: "null"
+      required:
+        - browserbaseSessionURL
+      additionalProperties: false
+    BrowserSessionBrowserbaseDebugURLResult:
+      type: object
+      properties:
+        browserbaseDebugURL:
+          anyOf:
+            - type: string
+            - type: "null"
+      required:
+        - browserbaseDebugURL
+      additionalProperties: false
+    BrowserSessionIsBrowserbaseResult:
+      type: object
+      properties:
+        isBrowserbase:
+          type: boolean
+      required:
+        - isBrowserbase
+      additionalProperties: false
+    BrowserSessionIsAdvancedStealthResult:
+      type: object
+      properties:
+        isAdvancedStealth:
+          type: boolean
+      required:
+        - isAdvancedStealth
+      additionalProperties: false
+    BrowserSessionSetViewportSizeResult:
+      $ref: "#/components/schemas/BrowserSessionViewport"
+    BrowserSessionCloseResult:
+      type: object
+      properties:
+        closed:
+          type: boolean
+      required:
+        - closed
+      additionalProperties: false
     PageXPathResult:
       type: object
       properties:
@@ -913,6 +1058,1316 @@ components:
       required:
         - browserSession
       additionalProperties: false
+    BrowserSessionActionMethod:
+      type: string
+      enum:
+        - addInitScript
+        - setExtraHTTPHeaders
+        - pages
+        - activePage
+        - awaitActivePage
+        - resolvePageByMainFrameId
+        - getFullFrameTreeByMainFrameId
+        - newPage
+        - cookies
+        - addCookies
+        - clearCookies
+        - connectURL
+        - configuredViewport
+        - browserbaseSessionID
+        - browserbaseSessionURL
+        - browserbaseDebugURL
+        - isBrowserbase
+        - isAdvancedStealth
+        - setViewportSize
+        - close
+    BrowserSessionActionStatus:
+      type: string
+      enum:
+        - queued
+        - running
+        - completed
+        - failed
+        - canceled
+    BrowserSessionPage:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        targetId:
+          $ref: "#/components/schemas/PageId"
+        mainFrameId:
+          $ref: "#/components/schemas/FrameId"
+        url:
+          type: string
+      required:
+        - pageId
+        - targetId
+        - mainFrameId
+        - url
+      additionalProperties: false
+    BrowserSessionCookie:
+      type: object
+      properties:
+        name:
+          type: string
+        value:
+          type: string
+        domain:
+          type: string
+        path:
+          type: string
+        expires:
+          type: number
+        httpOnly:
+          type: boolean
+        secure:
+          type: boolean
+        sameSite:
+          type: string
+          enum:
+            - Strict
+            - Lax
+            - None
+      required:
+        - name
+        - value
+        - domain
+        - path
+        - expires
+        - httpOnly
+        - secure
+        - sameSite
+      additionalProperties: false
+    BrowserSessionCookieParam:
+      type: object
+      properties:
+        name:
+          type: string
+        value:
+          type: string
+        url:
+          type: string
+        domain:
+          type: string
+        path:
+          type: string
+        expires:
+          type: number
+        httpOnly:
+          type: boolean
+        secure:
+          type: boolean
+        sameSite:
+          type: string
+          enum:
+            - Strict
+            - Lax
+            - None
+      required:
+        - name
+        - value
+      additionalProperties: false
+    BrowserSessionRegex:
+      type: object
+      properties:
+        source:
+          type: string
+        flags:
+          type: string
+      required:
+        - source
+      additionalProperties: false
+    BrowserSessionStringPattern:
+      anyOf:
+        - type: string
+        - $ref: "#/components/schemas/BrowserSessionRegex"
+    BrowserSessionClearCookiesOptions:
+      type: object
+      properties:
+        name:
+          $ref: "#/components/schemas/BrowserSessionStringPattern"
+        domain:
+          $ref: "#/components/schemas/BrowserSessionStringPattern"
+        path:
+          $ref: "#/components/schemas/BrowserSessionStringPattern"
+      additionalProperties: false
+    BrowserSessionViewport:
+      type: object
+      properties:
+        width:
+          type: number
+          exclusiveMinimum: 0
+        height:
+          type: number
+          exclusiveMinimum: 0
+        deviceScaleFactor:
+          type: number
+          exclusiveMinimum: 0
+      required:
+        - width
+        - height
+      additionalProperties: false
+    BrowserSessionAddInitScriptParams:
+      type: object
+      properties:
+        script:
+          $ref: "#/components/schemas/PageInitScript"
+      required:
+        - script
+      additionalProperties: false
+    BrowserSessionSetExtraHTTPHeadersParams:
+      type: object
+      properties:
+        headers:
+          $ref: "#/components/schemas/PageHeaders"
+      required:
+        - headers
+      additionalProperties: false
+    BrowserSessionPagesParams:
+      type: object
+      properties: {}
+      additionalProperties: false
+    BrowserSessionActivePageParams:
+      type: object
+      properties: {}
+      additionalProperties: false
+    BrowserSessionAwaitActivePageParams:
+      type: object
+      properties:
+        timeoutMs:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      additionalProperties: false
+    BrowserSessionResolvePageByMainFrameIdParams:
+      type: object
+      properties:
+        mainFrameId:
+          $ref: "#/components/schemas/FrameId"
+      required:
+        - mainFrameId
+      additionalProperties: false
+    BrowserSessionGetFullFrameTreeByMainFrameIdParams:
+      type: object
+      properties:
+        mainFrameId:
+          $ref: "#/components/schemas/FrameId"
+      required:
+        - mainFrameId
+      additionalProperties: false
+    BrowserSessionNewPageParams:
+      type: object
+      properties:
+        url:
+          type: string
+      additionalProperties: false
+    BrowserSessionCookiesParams:
+      type: object
+      properties:
+        urls:
+          anyOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+      additionalProperties: false
+    BrowserSessionAddCookiesParams:
+      type: object
+      properties:
+        cookies:
+          type: array
+          items:
+            $ref: "#/components/schemas/BrowserSessionCookieParam"
+      required:
+        - cookies
+      additionalProperties: false
+    BrowserSessionClearCookiesParams:
+      $ref: "#/components/schemas/BrowserSessionClearCookiesOptions"
+    BrowserSessionConnectURLParams:
+      type: object
+      properties: {}
+      additionalProperties: false
+    BrowserSessionConfiguredViewportParams:
+      type: object
+      properties: {}
+      additionalProperties: false
+    BrowserSessionBrowserbaseSessionIDParams:
+      type: object
+      properties: {}
+      additionalProperties: false
+    BrowserSessionBrowserbaseSessionURLParams:
+      type: object
+      properties: {}
+      additionalProperties: false
+    BrowserSessionBrowserbaseDebugURLParams:
+      type: object
+      properties: {}
+      additionalProperties: false
+    BrowserSessionIsBrowserbaseParams:
+      type: object
+      properties: {}
+      additionalProperties: false
+    BrowserSessionIsAdvancedStealthParams:
+      type: object
+      properties: {}
+      additionalProperties: false
+    BrowserSessionSetViewportSizeParams:
+      $ref: "#/components/schemas/BrowserSessionViewport"
+    BrowserSessionCloseParams:
+      type: object
+      properties: {}
+      additionalProperties: false
+    BrowserSessionAddInitScriptRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionAddInitScriptParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionSetExtraHTTPHeadersRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionSetExtraHTTPHeadersParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionPagesRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionPagesParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionActivePageRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionActivePageParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionAwaitActivePageRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionAwaitActivePageParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionResolvePageByMainFrameIdRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionResolvePageByMainFrameIdParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionGetFullFrameTreeByMainFrameIdRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionGetFullFrameTreeByMainFrameIdParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionNewPageRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionNewPageParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionCookiesRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionCookiesParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionAddCookiesRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionAddCookiesParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionClearCookiesRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionClearCookiesParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionConnectURLRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionConnectURLParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionConfiguredViewportRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionConfiguredViewportParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionBrowserbaseSessionIDRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionBrowserbaseSessionIDParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionBrowserbaseSessionURLRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionBrowserbaseSessionURLParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionBrowserbaseDebugURLRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionBrowserbaseDebugURLParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionAddInitScriptAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: addInitScript
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionAddInitScriptParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionAddInitScriptResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionSetExtraHTTPHeadersAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: setExtraHTTPHeaders
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionSetExtraHTTPHeadersParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionSetExtraHTTPHeadersResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionPagesAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: pages
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionPagesParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionPagesResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionActivePageAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: activePage
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionActivePageParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionOptionalPageResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionAwaitActivePageAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: awaitActivePage
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionAwaitActivePageParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionPageResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionResolvePageByMainFrameIdAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: resolvePageByMainFrameId
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionResolvePageByMainFrameIdParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionOptionalPageResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionGetFullFrameTreeByMainFrameIdAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: getFullFrameTreeByMainFrameId
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionGetFullFrameTreeByMainFrameIdParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionFrameTreeResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionNewPageAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: newPage
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionNewPageParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionPageResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionCookiesAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: cookies
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionCookiesParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionCookiesResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionAddCookiesAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: addCookies
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionAddCookiesParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionAddCookiesResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionClearCookiesAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: clearCookies
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionClearCookiesParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionClearCookiesResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionConnectURLAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: connectURL
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionConnectURLParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionConnectURLResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionConfiguredViewportAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: configuredViewport
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionConfiguredViewportParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionConfiguredViewportResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionBrowserbaseSessionIDAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: browserbaseSessionID
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionBrowserbaseSessionIDParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionBrowserbaseSessionIDResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionBrowserbaseSessionURLAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: browserbaseSessionURL
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionBrowserbaseSessionURLParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionBrowserbaseSessionURLResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionBrowserbaseDebugURLAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: browserbaseDebugURL
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionBrowserbaseDebugURLParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionBrowserbaseDebugURLResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionIsBrowserbaseAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: isBrowserbase
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionIsBrowserbaseParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionIsBrowserbaseResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionIsAdvancedStealthAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: isAdvancedStealth
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionIsAdvancedStealthParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionIsAdvancedStealthResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionSetViewportSizeAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: setViewportSize
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionSetViewportSizeParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionSetViewportSizeResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionCloseAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: close
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/BrowserSessionCloseParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/BrowserSessionCloseResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    BrowserSessionAction:
+      anyOf:
+        - $ref: "#/components/schemas/BrowserSessionAddInitScriptAction"
+        - $ref: "#/components/schemas/BrowserSessionSetExtraHTTPHeadersAction"
+        - $ref: "#/components/schemas/BrowserSessionPagesAction"
+        - $ref: "#/components/schemas/BrowserSessionActivePageAction"
+        - $ref: "#/components/schemas/BrowserSessionAwaitActivePageAction"
+        - $ref: "#/components/schemas/BrowserSessionResolvePageByMainFrameIdAction"
+        - $ref: "#/components/schemas/BrowserSessionGetFullFrameTreeByMainFrameIdAction"
+        - $ref: "#/components/schemas/BrowserSessionNewPageAction"
+        - $ref: "#/components/schemas/BrowserSessionCookiesAction"
+        - $ref: "#/components/schemas/BrowserSessionAddCookiesAction"
+        - $ref: "#/components/schemas/BrowserSessionClearCookiesAction"
+        - $ref: "#/components/schemas/BrowserSessionConnectURLAction"
+        - $ref: "#/components/schemas/BrowserSessionConfiguredViewportAction"
+        - $ref: "#/components/schemas/BrowserSessionBrowserbaseSessionIDAction"
+        - $ref: "#/components/schemas/BrowserSessionBrowserbaseSessionURLAction"
+        - $ref: "#/components/schemas/BrowserSessionBrowserbaseDebugURLAction"
+        - $ref: "#/components/schemas/BrowserSessionIsBrowserbaseAction"
+        - $ref: "#/components/schemas/BrowserSessionIsAdvancedStealthAction"
+        - $ref: "#/components/schemas/BrowserSessionSetViewportSizeAction"
+        - $ref: "#/components/schemas/BrowserSessionCloseAction"
     RequestId:
       example: req_01JXAMPLE
       type: string
@@ -1587,123 +3042,6 @@ components:
         - sessionId
         - params
       additionalProperties: false
-    PageTargetIdRequest:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
-        sessionId:
-          $ref: "#/components/schemas/SessionId"
-        params:
-          $ref: "#/components/schemas/PageTargetIdParams"
-      required:
-        - sessionId
-        - params
-      additionalProperties: false
-    PageMainFrameIdRequest:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
-        sessionId:
-          $ref: "#/components/schemas/SessionId"
-        params:
-          $ref: "#/components/schemas/PageMainFrameIdParams"
-      required:
-        - sessionId
-        - params
-      additionalProperties: false
-    PageMainFrameRequest:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
-        sessionId:
-          $ref: "#/components/schemas/SessionId"
-        params:
-          $ref: "#/components/schemas/PageMainFrameParams"
-      required:
-        - sessionId
-        - params
-      additionalProperties: false
-    PageGetFullFrameTreeRequest:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
-        sessionId:
-          $ref: "#/components/schemas/SessionId"
-        params:
-          $ref: "#/components/schemas/PageGetFullFrameTreeParams"
-      required:
-        - sessionId
-        - params
-      additionalProperties: false
-    PageAsProtocolFrameTreeRequest:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
-        sessionId:
-          $ref: "#/components/schemas/SessionId"
-        params:
-          $ref: "#/components/schemas/PageAsProtocolFrameTreeParams"
-      required:
-        - sessionId
-        - params
-      additionalProperties: false
-    PageListAllFrameIdsRequest:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
-        sessionId:
-          $ref: "#/components/schemas/SessionId"
-        params:
-          $ref: "#/components/schemas/PageListAllFrameIdsParams"
-      required:
-        - sessionId
-        - params
-      additionalProperties: false
-    PageGetOrdinalRequest:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
-        sessionId:
-          $ref: "#/components/schemas/SessionId"
-        params:
-          $ref: "#/components/schemas/PageGetOrdinalParams"
-      required:
-        - sessionId
-        - params
-      additionalProperties: false
-    PageTitleRequest:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
-        sessionId:
-          $ref: "#/components/schemas/SessionId"
-        params:
-          $ref: "#/components/schemas/PageTitleParams"
-      required:
-        - sessionId
-        - params
-      additionalProperties: false
-    PageUrlRequest:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
-        sessionId:
-          $ref: "#/components/schemas/SessionId"
-        params:
-          $ref: "#/components/schemas/PageUrlParams"
-      required:
-        - sessionId
-        - params
-      additionalProperties: false
     PageScreenshotRequest:
       type: object
       properties:
@@ -1726,19 +3064,6 @@ components:
           $ref: "#/components/schemas/SessionId"
         params:
           $ref: "#/components/schemas/PageSnapshotParams"
-      required:
-        - sessionId
-        - params
-      additionalProperties: false
-    PageFramesRequest:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
-        sessionId:
-          $ref: "#/components/schemas/SessionId"
-        params:
-          $ref: "#/components/schemas/PageFramesParams"
       required:
         - sessionId
         - params
@@ -3272,6 +4597,302 @@ components:
         - success
         - message
       additionalProperties: false
+    BrowserSessionV4ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: false
+        error:
+          type: string
+        statusCode:
+          type: integer
+          minimum: -9007199254740991
+          maximum: 9007199254740991
+        stack:
+          anyOf:
+            - type: string
+            - type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionAction"
+      required:
+        - success
+        - error
+        - statusCode
+        - stack
+      additionalProperties: false
+    BrowserSessionAddInitScriptResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionAddInitScriptAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionSetExtraHTTPHeadersResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionSetExtraHTTPHeadersAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionPagesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionPagesAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionActivePageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionActivePageAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionAwaitActivePageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionAwaitActivePageAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionResolvePageByMainFrameIdResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionResolvePageByMainFrameIdAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionGetFullFrameTreeByMainFrameIdResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionGetFullFrameTreeByMainFrameIdAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionNewPageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionNewPageAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionCookiesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionCookiesAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionAddCookiesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionAddCookiesAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionClearCookiesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionClearCookiesAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionConnectURLResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionConnectURLAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionConfiguredViewportResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionConfiguredViewportAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionBrowserbaseSessionIDResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionBrowserbaseSessionIDAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionBrowserbaseSessionURLResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionBrowserbaseSessionURLAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionBrowserbaseDebugURLResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionBrowserbaseDebugURLAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionActionDetailsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionActionListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/BrowserSessionAction"
+      required:
+        - success
+        - error
+        - actions
+      additionalProperties: false
     V4ErrorResponse:
       type: object
       properties:
@@ -4226,6 +5847,188 @@ components:
       required:
         - id
       additionalProperties: false
+    BrowserSessionActionBase:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          $ref: "#/components/schemas/BrowserSessionActionMethod"
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - type: string
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+      additionalProperties: false
+    BrowserSessionIsBrowserbaseRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionIsBrowserbaseParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionIsAdvancedStealthRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionIsAdvancedStealthParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionSetViewportSizeRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionSetViewportSizeParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionCloseRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        params:
+          $ref: "#/components/schemas/BrowserSessionCloseParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    BrowserSessionIsBrowserbaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionIsBrowserbaseAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionIsAdvancedStealthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionIsAdvancedStealthAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionSetViewportSizeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionSetViewportSizeAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionCloseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/BrowserSessionCloseAction"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    BrowserSessionActionIdParams:
+      type: object
+      properties:
+        actionId:
+          $ref: "#/components/schemas/ActionId"
+      required:
+        - actionId
+      additionalProperties: false
+    BrowserSessionActionDetailsQuery:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+      required:
+        - sessionId
+      additionalProperties: false
+    BrowserSessionActionListQuery:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/BrowserSessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        method:
+          $ref: "#/components/schemas/BrowserSessionActionMethod"
+        status:
+          $ref: "#/components/schemas/BrowserSessionActionStatus"
+        limit:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 500
+      required:
+        - sessionId
+      additionalProperties: false
     ValidationErrorResponse:
       type: object
       properties:
@@ -4281,6 +6084,132 @@ components:
         - createdAt
         - updatedAt
         - error
+      additionalProperties: false
+    PageTargetIdRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+      required:
+        - sessionId
+      additionalProperties: false
+    PageMainFrameIdRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+      required:
+        - sessionId
+      additionalProperties: false
+    PageMainFrameRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+      required:
+        - sessionId
+      additionalProperties: false
+    PageGetFullFrameTreeRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+      required:
+        - sessionId
+      additionalProperties: false
+    PageAsProtocolFrameTreeRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        rootMainFrameId:
+          $ref: "#/components/schemas/FrameId"
+      required:
+        - sessionId
+        - rootMainFrameId
+      additionalProperties: false
+    PageListAllFrameIdsRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+      required:
+        - sessionId
+      additionalProperties: false
+    PageGetOrdinalRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        frameId:
+          $ref: "#/components/schemas/FrameId"
+      required:
+        - sessionId
+        - frameId
+      additionalProperties: false
+    PageTitleRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+      required:
+        - sessionId
+      additionalProperties: false
+    PageUrlRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+      required:
+        - sessionId
+      additionalProperties: false
+    PageFramesRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+      required:
+        - sessionId
       additionalProperties: false
     PageActionIdParams:
       type: object
@@ -4394,24 +6323,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BrowserSessionResponse"
-        "401":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/BrowserSessionErrorResponse"
-        "404":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/BrowserSessionErrorResponse"
-        "500":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/BrowserSessionErrorResponse"
   /v4/browsersession/{id}/end:
     post:
       operationId: BrowserSessionEnd
@@ -4445,30 +6356,1187 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BrowserSessionResponse"
+  /v4/browsersession/addInitScript:
+    post:
+      operationId: BrowserSessionAddInitScript
+      summary: browserSession.addInitScript
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserSessionAddInitScriptRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionAddInitScriptResponse"
         "400":
           description: Default Response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BrowserSessionErrorResponse"
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
         "401":
           description: Default Response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BrowserSessionErrorResponse"
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
         "404":
           description: Default Response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BrowserSessionErrorResponse"
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
         "500":
           description: Default Response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BrowserSessionErrorResponse"
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+  /v4/browsersession/setExtraHTTPHeaders:
+    post:
+      operationId: BrowserSessionSetExtraHTTPHeaders
+      summary: browserSession.setExtraHTTPHeaders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserSessionSetExtraHTTPHeadersRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionSetExtraHTTPHeadersResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+  /v4/browsersession/pages:
+    post:
+      operationId: BrowserSessionPages
+      summary: browserSession.pages
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserSessionPagesRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionPagesResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+  /v4/browsersession/activePage:
+    post:
+      operationId: BrowserSessionActivePage
+      summary: browserSession.activePage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserSessionActivePageRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionActivePageResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+  /v4/browsersession/awaitActivePage:
+    post:
+      operationId: BrowserSessionAwaitActivePage
+      summary: browserSession.awaitActivePage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserSessionAwaitActivePageRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionAwaitActivePageResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+  /v4/browsersession/resolvePageByMainFrameId:
+    post:
+      operationId: BrowserSessionResolvePageByMainFrameId
+      summary: browserSession.resolvePageByMainFrameId
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserSessionResolvePageByMainFrameIdRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionResolvePageByMainFrameIdResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+  /v4/browsersession/getFullFrameTreeByMainFrameId:
+    post:
+      operationId: BrowserSessionGetFullFrameTreeByMainFrameId
+      summary: browserSession.getFullFrameTreeByMainFrameId
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserSessionGetFullFrameTreeByMainFrameIdRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionGetFullFrameTreeByMainFrameIdResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+  /v4/browsersession/newPage:
+    post:
+      operationId: BrowserSessionNewPage
+      summary: browserSession.newPage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserSessionNewPageRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionNewPageResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+  /v4/browsersession/cookies:
+    post:
+      operationId: BrowserSessionCookies
+      summary: browserSession.cookies
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserSessionCookiesRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionCookiesResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+  /v4/browsersession/addCookies:
+    post:
+      operationId: BrowserSessionAddCookies
+      summary: browserSession.addCookies
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserSessionAddCookiesRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionAddCookiesResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+  /v4/browsersession/clearCookies:
+    post:
+      operationId: BrowserSessionClearCookies
+      summary: browserSession.clearCookies
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserSessionClearCookiesRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionClearCookiesResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+  /v4/browsersession/connectURL:
+    post:
+      operationId: BrowserSessionConnectURL
+      summary: browserSession.connectURL
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserSessionConnectURLRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionConnectURLResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+  /v4/browsersession/configuredViewport:
+    post:
+      operationId: BrowserSessionConfiguredViewport
+      summary: browserSession.configuredViewport
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserSessionConfiguredViewportRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionConfiguredViewportResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+  /v4/browsersession/browserbaseSessionID:
+    post:
+      operationId: BrowserSessionBrowserbaseSessionID
+      summary: browserSession.browserbaseSessionID
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserSessionBrowserbaseSessionIDRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionBrowserbaseSessionIDResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+  /v4/browsersession/browserbaseSessionURL:
+    post:
+      operationId: BrowserSessionBrowserbaseSessionURL
+      summary: browserSession.browserbaseSessionURL
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserSessionBrowserbaseSessionURLRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionBrowserbaseSessionURLResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+  /v4/browsersession/browserbaseDebugURL:
+    post:
+      operationId: BrowserSessionBrowserbaseDebugURL
+      summary: browserSession.browserbaseDebugURL
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserSessionBrowserbaseDebugURLRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionBrowserbaseDebugURLResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+  /v4/browsersession/action:
+    get:
+      operationId: BrowserSessionActionList
+      summary: browserSession.actions
+      parameters:
+        - schema:
+            $ref: "#/components/schemas/RequestId"
+          in: query
+          name: id
+        - schema:
+            $ref: "#/components/schemas/BrowserSessionId"
+          in: query
+          name: sessionId
+          required: true
+        - schema:
+            $ref: "#/components/schemas/PageId"
+          in: query
+          name: pageId
+        - schema:
+            $ref: "#/components/schemas/BrowserSessionActionMethod"
+          in: query
+          name: method
+        - schema:
+            $ref: "#/components/schemas/BrowserSessionActionStatus"
+          in: query
+          name: status
+        - schema:
+            type: integer
+            exclusiveMinimum: 0
+            maximum: 500
+          in: query
+          name: limit
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionActionListResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+  /v4/browsersession/action/{actionId}:
+    get:
+      operationId: BrowserSessionActionDetails
+      summary: browserSession.action
+      parameters:
+        - schema:
+            $ref: "#/components/schemas/RequestId"
+          in: query
+          name: id
+        - schema:
+            $ref: "#/components/schemas/BrowserSessionId"
+          in: query
+          name: sessionId
+          required: true
+        - schema:
+            $ref: "#/components/schemas/ActionId"
+          in: path
+          name: actionId
+          required: true
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionActionDetailsResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
   /v4/page/click:
     post:
       operationId: PageClick
@@ -5302,16 +8370,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/V4ErrorResponse"
   /v4/page/targetId:
-    post:
+    get:
       operationId: PageTargetId
       summary: page.targetId
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PageTargetIdRequest"
-        required: true
       parameters:
+        - schema:
+            $ref: "#/components/schemas/RequestId"
+          in: query
+          name: id
+        - schema:
+            $ref: "#/components/schemas/SessionId"
+          in: query
+          name: sessionId
+          required: true
+        - schema:
+            $ref: "#/components/schemas/PageId"
+          in: query
+          name: pageId
         - schema:
             description: Whether to stream the response via SSE
             example: "true"
@@ -5366,16 +8441,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/V4ErrorResponse"
   /v4/page/mainFrameId:
-    post:
+    get:
       operationId: PageMainFrameId
       summary: page.mainFrameId
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PageMainFrameIdRequest"
-        required: true
       parameters:
+        - schema:
+            $ref: "#/components/schemas/RequestId"
+          in: query
+          name: id
+        - schema:
+            $ref: "#/components/schemas/SessionId"
+          in: query
+          name: sessionId
+          required: true
+        - schema:
+            $ref: "#/components/schemas/PageId"
+          in: query
+          name: pageId
         - schema:
             description: Whether to stream the response via SSE
             example: "true"
@@ -5430,16 +8512,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/V4ErrorResponse"
   /v4/page/mainFrame:
-    post:
+    get:
       operationId: PageMainFrame
       summary: page.mainFrame
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PageMainFrameRequest"
-        required: true
       parameters:
+        - schema:
+            $ref: "#/components/schemas/RequestId"
+          in: query
+          name: id
+        - schema:
+            $ref: "#/components/schemas/SessionId"
+          in: query
+          name: sessionId
+          required: true
+        - schema:
+            $ref: "#/components/schemas/PageId"
+          in: query
+          name: pageId
         - schema:
             description: Whether to stream the response via SSE
             example: "true"
@@ -5494,16 +8583,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/V4ErrorResponse"
   /v4/page/getFullFrameTree:
-    post:
+    get:
       operationId: PageGetFullFrameTree
       summary: page.getFullFrameTree
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PageGetFullFrameTreeRequest"
-        required: true
       parameters:
+        - schema:
+            $ref: "#/components/schemas/RequestId"
+          in: query
+          name: id
+        - schema:
+            $ref: "#/components/schemas/SessionId"
+          in: query
+          name: sessionId
+          required: true
+        - schema:
+            $ref: "#/components/schemas/PageId"
+          in: query
+          name: pageId
         - schema:
             description: Whether to stream the response via SSE
             example: "true"
@@ -5558,16 +8654,28 @@ paths:
               schema:
                 $ref: "#/components/schemas/V4ErrorResponse"
   /v4/page/asProtocolFrameTree:
-    post:
+    get:
       operationId: PageAsProtocolFrameTree
       summary: page.asProtocolFrameTree
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PageAsProtocolFrameTreeRequest"
-        required: true
       parameters:
+        - schema:
+            $ref: "#/components/schemas/RequestId"
+          in: query
+          name: id
+        - schema:
+            $ref: "#/components/schemas/SessionId"
+          in: query
+          name: sessionId
+          required: true
+        - schema:
+            $ref: "#/components/schemas/PageId"
+          in: query
+          name: pageId
+        - schema:
+            $ref: "#/components/schemas/FrameId"
+          in: query
+          name: rootMainFrameId
+          required: true
         - schema:
             description: Whether to stream the response via SSE
             example: "true"
@@ -5622,16 +8730,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/V4ErrorResponse"
   /v4/page/listAllFrameIds:
-    post:
+    get:
       operationId: PageListAllFrameIds
       summary: page.listAllFrameIds
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PageListAllFrameIdsRequest"
-        required: true
       parameters:
+        - schema:
+            $ref: "#/components/schemas/RequestId"
+          in: query
+          name: id
+        - schema:
+            $ref: "#/components/schemas/SessionId"
+          in: query
+          name: sessionId
+          required: true
+        - schema:
+            $ref: "#/components/schemas/PageId"
+          in: query
+          name: pageId
         - schema:
             description: Whether to stream the response via SSE
             example: "true"
@@ -5686,16 +8801,28 @@ paths:
               schema:
                 $ref: "#/components/schemas/V4ErrorResponse"
   /v4/page/getOrdinal:
-    post:
+    get:
       operationId: PageGetOrdinal
       summary: page.getOrdinal
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PageGetOrdinalRequest"
-        required: true
       parameters:
+        - schema:
+            $ref: "#/components/schemas/RequestId"
+          in: query
+          name: id
+        - schema:
+            $ref: "#/components/schemas/SessionId"
+          in: query
+          name: sessionId
+          required: true
+        - schema:
+            $ref: "#/components/schemas/PageId"
+          in: query
+          name: pageId
+        - schema:
+            $ref: "#/components/schemas/FrameId"
+          in: query
+          name: frameId
+          required: true
         - schema:
             description: Whether to stream the response via SSE
             example: "true"
@@ -5750,16 +8877,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/V4ErrorResponse"
   /v4/page/title:
-    post:
+    get:
       operationId: PageTitle
       summary: page.title
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PageTitleRequest"
-        required: true
       parameters:
+        - schema:
+            $ref: "#/components/schemas/RequestId"
+          in: query
+          name: id
+        - schema:
+            $ref: "#/components/schemas/SessionId"
+          in: query
+          name: sessionId
+          required: true
+        - schema:
+            $ref: "#/components/schemas/PageId"
+          in: query
+          name: pageId
         - schema:
             description: Whether to stream the response via SSE
             example: "true"
@@ -5814,16 +8948,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/V4ErrorResponse"
   /v4/page/url:
-    post:
+    get:
       operationId: PageUrl
       summary: page.url
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PageUrlRequest"
-        required: true
       parameters:
+        - schema:
+            $ref: "#/components/schemas/RequestId"
+          in: query
+          name: id
+        - schema:
+            $ref: "#/components/schemas/SessionId"
+          in: query
+          name: sessionId
+          required: true
+        - schema:
+            $ref: "#/components/schemas/PageId"
+          in: query
+          name: pageId
         - schema:
             description: Whether to stream the response via SSE
             example: "true"
@@ -5878,16 +9019,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/V4ErrorResponse"
   /v4/page/frames:
-    post:
+    get:
       operationId: PageFrames
       summary: page.frames
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PageFramesRequest"
-        required: true
       parameters:
+        - schema:
+            $ref: "#/components/schemas/RequestId"
+          in: query
+          name: id
+        - schema:
+            $ref: "#/components/schemas/SessionId"
+          in: query
+          name: sessionId
+          required: true
+        - schema:
+            $ref: "#/components/schemas/PageId"
+          in: query
+          name: pageId
         - schema:
             description: Whether to stream the response via SSE
             example: "true"

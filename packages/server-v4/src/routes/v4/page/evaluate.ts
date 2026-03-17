@@ -27,7 +27,7 @@ const evaluateRoute: RouteOptions = {
     actionSchema: PageEvaluateActionSchema,
     execute: async ({ page, params }) => {
       const value = await page.evaluate(
-        ({ arg, expression }) => {
+        ({ arg, expression }: { arg: unknown; expression: string }) => {
           const localArg = arg;
           return (() => {
             const arg = localArg;

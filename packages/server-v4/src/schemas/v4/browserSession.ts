@@ -69,12 +69,14 @@ const BrowserSessionLocalCreateSchema = BrowserSessionCommonSchema.extend({
   })
   .meta({ id: "BrowserSessionLocalCreateRequest" });
 
-const BrowserSessionBrowserbaseCreateSchema = BrowserSessionCommonSchema.extend({
-  env: z.literal("BROWSERBASE"),
-  browserbaseSessionId: z.string().optional(),
-  browserbaseSessionCreateParams:
-    Api.BrowserbaseSessionCreateParamsSchema.optional(),
-})
+const BrowserSessionBrowserbaseCreateSchema = BrowserSessionCommonSchema.extend(
+  {
+    env: z.literal("BROWSERBASE"),
+    browserbaseSessionId: z.string().optional(),
+    browserbaseSessionCreateParams:
+      Api.BrowserbaseSessionCreateParamsSchema.optional(),
+  },
+)
   .strict()
   .meta({ id: "BrowserSessionBrowserbaseCreateRequest" });
 
@@ -417,10 +419,11 @@ export const BrowserSessionSetExtraHTTPHeadersRequestSchema =
     BrowserSessionSetExtraHTTPHeadersParamsSchema,
   );
 
-export const BrowserSessionPagesRequestSchema = createBrowserSessionRequestSchema(
-  "BrowserSessionPagesRequest",
-  BrowserSessionPagesParamsSchema,
-);
+export const BrowserSessionPagesRequestSchema =
+  createBrowserSessionRequestSchema(
+    "BrowserSessionPagesRequest",
+    BrowserSessionPagesParamsSchema,
+  );
 
 export const BrowserSessionActivePageRequestSchema =
   createBrowserSessionRequestSchema(
@@ -446,15 +449,17 @@ export const BrowserSessionGetFullFrameTreeByMainFrameIdRequestSchema =
     BrowserSessionGetFullFrameTreeByMainFrameIdParamsSchema,
   );
 
-export const BrowserSessionNewPageRequestSchema = createBrowserSessionRequestSchema(
-  "BrowserSessionNewPageRequest",
-  BrowserSessionNewPageParamsSchema,
-);
+export const BrowserSessionNewPageRequestSchema =
+  createBrowserSessionRequestSchema(
+    "BrowserSessionNewPageRequest",
+    BrowserSessionNewPageParamsSchema,
+  );
 
-export const BrowserSessionCookiesRequestSchema = createBrowserSessionRequestSchema(
-  "BrowserSessionCookiesRequest",
-  BrowserSessionCookiesParamsSchema,
-);
+export const BrowserSessionCookiesRequestSchema =
+  createBrowserSessionRequestSchema(
+    "BrowserSessionCookiesRequest",
+    BrowserSessionCookiesParamsSchema,
+  );
 
 export const BrowserSessionAddCookiesRequestSchema =
   createBrowserSessionRequestSchema(
@@ -516,10 +521,11 @@ export const BrowserSessionSetViewportSizeRequestSchema =
     BrowserSessionSetViewportSizeParamsSchema,
   );
 
-export const BrowserSessionCloseRequestSchema = createBrowserSessionRequestSchema(
-  "BrowserSessionCloseRequest",
-  BrowserSessionCloseParamsSchema,
-);
+export const BrowserSessionCloseRequestSchema =
+  createBrowserSessionRequestSchema(
+    "BrowserSessionCloseRequest",
+    BrowserSessionCloseParamsSchema,
+  );
 
 const BrowserSessionAddInitScriptResultSchema = z
   .object({
@@ -706,12 +712,13 @@ export const BrowserSessionNewPageActionSchema =
     BrowserSessionPageResultSchema,
   );
 
-export const BrowserSessionCookiesActionSchema = createBrowserSessionActionSchema(
-  "BrowserSessionCookiesAction",
-  "cookies",
-  BrowserSessionCookiesParamsSchema,
-  BrowserSessionCookiesResultSchema,
-);
+export const BrowserSessionCookiesActionSchema =
+  createBrowserSessionActionSchema(
+    "BrowserSessionCookiesAction",
+    "cookies",
+    BrowserSessionCookiesParamsSchema,
+    BrowserSessionCookiesResultSchema,
+  );
 
 export const BrowserSessionAddCookiesActionSchema =
   createBrowserSessionActionSchema(
@@ -848,10 +855,11 @@ export const BrowserSessionSetExtraHTTPHeadersResponseSchema =
     BrowserSessionSetExtraHTTPHeadersActionSchema,
   );
 
-export const BrowserSessionPagesResponseSchema = createBrowserSessionResponseSchema(
-  "BrowserSessionPagesResponse",
-  BrowserSessionPagesActionSchema,
-);
+export const BrowserSessionPagesResponseSchema =
+  createBrowserSessionResponseSchema(
+    "BrowserSessionPagesResponse",
+    BrowserSessionPagesActionSchema,
+  );
 
 export const BrowserSessionActivePageResponseSchema =
   createBrowserSessionResponseSchema(
@@ -949,10 +957,11 @@ export const BrowserSessionSetViewportSizeResponseSchema =
     BrowserSessionSetViewportSizeActionSchema,
   );
 
-export const BrowserSessionCloseResponseSchema = createBrowserSessionResponseSchema(
-  "BrowserSessionCloseResponse",
-  BrowserSessionCloseActionSchema,
-);
+export const BrowserSessionCloseResponseSchema =
+  createBrowserSessionResponseSchema(
+    "BrowserSessionCloseResponse",
+    BrowserSessionCloseActionSchema,
+  );
 
 export const BrowserSessionActionIdParamsSchema = z
   .object({
@@ -1110,8 +1119,7 @@ export const browserSessionOpenApiComponents = {
       BrowserSessionBrowserbaseSessionURLActionSchema,
     BrowserSessionBrowserbaseDebugURLAction:
       BrowserSessionBrowserbaseDebugURLActionSchema,
-    BrowserSessionIsBrowserbaseAction:
-      BrowserSessionIsBrowserbaseActionSchema,
+    BrowserSessionIsBrowserbaseAction: BrowserSessionIsBrowserbaseActionSchema,
     BrowserSessionIsAdvancedStealthAction:
       BrowserSessionIsAdvancedStealthActionSchema,
     BrowserSessionSetViewportSizeAction:
@@ -1153,13 +1161,11 @@ export const browserSessionOpenApiComponents = {
       BrowserSessionSetViewportSizeResponseSchema,
     BrowserSessionCloseResponse: BrowserSessionCloseResponseSchema,
     BrowserSessionActionIdParams: BrowserSessionActionIdParamsSchema,
-    BrowserSessionActionDetailsQuery:
-      BrowserSessionActionDetailsQuerySchema,
+    BrowserSessionActionDetailsQuery: BrowserSessionActionDetailsQuerySchema,
     BrowserSessionActionListQuery: BrowserSessionActionListQuerySchema,
     BrowserSessionActionDetailsResponse:
       BrowserSessionActionDetailsResponseSchema,
-    BrowserSessionActionListResponse:
-      BrowserSessionActionListResponseSchema,
+    BrowserSessionActionListResponse: BrowserSessionActionListResponseSchema,
   },
 };
 

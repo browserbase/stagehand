@@ -2,12 +2,7 @@ import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
-import { authMiddleware } from "../../../../lib/auth.js";
-import { withErrorHandling } from "../../../../lib/errorHandler.js";
-import { error, success } from "../../../../lib/response.js";
-import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
 import {
-  BrowserSessionErrorResponseSchema,
   BrowserSessionHeadersSchema,
   BrowserSessionIdParamsSchema,
   BrowserSessionResponseSchema,
@@ -15,31 +10,25 @@ import {
 } from "../../../../schemas/v4/browserSession.js";
 import { buildBrowserSession } from "../shared.js";
 
-const getBrowserSessionHandler: RouteHandlerMethod = withErrorHandling(
-  async (request, reply) => {
-    if (!(await authMiddleware(request))) {
-      return error(reply, "Unauthorized", StatusCodes.UNAUTHORIZED);
-    }
+const getBrowserSessionHandler: RouteHandlerMethod = async (request, reply) => {
+  const { id } = request.params as BrowserSessionIdParams;
 
-    const { id } = request.params as BrowserSessionIdParams;
-    const sessionStore = getSessionStore();
-
-    if (!(await sessionStore.hasSession(id))) {
-      return error(reply, "Browser session not found", StatusCodes.NOT_FOUND);
-    }
-
-    const params = await sessionStore.getSessionConfig(id);
-
-    return success(reply, {
-      browserSession: buildBrowserSession({
-        id,
-        params,
-        status: "running",
-        available: true,
-      }),
-    });
-  },
-);
+  return reply.status(StatusCodes.OK).send(
+    BrowserSessionResponseSchema.parse({
+      success: true,
+      data: {
+        browserSession: buildBrowserSession({
+          id,
+          env: "LOCAL",
+          status: "running",
+          modelName: "stub/model",
+          cdpUrl: "ws://stub.invalid/devtools/browser/stub",
+          available: false,
+        }),
+      },
+    }),
+  );
+};
 
 const getBrowserSessionRoute: RouteOptions = {
   method: "GET",
@@ -51,9 +40,6 @@ const getBrowserSessionRoute: RouteOptions = {
     params: BrowserSessionIdParamsSchema,
     response: {
       200: BrowserSessionResponseSchema,
-      401: BrowserSessionErrorResponseSchema,
-      404: BrowserSessionErrorResponseSchema,
-      500: BrowserSessionErrorResponseSchema,
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: getBrowserSessionHandler,

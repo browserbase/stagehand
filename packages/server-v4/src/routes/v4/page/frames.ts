@@ -27,7 +27,7 @@ const framesRoute: RouteOptions = {
     actionSchema: PageFramesActionSchema,
     execute: async ({ page }) => {
       return {
-        frames: page.frames().map((frame) => ({
+        frames: page.frames().map((frame: any) => ({
           frameId: frame.frameId,
           pageId: frame.pageId,
           sessionId: frame.sessionId,

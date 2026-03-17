@@ -143,9 +143,12 @@ export const PageInitScriptSchema = z
         content: z.string().min(1).optional(),
       })
       .strict()
-      .refine((value) => value.path !== undefined || value.content !== undefined, {
-        message: "script must include path or content",
-      }),
+      .refine(
+        (value) => value.path !== undefined || value.content !== undefined,
+        {
+          message: "script must include path or content",
+        },
+      ),
   ])
   .meta({ id: "PageInitScript" });
 
@@ -159,10 +162,7 @@ export const PageClipSchema = z
   .strict()
   .meta({ id: "PageClip" });
 
-export const PageErrorSchema = z
-  .string()
-  .min(1)
-  .meta({ id: "PageError" });
+export const PageErrorSchema = z.string().min(1).meta({ id: "PageError" });
 
 export const ValidationErrorResponseSchema = z
   .object({
@@ -486,10 +486,12 @@ export const PageWaitForLoadStateParamsSchema = PageWithPageIdSchema.extend({
   .strict()
   .meta({ id: "PageWaitForLoadStateParams" });
 
-export const PageWaitForMainLoadStateParamsSchema = PageWithPageIdSchema.extend({
-  state: LoadStateSchema,
-  timeoutMs: z.number().int().nonnegative().optional(),
-})
+export const PageWaitForMainLoadStateParamsSchema = PageWithPageIdSchema.extend(
+  {
+    state: LoadStateSchema,
+    timeoutMs: z.number().int().nonnegative().optional(),
+  },
+)
   .strict()
   .meta({ id: "PageWaitForMainLoadStateParams" });
 

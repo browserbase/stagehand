@@ -30,7 +30,9 @@ const resolvePageByMainFrameIdRoute: RouteOptions = {
     method: "resolvePageByMainFrameId",
     actionSchema: BrowserSessionResolvePageByMainFrameIdActionSchema,
     execute: async ({ stagehand, params }) => {
-      const page = stagehand.context.resolvePageByMainFrameId(params.mainFrameId);
+      const page = stagehand.context.resolvePageByMainFrameId(
+        params.mainFrameId,
+      );
       return {
         pageId: page?.targetId(),
         result: {

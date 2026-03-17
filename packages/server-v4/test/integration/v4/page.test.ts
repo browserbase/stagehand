@@ -349,13 +349,17 @@ describe("v4 page routes", { concurrency: false }, () => {
     });
     assertSuccessAction(keyPressCtx, "keyPress");
 
-    const waitForSelectorCtx = await postPageRoute("waitForSelector", sessionId, {
-      selector: {
-        xpath: "//div[@id='late-item']",
+    const waitForSelectorCtx = await postPageRoute(
+      "waitForSelector",
+      sessionId,
+      {
+        selector: {
+          xpath: "//div[@id='late-item']",
+        },
+        state: "visible",
+        timeout: 5_000,
       },
-      state: "visible",
-      timeout: 5_000,
-    });
+    );
     const waitForSelectorAction = assertSuccessAction(
       waitForSelectorCtx,
       "waitForSelector",
@@ -365,9 +369,13 @@ describe("v4 page routes", { concurrency: false }, () => {
       true,
     );
 
-    const waitForLoadStateCtx = await postPageRoute("waitForLoadState", sessionId, {
-      state: "load",
-    });
+    const waitForLoadStateCtx = await postPageRoute(
+      "waitForLoadState",
+      sessionId,
+      {
+        state: "load",
+      },
+    );
     assertSuccessAction(waitForLoadStateCtx, "waitForLoadState");
 
     const titleCtx = await getPageRoute("title", sessionId, {});
@@ -420,9 +428,9 @@ describe("v4 page routes", { concurrency: false }, () => {
       );
       assert.equal(await page.locator("#text-input").inputValue(), "hell");
       assert.ok(
-        await page.locator("#scroll-box").evaluate(
-          (node) => (node as HTMLDivElement).scrollTop > 0,
-        ),
+        await page
+          .locator("#scroll-box")
+          .evaluate((node) => (node as HTMLDivElement).scrollTop > 0),
       );
     });
   });
@@ -442,11 +450,15 @@ describe("v4 page routes", { concurrency: false }, () => {
       null,
     );
 
-    const setViewportSizeCtx = await postPageRoute("setViewportSize", sessionId, {
-      width: 900,
-      height: 700,
-      deviceScaleFactor: 1,
-    });
+    const setViewportSizeCtx = await postPageRoute(
+      "setViewportSize",
+      sessionId,
+      {
+        width: 900,
+        height: 700,
+        deviceScaleFactor: 1,
+      },
+    );
     assertSuccessAction(setViewportSizeCtx, "setViewportSize");
 
     const screenshotCtx = await postPageRoute("screenshot", sessionId, {
@@ -646,11 +658,15 @@ describe("v4 page routes", { concurrency: false }, () => {
         true,
       );
 
-      const setHeadersCtx = await postPageRoute("setExtraHTTPHeaders", temp.sessionId, {
-        headers: {
-          "x-stagehand-test": "present",
+      const setHeadersCtx = await postPageRoute(
+        "setExtraHTTPHeaders",
+        temp.sessionId,
+        {
+          headers: {
+            "x-stagehand-test": "present",
+          },
         },
-      });
+      );
       const setHeadersAction = assertSuccessAction(
         setHeadersCtx,
         "setExtraHTTPHeaders",
@@ -687,9 +703,8 @@ describe("v4 page routes", { concurrency: false }, () => {
         mainFrameIdCtx,
         "mainFrameId",
       );
-      const mainFrameId = (
-        mainFrameIdAction.result as { mainFrameId: string }
-      ).mainFrameId;
+      const mainFrameId = (mainFrameIdAction.result as { mainFrameId: string })
+        .mainFrameId;
       assert.equal(mainFrameId, await getMainFrameId(temp.cdpUrl));
 
       const mainFrameCtx = await getPageRoute("mainFrame", temp.sessionId, {});
@@ -757,9 +772,8 @@ describe("v4 page routes", { concurrency: false }, () => {
         listAllFrameIdsCtx,
         "listAllFrameIds",
       );
-      const frameIds = (
-        listAllFrameIdsAction.result as { frameIds: string[] }
-      ).frameIds;
+      const frameIds = (listAllFrameIdsAction.result as { frameIds: string[] })
+        .frameIds;
       assert.ok(frameIds.includes(mainFrameId));
       assert.deepEqual(
         [...frameIds].sort(),
@@ -774,9 +788,7 @@ describe("v4 page routes", { concurrency: false }, () => {
         (getOrdinalAction.result as { frameId: string }).frameId,
         mainFrameId,
       );
-      assert.ok(
-        (getOrdinalAction.result as { ordinal: number }).ordinal >= 0,
-      );
+      assert.ok((getOrdinalAction.result as { ordinal: number }).ordinal >= 0);
 
       const waitForMainLoadStateCtx = await postPageRoute(
         "waitForMainLoadState",

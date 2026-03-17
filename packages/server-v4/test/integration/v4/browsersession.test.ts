@@ -47,7 +47,11 @@ describe("v4 browsersession routes", { concurrency: false }, () => {
     );
 
     assertFetchStatus(createCtx, HTTP_OK);
-    assertFetchOk(createCtx.body !== null, "Expected a JSON response body", createCtx);
+    assertFetchOk(
+      createCtx.body !== null,
+      "Expected a JSON response body",
+      createCtx,
+    );
     assert.equal(createCtx.body.success, true);
     assertFetchOk(
       createCtx.body.data?.browserSession !== undefined,
@@ -71,7 +75,11 @@ describe("v4 browsersession routes", { concurrency: false }, () => {
     );
 
     assertFetchStatus(statusCtx, HTTP_OK);
-    assertFetchOk(statusCtx.body !== null, "Expected a JSON response body", statusCtx);
+    assertFetchOk(
+      statusCtx.body !== null,
+      "Expected a JSON response body",
+      statusCtx,
+    );
     assert.equal(statusCtx.body.data?.browserSession.id, browserSession.id);
     assert.equal(statusCtx.body.data?.browserSession.status, "running");
 
@@ -85,7 +93,11 @@ describe("v4 browsersession routes", { concurrency: false }, () => {
     );
 
     assertFetchStatus(endCtx, HTTP_OK);
-    assertFetchOk(endCtx.body !== null, "Expected a JSON response body", endCtx);
+    assertFetchOk(
+      endCtx.body !== null,
+      "Expected a JSON response body",
+      endCtx,
+    );
     assert.equal(endCtx.body.data?.browserSession.id, browserSession.id);
     assert.equal(endCtx.body.data?.browserSession.status, "ended");
     assert.equal(endCtx.body.data?.browserSession.available, false);
@@ -99,7 +111,11 @@ describe("v4 browsersession routes", { concurrency: false }, () => {
     );
 
     assertFetchStatus(missingCtx, HTTP_NOT_FOUND);
-    assertFetchOk(missingCtx.body !== null, "Expected a JSON response body", missingCtx);
+    assertFetchOk(
+      missingCtx.body !== null,
+      "Expected a JSON response body",
+      missingCtx,
+    );
     assert.equal(missingCtx.body.success, false);
   });
 

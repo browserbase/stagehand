@@ -29,7 +29,9 @@ const getFullFrameTreeByMainFrameIdRoute: RouteOptions = {
     method: "getFullFrameTreeByMainFrameId",
     actionSchema: BrowserSessionGetFullFrameTreeByMainFrameIdActionSchema,
     execute: async ({ stagehand, params }) => {
-      const page = stagehand.context.resolvePageByMainFrameId(params.mainFrameId);
+      const page = stagehand.context.resolvePageByMainFrameId(
+        params.mainFrameId,
+      );
       return {
         pageId: page?.targetId(),
         result: {
