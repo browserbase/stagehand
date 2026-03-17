@@ -143,7 +143,9 @@ export class FlowLogger {
     // still gets recorded under a placeholder root event.
     const sessionId = event.sessionId ?? `flow-orphan-${uuidv7()}`;
     const eventBus = new EventEmitter();
-    getEventStore().initializeSession(sessionId).catch(() => {});
+    getEventStore()
+      .initializeSession(sessionId)
+      .catch(() => {});
     getEventStore().attachBus(sessionId, eventBus);
     const rootEvent = FlowLogger.createPlaceholderRootEvent(
       sessionId,
