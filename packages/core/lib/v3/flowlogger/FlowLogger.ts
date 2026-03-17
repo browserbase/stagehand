@@ -21,8 +21,11 @@ export const FlowEventInputSchema = z.object({
 export type FlowEventData = z.infer<typeof FlowEventDataSchema>;
 export type FlowEventInput = z.input<typeof FlowEventInputSchema>;
 
-type FlowEventFields = {
-  eventType: string;
+// the same as FlowEventInput, but with all fields required (non-optional)
+type FlowEventFields = Omit<
+  FlowEventInput,
+  "eventId" | "eventParentIds" | "eventCreatedAt" | "sessionId" | "data"
+> & {
   eventId: string;
   eventParentIds: string[];
   eventCreatedAt: string;
