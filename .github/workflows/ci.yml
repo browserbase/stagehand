@@ -15,6 +15,7 @@ permissions:
   actions: write
 
 env:
+  BROWSERBASE_FLOW_LOGS: "1"
   LLM_MAX_MS: "15000"
   EVAL_MODELS: "openai/gpt-4.1,google/gemini-2.0-flash,anthropic/claude-haiku-4-5"
   EVAL_AGENT_MODELS: "computer-use-preview-2025-03-11,claude-sonnet-4-6"
@@ -411,7 +412,7 @@ jobs:
 
     env:
       BB_ENV: local
-      STAGEHAND_BASE_URL: http://stagehand-api.localhost:3107
+      STAGEHAND_BASE_URL: http://stagehand-api.localhost:3106
       STAGEHAND_BROWSER_TARGET: local
       STAGEHAND_SERVER_TARGET: sea
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
