@@ -6,7 +6,21 @@ import { closeV3 } from "./testUtils.js";
 import type { LLMClient } from "../../lib/v3/llm/LLMClient.js";
 import { generateText } from "ai";
 
-type AgentToolNameWithTimeout = "act" | "extract" | "fillForm" | "ariaTree";
+type AgentToolNameWithTimeout =
+  | "act"
+  | "extract"
+  | "fillForm"
+  | "ariaTree"
+  | "click"
+  | "type"
+  | "dragAndDrop"
+  | "clickAndHold"
+  | "fillFormVision"
+  | "goto"
+  | "navback"
+  | "screenshot"
+  | "scroll"
+  | "keys";
 
 type ToolTimeoutTestModel = {
   provider: string;
@@ -149,6 +163,7 @@ function findToolOutput(
 async function runAgentToolTimeoutScenario(
   toolName: AgentToolNameWithTimeout,
   toolInput: Record<string, unknown>,
+  options?: { mode?: "dom" | "hybrid" },
 ) {
   const llmClient = createToolTimeoutTestLlmClient(toolName, toolInput);
   const stepEvents: Array<{
@@ -164,7 +179,9 @@ async function runAgentToolTimeoutScenario(
   try {
     const page = v3.context.pages()[0];
     await page.goto("https://example.com");
-    const agent = v3.agent();
+    const agent = v3.agent({
+      ...(options?.mode ? { mode: options.mode } : {}),
+    });
     await agent.execute({
       instruction: `Use ${toolName} and then finish`,
       maxSteps: 2,
@@ -254,6 +271,130 @@ test.describe("V3 hard timeouts", () => {
 
   test("agent toolTimeout enforces timeout for ariaTree", async () => {
     const { toolOutput } = await runAgentToolTimeoutScenario("ariaTree", {});
+    const output = toolOutput as { success: boolean; error: string };
+    expect(output.success).toBe(false);
+    expect(output.error).toContain("TimeoutError");
+  });
+
+  test("agent toolTimeout enforces timeout for goto tool", async () => {
+    const { toolOutput } = await runAgentToolTimeoutScenario("goto", {
+      url: "https://example.com/slow",
+    });
+    const output = toolOutput as { success: boolean; error: string };
+    expect(output.success).toBe(false);
+    expect(output.error).toContain("TimeoutError");
+  });
+
+  test("agent toolTimeout enforces timeout for navback tool", async () => {
+    const { toolOutput } = await runAgentToolTimeoutScenario("navback", {
+      reasoningText: "going back",
+    });
+    const output = toolOutput as { success: boolean; error: string };
+    expect(output.success).toBe(false);
+    expect(output.error).toContain("TimeoutError");
+  });
+
+  test("agent toolTimeout enforces timeout for screenshot tool", async () => {
+    const { toolOutput } = await runAgentToolTimeoutScenario("screenshot", {});
+    const output = toolOutput as { success: boolean; error: string };
+    expect(output.success).toBe(false);
+    expect(output.error).toContain("TimeoutError");
+  });
+
+  test("agent toolTimeout enforces timeout for scroll tool", async () => {
+    const { toolOutput } = await runAgentToolTimeoutScenario("scroll", {
+      direction: "down",
+    });
+    const output = toolOutput as { success: boolean; error: string };
+    expect(output.success).toBe(false);
+    expect(output.error).toContain("TimeoutError");
+  });
+
+  test("agent toolTimeout enforces timeout for keys tool", async () => {
+    const { toolOutput } = await runAgentToolTimeoutScenario("keys", {
+      method: "press",
+      value: "Enter",
+    });
+    const output = toolOutput as { success: boolean; error: string };
+    expect(output.success).toBe(false);
+    expect(output.error).toContain("TimeoutError");
+  });
+
+  test("agent toolTimeout enforces timeout for click tool (hybrid)", async () => {
+    const { toolOutput } = await runAgentToolTimeoutScenario(
+      "click",
+      { describe: "click element", coordinates: [100, 100] },
+      { mode: "hybrid" },
+    );
+    const output = toolOutput as { success: boolean; error: string };
+    expect(output.success).toBe(false);
+    expect(output.error).toContain("TimeoutError");
+  });
+
+  test("agent toolTimeout enforces timeout for type tool (hybrid)", async () => {
+    const { toolOutput } = await runAgentToolTimeoutScenario(
+      "type",
+      {
+        describe: "type into field",
+        text: "hello",
+        coordinates: [100, 100],
+      },
+      { mode: "hybrid" },
+    );
+    const output = toolOutput as { success: boolean; error: string };
+    expect(output.success).toBe(false);
+    expect(output.error).toContain("TimeoutError");
+  });
+
+  test("agent toolTimeout enforces timeout for dragAndDrop tool (hybrid)", async () => {
+    const { toolOutput } = await runAgentToolTimeoutScenario(
+      "dragAndDrop",
+      {
+        describe: "drag element",
+        startCoordinates: [100, 100],
+        endCoordinates: [200, 200],
+      },
+      { mode: "hybrid" },
+    );
+    const output = toolOutput as { success: boolean; error: string };
+    expect(output.success).toBe(false);
+    expect(output.error).toContain("TimeoutError");
+  });
+
+  test("agent toolTimeout enforces timeout for clickAndHold tool (hybrid)", async () => {
+    const { toolOutput } = await runAgentToolTimeoutScenario(
+      "clickAndHold",
+      {
+        describe: "hold element",
+        coordinates: [100, 100],
+        duration: 1000,
+      },
+      { mode: "hybrid" },
+    );
+    const output = toolOutput as { success: boolean; error: string };
+    expect(output.success).toBe(false);
+    expect(output.error).toContain("TimeoutError");
+  });
+
+  test("agent toolTimeout enforces timeout for fillFormVision tool (hybrid)", async () => {
+    const { toolOutput } = await runAgentToolTimeoutScenario(
+      "fillFormVision",
+      {
+        fields: [
+          {
+            action: "type hello into name",
+            value: "hello",
+            coordinates: { x: 100, y: 100 },
+          },
+          {
+            action: "type world into email",
+            value: "world",
+            coordinates: { x: 100, y: 200 },
+          },
+        ],
+      },
+      { mode: "hybrid" },
+    );
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
     expect(output.error).toContain("TimeoutError");
