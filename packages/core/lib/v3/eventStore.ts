@@ -441,7 +441,9 @@ function prettifyBuildContextTags(
   }
   let stagehandLabel = "";
   if (stagehandEvent) {
-    stagehandLabel = prettifyEventAction(stagehandEvent.eventType).toUpperCase();
+    stagehandLabel = prettifyEventAction(
+      stagehandEvent.eventType,
+    ).toUpperCase();
   }
   let actionLabel = "";
   if (actionEvent) {
