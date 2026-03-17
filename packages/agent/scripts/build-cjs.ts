@@ -35,15 +35,16 @@ fs.mkdirSync(`${packageRoot}/dist/cjs`, { recursive: true });
 
 run([
   "exec",
-  "tsc",
-  "-p",
-  "packages/agent/tsconfig.json",
-  "--module",
-  "commonjs",
-  "--declaration",
-  "false",
-  "--outDir",
-  "packages/agent/dist/cjs",
+  "esbuild",
+  "packages/agent/index.ts",
+  "packages/agent/lib/protocol.ts",
+  "--bundle",
+  "--platform=node",
+  "--format=cjs",
+  "--packages=external",
+  "--outbase=packages/agent",
+  "--outdir=packages/agent/dist/cjs",
+  "--log-level=warning",
 ]);
 
 fs.writeFileSync(

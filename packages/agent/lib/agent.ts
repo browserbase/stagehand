@@ -1,121 +1,91 @@
 import path from "node:path";
 import process from "node:process";
-import {
-  getAISDKLanguageModel,
-  type ClientOptions,
-  type ModelMessage,
-} from "@browserbasehq/stagehand";
 import { stepCountIs, streamText, tool } from "ai";
-import { z } from "zod/v4";
+import type { ModelMessage } from "@browserbasehq/stagehand";
 
-import { ProcessSessionManager } from "./processSessions.js";
 import {
-  type AgentOptions,
   AgentOptionsSchema,
+  BrowserIds,
+  type AgentOptions,
   type AgentStatus,
   type AgentStreamEvent,
   type BrowserId,
-  type ExecCommandArgs,
-  ExecCommandArgsSchema,
-  type ParallelArgs,
-  ParallelArgsSchema,
   type ToolName,
-  type UpdatePlanArgs,
-  UpdatePlanArgsSchema,
-  type ViewImageOrDocumentArgs,
-  ViewImageOrDocumentArgsSchema,
-  type WaitArgs,
-  WaitArgsSchema,
-  type WebActArgs,
-  WebActArgsSchema,
-  type WebExtractArgs,
-  WebExtractArgsSchema,
-  type WebNavigateArgs,
-  WebNavigateArgsSchema,
-  type WebObserveArgs,
-  WebObserveArgsSchema,
-  type WebScreenshotArgs,
-  WebScreenshotArgsSchema,
-  type WebSearchArgs,
-  WebSearchArgsSchema,
-  type WebSpawnAgentArgs,
-  WebSpawnAgentArgsSchema,
-  type WriteStdinArgs,
-  WriteStdinArgsSchema,
 } from "./protocol.js";
-import { duckDuckGoSearch } from "./search.js";
-import { SubagentRuntime } from "./SubagentRuntime.js";
-import { createDeferredToolStubs } from "./subagentToolStubs.js";
-import { AsyncQueue } from "./utils/asyncQueue.js";
 import {
+  buildBrowseCliShellPrefix,
+  buildBrowseBrowserSessionArgs,
+  runBrowseCli,
+} from "./browseCli.js";
+import { closeAllManagedAgents } from "./state/agents.js";
+import {
+  appendLlmMessageLog,
+  hydrateTopLevelLanguageModel,
+  writeLlmConfig,
+} from "./state/llm.js";
+import { closeProcessSessions } from "./state/process.js";
+import {
+  appendConversationEntry,
   appendTopLevelTask,
+  createSubagentWorkspaceLayout,
   ensureWorkspaceLayout,
+  initializeSessionState,
   normalizeSubagentConfigs,
-  type SubagentWorkspaceLayout,
+  writeSubagentConfig,
   type WorkspaceLayout,
-} from "./workspace.js";
+} from "./state/session.js";
+import { ALL_TOOLS, type AgentToolContext } from "./tools/index.js";
+import { AsyncQueue } from "./utils/asyncQueue.js";
 
 const DEFAULT_MAX_STEPS = 20;
 
-export interface RuntimeAgentOptions extends AgentOptions {
-  clientOptions?: ClientOptions;
-}
+export interface RuntimeAgentOptions extends AgentOptions {}
 
-type AgentDependencies = {
-  subagentFactory?: (options: {
-    browserId: BrowserId;
-    workspace: SubagentWorkspaceLayout;
-    config: RuntimeAgentOptions["subagents"] extends Array<infer T> ? T : never;
-  }) => SubagentRuntime;
+export type AgentSubagentHandle = {
+  browserId: BrowserId;
+  subagentDir: string;
+  logsDir: string;
+  todoPath: string;
+  configPath: string;
 };
+
+function buildSubagentHandle(
+  workspace: string,
+  browserId: BrowserId,
+): AgentSubagentHandle {
+  const layout = createSubagentWorkspaceLayout(workspace, browserId);
+  return {
+    browserId,
+    subagentDir: layout.rootDir,
+    logsDir: layout.logsDir,
+    todoPath: layout.todoPath,
+    configPath: layout.configPath,
+  };
+}
 
 export class Agent {
   public readonly options: RuntimeAgentOptions;
   public readonly workspace: string;
-  public readonly subagents: SubagentRuntime[];
+  public readonly subagents: AgentSubagentHandle[];
   public status: AgentStatus = "idle";
 
-  private readonly processSessions = new ProcessSessionManager();
   private readonly ready: Promise<void>;
-  private readonly dependencies: AgentDependencies;
-  private readonly deferredToolStubs: ReturnType<typeof createDeferredToolStubs>;
   private readonly systemPrompt: string;
   private messages: ModelMessage[] = [];
   private currentStream: AsyncQueue<AgentStreamEvent> | null = null;
-  private planState: UpdatePlanArgs | null = null;
   private layout: WorkspaceLayout | null = null;
 
-  constructor(
-    options: RuntimeAgentOptions,
-    dependencies: AgentDependencies = {},
-  ) {
+  constructor(options: RuntimeAgentOptions) {
     this.options = AgentOptionsSchema.parse(options) as RuntimeAgentOptions;
-    this.dependencies = dependencies;
     this.workspace = path.resolve(this.options.workspace ?? process.cwd());
-    this.subagents = normalizeSubagentConfigs(this.options.subagents).map(
-      ({ browserId, ...config }) =>
-        (this.dependencies.subagentFactory?.({
-          browserId,
-          workspace: buildWorkspaceLayout(this.workspace, browserId),
-          config,
-        }) ??
-          new SubagentRuntime({
-            browserId,
-            workspace: buildWorkspaceLayout(this.workspace, browserId),
-            config,
-          })) as SubagentRuntime,
+    this.subagents = BrowserIds.map((browserId) =>
+      buildSubagentHandle(this.workspace, browserId),
     );
-    this.deferredToolStubs = createDeferredToolStubs({
-      onUpdatePlan: async (input) => {
-        this.planState = input;
-        return {
-          ok: true,
-          explanation: input.explanation ?? null,
-          plan: input.plan,
-        };
-      },
-    });
-    this.systemPrompt = buildSystemPrompt(this.workspace, this.options.systemPrompt);
+    this.systemPrompt = buildSystemPrompt(
+      this.workspace,
+      this.options.modelName,
+      this.options.systemPrompt,
+    );
     this.ready = this.initialize();
   }
 
@@ -127,7 +97,17 @@ export class Agent {
     }
 
     await this.ready;
-    await appendTopLevelTask(this.requireLayout().todoPath, instruction);
+    const layout = this.requireLayout();
+    await appendTopLevelTask(layout.todoPath, instruction);
+    await appendConversationEntry(this.workspace, {
+      role: "user",
+      content: instruction,
+    });
+    await appendLlmMessageLog(this.workspace, {
+      direction: "request",
+      scope: "top-level-agent",
+      payload: { instruction },
+    });
 
     const queue = new AsyncQueue<AgentStreamEvent>();
     this.currentStream = queue;
@@ -136,34 +116,14 @@ export class Agent {
 
     const userMessage: ModelMessage = { role: "user", content: instruction };
     const turnMessages = [...this.messages, userMessage];
-
-    const [provider, ...modelParts] = this.options.modelName.split("/");
-    const modelName = modelParts.join("/");
-    if (!provider || !modelName) {
-      throw new Error(
-        `modelName must use provider/model format, received ${this.options.modelName}`,
-      );
-    }
-
-    let finishTurn!: (messages: ModelMessage[]) => void;
-    let failTurn!: (error: unknown) => void;
-    const finished = new Promise<ModelMessage[]>((resolve, reject) => {
-      finishTurn = resolve;
-      failTurn = reject;
-    });
+    const llm = await hydrateTopLevelLanguageModel(this.workspace, this.options);
 
     const result = streamText({
-      model: getAISDKLanguageModel(provider, modelName, this.options.clientOptions),
+      model: llm.model,
       system: this.systemPrompt,
       messages: turnMessages,
       tools: this.createAiTools(queue),
       stopWhen: stepCountIs(this.options.maxSteps ?? DEFAULT_MAX_STEPS),
-      onFinish: (event) => {
-        finishTurn(event.response?.messages ?? []);
-      },
-      onError: (event) => {
-        failTurn(event.error);
-      },
     });
 
     void (async () => {
@@ -180,17 +140,20 @@ export class Agent {
           });
         }
 
-        const responseMessages = await finished;
-        const fallbackAssistantMessage: ModelMessage = {
+        const assistantMessage: ModelMessage = {
           role: "assistant",
           content: assistantText,
         };
-        this.messages = [
-          ...turnMessages,
-          ...(responseMessages.length > 0
-            ? responseMessages
-            : [fallbackAssistantMessage]),
-        ];
+        this.messages = [...turnMessages, assistantMessage];
+        await appendConversationEntry(this.workspace, {
+          role: "assistant",
+          content: assistantText,
+        });
+        await appendLlmMessageLog(this.workspace, {
+          direction: "response",
+          scope: "top-level-agent",
+          payload: { text: assistantText },
+        });
       } catch (error) {
         queue.push({
           type: "error",
@@ -212,14 +175,40 @@ export class Agent {
   }
 
   public async close(): Promise<void> {
-    await Promise.all(this.subagents.map((subagent) => subagent.close()));
-    await this.processSessions.closeAll();
+    await Promise.all([
+      closeAllManagedAgents(this.workspace),
+      closeProcessSessions(this.workspace),
+      ...BrowserIds.map(async (browserId): Promise<void> => {
+        await runBrowseCli(
+          [
+            ...buildBrowseBrowserSessionArgs(browserId),
+            "stop",
+            "--force",
+          ],
+        ).catch((): undefined => undefined);
+      }),
+    ]);
     this.status = "idle";
   }
 
   private async initialize(): Promise<void> {
-    this.layout = await ensureWorkspaceLayout(this.workspace);
-    await Promise.all(this.subagents.map((subagent) => subagent.init()));
+    this.layout = await initializeSessionState({
+      workspace: this.workspace,
+      systemPrompt: this.options.systemPrompt,
+      maxSteps: this.options.maxSteps,
+      subagents: this.options.subagents,
+    });
+    await ensureWorkspaceLayout(this.workspace);
+    await writeLlmConfig(this.workspace, {
+      modelName: this.options.modelName,
+      clientOptions: this.options.clientOptions,
+    });
+
+    for (const { browserId, ...config } of normalizeSubagentConfigs(
+      this.options.subagents,
+    )) {
+      await writeSubagentConfig(this.layout.subagents[browserId], config);
+    }
   }
 
   private requireLayout(): WorkspaceLayout {
@@ -229,14 +218,24 @@ export class Agent {
     return this.layout;
   }
 
-  private getSubagent(browserId: BrowserId): SubagentRuntime {
-    const subagent = this.subagents.find(
-      (candidate) => candidate.browserId === browserId,
-    );
-    if (!subagent) {
-      throw new Error(`Unknown browser_id: ${browserId}`);
+  private async dispatchToolCall(
+    toolName: ToolName,
+    input: unknown,
+  ): Promise<unknown> {
+    const toolSpec = ALL_TOOLS[toolName];
+    if (!toolSpec) {
+      throw new Error(`Unsupported tool: ${toolName}`);
     }
-    return subagent;
+
+    const parsedInput = toolSpec.inputSchema.parse(input);
+    const output = await toolSpec.execute(parsedInput, this.buildToolContext());
+    return toolSpec.outputSchema.parse(output);
+  }
+
+  private buildToolContext(): AgentToolContext {
+    return {
+      workspace: this.workspace,
+    };
   }
 
   private createAiTools(queue: AsyncQueue<AgentStreamEvent>) {
@@ -259,210 +258,42 @@ export class Agent {
       return output;
     };
 
-    const runDeferred = async <
-      TTool extends keyof typeof this.deferredToolStubs,
-      TInput,
-    >(
-      toolName: TTool,
-      input: TInput,
-    ) =>
-      await (
-        this.deferredToolStubs as Record<
-          string,
-          (value: unknown) => Promise<unknown>
-        >
-      )[toolName](input);
+    const aiTools = {} as Record<ToolName, ReturnType<typeof tool<any, any>>>;
+    for (const [toolName, toolSpec] of Object.entries(ALL_TOOLS) as Array<
+      [ToolName, (typeof ALL_TOOLS)[ToolName]]
+    >) {
+      aiTools[toolName] = tool({
+        description: toolSpec.description,
+        inputSchema: toolSpec.inputSchema as never,
+        execute: async (input: unknown) =>
+          await recordTool(toolName, input, async () =>
+            await this.dispatchToolCall(toolName, input),
+          ),
+      });
+    }
 
-    return {
-      web_spawn_agent: tool({
-        description:
-          "Queue a delegated Stagehand agent task on browser_id 1, 2, or 3 and wait for the result.",
-        inputSchema: WebSpawnAgentArgsSchema,
-        execute: async (input: WebSpawnAgentArgs) =>
-          await recordTool("web_spawn_agent", input, async () =>
-            await this.getSubagent(input.browser_id).enqueueDelegatedTask({
-              instruction: input.instruction,
-              expectedOutputJsonSchema: input.expected_output_jsonschema,
-              maxSteps: input.maxSteps,
-            }),
-          ),
-      }),
-      web_act: tool({
-        description:
-          "Run a short semantic browser microtask in the selected managed browser.",
-        inputSchema: WebActArgsSchema,
-        execute: async (input: WebActArgs) =>
-          await recordTool("web_act", input, async () =>
-            await this.getSubagent(input.browser_id).act(input),
-          ),
-      }),
-      web_extract: tool({
-        description: "Extract structured data from the selected managed browser.",
-        inputSchema: WebExtractArgsSchema,
-        execute: async (input: WebExtractArgs) =>
-          await recordTool("web_extract", input, async () =>
-            await this.getSubagent(input.browser_id).extract({
-              instruction: input.instruction,
-              frameId: input.frame_id,
-              expectedOutputJsonSchema: input.expected_output_jsonschema,
-            }),
-          ),
-      }),
-      web_observe: tool({
-        description:
-          "Ask the selected browser to list likely next actions on the current page.",
-        inputSchema: WebObserveArgsSchema,
-        execute: async (input: WebObserveArgs) =>
-          await recordTool("web_observe", input, async () =>
-            await this.getSubagent(input.browser_id).observe({
-              instruction: input.instruction,
-              frameId: input.frame_id,
-            }),
-          ),
-      }),
-      web_navigate: tool({
-        description: "Navigate the selected browser to a URL.",
-        inputSchema: WebNavigateArgsSchema,
-        execute: async (input: WebNavigateArgs) =>
-          await recordTool("web_navigate", input, async () =>
-            await this.getSubagent(input.browser_id).navigate({
-              url: input.url,
-              waitUntil: input.waitUntil,
-            }),
-          ),
-      }),
-      web_screenshot: tool({
-        description:
-          "Save a screenshot into the selected subagent screenshots directory and return serializable metadata.",
-        inputSchema: WebScreenshotArgsSchema,
-        execute: async (input: WebScreenshotArgs) =>
-          await recordTool("web_screenshot", input, async () =>
-            await this.getSubagent(input.browser_id).screenshot({
-              frameId: input.frame_id,
-              selector: input.selector,
-              yOffset: input.y_offset,
-            }),
-          ),
-      }),
-      web_search: tool({
-        description:
-          "Run a DuckDuckGo search without opening a browser session.",
-        inputSchema: WebSearchArgsSchema,
-        execute: async (input: WebSearchArgs) =>
-          await recordTool("web_search", input, async () => ({
-            query: input.query,
-            results: await duckDuckGoSearch(input.query, input.max_results ?? 5),
-          })),
-      }),
-      functions_exec_command: tool({
-        description:
-          "Run a shell command inside the shared workspace. Long-running commands return a session_id for functions_write_stdin.",
-        inputSchema: ExecCommandArgsSchema,
-        execute: async (input: ExecCommandArgs) =>
-          await recordTool("functions_exec_command", input, async () =>
-            await this.processSessions.exec({
-              ...input,
-              workdir: input.workdir ?? this.workspace,
-            }),
-          ),
-      }),
-      functions_write_stdin: tool({
-        description: "Write input to a previously started shell session.",
-        inputSchema: WriteStdinArgsSchema,
-        execute: async (input: WriteStdinArgs) =>
-          await recordTool("functions_write_stdin", input, async () =>
-            await this.processSessions.write(input),
-          ),
-      }),
-      functions_update_plan: tool({
-        description: "Store a lightweight execution plan in the local runtime.",
-        inputSchema: UpdatePlanArgsSchema,
-        execute: async (input: UpdatePlanArgs) =>
-          await recordTool("functions_update_plan", input, async () =>
-            ((this.planState = input),
-            await runDeferred("functions_update_plan", input)),
-          ),
-      }),
-      functions_view_image_or_document: tool({
-        description: "Deferred stub for future artifact/document inspection.",
-        inputSchema: ViewImageOrDocumentArgsSchema,
-        execute: async (input: ViewImageOrDocumentArgs) =>
-          await recordTool(
-            "functions_view_image_or_document",
-            input,
-            async () =>
-              await runDeferred("functions_view_image_or_document", input),
-          ),
-      }),
-      functions_wait: tool({
-        description: "Deferred stub for waiting on long-lived runtime task ids.",
-        inputSchema: WaitArgsSchema,
-        execute: async (input: WaitArgs) =>
-          await recordTool("functions_wait", input, async () =>
-            await runDeferred("functions_wait", input),
-          ),
-      }),
-      functions_spawn_agent: tool({
-        description:
-          "Deferred stub for dynamically creating extra subagents beyond the initial 1..3 pool.",
-        inputSchema: z
-          .object({
-            fork_context: z.boolean().optional(),
-            instruction: z.string(),
-            maxSteps: z.number().int().positive().optional(),
-          })
-          .strict(),
-        execute: async (input) =>
-          await recordTool("functions_spawn_agent", input, async () =>
-            await runDeferred("functions_spawn_agent", input),
-          ),
-      }),
-      functions_close_agent: tool({
-        description:
-          "Deferred stub for closing dynamically spawned extra agents.",
-        inputSchema: z.object({ id: z.string() }).strict(),
-        execute: async (input) =>
-          await recordTool("functions_close_agent", input, async () =>
-            await runDeferred("functions_close_agent", input),
-          ),
-      }),
-      multi_tool_use_parallel: tool({
-        description:
-          "Deferred stub for host-coordinated parallel tool execution.",
-        inputSchema: ParallelArgsSchema,
-        execute: async (input: ParallelArgs) =>
-          await recordTool("multi_tool_use_parallel", input, async () =>
-            await runDeferred("multi_tool_use_parallel", input),
-          ),
-      }),
-    };
+    return aiTools;
   }
 }
 
-function buildWorkspaceLayout(
+function buildSystemPrompt(
   workspace: string,
-  browserId: BrowserId,
-): SubagentWorkspaceLayout {
-  const rootDir = path.join(workspace, `subagent${browserId}`);
-  return {
-    browserId,
-    rootDir,
-    todoPath: path.join(rootDir, "TODO.md"),
-    chromeProfileDir: path.join(rootDir, "chrome_profile"),
-    downloadsDir: path.join(rootDir, "downloads"),
-    logsDir: path.join(rootDir, "logs"),
-    screenshotsDir: path.join(rootDir, "screenshots"),
-  };
-}
-
-function buildSystemPrompt(workspace: string, userPrompt?: string): string {
+  modelName: string,
+  userPrompt?: string,
+): string {
+  const browsePrefix = buildBrowseCliShellPrefix();
   return [
-    "You are a top-level coding agent coordinating Stagehand-backed browser subagents.",
-    "You do not control browsers directly. All browser access must go through the delegated web_* tools.",
-    "Use browser_id values 1, 2, or 3 when delegating browser work.",
+    "You are a top-level coding agent coordinating browser work through the browse CLI.",
+    "You do not have browser-specific tool wrappers.",
+    "Use functions_exec_command to run the browse CLI directly.",
+    `Use commands like: ${browsePrefix} --session browser-1 open https://example.com.`,
+    `Other direct browser commands use the same prefix: ${browsePrefix} --session <name> act|observe|extract|screenshot ...`,
+    `browse act, browse observe, and browse extract inherit model defaults from env in this workspace. Do not add --model unless you intentionally want to override ${modelName}.`,
     `Shared workspace root: ${workspace}`,
-    "Each subagent may read the entire workspace, but its browser artifacts live in its own subagent folder.",
     "Prefer functions_exec_command for shell work, local computation, and file operations.",
+    "Use functions_spawn_agent to launch extra background browser agents and functions_wait to join them later.",
+    "Spawned subagents already run inside browse subagent with their own browser tool surface.",
+    "When using functions_spawn_agent, give the child a goal and output requirements only. Do not tell it to use functions_exec_command, shell out to browse, or discover CLI paths.",
     userPrompt ?? "",
   ]
     .filter(Boolean)

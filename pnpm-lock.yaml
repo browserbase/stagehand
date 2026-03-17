@@ -65,6 +65,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: 0.39.0
         version: 0.39.0
+      '@browserbasehq/browse-cli':
+        specifier: workspace:*
+        version: link:../cli
       '@browserbasehq/sdk':
         specifier: ^2.4.0
         version: 2.5.0

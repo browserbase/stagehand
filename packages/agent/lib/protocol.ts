@@ -6,11 +6,17 @@ export const DEFAULT_SUBAGENT_COUNT = DEFAULT_INITIAL_SUBAGENT_COUNT;
 
 export const BrowserIdSchema = z.enum(["1", "2", "3"]).meta({
   id: "AgentBrowserId",
-  description:
-    "Stable browser slot identifier for the initial Stagehand-backed subagents.",
+  description: "Stable browser slot identifier for the initial subagents.",
 });
 
 export type BrowserId = z.infer<typeof BrowserIdSchema>;
+export const ManagedAgentIdSchema = z.string().min(1).meta({
+  id: "ManagedAgentId",
+  description:
+    "Runtime-managed subagent identifier. The initial browser slots are '1', '2', and '3', while dynamically spawned agents use generated string ids.",
+});
+
+export type ManagedAgentId = z.infer<typeof ManagedAgentIdSchema>;
 
 export const BrowserIds = BrowserIdSchema.options;
 
@@ -32,20 +38,21 @@ export const ModelInputSchema = z
 
 export type ModelInput = z.infer<typeof ModelInputSchema>;
 
+const StagehandAgentConfigSubsetSchema = Api.AgentConfigSchema.pick({
+  mode: true,
+  model: true,
+  executionModel: true,
+  systemPrompt: true,
+});
+
 export const AgentSubagentConfigSchema = z
   .object({
-    mode: z.enum(["dom", "hybrid", "cua"]).optional(),
-    model: ModelInputSchema.optional(),
-    executionModel: ModelInputSchema.optional(),
-    systemPrompt: z.string().optional(),
-    verbose: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
-    experimental: z.boolean().optional(),
-    localBrowserLaunchOptions: Api.LocalBrowserLaunchOptionsSchema.optional(),
+    ...StagehandAgentConfigSubsetSchema.shape,
   })
   .meta({
     id: "AgentSubagentConfig",
     description:
-      "Serializable configuration for one delegated Stagehand subagent.",
+      "Serializable configuration for one delegated browse subagent.",
   });
 
 export type AgentSubagentConfig = z.infer<typeof AgentSubagentConfigSchema>;
@@ -69,21 +76,8 @@ export const AgentOptionsSchema = z
 
 export type AgentOptions = z.infer<typeof AgentOptionsSchema>;
 
-export const ToolNamespaceSchema = z
-  .enum(["web", "functions", "multi_tool_use"])
-  .meta({ id: "ToolNamespace" });
-
-export type ToolNamespace = z.infer<typeof ToolNamespaceSchema>;
-
 export const ToolNameSchema = z
   .enum([
-    "web_spawn_agent",
-    "web_act",
-    "web_extract",
-    "web_observe",
-    "web_navigate",
-    "web_screenshot",
-    "web_search",
     "functions_exec_command",
     "functions_write_stdin",
     "functions_update_plan",
@@ -96,32 +90,6 @@ export const ToolNameSchema = z
   .meta({ id: "ToolName" });
 
 export type ToolName = z.infer<typeof ToolNameSchema>;
-
-export const SubagentTaskStatusSchema = z
-  .enum(["queued", "running", "completed", "failed"])
-  .meta({ id: "SubagentTaskStatus" });
-
-export type SubagentTaskStatus = z.infer<typeof SubagentTaskStatusSchema>;
-
-export const SubagentTaskRecordSchema = z
-  .object({
-    id: z.string(),
-    browser_id: BrowserIdSchema,
-    instruction: z.string(),
-    status: SubagentTaskStatusSchema,
-    expected_output_jsonschema: JsonObjectSchema.optional(),
-    result: z.unknown().optional(),
-    error: z.string().optional(),
-    created_at: z.string(),
-    updated_at: z.string(),
-  })
-  .meta({
-    id: "SubagentTaskRecord",
-    description:
-      "Append-only task record persisted to TODO.md so the orchestration layer remains reconstructable from disk.",
-  });
-
-export type SubagentTaskRecord = z.infer<typeof SubagentTaskRecordSchema>;
 
 export const AssistantTextBlockSchema = z
   .object({
@@ -167,119 +135,6 @@ export const AgentStreamEventSchema = z
   .meta({ id: "AgentStreamEvent" });
 
 export type AgentStreamEvent = z.infer<typeof AgentStreamEventSchema>;
-
-export const WebSpawnAgentArgsSchema = z
-  .object({
-    instruction: z.string(),
-    browser_id: BrowserIdSchema,
-    expected_output_jsonschema: JsonObjectSchema.optional(),
-    maxSteps: z.number().int().positive().optional(),
-  })
-  .meta({ id: "WebSpawnAgentArgs" });
-
-export const WebActArgsSchema = z
-  .object({
-    microtask: z.string(),
-    browser_id: BrowserIdSchema,
-    frame_id: z.string().optional(),
-  })
-  .meta({ id: "WebActArgs" });
-
-export const WebExtractArgsSchema = z
-  .object({
-    browser_id: BrowserIdSchema,
-    frame_id: z.string().optional(),
-    instruction: z.string().optional(),
-    expected_output_jsonschema: JsonObjectSchema.optional(),
-  })
-  .meta({ id: "WebExtractArgs" });
-
-export const WebObserveArgsSchema = z
-  .object({
-    browser_id: BrowserIdSchema,
-    instruction: z.string().optional(),
-    frame_id: z.string().optional(),
-  })
-  .meta({ id: "WebObserveArgs" });
-
-export const WaitUntilSchema = z.enum([
-  "load",
-  "domcontentloaded",
-  "networkidle",
-]);
-
-export type WaitUntil = z.infer<typeof WaitUntilSchema>;
-
-export const WebNavigateArgsSchema = z
-  .object({
-    browser_id: BrowserIdSchema,
-    url: z.string().url(),
-    waitUntil: WaitUntilSchema.optional(),
-  })
-  .meta({ id: "WebNavigateArgs" });
-
-export const WebScreenshotArgsSchema = z
-  .object({
-    browser_id: BrowserIdSchema,
-    frame_id: z.string().optional(),
-    selector: z.string().optional(),
-    y_offset: z.number().optional(),
-  })
-  .meta({ id: "WebScreenshotArgs" });
-
-export const WebSearchArgsSchema = z
-  .object({
-    query: z.string(),
-    max_results: z.number().int().positive().max(20).optional(),
-  })
-  .meta({ id: "WebSearchArgs" });
-
-export const WebSearchResultItemSchema = z
-  .object({
-    title: z.string(),
-    url: z.string(),
-    snippet: z.string().optional(),
-  })
-  .meta({ id: "WebSearchResultItem" });
-
-export const WebSearchResultSchema = z
-  .object({
-    query: z.string(),
-    results: z.array(WebSearchResultItemSchema),
-  })
-  .meta({ id: "WebSearchResult" });
-
-export const NavigateResultSchema = z
-  .object({
-    url: z.string(),
-    status: z.number().nullable(),
-    ok: z.boolean().nullable(),
-    status_text: z.string().nullable(),
-    headers: z.record(z.string(), z.string()).optional(),
-  })
-  .meta({ id: "AgentNavigateResult" });
-
-export const ScreenshotResultSchema = z
-  .object({
-    browser_id: BrowserIdSchema,
-    frame_id: z.string().optional(),
-    path: z.string(),
-    url: z.string().optional(),
-    selector: z.string().optional(),
-    y_offset: z.number().optional(),
-  })
-  .meta({ id: "AgentScreenshotResult" });
-
-export type WebSpawnAgentArgs = z.infer<typeof WebSpawnAgentArgsSchema>;
-export type WebActArgs = z.infer<typeof WebActArgsSchema>;
-export type WebExtractArgs = z.infer<typeof WebExtractArgsSchema>;
-export type WebObserveArgs = z.infer<typeof WebObserveArgsSchema>;
-export type WebNavigateArgs = z.infer<typeof WebNavigateArgsSchema>;
-export type WebScreenshotArgs = z.infer<typeof WebScreenshotArgsSchema>;
-export type WebSearchArgs = z.infer<typeof WebSearchArgsSchema>;
-export type WebSearchResult = z.infer<typeof WebSearchResultSchema>;
-export type NavigateResult = z.infer<typeof NavigateResultSchema>;
-export type ScreenshotResult = z.infer<typeof ScreenshotResultSchema>;
 
 export const ExecCommandArgsSchema = z
   .object({

@@ -8,12 +8,23 @@ import type {
   WriteStdinResult,
 } from "./protocol.js";
 
+type ExecCommandWithEnv = ExecCommandArgs & {
+  env?: NodeJS.ProcessEnv;
+};
+
 type RunningProcessSession = {
   id: number;
   command: string;
   proc: ChildProcessWithoutNullStreams;
   stdout: string;
   stderr: string;
+  exitCode: number | null;
+};
+
+export type ExecSessionSnapshot = {
+  id: number;
+  command: string;
+  running: boolean;
   exitCode: number | null;
 };
 
@@ -40,7 +51,7 @@ function truncateOutput(
   };
 }
 
-function buildShellInvocation(args: ExecCommandArgs): {
+function buildShellInvocation(args: ExecCommandWithEnv): {
   shellPath: string;
   shellArgs: string[];
 } {
@@ -72,12 +83,12 @@ export class ProcessSessionManager {
   private readonly sessions = new Map<number, RunningProcessSession>();
   private nextId = 1;
 
-  async exec(args: ExecCommandArgs): Promise<ExecCommandResult> {
+  async exec(args: ExecCommandWithEnv): Promise<ExecCommandResult> {
     const { shellPath, shellArgs } = buildShellInvocation(args);
     const sessionId = this.nextId++;
     const proc = spawn(shellPath, shellArgs, {
       cwd: args.workdir ? path.resolve(args.workdir) : process.cwd(),
-      env: process.env,
+      env: args.env ?? process.env,
       stdio: "pipe",
     });
 
@@ -138,16 +149,26 @@ export class ProcessSessionManager {
 
   async execCommand(
     args: ExecCommandArgs,
-    context?: { workspace?: string },
+    context?: { workspace?: string; env?: NodeJS.ProcessEnv },
   ): Promise<ExecCommandResult> {
     return this.exec({
       ...args,
       workdir: args.workdir ?? context?.workspace,
+      env: context?.env,
     });
   }
 
   async writeStdin(args: WriteStdinArgs): Promise<WriteStdinResult> {
     return this.write(args);
+  }
+
+  listSessions(): ExecSessionSnapshot[] {
+    return [...this.sessions.values()].map((session) => ({
+      id: session.id,
+      command: session.command,
+      running: session.exitCode === null,
+      exitCode: session.exitCode,
+    }));
   }
 
   private snapshotSession(

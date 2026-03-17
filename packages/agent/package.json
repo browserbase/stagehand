@@ -51,6 +51,7 @@
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",
     "@anthropic-ai/sdk": "0.39.0",
+    "@browserbasehq/browse-cli": "workspace:*",
     "@browserbasehq/sdk": "^2.4.0",
     "@browserbasehq/stagehand": "workspace:*",
     "@google/genai": "^1.22.0",

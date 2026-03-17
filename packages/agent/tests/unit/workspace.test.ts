@@ -4,7 +4,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import {
   appendTopLevelTask,
   ensureWorkspaceLayout,
-} from "../../lib/workspace.js";
+} from "../../lib/state/session.js";
 
 const createdDirs: string[] = [];
 
@@ -29,9 +29,9 @@ describe("workspace layout", () => {
     expect(layout.rootDir).toBe(rootDir);
     expect(await fs.readFile(layout.todoPath, "utf8")).toContain("Workspace TODO");
     expect(Object.keys(layout.subagents)).toEqual(["1", "2", "3"]);
-    await expect(fs.stat(layout.subagents["1"].chromeProfileDir)).resolves.toBeTruthy();
-    await expect(fs.stat(layout.subagents["2"].downloadsDir)).resolves.toBeTruthy();
-    await expect(fs.stat(layout.subagents["3"].screenshotsDir)).resolves.toBeTruthy();
+    await expect(fs.stat(layout.subagents["1"].rootDir)).resolves.toBeTruthy();
+    await expect(fs.stat(layout.subagents["2"].logsDir)).resolves.toBeTruthy();
+    await expect(fs.readFile(layout.subagents["3"].configPath, "utf8")).resolves.toContain("{}");
   });
 
   test("appends tasks to the top-level TODO file", async () => {

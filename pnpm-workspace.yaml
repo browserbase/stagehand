@@ -1,5 +1,6 @@
 packages:
   - "packages/agent"
+  - "packages/cli"
   - "packages/core"
   - "packages/evals"
   - "packages/docs"
