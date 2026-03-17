@@ -1,0 +1,27 @@
+packages/server-v4/test/integration/utils.ts
+  6dec7dcc42b5ac08 39,45,192,246,264,571
+packages/server-v4/src/lib/env.ts
+  6dec7dcc42b5ac08 14-16
+packages/server-v4/test/integration/api-server-cache.test.ts
+  6dec7dcc42b5ac08 10,38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "e6eca7509bb46eb9468e439135c4c2130e11a1ef",
+  "prompts": {
+    "6dec7dcc42b5ac08": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cf9a9-5ecf-72d0-a32a-30cea5c1bc07",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 174,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    }
+  }
+}
