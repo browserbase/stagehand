@@ -1,0 +1,25 @@
+packages/core/tests/unit/flow-logger-agent-context.test.ts
+  6dec7dcc42b5ac08 1,3-4,38,71,102-151
+packages/core/lib/v3/flowLogger.ts
+  6dec7dcc42b5ac08 5-6,100-109,116,122-130,140-151,153,376-388,391,394
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "755774de0ea242a17aa887f58fdf77b77c049a3e",
+  "prompts": {
+    "6dec7dcc42b5ac08": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cf9a9-5ecf-72d0-a32a-30cea5c1bc07",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>",
+      "messages": [],
+      "total_additions": 132,
+      "total_deletions": 45,
+      "accepted_lines": 117,
+      "overriden_lines": 0
+    }
+  }
+}
