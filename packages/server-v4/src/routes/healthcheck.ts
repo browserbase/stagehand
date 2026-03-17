@@ -2,8 +2,6 @@ import type { RouteOptions } from "fastify";
 import { z } from "zod/v4";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
-import { withErrorHandling } from "../lib/errorHandler.js";
-
 const healthcheckRoute: RouteOptions = {
   method: "GET",
   url: "/healthz",
@@ -19,11 +17,9 @@ const healthcheckRoute: RouteOptions = {
         .strict(),
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: withErrorHandling(async () => {
-    return {
-      status: "ok",
-      timestamp: new Date().toISOString(),
-    };
+  handler: async () => ({
+    status: "ok",
+    timestamp: new Date().toISOString(),
   }),
 };
 
