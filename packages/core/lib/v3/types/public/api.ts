@@ -207,6 +207,72 @@ const modelClientOptionsSharedShape = {
   }),
 } as const;
 
+function addBedrockAuthIssue(
+  ctx: z.RefinementCtx,
+  path: (string | number)[],
+  message: string,
+) {
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path,
+    message,
+  });
+}
+
+function validateBedrockAuthShape(
+  modelName: string,
+  modelConfig: {
+    apiKey?: unknown;
+    providerOptions?: unknown;
+  },
+  ctx: z.RefinementCtx,
+  providerOptionsPath: (string | number)[] = ["providerOptions"],
+) {
+  if (!modelName.startsWith("bedrock/")) {
+    return;
+  }
+
+  const providerOptions =
+    modelConfig.providerOptions &&
+    typeof modelConfig.providerOptions === "object" &&
+    !Array.isArray(modelConfig.providerOptions)
+      ? (modelConfig.providerOptions as Record<string, unknown>)
+      : undefined;
+
+  const hasRegion = typeof providerOptions?.region === "string";
+  const hasAccessKeyId = providerOptions?.accessKeyId !== undefined;
+  const hasSecretAccessKey = providerOptions?.secretAccessKey !== undefined;
+  const hasSessionToken = providerOptions?.sessionToken !== undefined;
+  const hasAnyAwsCredentialField =
+    hasAccessKeyId || hasSecretAccessKey || hasSessionToken;
+  const hasCompleteAwsCredentials = hasAccessKeyId && hasSecretAccessKey;
+  const hasApiKey = modelConfig.apiKey !== undefined;
+
+  if (!hasRegion) {
+    addBedrockAuthIssue(
+      ctx,
+      providerOptionsPath,
+      "Bedrock configs require providerOptions.region.",
+    );
+  }
+
+  if (hasApiKey && hasAnyAwsCredentialField) {
+    addBedrockAuthIssue(
+      ctx,
+      ["apiKey"],
+      "Bedrock configs cannot mix apiKey auth with AWS credential providerOptions.",
+    );
+  }
+
+  if (hasAnyAwsCredentialField && !hasCompleteAwsCredentials) {
+    addBedrockAuthIssue(
+      ctx,
+      providerOptionsPath,
+      "Bedrock AWS credential auth requires both accessKeyId and secretAccessKey.",
+    );
+  }
+}
+
 /** Detailed model configuration object */
 export const ModelConfigObjectSchema = z
   .object({
@@ -220,6 +286,9 @@ export const ModelConfigObjectSchema = z
     }),
   })
   .strict()
+  .superRefine((value, ctx) => {
+    validateBedrockAuthShape(value.modelName, value, ctx);
+  })
   .meta({ id: "ModelConfigObject" });
 
 /** Model configuration */
@@ -549,6 +618,14 @@ export const SessionStartRequestSchema = z
     actTimeoutMs: z.number().optional().meta({
       description: "Timeout in ms for act operations (deprecated, v2 only)",
     }),
+  })
+  .superRefine((value, ctx) => {
+    validateBedrockAuthShape(
+      value.modelName,
+      value.modelClientOptions ?? {},
+      ctx,
+      ["modelClientOptions", "providerOptions"],
+    );
   })
   .meta({ id: "SessionStartRequest" });
 
