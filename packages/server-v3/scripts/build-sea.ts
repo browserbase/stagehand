@@ -200,7 +200,7 @@ const resolveNodeBinary = async (): Promise<string> => {
   if (fs.existsSync(binaryPath)) {
     if (!hasSeaFuse(binaryPath)) {
       throw new Error(
-        `Node binary at ${binaryPath} does not include ${seaFuse}; unable to build SEA binary.`,
+        `Node binary at ${binaryPath} does not include ${seaFuse}; unable to build SEA binary. Delete ${tmpRoot} and retry.`,
       );
     }
     return binaryPath;
@@ -229,7 +229,7 @@ const resolveNodeBinary = async (): Promise<string> => {
   }
   if (!hasSeaFuse(binaryPath)) {
     throw new Error(
-      `Node binary at ${binaryPath} does not include ${seaFuse}; unable to build SEA binary.`,
+      `Node binary at ${binaryPath} does not include ${seaFuse}; unable to build SEA binary. Delete ${tmpRoot} and retry.`,
     );
   }
   return binaryPath;
