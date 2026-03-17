@@ -1,0 +1,29 @@
+packages/server-v3/src/lib/env.ts
+  6dec7dcc42b5ac08 19-29
+packages/server-v3/test/integration/utils.ts
+  6dec7dcc42b5ac08 33,35-36,38-40,42-44,46-48,50-51,53-56,60,62-63
+packages/server-v4/src/lib/env.ts
+  6dec7dcc42b5ac08 19-29
+packages/server-v4/test/integration/utils.ts
+  6dec7dcc42b5ac08 33,35-36,38-40,42-44,46-48,50-51,53-56,60,62-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "29ab8510af97afc0e7d297e79d95b7bb987efe95",
+  "prompts": {
+    "6dec7dcc42b5ac08": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cf9a9-5ecf-72d0-a32a-30cea5c1bc07",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>",
+      "messages": [],
+      "total_additions": 28,
+      "total_deletions": 92,
+      "accepted_lines": 72,
+      "overriden_lines": 0
+    }
+  }
+}
