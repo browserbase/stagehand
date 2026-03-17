@@ -85,7 +85,6 @@ import { StagehandAPIClient } from "./api.js";
 import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures.js";
 import { flattenVariables } from "./agent/utils/variables.js";
 import {
-  FlowEvent,
   EventEmitterWithWildcardSupport,
   FlowLogger,
   type FlowLoggerContext,
@@ -247,7 +246,6 @@ export class V3 {
   private apiClient: StagehandAPIClient | null = null;
   private keepAlive?: boolean;
   private shutdownSupervisor: ShutdownSupervisorHandle | null = null;
-  private detachEventStoreListener: (() => void) | null = null;
 
   public stagehandMetrics: StagehandMetrics = {
     actPromptTokens: 0,
@@ -387,8 +385,8 @@ export class V3 {
 
     // FlowLogger always gets a per-instance session context and shared event
     // bus. The attached EventStore decides which sinks are active:
-    // `verbose: 2` enables pretty stderr output, and `BROWSERBASE_CONFIG_DIR`
-    // enables the pretty/jsonl file sinks for this session.
+    // `verbose: 2` or `BROWSERBASE_FLOW_LOGS=1` enables pretty stderr output,
+    // and `BROWSERBASE_CONFIG_DIR` enables the pretty/jsonl file sinks for this session.
     this.eventStore = new EventStore(this.sessionId, opts);
     this.flowLoggerContext = FlowLogger.init(this.sessionId, this.bus);
     // Flow event pipeline:
@@ -396,15 +394,10 @@ export class V3 {
     // V3 owns the bus for this session. EventStore is not another bus; it just
     // receives already-emitted FlowEvents here, then fans them out to sinks and
     // keeps the queryable per-session history used by /v4/log, parent/ancestor lookups, and tests.
-    const onFlowEvent = (event: unknown) => {
-      if (event instanceof FlowEvent && event.sessionId === this.sessionId) {
-        void this.eventStore.emit(event);
-      }
-    };
-    this.bus.on("*", onFlowEvent);
-    this.detachEventStoreListener = () => {
-      this.bus.off("*", onFlowEvent);
-    };
+    // `on()` stores a strong reference to the bound handler, so the EventStore
+    // stays alive until this bus is garbage-collected with the rest of the V3
+    // object graph.
+    this.bus.on("*", this.eventStore.emit.bind(this.eventStore));
 
     // Track instance for global process guard handling
     V3._instances.add(this);
@@ -1040,12 +1033,6 @@ export class V3 {
           // ignore cleanup errors
         }
       }
-      try {
-        this.detachEventStoreListener?.();
-        this.detachEventStoreListener = null;
-      } catch {
-        // ignore cleanup errors
-      }
       throw error;
     }
   }
@@ -1489,12 +1476,6 @@ export class V3 {
       this.resetBrowserbaseSessionMetadata();
       try {
         unbindInstanceLogger(this.instanceId);
-      } catch {
-        // ignore
-      }
-      try {
-        this.detachEventStoreListener?.();
-        this.detachEventStoreListener = null;
       } catch {
         // ignore
       }

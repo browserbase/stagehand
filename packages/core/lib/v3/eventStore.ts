@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { chalkStderr } from "chalk";
 import { toTitleCase } from "../utils.js";
 import type { V3Options } from "./types/public/index.js";
 import { FlowEvent } from "./flowLogger.js";
@@ -11,6 +12,7 @@ const DEFAULT_IN_MEMORY_EVENT_LIMIT = 500;
 // session metadata + event logs get saved in  BROWSERBASE_CONFIG_DIR/sessions/<session-id>/*.{log,json,jsonl,...}
 const CONFIG_DIR = process.env.BROWSERBASE_CONFIG_DIR || "";
 // e.g. BROWSERBASE_CONFIG_DIR=~/.config/browserbase, BROWSERBASE_CONFIG_DIR=., BROWSERBASE_CONFIG_DIR=/tmp/bb
+const FLOW_LOGS_ENABLED = process.env.BROWSERBASE_FLOW_LOGS === "1"; // Force-enables the pretty stderr flow sink even when `verbose !== 2`.
 
 // Some last-line-of-defense patterns that should be redacted at all costs when prettifying in log sinks
 const SENSITIVE_KEYS =
@@ -501,7 +503,7 @@ function prettifyBuildContextTags(
     return [
       prettifyFormatTag("", agentEvent?.eventId, "🅰"),
       prettifyFormatTag(stagehandLabel, stagehandEvent?.eventId, "🆂"),
-      prettifyFormatTag("LLM", requestId ?? llmEvent?.eventId, "🧠"),
+      prettifyFormatTag("LLM", requestId ?? llmEvent?.eventId, "🅻"),
     ];
   }
 
@@ -638,6 +640,25 @@ async function prettifyEvent(
   return prettifyTruncateLine(processed, MAX_LINE_LENGTH);
 }
 
+function prettifyColorStderrLine(line: string): string {
+  const purple = chalkStderr.hex("#a855f7");
+  const colors = { "🅰": chalkStderr.cyan, "🆂": chalkStderr.yellow, "🆄": chalkStderr.green, "🅻": purple, "🅲": chalkStderr.gray } as const;
+  return line
+    .replace(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{5})/, (_, timestamp) => chalkStderr.dim(timestamp))
+    .replace(/\[([🅰🆂🆄🅻🅲])([^\]]*)\]/gu, (_, icon, rest) => (colors[icon as keyof typeof colors] ?? ((value: string) => value))(`[${icon}${rest}]`))
+    .replace(/ in (\d+(?:\.\d+)?s)/g, (_, duration) => ` ${chalkStderr.dim("in")} ${chalkStderr.dim(duration)}`)
+    .replace(/▷/g, chalkStderr.cyanBright("▷"))
+    .replace(/⏴/g, chalkStderr.cyanBright("⏴"))
+    .replace(/↳/g, purple("↳"))
+    .replace(/ꜛ/g, chalkStderr.yellow("ꜛ"))
+    .replace(/ꜜ/g, purple("ꜜ"))
+    .replace(/…/g, chalkStderr.blueBright("…"))
+    .replace(/[(){}=]/g, (char) => chalkStderr.blueBright(char))
+    .replace(/([A-Za-z])(\.)([A-Za-z])/g, (_, left, dot, right) => `${left}${chalkStderr.blueBright(dot)}${right}`)
+    .replace(/ ✓ /g, ` ${chalkStderr.green("✓")} `)
+    .replace(/ ✕ /g, ` ${chalkStderr.red("✕")} `);
+}
+
 // =============================================================================
 // Sink Implementations
 // =============================================================================
@@ -742,13 +763,16 @@ export class PrettyStderrEventSink implements EventSink {
 
       await new Promise<void>((resolve, reject) => {
         try {
-          process.stderr.write(`${line}\n`, (error?: Error | null) => {
-            if (error) {
-              reject(error);
-              return;
-            }
-            resolve();
-          });
+          process.stderr.write(
+            `${prettifyColorStderrLine(line)}\n`,
+            (error?: Error | null) => {
+              if (error) {
+                reject(error);
+                return;
+              }
+              resolve();
+            },
+          );
         } catch (error) {
           reject(error);
         }
@@ -873,7 +897,7 @@ export class EventStore implements EventStoreApi {
       this.registerSink(prettyLogSink);
     }
 
-    if (options?.verbose === 2) {
+    if (options?.verbose === 2 || FLOW_LOGS_ENABLED) {
       const stderrSink = new PrettyStderrEventSink(this);
       this.registerSink(stderrSink);
     }
