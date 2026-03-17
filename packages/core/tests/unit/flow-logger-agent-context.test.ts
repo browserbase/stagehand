@@ -39,7 +39,10 @@ describe("FlowLogger agent context recovery", () => {
     v3 = await createV3OutsideFlowContext();
     const observedSessionIds: string[] = [];
 
-    vi.spyOn(v3 as never as { prepareAgentExecution: () => Promise<unknown> }, "prepareAgentExecution").mockResolvedValue({
+    vi.spyOn(
+      v3 as never as { prepareAgentExecution: () => Promise<unknown> },
+      "prepareAgentExecution",
+    ).mockResolvedValue({
       handler: {
         execute: vi.fn(async () => {
           FlowLogger.logLlmRequest({
