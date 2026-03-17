@@ -914,10 +914,8 @@ export class EventStore implements EventStoreApi {
       return;
     }
 
-    await Promise.all(
-      [...this.sinks].map(async (sink) => {
-        await sink.emit(event);
-      }),
+    await Promise.allSettled(
+      [...this.sinks].map((sink) => sink.emit(event)),
     );
   }
 
