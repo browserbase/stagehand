@@ -159,13 +159,6 @@ const ModelProviderSchema = z.enum([
   "bedrock",
 ]);
 
-const NonBedrockModelProviderSchema = z.enum([
-  "openai",
-  "anthropic",
-  "google",
-  "microsoft",
-]);
-
 const modelConfigSharedShape = {
   provider: ModelProviderSchema.optional().meta({
     description:
@@ -195,15 +188,6 @@ const modelConfigSharedShape = {
   }),
 } as const;
 
-const nonBedrockModelConfigSharedShape = {
-  ...modelConfigSharedShape,
-  provider: NonBedrockModelProviderSchema.optional().meta({
-    description:
-      "AI provider for the model (or provide a baseURL endpoint instead)",
-    example: "openai",
-  }),
-} as const;
-
 const modelClientOptionsSharedShape = {
   baseURL: z.string().url().optional().meta({
     description: "Base URL for the model provider",
@@ -223,21 +207,10 @@ const modelClientOptionsSharedShape = {
   }),
 } as const;
 
-const bedrockModelNameSchema = z
-  .string()
-  .refine((value) => value.startsWith("bedrock/"), {
-    message:
-      "Bedrock model configs must use a modelName prefixed with 'bedrock/'.",
-  })
-  .meta({
-    description:
-      "Model name string with provider prefix (e.g., 'bedrock/amazon.nova-pro-v1:0')",
-    example: "bedrock/amazon.nova-pro-v1:0",
-  });
-
-const GenericModelConfigObjectSchema = z
+/** Detailed model configuration object */
+export const ModelConfigObjectSchema = z
   .object({
-    ...nonBedrockModelConfigSharedShape,
+    ...modelConfigSharedShape,
     apiKey: z.string().optional().meta({
       description: "API key for the model provider",
       example: "sk-some-openai-api-key",
@@ -247,79 +220,6 @@ const GenericModelConfigObjectSchema = z
     }),
   })
   .strict()
-  .superRefine((value, ctx) => {
-    const provider =
-      value.provider ??
-      (value.modelName.includes("/") ? value.modelName.split("/", 1)[0] : null);
-
-    if (provider !== "bedrock") {
-      return;
-    }
-
-    if (provider === "bedrock") {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["modelName"],
-        message:
-          "Bedrock model configs must use one of the explicit Bedrock auth shapes.",
-      });
-    }
-  })
-  .meta({ id: "GenericModelConfigObject" });
-
-const BedrockApiKeyModelConfigObjectSchema = z
-  .object({
-    ...modelConfigSharedShape,
-    provider: z.literal("bedrock").optional().meta({
-      description: "AI provider for the model",
-      example: "bedrock",
-    }),
-    modelName: bedrockModelNameSchema,
-    baseURL: z.string().url().optional().meta({
-      description: "Base URL for the model provider",
-      example: "https://bedrock-runtime.us-east-1.amazonaws.com",
-    }),
-    apiKey: z.string().meta({
-      description: "Short-term Bedrock API key for bearer-token auth",
-      example: "bedrock-short-term-api-key",
-    }),
-    providerOptions: BedrockApiKeyProviderOptionsSchema.meta({
-      example: { region: "us-east-1" },
-    }),
-  })
-  .strict()
-  .meta({ id: "BedrockApiKeyModelConfigObject" });
-
-const BedrockAwsCredentialsModelConfigObjectSchema = z
-  .object({
-    ...modelConfigSharedShape,
-    provider: z.literal("bedrock").optional().meta({
-      description: "AI provider for the model",
-      example: "bedrock",
-    }),
-    modelName: bedrockModelNameSchema,
-    baseURL: z.string().url().optional().meta({
-      description: "Base URL for the model provider",
-      example: "https://bedrock-runtime.us-east-1.amazonaws.com",
-    }),
-    providerOptions: BedrockAwsCredentialsProviderOptionsSchema.meta({
-      example: {
-        region: "us-east-1",
-        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-        secretAccessKey: "secret",
-      },
-    }),
-  })
-  .strict()
-  .meta({ id: "BedrockAwsCredentialsModelConfigObject" });
-
-/** Detailed model configuration object */
-export const ModelConfigObjectSchema = z
-  .union([
-    BedrockApiKeyModelConfigObjectSchema,
-    BedrockAwsCredentialsModelConfigObjectSchema,
-    GenericModelConfigObjectSchema,
-  ])
   .meta({ id: "ModelConfigObject" });
 
 /** Model configuration */

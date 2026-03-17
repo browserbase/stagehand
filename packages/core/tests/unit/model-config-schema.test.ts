@@ -2,10 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { Api } from "../../lib/v3/types/public/index.js";
 
-describe("ModelConfigObjectSchema", () => {
+describe("ModelClientOptionsSchema", () => {
   it("accepts Bedrock bearer token auth", () => {
-    const result = Api.ModelConfigObjectSchema.safeParse({
-      modelName: "bedrock/amazon.nova-pro-v1:0",
+    const result = Api.ModelClientOptionsSchema.safeParse({
       apiKey: "bedrock-short-term-api-key",
       providerOptions: {
         region: "us-east-1",
@@ -16,8 +15,7 @@ describe("ModelConfigObjectSchema", () => {
   });
 
   it("accepts Bedrock AWS credential auth", () => {
-    const result = Api.ModelConfigObjectSchema.safeParse({
-      modelName: "bedrock/amazon.nova-pro-v1:0",
+    const result = Api.ModelClientOptionsSchema.safeParse({
       providerOptions: {
         region: "us-east-1",
         accessKeyId: "AKIAIOSFODNN7EXAMPLE",
@@ -30,8 +28,7 @@ describe("ModelConfigObjectSchema", () => {
   });
 
   it("rejects Bedrock config without region", () => {
-    const result = Api.ModelConfigObjectSchema.safeParse({
-      modelName: "bedrock/amazon.nova-pro-v1:0",
+    const result = Api.ModelClientOptionsSchema.safeParse({
       apiKey: "bedrock-short-term-api-key",
     });
 
@@ -39,8 +36,7 @@ describe("ModelConfigObjectSchema", () => {
   });
 
   it("rejects partial Bedrock AWS credentials", () => {
-    const result = Api.ModelConfigObjectSchema.safeParse({
-      modelName: "bedrock/amazon.nova-pro-v1:0",
+    const result = Api.ModelClientOptionsSchema.safeParse({
       providerOptions: {
         region: "us-east-1",
         accessKeyId: "AKIAIOSFODNN7EXAMPLE",
@@ -51,8 +47,7 @@ describe("ModelConfigObjectSchema", () => {
   });
 
   it("rejects Bedrock configs that provide both auth modes", () => {
-    const result = Api.ModelConfigObjectSchema.safeParse({
-      modelName: "bedrock/amazon.nova-pro-v1:0",
+    const result = Api.ModelClientOptionsSchema.safeParse({
       apiKey: "bedrock-short-term-api-key",
       providerOptions: {
         region: "us-east-1",
@@ -65,8 +60,7 @@ describe("ModelConfigObjectSchema", () => {
   });
 
   it("accepts Vertex provider options", () => {
-    const result = Api.ModelConfigObjectSchema.safeParse({
-      modelName: "vertex/gemini-2.5-pro",
+    const result = Api.ModelClientOptionsSchema.safeParse({
       providerOptions: {
         project: "test-project",
         location: "us-central1",

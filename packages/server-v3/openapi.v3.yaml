@@ -76,52 +76,17 @@ components:
         id: $response.body#/data/sessionId
       description: End the session and release resources
   schemas:
-    BedrockApiKeyModelConfigObject:
-      type: object
-      properties:
-        provider:
-          description: AI provider for the model
-          example: bedrock
-          type: string
-          const: bedrock
-        modelName:
-          description: Model name string with provider prefix (e.g.,
-            'bedrock/amazon.nova-pro-v1:0')
-          example: bedrock/amazon.nova-pro-v1:0
-          type: string
-        baseURL:
-          description: Base URL for the model provider
-          example: https://bedrock-runtime.us-east-1.amazonaws.com
-          type: string
-          format: uri
-        headers:
-          description: Custom headers for the model provider
-          example:
-            X-Custom-Header: value
-          type: object
-          propertyNames:
-            type: string
-          additionalProperties:
-            type: string
-        skipApiKeyFallback:
-          description: When true, hosted sessions will not copy x-model-api-key into
-            model.apiKey. Use this when auth is carried through providerOptions
-            instead of an API key.
-          example: true
-          type: boolean
-        apiKey:
-          description: Short-term Bedrock API key for bearer-token auth
-          example: bedrock-short-term-api-key
-          type: string
-        providerOptions:
-          example:
-            region: us-east-1
-          $ref: "#/components/schemas/BedrockApiKeyProviderOptions"
-      required:
-        - modelName
-        - apiKey
-        - providerOptions
-      additionalProperties: false
+    ProviderOptions:
+      description: "Provider-specific options passed through to the AI SDK provider
+        constructor. For Bedrock: { region, accessKeyId, secretAccessKey,
+        sessionToken }. For Vertex: { project, location, googleAuthOptions }."
+      anyOf:
+        - $ref: "#/components/schemas/BedrockProviderOptions"
+        - $ref: "#/components/schemas/GoogleVertexProviderOptions"
+    BedrockProviderOptions:
+      anyOf:
+        - $ref: "#/components/schemas/BedrockApiKeyProviderOptions"
+        - $ref: "#/components/schemas/BedrockAwsCredentialsProviderOptions"
     BedrockApiKeyProviderOptions:
       type: object
       properties:
@@ -131,49 +96,6 @@ components:
           type: string
       required:
         - region
-      additionalProperties: false
-    BedrockAwsCredentialsModelConfigObject:
-      type: object
-      properties:
-        provider:
-          description: AI provider for the model
-          example: bedrock
-          type: string
-          const: bedrock
-        modelName:
-          description: Model name string with provider prefix (e.g.,
-            'bedrock/amazon.nova-pro-v1:0')
-          example: bedrock/amazon.nova-pro-v1:0
-          type: string
-        baseURL:
-          description: Base URL for the model provider
-          example: https://bedrock-runtime.us-east-1.amazonaws.com
-          type: string
-          format: uri
-        headers:
-          description: Custom headers for the model provider
-          example:
-            X-Custom-Header: value
-          type: object
-          propertyNames:
-            type: string
-          additionalProperties:
-            type: string
-        skipApiKeyFallback:
-          description: When true, hosted sessions will not copy x-model-api-key into
-            model.apiKey. Use this when auth is carried through providerOptions
-            instead of an API key.
-          example: true
-          type: boolean
-        providerOptions:
-          example:
-            region: us-east-1
-            accessKeyId: AKIAIOSFODNN7EXAMPLE
-            secretAccessKey: secret
-          $ref: "#/components/schemas/BedrockAwsCredentialsProviderOptions"
-      required:
-        - modelName
-        - providerOptions
       additionalProperties: false
     BedrockAwsCredentialsProviderOptions:
       type: object
@@ -199,65 +121,6 @@ components:
         - accessKeyId
         - secretAccessKey
       additionalProperties: false
-    GenericModelConfigObject:
-      type: object
-      properties:
-        provider:
-          description: AI provider for the model (or provide a baseURL endpoint instead)
-          example: openai
-          type: string
-          enum:
-            - openai
-            - anthropic
-            - google
-            - microsoft
-        modelName:
-          description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
-          example: openai/gpt-5-nano
-          type: string
-        baseURL:
-          description: Base URL for the model provider
-          example: https://api.openai.com/v1
-          type: string
-          format: uri
-        headers:
-          description: Custom headers for the model provider
-          example:
-            X-Custom-Header: value
-          type: object
-          propertyNames:
-            type: string
-          additionalProperties:
-            type: string
-        skipApiKeyFallback:
-          description: When true, hosted sessions will not copy x-model-api-key into
-            model.apiKey. Use this when auth is carried through providerOptions
-            instead of an API key.
-          example: true
-          type: boolean
-        apiKey:
-          description: API key for the model provider
-          example: sk-some-openai-api-key
-          type: string
-        providerOptions:
-          example:
-            region: us-east-1
-            accessKeyId: AKIAIOSFODNN7EXAMPLE
-          $ref: "#/components/schemas/ProviderOptions"
-      required:
-        - modelName
-      additionalProperties: false
-    ProviderOptions:
-      description: "Provider-specific options passed through to the AI SDK provider
-        constructor. For Bedrock: { region, accessKeyId, secretAccessKey,
-        sessionToken }. For Vertex: { project, location, googleAuthOptions }."
-      anyOf:
-        - $ref: "#/components/schemas/BedrockProviderOptions"
-        - $ref: "#/components/schemas/GoogleVertexProviderOptions"
-    BedrockProviderOptions:
-      anyOf:
-        - $ref: "#/components/schemas/BedrockApiKeyProviderOptions"
-        - $ref: "#/components/schemas/BedrockAwsCredentialsProviderOptions"
     GoogleVertexProviderOptions:
       type: object
       properties:
@@ -505,10 +368,54 @@ components:
           type: boolean
       additionalProperties: false
     ModelConfigObject:
-      anyOf:
-        - $ref: "#/components/schemas/BedrockApiKeyModelConfigObject"
-        - $ref: "#/components/schemas/BedrockAwsCredentialsModelConfigObject"
-        - $ref: "#/components/schemas/GenericModelConfigObject"
+      type: object
+      properties:
+        provider:
+          description: AI provider for the model (or provide a baseURL endpoint instead)
+          example: openai
+          type: string
+          enum:
+            - openai
+            - anthropic
+            - google
+            - microsoft
+            - bedrock
+        modelName:
+          description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
+          example: openai/gpt-5-nano
+          type: string
+        baseURL:
+          description: Base URL for the model provider
+          example: https://api.openai.com/v1
+          type: string
+          format: uri
+        headers:
+          description: Custom headers for the model provider
+          example:
+            X-Custom-Header: value
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
+        skipApiKeyFallback:
+          description: When true, hosted sessions will not copy x-model-api-key into
+            model.apiKey. Use this when auth is carried through providerOptions
+            instead of an API key.
+          example: true
+          type: boolean
+        apiKey:
+          description: API key for the model provider
+          example: sk-some-openai-api-key
+          type: string
+        providerOptions:
+          example:
+            region: us-east-1
+            accessKeyId: AKIAIOSFODNN7EXAMPLE
+          $ref: "#/components/schemas/ProviderOptions"
+      required:
+        - modelName
+      additionalProperties: false
     ModelConfig:
       $ref: "#/components/schemas/ModelConfigObject"
     ModelClientOptions:
