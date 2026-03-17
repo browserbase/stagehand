@@ -34,9 +34,9 @@ import {
 } from "./utils/googleCustomToolHandler.js";
 import { ToolSet } from "ai";
 import {
-  FlowLogger,
-  extractLlmCuaPromptSummary,
-  extractLlmCuaResponseSummary,
+  SessionFileLogger,
+  formatCuaPromptPreview,
+  formatCuaResponsePreview,
 } from "../flowLogger.js";
 import { v7 as uuidv7 } from "uuid";
 
@@ -368,10 +368,11 @@ export class GoogleCUAClient extends AgentClient {
 
       // Log LLM request
       const llmRequestId = uuidv7();
-      FlowLogger.logLlmRequest({
+      SessionFileLogger.logLlmRequest({
         requestId: llmRequestId,
         model: this.modelName,
-        prompt: extractLlmCuaPromptSummary(compressedHistory),
+        operation: "CUA.generateContent",
+        prompt: formatCuaPromptPreview(compressedHistory),
       });
 
       for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -441,10 +442,11 @@ export class GoogleCUAClient extends AgentClient {
       const { usageMetadata } = response;
 
       // Log LLM response
-      FlowLogger.logLlmResponse({
+      SessionFileLogger.logLlmResponse({
         requestId: llmRequestId,
         model: this.modelName,
-        output: extractLlmCuaResponseSummary(response),
+        operation: "CUA.generateContent",
+        output: formatCuaResponsePreview(response),
         inputTokens: usageMetadata?.promptTokenCount,
         outputTokens: usageMetadata?.candidatesTokenCount,
       });

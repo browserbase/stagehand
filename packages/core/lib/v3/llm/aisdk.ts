@@ -17,7 +17,7 @@ import { v7 as uuidv7 } from "uuid";
 import { LogLine } from "../types/public/logs.js";
 import { AvailableModel } from "../types/public/model.js";
 import { CreateChatCompletionOptions, LLMClient } from "./LLMClient.js";
-import { FlowLogger, extractLlmPromptSummary } from "../flowLogger.js";
+import { SessionFileLogger, formatLlmPromptPreview } from "../flowLogger.js";
 import { toJsonSchema } from "../zodCompat.js";
 
 export class AISdkClient extends LLMClient {
@@ -149,13 +149,14 @@ export class AISdkClient extends LLMClient {
     if (options.response_model) {
       // Log LLM request for generateObject (extract)
       const llmRequestId = uuidv7();
-      const promptSummary = extractLlmPromptSummary(options.messages, {
+      const promptPreview = formatLlmPromptPreview(options.messages, {
         hasSchema: true,
       });
-      FlowLogger.logLlmRequest({
+      SessionFileLogger.logLlmRequest({
         requestId: llmRequestId,
         model: this.model.modelId,
-        prompt: promptSummary,
+        operation: "generateObject",
+        prompt: promptPreview,
       });
 
       // For models that don't support native structured outputs, add a prompt instruction
@@ -192,9 +193,10 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
         });
       } catch (err) {
         // Log error response to maintain request/response pairing
-        FlowLogger.logLlmResponse({
+        SessionFileLogger.logLlmResponse({
           requestId: llmRequestId,
           model: this.model.modelId,
+          operation: "generateObject",
           output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
         });
 
@@ -248,9 +250,10 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       } as T;
 
       // Log LLM response for generateObject
-      FlowLogger.logLlmResponse({
+      SessionFileLogger.logLlmResponse({
         requestId: llmRequestId,
         model: this.model.modelId,
+        operation: "generateObject",
         output: JSON.stringify(objectResponse.object),
         inputTokens: objectResponse.usage.inputTokens,
         outputTokens: objectResponse.usage.outputTokens,
@@ -293,13 +296,14 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
     // Log LLM request for generateText (act/observe)
     const llmRequestId = uuidv7();
     const toolCount = Object.keys(tools).length;
-    const promptSummary = extractLlmPromptSummary(options.messages, {
+    const promptPreview = formatLlmPromptPreview(options.messages, {
       toolCount,
     });
-    FlowLogger.logLlmRequest({
+    SessionFileLogger.logLlmRequest({
       requestId: llmRequestId,
       model: this.model.modelId,
-      prompt: promptSummary,
+      operation: "generateText",
+      prompt: promptPreview,
     });
 
     let textResponse: Awaited<ReturnType<typeof generateText>>;
@@ -320,9 +324,10 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       });
     } catch (err) {
       // Log error response to maintain request/response pairing
-      FlowLogger.logLlmResponse({
+      SessionFileLogger.logLlmResponse({
         requestId: llmRequestId,
         model: this.model.modelId,
+        operation: "generateText",
         output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
       });
       throw err;
@@ -368,9 +373,10 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
     } as T;
 
     // Log LLM response for generateText
-    FlowLogger.logLlmResponse({
+    SessionFileLogger.logLlmResponse({
       requestId: llmRequestId,
       model: this.model.modelId,
+      operation: "generateText",
       output:
         textResponse.text ||
         (transformedToolCalls.length > 0
