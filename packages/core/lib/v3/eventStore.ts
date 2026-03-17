@@ -932,9 +932,7 @@ export class EventStore implements EventStoreApi {
       return;
     }
 
-    await Promise.allSettled(
-      [...this.sinks].map((sink) => sink.emit(event)),
-    );
+    await Promise.allSettled([...this.sinks].map((sink) => sink.emit(event)));
   }
 
   // Tears down all sinks when the V3 instance is closed.
