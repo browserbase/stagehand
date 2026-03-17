@@ -95,18 +95,61 @@ export class FlowLogger {
     };
   }
 
-  private static emit(event: FlowEventInput): FlowEvent | null {
-    const ctx = FlowLogger.currentContext;
-
-    const emittedEvent = new FlowEvent({
-      ...event,
-      eventParentIds:
-        event.eventParentIds ??
-        ctx.parentEvents.map((parent) => parent.eventId),
-      sessionId: ctx.sessionId,
+  private static createFallbackContext(
+    event: Pick<FlowEventInput, "eventType" | "sessionId">,
+  ): FlowLoggerContext {
+    const sessionId = event.sessionId ?? `flow-orphan-${uuidv7()}`;
+    const eventBus = new EventEmitter();
+    const rootEvent = new FlowEvent({
+      sessionId,
+      eventType: "FlowLoggerOrphanRoot",
+      eventIdSuffix: "0",
+      eventParentIds: [],
+      data: {
+        message:
+          "Created a placeholder FlowLogger root event because no AsyncLocalStorage context was available.",
+        missingParentFor: event.eventType,
+      },
     });
-    ctx.eventBus.emit(emittedEvent.eventType, emittedEvent);
-    return emittedEvent;
+
+    eventBus.emit(rootEvent.eventType, rootEvent);
+
+    return {
+      sessionId,
+      eventBus,
+      parentEvents: [rootEvent],
+    };
+  }
+
+  private static runWithResolvedContext<TResult>(
+    event: Pick<FlowEventInput, "eventType" | "sessionId">,
+    fn: (context: FlowLoggerContext) => TResult,
+  ): TResult {
+    const existingContext = loggerContext.getStore() ?? null;
+    if (existingContext) {
+      return fn(existingContext);
+    }
+
+    const fallbackContext = FlowLogger.createFallbackContext(event);
+    console.error(
+      `[Stagehand][FlowLogger] Missing async context while logging ${event.eventType}. Using orphan root event for session ${fallbackContext.sessionId}.`,
+    );
+
+    return loggerContext.run(fallbackContext, () => fn(fallbackContext));
+  }
+
+  private static emit(event: FlowEventInput): FlowEvent | null {
+    return FlowLogger.runWithResolvedContext(event, (ctx) => {
+      const emittedEvent = new FlowEvent({
+        ...event,
+        eventParentIds:
+          event.eventParentIds ??
+          ctx.parentEvents.map((parent) => parent.eventId),
+        sessionId: ctx.sessionId,
+      });
+      ctx.eventBus.emit(emittedEvent.eventType, emittedEvent);
+      return emittedEvent;
+    });
   }
 
   private static async runWithAutoStatusEventLogging<TResult>(

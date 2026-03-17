@@ -1871,6 +1871,7 @@ export class V3 {
       const execute = FlowLogger.wrapWithLogging({
         eventType: "AgentExecute",
         eventIdSuffix: "3",
+        context: this.flowLoggerContext,
       })(
         async (
           instructionOrOptions: string | AgentExecuteOptions,
@@ -2004,6 +2005,7 @@ export class V3 {
     const execute = FlowLogger.wrapWithLogging({
       eventType: "AgentExecute",
       eventIdSuffix: "3",
+      context: this.flowLoggerContext,
     })(
       async (
         instructionOrOptions:
