@@ -253,8 +253,11 @@ jobs:
             packages/evals/dist/**
             packages/server-v3/dist/**
             packages/server-v3/openapi.v3.yaml
+<<<<<<< HEAD
             packages/server-v4/dist/**
             packages/server-v4/openapi.v4.yaml
+=======
+>>>>>>> 4e32fcaa (rename server package to server-v3)
           retention-days: 1
 
   run-cli-tests:
