@@ -4,7 +4,7 @@ import { v7 as uuidv7 } from "uuid";
 import type { LanguageModelMiddleware } from "ai";
 
 // =============================================================================
-// Constants
+// Flow Event Model
 // =============================================================================
 
 export type FlowEventData = Record<string, unknown>;
@@ -21,19 +21,22 @@ export type FlowEventInput = Omit<
 };
 
 export class FlowEvent {
+  // Builds a sortable UUID-like event id while preserving the caller-provided suffix used by downstream pretty printers and log readers.
   static createEventId(eventIdSuffix: string): string {
     const rawEventId = uuidv7();
     return `${rawEventId.slice(0, -1)}${eventIdSuffix || "0"}`;
   }
 
-  // base required fields for all events:
+  // Base required fields for all events:
   eventType: string;
   eventId: string;
   eventParentIds: string[];
   createdAt: string;
+  // `sessionId` usually matches `browserbaseSessionId` today, but FlowLogger treats it as a generic Stagehand session identifier because those may diverge in the future.
   sessionId: string;
   data: FlowEventData; // event payload (e.g. params, action, result, error, etc.)
 
+  // Normalizes the event shape used everywhere in the flow logger pipeline. This is called at emission time right before an event is attached to the event bus and any sinks.
   constructor(input: FlowEventInput) {
     if (!input.sessionId) {
       throw new Error("FlowEvent.sessionId is required.");
@@ -46,9 +49,11 @@ export class FlowEvent {
       throw new Error("FlowEvent cannot take both eventId and eventIdSuffix.");
     }
 
-    this.eventType = input.eventType.endsWith("Event")
-      ? input.eventType
-      : `${input.eventType}Event`;
+    if (input.eventType.endsWith("Event")) {
+      this.eventType = input.eventType;
+    } else {
+      this.eventType = `${input.eventType}Event`;
+    }
     this.eventId =
       input.eventId ?? FlowEvent.createEventId(input.eventIdSuffix ?? "0");
     this.eventParentIds = input.eventParentIds ?? [];
@@ -59,6 +64,7 @@ export class FlowEvent {
 }
 
 export interface FlowLoggerContext {
+  // Mirrors `FlowEvent.sessionId`; it is currently the Stagehand session id and often matches `browserbaseSessionId`, but callers should not rely on that.
   sessionId: string;
   eventBus: EventEmitter;
   parentEvents: FlowEvent[];
@@ -74,17 +80,30 @@ type FlowLoggerLogOptions = FlowEventInput & {
   context?: FlowLoggerContext;
 };
 
+// AsyncLocalStorage is the authoritative source for the active flow parent stack inside a single async call-chain.
 const loggerContext = new AsyncLocalStorage<FlowLoggerContext>();
 
+// Converts raw inline image/base64 payload lengths into a compact kb string for LLM prompt summaries.
 function dataToKb(data: string): string {
   return ((data.length * 0.75) / 1024).toFixed(1);
 }
 
 // =============================================================================
-// Flow Logger - Main API
+// Flow Logger Internals
 // =============================================================================
 
+type CdpLogEventType = "call" | "response" | "responseError" | "message";
+
+type CdpLogPayload = {
+  method: string;
+  params?: unknown;
+  result?: unknown;
+  error?: string;
+  targetId?: string | null;
+};
+
 export class FlowLogger {
+  // Copies the mutable parts of a context before it is re-entered in a later async callback. This prevents later parent-stack mutations from leaking backward into stored snapshots.
   private static cloneContext(ctx: FlowLoggerContext): FlowLoggerContext {
     return {
       ...ctx,
@@ -95,10 +114,13 @@ export class FlowLogger {
     };
   }
 
+  // Chooses the safest context to re-enter when callers already have a stored context and ALS may or may not already contain one for the same session. If the current ALS stack extends the stored stack, we keep the richer ALS view. If the stored stack is deeper, we preserve that instead. If they diverge, we prefer the current ALS view because it reflects the currently executing call-chain.
   private static resolveReentryContext(
     context: FlowLoggerContext,
   ): FlowLoggerContext {
     const currentContext = loggerContext.getStore() ?? null;
+    // If ALS is empty or belongs to another session, the caller's stored
+    // snapshot is the only safe context we can re-enter.
     if (!currentContext || currentContext.sessionId !== context.sessionId) {
       return FlowLogger.cloneContext(context);
     }
@@ -112,6 +134,8 @@ export class FlowLogger {
     const currentExtendsProvided = providedParentIds.every(
       (eventId, index) => currentParentIds[index] === eventId,
     );
+    // ALS already has the provided chain as a prefix, so we keep the richer
+    // currently-executing stack instead of truncating it.
     if (currentExtendsProvided) {
       return FlowLogger.cloneContext(currentContext);
     }
@@ -119,13 +143,19 @@ export class FlowLogger {
     const providedExtendsCurrent = currentParentIds.every(
       (eventId, index) => providedParentIds[index] === eventId,
     );
+    // The stored snapshot is deeper than the current ALS stack, which usually
+    // means we are re-entering from a later async callback and need to restore
+    // the missing parent chain.
     if (providedExtendsCurrent) {
       return FlowLogger.cloneContext(context);
     }
 
+    // If the two chains diverged, prefer the live ALS chain because it reflects
+    // the work currently executing on this async path.
     return FlowLogger.cloneContext(currentContext);
   }
 
+  // Materializes and emits a single flow event on the active ALS context. This is the lowest-level write path used by all higher-level logging helpers after they have decided which parent chain and session the event belongs to.
   private static emit(event: FlowEventInput): FlowEvent | null {
     const ctx = FlowLogger.currentContext;
 
@@ -140,6 +170,7 @@ export class FlowLogger {
     return emittedEvent;
   }
 
+  // Wraps a unit of async work with started/completed/error events while maintaining the parent stack inside the active context.
   private static async runWithAutoStatusEventLogging<TResult>(
     options: FlowLoggerLogOptions,
     originalMethod: AsyncOriginalMethod<[], TResult>,
@@ -160,12 +191,16 @@ export class FlowLogger {
       eventParentIds,
     });
 
+    // Push after emitting so nested work sees this event as its direct parent
+    // for the rest of the wrapped method's lifetime.
     ctx.parentEvents.push(startedEvent);
 
     try {
       return await originalMethod();
     } catch (error) {
       caughtError = error;
+      // Error events attach directly under the started event even though the
+      // stack is still live, so the failure edge is explicit in the tree.
       FlowLogger.emit({
         eventIdSuffix,
         eventType: `${eventType}ErrorEvent`,
@@ -177,6 +212,9 @@ export class FlowLogger {
       });
       throw error;
     } finally {
+      // Pop only the frame owned by this wrapper. If nested code has already
+      // mutated the stack unexpectedly, we skip the completed event rather than
+      // emitting a misleading lifecycle edge.
       const parentEvent = ctx.parentEvents.pop();
       if (parentEvent?.eventId === startedEvent.eventId && !caughtError) {
         FlowLogger.emit({
@@ -194,9 +232,163 @@ export class FlowLogger {
     }
   }
 
-  /**
-   * Initialize a new logging context. Call this at the start of a session.
-   */
+  // Maps the internal CDP event kind to the public event type stored in the flow log.
+  private static getCdpEventName(eventType: CdpLogEventType): string {
+    if (eventType === "call") {
+      return "CdpCallEvent";
+    }
+
+    if (eventType === "response") {
+      return "CdpResponseEvent";
+    }
+
+    if (eventType === "responseError") {
+      return "CdpResponseErrorEvent";
+    }
+
+    return "CdpMessageEvent";
+  }
+
+  // Emits a CDP event under a caller-supplied context. CDP transport code uses this instead of `runWithLogging()` because request/response/message events are separate lifecycle edges with explicit parent ids.
+  private static logCdpEvent(
+    context: FlowLoggerContext,
+    eventType: CdpLogEventType,
+    { method, params, result, error, targetId }: CdpLogPayload,
+    eventParentIds?: string[],
+  ): FlowEvent | null {
+    if (method.endsWith(".enable") || method === "enable") {
+      return null;
+    }
+
+    if (eventType === "message" && FlowLogger.NOISY_CDP_EVENTS.has(method)) {
+      return null;
+    }
+
+    return loggerContext.run(FlowLogger.cloneContext(context), () =>
+      FlowLogger.emit({
+        eventIdSuffix: "6",
+        eventType: FlowLogger.getCdpEventName(eventType),
+        eventParentIds,
+        data: {
+          method,
+          params,
+          result,
+          error,
+          targetId,
+        },
+      }),
+    );
+  }
+
+  // Emits an LLM request/response event only when a flow context is active. LLM logging is best-effort, so callers should not fail if it is invoked outside a tracked async chain.
+  private static emitLlmEvent(event: FlowEventInput): void {
+    const context = FlowLogger.resolveContext();
+    if (!context) {
+      return;
+    }
+
+    loggerContext.run(context, () => {
+      FlowLogger.emit(event);
+    });
+  }
+
+  // Builds the one-line prompt summary used in LLM request events for AI SDK middleware calls.
+  private static buildMiddlewarePromptSummary(params: {
+    prompt?: unknown;
+    tools?: unknown;
+  }): string {
+    const toolCount = Array.isArray(params.tools) ? params.tools.length : 0;
+    const messages = (params.prompt ?? []) as Array<{
+      role?: string;
+      content?: unknown;
+    }>;
+    const lastMsg = messages
+      .filter((message) => message.role !== "system")
+      .pop();
+    let rolePrefix = lastMsg?.role ?? "?";
+    let promptSummary = `(no text) +{${toolCount} tools}`;
+
+    if (!lastMsg) {
+      return `?: ${promptSummary}`;
+    }
+
+    if (typeof lastMsg.content === "string") {
+      promptSummary = `${lastMsg.content} +{${toolCount} tools}`;
+    } else if (Array.isArray(lastMsg.content)) {
+      const toolResult = (
+        lastMsg.content as Array<{
+          type?: string;
+          toolName?: string;
+          output?: { type?: string; value?: unknown };
+        }>
+      ).find((part) => part.type === "tool-result");
+
+      if (toolResult) {
+        rolePrefix = `tool result: ${toolResult.toolName}()`;
+        if (toolResult.output?.type === "json" && toolResult.output.value) {
+          promptSummary = `${JSON.stringify(toolResult.output.value)} +{${toolCount} tools}`;
+        } else if (Array.isArray(toolResult.output?.value)) {
+          promptSummary = `${
+            extractLlmMessageSummary({
+              content: toolResult.output.value,
+            }) ?? "(no text)"
+          } +{${toolCount} tools}`;
+        }
+      } else {
+        promptSummary = `${
+          extractLlmMessageSummary({ content: lastMsg.content }) ?? "(no text)"
+        } +{${toolCount} tools}`;
+      }
+    }
+
+    return `${rolePrefix}: ${promptSummary}`;
+  }
+
+  // Builds the one-line output summary used in LLM response events for AI SDK middleware calls.
+  private static buildMiddlewareOutputSummary(result: {
+    text?: string;
+    content?: unknown;
+    toolCalls?: unknown[];
+  }): string {
+    let outputSummary = result.text || "";
+    if (!outputSummary && result.content) {
+      if (typeof result.content === "string") {
+        outputSummary = result.content;
+      } else if (Array.isArray(result.content)) {
+        outputSummary = (
+          result.content as Array<{
+            type?: string;
+            text?: string;
+            toolName?: string;
+          }>
+        )
+          .map((contentPart) => {
+            if (contentPart.text) {
+              return contentPart.text;
+            }
+
+            if (contentPart.type === "tool-call") {
+              return `tool call: ${contentPart.toolName}()`;
+            }
+
+            return `[${contentPart.type}]`;
+          })
+          .join(" ");
+      }
+    }
+
+    if (!outputSummary && result.toolCalls?.length) {
+      return `[${result.toolCalls.length} tool calls]`;
+    }
+
+    return outputSummary || "[empty]";
+  }
+
+  // =============================================================================
+  // Flow Logger Public Lifecycle API
+  // =============================================================================
+
+  // Initialize a new logging context. Call this at the start of a session.
   static init(sessionId: string, eventBus: EventEmitter): FlowLoggerContext {
     const ctx: FlowLoggerContext = {
       sessionId,
@@ -208,12 +400,14 @@ export class FlowLogger {
     return ctx;
   }
 
+  // Clears the parent stack for a session when a V3 instance shuts down. This does not emit a final event; it just tears down in-memory context.
   static async close(context?: FlowLoggerContext | null): Promise<void> {
     const ctx = context ?? loggerContext.getStore() ?? null;
     if (!ctx) return;
     ctx.parentEvents = [];
   }
 
+  // Returns the current ALS-backed flow context and throws when code executes outside a tracked flow. Use `resolveContext()` for best-effort lookups.
   static get currentContext(): FlowLoggerContext {
     const ctx = loggerContext.getStore() ?? null;
     if (!ctx) {
@@ -223,11 +417,7 @@ export class FlowLogger {
     return ctx;
   }
 
-  /**
-   * Returns a cloned FlowLogger context for the current async call-chain when
-   * one exists, otherwise falls back to the provided instance-owned context.
-   * This is the non-throwing lookup for callers that can continue without ALS.
-   */
+  // Returns a cloned FlowLogger context for the current async call-chain when one exists, otherwise falls back to the provided instance-owned context. This is the non-throwing lookup for callers that can continue without ALS.
   static resolveContext(
     fallbackContext?: FlowLoggerContext | null,
   ): FlowLoggerContext | null {
@@ -239,7 +429,7 @@ export class FlowLogger {
     return fallbackContext ? FlowLogger.cloneContext(fallbackContext) : null;
   }
 
-  // decorator method to wrap a class method with automatic started/completed/error events
+  // Decorator-style wrapper used on class methods that should emit their own started/completed/error envelope. It resolves the flow context from either the decorator options or `this.flowLoggerContext`, then delegates the actual lifecycle handling to `runWithLogging()`.
   static wrapWithLogging<TMethod extends AsyncOriginalMethod>(
     options: FlowLoggerLogOptions,
   ) {
@@ -254,10 +444,12 @@ export class FlowLogger {
         this: ThisParameterType<TWrappedMethod>,
         ...args: Parameters<TWrappedMethod>
       ): Promise<Awaited<ReturnType<TWrappedMethod>>> {
-        const context =
-          options.context ??
-          (this as { flowLoggerContext?: FlowLoggerContext } | null | undefined)
-            ?.flowLoggerContext;
+        let context = options.context;
+        if (!context) {
+          context = (
+            this as { flowLoggerContext?: FlowLoggerContext } | null | undefined
+          )?.flowLoggerContext;
+        }
 
         return await FlowLogger.runWithLogging(
           {
@@ -276,8 +468,7 @@ export class FlowLogger {
     };
   }
 
-  // closure runner to wrap some async work with automatic started/completed/error events
-  // Standard case: the logged params are the same tuple passed to the wrapped method.
+  // Wraps an async function or zero-arg closure with flow events. This is the imperative entrypoint used by handlers that cannot use the decorator form. Standard case: the logged params are the same tuple passed to the wrapped method.
   static runWithLogging<TMethod extends AsyncOriginalMethod>(
     options: FlowLoggerLogOptions,
     originalMethod: TMethod,
@@ -308,23 +499,27 @@ export class FlowLogger {
         () => originalMethod(...params),
       );
 
+    // No explicit context and no active ALS means there is nothing to attach
+    // this work to, so we leave execution untouched instead of fabricating a
+    // root event.
     if (!options.context && !(loggerContext.getStore() ?? null)) {
       return originalMethod(...params);
     }
 
-    return options.context
-      ? loggerContext.run(
-          FlowLogger.resolveReentryContext(options.context),
-          execute,
-        )
-      : execute();
+    if (options.context) {
+      // Re-enter the caller-owned context so wrapper events land under the same
+      // session tree even when this code executes outside the original ALS
+      // chain.
+      return loggerContext.run(
+        FlowLogger.resolveReentryContext(options.context),
+        execute,
+      );
+    }
+
+    return execute();
   }
 
-  /**
-   * Re-enters an existing FlowLogger context without emitting wrapper events.
-   * Use this when work already belongs to a known session/parent chain and
-   * only needs AsyncLocalStorage propagation.
-   */
+  // Re-enters an existing FlowLogger context without emitting wrapper events. Use this when work already belongs to a known session/parent chain and only needs AsyncLocalStorage propagation.
   static withContext<T>(context: FlowLoggerContext, fn: () => T): T {
     return loggerContext.run(FlowLogger.resolveReentryContext(context), fn);
   }
@@ -347,55 +542,7 @@ export class FlowLogger {
     "Network.responseReceived",
   ]);
 
-  private static logCdpEvent(
-    context: FlowLoggerContext,
-    eventType: "call" | "response" | "responseError" | "message",
-    {
-      method,
-      params,
-      result,
-      error,
-      targetId,
-    }: {
-      method: string;
-      params?: unknown;
-      result?: unknown;
-      error?: string;
-      targetId?: string | null;
-    },
-    eventParentIds?: string[],
-  ): FlowEvent | null {
-    if (method.endsWith(".enable") || method === "enable") {
-      return null;
-    }
-
-    if (eventType === "message" && FlowLogger.NOISY_CDP_EVENTS.has(method)) {
-      return null;
-    }
-
-    return loggerContext.run(FlowLogger.cloneContext(context), () =>
-      FlowLogger.emit({
-        eventIdSuffix: "6",
-        eventType:
-          eventType === "call"
-            ? "CdpCallEvent"
-            : eventType === "response"
-              ? "CdpResponseEvent"
-              : eventType === "responseError"
-                ? "CdpResponseErrorEvent"
-                : "CdpMessageEvent",
-        eventParentIds,
-        data: {
-          method,
-          params,
-          result,
-          error,
-          targetId,
-        },
-      }),
-    );
-  }
-
+  // Logs the start of a CDP command. CDP transport calls this before sending a message over the websocket so the eventual response can attach to it.
   static logCdpCallEvent(
     context: FlowLoggerContext,
     data: {
@@ -407,6 +554,7 @@ export class FlowLogger {
     return FlowLogger.logCdpEvent(context, "call", data);
   }
 
+  // Logs the terminal response for a previously emitted CDP call event.
   static logCdpResponseEvent(
     context: FlowLoggerContext,
     parentEvent: Pick<FlowEvent, "eventId" | "eventParentIds">,
@@ -425,6 +573,7 @@ export class FlowLogger {
     );
   }
 
+  // Logs an unsolicited CDP message under the most recent related call event.
   static logCdpMessageEvent(
     context: FlowLoggerContext,
     parentEvent: Pick<FlowEvent, "eventId" | "eventParentIds">,
@@ -444,6 +593,7 @@ export class FlowLogger {
   // LLM Events
   // ===========================================================================
 
+  // Emits a best-effort LLM request event when logging occurs inside an active flow context.
   static logLlmRequest({
     requestId,
     model,
@@ -453,22 +603,18 @@ export class FlowLogger {
     model: string;
     prompt?: string;
   }): void {
-    const context = FlowLogger.resolveContext();
-    if (!context) return;
-
-    loggerContext.run(context, () => {
-      FlowLogger.emit({
-        eventIdSuffix: "7",
-        eventType: "LlmRequestEvent",
-        data: {
-          requestId,
-          model,
-          prompt,
-        },
-      });
+    FlowLogger.emitLlmEvent({
+      eventIdSuffix: "7",
+      eventType: "LlmRequestEvent",
+      data: {
+        requestId,
+        model,
+        prompt,
+      },
     });
   }
 
+  // Emits a best-effort LLM response event when logging occurs inside an active flow context.
   static logLlmResponse({
     requestId,
     model,
@@ -482,21 +628,16 @@ export class FlowLogger {
     inputTokens?: number;
     outputTokens?: number;
   }): void {
-    const context = FlowLogger.resolveContext();
-    if (!context) return;
-
-    loggerContext.run(context, () => {
-      FlowLogger.emit({
-        eventIdSuffix: "7",
-        eventType: "LlmResponseEvent",
-        data: {
-          requestId,
-          model,
-          output,
-          inputTokens,
-          outputTokens,
-        },
-      });
+    FlowLogger.emitLlmEvent({
+      eventIdSuffix: "7",
+      eventType: "LlmResponseEvent",
+      data: {
+        requestId,
+        model,
+        output,
+        inputTokens,
+        outputTokens,
+      },
     });
   }
 
@@ -504,108 +645,31 @@ export class FlowLogger {
   // LLM Logging Middleware
   // ===========================================================================
 
-  /**
-   * Create middleware for wrapping language models with LLM call logging.
-   * Returns a no-op middleware when logging is disabled.
-   */
+  // Creates AI SDK middleware that wraps a generate call with FlowLogger LLM request/response events while leaving model execution behavior unchanged.
   static createLlmLoggingMiddleware(
     modelId: string,
   ): Pick<LanguageModelMiddleware, "wrapGenerate"> {
     return {
       wrapGenerate: async ({ doGenerate, params }) => {
         const llmRequestId = uuidv7();
-        const toolCount = Array.isArray(params.tools) ? params.tools.length : 0;
-        const messages = (params.prompt ?? []) as Array<{
-          role?: string;
-          content?: unknown;
-        }>;
-        const lastMsg = messages.filter((m) => m.role !== "system").pop();
-        let rolePrefix = lastMsg?.role ?? "?";
-        let promptSummary = `(no text) +{${toolCount} tools}`;
-
-        if (lastMsg) {
-          if (typeof lastMsg.content === "string") {
-            promptSummary = `${lastMsg.content} +{${toolCount} tools}`;
-          } else if (Array.isArray(lastMsg.content)) {
-            const toolResult = (
-              lastMsg.content as Array<{
-                type?: string;
-                toolName?: string;
-                output?: { type?: string; value?: unknown };
-              }>
-            ).find((part) => part.type === "tool-result");
-
-            if (toolResult) {
-              rolePrefix = `tool result: ${toolResult.toolName}()`;
-              if (
-                toolResult.output?.type === "json" &&
-                toolResult.output.value
-              ) {
-                promptSummary = `${JSON.stringify(toolResult.output.value)} +{${toolCount} tools}`;
-              } else if (Array.isArray(toolResult.output?.value)) {
-                promptSummary = `${
-                  extractLlmMessageSummary({
-                    content: toolResult.output.value,
-                  }) ?? "(no text)"
-                } +{${toolCount} tools}`;
-              }
-            } else {
-              promptSummary = `${
-                extractLlmMessageSummary({ content: lastMsg.content }) ??
-                "(no text)"
-              } +{${toolCount} tools}`;
-            }
-          }
-
-          promptSummary = `${rolePrefix}: ${promptSummary}`;
-        } else {
-          promptSummary = `?: ${promptSummary}`;
-        }
-
         FlowLogger.logLlmRequest({
           requestId: llmRequestId,
           model: modelId,
-          prompt: promptSummary,
+          prompt: FlowLogger.buildMiddlewarePromptSummary(params),
         });
 
         const result = await doGenerate();
 
-        // Extract output summary
         const res = result as {
           text?: string;
           content?: unknown;
           toolCalls?: unknown[];
         };
-        let outputSummary = res.text || "";
-        if (!outputSummary && res.content) {
-          if (typeof res.content === "string") {
-            outputSummary = res.content;
-          } else if (Array.isArray(res.content)) {
-            outputSummary = (
-              res.content as Array<{
-                type?: string;
-                text?: string;
-                toolName?: string;
-              }>
-            )
-              .map(
-                (c) =>
-                  c.text ||
-                  (c.type === "tool-call"
-                    ? `tool call: ${c.toolName}()`
-                    : `[${c.type}]`),
-              )
-              .join(" ");
-          }
-        }
-        if (!outputSummary && res.toolCalls?.length) {
-          outputSummary = `[${res.toolCalls.length} tool calls]`;
-        }
 
         FlowLogger.logLlmResponse({
           requestId: llmRequestId,
           model: modelId,
-          output: outputSummary || "[empty]",
+          output: FlowLogger.buildMiddlewareOutputSummary(res),
           inputTokens: result.usage?.inputTokens,
           outputTokens: result.usage?.outputTokens,
         });
@@ -635,7 +699,7 @@ type LlmMessageContent = {
   parts?: unknown[];
 };
 
-/** Extract text and image info from a content array (handles nested tool_result) */
+// Extracts text and image markers from an LLM content array. This is shared by the request-summary helpers below so different provider message shapes render consistently in the flow log.
 function extractLlmMessageContent(content: unknown[]): {
   text?: string;
   extras: string[];
@@ -677,6 +741,7 @@ function extractLlmMessageContent(content: unknown[]): {
   return result;
 }
 
+// Produces a single compact summary from a provider-specific message payload so request and tool-result logs stay readable.
 function extractLlmMessageSummary(
   input: LlmMessageContent,
   options?: {
@@ -718,10 +783,7 @@ function extractLlmMessageSummary(
   return summary || undefined;
 }
 
-/**
- * Format a prompt summary from LLM messages for logging.
- * Returns format like: "some text +{5.8kb image} +{schema} +{12 tools}"
- */
+// Formats the last user-facing prompt into the one-line form used by standard LLM request logs, for example: `some text +{5.8kb image} +{schema}`.
 export function extractLlmPromptSummary(
   messages: Array<{ role: string; content: unknown }>,
   options?: { toolCount?: number; hasSchema?: boolean },
@@ -742,10 +804,7 @@ export function extractLlmPromptSummary(
   }
 }
 
-/**
- * Extract a text summary from CUA-style messages.
- * Accepts various message formats (Anthropic, OpenAI, Google).
- */
+// Extract a text summary from CUA-style messages. This accepts Anthropic, OpenAI, and Google-style content payloads.
 export function extractLlmCuaPromptSummary(
   messages: unknown[],
 ): string | undefined {
@@ -767,10 +826,9 @@ export function extractLlmCuaPromptSummary(
   }
 }
 
-/** Format a CUA response summary for logging */
+// Formats the response side of a CUA exchange into a single short log line.
 export function extractLlmCuaResponseSummary(output: unknown): string {
   try {
-    // Handle Google format or array
     const items: unknown[] =
       (output as { candidates?: [{ content?: { parts?: unknown[] } }] })
         ?.candidates?.[0]?.content?.parts ??
