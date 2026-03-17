@@ -1,0 +1,29 @@
+packages/core/lib/v3/flowlogger/FlowLogger.ts
+  bae67edee9a782c6 4,107-111,260
+packages/core/tests/unit/event-store-pretty.test.ts
+  bae67edee9a782c6 3-4
+packages/core/lib/v3/v3.ts
+  bae67edee9a782c6 91
+packages/core/tests/unit/cdp-flow-logger-context.test.ts
+  bae67edee9a782c6 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "41582cfb916699a2e490f5f77078c57982298a79",
+  "prompts": {
+    "bae67edee9a782c6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cfb0c-f74e-7603-9b96-9ebb43ed757c",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>",
+      "messages": [],
+      "total_additions": 54,
+      "total_deletions": 65,
+      "accepted_lines": 54,
+      "overriden_lines": 0
+    }
+  }
+}
