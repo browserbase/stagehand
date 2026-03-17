@@ -157,9 +157,12 @@ export class CdpConnection implements CDPSessionLike {
           targetId: null,
         })
       : null;
-    if (flowLoggerContext && cdpCallEvent) {
+    const storedFlowLoggerContext = flowLoggerContext
+      ? FlowLogger.withContext(flowLoggerContext, () => FlowLogger.currentContext)
+      : null;
+    if (storedFlowLoggerContext && cdpCallEvent) {
       this.latestCdpCallEvent.set(null, {
-        flowLoggerContext,
+        flowLoggerContext: storedFlowLoggerContext,
         cdpCallEvent,
       });
     }
@@ -172,7 +175,7 @@ export class CdpConnection implements CDPSessionLike {
         params,
         stack,
         ts: Date.now(),
-        flowLoggerContext,
+        flowLoggerContext: storedFlowLoggerContext,
         cdpCallEvent,
       });
     });
@@ -374,20 +377,29 @@ export class CdpConnection implements CDPSessionLike {
         );
       }
 
-      if (sessionId) {
-        const session = this.sessions.get(sessionId);
-        session?.dispatch(method, params);
+      const dispatch = () => {
+        if (sessionId) {
+          const session = this.sessions.get(sessionId);
+          session?.dispatch(method, params);
 
-        // Forward target lifecycle events to root listeners as well.
-        // Some browsers emit these via a parent session rather than the root
-        // connection; fan-out keeps target tracking consistent.
-        if (method.startsWith("Target.")) {
-          const handlers = this.eventHandlers.get(method);
-          if (handlers) for (const h of handlers) h(params);
+          // Forward target lifecycle events to root listeners as well.
+          // Some browsers emit these via a parent session rather than the root
+          // connection; fan-out keeps target tracking consistent.
+          if (method.startsWith("Target.")) {
+            const handlers = this.eventHandlers.get(method);
+            if (handlers) for (const h of handlers) h(params);
+          }
+          return;
         }
-      } else {
+
         const handlers = this.eventHandlers.get(method);
         if (handlers) for (const h of handlers) h(params);
+      };
+
+      if (latestCdpCallEvent) {
+        FlowLogger.withContext(latestCdpCallEvent.flowLoggerContext, dispatch);
+      } else {
+        dispatch();
       }
     }
   }
@@ -414,9 +426,12 @@ export class CdpConnection implements CDPSessionLike {
           targetId,
         })
       : null;
-    if (flowLoggerContext && cdpCallEvent) {
+    const storedFlowLoggerContext = flowLoggerContext
+      ? FlowLogger.withContext(flowLoggerContext, () => FlowLogger.currentContext)
+      : null;
+    if (storedFlowLoggerContext && cdpCallEvent) {
       this.latestCdpCallEvent.set(sessionId, {
-        flowLoggerContext,
+        flowLoggerContext: storedFlowLoggerContext,
         cdpCallEvent,
       });
     }
@@ -430,7 +445,7 @@ export class CdpConnection implements CDPSessionLike {
         params,
         stack,
         ts: Date.now(),
-        flowLoggerContext,
+        flowLoggerContext: storedFlowLoggerContext,
         cdpCallEvent,
       });
     });
