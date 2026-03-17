@@ -899,10 +899,13 @@ export class V3 {
             this.opts.browserbaseSessionCreateParams ?? {};
           const resolvedKeepAlive = this.keepAlive;
           const keepAlive = this.keepAlive === true;
-          const effectiveSessionParams =
-            resolvedKeepAlive !== undefined
-              ? { ...baseSessionParams, keepAlive: resolvedKeepAlive }
-              : baseSessionParams;
+          let effectiveSessionParams = baseSessionParams;
+          if (resolvedKeepAlive !== undefined) {
+            effectiveSessionParams = {
+              ...baseSessionParams,
+              keepAlive: resolvedKeepAlive,
+            };
+          }
           if (!this.disableAPI && !this.experimental) {
             this.apiClient = new StagehandAPIClient({
               apiKey,

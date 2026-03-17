@@ -435,8 +435,18 @@ function prettifyBuildContextTags(
       includeSelf,
     },
   );
-  const targetId =
-    typeof event.data.targetId === "string" ? event.data.targetId : null;
+  let targetId: string | null = null;
+  if (typeof event.data.targetId === "string") {
+    targetId = event.data.targetId;
+  }
+  let stagehandLabel = "";
+  if (stagehandEvent) {
+    stagehandLabel = prettifyEventAction(stagehandEvent.eventType).toUpperCase();
+  }
+  let actionLabel = "";
+  if (actionEvent) {
+    actionLabel = prettifyEventAction(actionEvent.eventType).toUpperCase();
+  }
 
   if (prettifyIsAgentEvent(event)) {
     return [prettifyFormatTag("", agentEvent?.eventId, "🅰")];
@@ -458,13 +468,7 @@ function prettifyBuildContextTags(
   if (prettifyIsActionEvent(event)) {
     return [
       prettifyFormatTag("", agentEvent?.eventId, "🅰"),
-      prettifyFormatTag(
-        stagehandEvent
-          ? prettifyEventAction(stagehandEvent.eventType).toUpperCase()
-          : "",
-        stagehandEvent?.eventId,
-        "🆂",
-      ),
+      prettifyFormatTag(stagehandLabel, stagehandEvent?.eventId, "🆂"),
       prettifyFormatTag(
         prettifyEventAction(
           actionEvent?.eventType ?? event.eventType,
@@ -478,37 +482,21 @@ function prettifyBuildContextTags(
   if (prettifyIsCdpEvent(event)) {
     return [
       prettifyFormatTag("", agentEvent?.eventId, "🅰"),
-      prettifyFormatTag(
-        stagehandEvent
-          ? prettifyEventAction(stagehandEvent.eventType).toUpperCase()
-          : "",
-        stagehandEvent?.eventId,
-        "🆂",
-      ),
-      prettifyFormatTag(
-        actionEvent
-          ? prettifyEventAction(actionEvent.eventType).toUpperCase()
-          : "",
-        actionEvent?.eventId,
-        "🆄",
-      ),
+      prettifyFormatTag(stagehandLabel, stagehandEvent?.eventId, "🆂"),
+      prettifyFormatTag(actionLabel, actionEvent?.eventId, "🆄"),
       prettifyFormatTag("CDP", targetId, "🅲"),
     ];
   }
 
   if (prettifyIsLlmEvent(event)) {
-    const requestId =
-      typeof event.data.requestId === "string" ? event.data.requestId : null;
+    let requestId: string | null = null;
+    if (typeof event.data.requestId === "string") {
+      requestId = event.data.requestId;
+    }
 
     return [
       prettifyFormatTag("", agentEvent?.eventId, "🅰"),
-      prettifyFormatTag(
-        stagehandEvent
-          ? prettifyEventAction(stagehandEvent.eventType).toUpperCase()
-          : "",
-        stagehandEvent?.eventId,
-        "🆂",
-      ),
+      prettifyFormatTag(stagehandLabel, stagehandEvent?.eventId, "🆂"),
       prettifyFormatTag("LLM", requestId ?? llmEvent?.eventId, "🧠"),
     ];
   }
