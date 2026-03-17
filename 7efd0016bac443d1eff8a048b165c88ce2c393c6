@@ -1,0 +1,51 @@
+packages/core/lib/v3/eventStore.ts
+  bae67edee9a782c6 643-653,656,660-668,674,676-682,685,687-688
+packages/core/tests/unit/event-store-pretty.test.ts
+  bae67edee9a782c6 167-207
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "7efd0016bac443d1eff8a048b165c88ce2c393c6",
+  "prompts": {
+    "6dec7dcc42b5ac08": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cf9a9-5ecf-72d0-a32a-30cea5c1bc07",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>",
+      "messages": [],
+      "total_additions": 28,
+      "total_deletions": 92,
+      "accepted_lines": 722,
+      "overriden_lines": 0
+    },
+    "bae67edee9a782c6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cfb0c-f74e-7603-9b96-9ebb43ed757c",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>",
+      "messages": [],
+      "total_additions": 152,
+      "total_deletions": 100,
+      "accepted_lines": 73,
+      "overriden_lines": 0
+    },
+    "e77b9ebe52d57b02": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cfaaf-3661-7b21-8595-42477ee1b276",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>",
+      "messages": [],
+      "total_additions": 53,
+      "total_deletions": 87,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    }
+  }
+}
