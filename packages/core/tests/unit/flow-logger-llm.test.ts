@@ -3,6 +3,8 @@ import { FlowLogger } from "../../lib/v3/flowLogger.js";
 
 describe("FlowLogger LLM logging", () => {
   it("no-ops direct llm logging calls when no flow context is active", () => {
+    // These helpers are called from multiple model adapters, so they must stay
+    // safe even when a test or utility invokes them outside any ALS flow scope.
     expect(() =>
       FlowLogger.logLlmRequest({
         requestId: "req-1",
@@ -25,6 +27,8 @@ describe("FlowLogger LLM logging", () => {
   it("does not throw from llm middleware when no flow context is active", async () => {
     const middleware = FlowLogger.createLlmLoggingMiddleware("mock-model");
 
+    // Missing flow context should degrade to a silent no-op and preserve the
+    // underlying model result.
     await expect(
       middleware.wrapGenerate({
         doGenerate: async () => ({

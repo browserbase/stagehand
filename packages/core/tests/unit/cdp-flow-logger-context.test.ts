@@ -19,6 +19,8 @@ class FakeSocket extends EventEmitter {
 }
 
 function createConnection(socket: FakeSocket): CdpConnection {
+  // The production constructor is private; tests instantiate it directly so
+  // they can drive raw websocket messages without a real browser.
   const ConnectionCtor = CdpConnection as unknown as {
     new (ws: FakeSocket): CdpConnection;
   };
@@ -49,6 +51,8 @@ describe("CdpConnection flow logging context", () => {
     const conn = createConnection(socket);
     conn.flowLoggerContext = FlowLogger.init(sessionId, eventBus);
 
+    // Seed the target/session mapping the same way a real attach flow would
+    // before any session-scoped messages are dispatched.
     (conn as unknown as { onMessage(json: string): void }).onMessage(
       JSON.stringify({
         method: "Target.attachedToTarget",
@@ -63,6 +67,8 @@ describe("CdpConnection flow logging context", () => {
     expect(session).toBeDefined();
 
     session!.on("Runtime.consoleAPICalled", () => {
+      // This nested send used to lose its parent chain because the callback ran
+      // after the original ALS scope had already unwound.
       void session!.send("Runtime.evaluate", {
         expression: "2 + 2",
       });
@@ -89,6 +95,8 @@ describe("CdpConnection flow logging context", () => {
       }),
     );
 
+    // The nested Runtime.evaluate call should still attach under the synthetic
+    // parent event even though it was triggered by a later session callback.
     const events = await eventStore.query({});
     const parentEvent = requireEvent(
       events,

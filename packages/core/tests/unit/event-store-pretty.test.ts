@@ -60,6 +60,8 @@ describe("EventStore pretty formatting", () => {
 
   it("renders semantic hierarchy tags for non-cdp stderr events only", async () => {
     const writes: string[] = [];
+    // Intercept stderr so the pretty sink can be asserted without polluting the
+    // real test runner output.
     process.stderr.write = ((
       chunk: string,
       cb?: (error?: Error | null) => void,
@@ -93,6 +95,8 @@ describe("EventStore pretty formatting", () => {
       },
     });
 
+    // The stderr sink intentionally suppresses CDP noise even though the event
+    // still exists for in-memory and file-backed sinks.
     bus.emit(stepEvent.eventType, stepEvent);
     bus.emit(cdpEvent.eventType, cdpEvent);
     await waitForAsyncEmit();
@@ -121,6 +125,8 @@ describe("EventStore pretty formatting", () => {
     const bus = new EventEmitter();
     const detachBus = store.attachBus(bus);
 
+    // `StagehandEvent` has no action suffix, so this guards the formatter path
+    // that cannot assume a method name exists.
     bus.emit(
       "StagehandEvent",
       new FlowEvent({
@@ -184,6 +190,8 @@ describe("EventStore pretty formatting", () => {
     bus.emit(actEvent.eventType, actEvent);
     bus.emit(clickEvent.eventType, clickEvent);
 
+    // Flood the retained history with child events so the completion lines have
+    // to recover their displayed ancestry from the queryable sink.
     for (let index = 0; index < 150; index += 1) {
       bus.emit(
         "CdpCallEvent",
@@ -245,6 +253,8 @@ describe("EventStore pretty formatting", () => {
     );
     await waitForAsyncEmit();
 
+    // Completion lines should reference the original started-event ids, not the
+    // synthetic completed-event ids emitted at the end of the lifecycle.
     const clickCompletedLine = writes.find((line) =>
       line.includes("CLICK completed"),
     );
