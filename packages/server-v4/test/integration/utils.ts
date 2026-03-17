@@ -30,56 +30,38 @@ export const {
   ANTHROPIC_API_KEY,
 } = process.env;
 
+const ENV_WARNINGS: Partial<Record<string, (value: string) => string | null>> =
+  {
+    OPENAI_API_KEY: (value) =>
+      value.startsWith("sk-")
+        ? null
+        : `OPENAI_API_KEY does not start with "sk-"`,
+    ANTHROPIC_API_KEY: (value) =>
+      value.startsWith("sk-ant-")
+        ? null
+        : `ANTHROPIC_API_KEY does not start with "sk-ant-"`,
+    BROWSERBASE_API_KEY: (value) =>
+      /^bb_(live|test)_/u.test(value)
+        ? null
+        : "BROWSERBASE_API_KEY does not look like a Browserbase API key",
+    GEMINI_API_KEY: (value) =>
+      /^[A-Za-z0-9_-]{20,}$/u.test(value)
+        ? null
+        : "GEMINI_API_KEY does not look like a Google AI API key",
+  };
+
 function maskSecret(value: string | undefined): string {
-  if (!value) return "<unset>";
-  if (value.length <= 8) return `${value.slice(0, 2)}...${value.slice(-2)}`;
-  return `${value.slice(0, 4)}...${value.slice(-4)}`;
-}
-
-function describeEnvVar(name: string, value: string | undefined): string {
-  if (!value) {
-    return `${name}=<unset>`;
-  }
-  return `${name}=present (${maskSecret(value)})`;
-}
-
-function getEnvFormatWarning(
-  name: string,
-  value: string | undefined,
-): string | null {
-  if (!value) return null;
-
-  switch (name) {
-    case "OPENAI_API_KEY":
-      return value.startsWith("sk-")
-        ? null
-        : `${name} does not start with "sk-"`;
-    case "ANTHROPIC_API_KEY":
-      return value.startsWith("sk-ant-")
-        ? null
-        : `${name} does not start with "sk-ant-"`;
-    case "BROWSERBASE_API_KEY":
-      return /^bb_(live|test)_/u.test(value)
-        ? null
-        : `${name} does not look like a Browserbase API key`;
-    case "GEMINI_API_KEY":
-      return /^[A-Za-z0-9_-]{20,}$/u.test(value)
-        ? null
-        : `${name} does not look like a Google AI API key`;
-    default:
-      return null;
-  }
+  return !value
+    ? "<unset>"
+    : `${value.slice(0, value.length <= 8 ? 2 : 4)}...${value.slice(-(value.length <= 8 ? 2 : 4))}`;
 }
 
 function formatCommonSetupDiagnostics(names: string[]): string {
-  const diagnostics = names.map((name) => {
+  const diagnostics = [...new Set(names)].map((name) => {
     const value = process.env[name];
-    const warning = getEnvFormatWarning(name, value);
-    return warning
-      ? `${describeEnvVar(name, value)} [warning: ${warning}]`
-      : describeEnvVar(name, value);
+    const warning = value ? ENV_WARNINGS[name]?.(value) : null;
+    return `${name}=${value ? `present (${maskSecret(value)})` : "<unset>"}${warning ? ` [warning: ${warning}]` : ""}`;
   });
-
   const chromePath = process.env.CHROME_PATH;
   diagnostics.push(
     chromePath
