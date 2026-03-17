@@ -25,23 +25,13 @@ const evaluateRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "evaluate",
     actionSchema: PageEvaluateActionSchema,
-    execute: async ({ page, params }) => {
-      const value = await page.evaluate(
-        ({ arg, expression }: { arg: unknown; expression: string }) => {
-          const localArg = arg;
-          return (() => {
-            const arg = localArg;
-            // eslint-disable-next-line no-eval
-            return eval(expression);
-          })();
-        },
-        {
+    execute: async ({ params }) => {
+      return {
+        value: {
           expression: params.expression,
-          arg: params.arg,
+          arg: params.arg ?? null,
         },
-      );
-
-      return { value };
+      };
     },
   }),
 };

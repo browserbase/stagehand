@@ -67,13 +67,61 @@ type BrowserSessionRequestBody<TAction extends BrowserSessionAction> = {
   params: TAction["params"];
 };
 
+type StubInitScript = string | { path?: string; content?: string };
+
+type StubCookie = {
+  name: string;
+  value: string;
+  domain: string;
+  path: string;
+  expires: number;
+  httpOnly: boolean;
+  secure: boolean;
+  sameSite: "Strict" | "Lax" | "None";
+};
+
+type StubBrowserSessionPageLike = {
+  mainFrameId(): string;
+  targetId(): string;
+  url(): string;
+};
+
+type StubBrowserSessionContext = {
+  activePage(): StubBrowserSessionPageLike | undefined;
+  addCookies(cookies: unknown): Promise<void>;
+  addInitScript(script: StubInitScript): Promise<void>;
+  awaitActivePage(timeoutMs?: number): Promise<StubBrowserSessionPageLike>;
+  clearCookies(options?: unknown): Promise<void>;
+  cookies(urls?: string | string[]): Promise<StubCookie[]>;
+  getFullFrameTreeByMainFrameId(mainFrameId: string): Promise<unknown>;
+  newPage(url?: string): Promise<StubBrowserSessionPageLike>;
+  pages(): StubBrowserSessionPageLike[];
+  resolvePageByMainFrameId(
+    mainFrameId: string,
+  ): StubBrowserSessionPageLike | undefined;
+  setExtraHTTPHeaders(headers: Record<string, string>): Promise<void>;
+};
+
+type StubBrowserSession = {
+  browserbaseDebugURL?: string | null;
+  browserbaseSessionID?: string | null;
+  browserbaseSessionURL?: string | null;
+  configuredViewport: {
+    width: number;
+    height: number;
+    deviceScaleFactor?: number;
+  };
+  connectURL(): string;
+  context: StubBrowserSessionContext;
+};
+
 type BrowserSessionActionHandlerContext<TAction extends BrowserSessionAction> =
   {
-    stagehand: any;
+    stagehand: StubBrowserSession;
     params: TAction["params"];
     request: Parameters<RouteHandlerMethod>[0];
     sessionId: string;
-    sessionStore: any;
+    sessionStore: unknown;
   };
 
 type BrowserSessionActionExecutionResult<TAction extends BrowserSessionAction> =
@@ -130,17 +178,15 @@ export function toStringOrRegExp(
 
 export function createBrowserSessionActionHandler<
   TAction extends BrowserSessionAction,
->({
-  actionSchema,
-  execute: _execute,
-  method,
-}: {
+>(options: {
   actionSchema: z.ZodType<TAction>;
   execute: (
     ctx: BrowserSessionActionHandlerContext<TAction>,
   ) => Promise<BrowserSessionActionExecutionResult<TAction>>;
   method: BrowserSessionActionMethod;
 }): RouteHandlerMethod {
+  const { actionSchema, method } = options;
+
   return async (request, reply) => {
     const { params, sessionId } =
       request.body as BrowserSessionRequestBody<TAction>;

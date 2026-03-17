@@ -9,6 +9,13 @@ import {
 } from "../../../schemas/v4/page.js";
 import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
+type StubFrame = {
+  frameId: string;
+  pageId: string;
+  sessionId: string;
+  isBrowserRemote(): boolean;
+};
+
 const framesRoute: RouteOptions = {
   method: "GET",
   url: "/page/frames",
@@ -25,9 +32,18 @@ const framesRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "frames",
     actionSchema: PageFramesActionSchema,
-    execute: async ({ page }) => {
+    execute: async () => {
+      const frames: StubFrame[] = [
+        {
+          frameId: "frame_stub",
+          pageId: "page_stub",
+          sessionId: "session_stub",
+          isBrowserRemote: () => false,
+        },
+      ];
+
       return {
-        frames: page.frames().map((frame: any) => ({
+        frames: frames.map((frame) => ({
           frameId: frame.frameId,
           pageId: frame.pageId,
           sessionId: frame.sessionId,
