@@ -1,546 +1,360 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { EventEmitter } from "node:events";
+import fs from "node:fs";
+import { Writable } from "node:stream";
 import { v7 as uuidv7 } from "uuid";
+import path from "node:path";
+import pino from "pino";
 import type { LanguageModelMiddleware } from "ai";
+import type { V3Options } from "./types/public/index.js";
 
 // =============================================================================
 // Constants
 // =============================================================================
 
-export type FlowEventData = Record<string, unknown>;
-export type FlowEventInput = Omit<
-  FlowEvent,
-  "eventId" | "createdAt" | "sessionId" | "eventParentIds" | "data"
-> & {
-  eventId?: string;
-  eventIdSuffix?: string;
-  createdAt?: string;
-  sessionId?: string;
-  eventParentIds?: string[];
-  data?: FlowEventData;
-};
+const MAX_LINE_LENGTH = 160;
 
-export class FlowEvent {
-  static createEventId(eventIdSuffix: string): string {
-    const rawEventId = uuidv7();
-    return `${rawEventId.slice(0, -1)}${eventIdSuffix || "0"}`;
-  }
+// Flow logging config dir - empty string disables logging entirely
+const CONFIG_DIR = process.env.BROWSERBASE_CONFIG_DIR || "";
 
-  // base required fields for all events:
-  eventType: string;
+const NOISY_CDP_EVENTS = new Set([
+  "Target.targetInfoChanged",
+  "Runtime.executionContextCreated",
+  "Runtime.executionContextDestroyed",
+  "Runtime.executionContextsCleared",
+  "Page.lifecycleEvent",
+  "Network.dataReceived",
+  "Network.loadingFinished",
+  "Network.requestWillBeSentExtraInfo",
+  "Network.responseReceivedExtraInfo",
+  "Network.requestWillBeSent",
+  "Network.responseReceived",
+]);
+
+// =============================================================================
+// Types
+// =============================================================================
+
+type EventCategory =
+  | "AgentTask"
+  | "StagehandStep"
+  | "UnderstudyAction"
+  | "CDP"
+  | "LLM";
+
+interface FlowEvent {
+  // Core identifiers (set via mixin from child logger bindings)
   eventId: string;
-  eventParentIds: string[];
-  createdAt: string;
   sessionId: string;
-  data: FlowEventData; // event payload (e.g. params, action, result, error, etc.)
+  taskId?: string | null;
+  stepId?: string | null;
+  stepLabel?: string | null;
+  actionId?: string | null;
+  actionLabel?: string | null;
 
-  constructor(input: FlowEventInput) {
-    if (!input.sessionId) {
-      throw new Error("FlowEvent.sessionId is required.");
-    }
-    if (
-      input.eventId &&
-      input.eventIdSuffix &&
-      !input.eventId.endsWith(input.eventIdSuffix)
-    ) {
-      throw new Error("FlowEvent cannot take both eventId and eventIdSuffix.");
-    }
+  // Event classification
+  category: EventCategory;
+  event: "started" | "completed" | "call" | "message" | "request" | "response";
+  method?: string;
+  msg?: string;
 
-    this.eventType = input.eventType.endsWith("Event")
-      ? input.eventType
-      : `${input.eventType}Event`;
-    this.eventId =
-      input.eventId ?? FlowEvent.createEventId(input.eventIdSuffix ?? "0");
-    this.eventParentIds = input.eventParentIds ?? [];
-    this.createdAt = input.createdAt ?? new Date().toISOString();
-    this.sessionId = input.sessionId;
-    this.data = input.data ?? {};
-  }
+  // Event-specific payload (not truncated)
+  params?: unknown;
+  targetId?: string | null;
+
+  // LLM event fields (for individual LLM request/response events only)
+  requestId?: string; // Correlation ID linking LLM request to response
+  model?: string;
+  prompt?: unknown;
+  output?: unknown;
+  inputTokens?: number; // Tokens for THIS specific LLM call
+  outputTokens?: number; // Tokens for THIS specific LLM call
+
+  // Aggregate metrics (for completion events only - task/step/action)
+  metrics?: {
+    durationMs?: number;
+    llmRequests?: number; // Total LLM calls in this span
+    inputTokens?: number; // Total input tokens across all LLM calls
+    outputTokens?: number; // Total output tokens across all LLM calls
+    cdpEvents?: number; // Total CDP events in this span
+  };
+}
+
+interface FlowLoggerMetrics {
+  taskStartTime?: number;
+  stepStartTime?: number;
+  actionStartTime?: number;
+  llmRequests: number;
+  llmInputTokens: number;
+  llmOutputTokens: number;
+  cdpEvents: number;
 }
 
 export interface FlowLoggerContext {
+  logger: pino.Logger;
+  metrics: FlowLoggerMetrics;
   sessionId: string;
-  eventBus: EventEmitter;
-  parentEvents: FlowEvent[];
+  sessionDir: string;
+  configDir: string;
+  initPromise: Promise<void>;
+  initialized: boolean;
+  // Current span context (mutable, injected via mixin)
+  taskId: string | null;
+  stepId: string | null;
+  stepLabel: string | null;
+  actionId: string | null;
+  actionLabel: string | null;
+  // File handles for pretty streams
+  fileStreams: {
+    agent: fs.WriteStream | null;
+    stagehand: fs.WriteStream | null;
+    understudy: fs.WriteStream | null;
+    cdp: fs.WriteStream | null;
+    llm: fs.WriteStream | null;
+    jsonl: fs.WriteStream | null;
+  };
 }
-
-type AsyncOriginalMethod<
-  TArgs extends unknown[] = unknown[],
-  TResult = unknown,
-  TThis = unknown,
-> = (this: TThis, ...args: TArgs) => Promise<TResult>;
-
-type FlowLoggerLogOptions = FlowEventInput & {
-  context?: FlowLoggerContext;
-};
 
 const loggerContext = new AsyncLocalStorage<FlowLoggerContext>();
 
-function dataToKb(data: string): string {
-  return ((data.length * 0.75) / 1024).toFixed(1);
+// =============================================================================
+// Formatting Utilities (used by pretty streams)
+// =============================================================================
+
+/** Calculate base64 data size in KB */
+const dataToKb = (data: string): string =>
+  ((data.length * 0.75) / 1024).toFixed(1);
+
+/** Truncate CDP IDs: frameId:363F03EB...EF8 → frameId:363F…5EF8 */
+function truncateCdpIds(value: string): string {
+  return value.replace(
+    /([iI]d:?"?)([0-9A-F]{32})(?="?[,})\s]|$)/g,
+    (_, pre: string, id: string) => `${pre}${id.slice(0, 4)}…${id.slice(-4)}`,
+  );
+}
+
+/** Truncate line showing start...end */
+function truncateLine(value: string, maxLen: number): string {
+  const collapsed = value.replace(/\s+/g, " ");
+  if (collapsed.length <= maxLen) return collapsed;
+  const endLen = Math.floor(maxLen * 0.3);
+  const startLen = maxLen - endLen - 1;
+  return `${collapsed.slice(0, startLen)}…${collapsed.slice(-endLen)}`;
+}
+
+function formatValue(value: unknown): string {
+  if (typeof value === "string") return `'${value}'`;
+  if (value == null || typeof value !== "object") return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "[unserializable]";
+  }
+}
+
+function formatArgs(args?: unknown | unknown[]): string {
+  if (args === undefined) return "";
+  return (Array.isArray(args) ? args : [args])
+    .filter((e) => e !== undefined)
+    .map(formatValue)
+    .filter((e) => e.length > 0)
+    .join(", ");
+}
+
+const shortId = (id: string | null | undefined): string =>
+  id ? id.slice(-4) : "-";
+
+function formatTag(
+  label: string | null | undefined,
+  id: string | null | undefined,
+  icon: string,
+): string {
+  return id ? `[${icon} #${shortId(id)}${label ? " " + label : ""}]` : "⤑";
+}
+
+let nonce = 0;
+function formatTimestamp(): string {
+  const d = new Date();
+  const pad = (n: number, w = 2) => String(n).padStart(w, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}${pad(nonce++ % 100)}`;
+}
+
+const SENSITIVE_KEYS =
+  /apikey|api_key|key|secret|token|password|passwd|pwd|credential|auth/i;
+
+function sanitizeOptions(options: V3Options): Record<string, unknown> {
+  const sanitize = (obj: unknown): unknown => {
+    if (typeof obj !== "object" || obj === null) return obj;
+    if (Array.isArray(obj)) return obj.map(sanitize);
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = SENSITIVE_KEYS.test(key) ? "******" : sanitize(value);
+    }
+    return result;
+  };
+  return sanitize({ ...options }) as Record<string, unknown>;
+}
+
+/** Remove unescaped quotes for cleaner log output */
+function removeQuotes(str: string): string {
+  return str
+    .replace(/([^\\])["']/g, "$1")
+    .replace(/^["']|["']$/g, "")
+    .trim();
 }
 
 // =============================================================================
-// Flow Logger - Main API
+// Pretty Formatting (converts FlowEvent to human-readable log line)
 // =============================================================================
 
-export class FlowLogger {
-  private static cloneContext(ctx: FlowLoggerContext): FlowLoggerContext {
-    return {
-      ...ctx,
-      parentEvents: ctx.parentEvents.map((event) => ({
-        ...event,
-        eventParentIds: [...event.eventParentIds],
-      })),
-    };
+function prettifyEvent(event: FlowEvent): string | null {
+  const parts: string[] = [];
+
+  // Build context tags - always add parent span tags (formatTag returns ⤑ for null IDs)
+  if (event.category === "AgentTask") {
+    parts.push(formatTag("", event.taskId, "🅰"));
+  } else if (event.category === "StagehandStep") {
+    parts.push(formatTag("", event.taskId, "🅰"));
+    parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
+  } else if (event.category === "UnderstudyAction") {
+    parts.push(formatTag("", event.taskId, "🅰"));
+    parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
+    parts.push(formatTag(event.actionLabel, event.actionId, "🆄"));
+  } else if (event.category === "CDP") {
+    parts.push(formatTag("", event.taskId, "🅰"));
+    parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
+    parts.push(formatTag(event.actionLabel, event.actionId, "🆄"));
+    parts.push(formatTag("CDP", event.targetId, "🅲"));
+  } else if (event.category === "LLM") {
+    parts.push(formatTag("", event.taskId, "🅰"));
+    parts.push(formatTag(event.stepLabel, event.stepId, "🆂"));
+    parts.push(formatTag("LLM", event.requestId, "🧠"));
   }
 
-  private static emit(event: FlowEventInput): FlowEvent | null {
-    const ctx = FlowLogger.currentContext;
+  // Build details based on event type
+  let details = "";
+  const argsStr = event.params ? formatArgs(event.params) : "";
 
-    const emittedEvent = new FlowEvent({
-      ...event,
-      eventParentIds:
-        event.eventParentIds ??
-        ctx.parentEvents.map((parent) => parent.eventId),
-      sessionId: ctx.sessionId,
-    });
-    ctx.eventBus.emit(emittedEvent.eventType, emittedEvent);
-    return emittedEvent;
-  }
-
-  private static async runWithAutoStatusEventLogging<TResult>(
-    options: FlowLoggerLogOptions,
-    originalMethod: AsyncOriginalMethod<[], TResult>,
-  ): Promise<TResult> {
-    const ctx = FlowLogger.currentContext;
-    const { data, eventParentIds, eventType, eventIdSuffix } = options;
-    let caughtError: unknown = null;
-
-    // if eventParentIds is explicitly [], this is a root event, clear the parent events in context
-    if (eventParentIds && eventParentIds.length === 0) {
-      ctx.parentEvents = [];
+  if (event.category === "AgentTask") {
+    if (event.event === "started") {
+      details = `▷ ${event.method}(${argsStr})`;
+    } else if (event.event === "completed") {
+      const m = event.metrics;
+      const durationSec = m?.durationMs
+        ? (m.durationMs / 1000).toFixed(1)
+        : "?";
+      const llmStats = `${m?.llmRequests ?? 0} LLM calls ꜛ${m?.inputTokens ?? 0} ꜜ${m?.outputTokens ?? 0} tokens`;
+      const cdpStats = `${m?.cdpEvents ?? 0} CDP msgs`;
+      details = `✓ Agent.execute() DONE in ${durationSec}s | ${llmStats} | ${cdpStats}`;
     }
+  } else if (event.category === "StagehandStep") {
+    if (event.event === "started") {
+      details = `▷ ${event.method}(${argsStr})`;
+    } else if (event.event === "completed") {
+      const durationSec = event.metrics?.durationMs
+        ? (event.metrics.durationMs / 1000).toFixed(2)
+        : "?";
+      details = `✓ ${event.stepLabel || "STEP"} completed in ${durationSec}s`;
+    }
+  } else if (event.category === "UnderstudyAction") {
+    if (event.event === "started") {
+      details = `▷ ${event.method}(${argsStr})`;
+    } else if (event.event === "completed") {
+      const durationSec = event.metrics?.durationMs
+        ? (event.metrics.durationMs / 1000).toFixed(2)
+        : "?";
+      details = `✓ ${event.actionLabel || "ACTION"} completed in ${durationSec}s`;
+    }
+  } else if (event.category === "CDP") {
+    const icon = event.event === "call" ? "⏵" : "⏴";
+    details = `${icon} ${event.method}(${argsStr})`;
+  } else if (event.category === "LLM") {
+    if (event.event === "request") {
+      const promptStr = event.prompt ? " " + String(event.prompt) : "";
+      details = `${event.model} ⏴${promptStr}`;
+    } else if (event.event === "response") {
+      const hasTokens =
+        event.inputTokens !== undefined || event.outputTokens !== undefined;
+      const tokenStr = hasTokens
+        ? ` ꜛ${event.inputTokens ?? 0} ꜜ${event.outputTokens ?? 0} |`
+        : "";
+      const outputStr = event.output ? " " + String(event.output) : "";
+      details = `${event.model} ↳${tokenStr}${outputStr}`;
+    }
+  }
 
-    const startedEvent = FlowLogger.emit({
-      eventIdSuffix,
-      eventType,
-      data,
-      eventParentIds,
-    });
+  if (!details) return null;
 
-    ctx.parentEvents.push(startedEvent);
+  // Assemble line and apply final truncation
+  const fullLine = `${formatTimestamp()} ${parts.join(" ")} ${details}`;
+  const cleaned = removeQuotes(fullLine);
+  const processed =
+    event.category === "CDP" ? truncateCdpIds(cleaned) : cleaned;
+  return truncateLine(processed, MAX_LINE_LENGTH);
+}
 
-    try {
-      return await originalMethod();
-    } catch (error) {
-      caughtError = error;
-      FlowLogger.emit({
-        eventIdSuffix,
-        eventType: `${eventType}ErrorEvent`,
-        eventParentIds: [...startedEvent.eventParentIds, startedEvent.eventId],
-        data: {
-          error: error instanceof Error ? error.message : String(error),
-          durationMs: Date.now() - new Date(startedEvent.createdAt).getTime(),
-        },
-      });
-      throw error;
-    } finally {
-      const parentEvent = ctx.parentEvents.pop();
-      if (parentEvent?.eventId === startedEvent.eventId && !caughtError) {
-        FlowLogger.emit({
-          eventIdSuffix,
-          eventType: `${eventType}CompletedEvent`,
-          eventParentIds: [
-            ...startedEvent.eventParentIds,
-            startedEvent.eventId,
-          ],
-          data: {
-            durationMs: Date.now() - new Date(startedEvent.createdAt).getTime(),
-          },
-        });
+/** Check if a CDP event should be filtered from pretty output */
+function shouldFilterCdpEvent(event: FlowEvent): boolean {
+  if (event.category !== "CDP") return false;
+  if (event.method?.endsWith(".enable") || event.method === "enable")
+    return true;
+  return event.event === "message" && NOISY_CDP_EVENTS.has(event.method!);
+}
+
+// =============================================================================
+// Stream Creation
+// =============================================================================
+
+const isWritable = (s: fs.WriteStream | null): s is fs.WriteStream =>
+  !!(s && !s.destroyed && s.writable);
+
+function createJsonlStream(ctx: FlowLoggerContext): Writable {
+  return new Writable({
+    objectMode: true,
+    write(chunk: string, _, cb) {
+      if (ctx.initialized && isWritable(ctx.fileStreams.jsonl)) {
+        ctx.fileStreams.jsonl.write(chunk, cb);
+      } else cb();
+    },
+  });
+}
+
+function createPrettyStream(
+  ctx: FlowLoggerContext,
+  category: EventCategory,
+  streamKey: keyof FlowLoggerContext["fileStreams"],
+): Writable {
+  return new Writable({
+    objectMode: true,
+    write(chunk: string, _, cb) {
+      const stream = ctx.fileStreams[streamKey];
+      if (!ctx.initialized || !isWritable(stream)) return cb();
+      try {
+        const event = JSON.parse(chunk) as FlowEvent;
+        if (event.category !== category || shouldFilterCdpEvent(event))
+          return cb();
+        const line = prettifyEvent(event);
+        if (line) stream.write(line + "\n", cb);
+        else cb();
+      } catch {
+        cb();
       }
-    }
-  }
-
-  /**
-   * Initialize a new logging context. Call this at the start of a session.
-   */
-  static init(sessionId: string, eventBus: EventEmitter): FlowLoggerContext {
-    const ctx: FlowLoggerContext = {
-      sessionId,
-      eventBus,
-      parentEvents: [],
-    };
-
-    loggerContext.enterWith(ctx);
-    return ctx;
-  }
-
-  static async close(context?: FlowLoggerContext | null): Promise<void> {
-    const ctx = context ?? loggerContext.getStore() ?? null;
-    if (!ctx) return;
-    ctx.parentEvents = [];
-  }
-
-  static get currentContext(): FlowLoggerContext {
-    const ctx = loggerContext.getStore() ?? null;
-    if (!ctx) {
-      throw new Error("FlowLogger context is missing.");
-    }
-
-    return ctx;
-  }
-
-  // decorator method to wrap a class method with automatic started/completed/error events
-  static wrapWithLogging<TMethod extends AsyncOriginalMethod>(
-    options: FlowLoggerLogOptions,
-  ) {
-    return function <
-      TWrappedMethod extends AsyncOriginalMethod<
-        Parameters<TMethod>,
-        Awaited<ReturnType<TMethod>>,
-        ThisParameterType<TMethod>
-      >,
-    >(originalMethod: TWrappedMethod): TWrappedMethod {
-      const wrappedMethod = async function (
-        this: ThisParameterType<TWrappedMethod>,
-        ...args: Parameters<TWrappedMethod>
-      ): Promise<Awaited<ReturnType<TWrappedMethod>>> {
-        return await FlowLogger.runWithLogging(
-          options,
-          (...boundArgs: Parameters<TWrappedMethod>) =>
-            originalMethod.apply(this, boundArgs) as Promise<
-              Awaited<ReturnType<TWrappedMethod>>
-            >,
-          args,
-        );
-      };
-
-      return wrappedMethod as unknown as TWrappedMethod;
-    };
-  }
-
-  // closure runner to wrap some async work with automatic started/completed/error events
-  // Standard case: the logged params are the same tuple passed to the wrapped method.
-  static runWithLogging<TMethod extends AsyncOriginalMethod>(
-    options: FlowLoggerLogOptions,
-    originalMethod: TMethod,
-    params: Readonly<Parameters<TMethod>>,
-  ): Promise<Awaited<ReturnType<TMethod>>>;
-  // Special case: log an arbitrary params tuple while executing a zero-arg closure.
-  static runWithLogging<TResult>(
-    options: FlowLoggerLogOptions,
-    originalMethod: AsyncOriginalMethod<[], TResult>,
-    params: ReadonlyArray<unknown>,
-  ): Promise<Awaited<TResult>>;
-  static runWithLogging(
-    options: FlowLoggerLogOptions,
-    originalMethod: AsyncOriginalMethod<unknown[], unknown>,
-    params: ReadonlyArray<unknown>,
-  ): Promise<unknown> {
-    const eventData = {
-      ...(options.data ?? {}),
-      params: [...params],
-    };
-
-    const execute = (): Promise<unknown> =>
-      FlowLogger.runWithAutoStatusEventLogging(
-        {
-          ...options,
-          data: eventData,
-        },
-        () => originalMethod(...params),
-      );
-
-    if (!options.context && !(loggerContext.getStore() ?? null)) {
-      return originalMethod(...params);
-    }
-
-    return options.context
-      ? loggerContext.run(FlowLogger.cloneContext(options.context), execute)
-      : execute();
-  }
-
-  // ===========================================================================
-  // CDP Events
-  // ===========================================================================
-
-  private static readonly NOISY_CDP_EVENTS = new Set([
-    "Target.targetInfoChanged",
-    "Runtime.executionContextCreated",
-    "Runtime.executionContextDestroyed",
-    "Runtime.executionContextsCleared",
-    "Page.lifecycleEvent",
-    "Network.dataReceived",
-    "Network.loadingFinished",
-    "Network.requestWillBeSentExtraInfo",
-    "Network.responseReceivedExtraInfo",
-    "Network.requestWillBeSent",
-    "Network.responseReceived",
-  ]);
-
-  private static logCdpEvent(
-    context: FlowLoggerContext,
-    eventType: "call" | "response" | "responseError" | "message",
-    {
-      method,
-      params,
-      result,
-      error,
-      targetId,
-    }: {
-      method: string;
-      params?: unknown;
-      result?: unknown;
-      error?: string;
-      targetId?: string | null;
     },
-    eventParentIds?: string[],
-  ): FlowEvent | null {
-    if (method.endsWith(".enable") || method === "enable") {
-      return null;
-    }
-
-    if (eventType === "message" && FlowLogger.NOISY_CDP_EVENTS.has(method)) {
-      return null;
-    }
-
-    return loggerContext.run(FlowLogger.cloneContext(context), () =>
-      FlowLogger.emit({
-        eventIdSuffix: "6",
-        eventType:
-          eventType === "call"
-            ? "CdpCallEvent"
-            : eventType === "response"
-              ? "CdpResponseEvent"
-              : eventType === "responseError"
-                ? "CdpResponseErrorEvent"
-                : "CdpMessageEvent",
-        eventParentIds,
-        data: {
-          method,
-          params,
-          result,
-          error,
-          targetId,
-        },
-      }),
-    );
-  }
-
-  static logCdpCallEvent(
-    context: FlowLoggerContext,
-    data: {
-      method: string;
-      params?: object;
-      targetId?: string | null;
-    },
-  ): FlowEvent | null {
-    return FlowLogger.logCdpEvent(context, "call", data);
-  }
-
-  static logCdpResponseEvent(
-    context: FlowLoggerContext,
-    parentEvent: Pick<FlowEvent, "eventId" | "eventParentIds">,
-    data: {
-      method: string;
-      result?: unknown;
-      error?: string;
-      targetId?: string | null;
-    },
-  ): void {
-    FlowLogger.logCdpEvent(
-      context,
-      data.error ? "responseError" : "response",
-      data,
-      [...parentEvent.eventParentIds, parentEvent.eventId],
-    );
-  }
-
-  static logCdpMessageEvent(
-    context: FlowLoggerContext,
-    parentEvent: Pick<FlowEvent, "eventId" | "eventParentIds">,
-    data: {
-      method: string;
-      params?: unknown;
-      targetId?: string | null;
-    },
-  ): void {
-    FlowLogger.logCdpEvent(context, "message", data, [
-      ...parentEvent.eventParentIds,
-      parentEvent.eventId,
-    ]);
-  }
-
-  // ===========================================================================
-  // LLM Events
-  // ===========================================================================
-
-  static logLlmRequest({
-    requestId,
-    model,
-    prompt,
-  }: {
-    requestId: string;
-    model: string;
-    prompt?: string;
-  }): void {
-    FlowLogger.emit({
-      eventIdSuffix: "7",
-      eventType: "LlmRequestEvent",
-      data: {
-        requestId,
-        model,
-        prompt,
-      },
-    });
-  }
-
-  static logLlmResponse({
-    requestId,
-    model,
-    output,
-    inputTokens,
-    outputTokens,
-  }: {
-    requestId: string;
-    model: string;
-    output?: string;
-    inputTokens?: number;
-    outputTokens?: number;
-  }): void {
-    FlowLogger.emit({
-      eventIdSuffix: "7",
-      eventType: "LlmResponseEvent",
-      data: {
-        requestId,
-        model,
-        output,
-        inputTokens,
-        outputTokens,
-      },
-    });
-  }
-
-  // ===========================================================================
-  // LLM Logging Middleware
-  // ===========================================================================
-
-  /**
-   * Create middleware for wrapping language models with LLM call logging.
-   * Returns a no-op middleware when logging is disabled.
-   */
-  static createLlmLoggingMiddleware(
-    modelId: string,
-  ): Pick<LanguageModelMiddleware, "wrapGenerate"> {
-    return {
-      wrapGenerate: async ({ doGenerate, params }) => {
-        const llmRequestId = uuidv7();
-        const toolCount = Array.isArray(params.tools) ? params.tools.length : 0;
-        const messages = (params.prompt ?? []) as Array<{
-          role?: string;
-          content?: unknown;
-        }>;
-        const lastMsg = messages.filter((m) => m.role !== "system").pop();
-        let rolePrefix = lastMsg?.role ?? "?";
-        let promptSummary = `(no text) +{${toolCount} tools}`;
-
-        if (lastMsg) {
-          if (typeof lastMsg.content === "string") {
-            promptSummary = `${lastMsg.content} +{${toolCount} tools}`;
-          } else if (Array.isArray(lastMsg.content)) {
-            const toolResult = (
-              lastMsg.content as Array<{
-                type?: string;
-                toolName?: string;
-                output?: { type?: string; value?: unknown };
-              }>
-            ).find((part) => part.type === "tool-result");
-
-            if (toolResult) {
-              rolePrefix = `tool result: ${toolResult.toolName}()`;
-              if (
-                toolResult.output?.type === "json" &&
-                toolResult.output.value
-              ) {
-                promptSummary = `${JSON.stringify(toolResult.output.value)} +{${toolCount} tools}`;
-              } else if (Array.isArray(toolResult.output?.value)) {
-                promptSummary = `${
-                  extractLlmMessageSummary({
-                    content: toolResult.output.value,
-                  }) ?? "(no text)"
-                } +{${toolCount} tools}`;
-              }
-            } else {
-              promptSummary = `${
-                extractLlmMessageSummary({ content: lastMsg.content }) ??
-                "(no text)"
-              } +{${toolCount} tools}`;
-            }
-          }
-
-          promptSummary = `${rolePrefix}: ${promptSummary}`;
-        } else {
-          promptSummary = `?: ${promptSummary}`;
-        }
-
-        FlowLogger.logLlmRequest({
-          requestId: llmRequestId,
-          model: modelId,
-          prompt: promptSummary,
-        });
-
-        const result = await doGenerate();
-
-        // Extract output summary
-        const res = result as {
-          text?: string;
-          content?: unknown;
-          toolCalls?: unknown[];
-        };
-        let outputSummary = res.text || "";
-        if (!outputSummary && res.content) {
-          if (typeof res.content === "string") {
-            outputSummary = res.content;
-          } else if (Array.isArray(res.content)) {
-            outputSummary = (
-              res.content as Array<{
-                type?: string;
-                text?: string;
-                toolName?: string;
-              }>
-            )
-              .map(
-                (c) =>
-                  c.text ||
-                  (c.type === "tool-call"
-                    ? `tool call: ${c.toolName}()`
-                    : `[${c.type}]`),
-              )
-              .join(" ");
-          }
-        }
-        if (!outputSummary && res.toolCalls?.length) {
-          outputSummary = `[${res.toolCalls.length} tool calls]`;
-        }
-
-        FlowLogger.logLlmResponse({
-          requestId: llmRequestId,
-          model: modelId,
-          output: outputSummary || "[empty]",
-          inputTokens: result.usage?.inputTokens,
-          outputTokens: result.usage?.outputTokens,
-        });
-
-        return result;
-      },
-    };
-  }
+  });
 }
 
 // =============================================================================
-// LLM Event Extraction Helpers
+// Public Helpers (used by external callers)
+// =============================================================================
+
+/**
+ * Get the config directory. Returns empty string if logging is disabled.
+ */
+export function getConfigDir(): string {
+  return CONFIG_DIR ? path.resolve(CONFIG_DIR) : "";
+}
+
+// =============================================================================
+// Prompt Preview Helpers
 // =============================================================================
 
 type ContentPart = {
@@ -552,22 +366,11 @@ type ContentPart = {
   inlineData?: { data?: string };
 };
 
-type LlmMessageContent = {
-  content?: unknown;
-  text?: string;
-  parts?: unknown[];
-};
-
 /** Extract text and image info from a content array (handles nested tool_result) */
-function extractLlmMessageContent(content: unknown[]): {
-  text?: string;
-  extras: string[];
-} {
-  const result = {
-    text: undefined as string | undefined,
-    extras: [] as string[],
-  };
-
+function extractFromContent(
+  content: unknown[],
+  result: { text?: string; extras: string[] },
+): void {
   for (const part of content) {
     const p = part as ContentPart;
     // Text
@@ -589,63 +392,33 @@ function extractLlmMessageContent(content: unknown[]): {
     }
     // Recurse into tool_result content
     if (p.type === "tool_result" && Array.isArray(p.content)) {
-      const nested = extractLlmMessageContent(p.content);
-      if (!result.text && nested.text) {
-        result.text = nested.text;
-      }
-      result.extras.push(...nested.extras);
+      extractFromContent(p.content, result);
     }
   }
-
-  return result;
 }
 
-function extractLlmMessageSummary(
-  input: LlmMessageContent,
-  options?: {
-    trimInstructionPrefix?: boolean;
-    extras?: string[];
-  },
+/** Build final preview string with extras */
+function buildPreview(
+  text: string | undefined,
+  extras: string[],
+  maxLen?: number,
 ): string | undefined {
-  const result = {
-    text: undefined as string | undefined,
-    extras: [...(options?.extras ?? [])],
-  };
-
-  if (typeof input.content === "string") {
-    result.text = input.content;
-  } else if (typeof input.text === "string") {
-    result.text = input.text;
-  } else if (Array.isArray(input.parts)) {
-    const summary = extractLlmMessageContent(input.parts);
-    result.text = summary.text;
-    result.extras.push(...summary.extras);
-  } else if (Array.isArray(input.content)) {
-    const summary = extractLlmMessageContent(input.content);
-    result.text = summary.text;
-    result.extras.push(...summary.extras);
+  if (!text && extras.length === 0) return undefined;
+  let result = text || "";
+  if (maxLen && result.length > maxLen)
+    result = result.slice(0, maxLen) + "...";
+  if (extras.length > 0) {
+    const extrasStr = extras.map((e) => `+{${e}}`).join(" ");
+    result = result ? `${result} ${extrasStr}` : extrasStr;
   }
-
-  if (options?.trimInstructionPrefix && result.text) {
-    result.text = result.text.replace(/^[Ii]nstruction: /, "");
-  }
-
-  const text = result.text;
-  if (!text && result.extras.length === 0) return undefined;
-
-  let summary = text || "";
-  if (result.extras.length > 0) {
-    const extrasStr = result.extras.map((e) => `+{${e}}`).join(" ");
-    summary = summary ? `${summary} ${extrasStr}` : extrasStr;
-  }
-  return summary || undefined;
+  return result || undefined;
 }
 
 /**
- * Format a prompt summary from LLM messages for logging.
- * Returns format like: "some text +{5.8kb image} +{schema} +{12 tools}"
+ * Format a prompt preview from LLM messages for logging.
+ * Returns format like: "some text... +{5.8kb image} +{schema} +{12 tools}"
  */
-export function extractLlmPromptSummary(
+export function formatLlmPromptPreview(
   messages: Array<{ role: string; content: unknown }>,
   options?: { toolCount?: number; hasSchema?: boolean },
 ): string | undefined {
@@ -653,24 +426,40 @@ export function extractLlmPromptSummary(
     const lastUserMsg = messages.filter((m) => m.role === "user").pop();
     if (!lastUserMsg) return undefined;
 
-    return extractLlmMessageSummary(lastUserMsg, {
-      trimInstructionPrefix: true,
-      extras: [
-        ...(options?.hasSchema ? ["schema"] : []),
-        ...(options?.toolCount ? [`${options.toolCount} tools`] : []),
-      ],
-    });
+    const result = {
+      text: undefined as string | undefined,
+      extras: [] as string[],
+    };
+
+    if (typeof lastUserMsg.content === "string") {
+      result.text = lastUserMsg.content;
+    } else if (Array.isArray(lastUserMsg.content)) {
+      extractFromContent(lastUserMsg.content, result);
+    } else {
+      return undefined;
+    }
+
+    // Clean instruction prefix
+    if (result.text) {
+      result.text = result.text.replace(/^[Ii]nstruction: /, "");
+    }
+
+    if (options?.hasSchema) result.extras.push("schema");
+    if (options?.toolCount) result.extras.push(`${options.toolCount} tools`);
+
+    return buildPreview(result.text, result.extras);
   } catch {
     return undefined;
   }
 }
 
 /**
- * Extract a text summary from CUA-style messages.
+ * Extract a text preview from CUA-style messages.
  * Accepts various message formats (Anthropic, OpenAI, Google).
  */
-export function extractLlmCuaPromptSummary(
+export function formatCuaPromptPreview(
   messages: unknown[],
+  maxLen = 100,
 ): string | undefined {
   try {
     const lastMsg = messages
@@ -684,14 +473,32 @@ export function extractLlmCuaPromptSummary(
 
     if (!lastMsg) return undefined;
 
-    return extractLlmMessageSummary(lastMsg);
+    const result = {
+      text: undefined as string | undefined,
+      extras: [] as string[],
+    };
+
+    if (typeof lastMsg.content === "string") {
+      result.text = lastMsg.content;
+    } else if (typeof lastMsg.text === "string") {
+      result.text = lastMsg.text;
+    } else if (Array.isArray(lastMsg.parts)) {
+      extractFromContent(lastMsg.parts, result);
+    } else if (Array.isArray(lastMsg.content)) {
+      extractFromContent(lastMsg.content, result);
+    }
+
+    return buildPreview(result.text, result.extras, maxLen);
   } catch {
     return undefined;
   }
 }
 
-/** Format a CUA response summary for logging */
-export function extractLlmCuaResponseSummary(output: unknown): string {
+/** Format CUA response output for logging */
+export function formatCuaResponsePreview(
+  output: unknown,
+  maxLen = 100,
+): string {
   try {
     // Handle Google format or array
     const items: unknown[] =
@@ -699,7 +506,7 @@ export function extractLlmCuaResponseSummary(output: unknown): string {
         ?.candidates?.[0]?.content?.parts ??
       (Array.isArray(output) ? output : []);
 
-    const summary = items
+    const preview = items
       .map((item) => {
         const i = item as {
           type?: string;
@@ -707,15 +514,678 @@ export function extractLlmCuaResponseSummary(output: unknown): string {
           name?: string;
           functionCall?: { name?: string };
         };
-        if (i.text) return i.text;
-        if (i.functionCall?.name) return i.functionCall.name;
-        if (i.type === "tool_use" && i.name) return i.name;
-        return i.type ?? "[item]";
+        if (i.text) return i.text.slice(0, 50);
+        if (i.functionCall?.name) return `fn:${i.functionCall.name}`;
+        if (i.type === "tool_use" && i.name) return `tool_use:${i.name}`;
+        return i.type ? `[${i.type}]` : "[item]";
       })
       .join(" ");
 
-    return summary;
+    return preview.slice(0, maxLen);
   } catch {
     return "[error]";
   }
+}
+
+// =============================================================================
+// SessionFileLogger - Main API
+// =============================================================================
+
+export class SessionFileLogger {
+  /**
+   * Initialize a new logging context. Call this at the start of a session.
+   * If BROWSERBASE_CONFIG_DIR is not set, logging is disabled.
+   */
+  static init(sessionId: string, v3Options?: V3Options): void {
+    const configDir = getConfigDir();
+    if (!configDir) return; // Logging disabled
+
+    const sessionDir = path.join(configDir, "sessions", sessionId);
+
+    // Create context with placeholder logger (will be replaced after streams init)
+    const ctx: FlowLoggerContext = {
+      logger: pino({ level: "silent" }), // Placeholder, replaced below
+      metrics: {
+        llmRequests: 0,
+        llmInputTokens: 0,
+        llmOutputTokens: 0,
+        cdpEvents: 0,
+      },
+      sessionId,
+      sessionDir,
+      configDir,
+      initPromise: Promise.resolve(),
+      initialized: false,
+      // Span context - mutable, injected into every log via mixin
+      taskId: null,
+      stepId: null,
+      stepLabel: null,
+      actionId: null,
+      actionLabel: null,
+      fileStreams: {
+        agent: null,
+        stagehand: null,
+        understudy: null,
+        cdp: null,
+        llm: null,
+        jsonl: null,
+      },
+    };
+
+    // Store init promise for awaiting in log methods
+    ctx.initPromise = SessionFileLogger.initAsync(ctx, v3Options);
+
+    loggerContext.enterWith(ctx);
+  }
+
+  private static async initAsync(
+    ctx: FlowLoggerContext,
+    v3Options?: V3Options,
+  ): Promise<void> {
+    try {
+      await fs.promises.mkdir(ctx.sessionDir, { recursive: true });
+
+      if (v3Options) {
+        const sanitizedOptions = sanitizeOptions(v3Options);
+        const sessionJsonPath = path.join(ctx.sessionDir, "session.json");
+        await fs.promises.writeFile(
+          sessionJsonPath,
+          JSON.stringify(sanitizedOptions, null, 2),
+          "utf-8",
+        );
+      }
+
+      // Create symlink to latest session
+      const latestLink = path.join(ctx.configDir, "sessions", "latest");
+      try {
+        try {
+          await fs.promises.unlink(latestLink);
+        } catch {
+          // Ignore if doesn't exist
+        }
+        await fs.promises.symlink(ctx.sessionId, latestLink, "dir");
+      } catch {
+        // Symlink creation can fail on Windows or due to permissions
+      }
+
+      // Create file streams
+      const dir = ctx.sessionDir;
+      ctx.fileStreams.agent = fs.createWriteStream(
+        path.join(dir, "agent_events.log"),
+        { flags: "a" },
+      );
+      ctx.fileStreams.stagehand = fs.createWriteStream(
+        path.join(dir, "stagehand_events.log"),
+        { flags: "a" },
+      );
+      ctx.fileStreams.understudy = fs.createWriteStream(
+        path.join(dir, "understudy_events.log"),
+        { flags: "a" },
+      );
+      ctx.fileStreams.cdp = fs.createWriteStream(
+        path.join(dir, "cdp_events.log"),
+        { flags: "a" },
+      );
+      ctx.fileStreams.llm = fs.createWriteStream(
+        path.join(dir, "llm_events.log"),
+        { flags: "a" },
+      );
+      ctx.fileStreams.jsonl = fs.createWriteStream(
+        path.join(dir, "session_events.jsonl"),
+        { flags: "a" },
+      );
+
+      ctx.initialized = true;
+
+      // Create pino multistream: JSONL + pretty streams per category
+      const streams: pino.StreamEntry[] = [
+        { stream: createJsonlStream(ctx) },
+        { stream: createPrettyStream(ctx, "AgentTask", "agent") },
+        { stream: createPrettyStream(ctx, "StagehandStep", "stagehand") },
+        { stream: createPrettyStream(ctx, "UnderstudyAction", "understudy") },
+        { stream: createPrettyStream(ctx, "CDP", "cdp") },
+        { stream: createPrettyStream(ctx, "LLM", "llm") },
+      ];
+
+      // Create logger with mixin that injects span context from AsyncLocalStorage
+      ctx.logger = pino(
+        {
+          level: "info",
+          // Mixin adds eventId and current span context to every log
+          mixin() {
+            const store = loggerContext.getStore();
+            return {
+              eventId: uuidv7(),
+              sessionId: store?.sessionId,
+              taskId: store?.taskId,
+              stepId: store?.stepId,
+              stepLabel: store?.stepLabel,
+              actionId: store?.actionId,
+              actionLabel: store?.actionLabel,
+            };
+          },
+        },
+        pino.multistream(streams),
+      );
+    } catch {
+      // Fail silently
+    }
+  }
+
+  static async close(): Promise<void> {
+    const ctx = loggerContext.getStore();
+    if (!ctx) return;
+    await ctx.initPromise;
+    SessionFileLogger.logAgentTaskCompleted();
+    await Promise.all(
+      Object.values(ctx.fileStreams)
+        .filter(Boolean)
+        .map((s) => new Promise<void>((r) => s!.end(r))),
+    ).catch(() => {});
+  }
+
+  static get sessionId(): string | null {
+    return loggerContext.getStore()?.sessionId ?? null;
+  }
+
+  static get sessionDir(): string | null {
+    return loggerContext.getStore()?.sessionDir ?? null;
+  }
+
+  /**
+   * Get the current logger context object.
+   */
+  static getContext(): FlowLoggerContext | null {
+    return loggerContext.getStore() ?? null;
+  }
+
+  // ===========================================================================
+  // Agent Task Events
+  // ===========================================================================
+
+  /**
+   * Start a new task and log it.
+   */
+  static logAgentTaskStarted({
+    invocation,
+    args,
+  }: {
+    invocation: string;
+    args?: unknown | unknown[];
+  }): void {
+    const ctx = loggerContext.getStore();
+    if (!ctx) return;
+
+    // Set up task context
+    ctx.taskId = uuidv7();
+    ctx.stepId = null;
+    ctx.stepLabel = null;
+    ctx.actionId = null;
+    ctx.actionLabel = null;
+
+    // Reset metrics for new task
+    ctx.metrics = {
+      taskStartTime: Date.now(),
+      llmRequests: 0,
+      llmInputTokens: 0,
+      llmOutputTokens: 0,
+      cdpEvents: 0,
+    };
+
+    ctx.logger.info({
+      category: "AgentTask",
+      event: "started",
+      method: invocation,
+      params: args,
+    } as FlowEvent);
+  }
+
+  /**
+   * Log task completion with metrics summary.
+   */
+  static logAgentTaskCompleted(options?: { cacheHit?: boolean }): void {
+    const ctx = loggerContext.getStore();
+    if (!ctx || !ctx.metrics.taskStartTime) return;
+
+    const durationMs = Date.now() - ctx.metrics.taskStartTime;
+
+    const event: Partial<FlowEvent> = {
+      category: "AgentTask",
+      event: "completed",
+      method: "Agent.execute",
+      metrics: {
+        durationMs,
+        llmRequests: ctx.metrics.llmRequests,
+        inputTokens: ctx.metrics.llmInputTokens,
+        outputTokens: ctx.metrics.llmOutputTokens,
+        cdpEvents: ctx.metrics.cdpEvents,
+      },
+    };
+
+    if (options?.cacheHit) {
+      event.msg = "CACHE HIT, NO LLM NEEDED";
+    }
+
+    ctx.logger.info(event);
+
+    // Clear task context
+    ctx.taskId = null;
+    ctx.stepId = null;
+    ctx.stepLabel = null;
+    ctx.actionId = null;
+    ctx.actionLabel = null;
+    ctx.metrics.taskStartTime = undefined;
+  }
+
+  // ===========================================================================
+  // Stagehand Step Events
+  // ===========================================================================
+
+  static logStagehandStepEvent({
+    invocation,
+    args,
+    label,
+  }: {
+    invocation: string;
+    args?: unknown | unknown[];
+    label: string;
+  }): string {
+    const ctx = loggerContext.getStore();
+    if (!ctx) return uuidv7();
+
+    // Set up step context
+    ctx.stepId = uuidv7();
+    ctx.stepLabel = label.toUpperCase();
+    ctx.actionId = null;
+    ctx.actionLabel = null;
+    ctx.metrics.stepStartTime = Date.now();
+
+    ctx.logger.info({
+      category: "StagehandStep",
+      event: "started",
+      method: invocation,
+      params: args,
+    } as FlowEvent);
+
+    return ctx.stepId;
+  }
+
+  static logStagehandStepCompleted(): void {
+    const ctx = loggerContext.getStore();
+    if (!ctx || !ctx.stepId) return;
+
+    const durationMs = ctx.metrics.stepStartTime
+      ? Date.now() - ctx.metrics.stepStartTime
+      : 0;
+
+    ctx.logger.info({
+      category: "StagehandStep",
+      event: "completed",
+      metrics: { durationMs },
+    } as FlowEvent);
+
+    // Clear step context
+    ctx.stepId = null;
+    ctx.stepLabel = null;
+    ctx.actionId = null;
+    ctx.actionLabel = null;
+    ctx.metrics.stepStartTime = undefined;
+  }
+
+  // ===========================================================================
+  // Understudy Action Events
+  // ===========================================================================
+
+  static logUnderstudyActionEvent({
+    actionType,
+    target,
+    args,
+  }: {
+    actionType: string;
+    target?: string;
+    args?: unknown | unknown[];
+  }): string {
+    const ctx = loggerContext.getStore();
+    if (!ctx) return uuidv7();
+
+    // Set up action context
+    ctx.actionId = uuidv7();
+    ctx.actionLabel = actionType
+      .toUpperCase()
+      .replace("UNDERSTUDY.", "")
+      .replace("PAGE.", "");
+    ctx.metrics.actionStartTime = Date.now();
+
+    const params: Record<string, unknown> = {};
+    if (target) params.target = target;
+    if (args) params.args = args;
+
+    ctx.logger.info({
+      category: "UnderstudyAction",
+      event: "started",
+      method: actionType,
+      params: Object.keys(params).length > 0 ? params : undefined,
+    } as FlowEvent);
+
+    return ctx.actionId;
+  }
+
+  static logUnderstudyActionCompleted(): void {
+    const ctx = loggerContext.getStore();
+    if (!ctx || !ctx.actionId) return;
+
+    const durationMs = ctx.metrics.actionStartTime
+      ? Date.now() - ctx.metrics.actionStartTime
+      : 0;
+
+    ctx.logger.info({
+      category: "UnderstudyAction",
+      event: "completed",
+      metrics: { durationMs },
+    } as FlowEvent);
+
+    // Clear action context
+    ctx.actionId = null;
+    ctx.actionLabel = null;
+    ctx.metrics.actionStartTime = undefined;
+  }
+
+  // ===========================================================================
+  // CDP Events
+  // ===========================================================================
+
+  private static logCdpEvent(
+    eventType: "call" | "message",
+    {
+      method,
+      params,
+      targetId,
+    }: { method: string; params?: unknown; targetId?: string | null },
+    explicitCtx?: FlowLoggerContext | null,
+  ): void {
+    const ctx = explicitCtx ?? loggerContext.getStore();
+    if (!ctx) return;
+    if (eventType === "call") ctx.metrics.cdpEvents++;
+    ctx.logger.info({
+      category: "CDP",
+      event: eventType,
+      method,
+      params,
+      targetId,
+    } as FlowEvent);
+  }
+
+  static logCdpCallEvent(
+    data: { method: string; params?: object; targetId?: string | null },
+    ctx?: FlowLoggerContext | null,
+  ): void {
+    SessionFileLogger.logCdpEvent("call", data, ctx);
+  }
+
+  static logCdpMessageEvent(
+    data: { method: string; params?: unknown; targetId?: string | null },
+    ctx?: FlowLoggerContext | null,
+  ): void {
+    SessionFileLogger.logCdpEvent("message", data, ctx);
+  }
+
+  // ===========================================================================
+  // LLM Events
+  // ===========================================================================
+
+  static logLlmRequest(
+    {
+      requestId,
+      model,
+      prompt,
+    }: {
+      requestId: string;
+      model: string;
+      operation: string;
+      prompt?: string;
+    },
+    explicitCtx?: FlowLoggerContext | null,
+  ): void {
+    const ctx = explicitCtx ?? loggerContext.getStore();
+    if (!ctx) return;
+
+    // Track LLM requests for task metrics
+    ctx.metrics.llmRequests++;
+
+    ctx.logger.info({
+      category: "LLM",
+      event: "request",
+      requestId,
+      method: "LLM.request",
+      model,
+      prompt,
+    });
+  }
+
+  static logLlmResponse(
+    {
+      requestId,
+      model,
+      output,
+      inputTokens,
+      outputTokens,
+    }: {
+      requestId: string;
+      model: string;
+      operation: string;
+      output?: string;
+      inputTokens?: number;
+      outputTokens?: number;
+    },
+    explicitCtx?: FlowLoggerContext | null,
+  ): void {
+    const ctx = explicitCtx ?? loggerContext.getStore();
+    if (!ctx) return;
+
+    // Track tokens for task metrics
+    ctx.metrics.llmInputTokens += inputTokens ?? 0;
+    ctx.metrics.llmOutputTokens += outputTokens ?? 0;
+
+    ctx.logger.info({
+      category: "LLM",
+      event: "response",
+      requestId,
+      method: "LLM.response",
+      model,
+      output,
+      inputTokens,
+      outputTokens,
+    });
+  }
+
+  // ===========================================================================
+  // LLM Logging Middleware
+  // ===========================================================================
+
+  /**
+   * Create middleware for wrapping language models with LLM call logging.
+   * Returns a no-op middleware when logging is disabled.
+   */
+  static createLlmLoggingMiddleware(
+    modelId: string,
+  ): Pick<LanguageModelMiddleware, "wrapGenerate"> {
+    // No-op middleware when logging is disabled
+    if (!CONFIG_DIR) {
+      return {
+        wrapGenerate: async ({ doGenerate }) => doGenerate(),
+      };
+    }
+
+    return {
+      wrapGenerate: async ({ doGenerate, params }) => {
+        const ctx = SessionFileLogger.getContext();
+        // Skip logging overhead if no context (shouldn't happen but be safe)
+        if (!ctx) {
+          return doGenerate();
+        }
+        const llmRequestId = uuidv7();
+        const toolCount = Array.isArray(params.tools) ? params.tools.length : 0;
+
+        // Extract prompt preview from last non-system message
+        const messages = (params.prompt ?? []) as Array<{
+          role?: string;
+          content?: unknown;
+        }>;
+        const lastMsg = messages.filter((m) => m.role !== "system").pop();
+        const extracted = {
+          text: undefined as string | undefined,
+          extras: [] as string[],
+        };
+
+        let rolePrefix = lastMsg?.role ?? "?";
+        if (lastMsg) {
+          if (typeof lastMsg.content === "string") {
+            extracted.text = lastMsg.content;
+          } else if (Array.isArray(lastMsg.content)) {
+            // Check for tool-result first
+            const toolResult = (
+              lastMsg.content as Array<{
+                type?: string;
+                toolName?: string;
+                output?: { type?: string; value?: unknown };
+              }>
+            ).find((p) => p.type === "tool-result");
+            if (toolResult) {
+              rolePrefix = `tool result: ${toolResult.toolName}()`;
+              const out = toolResult.output;
+              if (out?.type === "json" && out.value) {
+                extracted.text = JSON.stringify(out.value).slice(0, 150);
+              } else if (Array.isArray(out?.value)) {
+                extractFromContent(out.value as unknown[], extracted);
+              }
+            } else {
+              extractFromContent(lastMsg.content as unknown[], extracted);
+            }
+          }
+        }
+
+        const promptText = extracted.text || "(no text)";
+        const promptPreview = `${rolePrefix}: ${promptText} +{${toolCount} tools}`;
+
+        SessionFileLogger.logLlmRequest(
+          {
+            requestId: llmRequestId,
+            model: modelId,
+            operation: "generateText",
+            prompt: promptPreview,
+          },
+          ctx,
+        );
+
+        const result = await doGenerate();
+
+        // Extract output preview
+        const res = result as {
+          text?: string;
+          content?: unknown;
+          toolCalls?: unknown[];
+        };
+        let outputPreview = res.text || "";
+        if (!outputPreview && res.content) {
+          if (typeof res.content === "string") {
+            outputPreview = res.content;
+          } else if (Array.isArray(res.content)) {
+            outputPreview = (
+              res.content as Array<{
+                type?: string;
+                text?: string;
+                toolName?: string;
+              }>
+            )
+              .map(
+                (c) =>
+                  c.text ||
+                  (c.type === "tool-call"
+                    ? `tool call: ${c.toolName}()`
+                    : `[${c.type}]`),
+              )
+              .join(" ");
+          }
+        }
+        if (!outputPreview && res.toolCalls?.length) {
+          outputPreview = `[${res.toolCalls.length} tool calls]`;
+        }
+
+        SessionFileLogger.logLlmResponse(
+          {
+            requestId: llmRequestId,
+            model: modelId,
+            operation: "generateText",
+            output: outputPreview || "[empty]",
+            inputTokens: result.usage?.inputTokens,
+            outputTokens: result.usage?.outputTokens,
+          },
+          ctx,
+        );
+
+        return result;
+      },
+    };
+  }
+}
+
+/**
+ * Method decorator for logging understudy actions with automatic start/complete.
+ * Logs all arguments automatically. No-op when CONFIG_DIR is empty.
+ */
+export function logAction(actionType: string) {
+  return function <T extends (...args: never[]) => Promise<unknown>>(
+    originalMethod: T,
+  ): T {
+    // No-op when logging is disabled
+    if (!CONFIG_DIR) {
+      return originalMethod;
+    }
+
+    return async function (this: unknown, ...args: unknown[]) {
+      SessionFileLogger.logUnderstudyActionEvent({
+        actionType,
+        args: args.length > 0 ? args : undefined,
+      });
+
+      try {
+        return await originalMethod.apply(this, args as never[]);
+      } finally {
+        SessionFileLogger.logUnderstudyActionCompleted();
+      }
+    } as T;
+  };
+}
+
+/**
+ * Method decorator for logging Stagehand step events (act, extract, observe).
+ * Only adds logging - does NOT wrap with withInstanceLogContext (caller handles that).
+ * No-op when CONFIG_DIR is empty.
+ */
+export function logStagehandStep(invocation: string, label: string) {
+  return function <T extends (...args: never[]) => Promise<unknown>>(
+    originalMethod: T,
+  ): T {
+    // No-op when logging is disabled
+    if (!CONFIG_DIR) {
+      return originalMethod;
+    }
+
+    return async function (
+      this: unknown,
+      ...args: unknown[]
+    ): Promise<unknown> {
+      SessionFileLogger.logStagehandStepEvent({
+        invocation,
+        args: args.length > 0 ? args : undefined,
+        label,
+      });
+
+      try {
+        return await originalMethod.apply(this, args as never[]);
+      } finally {
+        SessionFileLogger.logStagehandStepCompleted();
+      }
+    } as T;
+  };
 }

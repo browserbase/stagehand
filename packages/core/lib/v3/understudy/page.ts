@@ -1,7 +1,7 @@
 import { Protocol } from "devtools-protocol";
 import { promises as fs } from "fs";
 import { v3Logger } from "../logger.js";
-import { FlowLogger } from "../flowLogger.js";
+import { logAction } from "../flowLogger.js";
 import type { CDPSessionLike } from "./cdp.js";
 import { CdpConnection } from "./cdp.js";
 import { Frame } from "./frame.js";
@@ -651,7 +651,7 @@ export class Page {
   /**
    * Close this top-level page (tab). Best-effort via Target.closeTarget.
    */
-  @FlowLogger.wrapWithLogging({ eventType: "PageClose", eventIdSuffix: "5" })
+  @logAction("Page.close")
   public async close(): Promise<void> {
     try {
       await this.conn.send("Target.closeTarget", { targetId: this._targetId });
@@ -796,7 +796,7 @@ export class Page {
    * Navigate the page; optionally wait for a lifecycle state.
    * Waits on the **current** main frame and follows root swaps during navigation.
    */
-  @FlowLogger.wrapWithLogging({ eventType: "PageGoto", eventIdSuffix: "5" })
+  @logAction("Page.goto")
   async goto(
     url: string,
     options?: { waitUntil?: LoadState; timeoutMs?: number },
@@ -859,7 +859,7 @@ export class Page {
   /**
    * Reload the page; optionally wait for a lifecycle state.
    */
-  @FlowLogger.wrapWithLogging({ eventType: "PageReload", eventIdSuffix: "5" })
+  @logAction("Page.reload")
   async reload(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
@@ -906,7 +906,7 @@ export class Page {
   /**
    * Navigate back in history if possible; optionally wait for a lifecycle state.
    */
-  @FlowLogger.wrapWithLogging({ eventType: "PageGoBack", eventIdSuffix: "5" })
+  @logAction("Page.goBack")
   async goBack(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
@@ -959,10 +959,7 @@ export class Page {
   /**
    * Navigate forward in history if possible; optionally wait for a lifecycle state.
    */
-  @FlowLogger.wrapWithLogging({
-    eventType: "PageGoForward",
-    eventIdSuffix: "5",
-  })
+  @logAction("Page.goForward")
   async goForward(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
@@ -1092,10 +1089,7 @@ export class Page {
    * timeout error is thrown.
    * @param options.type Image format (`"png"` by default).
    */
-  @FlowLogger.wrapWithLogging({
-    eventType: "PageScreenshot",
-    eventIdSuffix: "5",
-  })
+  @logAction("Page.screenshot")
   async screenshot(options?: ScreenshotOptions): Promise<Buffer> {
     const opts = options ?? {};
     const type = opts.type ?? "png";
@@ -1268,10 +1262,7 @@ export class Page {
    * Wait until the page reaches a lifecycle state on the current main frame.
    * Mirrors Playwright's API signatures.
    */
-  @FlowLogger.wrapWithLogging({
-    eventType: "PageWaitForLoadState",
-    eventIdSuffix: "5",
-  })
+  @logAction("Page.waitForLoadState")
   async waitForLoadState(state: LoadState, timeoutMs?: number): Promise<void> {
     await this.waitForMainLoadState(state, timeoutMs ?? 15000);
   }
@@ -1299,10 +1290,7 @@ export class Page {
    * @returns True when the condition is met
    * @throws Error if timeout is reached before the condition is met
    */
-  @FlowLogger.wrapWithLogging({
-    eventType: "PageWaitForSelector",
-    eventIdSuffix: "5",
-  })
+  @logAction("Page.waitForSelector")
   async waitForSelector(
     selector: string,
     options?: {
@@ -1337,7 +1325,7 @@ export class Page {
    * - The return value should be JSON-serializable. Non-serializable objects will
    *   best-effort serialize via JSON.stringify inside the page context.
    */
-  @FlowLogger.wrapWithLogging({ eventType: "PageEvaluate", eventIdSuffix: "5" })
+  @logAction("Page.evaluate")
   async evaluate<R = unknown, Arg = unknown>(
     pageFunctionOrExpression: string | ((arg: Arg) => R | Promise<R>),
     arg?: Arg,
@@ -1391,7 +1379,7 @@ export class Page {
    * Force the page viewport to an exact CSS size and device scale factor.
    * Ensures screenshots match width x height pixels when deviceScaleFactor = 1.
    */
-  // @FlowLogger.wrapWithLogging({ eventType: "PageSetViewportSize", eventIdSuffix: "5" })  // disabled because it's pretty noisy, can always re-enable if needed for debugging
+  // @logAction("Page.setViewportSize")  // disabled because it's pretty noisy, can always re-enable if needed for debugging
   async setViewportSize(
     width: number,
     height: number,
@@ -1424,7 +1412,7 @@ export class Page {
    * on the top-level page target's session. Coordinates are relative to the
    * viewport origin (top-left). Does not scroll.
    */
-  @FlowLogger.wrapWithLogging({ eventType: "PageClick", eventIdSuffix: "5" })
+  @logAction("Page.click")
   async click(
     x: number,
     y: number,
@@ -1516,7 +1504,7 @@ export class Page {
    * Dispatches mouseMoved via CDP Input domain on the top-level page target's
    * session.
    */
-  @FlowLogger.wrapWithLogging({ eventType: "PageHover", eventIdSuffix: "5" })
+  @logAction("Page.hover")
   async hover(
     x: number,
     y: number,
@@ -1567,7 +1555,7 @@ export class Page {
     return xpathResult ?? "";
   }
 
-  @FlowLogger.wrapWithLogging({ eventType: "PageScroll", eventIdSuffix: "5" })
+  @logAction("Page.scroll")
   async scroll(
     x: number,
     y: number,
@@ -1610,10 +1598,7 @@ export class Page {
    * Drag from (fromX, fromY) to (toX, toY) using mouse events.
    * Sends mouseMoved → mousePressed → mouseMoved (steps) → mouseReleased.
    */
-  @FlowLogger.wrapWithLogging({
-    eventType: "PageDragAndDrop",
-    eventIdSuffix: "5",
-  })
+  @logAction("Page.dragAndDrop")
   async dragAndDrop(
     fromX: number,
     fromY: number,
@@ -1718,7 +1703,7 @@ export class Page {
    * and never falls back to Input.insertText. Optional delay applies between
    * successive characters.
    */
-  @FlowLogger.wrapWithLogging({ eventType: "PageType", eventIdSuffix: "5" })
+  @logAction("Page.type")
   async type(
     text: string,
     options?: { delay?: number; withMistakes?: boolean },
@@ -1845,7 +1830,7 @@ export class Page {
    * For printable characters, uses the text path on keyDown; for named keys, sets key/code/VK.
    * Supports key combinations with modifiers like "Cmd+A", "Ctrl+C", "Shift+Tab", etc.
    */
-  @FlowLogger.wrapWithLogging({ eventType: "PageKeyPress", eventIdSuffix: "5" })
+  @logAction("Page.keyPress")
   async keyPress(key: string, options?: { delay?: number }): Promise<void> {
     const delay = Math.max(0, options?.delay ?? 0);
     const sleep = (ms: number) =>
@@ -1897,7 +1882,7 @@ export class Page {
     }
   }
 
-  @FlowLogger.wrapWithLogging({ eventType: "PageSnapshot", eventIdSuffix: "5" })
+  @logAction("Page.snapshot")
   async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
     try {
       const { combinedTree, combinedXpathMap, combinedUrlMap } =

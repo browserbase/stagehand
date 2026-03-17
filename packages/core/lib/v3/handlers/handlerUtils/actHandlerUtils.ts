@@ -6,8 +6,7 @@ import { MouseButton } from "../../types/public/locator.js";
 import { resolveLocatorWithHops } from "../../understudy/deepLocator.js";
 import type { Page } from "../../understudy/page.js";
 import { v3Logger } from "../../logger.js";
-import { FlowLogger } from "../../flowLogger.js";
-import { toTitleCase } from "../../../utils.js";
+import { SessionFileLogger } from "../../flowLogger.js";
 import {
   StagehandClickError,
   UnderstudyCommandException,
@@ -72,35 +71,41 @@ export async function performUnderstudyMethod(
     domSettleTimeoutMs,
   };
 
-  const eventType = `Understudy${toTitleCase(method)}`; // e.g. "UnderstudyClick"
+  SessionFileLogger.logUnderstudyActionEvent({
+    actionType: `Understudy.${method}`,
+    target: selectorRaw,
+    args: Array.from(args),
+  });
 
   try {
-    await FlowLogger.runWithLogging(
-      {
-        eventType,
-        eventIdSuffix: "5",
-        data: {
-          target: selectorRaw,
-        },
-      },
-      async () => {
-        const handler = METHOD_HANDLER_MAP[method] ?? null;
+    const handler = METHOD_HANDLER_MAP[method] ?? null;
 
-        if (handler) {
-          await handler(ctx);
-          return;
-        }
-
-        v3Logger({
-          category: "action",
-          message: "chosen method is invalid",
-          level: 1,
-          auxiliary: { method: { value: method, type: "string" } },
-        });
-        throw new UnderstudyCommandException(`Method ${method} not supported`);
-      },
-      args,
-    );
+    if (handler) {
+      await handler(ctx);
+    } else {
+      // Accept a few common locator method aliases
+      switch (method) {
+        case "click":
+          await clickElement(ctx);
+          break;
+        case "fill":
+          await fillOrType(ctx);
+          break;
+        case "type":
+          await typeText(ctx);
+          break;
+        default:
+          v3Logger({
+            category: "action",
+            message: "chosen method is invalid",
+            level: 1,
+            auxiliary: { method: { value: method, type: "string" } },
+          });
+          throw new UnderstudyCommandException(
+            `Method ${method} not supported`,
+          );
+      }
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : undefined;
@@ -120,6 +125,8 @@ export async function performUnderstudyMethod(
       throw e;
     }
     throw new UnderstudyCommandException(msg, e);
+  } finally {
+    SessionFileLogger.logUnderstudyActionCompleted();
   }
 }
 
