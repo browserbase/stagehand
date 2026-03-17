@@ -1,0 +1,49 @@
+packages/core/lib/v3/understudy/page.ts
+  6dec7dcc42b5ac08 4
+packages/core/lib/v3/agent/GoogleCUAClient.ts
+  6dec7dcc42b5ac08 40
+packages/core/tests/unit/flow-logger-llm.test.ts
+  6dec7dcc42b5ac08 2
+packages/core/lib/v3/llm/aisdk.ts
+  6dec7dcc42b5ac08 22-23
+packages/core/lib/v3/agent/OpenAICUAClient.ts
+  6dec7dcc42b5ac08 26
+packages/core/lib/v3/handlers/v3AgentHandler.ts
+  6dec7dcc42b5ac08 20
+packages/core/lib/v3/understudy/cdp.ts
+  6dec7dcc42b5ac08 9
+packages/core/lib/v3/handlers/v3CuaAgentHandler.ts
+  6dec7dcc42b5ac08 20
+packages/core/tests/unit/cdp-flow-logger-context.test.ts
+  6dec7dcc42b5ac08 4-5,10
+packages/core/lib/v3/agent/AnthropicCUAClient.ts
+  6dec7dcc42b5ac08 28
+packages/core/lib/v3/handlers/handlerUtils/actHandlerUtils.ts
+  6dec7dcc42b5ac08 9
+packages/core/lib/v3/v3.ts
+  6dec7dcc42b5ac08 91-92
+packages/core/tests/integration/flowLogger.spec.ts
+  6dec7dcc42b5ac08 3-4
+packages/core/tests/unit/event-store-pretty.test.ts
+  6dec7dcc42b5ac08 2,6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "8a25bb258a9d53873489d2e2ae20dad0b703b6fb",
+  "prompts": {
+    "6dec7dcc42b5ac08": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cf9a9-5ecf-72d0-a32a-30cea5c1bc07",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>",
+      "messages": [],
+      "total_additions": 22,
+      "total_deletions": 1881,
+      "accepted_lines": 20,
+      "overriden_lines": 0
+    }
+  }
+}
