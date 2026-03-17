@@ -341,7 +341,10 @@ test.describe("flow logger integration", () => {
       expect(observeResult).toHaveLength(1);
       expect(observeResult[0].method).toBe("click");
 
-      const observeEvents = await listRecordedFlowEventsSince(v3, observeBaseline);
+      const observeEvents = await listRecordedFlowEventsSince(
+        v3,
+        observeBaseline,
+      );
       const observeRoot = requireSingleEvent(
         observeEvents,
         "StagehandObserveEvent",
@@ -385,7 +388,10 @@ test.describe("flow logger integration", () => {
 
       expect(extractResult).toEqual({ title: extractTitle });
 
-      const extractEvents = await listRecordedFlowEventsSince(v3, extractBaseline);
+      const extractEvents = await listRecordedFlowEventsSince(
+        v3,
+        extractBaseline,
+      );
       const extractRoot = requireSingleEvent(
         extractEvents,
         "StagehandExtractEvent",

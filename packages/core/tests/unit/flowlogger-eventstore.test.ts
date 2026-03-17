@@ -2,10 +2,22 @@ import { afterEach, describe, expect, it } from "vitest";
 import { EventStore } from "../../lib/v3/flowlogger/EventStore.js";
 import { EventEmitterWithWildcardSupport } from "../../lib/v3/flowlogger/EventEmitter.js";
 import { FlowEvent } from "../../lib/v3/flowlogger/FlowLogger.js";
-import {
-  attachEventStoreToBus,
-  waitForAsyncEmit,
-} from "./helpers/flow-logger-test-utils.js";
+
+function attachEventStoreToBus(
+  store: EventStore,
+  bus: EventEmitterWithWildcardSupport,
+): () => void {
+  const onFlowEvent = (event: unknown) => {
+    if (event instanceof FlowEvent) {
+      void store.emit(event);
+    }
+  };
+
+  bus.on("*", onFlowEvent);
+  return () => {
+    bus.off("*", onFlowEvent);
+  };
+}
 
 function createVerboseStoreHarness(): {
   writes: string[];
@@ -110,7 +122,7 @@ describe("flow logger event store", () => {
     // still exists for in-memory and file-backed sinks.
     bus.emit(stepEvent.eventType, stepEvent);
     bus.emit(cdpEvent.eventType, cdpEvent);
-    await waitForAsyncEmit();
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(writes).toHaveLength(1);
     expect(writes[0]).toContain("[🆂 #1234 EXTRACT]");
@@ -136,7 +148,7 @@ describe("flow logger event store", () => {
         data: { params: ["noop"] },
       }),
     );
-    await waitForAsyncEmit();
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(writes).toHaveLength(1);
     expect(writes[0]).toContain("[🆂 #0001");
@@ -165,7 +177,7 @@ describe("flow logger event store", () => {
           data: { params: ["click submit"] },
         }),
       );
-      await waitForAsyncEmit();
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
       expect(writes).toHaveLength(1);
       expect(writes[0]).toContain("\u001B[");
@@ -279,7 +291,7 @@ describe("flow logger event store", () => {
         data: { durationMs: 750 },
       }),
     );
-    await waitForAsyncEmit();
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     // Completion lines should reference the original started-event ids, not the
     // synthetic completed-event ids emitted at the end of the lifecycle.

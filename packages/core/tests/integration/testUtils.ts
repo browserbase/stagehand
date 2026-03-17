@@ -230,9 +230,7 @@ export function doneToolResponse(
   return toolCallResponse("done", { reasoning, taskComplete }, toolCallId);
 }
 
-function createGenerateResult(
-  result: ScriptedGenerateResult,
-): {
+function createGenerateResult(result: ScriptedGenerateResult): {
   content: LanguageModelV2Content[];
   finishReason: LanguageModelV2FinishReason;
   usage: LanguageModelV2Usage;

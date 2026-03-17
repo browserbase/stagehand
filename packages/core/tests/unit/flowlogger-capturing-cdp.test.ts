@@ -5,7 +5,22 @@ import { InMemoryEventSink } from "../../lib/v3/flowlogger/EventSink.js";
 import { EventEmitterWithWildcardSupport } from "../../lib/v3/flowlogger/EventEmitter.js";
 import { EventStore } from "../../lib/v3/flowlogger/EventStore.js";
 import { FlowEvent, FlowLogger } from "../../lib/v3/flowlogger/FlowLogger.js";
-import { attachEventStoreToBus } from "./helpers/flow-logger-test-utils.js";
+
+function attachEventStoreToBus(
+  store: EventStore,
+  bus: EventEmitterWithWildcardSupport,
+): () => void {
+  const onFlowEvent = (event: unknown) => {
+    if (event instanceof FlowEvent) {
+      void store.emit(event);
+    }
+  };
+
+  bus.on("*", onFlowEvent);
+  return () => {
+    bus.off("*", onFlowEvent);
+  };
+}
 
 class FakeSocket extends EventEmitter {
   sentPayloads: string[] = [];
