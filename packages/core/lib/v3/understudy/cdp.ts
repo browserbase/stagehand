@@ -158,7 +158,10 @@ export class CdpConnection implements CDPSessionLike {
         })
       : null;
     const storedFlowLoggerContext = flowLoggerContext
-      ? FlowLogger.withContext(flowLoggerContext, () => FlowLogger.currentContext)
+      ? FlowLogger.withContext(
+          flowLoggerContext,
+          () => FlowLogger.currentContext,
+        )
       : null;
     if (storedFlowLoggerContext && cdpCallEvent) {
       this.latestCdpCallEvent.set(null, {
@@ -427,7 +430,10 @@ export class CdpConnection implements CDPSessionLike {
         })
       : null;
     const storedFlowLoggerContext = flowLoggerContext
-      ? FlowLogger.withContext(flowLoggerContext, () => FlowLogger.currentContext)
+      ? FlowLogger.withContext(
+          flowLoggerContext,
+          () => FlowLogger.currentContext,
+        )
       : null;
     if (storedFlowLoggerContext && cdpCallEvent) {
       this.latestCdpCallEvent.set(sessionId, {

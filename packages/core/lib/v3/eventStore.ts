@@ -2,10 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import type { EventEmitter } from "node:events";
 
+import { toTitleCase } from "../utils.js";
 import type { V3Options } from "./types/public/index.js";
-import { type FlowEvent } from "./flowLogger.js";
+import { FlowEvent } from "./flowLogger.js";
 
 const MAX_LINE_LENGTH = 160;
+const DEFAULT_IN_MEMORY_EVENT_LIMIT = 500;
 const CONFIG_DIR = process.env.BROWSERBASE_CONFIG_DIR || "";
 const SENSITIVE_KEYS =
   /apikey|api_key|key|secret|token|password|passwd|pwd|credential|auth/i;
@@ -133,20 +135,21 @@ function truncateCdpIds(value: string): string {
   );
 }
 
-function sanitizePrettyValue(value: unknown): unknown {
+// Pretty event formatting.
+function prettifySanitizeValue(value: unknown): unknown {
   if (typeof value === "string") {
     return truncateCdpIds(value);
   }
 
   if (Array.isArray(value)) {
-    return value.map((entry) => sanitizePrettyValue(entry));
+    return value.map((entry) => prettifySanitizeValue(entry));
   }
 
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value).map(([key, entry]) => [
         key,
-        sanitizePrettyValue(entry),
+        prettifySanitizeValue(entry),
       ]),
     );
   }
@@ -154,18 +157,18 @@ function sanitizePrettyValue(value: unknown): unknown {
   return value;
 }
 
-function sanitizePrettyEvent(event: FlowEvent): FlowEvent {
+function prettifySanitizeEvent(event: FlowEvent): FlowEvent {
   if (!event.eventType.startsWith("Cdp")) {
     return event;
   }
 
   return {
     ...event,
-    data: sanitizePrettyValue(event.data) as Record<string, unknown>,
+    data: prettifySanitizeValue(event.data) as Record<string, unknown>,
   };
 }
 
-function truncateLine(value: string, maxLen: number): string {
+function prettifyTruncateLine(value: string, maxLen: number): string {
   const collapsed = value.replace(/[\r\n\t]+/g, " ");
   if (collapsed.length <= maxLen) {
     return collapsed;
@@ -176,7 +179,7 @@ function truncateLine(value: string, maxLen: number): string {
   return `${collapsed.slice(0, startLen)}…${collapsed.slice(-endLen)}`;
 }
 
-function formatValue(value: unknown): string {
+function prettifyFormatValue(value: unknown): string {
   if (typeof value === "string") return `'${value}'`;
   if (value == null || typeof value !== "object") return String(value);
 
@@ -187,14 +190,14 @@ function formatValue(value: unknown): string {
   }
 }
 
-function formatArgs(args?: unknown | unknown[]): string {
+function prettifyFormatArgs(args?: unknown | unknown[]): string {
   if (args === undefined) {
     return "";
   }
 
   return (Array.isArray(args) ? args : [args])
     .filter((entry) => entry !== undefined)
-    .map(formatValue)
+    .map(prettifyFormatValue)
     .filter((entry) => entry.length > 0)
     .join(", ");
 }
@@ -217,34 +220,366 @@ function removeQuotes(value: string): string {
     .trim();
 }
 
-function prettifyEvent(event: FlowEvent): string | null {
+function prettifyEventName(eventType: string): string {
+  return eventType
+    .replace(/CompletedEvent$/, "")
+    .replace(/ErrorEvent$/, "")
+    .replace(/Event$/, "");
+}
+
+function prettifyEventAction(eventType: string): string {
+  return prettifyEventName(eventType)
+    .replace(/^Agent/, "")
+    .replace(/^Stagehand/, "")
+    .replace(/^Understudy/, "")
+    .replace(/^Page/, "");
+}
+
+function prettifyIsAgentEvent(event: FlowEvent): boolean {
+  return prettifyEventName(event.eventType).startsWith("Agent");
+}
+
+function prettifyIsStagehandEvent(event: FlowEvent): boolean {
+  return prettifyEventName(event.eventType).startsWith("Stagehand");
+}
+
+function prettifyIsActionEvent(event: FlowEvent): boolean {
+  const name = prettifyEventName(event.eventType);
+  return name.startsWith("Page") || name.startsWith("Understudy");
+}
+
+function prettifyIsCdpEvent(event: FlowEvent): boolean {
+  return prettifyEventName(event.eventType).startsWith("Cdp");
+}
+
+function prettifyIsLlmEvent(event: FlowEvent): boolean {
+  return prettifyEventName(event.eventType).startsWith("Llm");
+}
+
+function prettifyIsCompletedEvent(event: FlowEvent): boolean {
+  return event.eventType.endsWith("CompletedEvent");
+}
+
+function prettifyIsErrorEvent(event: FlowEvent): boolean {
+  return event.eventType.endsWith("ErrorEvent");
+}
+
+function prettifyFormatTag(
+  label: string | null | undefined,
+  id: string | null | undefined,
+  icon: string,
+): string {
+  return id ? `[${icon} #${shortId(id)}${label ? ` ${label}` : ""}]` : "⤑";
+}
+
+function prettifyFormatDuration(durationMs?: unknown): string | null {
+  if (typeof durationMs !== "number") {
+    return null;
+  }
+
+  return `${(durationMs / 1000).toFixed(2)}s`;
+}
+
+function prettifySummarizePrompt(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    return prettifyTruncateLine(value, MAX_LINE_LENGTH / 2);
+  }
+
+  if (value == null) {
+    return undefined;
+  }
+
+  return prettifyTruncateLine(prettifyFormatValue(value), MAX_LINE_LENGTH / 2);
+}
+
+function prettifyCompactValue(value: unknown): unknown {
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => prettifyCompactValue(entry));
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (
+      key === "page" ||
+      key === "frame" ||
+      key === "locator" ||
+      key === "conn" ||
+      key === "mainSession" ||
+      key === "sessions" ||
+      key === "registry" ||
+      key === "networkManager" ||
+      key === "apiClient"
+    ) {
+      result[key] = `[${toTitleCase(key)}]`;
+      continue;
+    }
+
+    result[key] = prettifyCompactValue(entry);
+  }
+
+  return result;
+}
+
+function prettifyFormatEventArgs(args?: unknown | unknown[]): string {
+  return prettifyFormatArgs(prettifyCompactValue(args) as unknown | unknown[]);
+}
+
+function prettifyShouldUseParentTags(event: FlowEvent): boolean {
+  return prettifyIsCompletedEvent(event) || prettifyIsErrorEvent(event);
+}
+
+async function prettifyResolveParentMap(
+  store: Pick<EventStore, "query">,
+): Promise<Map<string, FlowEvent>> {
+  const recentEvents = await store.query({
+    limit: DEFAULT_IN_MEMORY_EVENT_LIMIT,
+  });
+  return new Map(recentEvents.map((event) => [event.eventId, event]));
+}
+
+function prettifyFindNearestEvent(
+  event: FlowEvent,
+  parentMap: Map<string, FlowEvent>,
+  predicate: (candidate: FlowEvent) => boolean,
+  options?: { includeSelf?: boolean },
+): FlowEvent | null {
+  if (options?.includeSelf !== false && predicate(event)) {
+    return event;
+  }
+
+  for (let index = event.eventParentIds.length - 1; index >= 0; index -= 1) {
+    const parent = parentMap.get(event.eventParentIds[index]);
+    if (parent && predicate(parent)) {
+      return parent;
+    }
+  }
+
+  return null;
+}
+
+function prettifyBuildContextTags(
+  event: FlowEvent,
+  parentMap: Map<string, FlowEvent>,
+): string[] {
+  const includeSelf = !prettifyShouldUseParentTags(event);
+  const agentEvent = prettifyFindNearestEvent(
+    event,
+    parentMap,
+    prettifyIsAgentEvent,
+    { includeSelf },
+  );
+  const stagehandEvent = prettifyFindNearestEvent(
+    event,
+    parentMap,
+    prettifyIsStagehandEvent,
+    { includeSelf },
+  );
+  const actionEvent = prettifyFindNearestEvent(
+    event,
+    parentMap,
+    prettifyIsActionEvent,
+    { includeSelf },
+  );
+  const llmEvent = prettifyFindNearestEvent(
+    event,
+    parentMap,
+    prettifyIsLlmEvent,
+    {
+      includeSelf,
+    },
+  );
+  const targetId =
+    typeof event.data.targetId === "string" ? event.data.targetId : null;
+
+  if (prettifyIsAgentEvent(event)) {
+    return [prettifyFormatTag("", agentEvent?.eventId, "🅰")];
+  }
+
+  if (prettifyIsStagehandEvent(event)) {
+    return [
+      prettifyFormatTag("", agentEvent?.eventId, "🅰"),
+      prettifyFormatTag(
+        prettifyEventAction(
+          stagehandEvent?.eventType ?? event.eventType,
+        ).toUpperCase(),
+        stagehandEvent?.eventId,
+        "🆂",
+      ),
+    ];
+  }
+
+  if (prettifyIsActionEvent(event)) {
+    return [
+      prettifyFormatTag("", agentEvent?.eventId, "🅰"),
+      prettifyFormatTag(
+        stagehandEvent
+          ? prettifyEventAction(stagehandEvent.eventType).toUpperCase()
+          : "",
+        stagehandEvent?.eventId,
+        "🆂",
+      ),
+      prettifyFormatTag(
+        prettifyEventAction(
+          actionEvent?.eventType ?? event.eventType,
+        ).toUpperCase(),
+        actionEvent?.eventId,
+        "🆄",
+      ),
+    ];
+  }
+
+  if (prettifyIsCdpEvent(event)) {
+    return [
+      prettifyFormatTag("", agentEvent?.eventId, "🅰"),
+      prettifyFormatTag(
+        stagehandEvent
+          ? prettifyEventAction(stagehandEvent.eventType).toUpperCase()
+          : "",
+        stagehandEvent?.eventId,
+        "🆂",
+      ),
+      prettifyFormatTag(
+        actionEvent
+          ? prettifyEventAction(actionEvent.eventType).toUpperCase()
+          : "",
+        actionEvent?.eventId,
+        "🆄",
+      ),
+      prettifyFormatTag("CDP", targetId, "🅲"),
+    ];
+  }
+
+  if (prettifyIsLlmEvent(event)) {
+    const requestId =
+      typeof event.data.requestId === "string" ? event.data.requestId : null;
+
+    return [
+      prettifyFormatTag("", agentEvent?.eventId, "🅰"),
+      prettifyFormatTag(
+        stagehandEvent
+          ? prettifyEventAction(stagehandEvent.eventType).toUpperCase()
+          : "",
+        stagehandEvent?.eventId,
+        "🆂",
+      ),
+      prettifyFormatTag("LLM", requestId ?? llmEvent?.eventId, "🧠"),
+    ];
+  }
+
+  return [`[#${shortId(event.eventId)}]`];
+}
+
+function prettifyFormatStartedDetails(event: FlowEvent): string {
   const data = event.data as {
+    params?: unknown[];
+    target?: string;
+  };
+  const name = prettifyEventName(event.eventType);
+
+  if (name.startsWith("Stagehand")) {
+    const method = prettifyEventAction(event.eventType);
+    return `▷ Stagehand.${method[0].toLowerCase()}${method.slice(1)}(${prettifyFormatEventArgs(data.params)})`;
+  }
+
+  if (name.startsWith("Page")) {
+    const method = prettifyEventAction(event.eventType);
+    return `▷ Page.${method[0].toLowerCase()}${method.slice(1)}(${prettifyFormatEventArgs(data.params)})`;
+  }
+
+  if (name.startsWith("Understudy")) {
+    const method = prettifyEventAction(event.eventType);
+    const args = [
+      data.target,
+      ...(Array.isArray(data.params) ? data.params : []),
+    ].filter((entry) => entry !== undefined);
+    return `▷ Understudy.${method[0].toLowerCase()}${method.slice(1)}(${prettifyFormatEventArgs(args)})`;
+  }
+
+  if (name.startsWith("Agent")) {
+    return `▷ Agent.execute(${prettifyFormatEventArgs(data.params)})`;
+  }
+
+  return `${event.eventType}(${prettifyFormatEventArgs(data.params ?? event.data)})`;
+}
+
+function prettifyFormatCompletedDetails(event: FlowEvent): string {
+  const label =
+    prettifyEventAction(event.eventType).toUpperCase() || event.eventType;
+  const duration = prettifyFormatDuration(event.data.durationMs);
+  const prefix = prettifyIsAgentEvent(event)
+    ? "Agent.execute() completed"
+    : `${label} completed`;
+
+  if (prettifyIsErrorEvent(event)) {
+    const message =
+      typeof event.data.error === "string" ? ` ERROR ${event.data.error}` : "";
+    return `✕ ${prefix}${duration ? ` in ${duration}` : ""}${message}`;
+  }
+
+  return `✓ ${prefix}${duration ? ` in ${duration}` : ""}`;
+}
+
+function prettifyFormatCdpDetails(event: FlowEvent): string {
+  const data = event.data as {
+    method?: string;
     params?: unknown;
+    result?: unknown;
+    error?: string;
+  };
+  const method = data.method ?? "unknown";
+  const icon = event.eventType === "CdpCallEvent" ? "⏵" : "⏴";
+  const payload =
+    event.eventType === "CdpCallEvent"
+      ? data.params
+      : data.error
+        ? { error: data.error }
+        : event.eventType === "CdpMessageEvent"
+          ? data.params
+          : data.result;
+
+  return `${icon} ${method}(${prettifyFormatEventArgs(payload)})`;
+}
+
+function prettifyFormatLlmDetails(event: FlowEvent): string {
+  const data = event.data as {
+    model?: string;
     prompt?: unknown;
     output?: unknown;
-    durationMs?: number;
     inputTokens?: number;
     outputTokens?: number;
-    error?: string;
-    msg?: string;
   };
-  const durationSec = data?.durationMs
-    ? (data.durationMs / 1000).toFixed(2)
-    : null;
-  const hasTokens =
-    data?.inputTokens !== undefined || data?.outputTokens !== undefined;
-  const details = [
-    event.eventType,
-    formatArgs(data?.params ? data.params : event.data)
-      ? `(${formatArgs(data?.params ? data.params : event.data)})`
-      : "",
-    data?.prompt ? ` ${String(data.prompt)}` : "",
-    data?.output ? ` ${String(data.output)}` : "",
-    hasTokens ? ` ꜛ${data?.inputTokens ?? 0} ꜜ${data?.outputTokens ?? 0}` : "",
-    durationSec ? ` ${durationSec}s` : "",
-    data?.msg ? ` ${data.msg}` : "",
-    data?.error ? ` ERROR ${data.error}` : "",
-  ].join("");
+  const model = data.model ?? "llm";
+
+  if (event.eventType === "LlmRequestEvent") {
+    const prompt = prettifySummarizePrompt(data.prompt);
+    return prompt ? `${model} ⏴ ${prompt}` : `${model} ⏴`;
+  }
+
+  const tokenInfo =
+    data.inputTokens !== undefined || data.outputTokens !== undefined
+      ? ` ꜛ${data.inputTokens ?? 0} ꜜ${data.outputTokens ?? 0}`
+      : "";
+  const output = prettifySummarizePrompt(data.output);
+  return output ? `${model} ↳${tokenInfo} ${output}` : `${model} ↳${tokenInfo}`;
+}
+
+async function prettifyEvent(
+  store: Pick<EventStore, "query">,
+  event: FlowEvent,
+): Promise<string | null> {
+  const parentMap = await prettifyResolveParentMap(store);
+  const tags = prettifyBuildContextTags(event, parentMap);
+  const details = prettifyIsCdpEvent(event)
+    ? prettifyFormatCdpDetails(event)
+    : prettifyIsLlmEvent(event)
+      ? prettifyFormatLlmDetails(event)
+      : prettifyIsCompletedEvent(event) || prettifyIsErrorEvent(event)
+        ? prettifyFormatCompletedDetails(event)
+        : prettifyFormatStartedDetails(event);
 
   if (!details) {
     return null;
@@ -254,8 +589,12 @@ function prettifyEvent(event: FlowEvent): string | null {
   const timestamp = Number.isNaN(createdAt.getTime())
     ? formatTimestamp(new Date())
     : formatTimestamp(createdAt);
-  const line = `${timestamp} ${"  ".repeat(event.eventParentIds.length)}[#${shortId(event.eventId)}] ${details}`;
-  return truncateLine(removeQuotes(line), MAX_LINE_LENGTH);
+  const line = `${timestamp} ${tags.join(" ")} ${details}`;
+  const cleaned = removeQuotes(line);
+  const processed = prettifyIsCdpEvent(event)
+    ? truncateCdpIds(cleaned)
+    : cleaned;
+  return prettifyTruncateLine(processed, MAX_LINE_LENGTH);
 }
 
 abstract class FileEventSink implements EventSink {
@@ -269,20 +608,24 @@ abstract class FileEventSink implements EventSink {
     );
   }
 
-  protected abstract serialize(event: FlowEvent): string | null;
+  protected abstract serialize(event: FlowEvent): Promise<string | null>;
 
   async emit(event: FlowEvent): Promise<void> {
-    const stream = await this.streamPromise;
-    if (!isWritable(stream)) {
-      return;
-    }
+    try {
+      const stream = await this.streamPromise;
+      if (!isWritable(stream)) {
+        return;
+      }
 
-    const serialized = this.serialize(event);
-    if (!serialized) {
-      return;
-    }
+      const serialized = await this.serialize(event);
+      if (!serialized) {
+        return;
+      }
 
-    await writeToStream(stream, serialized);
+      await writeToStream(stream, serialized);
+    } catch {
+      // best effort only
+    }
   }
 
   async query(): Promise<FlowEvent[]> {
@@ -306,42 +649,58 @@ export class JsonlFileEventSink extends FileEventSink {
     super(sessionDirPromise, "session_events.jsonl");
   }
 
-  protected serialize(event: FlowEvent): string {
+  protected async serialize(event: FlowEvent): Promise<string> {
     return `${JSON.stringify(event)}\n`;
   }
 }
 
 export class PrettyLogFileEventSink extends FileEventSink {
-  constructor(sessionDirPromise: Promise<string | null>) {
+  constructor(
+    sessionDirPromise: Promise<string | null>,
+    private readonly store: Pick<EventStore, "query">,
+  ) {
     super(sessionDirPromise, "session_events.log");
   }
 
-  protected serialize(event: FlowEvent): string | null {
-    const line = prettifyEvent(sanitizePrettyEvent(event));
+  protected async serialize(event: FlowEvent): Promise<string | null> {
+    const line = await prettifyEvent(this.store, prettifySanitizeEvent(event));
     return line ? `${line}\n` : null;
   }
 }
 
 export class PrettyStderrEventSink implements EventSink {
-  async emit(event: FlowEvent): Promise<void> {
-    const line = prettifyEvent(sanitizePrettyEvent(event));
-    if (!line) {
-      return;
-    }
+  constructor(private readonly store: Pick<EventStore, "query">) {}
 
-    await new Promise<void>((resolve, reject) => {
-      try {
-        process.stderr.write(`${line}\n`, (error?: Error | null) => {
-          if (error) {
-            reject(error);
-            return;
-          }
-          resolve();
-        });
-      } catch (error) {
-        reject(error);
+  async emit(event: FlowEvent): Promise<void> {
+    try {
+      if (prettifyIsCdpEvent(event)) {
+        return;
       }
-    });
+
+      const line = await prettifyEvent(
+        this.store,
+        prettifySanitizeEvent(event),
+      );
+      if (!line) {
+        return;
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        try {
+          process.stderr.write(`${line}\n`, (error?: Error | null) => {
+            if (error) {
+              reject(error);
+              return;
+            }
+            resolve();
+          });
+        } catch (error) {
+          reject(error);
+        }
+      });
+    } catch {
+      // best effort only
+    }
   }
 
   async query(): Promise<FlowEvent[]> {
@@ -352,10 +711,19 @@ export class PrettyStderrEventSink implements EventSink {
 }
 
 export class InMemoryEventSink implements EventSink {
-  private readonly events: FlowEvent[] = [];
+  constructor(protected readonly limit = Infinity) {}
+
+  protected readonly events: FlowEvent[] = [];
+
+  protected storeEvent(event: FlowEvent): FlowEvent {
+    return event;
+  }
 
   async emit(event: FlowEvent): Promise<void> {
-    this.events.push(event);
+    this.events.push(this.storeEvent(event));
+    if (this.events.length > this.limit) {
+      this.events.splice(0, this.events.length - this.limit);
+    }
   }
 
   async query(query: EventStoreQuery): Promise<FlowEvent[]> {
@@ -368,11 +736,24 @@ export class InMemoryEventSink implements EventSink {
 
       return left.eventId.localeCompare(right.eventId);
     });
-    return query.limit ? filtered.slice(0, query.limit) : filtered;
+    return query.limit ? filtered.slice(-query.limit) : filtered;
   }
 
   async destroy(): Promise<void> {
     this.events.length = 0;
+  }
+}
+
+export class ShallowInMemoryEventSink extends InMemoryEventSink {
+  protected override storeEvent(event: FlowEvent): FlowEvent {
+    return new FlowEvent({
+      eventType: event.eventType,
+      eventId: event.eventId,
+      createdAt: event.createdAt,
+      sessionId: event.sessionId,
+      eventParentIds: [...event.eventParentIds],
+      data: {},
+    });
   }
 }
 
@@ -388,14 +769,20 @@ export class EventStore {
     options?: V3Options,
   ) {
     const sessionDirPromise = createSessionDir(sessionId, options);
+    const defaultQuerySink = new ShallowInMemoryEventSink(
+      DEFAULT_IN_MEMORY_EVENT_LIMIT,
+    );
+
+    this.attachOwnedSink(defaultQuerySink);
+    this.querySink = defaultQuerySink;
 
     if (getConfigDir()) {
       this.attachOwnedSink(new JsonlFileEventSink(sessionDirPromise));
-      this.attachOwnedSink(new PrettyLogFileEventSink(sessionDirPromise));
+      this.attachOwnedSink(new PrettyLogFileEventSink(sessionDirPromise, this));
     }
 
     if (options?.verbose === 2) {
-      this.attachOwnedSink(new PrettyStderrEventSink());
+      this.attachOwnedSink(new PrettyStderrEventSink(this));
     }
   }
 
@@ -428,9 +815,18 @@ export class EventStore {
 
   attachStore(sink: EventSink): () => void {
     if (this.querySink && this.querySink !== sink) {
-      throw new Error(
-        "A queryable event sink is already attached. Detach it before attaching another.",
-      );
+      if (!this.ownedSinks.has(this.querySink)) {
+        throw new Error(
+          "A queryable event sink is already attached. Detach it before attaching another.",
+        );
+      }
+
+      const previousQuerySink = this.querySink;
+      this.sinkDetachers.get(previousQuerySink)?.();
+      this.ownedSinks.delete(previousQuerySink);
+      void previousQuerySink.destroy().catch(() => {
+        // best effort cleanup
+      });
     }
 
     const wasAttached = this.sinkDetachers.has(sink);
