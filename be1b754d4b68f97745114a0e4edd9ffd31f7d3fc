@@ -1,0 +1,27 @@
+packages/core/lib/v3/eventStore.ts
+  6dec7dcc42b5ac08 438-449,471,485-486,492-495,499
+packages/core/lib/v3/v3.ts
+  6dec7dcc42b5ac08 902-904,906-908
+packages/core/lib/v3/types/public/options.ts
+  6dec7dcc42b5ac08 25-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "be1b754d4b68f97745114a0e4edd9ffd31f7d3fc",
+  "prompts": {
+    "6dec7dcc42b5ac08": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cf9a9-5ecf-72d0-a32a-30cea5c1bc07",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>",
+      "messages": [],
+      "total_additions": 29,
+      "total_deletions": 36,
+      "accepted_lines": 28,
+      "overriden_lines": 0
+    }
+  }
+}
