@@ -1,0 +1,23 @@
+packages/core/lib/v3/v3.ts
+  6dec7dcc42b5ac08 1862,1897-1898,1900-1903,1915-1917,1929-1931,1933-1934,1940-1941,1956,1971,1984-1989,1996,2023,2049-2050,2090,2120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "8a94f7adea3d6fc1587567faf70c3042bd46b026",
+  "prompts": {
+    "6dec7dcc42b5ac08": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cf9a9-5ecf-72d0-a32a-30cea5c1bc07",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>",
+      "messages": [],
+      "total_additions": 249,
+      "total_deletions": 262,
+      "accepted_lines": 46,
+      "overriden_lines": 0
+    }
+  }
+}
