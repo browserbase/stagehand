@@ -5,14 +5,14 @@ import {
   assertFetchOk,
   assertFetchStatus,
   fetchWithContext,
-  BASE_URL,
+  getBaseUrl,
   getHeaders,
   HTTP_OK,
 } from "../utils.js";
 
 describe("GET /v4/sessions/:id/replay (V3)", () => {
   it("should return an empty replay result for local server", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
     const headers = getHeaders("3.0.0");
 
     const ctx = await fetchWithContext<unknown>(

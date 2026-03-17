@@ -128,6 +128,10 @@ export function requireEnv(name: string, value: string | undefined): string {
 
 export const BASE_URL = STAGEHAND_API_URL ?? "http://127.0.0.1:3107";
 
+export function getBaseUrl(): string {
+  return BASE_URL;
+}
+
 // =============================================================================
 // Header Generators
 // =============================================================================

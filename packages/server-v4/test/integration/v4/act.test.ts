@@ -12,7 +12,7 @@ import {
   endSession,
   fetchWithContext,
   GEMINI_API_KEY,
-  BASE_URL,
+  getBaseUrl,
   getHeaders,
   getMainFrameId,
   HTTP_OK,
@@ -71,7 +71,7 @@ describe("POST /v4/sessions/:id/act (V3)", () => {
   // ===========================================================================
 
   it("should perform an action using string input format", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
     const frameId = await getMainFrameId(cdpUrl);
 
     const ctx = await fetchWithContext<ActResponse>(
@@ -114,7 +114,7 @@ describe("POST /v4/sessions/:id/act (V3)", () => {
   });
 
   it("should perform an action using object input format", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
 
     const ctx = await fetchWithContext<ActResponse>(
       `${url}/v4/sessions/${sessionId}/act`,
@@ -146,7 +146,7 @@ describe("POST /v4/sessions/:id/act (V3)", () => {
   });
 
   it("should accept options with string input", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
 
     const ctx = await fetchWithContext<ActResponse>(
       `${url}/v4/sessions/${sessionId}/act`,
@@ -181,7 +181,7 @@ describe("POST /v4/sessions/:id/act (V3)", () => {
   // ===========================================================================
 
   it("should perform action with inline model config (modelName + apiKey)", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
     const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
 
     const ctx = await fetchWithContext<ActResponse>(
@@ -221,7 +221,7 @@ describe("POST /v4/sessions/:id/act (V3)", () => {
   });
 
   it("should perform action with inline model config and options", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
     const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
 
     const ctx = await fetchWithContext<ActResponse>(
@@ -262,7 +262,7 @@ describe("POST /v4/sessions/:id/act (V3)", () => {
   });
 
   it("should perform action with object input and inline model config", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
     const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
 
     const ctx = await fetchWithContext<ActResponse>(
@@ -306,7 +306,7 @@ describe("POST /v4/sessions/:id/act (V3)", () => {
   });
 
   it("should perform action with google/gemini-2.5-flash-lite model", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
     const geminiApiKey = requireEnv("GEMINI_API_KEY", GEMINI_API_KEY);
 
     const ctx = await fetchWithContext<ActResponse>(
@@ -352,7 +352,7 @@ describe("POST /v4/sessions/:id/act (V3)", () => {
 
 describe("POST /v4/sessions/:id/act with SSE streaming (V3)", () => {
   it("should stream valid SSE events with correct structure", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
 
     const response = await fetch(`${url}/v4/sessions/${sessionId}/act`, {
       method: "POST",
@@ -402,7 +402,7 @@ describe("POST /v4/sessions/:id/act with SSE streaming (V3)", () => {
   });
 
   it("should stream SSE events with inline model config", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
     const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
 
     const response = await fetch(`${url}/v4/sessions/${sessionId}/act`, {

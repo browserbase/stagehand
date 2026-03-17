@@ -13,7 +13,7 @@ import {
   assertFetchStatus,
   endSession,
   fetchWithContext,
-  BASE_URL,
+  getBaseUrl,
   getHeaders,
   LOCAL_BROWSER_BODY,
   HTTP_BAD_REQUEST,
@@ -501,7 +501,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
   const localBrowser = LOCAL_BROWSER_BODY;
 
   it("should start session with modelName string and V3 header", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
       `${url}/v1/sessions/start`,
@@ -527,7 +527,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
   });
 
   it("should start session with experimental flag", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
       `${url}/v1/sessions/start`,
@@ -554,7 +554,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
   });
 
   it("should accept x-language header for python V3", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
     const pythonHeaders = getHeaders("1.0.0", "python");
 
     const ctx = await fetchWithContext<StartResponse>(
@@ -578,7 +578,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
   });
 
   it("should start session with extended options (timeouts, verbose)", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
       `${url}/v1/sessions/start`,
@@ -609,7 +609,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
   });
 
   it("should return cdpUrl as a valid WebSocket URL for local browser", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
       `${url}/v1/sessions/start`,
@@ -644,7 +644,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
   });
 
   it("should return provided cdpUrl when explicit cdpUrl is passed", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
     const providedCdpUrl = "ws://localhost:9222/devtools/browser/test";
 
     const ctx = await fetchWithContext<StartResponse>(
@@ -676,7 +676,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
   });
 
   it("should return error for browserbase requests without API key", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
       `${url}/v1/sessions/start`,
@@ -697,7 +697,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
   it("should start browserbase session with API key but no project ID", async () => {
     if (!bbApiKey) return; // skip when credentials unavailable
 
-    const url = BASE_URL;
+    const url = getBaseUrl();
     const bbHeaders = {
       ...getHeaders("3.0.0"),
       "x-bb-api-key": bbApiKey,
@@ -736,7 +736,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
   // =============================================================================
 
   it("should accept non-default region in browserbaseSessionCreateParams", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
 
     // Test with us-east-1 region - server should accept this request
     // Note: Local browser sessions don't actually use the region, but the server
@@ -775,7 +775,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
   });
 
   it("should accept eu-central-1 region in browserbaseSessionCreateParams", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
       `${url}/v1/sessions/start`,
@@ -810,7 +810,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
   });
 
   it("should accept ap-southeast-1 region in browserbaseSessionCreateParams", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
       `${url}/v1/sessions/start`,

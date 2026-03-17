@@ -10,7 +10,7 @@ import {
   endSession,
   fetchWithContext,
   GEMINI_API_KEY,
-  BASE_URL,
+  getBaseUrl,
   getHeaders,
   getMainFrameId,
   HTTP_OK,
@@ -47,7 +47,7 @@ after(async () => {
 
 describe("POST /v1/sessions/:id/observe (V3)", () => {
   it("should observe elements with instruction", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
     const frameId = await getMainFrameId(cdpUrl);
 
     interface ObserveResponse {
@@ -83,7 +83,7 @@ describe("POST /v1/sessions/:id/observe (V3)", () => {
   });
 
   it("should observe with instruction and options", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
 
     interface ObserveResponse {
       success: boolean;
@@ -120,7 +120,7 @@ describe("POST /v1/sessions/:id/observe (V3)", () => {
   });
 
   it("should observe with selector option", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
 
     interface ObserveResponse {
       success: boolean;
@@ -157,7 +157,7 @@ describe("POST /v1/sessions/:id/observe (V3)", () => {
   });
 
   it("should observe without instruction (observe all)", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
 
     interface ObserveResponse {
       success: boolean;
@@ -197,7 +197,7 @@ describe("POST /v1/sessions/:id/observe (V3)", () => {
   });
 
   it("should observe with google/gemini-2.5-flash-lite model", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
     const geminiApiKey = requireEnv("GEMINI_API_KEY", GEMINI_API_KEY);
 
     interface ObserveResponse {
@@ -251,7 +251,7 @@ describe("POST /v1/sessions/:id/observe (V3)", () => {
 
 describe("POST /v1/sessions/:id/observe with SSE streaming (V3)", () => {
   it("should stream valid SSE events with correct structure", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
 
     const response = await fetch(`${url}/v1/sessions/${sessionId}/observe`, {
       method: "POST",
@@ -299,7 +299,7 @@ describe("POST /v1/sessions/:id/observe with SSE streaming (V3)", () => {
   });
 
   it("should have correct event sequence: starting -> connected -> finished", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
 
     const response = await fetch(`${url}/v1/sessions/${sessionId}/observe`, {
       method: "POST",
@@ -336,7 +336,7 @@ describe("POST /v1/sessions/:id/observe with SSE streaming (V3)", () => {
   });
 
   it("should have valid UUID for each event id", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
 
     const response = await fetch(`${url}/v1/sessions/${sessionId}/observe`, {
       method: "POST",
@@ -363,7 +363,7 @@ describe("POST /v1/sessions/:id/observe with SSE streaming (V3)", () => {
   });
 
   it("should return observed elements with expected properties", async () => {
-    const url = BASE_URL;
+    const url = getBaseUrl();
 
     const response = await fetch(`${url}/v1/sessions/${sessionId}/observe`, {
       method: "POST",

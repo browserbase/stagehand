@@ -1867,283 +1867,270 @@ export class V3 {
 
       const agentConfigSignature =
         this.agentCache.buildConfigSignature(options);
+      const execute = async (
+        instructionOrOptions: string | AgentExecuteOptions,
+      ): Promise<AgentResult> =>
+        withInstanceLogContext(
+          this.instanceId,
+          async (): Promise<AgentResult> => {
+            validateExperimentalFeatures({
+              isExperimental: this.experimental,
+              agentConfig: options,
+              executeOptions:
+                typeof instructionOrOptions === "object"
+                  ? instructionOrOptions
+                  : null,
+            });
+
+            const tools = options?.integrations
+              ? await resolveTools(options.integrations, options.tools)
+              : (options?.tools ?? {});
+
+            const handler = new V3CuaAgentHandler(
+              this,
+              this.logger,
+              {
+                modelName,
+                clientOptions,
+                userProvidedInstructions:
+                  options.systemPrompt ??
+                  `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
+              },
+              tools,
+            );
+
+            const resolvedOptions: AgentExecuteOptions =
+              typeof instructionOrOptions === "string"
+                ? {
+                    instruction: instructionOrOptions,
+                    toolTimeout: DEFAULT_AGENT_TOOL_TIMEOUT_MS,
+                  }
+                : {
+                    ...instructionOrOptions,
+                    toolTimeout:
+                      instructionOrOptions.toolTimeout ??
+                      DEFAULT_AGENT_TOOL_TIMEOUT_MS,
+                  };
+            if (resolvedOptions.page) {
+              const normalizedPage = await this.normalizeToV3Page(
+                resolvedOptions.page,
+              );
+              this.ctx!.setActivePage(normalizedPage);
+            }
+            const instruction = resolvedOptions.instruction.trim();
+            const sanitizedOptions =
+              this.agentCache.sanitizeExecuteOptions(resolvedOptions);
+
+            const cacheVariables = flattenVariables(resolvedOptions.variables);
+
+            let cacheContext: AgentCacheContext | null = null;
+            if (this.agentCache.shouldAttemptCache(instruction)) {
+              const startPage = await this.ctx!.awaitActivePage();
+              cacheContext = await this.agentCache.prepareContext({
+                instruction,
+                options: sanitizedOptions,
+                configSignature: agentConfigSignature,
+                page: startPage,
+                variables: cacheVariables,
+              });
+              if (cacheContext) {
+                const replayed = await this.agentCache.tryReplay(cacheContext);
+                if (replayed) {
+                  return replayed;
+                }
+              }
+            }
+
+            let agentSteps: AgentReplayStep[] = [];
+            const shouldRecordLocally =
+              !!cacheContext && (!this.apiClient || this.experimental);
+            if (shouldRecordLocally) {
+              this.beginAgentReplayRecording();
+            }
+
+            let result: AgentResult;
+            try {
+              if (this.apiClient && !this.experimental) {
+                const page = await this.ctx!.awaitActivePage();
+                result = await this.apiClient.agentExecute(
+                  options,
+                  resolvedOptions,
+                  page.mainFrameId(),
+                  !!cacheContext,
+                );
+                if (cacheContext) {
+                  const transferredEntry =
+                    this.apiClient.consumeLatestAgentCacheEntry();
+                  await this.agentCache.storeTransferredEntry(transferredEntry);
+                }
+              } else {
+                result = await handler.execute(instructionOrOptions);
+              }
+              if (shouldRecordLocally) {
+                agentSteps = this.endAgentReplayRecording();
+              }
+
+              if (
+                shouldRecordLocally &&
+                cacheContext &&
+                result.success &&
+                agentSteps.length > 0
+              ) {
+                await this.agentCache.store(cacheContext, agentSteps, result);
+              }
+
+              return result;
+            } catch (err) {
+              if (shouldRecordLocally) this.discardAgentReplayRecording();
+              throw err;
+            } finally {
+              if (shouldRecordLocally) {
+                this.discardAgentReplayRecording();
+              }
+            }
+          },
+        );
       return {
         execute: FlowLogger.wrapWithLogging({
           eventType: "AgentExecute",
           context: this.flowLoggerContext,
-        })(
-          async (
-            instructionOrOptions: string | AgentExecuteOptions,
-          ): Promise<AgentResult> =>
-            withInstanceLogContext(
-              this.instanceId,
-              async (): Promise<AgentResult> => {
-                validateExperimentalFeatures({
-                  isExperimental: this.experimental,
-                  agentConfig: options,
-                  executeOptions:
-                    typeof instructionOrOptions === "object"
-                      ? instructionOrOptions
-                      : null,
-                });
-
-                const tools = options?.integrations
-                  ? await resolveTools(options.integrations, options.tools)
-                  : (options?.tools ?? {});
-
-                const handler = new V3CuaAgentHandler(
-                  this,
-                  this.logger,
-                  {
-                    modelName,
-                    clientOptions,
-                    userProvidedInstructions:
-                      options.systemPrompt ??
-                      `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
-                  },
-                  tools,
-                );
-
-                const resolvedOptions: AgentExecuteOptions =
-                  typeof instructionOrOptions === "string"
-                    ? {
-                        instruction: instructionOrOptions,
-                        toolTimeout: DEFAULT_AGENT_TOOL_TIMEOUT_MS,
-                      }
-                    : {
-                        ...instructionOrOptions,
-                        toolTimeout:
-                          instructionOrOptions.toolTimeout ??
-                          DEFAULT_AGENT_TOOL_TIMEOUT_MS,
-                      };
-                if (resolvedOptions.page) {
-                  const normalizedPage = await this.normalizeToV3Page(
-                    resolvedOptions.page,
-                  );
-                  this.ctx!.setActivePage(normalizedPage);
-                }
-                const instruction = resolvedOptions.instruction.trim();
-                const sanitizedOptions =
-                  this.agentCache.sanitizeExecuteOptions(resolvedOptions);
-
-                const cacheVariables = flattenVariables(
-                  resolvedOptions.variables,
-                );
-
-                let cacheContext: AgentCacheContext | null = null;
-                if (this.agentCache.shouldAttemptCache(instruction)) {
-                  const startPage = await this.ctx!.awaitActivePage();
-                  cacheContext = await this.agentCache.prepareContext({
-                    instruction,
-                    options: sanitizedOptions,
-                    configSignature: agentConfigSignature,
-                    page: startPage,
-                    variables: cacheVariables,
-                  });
-                  if (cacheContext) {
-                    const replayed =
-                      await this.agentCache.tryReplay(cacheContext);
-                    if (replayed) {
-                      return replayed;
-                    }
-                  }
-                }
-
-                let agentSteps: AgentReplayStep[] = [];
-                const shouldRecordLocally =
-                  !!cacheContext && (!this.apiClient || this.experimental);
-                if (shouldRecordLocally) {
-                  this.beginAgentReplayRecording();
-                }
-
-                let result: AgentResult;
-                try {
-                  if (this.apiClient && !this.experimental) {
-                    const page = await this.ctx!.awaitActivePage();
-                    result = await this.apiClient.agentExecute(
-                      options,
-                      resolvedOptions,
-                      page.mainFrameId(),
-                      !!cacheContext,
-                    );
-                    if (cacheContext) {
-                      const transferredEntry =
-                        this.apiClient.consumeLatestAgentCacheEntry();
-                      await this.agentCache.storeTransferredEntry(
-                        transferredEntry,
-                      );
-                    }
-                  } else {
-                    result = await handler.execute(instructionOrOptions);
-                  }
-                  if (shouldRecordLocally) {
-                    agentSteps = this.endAgentReplayRecording();
-                  }
-
-                  if (
-                    shouldRecordLocally &&
-                    cacheContext &&
-                    result.success &&
-                    agentSteps.length > 0
-                  ) {
-                    await this.agentCache.store(
-                      cacheContext,
-                      agentSteps,
-                      result,
-                    );
-                  }
-
-                  return result;
-                } catch (err) {
-                  if (shouldRecordLocally) this.discardAgentReplayRecording();
-                  throw err;
-                } finally {
-                  if (shouldRecordLocally) {
-                    this.discardAgentReplayRecording();
-                  }
-                }
-              },
-            ),
-        ),
+        })(execute),
       };
     }
 
     // Default: AISDK tools-based agent
     const agentConfigSignature = this.agentCache.buildConfigSignature(options);
     const isStreaming = options?.stream ?? false;
+    const execute = async (
+      instructionOrOptions:
+        | string
+        | AgentExecuteOptions
+        | AgentStreamExecuteOptions,
+    ): Promise<AgentResult | AgentStreamResult> =>
+      withInstanceLogContext(
+        this.instanceId,
+        async (): Promise<AgentResult | AgentStreamResult> => {
+          validateExperimentalFeatures({
+            isExperimental: this.experimental,
+            agentConfig: options,
+            executeOptions:
+              typeof instructionOrOptions === "object"
+                ? instructionOrOptions
+                : null,
+            isStreaming,
+          });
+
+          // Streaming mode
+          if (isStreaming) {
+            const { handler, resolvedOptions, cacheContext, llmClient } =
+              await this.prepareAgentExecution(
+                options,
+                instructionOrOptions,
+                agentConfigSignature,
+              );
+
+            if (cacheContext) {
+              const replayed = await this.agentCache.tryReplayAsStream(
+                cacheContext,
+                llmClient,
+              );
+              if (replayed) {
+                return replayed;
+              }
+            }
+
+            const streamResult = await handler.stream(
+              resolvedOptions as AgentStreamExecuteOptions,
+            );
+
+            if (cacheContext) {
+              const wrappedStream = this.agentCache.wrapStreamForCaching(
+                cacheContext,
+                streamResult,
+                () => this.beginAgentReplayRecording(),
+                () => this.endAgentReplayRecording(),
+                () => this.discardAgentReplayRecording(),
+              );
+              return wrappedStream;
+            }
+
+            return streamResult;
+          }
+
+          // Non-streaming mode (default)
+          const { handler, resolvedOptions, cacheContext, llmClient } =
+            await this.prepareAgentExecution(
+              options,
+              instructionOrOptions,
+              agentConfigSignature,
+            );
+
+          if (cacheContext) {
+            const replayed = await this.agentCache.tryReplay(
+              cacheContext,
+              llmClient,
+            );
+            if (replayed) {
+              return replayed;
+            }
+          }
+
+          let agentSteps: AgentReplayStep[] = [];
+          const shouldRecordLocally =
+            !!cacheContext && (!this.apiClient || this.experimental);
+          if (shouldRecordLocally) {
+            this.beginAgentReplayRecording();
+          }
+          let result: AgentResult;
+
+          try {
+            if (this.apiClient && !this.experimental) {
+              const page = await this.ctx!.awaitActivePage();
+              result = await this.apiClient.agentExecute(
+                options ?? {},
+                resolvedOptions as AgentExecuteOptions,
+                page.mainFrameId(),
+                !!cacheContext,
+              );
+              if (cacheContext) {
+                const transferredEntry =
+                  this.apiClient.consumeLatestAgentCacheEntry();
+                await this.agentCache.storeTransferredEntry(transferredEntry);
+              }
+            } else {
+              result = await handler.execute(
+                resolvedOptions as AgentExecuteOptions,
+              );
+            }
+            if (shouldRecordLocally) {
+              agentSteps = this.endAgentReplayRecording();
+            }
+
+            if (
+              shouldRecordLocally &&
+              cacheContext &&
+              result.success &&
+              agentSteps.length > 0
+            ) {
+              await this.agentCache.store(cacheContext, agentSteps, result);
+            }
+
+            return result;
+          } catch (err) {
+            if (shouldRecordLocally) this.discardAgentReplayRecording();
+            throw err;
+          } finally {
+            if (shouldRecordLocally) {
+              this.discardAgentReplayRecording();
+            }
+          }
+        },
+      );
     return {
       execute: FlowLogger.wrapWithLogging({
         eventType: "AgentExecute",
         context: this.flowLoggerContext,
-      })(
-        async (
-          instructionOrOptions:
-            | string
-            | AgentExecuteOptions
-            | AgentStreamExecuteOptions,
-        ): Promise<AgentResult | AgentStreamResult> =>
-          withInstanceLogContext(
-            this.instanceId,
-            async (): Promise<AgentResult | AgentStreamResult> => {
-              validateExperimentalFeatures({
-                isExperimental: this.experimental,
-                agentConfig: options,
-                executeOptions:
-                  typeof instructionOrOptions === "object"
-                    ? instructionOrOptions
-                    : null,
-                isStreaming,
-              });
-
-              // Streaming mode
-              if (isStreaming) {
-                const { handler, resolvedOptions, cacheContext, llmClient } =
-                  await this.prepareAgentExecution(
-                    options,
-                    instructionOrOptions,
-                    agentConfigSignature,
-                  );
-
-                if (cacheContext) {
-                  const replayed = await this.agentCache.tryReplayAsStream(
-                    cacheContext,
-                    llmClient,
-                  );
-                  if (replayed) {
-                    return replayed;
-                  }
-                }
-
-                const streamResult = await handler.stream(
-                  resolvedOptions as AgentStreamExecuteOptions,
-                );
-
-                if (cacheContext) {
-                  const wrappedStream = this.agentCache.wrapStreamForCaching(
-                    cacheContext,
-                    streamResult,
-                    () => this.beginAgentReplayRecording(),
-                    () => this.endAgentReplayRecording(),
-                    () => this.discardAgentReplayRecording(),
-                  );
-                  return wrappedStream;
-                }
-
-                return streamResult;
-              }
-
-              // Non-streaming mode (default)
-              const { handler, resolvedOptions, cacheContext, llmClient } =
-                await this.prepareAgentExecution(
-                  options,
-                  instructionOrOptions,
-                  agentConfigSignature,
-                );
-
-              if (cacheContext) {
-                const replayed = await this.agentCache.tryReplay(
-                  cacheContext,
-                  llmClient,
-                );
-                if (replayed) {
-                  return replayed;
-                }
-              }
-
-              let agentSteps: AgentReplayStep[] = [];
-              const shouldRecordLocally =
-                !!cacheContext && (!this.apiClient || this.experimental);
-              if (shouldRecordLocally) {
-                this.beginAgentReplayRecording();
-              }
-              let result: AgentResult;
-
-              try {
-                if (this.apiClient && !this.experimental) {
-                  const page = await this.ctx!.awaitActivePage();
-                  result = await this.apiClient.agentExecute(
-                    options ?? {},
-                    resolvedOptions as AgentExecuteOptions,
-                    page.mainFrameId(),
-                    !!cacheContext,
-                  );
-                  if (cacheContext) {
-                    const transferredEntry =
-                      this.apiClient.consumeLatestAgentCacheEntry();
-                    await this.agentCache.storeTransferredEntry(
-                      transferredEntry,
-                    );
-                  }
-                } else {
-                  result = await handler.execute(
-                    resolvedOptions as AgentExecuteOptions,
-                  );
-                }
-                if (shouldRecordLocally) {
-                  agentSteps = this.endAgentReplayRecording();
-                }
-
-                if (
-                  shouldRecordLocally &&
-                  cacheContext &&
-                  result.success &&
-                  agentSteps.length > 0
-                ) {
-                  await this.agentCache.store(cacheContext, agentSteps, result);
-                }
-
-                return result;
-              } catch (err) {
-                if (shouldRecordLocally) this.discardAgentReplayRecording();
-                throw err;
-              } finally {
-                if (shouldRecordLocally) {
-                  this.discardAgentReplayRecording();
-                }
-              }
-            },
-          ),
-      ),
+      })(execute),
     };
   }
 }
