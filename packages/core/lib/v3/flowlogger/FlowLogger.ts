@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { EventEmitter } from "node:events";
 import { v7 as uuidv7 } from "uuid";
 import type { LanguageModelMiddleware } from "ai";
+import { EventEmitterWithWildcardSupport } from "./EventEmitter.js";
 
 // =============================================================================
 // Flow Event Model
@@ -65,46 +65,6 @@ export class FlowEvent {
   }
 }
 
-type WildcardEventListener = (...args: unknown[]) => void;
-
-export class EventEmitterWithWildcardSupport extends EventEmitter {
-  private readonly wildcardListeners = new Set<WildcardEventListener>();
-
-  override on(
-    eventName: string | symbol,
-    listener: (...args: unknown[]) => void,
-  ): this {
-    if (eventName === "*") {
-      this.wildcardListeners.add(listener);
-      return this;
-    }
-
-    return super.on(eventName, listener);
-  }
-
-  override off(
-    eventName: string | symbol,
-    listener: (...args: unknown[]) => void,
-  ): this {
-    if (eventName === "*") {
-      this.wildcardListeners.delete(listener);
-      return this;
-    }
-
-    return super.off(eventName, listener);
-  }
-
-  override emit(eventName: string | symbol, ...args: unknown[]): boolean {
-    const handled = super.emit(eventName, ...args);
-
-    for (const listener of this.wildcardListeners) {
-      listener(...args);
-    }
-
-    return handled || this.wildcardListeners.size > 0;
-  }
-}
-
 export interface FlowLoggerContext {
   // Mirrors `FlowEvent.sessionId`; it is currently the Stagehand session id and often matches `browserbaseSessionId`, but callers should not rely on that.
   sessionId: string;
@@ -142,6 +102,13 @@ type CdpLogPayload = {
   result?: unknown;
   error?: string;
   targetId?: string | null;
+};
+
+const CDP_EVENT_NAMES: Record<CdpLogEventType, string> = {
+  call: "CdpCallEvent",
+  response: "CdpResponseEvent",
+  responseError: "CdpResponseErrorEvent",
+  message: "CdpMessageEvent",
 };
 
 export class FlowLogger {
@@ -273,23 +240,6 @@ export class FlowLogger {
     }
   }
 
-  // Maps the internal CDP event kind to the public event type stored in the flow log.
-  private static getCdpEventName(eventType: CdpLogEventType): string {
-    if (eventType === "call") {
-      return "CdpCallEvent";
-    }
-
-    if (eventType === "response") {
-      return "CdpResponseEvent";
-    }
-
-    if (eventType === "responseError") {
-      return "CdpResponseErrorEvent";
-    }
-
-    return "CdpMessageEvent";
-  }
-
   // Emits a CDP event under a caller-supplied context. CDP transport code uses this instead of `runWithLogging()` because request/response/message events are separate lifecycle edges with explicit parent ids.
   private static logCdpEvent(
     context: FlowLoggerContext,
@@ -307,7 +257,7 @@ export class FlowLogger {
 
     return loggerContext.run(FlowLogger.cloneContext(context), () =>
       FlowLogger.emit({
-        eventType: FlowLogger.getCdpEventName(eventType),
+        eventType: CDP_EVENT_NAMES[eventType],
         eventParentIds,
         data: {
           method,

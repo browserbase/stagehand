@@ -1,9 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { EventStore } from "../../lib/v3/flowlogger/EventStore.js";
-import {
-  EventEmitterWithWildcardSupport,
-  FlowEvent,
-} from "../../lib/v3/flowlogger/FlowLogger.js";
+import { EventEmitterWithWildcardSupport } from "../../lib/v3/flowlogger/EventEmitter.js";
+import { FlowEvent } from "../../lib/v3/flowlogger/FlowLogger.js";
 
 function waitForAsyncEmit(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));

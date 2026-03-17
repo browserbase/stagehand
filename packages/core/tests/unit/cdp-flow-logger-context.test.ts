@@ -2,9 +2,9 @@ import { EventEmitter } from "node:events";
 import { describe, it, expect } from "vitest";
 import { CdpConnection } from "../../lib/v3/understudy/cdp.js";
 import { InMemoryEventSink } from "../../lib/v3/flowlogger/EventSink.js";
+import { EventEmitterWithWildcardSupport } from "../../lib/v3/flowlogger/EventEmitter.js";
 import { EventStore } from "../../lib/v3/flowlogger/EventStore.js";
 import {
-  EventEmitterWithWildcardSupport,
   FlowEvent,
   FlowLogger,
 } from "../../lib/v3/flowlogger/FlowLogger.js";
