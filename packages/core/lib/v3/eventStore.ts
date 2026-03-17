@@ -166,7 +166,7 @@ function sanitizePrettyEvent(event: FlowEvent): FlowEvent {
 }
 
 function truncateLine(value: string, maxLen: number): string {
-  const collapsed = value.replace(/\s+/g, " ");
+  const collapsed = value.replace(/[\r\n\t]+/g, " ");
   if (collapsed.length <= maxLen) {
     return collapsed;
   }
