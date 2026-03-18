@@ -27,6 +27,14 @@ interface StreamingResponseOptions<TV3> {
   operation?: string;
 }
 
+type StreamEventName =
+  | "starting"
+  | "connected"
+  | "running"
+  | "finished"
+  | "error";
+type StreamPayloadType = "system" | "log";
+
 export async function createStreamingResponse<TV3>({
   sessionId,
   request,
@@ -104,23 +112,29 @@ export async function createStreamingResponse<TV3>({
     }
   }
 
-  const sendData = (type: string, data: object) => {
+  const sendData = (
+    event: StreamEventName,
+    type: StreamPayloadType,
+    data: object,
+  ) => {
     if (!shouldStreamResponse) {
       return;
     }
 
-    reply.raw.write(`data: ${JSON.stringify({ data, type, id: v4() })}\n\n`);
+    reply.raw.write(
+      `event: ${event}\ndata: ${JSON.stringify({ data, type, id: v4() })}\n\n`,
+    );
   };
 
   const actionId = v4();
 
-  sendData("system", { status: "starting" });
+  sendData("starting", "system", { status: "starting" });
 
   const requestContext: RequestContext = {
     modelApiKey,
     logger: shouldStreamResponse
       ? (message) => {
-          sendData("log", { status: "running", message });
+          sendData("running", "log", { status: "running", message });
         }
       : undefined,
   };
@@ -134,7 +148,7 @@ export async function createStreamingResponse<TV3>({
   } catch (err) {
     const loadError = err instanceof Error ? err : new Error(String(err));
 
-    sendData("system", { status: "error", error: loadError.message });
+    sendData("error", "system", { status: "error", error: loadError.message });
 
     if (shouldStreamResponse) {
       reply.raw.end();
@@ -150,7 +164,7 @@ export async function createStreamingResponse<TV3>({
     );
   }
 
-  sendData("system", { status: "connected" });
+  sendData("connected", "system", { status: "connected" });
 
   let result: Awaited<ReturnType<typeof handler>> | null = null;
   let handlerError: Error | null = null;
@@ -180,7 +194,7 @@ export async function createStreamingResponse<TV3>({
         ? handlerError.getClientMessage()
         : `${operation ?? "operation"} failed`;
 
-    sendData("system", { status: "error", error: clientMessage });
+    sendData("error", "system", { status: "error", error: clientMessage });
 
     if (shouldStreamResponse) {
       reply.raw.end();
@@ -194,7 +208,7 @@ export async function createStreamingResponse<TV3>({
     return error(reply, clientMessage, statusCode);
   }
 
-  sendData("system", {
+  sendData("finished", "system", {
     status: "finished",
     result: result?.result,
     actionId,
