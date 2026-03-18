@@ -39,7 +39,11 @@ import {
   AgentAbortError,
 } from "../types/public/sdkErrors.js";
 import { handleDoneToolCall } from "../agent/utils/handleDoneToolCall.js";
-import { CaptchaSolver } from "../agent/utils/captchaSolver.js";
+import {
+  CaptchaSolver,
+  CAPTCHA_SOLVED_MSG,
+  CAPTCHA_ERRORED_MSG,
+} from "../agent/utils/captchaSolver.js";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -75,7 +79,7 @@ export class V3AgentHandler {
   private systemInstructions?: string;
   private mcpTools?: ToolSet;
   private mode: AgentToolMode;
-  private captchaSolverEnabled: boolean;
+  private captchaAutoSolveEnabled: boolean;
 
   constructor(
     v3: V3,
@@ -85,7 +89,7 @@ export class V3AgentHandler {
     systemInstructions?: string,
     mcpTools?: ToolSet,
     mode?: AgentToolMode,
-    captchaSolverEnabled?: boolean,
+    captchaAutoSolveEnabled?: boolean,
   ) {
     this.v3 = v3;
     this.logger = logger;
@@ -94,7 +98,7 @@ export class V3AgentHandler {
     this.systemInstructions = systemInstructions;
     this.mcpTools = mcpTools;
     this.mode = mode ?? "dom";
-    this.captchaSolverEnabled = captchaSolverEnabled ?? false;
+    this.captchaAutoSolveEnabled = captchaAutoSolveEnabled ?? false;
   }
 
   private async prepareAgent(
@@ -117,7 +121,7 @@ export class V3AgentHandler {
         executionInstruction: options.instruction,
         mode: this.mode,
         systemInstructions: this.systemInstructions,
-        solveCaptchas: this.v3.isCaptchaSolverEnabled,
+        captchasAutoSolve: this.v3.isCaptchaAutoSolveEnabled,
         excludeTools: options.excludeTools,
         variables: options.variables,
       });
@@ -196,8 +200,7 @@ export class V3AgentHandler {
         if (solved) {
           options.messages.push({
             role: "user",
-            content:
-              "A captcha was automatically detected and solved — no further interaction with the captcha is needed, even if it does not visually appear solved. Do not click the captcha checkbox, widget, or challenge again. Continue with your task.",
+            content: CAPTCHA_SOLVED_MSG,
           });
           this.logger({
             category: "agent",
@@ -209,8 +212,7 @@ export class V3AgentHandler {
         if (errored) {
           options.messages.push({
             role: "user",
-            content:
-              "A captcha was detected but the automatic captcha solver failed to solve it. You may need to try a different approach or navigate around the captcha.",
+            content: CAPTCHA_ERRORED_MSG,
           });
           this.logger({
             category: "agent",
@@ -341,7 +343,7 @@ export class V3AgentHandler {
       }
 
       // Set up captcha solver for Browserbase environments
-      if (this.captchaSolverEnabled) {
+      if (this.captchaAutoSolveEnabled) {
         captchaSolver = new CaptchaSolver();
         captchaSolver.init(() => this.v3.context.awaitActivePage());
       }
@@ -467,7 +469,7 @@ export class V3AgentHandler {
 
     // Set up captcha solver for Browserbase environments
     let captchaSolver: CaptchaSolver | undefined;
-    if (this.captchaSolverEnabled) {
+    if (this.captchaAutoSolveEnabled) {
       captchaSolver = new CaptchaSolver();
       captchaSolver.init(() => this.v3.context.awaitActivePage());
     }

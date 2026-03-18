@@ -38,8 +38,7 @@ function spyExecuteStep(client: OpenAICUAClient) {
 
 const FOLLOW_UP_RESPONSE: ExecuteStepResult = {
   actions: [],
-  message:
-    "I've located the Submit button. Should I go ahead and submit it?",
+  message: "I've located the Submit button. Should I go ahead and submit it?",
   completed: true,
   nextInputItems: [],
   responseId: "response-1",
@@ -91,9 +90,8 @@ describe("OpenAICUAClient", () => {
     const client = createClient();
     // No captcha context note — the model's confirmation should be respected
 
-    const executeStepSpy = spyExecuteStep(client).mockResolvedValueOnce(
-      FOLLOW_UP_RESPONSE,
-    );
+    const executeStepSpy =
+      spyExecuteStep(client).mockResolvedValueOnce(FOLLOW_UP_RESPONSE);
 
     const result = await client.execute({
       options: { instruction: "Submit the form.", maxSteps: 10 } as never,

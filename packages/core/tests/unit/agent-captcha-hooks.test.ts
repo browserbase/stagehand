@@ -58,7 +58,7 @@ class MockPage {
 
 class FakeCuaClient {
   public contextNotes: string[] = [];
-  public prepareStepHandler?: () => Promise<void>;
+  public preStepHook?: () => Promise<void>;
   public actionHandler?: (action: Record<string, unknown>) => Promise<void>;
   public executeImpl = vi.fn(async (options: unknown) => {
     void options;
@@ -81,8 +81,8 @@ class FakeCuaClient {
     this.actionHandler = handler;
   }
 
-  setPrepareStepHandler(handler: () => Promise<void>): void {
-    this.prepareStepHandler = handler;
+  setPreStepHook(handler: () => Promise<void>): void {
+    this.preStepHook = handler;
   }
 
   addContextNote(note: string): void {
@@ -141,7 +141,7 @@ describe("agent captcha hooks", () => {
   it("blocks regular agent prepareStep until the solver finishes and injects one solved message", async () => {
     const handler = new V3AgentHandler(
       {
-        isCaptchaSolverEnabled: true,
+        isCaptchaAutoSolveEnabled: true,
       } as never,
       logger,
       {} as never,
@@ -186,7 +186,7 @@ describe("agent captcha hooks", () => {
   it("injects one error message when the regular agent solver errors", async () => {
     const handler = new V3AgentHandler(
       {
-        isCaptchaSolverEnabled: true,
+        isCaptchaAutoSolveEnabled: true,
       } as never,
       logger,
       {} as never,
@@ -227,11 +227,10 @@ describe("agent captcha hooks", () => {
     let secondPrepareStarted = false;
 
     fakeCuaClient.executeImpl = vi.fn(async () => {
-      await fakeCuaClient.prepareStepHandler?.();
+      await fakeCuaClient.preStepHook?.();
       page.emitConsole(SOLVING_STARTED);
 
-      const blockedPrepare =
-        fakeCuaClient.prepareStepHandler?.() ?? Promise.resolve();
+      const blockedPrepare = fakeCuaClient.preStepHook?.() ?? Promise.resolve();
       secondPrepareStarted = true;
       await blockedPrepare;
 
@@ -249,7 +248,7 @@ describe("agent captcha hooks", () => {
           awaitActivePage: async () => page,
         },
         bus: { emit: vi.fn() },
-        isCaptchaSolverEnabled: true,
+        isCaptchaAutoSolveEnabled: true,
         isAdvancedStealth: false,
         configuredViewport: { width: 1288, height: 711 },
         isAgentReplayActive: () => false,
@@ -295,7 +294,7 @@ describe("agent captcha hooks", () => {
     let actionStarted = false;
 
     fakeCuaClient.executeImpl = vi.fn(async () => {
-      await fakeCuaClient.prepareStepHandler?.();
+      await fakeCuaClient.preStepHook?.();
       page.emitConsole(SOLVING_STARTED);
 
       const pendingAction =
@@ -318,7 +317,7 @@ describe("agent captcha hooks", () => {
           awaitActivePage: async () => page,
         },
         bus: { emit: vi.fn() },
-        isCaptchaSolverEnabled: true,
+        isCaptchaAutoSolveEnabled: true,
         isAdvancedStealth: false,
         configuredViewport: { width: 1288, height: 711 },
         isAgentReplayActive: () => false,
@@ -366,11 +365,10 @@ describe("agent captcha hooks", () => {
     page.captchaBoxes = [{ left: 0, top: 400, right: 140, bottom: 470 }];
 
     fakeCuaClient.executeImpl = vi.fn(async () => {
-      await fakeCuaClient.prepareStepHandler?.();
+      await fakeCuaClient.preStepHook?.();
       page.emitConsole(SOLVING_STARTED);
 
-      const blockedPrepare =
-        fakeCuaClient.prepareStepHandler?.() ?? Promise.resolve();
+      const blockedPrepare = fakeCuaClient.preStepHook?.() ?? Promise.resolve();
       page.emitConsole(SOLVING_FINISHED);
       await blockedPrepare;
 
@@ -395,7 +393,7 @@ describe("agent captcha hooks", () => {
           awaitActivePage: async () => page,
         },
         bus: { emit: vi.fn() },
-        isCaptchaSolverEnabled: true,
+        isCaptchaAutoSolveEnabled: true,
         isAdvancedStealth: false,
         configuredViewport: { width: 1288, height: 711 },
         isAgentReplayActive: () => false,

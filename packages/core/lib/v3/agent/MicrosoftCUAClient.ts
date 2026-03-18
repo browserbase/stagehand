@@ -875,7 +875,7 @@ For each function call, return a json object with function name and arguments wi
     try {
       // Execute steps until completion or max steps reached
       while (!completed && currentStep < maxSteps) {
-        await this.prepareStepHandler?.();
+        await this.preStepHook?.();
 
         logger({
           category: "agent",

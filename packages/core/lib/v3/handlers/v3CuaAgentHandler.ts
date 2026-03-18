@@ -19,13 +19,13 @@ import { LogLine } from "../types/public/logs.js";
 import { type Action, V3FunctionName } from "../types/public/methods.js";
 import { SessionFileLogger } from "../flowLogger.js";
 import { StagehandClosedError } from "../types/public/sdkErrors.js";
-import { CaptchaSolver } from "../agent/utils/captchaSolver.js";
+import {
+  CaptchaSolver,
+  CAPTCHA_SOLVED_MSG,
+  CAPTCHA_ERRORED_MSG,
+} from "../agent/utils/captchaSolver.js";
 
 export class V3CuaAgentHandler {
-  private static readonly CAPTCHA_SOLVED_NOTE =
-    "A captcha was automatically detected and solved — no further interaction with the captcha is needed, even if it does not visually appear solved. Do not click the captcha checkbox, widget, or challenge again. Continue with your task.";
-  private static readonly CAPTCHA_ERRORED_NOTE =
-    "A captcha was detected but the automatic captcha solver failed to solve it. You may need to try a different approach or navigate around the captcha.";
   private v3: V3;
   private agent: AgentClient;
   private provider: AgentProvider;
@@ -208,12 +208,12 @@ export class V3CuaAgentHandler {
     }
 
     // Set up captcha solver for Browserbase environments
-    if (this.v3.isCaptchaSolverEnabled) {
+    if (this.v3.isCaptchaAutoSolveEnabled) {
       this.captchaSolver = new CaptchaSolver();
       this.captchaSolver.init(() => this.v3.context.awaitActivePage());
 
       // Block the CUA agent loop before each step while a captcha is being solved
-      this.agentClient.setPrepareStepHandler(async () => {
+      this.agentClient.setPreStepHook(async () => {
         if (this.captchaSolver?.isSolving()) {
           this.logger({
             category: "agent",
@@ -687,7 +687,7 @@ export class V3CuaAgentHandler {
 
     if (result.solved) {
       this.captchaClickGuardRemaining = 3;
-      this.agentClient.addContextNote(V3CuaAgentHandler.CAPTCHA_SOLVED_NOTE);
+      this.agentClient.addContextNote(CAPTCHA_SOLVED_MSG);
       this.logger({
         category: "agent",
         message: "Captcha solved — continuing with task",
@@ -697,7 +697,7 @@ export class V3CuaAgentHandler {
 
     if (result.errored) {
       this.captchaClickGuardRemaining = 0;
-      this.agentClient.addContextNote(V3CuaAgentHandler.CAPTCHA_ERRORED_NOTE);
+      this.agentClient.addContextNote(CAPTCHA_ERRORED_MSG);
       this.logger({
         category: "agent",
         message: "Captcha solver failed or errored",

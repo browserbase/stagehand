@@ -1,4 +1,5 @@
 import type { AgentToolMode, Variables } from "../../types/public/agent.js";
+import { CAPTCHA_SYSTEM_PROMPT_NOTE } from "../utils/captchaSolver.js";
 
 export interface AgentSystemPromptOptions {
   url: string;
@@ -6,7 +7,7 @@ export interface AgentSystemPromptOptions {
   mode: AgentToolMode;
   systemInstructions?: string;
   /** Whether captchas are automatically solved by the browser environment */
-  solveCaptchas?: boolean;
+  captchasAutoSolve?: boolean;
   /** Tools to exclude from the system prompt */
   excludeTools?: string[];
   /** Variables available to the agent for use in act/type tools */
@@ -122,7 +123,7 @@ export function buildAgentSystemPrompt(
     executionInstruction,
     mode,
     systemInstructions,
-    solveCaptchas = false,
+    captchasAutoSolve = false,
     excludeTools,
     variables,
   } = options;
@@ -193,10 +194,10 @@ export function buildAgentSystemPrompt(
     </step_1>
   </page_understanding_protocol>`;
 
-  // Roadblocks section only shown when running on Browserbase
-  const roadblocksSection = solveCaptchas
+  // Roadblocks section only shown when captchas are auto-solved
+  const roadblocksSection = captchasAutoSolve
     ? `<roadblocks>
-    <note>Captchas on this page are automatically detected and solved by the browser environment. Do not interact with or attempt to solve any captchas yourself — they will be handled for you. Do not click the captcha checkbox, widget, or challenge again after it has been solved, even if it still looks unresolved. Continue with your task as if the captcha does not exist.</note>
+    <note>${CAPTCHA_SYSTEM_PROMPT_NOTE}</note>
   </roadblocks>`
     : "";
 

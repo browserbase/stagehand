@@ -8,6 +8,26 @@ const SOLVING_ERRORED = "browserbase-solving-errored";
 /** Maximum time (ms) to wait for the captcha solver before giving up. */
 const SOLVE_TIMEOUT_MS = 90_000;
 
+// ---------------------------------------------------------------------------
+// Shared captcha notification strings
+// ---------------------------------------------------------------------------
+
+/** Injected into the agent message stream after a successful captcha solve. */
+export const CAPTCHA_SOLVED_MSG =
+  "A captcha was automatically detected and solved — no further interaction with the captcha is needed, even if it does not visually appear solved. Do not click the captcha checkbox, widget, or challenge again. Continue with your task.";
+
+/** Injected into the agent message stream when the captcha solver fails. */
+export const CAPTCHA_ERRORED_MSG =
+  "A captcha was detected but the automatic captcha solver failed to solve it. You may need to try a different approach or navigate around the captcha.";
+
+/** Appended to the system prompt (DOM/hybrid agents) when captchas auto-solve. */
+export const CAPTCHA_SYSTEM_PROMPT_NOTE =
+  "Captchas on this page are automatically detected and solved by the browser environment. Do not interact with or attempt to solve any captchas yourself — they will be handled for you. Do not click the captcha checkbox, widget, or challenge again after it has been solved, even if it still looks unresolved. Continue with your task as if the captcha does not exist.";
+
+/** Appended to the CUA system prompt when captchas auto-solve. */
+export const CAPTCHA_CUA_SYSTEM_PROMPT_NOTE =
+  "\n\nCaptchas on this page are automatically detected and solved by the browser environment. Do not interact with or attempt to solve any captchas yourself — they will be handled for you. Continue with your task as if the captcha does not exist.";
+
 /**
  * Tracks Browserbase captcha solver state via console messages and provides
  * a blocking `waitIfSolving()` that agents call before each step/action.

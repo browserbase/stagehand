@@ -74,7 +74,7 @@ describe("browserbase accessors", () => {
 
       expect(v3.browserbaseSessionURL).toBe(MOCK_SESSION_URL);
       expect(v3.browserbaseDebugURL).toBe(MOCK_DEBUG_URL);
-      expect(v3.isCaptchaSolverEnabled).toBe(true);
+      expect(v3.isCaptchaAutoSolveEnabled).toBe(true);
     } finally {
       await v3.close().catch(() => {});
     }
@@ -108,7 +108,7 @@ describe("browserbase accessors", () => {
 
     try {
       await v3.init();
-      expect(v3.isCaptchaSolverEnabled).toBe(false);
+      expect(v3.isCaptchaAutoSolveEnabled).toBe(false);
     } finally {
       await v3.close().catch(() => {});
     }

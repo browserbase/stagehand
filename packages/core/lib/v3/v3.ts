@@ -21,6 +21,7 @@ import { ExtractHandler } from "./handlers/extractHandler.js";
 import { ObserveHandler } from "./handlers/observeHandler.js";
 import { V3AgentHandler } from "./handlers/v3AgentHandler.js";
 import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler.js";
+import { CAPTCHA_CUA_SYSTEM_PROMPT_NOTE } from "./agent/utils/captchaSolver.js";
 import { createBrowserbaseSession } from "./launch/browserbase.js";
 import { launchLocalChrome } from "./launch/local.js";
 import { LLMClient } from "./llm/LLMClient.js";
@@ -180,10 +181,10 @@ export class V3 {
   }
 
   /**
-   * Returns true if captcha solving is enabled on Browserbase.
+   * Returns true if captcha auto-solving is enabled on Browserbase.
    * Defaults to true when not explicitly set to false.
    */
-  public get isCaptchaSolverEnabled(): boolean {
+  public get isCaptchaAutoSolveEnabled(): boolean {
     return (
       this.isBrowserbase &&
       this.opts.browserbaseSessionCreateParams?.browserSettings
@@ -1711,7 +1712,7 @@ export class V3 {
       options?.systemPrompt,
       tools,
       options?.mode,
-      this.isCaptchaSolverEnabled,
+      this.isCaptchaAutoSolveEnabled,
     );
 
     const resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions =
@@ -1881,8 +1882,8 @@ export class V3 {
                 userProvidedInstructions:
                   (options.systemPrompt ??
                     `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`) +
-                  (this.isCaptchaSolverEnabled
-                    ? `\n\nCaptchas on this page are automatically detected and solved by the browser environment. Do not interact with or attempt to solve any captchas yourself — they will be handled for you. Continue with your task as if the captcha does not exist.`
+                  (this.isCaptchaAutoSolveEnabled
+                    ? CAPTCHA_CUA_SYSTEM_PROMPT_NOTE
                     : ""),
               },
               tools,

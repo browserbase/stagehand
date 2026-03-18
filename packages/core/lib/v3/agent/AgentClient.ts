@@ -44,10 +44,10 @@ export abstract class AgentClient {
   ): void;
 
   /** Optional hook called at the top of every step in the agent loop. */
-  protected prepareStepHandler?: () => Promise<void>;
+  protected preStepHook?: () => Promise<void>;
 
-  setPrepareStepHandler(handler: () => Promise<void>): void {
-    this.prepareStepHandler = handler;
+  setPreStepHook(handler: () => Promise<void>): void {
+    this.preStepHook = handler;
   }
 
   /**
