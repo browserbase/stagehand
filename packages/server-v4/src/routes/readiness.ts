@@ -3,8 +3,6 @@ import { StatusCodes } from "http-status-codes";
 import { z } from "zod/v4";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
-import { withErrorHandling } from "../lib/errorHandler.js";
-
 // Server readiness state management
 let isReady = false;
 
@@ -42,14 +40,14 @@ const readinessRoute: RouteOptions = {
       503: z.string(),
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: withErrorHandling(async (_request, reply) => {
+  handler: async (_request, reply) => {
     if (!isReady) {
       return reply
         .code(StatusCodes.SERVICE_UNAVAILABLE)
         .send("Service Unavailable");
     }
     return reply.code(StatusCodes.OK).send("Ready");
-  }),
+  },
 };
 
 export default readinessRoute;
