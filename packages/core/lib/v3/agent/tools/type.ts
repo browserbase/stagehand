@@ -99,7 +99,7 @@ export const typeTool = (v3: V3, provider?: string, variables?: Variables) => {
       } catch (error) {
         return {
           success: false,
-          error: `Error typing: ${(error as Error).message}`,
+          error: `Error typing: ${error.message}`,
         };
       }
     },

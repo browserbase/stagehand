@@ -82,7 +82,7 @@ export const clickTool = (v3: V3, provider?: string) =>
       } catch (error) {
         return {
           success: false,
-          error: `Error clicking: ${(error as Error).message}`,
+          error: `Error clicking: ${error.message}`,
         };
       }
     },

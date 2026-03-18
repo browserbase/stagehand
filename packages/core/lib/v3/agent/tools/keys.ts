@@ -61,7 +61,7 @@ Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) a
 
         return { success: false, error: `Unsupported method: ${method}` };
       } catch (error) {
-        return { success: false, error: (error as Error).message };
+        return { success: false, error: error.message };
       }
     },
   });
