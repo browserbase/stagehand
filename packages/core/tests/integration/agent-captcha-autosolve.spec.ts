@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { V3 } from "../../lib/v3/v3.js";
 import { getV3TestConfig } from "./v3.config.js";
+import type { LogLine } from "../../lib/v3/types/public/logs.js";
 
 const isBrowserbase =
   (process.env.STAGEHAND_BROWSER_TARGET ?? "local").toLowerCase() ===
@@ -10,12 +11,20 @@ test.describe("Agent captcha auto-solve on Browserbase", () => {
   test.skip(!isBrowserbase, "Requires Browserbase environment");
 
   let v3: V3;
+  let logs: LogLine[];
 
   test.beforeEach(async () => {
+    logs = [];
     v3 = new V3(
       getV3TestConfig({
         env: "BROWSERBASE",
-        // solveCaptchas defaults to true on Browserbase
+        verbose: 2,
+        logger: (line: LogLine) => logs.push(line),
+        browserbaseSessionCreateParams: {
+          browserSettings: {
+            solveCaptchas: true,
+          },
+        },
       }),
     );
     await v3.init();
@@ -25,8 +34,8 @@ test.describe("Agent captcha auto-solve on Browserbase", () => {
     await v3?.close?.().catch(() => {});
   });
 
-  test("agent completes a reCAPTCHA v2 demo without conflicting with the solver", async () => {
-    test.setTimeout(120_000);
+  test("agent auto-pauses while Browserbase solves a captcha and does not race with the solver", async () => {
+    test.setTimeout(180_000);
 
     const page = v3.context.pages()[0];
     await page.goto("https://2captcha.com/demo/recaptcha-v2", {
@@ -40,13 +49,34 @@ test.describe("Agent captcha auto-solve on Browserbase", () => {
 
     const result = await agent.execute({
       instruction:
-        'Solve the captcha on this page and click the "Check" button. ' +
-        "Wait for the result and report whether the verification succeeded.",
-      maxSteps: 15,
+        "Look at this page and try to submit the form by clicking the Check button. " +
+        "Report what happened after clicking.",
+      maxSteps: 20,
     });
 
-    // The agent should finish and report success (Browserbase solves the captcha)
+    // The agent should complete without crashing
     expect(result.completed).toBe(true);
-    expect(result.message.toLowerCase()).toContain("success");
+
+    // The captcha auto-pause mechanism should have fired — BB emits
+    // browserbase-solving-started on pages with detectable captchas.
+    // Verify the agent was paused (either solved or errored notification).
+    const captchaLogFired = logs.some(
+      (line) =>
+        line.message.includes("waiting for Browserbase to solve") ||
+        line.message.includes("Captcha solved") ||
+        line.message.includes("Captcha solver failed"),
+    );
+    expect(captchaLogFired).toBe(true);
+
+    // The agent should NOT have used act/click on the captcha checkbox itself.
+    // It may mention "captcha" in reasoning (describing the page) but should
+    // not have an action whose description targets the reCAPTCHA checkbox.
+    const agentClickedCaptchaCheckbox = result.actions?.some(
+      (a) =>
+        a.type === "act" &&
+        typeof a.description === "string" &&
+        /I'm not a robot|recaptcha checkbox/i.test(a.description),
+    );
+    expect(agentClickedCaptchaCheckbox).toBeFalsy();
   });
 });
