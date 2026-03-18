@@ -55,7 +55,7 @@ export function getHeaders(
 ): Record<string, string> {
   return {
     "Content-Type": "application/json",
-    "x-model-api-key": requireEnv("OPENAI_API_KEY", OPENAI_API_KEY),
+    "x-model-api-key": OPENAI_API_KEY ?? "test-model-api-key",
     "x-language": language,
     "x-sdk-version": sdkVersion,
   };
@@ -69,9 +69,11 @@ export interface StartSessionResponse {
   success: boolean;
   message?: string;
   data?: {
-    sessionId: string;
-    cdpUrl: string;
-    available: boolean;
+    browserSession: {
+      id: string;
+      cdpUrl: string;
+      available: boolean;
+    };
   };
 }
 
@@ -107,14 +109,12 @@ function createLocalBrowserBody() {
   };
 
   return {
-    browser: {
-      type: "local",
-      launchOptions: {
-        headless: true,
-        executablePath: resolveChromePath(),
-        args: process.env.CI ? ["--no-sandbox"] : undefined,
-        connectTimeoutMs: LOCAL_CONNECT_TIMEOUT_MS,
-      },
+    env: "LOCAL",
+    localBrowserLaunchOptions: {
+      headless: true,
+      executablePath: resolveChromePath(),
+      args: process.env.CI ? ["--no-sandbox"] : undefined,
+      connectTimeoutMs: LOCAL_CONNECT_TIMEOUT_MS,
     },
   };
 }
@@ -195,7 +195,7 @@ export async function createSessionWithCdp(
     ...createLocalBrowserBody(),
   };
 
-  const response = await fetch(`${url}/v4/sessions/start`, {
+  const response = await fetch(`${url}/v4/browsersession`, {
     method: "POST",
     headers,
     body: JSON.stringify(startPayload),
@@ -212,7 +212,7 @@ export async function createSessionWithCdp(
 
   if (!response.ok || !body?.success) {
     const launchDiagnostics = readLaunchDiagnostics(
-      startPayload.browser?.launchOptions,
+      startPayload.localBrowserLaunchOptions,
     );
     throw new Error(
       `Failed to create session (status=${response.status}): ${JSON.stringify(
@@ -220,13 +220,13 @@ export async function createSessionWithCdp(
       )}\n${launchDiagnostics}`,
     );
   }
-  if (!body.data?.available) {
+  if (!body.data?.browserSession.available) {
     throw new Error(`Session not available`);
   }
-  if (!body.data.sessionId) {
-    throw new Error("No sessionId returned");
+  if (!body.data.browserSession.id) {
+    throw new Error("No browserSession id returned");
   }
-  if (!body.data.cdpUrl) {
+  if (!body.data.browserSession.cdpUrl) {
     throw new Error("No cdpUrl returned");
   }
 
@@ -234,8 +234,8 @@ export async function createSessionWithCdp(
   await new Promise((resolve) => setTimeout(resolve, SESSION_READY_DELAY_MS));
 
   return {
-    sessionId: body.data.sessionId,
-    cdpUrl: body.data.cdpUrl,
+    sessionId: body.data.browserSession.id,
+    cdpUrl: body.data.browserSession.cdpUrl,
   };
 }
 
@@ -245,28 +245,10 @@ export async function endSession(
 ): Promise<void> {
   const url = getBaseUrl();
 
-  await fetch(`${url}/v4/sessions/${sessionId}/end`, {
+  await fetch(`${url}/v4/browsersession/${sessionId}/end`, {
     method: "POST",
     headers,
     body: JSON.stringify({}),
-  });
-}
-
-// =============================================================================
-// Navigation Helper
-// =============================================================================
-
-export async function navigateSession(
-  sessionId: string,
-  targetUrl: string,
-  headers: Record<string, string>,
-): Promise<Response> {
-  const url = getBaseUrl();
-
-  return fetch(`${url}/v4/sessions/${sessionId}/navigate`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ url: targetUrl, frameId: "" }),
   });
 }
 
@@ -644,47 +626,4 @@ export function assertFetchStatus<T>(
     message ?? `Expected HTTP ${expectedStatus}, got ${context.status}`,
     context,
   );
-}
-
-// =============================================================================
-// Test Context Manager
-// =============================================================================
-
-export class TestSession {
-  public sessionId: string | null = null;
-  private headers: Record<string, string>;
-
-  constructor(headers: Record<string, string>) {
-    this.headers = headers;
-  }
-
-  async start(): Promise<string> {
-    this.sessionId = await createSession(this.headers);
-    return this.sessionId;
-  }
-
-  async navigate(targetUrl: string): Promise<Response> {
-    if (!this.sessionId) {
-      throw new Error("Session not started");
-    }
-    return navigateSession(this.sessionId, targetUrl, this.headers);
-  }
-
-  async end(): Promise<void> {
-    if (this.sessionId) {
-      try {
-        await endSession(this.sessionId, this.headers);
-      } catch {
-        // Ignore errors when ending session
-      }
-      this.sessionId = null;
-    }
-  }
-
-  getSessionId(): string {
-    if (!this.sessionId) {
-      throw new Error("Session not started");
-    }
-    return this.sessionId;
-  }
 }
