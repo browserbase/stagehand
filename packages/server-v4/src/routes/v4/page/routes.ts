@@ -39,7 +39,47 @@ import waitForTimeoutRoute from "./waitForTimeout.js";
 import reloadRoute from "./reload.js";
 import { buildErrorResponse } from "../../../schemas/v4/page.js";
 
-export const pageRoutes: RouteOptions[] = [
+function withTag(route: RouteOptions, tag: string): RouteOptions {
+  if (!route.schema) {
+    return route;
+  }
+
+  return {
+    ...route,
+    schema: {
+      ...route.schema,
+      tags: [tag],
+    },
+  };
+}
+
+function normalizePluginError(error: unknown): {
+  errorMessage: string;
+  statusCode: number;
+} {
+  if ((error as { validation?: unknown[] }).validation) {
+    return {
+      errorMessage: "Request validation failed",
+      statusCode: StatusCodes.BAD_REQUEST,
+    };
+  }
+
+  if (error instanceof ResponseSerializationError) {
+    return {
+      errorMessage: "Response validation failed",
+      statusCode: StatusCodes.INTERNAL_SERVER_ERROR,
+    };
+  }
+
+  return {
+    errorMessage: error instanceof Error ? error.message : String(error),
+    statusCode:
+      (error as { statusCode?: number }).statusCode ??
+      StatusCodes.INTERNAL_SERVER_ERROR,
+  };
+}
+
+const rawPageRoutes: RouteOptions[] = [
   clickRoute,
   hoverRoute,
   scrollRoute,
@@ -77,36 +117,17 @@ export const pageRoutes: RouteOptions[] = [
   pageActionDetailsRoute,
 ];
 
+export const pageRoutes: RouteOptions[] = rawPageRoutes.map((route) =>
+  withTag(route, "page"),
+);
+
 export const pageRoutesPlugin: FastifyPluginCallback = (
   instance,
   _opts,
   done,
 ) => {
-  instance.addHook("onRoute", (routeOptions) => {
-    if (!routeOptions.schema || routeOptions.schema.hide) {
-      return;
-    }
-
-    const existingTags = Array.isArray(routeOptions.schema.tags)
-      ? routeOptions.schema.tags
-      : [];
-    routeOptions.schema.tags = [...new Set([...existingTags, "page"])];
-  });
-
   instance.setErrorHandler((error, _request, reply) => {
-    const statusCode = (error as { validation?: unknown[] }).validation
-      ? StatusCodes.BAD_REQUEST
-      : error instanceof ResponseSerializationError
-        ? StatusCodes.INTERNAL_SERVER_ERROR
-        : ((error as { statusCode?: number }).statusCode ??
-          StatusCodes.INTERNAL_SERVER_ERROR);
-    const errorMessage = (error as { validation?: unknown[] }).validation
-      ? "Request validation failed"
-      : error instanceof ResponseSerializationError
-        ? "Response validation failed"
-        : error instanceof Error
-          ? error.message
-          : String(error);
+    const { errorMessage, statusCode } = normalizePluginError(error);
 
     return reply.status(statusCode).send(
       buildErrorResponse({

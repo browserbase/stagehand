@@ -25,7 +25,47 @@ import resolvePageByMainFrameIdRoute from "./resolvePageByMainFrameId.js";
 import setExtraHTTPHeadersRoute from "./setExtraHTTPHeaders.js";
 import { buildBrowserSessionErrorResponse } from "../../../schemas/v4/browserSession.js";
 
-export const browserSessionRoutes: RouteOptions[] = [
+function withTag(route: RouteOptions, tag: string): RouteOptions {
+  if (!route.schema) {
+    return route;
+  }
+
+  return {
+    ...route,
+    schema: {
+      ...route.schema,
+      tags: [tag],
+    },
+  };
+}
+
+function normalizePluginError(error: unknown): {
+  errorMessage: string;
+  statusCode: number;
+} {
+  if ((error as { validation?: unknown[] }).validation) {
+    return {
+      errorMessage: "Request validation failed",
+      statusCode: StatusCodes.BAD_REQUEST,
+    };
+  }
+
+  if (error instanceof ResponseSerializationError) {
+    return {
+      errorMessage: "Response validation failed",
+      statusCode: StatusCodes.INTERNAL_SERVER_ERROR,
+    };
+  }
+
+  return {
+    errorMessage: error instanceof Error ? error.message : String(error),
+    statusCode:
+      (error as { statusCode?: number }).statusCode ??
+      StatusCodes.INTERNAL_SERVER_ERROR,
+  };
+}
+
+const rawBrowserSessionRoutes: RouteOptions[] = [
   createBrowserSessionRoute,
   getBrowserSessionRoute,
   endBrowserSessionRoute,
@@ -49,38 +89,17 @@ export const browserSessionRoutes: RouteOptions[] = [
   browserSessionActionDetailsRoute,
 ];
 
+export const browserSessionRoutes: RouteOptions[] = rawBrowserSessionRoutes.map(
+  (route) => withTag(route, "browserSession"),
+);
+
 export const browserSessionRoutesPlugin: FastifyPluginCallback = (
   instance,
   _opts,
   done,
 ) => {
-  instance.addHook("onRoute", (routeOptions) => {
-    if (!routeOptions.schema || routeOptions.schema.hide) {
-      return;
-    }
-
-    const existingTags = Array.isArray(routeOptions.schema.tags)
-      ? routeOptions.schema.tags
-      : [];
-    routeOptions.schema.tags = [
-      ...new Set([...existingTags, "browserSession"]),
-    ];
-  });
-
   instance.setErrorHandler((error, _request, reply) => {
-    const statusCode = (error as { validation?: unknown[] }).validation
-      ? StatusCodes.BAD_REQUEST
-      : error instanceof ResponseSerializationError
-        ? StatusCodes.INTERNAL_SERVER_ERROR
-        : ((error as { statusCode?: number }).statusCode ??
-          StatusCodes.INTERNAL_SERVER_ERROR);
-    const errorMessage = (error as { validation?: unknown[] }).validation
-      ? "Request validation failed"
-      : error instanceof ResponseSerializationError
-        ? "Response validation failed"
-        : error instanceof Error
-          ? error.message
-          : String(error);
+    const { errorMessage, statusCode } = normalizePluginError(error);
 
     return reply.status(statusCode).send(
       buildBrowserSessionErrorResponse({
