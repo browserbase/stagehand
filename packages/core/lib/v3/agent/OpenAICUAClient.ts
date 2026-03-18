@@ -30,8 +30,11 @@ import { v7 as uuidv7 } from "uuid";
  * Client for OpenAI's Computer Use Assistant API
  * This implementation uses the official OpenAI Responses API for Computer Use
  */
+const CAPTCHA_PROCEED_TOOL = "captchaSolvedProceed";
+
 export class OpenAICUAClient extends AgentClient {
   private pendingContextNotes: string[] = [];
+  private captchaSolvedToolActive = false;
   private apiKey: string;
   private organization?: string;
   private baseURL: string;
@@ -111,6 +114,13 @@ export class OpenAICUAClient extends AgentClient {
 
   addContextNote(note: string): void {
     this.pendingContextNotes.push(note);
+
+    // When a captcha-related note arrives, expose a tool that the model can
+    // call instead of asking the user for confirmation.  This replaces
+    // fragile English-phrase parsing with a structured tool call.
+    if (note.toLowerCase().includes("captcha")) {
+      this.captchaSolvedToolActive = true;
+    }
   }
 
   /**
@@ -166,41 +176,9 @@ export class OpenAICUAClient extends AgentClient {
         // Store the previous response ID for the next request
         previousResponseId = result.responseId;
 
-        // Only auto-continue past follow-up questions when a captcha was
-        // just solved — we don't want to silently bypass legitimate model
-        // confirmation requests (e.g. "Should I delete this?").
-        const captchaJustSolved = this.pendingContextNotes.some((note) =>
-          note.toLowerCase().includes("captcha"),
-        );
-        const shouldContinueWithoutConfirmation =
-          captchaJustSolved &&
-          completed &&
-          result.actions.length === 0 &&
-          this.isFollowUpQuestion(result.message);
-
-        if (shouldContinueWithoutConfirmation) {
-          completed = false;
-          logger({
-            category: "agent",
-            message:
-              "OpenAI CUA asked for confirmation instead of acting — continuing automatically",
-            level: 1,
-          });
-        }
-
         // Update the input items for the next step if we're continuing
         if (!completed) {
           inputItems = result.nextInputItems;
-          if (shouldContinueWithoutConfirmation) {
-            inputItems = [
-              ...inputItems,
-              {
-                role: "user",
-                content:
-                  "Do not ask follow up questions or request confirmation. The user trusts your judgment. If the task is safe, continue completing it autonomously.",
-              },
-            ];
-          }
           const contextNotes = this.drainContextNotes();
           if (contextNotes.length > 0) {
             inputItems = [
@@ -508,6 +486,27 @@ export class OpenAICUAClient extends AgentClient {
         ];
       }
 
+      // When a captcha was just solved, expose a tool the model can call
+      // to confirm it should proceed.  This avoids fragile English-phrase
+      // parsing and works regardless of the model's output language.
+      if (this.captchaSolvedToolActive) {
+        requestParams.tools = [
+          ...(requestParams.tools as Record<string, unknown>[]),
+          {
+            type: "function" as const,
+            name: CAPTCHA_PROCEED_TOOL,
+            function: {
+              name: CAPTCHA_PROCEED_TOOL,
+              description:
+                "The captcha on this page was solved automatically. " +
+                "Call this tool to confirm and continue with your task " +
+                "instead of asking the user for permission.",
+              parameters: { type: "object", properties: {}, required: [] },
+            },
+          },
+        ];
+      }
+
       // Add previous_response_id if available
       if (previousResponseId) {
         requestParams.previous_response_id = previousResponseId;
@@ -732,6 +731,19 @@ export class OpenAICUAClient extends AgentClient {
         item.type === "function_call" &&
         this.isFunctionCallItem(item)
       ) {
+        // Handle the captcha-proceed tool — just return a confirmation and
+        // deactivate the tool so it doesn't appear on subsequent steps.
+        if (item.name === CAPTCHA_PROCEED_TOOL) {
+          this.captchaSolvedToolActive = false;
+          nextInputItems.push({
+            type: "function_call_output",
+            call_id: item.call_id,
+            output:
+              "Confirmed. The captcha is solved. Continue completing the original task autonomously without asking for further confirmation.",
+          } as ResponseInputItem);
+          continue;
+        }
+
         // Handle function calls (tool calls)
         try {
           const action = this.convertFunctionCallToAction(item);
@@ -836,23 +848,6 @@ export class OpenAICUAClient extends AgentClient {
     const notes = [...this.pendingContextNotes];
     this.pendingContextNotes = [];
     return notes;
-  }
-
-  private isFollowUpQuestion(message: string): boolean {
-    const normalized = message.trim().toLowerCase();
-    if (!normalized.includes("?")) {
-      return false;
-    }
-
-    return (
-      normalized.includes("should i") ||
-      normalized.includes("shall i") ||
-      normalized.includes("would you like") ||
-      normalized.includes("do you want") ||
-      normalized.includes("can i proceed") ||
-      normalized.includes("may i proceed") ||
-      normalized.includes("go ahead")
-    );
   }
 
   private convertFunctionCallToAction(
