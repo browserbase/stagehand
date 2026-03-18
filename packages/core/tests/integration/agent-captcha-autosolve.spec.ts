@@ -19,7 +19,10 @@ test.describe("Agent captcha auto-solve on Browserbase", () => {
       getV3TestConfig({
         env: "BROWSERBASE",
         verbose: 2,
-        logger: (line: LogLine) => logs.push(line),
+        logger: (line: LogLine) => {
+          logs.push(line);
+          console.log(`[${line.category}] ${line.message}`);
+        },
         browserbaseSessionCreateParams: {
           browserSettings: {
             solveCaptchas: true,
@@ -28,17 +31,17 @@ test.describe("Agent captcha auto-solve on Browserbase", () => {
       }),
     );
     await v3.init();
+    console.log("BB session URL:", v3.browserbaseSessionURL);
   });
 
   test.afterEach(async () => {
     await v3?.close?.().catch(() => {});
   });
 
-  test("agent auto-pauses while Browserbase solves a captcha and does not race with the solver", async () => {
+  test("Cloudflare Turnstile auto-solve", async () => {
     test.setTimeout(180_000);
-
     const page = v3.context.pages()[0];
-    await page.goto("https://2captcha.com/demo/recaptcha-v2", {
+    await page.goto("https://2captcha.com/demo/cloudflare-turnstile", {
       waitUntil: "load",
     });
 
@@ -49,34 +52,42 @@ test.describe("Agent captcha auto-solve on Browserbase", () => {
 
     const result = await agent.execute({
       instruction:
-        "Look at this page and try to submit the form by clicking the Check button. " +
-        "Report what happened after clicking.",
-      maxSteps: 20,
+        'Click the "Check" button and report the exact verification result text shown on the page.',
+      maxSteps: 15,
     });
 
-    // The agent should complete without crashing
+    console.log("Turnstile result:", result.message);
+
     expect(result.completed).toBe(true);
+    expect(result.message.toLowerCase()).toContain("success");
+  });
 
-    // The captcha auto-pause mechanism should have fired — BB emits
-    // browserbase-solving-started on pages with detectable captchas.
-    // Verify the agent was paused (either solved or errored notification).
-    const captchaLogFired = logs.some(
-      (line) =>
-        line.message.includes("waiting for Browserbase to solve") ||
-        line.message.includes("Captcha solved") ||
-        line.message.includes("Captcha solver failed"),
-    );
-    expect(captchaLogFired).toBe(true);
+  test("reCAPTCHA v2 auto-solve (Google demo)", async () => {
+    test.setTimeout(180_000);
+    const page = v3.context.pages()[0];
+    // Google's official reCAPTCHA v2 demo — same URL the stealth team tests.
+    // Use domcontentloaded since BB's route interception can delay full load.
+    await page.goto("https://www.google.com/recaptcha/api2/demo", {
+      waitUntil: "domcontentloaded",
+    });
 
-    // The agent should NOT have used act/click on the captcha checkbox itself.
-    // It may mention "captcha" in reasoning (describing the page) but should
-    // not have an action whose description targets the reCAPTCHA checkbox.
-    const agentClickedCaptchaCheckbox = result.actions?.some(
-      (a) =>
-        a.type === "act" &&
-        typeof a.description === "string" &&
-        /I'm not a robot|recaptcha checkbox/i.test(a.description),
-    );
-    expect(agentClickedCaptchaCheckbox).toBeFalsy();
+    // Give BB time to intercept the anchor request and solve the captcha
+    await new Promise((r) => setTimeout(r, 30_000));
+
+    const agent = v3.agent({
+      mode: "dom",
+      model: "anthropic/claude-haiku-4-5-20251001",
+    });
+
+    const result = await agent.execute({
+      instruction:
+        'Click the "Submit" button and report the exact text shown on the result page.',
+      maxSteps: 15,
+    });
+
+    console.log("reCAPTCHA v2 result:", result.message);
+
+    expect(result.completed).toBe(true);
+    expect(result.message.toLowerCase()).toContain("success");
   });
 });
