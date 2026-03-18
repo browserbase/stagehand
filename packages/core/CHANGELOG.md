@@ -1,5 +1,39 @@
 # @browserbasehq/stagehand
 
+## 3.2.0
+
+### Minor Changes
+
+- [#1779](https://github.com/browserbase/stagehand/pull/1779) [`2f43ffa`](https://github.com/browserbase/stagehand/commit/2f43ffac11778152d17e4c44405770cc32c3ec8c) Thanks [@shrey150](https://github.com/shrey150)! - feat: add `cdpHeaders` option to `localBrowserLaunchOptions` for passing custom HTTP headers when connecting to an existing browser via CDP URL
+
+- [#1834](https://github.com/browserbase/stagehand/pull/1834) [`63ee247`](https://github.com/browserbase/stagehand/commit/63ee247ac6bf2992046d4f6b2759f46b15643e36) Thanks [@tkattkat](https://github.com/tkattkat)! - Update stagehand agents search tool
+
+- [#1774](https://github.com/browserbase/stagehand/pull/1774) [`521a10e`](https://github.com/browserbase/stagehand/commit/521a10e3698fc5631e219947bc90dad0f8bddaa8) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add new page.setExtraHTTPHeaders() method
+
+### Patch Changes
+
+- [#1759](https://github.com/browserbase/stagehand/pull/1759) [`505e8c6`](https://github.com/browserbase/stagehand/commit/505e8c6736f3706328dbc8df670c49a018058388) Thanks [@shrey150](https://github.com/shrey150)! - Add bedrock to the provider enum in model configuration schemas and regenerate OpenAPI spec.
+
+- [#1814](https://github.com/browserbase/stagehand/pull/1814) [`7dc35f5`](https://github.com/browserbase/stagehand/commit/7dc35f5e25689e6518d68b25ef71536d2781c8aa) Thanks [@tkattkat](https://github.com/tkattkat)! - Change usage of openai provider in agent to default to store:false
+
+- [#1846](https://github.com/browserbase/stagehand/pull/1846) [`335cf47`](https://github.com/browserbase/stagehand/commit/335cf4730e73bce33e92331d04bda4b0fd42685d) Thanks [@aq17](https://github.com/aq17)! - Fix streaming finished event being silently dropped. The final SSE event containing the result payload (success status, message, actions, usage, and messages) was previously discarded instead of being yielded to the caller.
+
+- [#1764](https://github.com/browserbase/stagehand/pull/1764) [`6ba0a1d`](https://github.com/browserbase/stagehand/commit/6ba0a1db7fc2d5d5a2f8927b1417d8f1d15eda10) Thanks [@shrey150](https://github.com/shrey150)! - Expose `headers` in `GoogleVertexProviderSettings` so model configs can pass custom provider headers (for example `X-Goog-Priority`) without TypeScript errors.
+
+- [#1847](https://github.com/browserbase/stagehand/pull/1847) [`4ff3bb8`](https://github.com/browserbase/stagehand/commit/4ff3bb831a6ef6e2d57148e7afb68ea8d23e395d) Thanks [@miguelg719](https://github.com/miguelg719)! - Enable FlowLogger on BROWSERBASE_FLOW_LOGS=1
+
+- [#1752](https://github.com/browserbase/stagehand/pull/1752) [`c27054b`](https://github.com/browserbase/stagehand/commit/c27054bbd0508431ade91d655f89efc87bbf5867) Thanks [@derekmeegan](https://github.com/derekmeegan)! - fix: pause Browserbase agents while captcha solving is active and improve CUA recovery after the solve completes
+
+- [#1800](https://github.com/browserbase/stagehand/pull/1800) [`2abf5b9`](https://github.com/browserbase/stagehand/commit/2abf5b90f1e2bb1442509ef3a686b6128c9cdcf6) Thanks [@shrey150](https://github.com/shrey150)! - Make projectId optional for Browserbase sessions — only BROWSERBASE_API_KEY is required
+
+- [#1766](https://github.com/browserbase/stagehand/pull/1766) [`7817fcc`](https://github.com/browserbase/stagehand/commit/7817fcc315eee4455ce04567cf56c9ec801caf0b) Thanks [@tkattkat](https://github.com/tkattkat)! - Add configurable timeout to tools in agent
+
+- [#1749](https://github.com/browserbase/stagehand/pull/1749) [`7390508`](https://github.com/browserbase/stagehand/commit/73905088c5ed5923d276da9cce2efd0a0a3a46eb) Thanks [@pirate](https://github.com/pirate)! - When connecting to a browser session that has zero open tabs, Stagehand now automatically creates an initial `about:blank` tab so the connection can continue.
+
+- [#1761](https://github.com/browserbase/stagehand/pull/1761) [`611f43a`](https://github.com/browserbase/stagehand/commit/611f43ac8d4c580216d55d2b217c14a9a9c11013) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix issue where handlePossibleNavigation was producing unnecessary error logs on clicks that trigger page close
+
+- [#1817](https://github.com/browserbase/stagehand/pull/1817) [`2402a3c`](https://github.com/browserbase/stagehand/commit/2402a3c4d50270391b3e6440f4385cdcf5e1eb64) Thanks [@tkattkat](https://github.com/tkattkat)! - Add support for passing custom headers in clientOptions
+
 ## 3.1.0
 
 ### Minor Changes
