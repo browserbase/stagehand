@@ -3,11 +3,13 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   BrowserSessionConfiguredViewportActionSchema,
+  BrowserSessionConfiguredViewportResultSchema,
   BrowserSessionConfiguredViewportRequestSchema,
   BrowserSessionConfiguredViewportResponseSchema,
   BrowserSessionHeadersSchema,
 } from "../../../schemas/v4/browserSession.js";
 import {
+  buildStubViewport,
   browserSessionActionErrorResponses,
   createBrowserSessionActionHandler,
 } from "./shared.js";
@@ -28,9 +30,12 @@ const configuredViewportRoute: RouteOptions = {
   handler: createBrowserSessionActionHandler({
     method: "configuredViewport",
     actionSchema: BrowserSessionConfiguredViewportActionSchema,
-    execute: async ({ stagehand }) => {
+    execute: async () => {
       return {
-        result: stagehand.configuredViewport,
+        result:
+          BrowserSessionConfiguredViewportResultSchema.parse(
+            buildStubViewport(),
+          ),
       };
     },
   }),

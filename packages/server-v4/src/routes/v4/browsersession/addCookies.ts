@@ -3,6 +3,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   BrowserSessionAddCookiesActionSchema,
+  BrowserSessionAddCookiesResultSchema,
   BrowserSessionAddCookiesRequestSchema,
   BrowserSessionAddCookiesResponseSchema,
   BrowserSessionHeadersSchema,
@@ -28,12 +29,11 @@ const addCookiesRoute: RouteOptions = {
   handler: createBrowserSessionActionHandler({
     method: "addCookies",
     actionSchema: BrowserSessionAddCookiesActionSchema,
-    execute: async ({ stagehand, params }) => {
-      await stagehand.context.addCookies(params.cookies);
+    execute: async ({ params }) => {
       return {
-        result: {
+        result: BrowserSessionAddCookiesResultSchema.parse({
           added: params.cookies.length,
-        },
+        }),
       };
     },
   }),

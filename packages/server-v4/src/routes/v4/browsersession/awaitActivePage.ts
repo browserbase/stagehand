@@ -3,13 +3,14 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   BrowserSessionAwaitActivePageActionSchema,
+  BrowserSessionPageResultSchema,
   BrowserSessionAwaitActivePageRequestSchema,
   BrowserSessionAwaitActivePageResponseSchema,
   BrowserSessionHeadersSchema,
 } from "../../../schemas/v4/browserSession.js";
 import {
   browserSessionActionErrorResponses,
-  buildBrowserSessionPage,
+  buildStubBrowserSessionPage,
   createBrowserSessionActionHandler,
 } from "./shared.js";
 
@@ -29,13 +30,11 @@ const awaitActivePageRoute: RouteOptions = {
   handler: createBrowserSessionActionHandler({
     method: "awaitActivePage",
     actionSchema: BrowserSessionAwaitActivePageActionSchema,
-    execute: async ({ stagehand, params }) => {
-      const page = await stagehand.context.awaitActivePage(params.timeoutMs);
+    execute: async ({ sessionId }) => {
+      const page = buildStubBrowserSessionPage(sessionId);
       return {
-        pageId: page.targetId(),
-        result: {
-          page: buildBrowserSessionPage(page),
-        },
+        pageId: page.pageId,
+        result: BrowserSessionPageResultSchema.parse({ page }),
       };
     },
   }),

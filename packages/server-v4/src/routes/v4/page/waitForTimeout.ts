@@ -4,6 +4,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageWaitForTimeoutActionSchema,
+  PageWaitForTimeoutResultSchema,
   PageWaitForTimeoutRequestSchema,
   PageWaitForTimeoutResponseSchema,
 } from "../../../schemas/v4/page.js";
@@ -25,9 +26,8 @@ const waitForTimeoutRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "waitForTimeout",
     actionSchema: PageWaitForTimeoutActionSchema,
-    execute: async ({ page, params }) => {
-      await page.waitForTimeout(params.ms);
-      return { ms: params.ms };
+    execute: async ({ params }) => {
+      return PageWaitForTimeoutResultSchema.parse({ ms: params.ms });
     },
   }),
 };

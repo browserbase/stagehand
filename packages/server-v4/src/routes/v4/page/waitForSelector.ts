@@ -4,14 +4,11 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageWaitForSelectorActionSchema,
+  PageWaitForSelectorResultSchema,
   PageWaitForSelectorRequestSchema,
   PageWaitForSelectorResponseSchema,
 } from "../../../schemas/v4/page.js";
-import {
-  createPageActionHandler,
-  normalizeXPath,
-  pageErrorResponses,
-} from "./shared.js";
+import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const waitForSelectorRoute: RouteOptions = {
   method: "POST",
@@ -29,20 +26,11 @@ const waitForSelectorRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "waitForSelector",
     actionSchema: PageWaitForSelectorActionSchema,
-    execute: async ({ page, params }) => {
-      const matched = await page.waitForSelector(
-        normalizeXPath(params.selector.xpath),
-        {
-          state: params.state,
-          timeout: params.timeout,
-          pierceShadow: params.pierceShadow,
-        },
-      );
-
-      return {
+    execute: async ({ params }) => {
+      return PageWaitForSelectorResultSchema.parse({
         selector: params.selector,
-        matched,
-      };
+        matched: true,
+      });
     },
   }),
 };

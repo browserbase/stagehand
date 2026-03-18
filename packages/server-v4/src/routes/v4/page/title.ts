@@ -4,6 +4,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageTitleActionSchema,
+  PageTitleResultSchema,
   PageTitleRequestSchema,
   PageTitleResponseSchema,
 } from "../../../schemas/v4/page.js";
@@ -25,8 +26,8 @@ const titleRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "title",
     actionSchema: PageTitleActionSchema,
-    execute: async ({ page }) => {
-      return { title: await page.title() };
+    execute: async () => {
+      return PageTitleResultSchema.parse({ title: "Stub title" });
     },
   }),
 };

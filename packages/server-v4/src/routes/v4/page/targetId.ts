@@ -4,10 +4,15 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageTargetIdActionSchema,
+  PageTargetIdResultSchema,
   PageTargetIdRequestSchema,
   PageTargetIdResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createPageActionHandler, pageErrorResponses } from "./shared.js";
+import {
+  createPageActionHandler,
+  getPageId,
+  pageErrorResponses,
+} from "./shared.js";
 
 const targetIdRoute: RouteOptions = {
   method: "GET",
@@ -25,8 +30,10 @@ const targetIdRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "targetId",
     actionSchema: PageTargetIdActionSchema,
-    execute: async ({ page }) => {
-      return { targetId: page.targetId() };
+    execute: async ({ params }) => {
+      return PageTargetIdResultSchema.parse({
+        targetId: getPageId(params),
+      });
     },
   }),
 };

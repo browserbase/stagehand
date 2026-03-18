@@ -3,6 +3,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   BrowserSessionBrowserbaseSessionIDActionSchema,
+  BrowserSessionBrowserbaseSessionIDResultSchema,
   BrowserSessionBrowserbaseSessionIDRequestSchema,
   BrowserSessionBrowserbaseSessionIDResponseSchema,
   BrowserSessionHeadersSchema,
@@ -28,11 +29,11 @@ const browserbaseSessionIDRoute: RouteOptions = {
   handler: createBrowserSessionActionHandler({
     method: "browserbaseSessionID",
     actionSchema: BrowserSessionBrowserbaseSessionIDActionSchema,
-    execute: async ({ stagehand }) => {
+    execute: async () => {
       return {
-        result: {
-          browserbaseSessionID: stagehand.browserbaseSessionID ?? null,
-        },
+        result: BrowserSessionBrowserbaseSessionIDResultSchema.parse({
+          browserbaseSessionID: "bb_session_stub",
+        }),
       };
     },
   }),

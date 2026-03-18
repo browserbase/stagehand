@@ -4,6 +4,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageEvaluateActionSchema,
+  PageEvaluateResultSchema,
   PageEvaluateRequestSchema,
   PageEvaluateResponseSchema,
 } from "../../../schemas/v4/page.js";
@@ -26,12 +27,12 @@ const evaluateRoute: RouteOptions = {
     method: "evaluate",
     actionSchema: PageEvaluateActionSchema,
     execute: async ({ params }) => {
-      return {
+      return PageEvaluateResultSchema.parse({
         value: {
           expression: params.expression,
           arg: params.arg ?? null,
         },
-      };
+      });
     },
   }),
 };

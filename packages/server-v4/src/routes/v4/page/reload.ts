@@ -4,10 +4,16 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageReloadActionSchema,
+  PageNavigationResultSchema,
   PageReloadRequestSchema,
   PageReloadResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createPageActionHandler, pageErrorResponses } from "./shared.js";
+import {
+  buildStubNavigationResult,
+  createPageActionHandler,
+  getPageId,
+  pageErrorResponses,
+} from "./shared.js";
 
 const reloadRoute: RouteOptions = {
   method: "POST",
@@ -25,25 +31,10 @@ const reloadRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "reload",
     actionSchema: PageReloadActionSchema,
-    execute: async ({ page, params }) => {
-      const response = await page.reload({
-        waitUntil: params.waitUntil,
-        timeoutMs: params.timeoutMs,
-        ignoreCache: params.ignoreCache,
-      });
-
-      return {
-        url: page.url(),
-        response: response
-          ? {
-              url: response.url(),
-              status: response.status(),
-              statusText: response.statusText(),
-              ok: response.ok(),
-              headers: response.headers(),
-            }
-          : null,
-      };
+    execute: async ({ params }) => {
+      return PageNavigationResultSchema.parse(
+        buildStubNavigationResult(`https://stub.invalid/${getPageId(params)}`),
+      );
     },
   }),
 };

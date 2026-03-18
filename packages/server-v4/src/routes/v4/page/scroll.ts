@@ -6,12 +6,9 @@ import {
   PageScrollActionSchema,
   PageScrollRequestSchema,
   PageScrollResponseSchema,
+  PageXPathResultSchema,
 } from "../../../schemas/v4/page.js";
-import {
-  createPageActionHandler,
-  normalizeXPath,
-  pageErrorResponses,
-} from "./shared.js";
+import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const scrollRoute: RouteOptions = {
   method: "POST",
@@ -29,24 +26,11 @@ const scrollRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "scroll",
     actionSchema: PageScrollActionSchema,
-    execute: async ({ page, params }) => {
-      if ("selector" in params) {
-        await page
-          .deepLocator(normalizeXPath(params.selector.xpath))
-          .scrollTo(params.percentage);
-
-        return { xpath: params.selector.xpath };
-      }
-
-      const xpath = await page.scroll(
-        params.x,
-        params.y,
-        params.deltaX ?? 0,
-        params.deltaY,
-        { returnXpath: true },
-      );
-
-      return { xpath: xpath || undefined };
+    execute: async ({ params }) => {
+      return PageXPathResultSchema.parse({
+        xpath:
+          "selector" in params ? params.selector.xpath : "xpath=//stub-scroll",
+      });
     },
   }),
 };

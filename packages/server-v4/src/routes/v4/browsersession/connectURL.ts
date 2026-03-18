@@ -3,6 +3,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   BrowserSessionConnectURLActionSchema,
+  BrowserSessionConnectURLResultSchema,
   BrowserSessionConnectURLRequestSchema,
   BrowserSessionConnectURLResponseSchema,
   BrowserSessionHeadersSchema,
@@ -28,11 +29,11 @@ const connectURLRoute: RouteOptions = {
   handler: createBrowserSessionActionHandler({
     method: "connectURL",
     actionSchema: BrowserSessionConnectURLActionSchema,
-    execute: async ({ stagehand }) => {
+    execute: async () => {
       return {
-        result: {
-          connectURL: stagehand.connectURL(),
-        },
+        result: BrowserSessionConnectURLResultSchema.parse({
+          connectURL: "ws://stub.invalid/connect",
+        }),
       };
     },
   }),

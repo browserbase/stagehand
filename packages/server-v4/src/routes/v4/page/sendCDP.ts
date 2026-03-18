@@ -4,6 +4,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageSendCDPActionSchema,
+  PageSendCDPResultSchema,
   PageSendCDPRequestSchema,
   PageSendCDPResponseSchema,
 } from "../../../schemas/v4/page.js";
@@ -25,22 +26,13 @@ const sendCDPRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "sendCDP",
     actionSchema: PageSendCDPActionSchema,
-    execute: async ({ page, params }) => {
-      if (
-        params.params !== undefined &&
-        (typeof params.params !== "object" ||
-          params.params === null ||
-          Array.isArray(params.params))
-      ) {
-        throw new Error("CDP params must be an object");
-      }
-
-      const value = await page.sendCDP(
-        params.method,
-        params.params as Record<string, unknown> | undefined,
-      );
-
-      return { value };
+    execute: async ({ params }) => {
+      return PageSendCDPResultSchema.parse({
+        value: {
+          method: params.method,
+          params: params.params ?? null,
+        },
+      });
     },
   }),
 };

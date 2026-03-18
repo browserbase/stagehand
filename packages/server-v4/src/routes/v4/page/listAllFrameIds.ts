@@ -4,6 +4,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageListAllFrameIdsActionSchema,
+  PageListAllFrameIdsResultSchema,
   PageListAllFrameIdsRequestSchema,
   PageListAllFrameIdsResponseSchema,
 } from "../../../schemas/v4/page.js";
@@ -25,8 +26,10 @@ const listAllFrameIdsRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "listAllFrameIds",
     actionSchema: PageListAllFrameIdsActionSchema,
-    execute: async ({ page }) => {
-      return { frameIds: page.listAllFrameIds() };
+    execute: async () => {
+      return PageListAllFrameIdsResultSchema.parse({
+        frameIds: ["frame_stub"],
+      });
     },
   }),
 };

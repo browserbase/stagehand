@@ -4,6 +4,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageScreenshotActionSchema,
+  PageScreenshotResultSchema,
   PageScreenshotRequestSchema,
   PageScreenshotResponseSchema,
 } from "../../../schemas/v4/page.js";
@@ -25,24 +26,11 @@ const screenshotRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "screenshot",
     actionSchema: PageScreenshotActionSchema,
-    execute: async ({ page, params }) => {
-      const buffer = await page.screenshot({
-        fullPage: params.fullPage,
-        clip: params.clip,
-        type: params.type,
-        quality: params.quality,
-        scale: params.scale,
-        animations: params.animations,
-        caret: params.caret,
-        style: params.style,
-        omitBackground: params.omitBackground,
-        timeout: params.timeout,
-      });
-
-      return {
-        base64: buffer.toString("base64"),
+    execute: async ({ params }) => {
+      return PageScreenshotResultSchema.parse({
+        base64: "c3R1Yg==",
         mimeType: params.type === "jpeg" ? "image/jpeg" : "image/png",
-      };
+      });
     },
   }),
 };

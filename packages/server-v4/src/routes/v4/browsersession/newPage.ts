@@ -4,12 +4,13 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 import {
   BrowserSessionHeadersSchema,
   BrowserSessionNewPageActionSchema,
+  BrowserSessionPageResultSchema,
   BrowserSessionNewPageRequestSchema,
   BrowserSessionNewPageResponseSchema,
 } from "../../../schemas/v4/browserSession.js";
 import {
   browserSessionActionErrorResponses,
-  buildBrowserSessionPage,
+  buildStubBrowserSessionPage,
   createBrowserSessionActionHandler,
 } from "./shared.js";
 
@@ -29,13 +30,11 @@ const newPageRoute: RouteOptions = {
   handler: createBrowserSessionActionHandler({
     method: "newPage",
     actionSchema: BrowserSessionNewPageActionSchema,
-    execute: async ({ stagehand, params }) => {
-      const page = await stagehand.context.newPage(params.url);
+    execute: async ({ sessionId, params }) => {
+      const page = buildStubBrowserSessionPage(sessionId, { url: params.url });
       return {
-        pageId: page.targetId(),
-        result: {
-          page: buildBrowserSessionPage(page),
-        },
+        pageId: page.pageId,
+        result: BrowserSessionPageResultSchema.parse({ page }),
       };
     },
   }),

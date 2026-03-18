@@ -4,6 +4,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 import {
   BrowserSessionHeadersSchema,
   BrowserSessionSetExtraHTTPHeadersActionSchema,
+  BrowserSessionSetExtraHTTPHeadersResultSchema,
   BrowserSessionSetExtraHTTPHeadersRequestSchema,
   BrowserSessionSetExtraHTTPHeadersResponseSchema,
 } from "../../../schemas/v4/browserSession.js";
@@ -28,9 +29,12 @@ const setExtraHTTPHeadersRoute: RouteOptions = {
   handler: createBrowserSessionActionHandler({
     method: "setExtraHTTPHeaders",
     actionSchema: BrowserSessionSetExtraHTTPHeadersActionSchema,
-    execute: async ({ stagehand, params }) => {
-      await stagehand.context.setExtraHTTPHeaders(params.headers);
-      return { result: { headers: params.headers } };
+    execute: async ({ params }) => {
+      return {
+        result: BrowserSessionSetExtraHTTPHeadersResultSchema.parse({
+          headers: params.headers,
+        }),
+      };
     },
   }),
 };

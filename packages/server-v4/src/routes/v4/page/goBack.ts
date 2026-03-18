@@ -4,10 +4,16 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageGoBackActionSchema,
+  PageNavigationResultSchema,
   PageGoBackRequestSchema,
   PageGoBackResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createPageActionHandler, pageErrorResponses } from "./shared.js";
+import {
+  buildStubNavigationResult,
+  createPageActionHandler,
+  getPageId,
+  pageErrorResponses,
+} from "./shared.js";
 
 const goBackRoute: RouteOptions = {
   method: "POST",
@@ -25,24 +31,10 @@ const goBackRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "goBack",
     actionSchema: PageGoBackActionSchema,
-    execute: async ({ page, params }) => {
-      const response = await page.goBack({
-        waitUntil: params.waitUntil,
-        timeoutMs: params.timeoutMs,
-      });
-
-      return {
-        url: page.url(),
-        response: response
-          ? {
-              url: response.url(),
-              status: response.status(),
-              statusText: response.statusText(),
-              ok: response.ok(),
-              headers: response.headers(),
-            }
-          : null,
-      };
+    execute: async ({ params }) => {
+      return PageNavigationResultSchema.parse(
+        buildStubNavigationResult(`https://stub.invalid/${getPageId(params)}`),
+      );
     },
   }),
 };

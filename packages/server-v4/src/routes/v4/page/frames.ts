@@ -4,17 +4,16 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageFramesActionSchema,
+  PageFramesResultSchema,
   PageFramesRequestSchema,
   PageFramesResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createPageActionHandler, pageErrorResponses } from "./shared.js";
-
-type StubFrame = {
-  frameId: string;
-  pageId: string;
-  sessionId: string;
-  isBrowserRemote(): boolean;
-};
+import {
+  buildStubPageFrame,
+  createPageActionHandler,
+  getPageId,
+  pageErrorResponses,
+} from "./shared.js";
 
 const framesRoute: RouteOptions = {
   method: "GET",
@@ -32,24 +31,10 @@ const framesRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "frames",
     actionSchema: PageFramesActionSchema,
-    execute: async () => {
-      const frames: StubFrame[] = [
-        {
-          frameId: "frame_stub",
-          pageId: "page_stub",
-          sessionId: "session_stub",
-          isBrowserRemote: () => false,
-        },
-      ];
-
-      return {
-        frames: frames.map((frame) => ({
-          frameId: frame.frameId,
-          pageId: frame.pageId,
-          sessionId: frame.sessionId,
-          isBrowserRemote: frame.isBrowserRemote(),
-        })),
-      };
+    execute: async ({ params }) => {
+      return PageFramesResultSchema.parse({
+        frames: [buildStubPageFrame(getPageId(params))],
+      });
     },
   }),
 };

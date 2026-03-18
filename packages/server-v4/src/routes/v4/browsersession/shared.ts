@@ -7,7 +7,7 @@ import { z } from "zod/v4";
 import {
   type BrowserSession,
   type BrowserSessionAction,
-  BrowserSessionActionSchema,
+  BrowserSessionPagesActionSchema,
   type BrowserSessionActionDetailsQuery,
   type BrowserSessionActionMethod,
   type BrowserSessionPage,
@@ -67,57 +67,8 @@ type BrowserSessionRequestBody<TAction extends BrowserSessionAction> = {
   params: TAction["params"];
 };
 
-type StubInitScript = string | { path?: string; content?: string };
-
-type StubCookie = {
-  name: string;
-  value: string;
-  domain: string;
-  path: string;
-  expires: number;
-  httpOnly: boolean;
-  secure: boolean;
-  sameSite: "Strict" | "Lax" | "None";
-};
-
-type StubBrowserSessionPageLike = {
-  mainFrameId(): string;
-  targetId(): string;
-  url(): string;
-};
-
-type StubBrowserSessionContext = {
-  activePage(): StubBrowserSessionPageLike | undefined;
-  addCookies(cookies: unknown): Promise<void>;
-  addInitScript(script: StubInitScript): Promise<void>;
-  awaitActivePage(timeoutMs?: number): Promise<StubBrowserSessionPageLike>;
-  clearCookies(options?: unknown): Promise<void>;
-  cookies(urls?: string | string[]): Promise<StubCookie[]>;
-  getFullFrameTreeByMainFrameId(mainFrameId: string): Promise<unknown>;
-  newPage(url?: string): Promise<StubBrowserSessionPageLike>;
-  pages(): StubBrowserSessionPageLike[];
-  resolvePageByMainFrameId(
-    mainFrameId: string,
-  ): StubBrowserSessionPageLike | undefined;
-  setExtraHTTPHeaders(headers: Record<string, string>): Promise<void>;
-};
-
-type StubBrowserSession = {
-  browserbaseDebugURL?: string | null;
-  browserbaseSessionID?: string | null;
-  browserbaseSessionURL?: string | null;
-  configuredViewport: {
-    width: number;
-    height: number;
-    deviceScaleFactor?: number;
-  };
-  connectURL(): string;
-  context: StubBrowserSessionContext;
-};
-
 type BrowserSessionActionHandlerContext<TAction extends BrowserSessionAction> =
   {
-    stagehand: StubBrowserSession;
     params: TAction["params"];
     request: Parameters<RouteHandlerMethod>[0];
     sessionId: string;
@@ -141,6 +92,41 @@ export function buildBrowserSessionPage(page: {
     targetId,
     mainFrameId: page.mainFrameId(),
     url: page.url(),
+  };
+}
+
+export function buildStubBrowserSessionPage(
+  sessionId: string,
+  input?: { pageId?: string; url?: string },
+): BrowserSessionPage {
+  const pageId = input?.pageId ?? "page_stub";
+
+  return {
+    pageId,
+    targetId: pageId,
+    mainFrameId: "frame_stub",
+    url: input?.url ?? `https://stub.invalid/${sessionId}`,
+  };
+}
+
+export function buildStubBrowserSessionCookie() {
+  return {
+    name: "stub_cookie",
+    value: "stub_value",
+    domain: "stub.invalid",
+    path: "/",
+    expires: 0,
+    httpOnly: false,
+    secure: true,
+    sameSite: "Lax" as const,
+  };
+}
+
+export function buildStubViewport() {
+  return {
+    width: 1280,
+    height: 720,
+    deviceScaleFactor: 1,
   };
 }
 
@@ -190,19 +176,25 @@ export function createBrowserSessionActionHandler<
   return async (request, reply) => {
     const { params, sessionId } =
       request.body as BrowserSessionRequestBody<TAction>;
+    const execution = await options.execute({
+      params,
+      request,
+      sessionId,
+      sessionStore: undefined,
+    });
     const createdAt = new Date().toISOString();
     const action = actionSchema.parse({
       id: randomUUID(),
       method,
       status: "completed",
       sessionId,
-      pageId: getInitialPageId(params),
+      pageId: execution.pageId ?? getInitialPageId(params),
       createdAt,
       updatedAt: createdAt,
       completedAt: createdAt,
       error: null,
       params,
-      result: null,
+      result: execution.result,
     });
 
     return reply.status(StatusCodes.OK).send({
@@ -220,7 +212,7 @@ export const browserSessionActionDetailsHandler: RouteHandlerMethod = async (
   const { actionId } = request.params as { actionId: string };
   const { sessionId } = request.query as BrowserSessionActionDetailsQuery;
   const createdAt = new Date().toISOString();
-  const action = BrowserSessionActionSchema.parse({
+  const action = BrowserSessionPagesActionSchema.parse({
     id: actionId,
     method: "pages",
     status: "completed",
@@ -230,7 +222,9 @@ export const browserSessionActionDetailsHandler: RouteHandlerMethod = async (
     completedAt: createdAt,
     error: null,
     params: {},
-    result: null,
+    result: {
+      pages: [buildStubBrowserSessionPage(sessionId)],
+    },
   });
 
   return reply.status(StatusCodes.OK).send({
@@ -241,12 +235,29 @@ export const browserSessionActionDetailsHandler: RouteHandlerMethod = async (
 };
 
 export const browserSessionActionListHandler: RouteHandlerMethod = async (
-  _request,
+  request,
   reply,
 ) => {
+  const { sessionId } = request.query as BrowserSessionActionDetailsQuery;
+  const createdAt = new Date().toISOString();
   return reply.status(StatusCodes.OK).send({
     success: true,
     error: null,
-    actions: [],
+    actions: [
+      BrowserSessionPagesActionSchema.parse({
+        id: randomUUID(),
+        method: "pages",
+        status: "completed",
+        sessionId,
+        createdAt,
+        updatedAt: createdAt,
+        completedAt: createdAt,
+        error: null,
+        params: {},
+        result: {
+          pages: [buildStubBrowserSessionPage(sessionId)],
+        },
+      }),
+    ],
   });
 };

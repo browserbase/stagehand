@@ -3,6 +3,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   BrowserSessionClearCookiesActionSchema,
+  BrowserSessionClearCookiesResultSchema,
   BrowserSessionClearCookiesRequestSchema,
   BrowserSessionClearCookiesResponseSchema,
   BrowserSessionHeadersSchema,
@@ -10,7 +11,6 @@ import {
 import {
   browserSessionActionErrorResponses,
   createBrowserSessionActionHandler,
-  toStringOrRegExp,
 } from "./shared.js";
 
 const clearCookiesRoute: RouteOptions = {
@@ -29,20 +29,9 @@ const clearCookiesRoute: RouteOptions = {
   handler: createBrowserSessionActionHandler({
     method: "clearCookies",
     actionSchema: BrowserSessionClearCookiesActionSchema,
-    execute: async ({ stagehand, params }) => {
-      const options =
-        params.name || params.domain || params.path
-          ? {
-              name: toStringOrRegExp(params.name),
-              domain: toStringOrRegExp(params.domain),
-              path: toStringOrRegExp(params.path),
-            }
-          : undefined;
-      await stagehand.context.clearCookies(options);
+    execute: async () => {
       return {
-        result: {
-          cleared: true,
-        },
+        result: BrowserSessionClearCookiesResultSchema.parse({ cleared: true }),
       };
     },
   }),

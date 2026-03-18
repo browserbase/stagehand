@@ -3,6 +3,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   BrowserSessionGetFullFrameTreeByMainFrameIdActionSchema,
+  BrowserSessionFrameTreeResultSchema,
   BrowserSessionGetFullFrameTreeByMainFrameIdRequestSchema,
   BrowserSessionGetFullFrameTreeByMainFrameIdResponseSchema,
   BrowserSessionHeadersSchema,
@@ -28,17 +29,12 @@ const getFullFrameTreeByMainFrameIdRoute: RouteOptions = {
   handler: createBrowserSessionActionHandler({
     method: "getFullFrameTreeByMainFrameId",
     actionSchema: BrowserSessionGetFullFrameTreeByMainFrameIdActionSchema,
-    execute: async ({ stagehand, params }) => {
-      const page = stagehand.context.resolvePageByMainFrameId(
-        params.mainFrameId,
-      );
+    execute: async ({ params }) => {
       return {
-        pageId: page?.targetId(),
-        result: {
-          frameTree: await stagehand.context.getFullFrameTreeByMainFrameId(
-            params.mainFrameId,
-          ),
-        },
+        pageId: "page_stub",
+        result: BrowserSessionFrameTreeResultSchema.parse({
+          frameTree: { mainFrameId: params.mainFrameId, children: [] },
+        }),
       };
     },
   }),

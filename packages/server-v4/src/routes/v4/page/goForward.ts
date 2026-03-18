@@ -4,10 +4,16 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageGoForwardActionSchema,
+  PageNavigationResultSchema,
   PageGoForwardRequestSchema,
   PageGoForwardResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createPageActionHandler, pageErrorResponses } from "./shared.js";
+import {
+  buildStubNavigationResult,
+  createPageActionHandler,
+  getPageId,
+  pageErrorResponses,
+} from "./shared.js";
 
 const goForwardRoute: RouteOptions = {
   method: "POST",
@@ -25,24 +31,10 @@ const goForwardRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "goForward",
     actionSchema: PageGoForwardActionSchema,
-    execute: async ({ page, params }) => {
-      const response = await page.goForward({
-        waitUntil: params.waitUntil,
-        timeoutMs: params.timeoutMs,
-      });
-
-      return {
-        url: page.url(),
-        response: response
-          ? {
-              url: response.url(),
-              status: response.status(),
-              statusText: response.statusText(),
-              ok: response.ok(),
-              headers: response.headers(),
-            }
-          : null,
-      };
+    execute: async ({ params }) => {
+      return PageNavigationResultSchema.parse(
+        buildStubNavigationResult(`https://stub.invalid/${getPageId(params)}`),
+      );
     },
   }),
 };

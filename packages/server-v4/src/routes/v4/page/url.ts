@@ -4,10 +4,15 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageUrlActionSchema,
+  PageUrlResultSchema,
   PageUrlRequestSchema,
   PageUrlResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createPageActionHandler, pageErrorResponses } from "./shared.js";
+import {
+  createPageActionHandler,
+  getPageId,
+  pageErrorResponses,
+} from "./shared.js";
 
 const urlRoute: RouteOptions = {
   method: "GET",
@@ -25,8 +30,10 @@ const urlRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "url",
     actionSchema: PageUrlActionSchema,
-    execute: async ({ page }) => {
-      return { url: page.url() };
+    execute: async ({ params }) => {
+      return PageUrlResultSchema.parse({
+        url: `https://stub.invalid/${getPageId(params)}`,
+      });
     },
   }),
 };

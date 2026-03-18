@@ -4,6 +4,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageKeyPressActionSchema,
+  PageKeyPressResultSchema,
   PageKeyPressRequestSchema,
   PageKeyPressResponseSchema,
 } from "../../../schemas/v4/page.js";
@@ -25,12 +26,8 @@ const keyPressRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "keyPress",
     actionSchema: PageKeyPressActionSchema,
-    execute: async ({ page, params }) => {
-      await page.keyPress(params.key, {
-        delay: params.delay,
-      });
-
-      return { key: params.key };
+    execute: async ({ params }) => {
+      return PageKeyPressResultSchema.parse({ key: params.key });
     },
   }),
 };

@@ -4,6 +4,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageSnapshotActionSchema,
+  PageSnapshotResultSchema,
   PageSnapshotRequestSchema,
   PageSnapshotResponseSchema,
 } from "../../../schemas/v4/page.js";
@@ -25,9 +26,11 @@ const snapshotRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "snapshot",
     actionSchema: PageSnapshotActionSchema,
-    execute: async ({ page, params }) => {
-      return await page.snapshot({
-        includeIframes: params.includeIframes,
+    execute: async () => {
+      return PageSnapshotResultSchema.parse({
+        formattedTree: "stub tree",
+        xpathMap: { stub: "//html" },
+        urlMap: { stub: "https://stub.invalid" },
       });
     },
   }),

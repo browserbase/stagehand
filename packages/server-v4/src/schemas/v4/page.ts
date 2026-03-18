@@ -683,14 +683,14 @@ export const PageCloseRequestSchema = createPageRequestSchema(
   PageCloseParamsSchema,
 );
 
-const PageXPathResultSchema = z
+export const PageXPathResultSchema = z
   .object({
     xpath: z.string().optional(),
   })
   .strict()
   .meta({ id: "PageXPathResult" });
 
-const PageDragAndDropResultSchema = z
+export const PageDragAndDropResultSchema = z
   .object({
     fromXpath: z.string().optional(),
     toXpath: z.string().optional(),
@@ -698,35 +698,35 @@ const PageDragAndDropResultSchema = z
   .strict()
   .meta({ id: "PageDragAndDropResult" });
 
-const PageTypeResultSchema = z
+export const PageTypeResultSchema = z
   .object({
     text: z.string(),
   })
   .strict()
   .meta({ id: "PageTypeResult" });
 
-const PageKeyPressResultSchema = z
+export const PageKeyPressResultSchema = z
   .object({
     key: z.string(),
   })
   .strict()
   .meta({ id: "PageKeyPressResult" });
 
-const PageEnableCursorOverlayResultSchema = z
+export const PageEnableCursorOverlayResultSchema = z
   .object({
     enabled: z.boolean(),
   })
   .strict()
   .meta({ id: "PageEnableCursorOverlayResult" });
 
-const PageAddInitScriptResultSchema = z
+export const PageAddInitScriptResultSchema = z
   .object({
     added: z.boolean(),
   })
   .strict()
   .meta({ id: "PageAddInitScriptResult" });
 
-const PageNavigationResultSchema = z
+export const PageNavigationResultSchema = z
   .object({
     url: z.string(),
     response: z
@@ -743,21 +743,21 @@ const PageNavigationResultSchema = z
   .strict()
   .meta({ id: "PageNavigationResult" });
 
-const PageTargetIdResultSchema = z
+export const PageTargetIdResultSchema = z
   .object({
     targetId: PageIdSchema,
   })
   .strict()
   .meta({ id: "PageTargetIdResult" });
 
-const PageMainFrameIdResultSchema = z
+export const PageMainFrameIdResultSchema = z
   .object({
     mainFrameId: FrameIdSchema,
   })
   .strict()
   .meta({ id: "PageMainFrameIdResult" });
 
-const PageFrameSchema = z
+export const PageFrameSchema = z
   .object({
     frameId: FrameIdSchema,
     pageId: PageIdSchema,
@@ -767,28 +767,28 @@ const PageFrameSchema = z
   .strict()
   .meta({ id: "PageFrame" });
 
-const PageMainFrameResultSchema = z
+export const PageMainFrameResultSchema = z
   .object({
     frame: PageFrameSchema,
   })
   .strict()
   .meta({ id: "PageMainFrameResult" });
 
-const PageFrameTreeResultSchema = z
+export const PageFrameTreeResultSchema = z
   .object({
     frameTree: z.unknown(),
   })
   .strict()
   .meta({ id: "PageFrameTreeResult" });
 
-const PageListAllFrameIdsResultSchema = z
+export const PageListAllFrameIdsResultSchema = z
   .object({
     frameIds: z.array(FrameIdSchema),
   })
   .strict()
   .meta({ id: "PageListAllFrameIdsResult" });
 
-const PageGetOrdinalResultSchema = z
+export const PageGetOrdinalResultSchema = z
   .object({
     frameId: FrameIdSchema,
     ordinal: z.number().int().nonnegative(),
@@ -796,21 +796,21 @@ const PageGetOrdinalResultSchema = z
   .strict()
   .meta({ id: "PageGetOrdinalResult" });
 
-const PageTitleResultSchema = z
+export const PageTitleResultSchema = z
   .object({
     title: z.string(),
   })
   .strict()
   .meta({ id: "PageTitleResult" });
 
-const PageUrlResultSchema = z
+export const PageUrlResultSchema = z
   .object({
     url: z.string(),
   })
   .strict()
   .meta({ id: "PageUrlResult" });
 
-const PageScreenshotResultSchema = z
+export const PageScreenshotResultSchema = z
   .object({
     base64: z.string(),
     mimeType: ScreenshotMimeTypeSchema,
@@ -818,7 +818,7 @@ const PageScreenshotResultSchema = z
   .strict()
   .meta({ id: "PageScreenshotResult" });
 
-const PageSnapshotResultSchema = z
+export const PageSnapshotResultSchema = z
   .object({
     formattedTree: z.string(),
     xpathMap: z.object({}).catchall(z.string()),
@@ -827,7 +827,7 @@ const PageSnapshotResultSchema = z
   .strict()
   .meta({ id: "PageSnapshotResult" });
 
-const PageSetViewportSizeResultSchema = z
+export const PageSetViewportSizeResultSchema = z
   .object({
     width: z.number().positive(),
     height: z.number().positive(),
@@ -836,28 +836,28 @@ const PageSetViewportSizeResultSchema = z
   .strict()
   .meta({ id: "PageSetViewportSizeResult" });
 
-const PageFramesResultSchema = z
+export const PageFramesResultSchema = z
   .object({
     frames: z.array(PageFrameSchema),
   })
   .strict()
   .meta({ id: "PageFramesResult" });
 
-const PageSetExtraHTTPHeadersResultSchema = z
+export const PageSetExtraHTTPHeadersResultSchema = z
   .object({
     headers: PageHeadersSchema,
   })
   .strict()
   .meta({ id: "PageSetExtraHTTPHeadersResult" });
 
-const PageWaitForLoadStateResultSchema = z
+export const PageWaitForLoadStateResultSchema = z
   .object({
     state: LoadStateSchema,
   })
   .strict()
   .meta({ id: "PageWaitForLoadStateResult" });
 
-const PageWaitForSelectorResultSchema = z
+export const PageWaitForSelectorResultSchema = z
   .object({
     selector: PageSelectorSchema,
     matched: z.boolean(),
@@ -865,28 +865,28 @@ const PageWaitForSelectorResultSchema = z
   .strict()
   .meta({ id: "PageWaitForSelectorResult" });
 
-const PageWaitForTimeoutResultSchema = z
+export const PageWaitForTimeoutResultSchema = z
   .object({
     ms: z.number().int().nonnegative(),
   })
   .strict()
   .meta({ id: "PageWaitForTimeoutResult" });
 
-const PageEvaluateResultSchema = z
+export const PageEvaluateResultSchema = z
   .object({
     value: z.unknown(),
   })
   .strict()
   .meta({ id: "PageEvaluateResult" });
 
-const PageSendCDPResultSchema = z
+export const PageSendCDPResultSchema = z
   .object({
     value: z.unknown(),
   })
   .strict()
   .meta({ id: "PageSendCDPResult" });
 
-const PageCloseResultSchema = z
+export const PageCloseResultSchema = z
   .object({
     closed: z.boolean(),
   })

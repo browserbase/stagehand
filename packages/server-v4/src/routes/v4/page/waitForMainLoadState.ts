@@ -4,6 +4,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageWaitForMainLoadStateActionSchema,
+  PageWaitForLoadStateResultSchema,
   PageWaitForMainLoadStateRequestSchema,
   PageWaitForMainLoadStateResponseSchema,
 } from "../../../schemas/v4/page.js";
@@ -25,9 +26,10 @@ const waitForMainLoadStateRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "waitForMainLoadState",
     actionSchema: PageWaitForMainLoadStateActionSchema,
-    execute: async ({ page, params }) => {
-      await page.waitForMainLoadState(params.state, params.timeoutMs);
-      return { state: params.state };
+    execute: async ({ params }) => {
+      return PageWaitForLoadStateResultSchema.parse({
+        state: params.state,
+      });
     },
   }),
 };

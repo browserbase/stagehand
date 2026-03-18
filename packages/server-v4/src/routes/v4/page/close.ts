@@ -4,6 +4,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageCloseActionSchema,
+  PageCloseResultSchema,
   PageCloseRequestSchema,
   PageCloseResponseSchema,
 } from "../../../schemas/v4/page.js";
@@ -25,9 +26,8 @@ const closeRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "close",
     actionSchema: PageCloseActionSchema,
-    execute: async ({ page }) => {
-      await page.close();
-      return { closed: true };
+    execute: async () => {
+      return PageCloseResultSchema.parse({ closed: true });
     },
   }),
 };

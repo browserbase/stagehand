@@ -4,6 +4,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageAddInitScriptActionSchema,
+  PageAddInitScriptResultSchema,
   PageAddInitScriptRequestSchema,
   PageAddInitScriptResponseSchema,
 } from "../../../schemas/v4/page.js";
@@ -25,9 +26,8 @@ const addInitScriptRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "addInitScript",
     actionSchema: PageAddInitScriptActionSchema,
-    execute: async ({ page, params }) => {
-      await page.addInitScript(params.script);
-      return { added: true };
+    execute: async () => {
+      return PageAddInitScriptResultSchema.parse({ added: true });
     },
   }),
 };

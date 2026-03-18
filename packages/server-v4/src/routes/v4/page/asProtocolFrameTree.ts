@@ -4,6 +4,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageAsProtocolFrameTreeActionSchema,
+  PageFrameTreeResultSchema,
   PageAsProtocolFrameTreeRequestSchema,
   PageAsProtocolFrameTreeResponseSchema,
 } from "../../../schemas/v4/page.js";
@@ -25,10 +26,13 @@ const asProtocolFrameTreeRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "asProtocolFrameTree",
     actionSchema: PageAsProtocolFrameTreeActionSchema,
-    execute: async ({ page, params }) => {
-      return {
-        frameTree: page.asProtocolFrameTree(params.rootMainFrameId),
-      };
+    execute: async ({ params }) => {
+      return PageFrameTreeResultSchema.parse({
+        frameTree: {
+          rootMainFrameId: params.rootMainFrameId,
+          children: [],
+        },
+      });
     },
   }),
 };

@@ -4,10 +4,15 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageGetFullFrameTreeActionSchema,
+  PageFrameTreeResultSchema,
   PageGetFullFrameTreeRequestSchema,
   PageGetFullFrameTreeResponseSchema,
 } from "../../../schemas/v4/page.js";
-import { createPageActionHandler, pageErrorResponses } from "./shared.js";
+import {
+  createPageActionHandler,
+  getPageId,
+  pageErrorResponses,
+} from "./shared.js";
 
 const getFullFrameTreeRoute: RouteOptions = {
   method: "GET",
@@ -25,8 +30,13 @@ const getFullFrameTreeRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "getFullFrameTree",
     actionSchema: PageGetFullFrameTreeActionSchema,
-    execute: async ({ page }) => {
-      return { frameTree: page.getFullFrameTree() };
+    execute: async ({ params }) => {
+      return PageFrameTreeResultSchema.parse({
+        frameTree: {
+          pageId: getPageId(params),
+          children: [],
+        },
+      });
     },
   }),
 };

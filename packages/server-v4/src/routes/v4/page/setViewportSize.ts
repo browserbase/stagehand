@@ -4,6 +4,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageSetViewportSizeActionSchema,
+  PageSetViewportSizeResultSchema,
   PageSetViewportSizeRequestSchema,
   PageSetViewportSizeResponseSchema,
 } from "../../../schemas/v4/page.js";
@@ -25,16 +26,12 @@ const setViewportSizeRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "setViewportSize",
     actionSchema: PageSetViewportSizeActionSchema,
-    execute: async ({ page, params }) => {
-      await page.setViewportSize(params.width, params.height, {
-        deviceScaleFactor: params.deviceScaleFactor,
-      });
-
-      return {
+    execute: async ({ params }) => {
+      return PageSetViewportSizeResultSchema.parse({
         width: params.width,
         height: params.height,
         deviceScaleFactor: params.deviceScaleFactor,
-      };
+      });
     },
   }),
 };

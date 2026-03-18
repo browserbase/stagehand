@@ -4,6 +4,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageSetExtraHTTPHeadersActionSchema,
+  PageSetExtraHTTPHeadersResultSchema,
   PageSetExtraHTTPHeadersRequestSchema,
   PageSetExtraHTTPHeadersResponseSchema,
 } from "../../../schemas/v4/page.js";
@@ -25,9 +26,10 @@ const setExtraHTTPHeadersRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "setExtraHTTPHeaders",
     actionSchema: PageSetExtraHTTPHeadersActionSchema,
-    execute: async ({ page, params }) => {
-      await page.setExtraHTTPHeaders(params.headers);
-      return { headers: params.headers };
+    execute: async ({ params }) => {
+      return PageSetExtraHTTPHeadersResultSchema.parse({
+        headers: params.headers,
+      });
     },
   }),
 };

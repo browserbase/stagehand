@@ -527,122 +527,122 @@ export const BrowserSessionCloseRequestSchema =
     BrowserSessionCloseParamsSchema,
   );
 
-const BrowserSessionAddInitScriptResultSchema = z
+export const BrowserSessionAddInitScriptResultSchema = z
   .object({
     added: z.boolean(),
   })
   .strict()
   .meta({ id: "BrowserSessionAddInitScriptResult" });
 
-const BrowserSessionSetExtraHTTPHeadersResultSchema = z
+export const BrowserSessionSetExtraHTTPHeadersResultSchema = z
   .object({
     headers: PageHeadersSchema,
   })
   .strict()
   .meta({ id: "BrowserSessionSetExtraHTTPHeadersResult" });
 
-const BrowserSessionPagesResultSchema = z
+export const BrowserSessionPagesResultSchema = z
   .object({
     pages: z.array(BrowserSessionPageSchema),
   })
   .strict()
   .meta({ id: "BrowserSessionPagesResult" });
 
-const BrowserSessionOptionalPageResultSchema = z
+export const BrowserSessionOptionalPageResultSchema = z
   .object({
     page: BrowserSessionPageSchema.nullable(),
   })
   .strict()
   .meta({ id: "BrowserSessionOptionalPageResult" });
 
-const BrowserSessionPageResultSchema = z
+export const BrowserSessionPageResultSchema = z
   .object({
     page: BrowserSessionPageSchema,
   })
   .strict()
   .meta({ id: "BrowserSessionPageResult" });
 
-const BrowserSessionFrameTreeResultSchema = z
+export const BrowserSessionFrameTreeResultSchema = z
   .object({
     frameTree: z.unknown(),
   })
   .strict()
   .meta({ id: "BrowserSessionFrameTreeResult" });
 
-const BrowserSessionCookiesResultSchema = z
+export const BrowserSessionCookiesResultSchema = z
   .object({
     cookies: z.array(BrowserSessionCookieSchema),
   })
   .strict()
   .meta({ id: "BrowserSessionCookiesResult" });
 
-const BrowserSessionAddCookiesResultSchema = z
+export const BrowserSessionAddCookiesResultSchema = z
   .object({
     added: z.number().int().nonnegative(),
   })
   .strict()
   .meta({ id: "BrowserSessionAddCookiesResult" });
 
-const BrowserSessionClearCookiesResultSchema = z
+export const BrowserSessionClearCookiesResultSchema = z
   .object({
     cleared: z.boolean(),
   })
   .strict()
   .meta({ id: "BrowserSessionClearCookiesResult" });
 
-const BrowserSessionConnectURLResultSchema = z
+export const BrowserSessionConnectURLResultSchema = z
   .object({
     connectURL: z.string(),
   })
   .strict()
   .meta({ id: "BrowserSessionConnectURLResult" });
 
-const BrowserSessionConfiguredViewportResultSchema =
+export const BrowserSessionConfiguredViewportResultSchema =
   BrowserSessionViewportSchema.meta({
     id: "BrowserSessionConfiguredViewportResult",
   });
 
-const BrowserSessionBrowserbaseSessionIDResultSchema = z
+export const BrowserSessionBrowserbaseSessionIDResultSchema = z
   .object({
     browserbaseSessionID: z.string().nullable(),
   })
   .strict()
   .meta({ id: "BrowserSessionBrowserbaseSessionIDResult" });
 
-const BrowserSessionBrowserbaseSessionURLResultSchema = z
+export const BrowserSessionBrowserbaseSessionURLResultSchema = z
   .object({
     browserbaseSessionURL: z.string().nullable(),
   })
   .strict()
   .meta({ id: "BrowserSessionBrowserbaseSessionURLResult" });
 
-const BrowserSessionBrowserbaseDebugURLResultSchema = z
+export const BrowserSessionBrowserbaseDebugURLResultSchema = z
   .object({
     browserbaseDebugURL: z.string().nullable(),
   })
   .strict()
   .meta({ id: "BrowserSessionBrowserbaseDebugURLResult" });
 
-const BrowserSessionIsBrowserbaseResultSchema = z
+export const BrowserSessionIsBrowserbaseResultSchema = z
   .object({
     isBrowserbase: z.boolean(),
   })
   .strict()
   .meta({ id: "BrowserSessionIsBrowserbaseResult" });
 
-const BrowserSessionIsAdvancedStealthResultSchema = z
+export const BrowserSessionIsAdvancedStealthResultSchema = z
   .object({
     isAdvancedStealth: z.boolean(),
   })
   .strict()
   .meta({ id: "BrowserSessionIsAdvancedStealthResult" });
 
-const BrowserSessionSetViewportSizeResultSchema =
+export const BrowserSessionSetViewportSizeResultSchema =
   BrowserSessionViewportSchema.meta({
     id: "BrowserSessionSetViewportSizeResult",
   });
 
-const BrowserSessionCloseResultSchema = z
+export const BrowserSessionCloseResultSchema = z
   .object({
     closed: z.boolean(),
   })

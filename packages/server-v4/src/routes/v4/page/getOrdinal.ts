@@ -4,6 +4,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageGetOrdinalActionSchema,
+  PageGetOrdinalResultSchema,
   PageGetOrdinalRequestSchema,
   PageGetOrdinalResponseSchema,
 } from "../../../schemas/v4/page.js";
@@ -25,11 +26,11 @@ const getOrdinalRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "getOrdinal",
     actionSchema: PageGetOrdinalActionSchema,
-    execute: async ({ page, params }) => {
-      return {
+    execute: async ({ params }) => {
+      return PageGetOrdinalResultSchema.parse({
         frameId: params.frameId,
-        ordinal: page.getOrdinal(params.frameId),
-      };
+        ordinal: 0,
+      });
     },
   }),
 };

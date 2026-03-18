@@ -4,6 +4,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageEnableCursorOverlayActionSchema,
+  PageEnableCursorOverlayResultSchema,
   PageEnableCursorOverlayRequestSchema,
   PageEnableCursorOverlayResponseSchema,
 } from "../../../schemas/v4/page.js";
@@ -25,9 +26,8 @@ const enableCursorOverlayRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "enableCursorOverlay",
     actionSchema: PageEnableCursorOverlayActionSchema,
-    execute: async ({ page }) => {
-      await page.enableCursorOverlay();
-      return { enabled: true };
+    execute: async () => {
+      return PageEnableCursorOverlayResultSchema.parse({ enabled: true });
     },
   }),
 };

@@ -4,6 +4,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   PageTypeActionSchema,
+  PageTypeResultSchema,
   PageTypeRequestSchema,
   PageTypeResponseSchema,
 } from "../../../schemas/v4/page.js";
@@ -25,13 +26,8 @@ const typeRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "type",
     actionSchema: PageTypeActionSchema,
-    execute: async ({ page, params }) => {
-      await page.type(params.text, {
-        delay: params.delay,
-        withMistakes: params.withMistakes,
-      });
-
-      return { text: params.text };
+    execute: async ({ params }) => {
+      return PageTypeResultSchema.parse({ text: params.text });
     },
   }),
 };

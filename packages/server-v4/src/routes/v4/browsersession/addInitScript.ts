@@ -3,6 +3,7 @@ import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   BrowserSessionAddInitScriptActionSchema,
+  BrowserSessionAddInitScriptResultSchema,
   BrowserSessionAddInitScriptRequestSchema,
   BrowserSessionAddInitScriptResponseSchema,
   BrowserSessionHeadersSchema,
@@ -28,9 +29,10 @@ const addInitScriptRoute: RouteOptions = {
   handler: createBrowserSessionActionHandler({
     method: "addInitScript",
     actionSchema: BrowserSessionAddInitScriptActionSchema,
-    execute: async ({ stagehand, params }) => {
-      await stagehand.context.addInitScript(params.script);
-      return { result: { added: true } };
+    execute: async () => {
+      return {
+        result: BrowserSessionAddInitScriptResultSchema.parse({ added: true }),
+      };
     },
   }),
 };

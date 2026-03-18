@@ -6,12 +6,9 @@ import {
   PageHoverActionSchema,
   PageHoverRequestSchema,
   PageHoverResponseSchema,
+  PageXPathResultSchema,
 } from "../../../schemas/v4/page.js";
-import {
-  createPageActionHandler,
-  normalizeXPath,
-  pageErrorResponses,
-} from "./shared.js";
+import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
 const hoverRoute: RouteOptions = {
   method: "POST",
@@ -29,17 +26,11 @@ const hoverRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "hover",
     actionSchema: PageHoverActionSchema,
-    execute: async ({ page, params }) => {
-      if ("selector" in params) {
-        await page.deepLocator(normalizeXPath(params.selector.xpath)).hover();
-        return { xpath: params.selector.xpath };
-      }
-
-      const xpath = await page.hover(params.x, params.y, {
-        returnXpath: true,
+    execute: async ({ params }) => {
+      return PageXPathResultSchema.parse({
+        xpath:
+          "selector" in params ? params.selector.xpath : "xpath=//stub-hover",
       });
-
-      return { xpath: xpath || undefined };
     },
   }),
 };
