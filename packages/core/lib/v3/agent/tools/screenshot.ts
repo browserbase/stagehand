@@ -1,49 +1,29 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
-import { withTimeout } from "../../timeoutConfig.js";
-import { TimeoutError } from "../../types/public/sdkErrors.js";
 
-export const screenshotTool = (v3: V3, toolTimeout?: number) =>
+export const screenshotTool = (v3: V3) =>
   tool({
     description:
       "Takes a screenshot (PNG) of the current page. Use this to quickly verify page state.",
     inputSchema: z.object({}),
     execute: async () => {
       try {
-        return await withTimeout(
-          (async () => {
-            v3.logger({
-              category: "agent",
-              message: `Agent calling tool: screenshot`,
-              level: 1,
-            });
-            const page = await v3.context.awaitActivePage();
-            const buffer = await page.screenshot({ fullPage: false });
-            const pageUrl = page.url();
-            return {
-              success: true as const,
-              base64: buffer.toString("base64"),
-              timestamp: Date.now(),
-              pageUrl,
-            };
-          })(),
-          toolTimeout,
-          "screenshot()",
-        );
+        v3.logger({
+          category: "agent",
+          message: `Agent calling tool: screenshot`,
+          level: 1,
+        });
+        const page = await v3.context.awaitActivePage();
+        const buffer = await page.screenshot({ fullPage: false });
+        const pageUrl = page.url();
+        return {
+          success: true as const,
+          base64: buffer.toString("base64"),
+          timestamp: Date.now(),
+          pageUrl,
+        };
       } catch (error) {
-        if (error instanceof TimeoutError) {
-          const timeoutMessage = `TimeoutError: ${error.message}`;
-          v3.logger({
-            category: "agent",
-            message: timeoutMessage,
-            level: 0,
-          });
-          return {
-            success: false as const,
-            error: timeoutMessage,
-          };
-        }
         return {
           success: false as const,
           error: `Error taking screenshot: ${error.message}`,

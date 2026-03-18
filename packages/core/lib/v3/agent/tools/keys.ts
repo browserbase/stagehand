@@ -1,10 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
-import { withTimeout } from "../../timeoutConfig.js";
-import { TimeoutError } from "../../types/public/sdkErrors.js";
 
-export const keysTool = (v3: V3, toolTimeout?: number) =>
+export const keysTool = (v3: V3) =>
   tool({
     description: `Send keyboard input to the page without targeting a specific element. Unlike the type tool which clicks then types into coordinates, this sends keystrokes directly to wherever focus currently is.
 
@@ -22,65 +20,47 @@ Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) a
     }),
     execute: async ({ method, value, repeat }) => {
       try {
-        return await withTimeout(
-          (async () => {
-            const page = await v3.context.awaitActivePage();
-            v3.logger({
-              category: "agent",
-              message: `Agent calling tool: keys`,
-              level: 1,
-              auxiliary: {
-                arguments: {
-                  value: JSON.stringify({ method, value, repeat }),
-                  type: "object",
-                },
-              },
-            });
+        const page = await v3.context.awaitActivePage();
+        v3.logger({
+          category: "agent",
+          message: `Agent calling tool: keys`,
+          level: 1,
+          auxiliary: {
+            arguments: {
+              value: JSON.stringify({ method, value, repeat }),
+              type: "object",
+            },
+          },
+        });
 
-            const times = Math.max(1, repeat ?? 1);
+        const times = Math.max(1, repeat ?? 1);
 
-            if (method === "type") {
-              for (let i = 0; i < times; i++) {
-                await page.type(value, { delay: 100 });
-              }
-              v3.recordAgentReplayStep({
-                type: "keys",
-                instruction: `type "${value}"`,
-                playwrightArguments: { method, text: value, times },
-              });
-              return { success: true, method, value, times };
-            }
-
-            if (method === "press") {
-              for (let i = 0; i < times; i++) {
-                await page.keyPress(value, { delay: 100 });
-              }
-              v3.recordAgentReplayStep({
-                type: "keys",
-                instruction: `press ${value}`,
-                playwrightArguments: { method, keys: value, times },
-              });
-              return { success: true, method, value, times };
-            }
-
-            return { success: false, error: `Unsupported method: ${method}` };
-          })(),
-          toolTimeout,
-          "keys()",
-        );
-      } catch (error) {
-        if (error instanceof TimeoutError) {
-          const timeoutMessage = `TimeoutError: ${error.message}`;
-          v3.logger({
-            category: "agent",
-            message: timeoutMessage,
-            level: 0,
+        if (method === "type") {
+          for (let i = 0; i < times; i++) {
+            await page.type(value, { delay: 100 });
+          }
+          v3.recordAgentReplayStep({
+            type: "keys",
+            instruction: `type "${value}"`,
+            playwrightArguments: { method, text: value, times },
           });
-          return {
-            success: false,
-            error: timeoutMessage,
-          };
+          return { success: true, method, value, times };
         }
+
+        if (method === "press") {
+          for (let i = 0; i < times; i++) {
+            await page.keyPress(value, { delay: 100 });
+          }
+          v3.recordAgentReplayStep({
+            type: "keys",
+            instruction: `press ${value}`,
+            playwrightArguments: { method, keys: value, times },
+          });
+          return { success: true, method, value, times };
+        }
+
+        return { success: false, error: `Unsupported method: ${method}` };
+      } catch (error) {
         return { success: false, error: error.message };
       }
     },

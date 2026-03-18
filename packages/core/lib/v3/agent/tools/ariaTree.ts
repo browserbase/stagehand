@@ -1,9 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
-import { TimeoutError } from "../../types/public/sdkErrors.js";
 
-export const ariaTreeTool = (v3: V3, toolTimeout?: number) =>
+export const ariaTreeTool = (v3: V3) =>
   tool({
     description:
       "gets the accessibility (ARIA) hybrid tree text for the current page. use this to understand structure and content.",
@@ -16,10 +15,7 @@ export const ariaTreeTool = (v3: V3, toolTimeout?: number) =>
           level: 1,
         });
         const page = await v3.context.awaitActivePage();
-        const extractOptions = toolTimeout
-          ? { timeout: toolTimeout }
-          : undefined;
-        const { pageText } = (await v3.extract(extractOptions)) as {
+        const { pageText } = (await v3.extract()) as {
           pageText: string;
         };
         const pageUrl = page.url();
@@ -36,20 +32,6 @@ export const ariaTreeTool = (v3: V3, toolTimeout?: number) =>
 
         return { success: true, content, pageUrl };
       } catch (error) {
-        if (error instanceof TimeoutError) {
-          const timeoutMessage = `TimeoutError: ${error.message} — the page may be too large`;
-          v3.logger({
-            category: "agent",
-            message: timeoutMessage,
-            level: 0,
-          });
-          return {
-            content: "",
-            error: timeoutMessage,
-            success: false,
-            pageUrl: "",
-          };
-        }
         return {
           content: "",
           error: error?.message ?? String(error),

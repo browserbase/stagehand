@@ -1,8 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
-import { withTimeout } from "../../timeoutConfig.js";
-import { TimeoutError } from "../../types/public/sdkErrors.js";
 
 export interface BraveSearchResult {
   title: string;
@@ -80,7 +78,7 @@ async function performBraveSearch(query: string): Promise<SearchResponse> {
   }
 }
 
-export const searchTool = (v3: V3, toolTimeout?: number) =>
+export const searchTool = (v3: V3) =>
   tool({
     description:
       "Perform a web search and returns results. Use this tool when you need information from the web or when you are unsure of the exact URL you want to navigate to. This can be used to find the ideal entry point, resulting in a task that is easier to complete due to starting further in the process.",
@@ -89,53 +87,33 @@ export const searchTool = (v3: V3, toolTimeout?: number) =>
     }),
     execute: async ({ query }) => {
       try {
-        return await withTimeout(
-          (async () => {
-            v3.logger({
-              category: "agent",
-              message: `Agent calling tool: search`,
-              level: 1,
-              auxiliary: {
-                arguments: {
-                  value: JSON.stringify({ query }),
-                  type: "object",
-                },
-              },
-            });
+        v3.logger({
+          category: "agent",
+          message: `Agent calling tool: search`,
+          level: 1,
+          auxiliary: {
+            arguments: {
+              value: JSON.stringify({ query }),
+              type: "object",
+            },
+          },
+        });
 
-            const result = await performBraveSearch(query);
+        const result = await performBraveSearch(query);
 
-            v3.recordAgentReplayStep({
-              type: "search",
-              instruction: query,
-              playwrightArguments: { query },
-              message:
-                result.error ??
-                `Found ${result.data?.results.length ?? 0} results`,
-            });
+        v3.recordAgentReplayStep({
+          type: "search",
+          instruction: query,
+          playwrightArguments: { query },
+          message:
+            result.error ?? `Found ${result.data?.results.length ?? 0} results`,
+        });
 
-            return {
-              ...result,
-              timestamp: Date.now(),
-            };
-          })(),
-          toolTimeout,
-          "search()",
-        );
+        return {
+          ...result,
+          timestamp: Date.now(),
+        };
       } catch (error) {
-        if (error instanceof TimeoutError) {
-          const timeoutMessage = `TimeoutError: ${error.message}`;
-          v3.logger({
-            category: "agent",
-            message: timeoutMessage,
-            level: 0,
-          });
-          return {
-            error: timeoutMessage,
-            data: { results: [] },
-            timestamp: Date.now(),
-          };
-        }
         return {
           error: `Error performing search: ${error.message}`,
           data: { results: [] },

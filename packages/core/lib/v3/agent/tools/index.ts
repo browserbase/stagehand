@@ -25,6 +25,8 @@ import type {
   AgentModelConfig,
   Variables,
 } from "../../types/public/agent.js";
+import { withTimeout } from "../../timeoutConfig.js";
+import { TimeoutError } from "../../types/public/sdkErrors.js";
 
 export interface V3AgentToolOptions {
   executionModel?: string | AgentModelConfig;
@@ -100,6 +102,46 @@ function filterTools(
   return filtered;
 }
 
+/**
+ * Wraps an AI SDK tool's execute function with a timeout guard.
+ * On timeout, returns `{ success: false, error: "TimeoutError: ..." }` to the LLM
+ * and logs the error. Also acts as a safety net for any uncaught errors.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function wrapToolWithTimeout<T extends Record<string, any>>(
+  agentTool: T,
+  toolName: string,
+  v3: V3,
+  timeoutMs?: number,
+  timeoutHint?: string,
+): T {
+  if (!timeoutMs || !agentTool.execute) return agentTool;
+
+  const originalExecute = agentTool.execute;
+  return {
+    ...agentTool,
+    execute: async (...args: unknown[]) => {
+      try {
+        return await withTimeout(originalExecute(...args), timeoutMs, toolName);
+      } catch (error) {
+        const isTimeout = error instanceof TimeoutError;
+        const message = isTimeout
+          ? `TimeoutError: ${error.message}${timeoutHint ? ` ${timeoutHint}` : ""}`
+          : ((error as Error)?.message ?? String(error));
+        v3.logger({
+          category: "agent",
+          message,
+          level: 0,
+        });
+        return {
+          success: false,
+          error: message,
+        };
+      }
+    },
+  } as T;
+}
+
 export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const executionModel = options?.executionModel;
   const mode = options?.mode ?? "dom";
@@ -109,35 +151,100 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const toolTimeout = options?.toolTimeout;
 
   const allTools: ToolSet = {
-    act: actTool(v3, executionModel, variables, toolTimeout),
-    ariaTree: ariaTreeTool(v3, toolTimeout),
-    click: clickTool(v3, provider, toolTimeout),
-    clickAndHold: clickAndHoldTool(v3, provider, toolTimeout),
-    dragAndDrop: dragAndDropTool(v3, provider, toolTimeout),
-    extract: extractTool(v3, executionModel, toolTimeout),
-    fillForm: fillFormTool(v3, executionModel, variables, toolTimeout),
-    fillFormVision: fillFormVisionTool(v3, provider, variables, toolTimeout),
-    goto: gotoTool(v3, toolTimeout),
-    keys: keysTool(v3, toolTimeout),
-    navback: navBackTool(v3, toolTimeout),
-    screenshot: screenshotTool(v3, toolTimeout),
+    act: wrapToolWithTimeout(
+      actTool(v3, executionModel, variables),
+      "act()",
+      v3,
+      toolTimeout,
+      "(it may continue executing in the background) — try using a different description for the action",
+    ),
+    ariaTree: wrapToolWithTimeout(
+      ariaTreeTool(v3),
+      "ariaTree()",
+      v3,
+      toolTimeout,
+      "— the page may be too large",
+    ),
+    click: wrapToolWithTimeout(
+      clickTool(v3, provider),
+      "click()",
+      v3,
+      toolTimeout,
+    ),
+    clickAndHold: wrapToolWithTimeout(
+      clickAndHoldTool(v3, provider),
+      "clickAndHold()",
+      v3,
+      toolTimeout,
+    ),
+    dragAndDrop: wrapToolWithTimeout(
+      dragAndDropTool(v3, provider),
+      "dragAndDrop()",
+      v3,
+      toolTimeout,
+    ),
+    extract: wrapToolWithTimeout(
+      extractTool(v3, executionModel),
+      "extract()",
+      v3,
+      toolTimeout,
+      "— try using a smaller or simpler schema",
+    ),
+    fillForm: wrapToolWithTimeout(
+      fillFormTool(v3, executionModel, variables),
+      "fillForm()",
+      v3,
+      toolTimeout,
+      "(it may continue executing in the background) — try filling fewer fields at once or use a different tool",
+    ),
+    fillFormVision: wrapToolWithTimeout(
+      fillFormVisionTool(v3, provider, variables),
+      "fillFormVision()",
+      v3,
+      toolTimeout,
+    ),
+    goto: wrapToolWithTimeout(gotoTool(v3), "goto()", v3, toolTimeout),
+    keys: wrapToolWithTimeout(keysTool(v3), "keys()", v3, toolTimeout),
+    navback: wrapToolWithTimeout(navBackTool(v3), "navback()", v3, toolTimeout),
+    screenshot: wrapToolWithTimeout(
+      screenshotTool(v3),
+      "screenshot()",
+      v3,
+      toolTimeout,
+    ),
     scroll:
       mode === "hybrid"
-        ? scrollVisionTool(v3, provider, toolTimeout)
-        : scrollTool(v3, toolTimeout),
+        ? wrapToolWithTimeout(
+            scrollVisionTool(v3, provider),
+            "scroll()",
+            v3,
+            toolTimeout,
+          )
+        : wrapToolWithTimeout(scrollTool(v3), "scroll()", v3, toolTimeout),
     think: thinkTool(),
-    type: typeTool(v3, provider, variables, toolTimeout),
+    type: wrapToolWithTimeout(
+      typeTool(v3, provider, variables),
+      "type()",
+      v3,
+      toolTimeout,
+    ),
     wait: waitTool(v3, mode),
   };
 
   if (options?.useSearch && options.browserbaseApiKey) {
-    allTools.search = browserbaseSearchTool(
+    allTools.search = wrapToolWithTimeout(
+      browserbaseSearchTool(v3, options.browserbaseApiKey),
+      "search()",
       v3,
-      options.browserbaseApiKey,
       toolTimeout,
     );
   } else if (process.env.BRAVE_API_KEY) {
-    allTools.search = braveSearchTool(v3, toolTimeout);
+    allTools.search = wrapToolWithTimeout(
+      braveSearchTool(v3),
+      "search()",
+      v3,
+      toolTimeout,
+    );
   }
 
   return filterTools(allTools, mode, excludeTools);

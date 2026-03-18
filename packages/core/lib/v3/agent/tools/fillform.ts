@@ -3,13 +3,11 @@ import { z } from "zod";
 import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
 import type { AgentModelConfig, Variables } from "../../types/public/agent.js";
-import { TimeoutError } from "../../types/public/sdkErrors.js";
 
 export const fillFormTool = (
   v3: V3,
   executionModel?: string | AgentModelConfig,
   variables?: Variables,
-  toolTimeout?: number,
 ) => {
   const hasVariables = variables && Object.keys(variables).length > 0;
   const valueDescription = hasVariables
@@ -50,16 +48,14 @@ export const fillFormTool = (
           .join(", ")}`;
 
         const observeOptions = executionModel
-          ? { model: executionModel, timeout: toolTimeout }
-          : { timeout: toolTimeout };
+          ? { model: executionModel }
+          : undefined;
         const observeResults = await v3.observe(instruction, observeOptions);
 
         const completed = [] as unknown[];
         const replayableActions: Action[] = [];
         for (const res of observeResults) {
-          const actOptions = variables
-            ? { variables, timeout: toolTimeout }
-            : { timeout: toolTimeout };
+          const actOptions = variables ? { variables } : undefined;
           const actResult = await v3.act(res, actOptions);
           completed.push(actResult);
           if (Array.isArray(actResult.actions)) {
@@ -78,18 +74,6 @@ export const fillFormTool = (
           playwrightArguments: replayableActions,
         };
       } catch (error) {
-        if (error instanceof TimeoutError) {
-          const timeoutMessage = `TimeoutError: ${error.message} (it may continue executing in the background)`;
-          v3.logger({
-            category: "agent",
-            message: timeoutMessage,
-            level: 0,
-          });
-          return {
-            success: false,
-            error: `${timeoutMessage} — try filling fewer fields at once or use a different tool`,
-          };
-        }
         return {
           success: false,
           error: error?.message ?? String(error),
