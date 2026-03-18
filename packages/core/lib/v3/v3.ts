@@ -382,7 +382,7 @@ export class V3 {
 
     // FlowLogger always gets a per-instance session context and shared event
     // bus. The attached EventStore decides which sinks are active:
-    // `verbose: 2` or `BROWSERBASE_FLOW_LOGS=1` enables pretty stderr output,
+    // `BROWSERBASE_FLOW_LOGS=1` enables pretty stderr output,
     // and `BROWSERBASE_CONFIG_DIR` enables the pretty/jsonl file sinks for this session.
     this.eventStore = new EventStore(this.sessionId, opts);
     this.flowLoggerContext = FlowLogger.init(this.sessionId, this.bus);

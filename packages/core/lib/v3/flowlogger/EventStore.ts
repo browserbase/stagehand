@@ -144,7 +144,7 @@ export class EventStore implements EventStoreApi {
       this.registerSink(new PrettyLogFileEventSink(sessionDirPromise, this));
     }
 
-    if (options?.verbose === 2 || FLOW_LOGS_ENABLED) {
+    if (FLOW_LOGS_ENABLED) {
       this.registerSink(new PrettyStderrEventSink(this));
     }
   }

@@ -35,7 +35,7 @@ function createVerboseStoreHarness(): {
     return true;
   }) as typeof process.stderr.write;
 
-  const store = new EventStore("session-test", { verbose: 2 } as never);
+  const store = new EventStore("session-test");
   const bus = new EventEmitterWithWildcardSupport();
   const detachBus = attachEventStoreToBus(store, bus);
 
