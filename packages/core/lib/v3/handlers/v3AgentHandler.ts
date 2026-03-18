@@ -17,7 +17,7 @@ import {
 import { StagehandZodObject } from "../zodCompat.js";
 import { processMessages } from "../agent/utils/messageProcessing.js";
 import { LLMClient } from "../llm/LLMClient.js";
-import { SessionFileLogger } from "../flowLogger.js";
+import { FlowLogger } from "../flowlogger/FlowLogger.js";
 import {
   AgentExecuteOptions,
   AgentStreamExecuteOptions,
@@ -35,6 +35,7 @@ import { V3FunctionName } from "../types/public/methods.js";
 import { mapToolResultToActions } from "../agent/utils/actionMapping.js";
 import {
   MissingLLMConfigurationError,
+  MissingEnvironmentVariableError,
   StreamingCallbacksInNonStreamingModeError,
   AgentAbortError,
 } from "../types/public/sdkErrors.js";
@@ -124,12 +125,24 @@ export class V3AgentHandler {
         captchasAutoSolve: this.v3.isCaptchaAutoSolveEnabled,
         excludeTools: options.excludeTools,
         variables: options.variables,
+        useSearch: options.useSearch,
       });
+
+      if (options.useSearch) {
+        const bbApiKey = this.v3.browserbaseApiKey;
+        if (!bbApiKey) {
+          throw new MissingEnvironmentVariableError(
+            "BROWSERBASE_API_KEY",
+            "agent search (useSearch: true)",
+          );
+        }
+      }
 
       const tools = this.createTools(
         options.excludeTools,
         options.variables,
         options.toolTimeout,
+        options.useSearch,
       );
       const allTools: ToolSet = { ...tools, ...this.mcpTools };
 
@@ -146,7 +159,7 @@ export class V3AgentHandler {
       const wrappedModel = wrapLanguageModel({
         model: baseModel,
         middleware: {
-          ...SessionFileLogger.createLlmLoggingMiddleware(baseModel.modelId),
+          ...FlowLogger.createLlmLoggingMiddleware(baseModel.modelId),
         },
       });
 
@@ -281,19 +294,6 @@ export class V3AgentHandler {
           }
         }
         state.currentPageUrl = (await this.v3.context.awaitActivePage()).url();
-
-        // Capture screenshot after tool execution (only for evals)
-        if (process.env.EVALS === "true") {
-          try {
-            await this.captureAndEmitScreenshot();
-          } catch (e) {
-            this.logger({
-              category: "agent",
-              message: `Warning: Failed to capture screenshot: ${getErrorMessage(e)}`,
-              level: 1,
-            });
-          }
-        }
       }
 
       if (userCallback) {
@@ -382,13 +382,10 @@ export class V3AgentHandler {
         ),
         onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
         abortSignal: preparedOptions.signal,
-        providerOptions: wrappedModel.modelId.includes("gemini-3")
-          ? {
-              google: {
-                mediaResolution: "MEDIA_RESOLUTION_HIGH",
-              },
-            }
-          : undefined,
+        providerOptions: {
+          google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
+          openai: { store: false },
+        },
       });
 
       const allMessages = [...messages, ...(result.response?.messages || [])];
@@ -411,7 +408,10 @@ export class V3AgentHandler {
       );
     } catch (error) {
       // Re-throw validation errors that should propagate to the caller
-      if (error instanceof StreamingCallbacksInNonStreamingModeError) {
+      if (
+        error instanceof StreamingCallbacksInNonStreamingModeError ||
+        error instanceof MissingEnvironmentVariableError
+      ) {
         throw error;
       }
 
@@ -567,13 +567,10 @@ export class V3AgentHandler {
           rejectResult(new AgentAbortError(reason));
         },
         abortSignal: options.signal,
-        providerOptions: wrappedModel.modelId.includes("gemini-3")
-          ? {
-              google: {
-                mediaResolution: "MEDIA_RESOLUTION_HIGH",
-              },
-            }
-          : undefined,
+        providerOptions: {
+          google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
+          openai: { store: false },
+        },
       });
     } catch (error) {
       captchaSolver?.dispose();
@@ -649,6 +646,7 @@ export class V3AgentHandler {
     excludeTools?: string[],
     variables?: Variables,
     toolTimeout?: number,
+    useSearch?: boolean,
   ) {
     const provider = this.llmClient?.getLanguageModel?.()?.provider;
     return createAgentTools(this.v3, {
@@ -659,6 +657,8 @@ export class V3AgentHandler {
       excludeTools,
       variables,
       toolTimeout,
+      useSearch,
+      browserbaseApiKey: useSearch ? this.v3.browserbaseApiKey : undefined,
     });
   }
 
@@ -722,22 +722,5 @@ export class V3AgentHandler {
       messages: [...messages, ...doneResult.messages],
       output: doneResult.output,
     };
-  }
-
-  /**
-   * Capture a screenshot and emit it via the event bus
-   */
-  private async captureAndEmitScreenshot(): Promise<void> {
-    try {
-      const page = await this.v3.context.awaitActivePage();
-      const screenshot = await page.screenshot({ fullPage: false });
-      this.v3.bus.emit("agent_screenshot_taken_event", screenshot);
-    } catch (error) {
-      this.logger({
-        category: "agent",
-        message: `Error capturing screenshot: ${getErrorMessage(error)}`,
-        level: 0,
-      });
-    }
   }
 }

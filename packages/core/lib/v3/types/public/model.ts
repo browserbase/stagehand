@@ -114,6 +114,8 @@ export type ClientOptions = (
   maxImages?: number;
   /** Temperature for model inference */
   temperature?: number;
+  /** Custom headers sent with every request to the provider */
+  headers?: Record<string, string>;
 };
 
 export type ModelConfiguration =

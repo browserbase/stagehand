@@ -12,6 +12,8 @@ export interface AgentSystemPromptOptions {
   excludeTools?: string[];
   /** Variables available to the agent for use in act/type tools */
   variables?: Variables;
+  /** Whether the search tool is enabled for this execution */
+  useSearch?: boolean;
 }
 
 /**
@@ -126,13 +128,14 @@ export function buildAgentSystemPrompt(
     captchasAutoSolve = false,
     excludeTools,
     variables,
+    useSearch = false,
   } = options;
   const localeDate = new Date().toLocaleDateString();
   const isoDate = new Date().toISOString();
   const cdata = (text: string) => `<![CDATA[${text}]]>`;
 
   const isHybridMode = mode === "hybrid";
-  const hasSearch = Boolean(process.env.BRAVE_API_KEY);
+  const hasSearch = useSearch || Boolean(process.env.BRAVE_API_KEY);
 
   // Tools section differs based on mode and excluded tools
   const toolsSection = buildToolsSection(isHybridMode, hasSearch, excludeTools);

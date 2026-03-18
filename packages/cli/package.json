@@ -27,7 +27,7 @@
     "stagehand"
   ],
   "engines": {
-    "node": ">=18.0.0"
+    "node": "^20.19.0 || >=22.12.0"
   },
   "publishConfig": {
     "access": "public"
@@ -46,13 +46,12 @@
     "dev": "tsx src/index.ts",
     "browse": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "eslint": "eslint .",
+    "lint": "cd ../.. && prettier --check packages/cli && cd packages/cli && pnpm run eslint && pnpm run typecheck",
     "test": "vitest run",
+    "test:cli": "vitest run",
     "test:watch": "vitest",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
     "@browserbasehq/stagehand": "workspace:*",
@@ -62,24 +61,13 @@
     "pino-pretty": "^13.0.0",
     "ws": "^8.18.0"
   },
-  "peerDependencies": {
-    "playwright": "^1.50.0"
-  },
-  "peerDependenciesMeta": {
-    "playwright": {
-      "optional": true
-    }
-  },
   "devDependencies": {
-    "@eslint/js": "^9.16.0",
     "@types/node": "^20.11.30",
-    "eslint": "^9.16.0",
-    "globals": "^15.13.0",
-    "prettier": "^3.2.5",
+    "devtools-protocol": "^0.0.1464554",
+    "eslint": "^10.0.2",
     "tsup": "^8.2.1",
     "tsx": "^4.10.5",
-    "typescript": "^5.2.2",
-    "typescript-eslint": "^8.17.0",
-    "vitest": "^1.6.0"
+    "typescript": "5.8.3",
+    "vitest": "^4.0.8"
   }
 }

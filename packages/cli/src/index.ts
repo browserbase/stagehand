@@ -9,24 +9,20 @@
  */
 
 import { Command } from "commander";
-import { Stagehand } from "@browserbasehq/stagehand";
+import { Stagehand, type Page as BrowsePage } from "@browserbasehq/stagehand";
 import { promises as fs } from "fs";
 import * as path from "path";
 import * as os from "os";
 import * as net from "net";
 import { spawn } from "child_process";
 import * as readline from "readline";
-import { createRequire } from "module";
-
-// Load version from package.json
-const require = createRequire(import.meta.url);
-const { version: VERSION } = require("../package.json");
+import type { Protocol } from "devtools-protocol";
+import { version as VERSION } from "../package.json";
 
 const program = new Command();
 
-// Type aliases - using any for flexibility with Stagehand internals
+// Type aliases
 type BrowseContext = Stagehand["context"];
-type BrowsePage = ReturnType<BrowseContext["pages"]>[number];
 
 // ==================== DAEMON INFRASTRUCTURE ====================
 
@@ -44,7 +40,10 @@ function getLockPath(session: string): string {
  * Acquire an exclusive lock for daemon operations.
  * Uses O_EXCL for atomic file creation to prevent race conditions.
  */
-async function acquireLock(session: string, timeoutMs: number = 10000): Promise<boolean> {
+async function acquireLock(
+  session: string,
+  timeoutMs: number = 10000,
+): Promise<boolean> {
   const lockPath = getLockPath(session);
   const startTime = Date.now();
 
@@ -62,10 +61,12 @@ async function acquireLock(session: string, timeoutMs: number = 10000): Promise<
           const holderPid = parseInt(await fs.readFile(lockPath, "utf-8"));
           process.kill(holderPid, 0); // Throws if process doesn't exist
           // Process exists, wait and retry
-          await new Promise(r => setTimeout(r, 100));
+          await new Promise((r) => setTimeout(r, 100));
         } catch {
           // Lock holder is dead, remove stale lock
-          try { await fs.unlink(lockPath); } catch {}
+          try {
+            await fs.unlink(lockPath);
+          } catch {}
         }
         continue;
       }
@@ -76,13 +77,18 @@ async function acquireLock(session: string, timeoutMs: number = 10000): Promise<
 }
 
 async function releaseLock(session: string): Promise<void> {
-  try { await fs.unlink(getLockPath(session)); } catch {}
+  try {
+    await fs.unlink(getLockPath(session));
+  } catch {}
 }
 
 /**
  * Check if a socket is actually connectable (not just exists on disk).
  */
-async function isSocketConnectable(socketPath: string, timeoutMs: number): Promise<boolean> {
+async function isSocketConnectable(
+  socketPath: string,
+  timeoutMs: number,
+): Promise<boolean> {
   return new Promise((resolve) => {
     const client = net.createConnection(socketPath);
     const timeout = setTimeout(() => {
@@ -106,13 +112,16 @@ async function isSocketConnectable(socketPath: string, timeoutMs: number): Promi
 /**
  * Wait for socket to become connectable with exponential backoff.
  */
-async function waitForSocketReady(socketPath: string, timeoutMs: number): Promise<void> {
+async function waitForSocketReady(
+  socketPath: string,
+  timeoutMs: number,
+): Promise<void> {
   const startTime = Date.now();
   let delay = 50;
 
   while (Date.now() - startTime < timeoutMs) {
     if (await isSocketConnectable(socketPath, 500)) return;
-    await new Promise(r => setTimeout(r, delay));
+    await new Promise((r) => setTimeout(r, delay));
     delay = Math.min(delay * 1.5, 500);
   }
   throw new Error(`Socket not ready after ${timeoutMs}ms`);
@@ -140,6 +149,10 @@ function getModePath(session: string): string {
 
 function getModeOverridePath(session: string): string {
   return path.join(SOCKET_DIR, `browse-${session}.mode-override`);
+}
+
+function getContextPath(session: string): string {
+  return path.join(SOCKET_DIR, `browse-${session}.context`);
 }
 
 type BrowseMode = "browserbase" | "local";
@@ -175,7 +188,9 @@ async function readCurrentMode(session: string): Promise<BrowseMode | null> {
 /** Determine desired mode: explicit override > env var detection */
 async function getDesiredMode(session: string): Promise<BrowseMode> {
   try {
-    const override = (await fs.readFile(getModeOverridePath(session), "utf-8")).trim();
+    const override = (
+      await fs.readFile(getModeOverridePath(session), "utf-8")
+    ).trim();
     if (override === "browserbase" || override === "local") return override;
   } catch {}
   return hasBrowserbaseCredentials() ? "browserbase" : "local";
@@ -198,18 +213,36 @@ async function isDaemonRunning(session: string): Promise<boolean> {
   }
 }
 
+/** Daemon state files — cleaned on both startup (stale) and shutdown. */
+const DAEMON_STATE_FILES = (session: string) => [
+  getSocketPath(session),
+  getPidPath(session),
+  getWsPath(session),
+  getChromePidPath(session),
+  getLockPath(session),
+  getModePath(session),
+];
+
 async function cleanupStaleFiles(session: string): Promise<void> {
   const files = [
-    getSocketPath(session),
-    getPidPath(session),
-    getWsPath(session),
-    getChromePidPath(session),
-    getLockPath(session),
-    getModePath(session),
+    ...DAEMON_STATE_FILES(session),
+    // Context is client-written config, only cleaned on full shutdown
+    getContextPath(session),
   ];
 
   for (const file of files) {
-    try { await fs.unlink(file); } catch {}
+    try {
+      await fs.unlink(file);
+    } catch {}
+  }
+}
+
+/** Like cleanupStaleFiles but preserves client-written config (context). */
+async function cleanupDaemonStateFiles(session: string): Promise<void> {
+  for (const file of DAEMON_STATE_FILES(session)) {
+    try {
+      await fs.unlink(file);
+    } catch {}
   }
 }
 
@@ -256,7 +289,8 @@ interface DaemonResponse {
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
 
 async function runDaemon(session: string, headless: boolean): Promise<void> {
-  await cleanupStaleFiles(session);
+  // Only clean daemon state files (socket, pid, etc.), not client-written config (context)
+  await cleanupDaemonStateFiles(session);
 
   // Write daemon PID file and initial mode so status is immediately available
   await fs.writeFile(getPidPath(session), String(process.pid));
@@ -271,7 +305,10 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
    * Lazy browser initialization - called on first command (like agent-browser)
    * This allows daemon to signal "started" immediately without waiting for browser
    */
-  async function ensureBrowserInitialized(): Promise<{ stagehand: Stagehand; context: BrowseContext }> {
+  async function ensureBrowserInitialized(): Promise<{
+    stagehand: Stagehand;
+    context: BrowseContext;
+  }> {
     if (stagehand && context) {
       return { stagehand, context };
     }
@@ -280,7 +317,7 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
     if (isInitializing) {
       // Wait for initialization to complete
       while (isInitializing) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
       if (stagehand && context) {
         return { stagehand, context };
@@ -295,6 +332,13 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
       assertModeSupported(desiredMode);
       const useBrowserbase = desiredMode === "browserbase";
 
+      // Read context config if present (written by `browse open --context-id`)
+      let contextConfig: { id: string; persist?: boolean } | null = null;
+      try {
+        const raw = await fs.readFile(getContextPath(session), "utf-8");
+        contextConfig = JSON.parse(raw);
+      } catch {}
+
       stagehand = new Stagehand({
         env: useBrowserbase ? "BROWSERBASE" : "LOCAL",
         verbose: 0,
@@ -302,9 +346,22 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
         ...(useBrowserbase
           ? {
               disableAPI: true,
+              ...(contextConfig
+                ? {
+                    browserbaseSessionCreateParams: {
+                      browserSettings: {
+                        context: contextConfig,
+                      },
+                    },
+                  }
+                : {}),
             }
-          : { localBrowserLaunchOptions: { headless, viewport: DEFAULT_VIEWPORT } }
-        ),
+          : {
+              localBrowserLaunchOptions: {
+                headless,
+                viewport: DEFAULT_VIEWPORT,
+              },
+            }),
       });
 
       // Persist mode so status command can report it
@@ -316,142 +373,12 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
 
       // Try to save Chrome info for reference (best effort)
       try {
-        const wsUrl = (context as any).conn?.wsUrl || "unknown";
+        const wsUrl = stagehand.connectURL();
         await fs.writeFile(getWsPath(session), wsUrl);
       } catch {}
 
       // Store session name for network capture
       networkSession = session;
-
-      // Setup network capture helpers (called when network is enabled)
-      const setupNetworkCapture = async (targetPage: BrowsePage) => {
-    const cdpSession = targetPage.mainFrame().session;
-
-    // Track request start times for duration calculation
-    const requestStartTimes = new Map<string, number>();
-    const requestDirs = new Map<string, string>();
-
-    cdpSession.on("Network.requestWillBeSent", async (params: any) => {
-      if (!networkEnabled || !networkDir) return;
-
-      const request: PendingRequest = {
-        id: params.requestId,
-        timestamp: new Date().toISOString(),
-        method: params.request.method,
-        url: params.request.url,
-        headers: params.request.headers || {},
-        body: params.request.postData || null,
-        resourceType: params.type || "Other",
-      };
-
-      pendingRequests.set(params.requestId, request);
-      requestStartTimes.set(params.requestId, Date.now());
-
-      // Write request immediately
-      const requestDir = await writeRequestToFs(request);
-      if (requestDir) {
-        requestDirs.set(params.requestId, requestDir);
-      }
-    });
-
-    cdpSession.on("Network.responseReceived", async (params: any) => {
-      if (!networkEnabled) return;
-
-      const requestDir = requestDirs.get(params.requestId);
-      if (!requestDir) return;
-
-      // Store response info for when we get the body
-      const startTime = requestStartTimes.get(params.requestId) || Date.now();
-      const duration = Date.now() - startTime;
-
-      // Response info without body (body comes later)
-      const responseInfo = {
-        id: params.requestId,
-        status: params.response.status,
-        statusText: params.response.statusText || "",
-        headers: params.response.headers || {},
-        mimeType: params.response.mimeType || "",
-        body: null as string | null,
-        duration,
-      };
-
-      // Store for body retrieval
-      (params as any)._responseInfo = responseInfo;
-      (params as any)._requestDir = requestDir;
-    });
-
-    cdpSession.on("Network.loadingFinished", async (params: any) => {
-      if (!networkEnabled) return;
-
-      const requestDir = requestDirs.get(params.requestId);
-      const pending = pendingRequests.get(params.requestId);
-      if (!requestDir || !pending) return;
-
-      const startTime = requestStartTimes.get(params.requestId) || Date.now();
-      const duration = Date.now() - startTime;
-
-      let body: string | null = null;
-      try {
-        const result = await cdpSession.send("Network.getResponseBody", {
-          requestId: params.requestId,
-        });
-        body = (result as any).body || null;
-        if ((result as any).base64Encoded && body) {
-          body = `[base64] ${body.slice(0, 100)}...`;
-        }
-      } catch {
-        // Body not available (e.g., for redirects)
-      }
-
-      const responseData = {
-        id: params.requestId,
-        status: 0,
-        statusText: "",
-        headers: {} as Record<string, string>,
-        mimeType: "",
-        body,
-        duration,
-      };
-
-      await writeResponseToFs(requestDir, responseData);
-
-      // Cleanup
-      pendingRequests.delete(params.requestId);
-      requestStartTimes.delete(params.requestId);
-      requestDirs.delete(params.requestId);
-    });
-
-    cdpSession.on("Network.loadingFailed", async (params: any) => {
-      if (!networkEnabled) return;
-
-      const requestDir = requestDirs.get(params.requestId);
-      if (!requestDir) return;
-
-      const startTime = requestStartTimes.get(params.requestId) || Date.now();
-      const duration = Date.now() - startTime;
-
-      const responseData = {
-        id: params.requestId,
-        status: 0,
-        statusText: "Failed",
-        headers: {},
-        mimeType: "",
-        body: null,
-        duration,
-        error: params.errorText || "Unknown error",
-      };
-
-      await writeResponseToFs(requestDir, responseData);
-
-      // Cleanup
-      pendingRequests.delete(params.requestId);
-      requestStartTimes.delete(params.requestId);
-      requestDirs.delete(params.requestId);
-    });
-      }; // Close setupNetworkCapture function
-
-      // Store the setup function for use when network is enabled
-      (context as any)._setupNetworkCapture = setupNetworkCapture;
 
       return { stagehand, context };
     } finally {
@@ -470,7 +397,8 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
         const request: DaemonRequest = JSON.parse(line);
 
         // Lazy browser initialization on first command (like agent-browser)
-        const { stagehand: sh, context: ctx } = await ensureBrowserInitialized();
+        const { stagehand: sh, context: ctx } =
+          await ensureBrowserInitialized();
 
         const result = await executeCommand(
           ctx,
@@ -500,7 +428,7 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
 
   // Graceful shutdown handler
   let shuttingDown = false;
-  const shutdown = async (_signal?: string) => {
+  const shutdown = async () => {
     if (shuttingDown) return;
     shuttingDown = true;
 
@@ -517,16 +445,16 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
   };
 
   // Handle all termination signals
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
-  process.on("SIGINT", () => shutdown("SIGINT"));
-  process.on("SIGHUP", () => shutdown("SIGHUP"));
+  process.on("SIGTERM", () => shutdown());
+  process.on("SIGINT", () => shutdown());
+  process.on("SIGHUP", () => shutdown());
   process.on("uncaughtException", (err) => {
     console.error("Uncaught exception:", err);
-    shutdown("uncaughtException");
+    shutdown();
   });
   process.on("unhandledRejection", (reason) => {
     console.error("Unhandled rejection:", reason);
-    shutdown("unhandledRejection");
+    shutdown();
   });
 
   // Keep daemon running (signal already sent above)
@@ -537,11 +465,9 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
 /** Cached ref maps from the last snapshot - allows @ref syntax in commands */
 let refMap: {
   xpathMap: Record<string, string>;
-  cssMap: Record<string, string>;
   urlMap: Record<string, string>;
 } = {
   xpathMap: {},
-  cssMap: {},
   urlMap: {},
 };
 
@@ -650,7 +576,6 @@ async function writeResponseToFs(
   }
 }
 
-
 /**
  * Parse a ref from a selector argument.
  * Supports: @0-3, @[0-3], [0-3], 0-3, ref=0-3
@@ -666,7 +591,7 @@ function parseRef(selector: string): string | null {
   if (
     selector.startsWith("[") &&
     selector.endsWith("]") &&
-    /^\[\d+-\d+\]$/.test(selector)
+    /^\[\d+-\d+]$/.test(selector)
   ) {
     return selector.slice(1, -1);
   }
@@ -707,9 +632,10 @@ async function executeCommand(
   stagehand?: Stagehand,
 ): Promise<unknown> {
   // Use awaitActivePage() like stagehand.act() does - handles popups and waits for page to be ready
-  const page = command !== "pages" && command !== "newpage"
-    ? await context.awaitActivePage()
-    : context.activePage();
+  const page =
+    command !== "pages" && command !== "newpage"
+      ? await context.awaitActivePage()
+      : context.activePage();
   if (!page && command !== "pages" && command !== "newpage") {
     throw new Error("No active page");
   }
@@ -720,7 +646,7 @@ async function executeCommand(
       const [url, waitUntil, timeout] = args as [string, string?, number?];
       await page!.goto(url, {
         waitUntil: waitUntil as "load" | "domcontentloaded" | "networkidle",
-        timeout: timeout ?? 30000,
+        timeoutMs: timeout ?? 30000,
       });
       return { url: page!.url() };
     }
@@ -769,7 +695,7 @@ async function executeCommand(
         clickCount: opts?.clickCount ?? 1,
       });
       if (opts?.returnXPath) {
-        return { clicked: true, xpath: result?.xpath };
+        return { clicked: true, xpath: result };
       }
       return { clicked: true };
     }
@@ -777,7 +703,7 @@ async function executeCommand(
       const [x, y, opts] = args as [number, number, { returnXPath?: boolean }];
       const result = await page!.hover(x, y);
       if (opts?.returnXPath) {
-        return { hovered: true, xpath: result?.xpath };
+        return { hovered: true, xpath: result };
       }
       return { hovered: true };
     }
@@ -791,7 +717,7 @@ async function executeCommand(
       ];
       const result = await page!.scroll(x, y, deltaX, deltaY);
       if (opts?.returnXPath) {
-        return { scrolled: true, xpath: result?.xpath };
+        return { scrolled: true, xpath: result };
       }
       return { scrolled: true };
     }
@@ -838,7 +764,10 @@ async function executeCommand(
         string,
         { delay?: number; mistakes?: boolean },
       ];
-      await page!.type(text, { delay: opts?.delay, humanize: opts?.mistakes });
+      await page!.type(text, {
+        delay: opts?.delay,
+        withMistakes: opts?.mistakes,
+      });
       return { typed: true };
     }
     case "press": {
@@ -980,7 +909,6 @@ async function executeCommand(
 
       refMap = {
         xpathMap: snapshot.xpathMap ?? {},
-        cssMap: snapshot.cssMap ?? {},
         urlMap: snapshot.urlMap ?? {},
       };
 
@@ -991,7 +919,6 @@ async function executeCommand(
         tree: snapshot.formattedTree,
         xpathMap: snapshot.xpathMap,
         urlMap: snapshot.urlMap,
-        cssMap: snapshot.cssMap,
       };
     }
 
@@ -1112,7 +1039,6 @@ async function executeCommand(
       return {
         count: Object.keys(refMap.xpathMap).length,
         xpathMap: refMap.xpathMap,
-        cssMap: refMap.cssMap,
         urlMap: refMap.urlMap,
       };
     }
@@ -1135,10 +1061,113 @@ async function executeCommand(
         maxResourceBufferSize: 5000000,
       });
 
-      const setupFn = (context as any)._setupNetworkCapture;
-      if (setupFn) {
-        await setupFn(page!);
-      }
+      // Set up CDP event listeners for network capture
+      const requestStartTimes = new Map<string, number>();
+      const requestDirs = new Map<string, string>();
+
+      cdpSession.on(
+        "Network.requestWillBeSent",
+        async (params: Protocol.Network.RequestWillBeSentEvent) => {
+          if (!networkEnabled || !networkDir) return;
+
+          const request: PendingRequest = {
+            id: params.requestId,
+            timestamp: new Date().toISOString(),
+            method: params.request.method,
+            url: params.request.url,
+            headers: params.request.headers || {},
+            body: params.request.postData || null,
+            resourceType: params.type || "Other",
+          };
+
+          pendingRequests.set(params.requestId, request);
+          requestStartTimes.set(params.requestId, Date.now());
+
+          const requestDir = await writeRequestToFs(request);
+          if (requestDir) {
+            requestDirs.set(params.requestId, requestDir);
+          }
+        },
+      );
+
+      cdpSession.on(
+        "Network.loadingFinished",
+        async (params: Protocol.Network.LoadingFinishedEvent) => {
+          if (!networkEnabled) return;
+
+          const requestDir = requestDirs.get(params.requestId);
+          const pending = pendingRequests.get(params.requestId);
+          if (!requestDir || !pending) return;
+
+          const startTime =
+            requestStartTimes.get(params.requestId) || Date.now();
+          const duration = Date.now() - startTime;
+
+          let body: string | null = null;
+          try {
+            const result =
+              await cdpSession.send<Protocol.Network.GetResponseBodyResponse>(
+                "Network.getResponseBody",
+                {
+                  requestId: params.requestId,
+                },
+              );
+            body = result.body || null;
+            if (result.base64Encoded && body) {
+              body = `[base64] ${body.slice(0, 100)}...`;
+            }
+          } catch {
+            // Body not available (e.g., for redirects)
+          }
+
+          const responseData = {
+            id: params.requestId,
+            status: 0,
+            statusText: "",
+            headers: {} as Record<string, string>,
+            mimeType: "",
+            body,
+            duration,
+          };
+
+          await writeResponseToFs(requestDir, responseData);
+
+          pendingRequests.delete(params.requestId);
+          requestStartTimes.delete(params.requestId);
+          requestDirs.delete(params.requestId);
+        },
+      );
+
+      cdpSession.on(
+        "Network.loadingFailed",
+        async (params: Protocol.Network.LoadingFailedEvent) => {
+          if (!networkEnabled) return;
+
+          const requestDir = requestDirs.get(params.requestId);
+          if (!requestDir) return;
+
+          const startTime =
+            requestStartTimes.get(params.requestId) || Date.now();
+          const duration = Date.now() - startTime;
+
+          const responseData = {
+            id: params.requestId,
+            status: 0,
+            statusText: "Failed",
+            headers: {},
+            mimeType: "",
+            body: null,
+            duration,
+            error: params.errorText || "Unknown error",
+          };
+
+          await writeResponseToFs(requestDir, responseData);
+
+          pendingRequests.delete(params.requestId);
+          requestStartTimes.delete(params.requestId);
+          requestDirs.delete(params.requestId);
+        },
+      );
 
       networkEnabled = true;
       return { enabled: true, path: networkDir };
@@ -1150,8 +1179,7 @@ async function executeCommand(
       }
 
       try {
-        const cdpSession = page!.mainFrame().session;
-        await cdpSession.send("Network.disable");
+        await page!.mainFrame().session.send("Network.disable");
       } catch {}
 
       networkEnabled = false;
@@ -1284,7 +1312,7 @@ async function sendCommand(
 
       // Attempt 0: Brief wait and retry (socket might be temporarily unavailable)
       if (attempt === 0) {
-        await new Promise(r => setTimeout(r, 200));
+        await new Promise((r) => setTimeout(r, 200));
         continue;
       }
 
@@ -1301,7 +1329,9 @@ async function sendCommand(
     }
   }
 
-  throw new Error(`Max retries exceeded for command ${command} on session ${session}`);
+  throw new Error(
+    `Max retries exceeded for command ${command} on session ${session}`,
+  );
 }
 
 async function stopDaemonAndCleanup(session: string): Promise<void> {
@@ -1492,7 +1522,9 @@ program
     const opts = program.opts<GlobalOpts>();
     const session = getSession(opts);
     // Clear any explicit env override so next start uses env var detection
-    try { await fs.unlink(getModeOverridePath(session)); } catch {}
+    try {
+      await fs.unlink(getModeOverridePath(session));
+    } catch {}
     try {
       await sendCommand(session, "stop", []);
       console.log(JSON.stringify({ status: "stopped", session }));
@@ -1538,11 +1570,13 @@ program
       if (await isDaemonRunning(session)) {
         mode = toModeTarget((await readCurrentMode(session)) ?? desiredMode);
       }
-      console.log(JSON.stringify({
-        mode: mode ?? "not running",
-        desired: toModeTarget(desiredMode),
-        session,
-      }));
+      console.log(
+        JSON.stringify({
+          mode: mode ?? "not running",
+          desired: toModeTarget(desiredMode),
+          session,
+        }),
+      );
       return;
     }
 
@@ -1552,7 +1586,7 @@ program
     };
     const mapped = modeMap[target];
     if (!mapped) {
-      console.error('Usage: browse env [local|remote]');
+      console.error("Usage: browse env [local|remote]");
       process.exit(1);
     }
 
@@ -1568,11 +1602,13 @@ program
     if (await isDaemonRunning(session)) {
       const currentMode = (await readCurrentMode(session)) ?? "local";
       if (currentMode === mapped) {
-        console.log(JSON.stringify({
-          mode: toModeTarget(mapped),
-          session,
-          restarted: false,
-        }));
+        console.log(
+          JSON.stringify({
+            mode: toModeTarget(mapped),
+            session,
+            restarted: false,
+          }),
+        );
         return;
       }
       await stopDaemonAndCleanup(session);
@@ -1580,11 +1616,13 @@ program
 
     await ensureDaemon(session, isHeadless(opts));
 
-    console.log(JSON.stringify({
-      mode: toModeTarget(mapped),
-      session,
-      restarted: true,
-    }));
+    console.log(
+      JSON.stringify({
+        mode: toModeTarget(mapped),
+        session,
+        restarted: true,
+      }),
+    );
   });
 
 program
@@ -1621,9 +1659,61 @@ program
     "load",
   )
   .option("-t, --timeout <ms>", "Navigation timeout in milliseconds", "30000")
+  .option(
+    "--context-id <id>",
+    "Browserbase context ID to load browser state (remote mode only)",
+  )
+  .option(
+    "--persist",
+    "Persist context changes back after session ends (requires --context-id)",
+    false,
+  )
   .action(async (url: string, cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     try {
+      // Validate context flags
+      if (cmdOpts.persist && !cmdOpts.contextId) {
+        console.error("Error: --persist requires --context-id");
+        process.exit(1);
+      }
+
+      const session = getSession(opts);
+
+      if (cmdOpts.contextId) {
+        // Contexts only work with Browserbase remote sessions
+        const desiredMode = await getDesiredMode(session);
+        if (desiredMode === "local") {
+          console.error(
+            "Error: --context-id is only supported in remote mode. Run `browse env remote` first.",
+          );
+          process.exit(1);
+        }
+
+        const newConfig = JSON.stringify({
+          id: cmdOpts.contextId,
+          persist: cmdOpts.persist ?? false,
+        });
+
+        // If daemon is already running with a different context, restart it
+        // (context is baked into the Browserbase session at creation time)
+        if (await isDaemonRunning(session)) {
+          let currentConfig: string | null = null;
+          try {
+            currentConfig = await fs.readFile(getContextPath(session), "utf-8");
+          } catch {}
+          if (currentConfig !== newConfig) {
+            await stopDaemonAndCleanup(session);
+          }
+        }
+
+        await fs.writeFile(getContextPath(session), newConfig);
+      } else {
+        // No --context-id: clear any stale context file so the daemon starts clean
+        try {
+          await fs.unlink(getContextPath(session));
+        } catch {}
+      }
+
       const result = await runCommand("open", [
         url,
         cmdOpts.wait,
@@ -1685,13 +1775,20 @@ program
   .description("Click element by ref (e.g., @0-5, 0-5, or CSS/XPath selector)")
   .option("-b, --button <btn>", "Mouse button: left, right, middle", "left")
   .option("-c, --count <n>", "Click count", "1")
-  .option("-f, --force", "Force click even if element has no layout (uses synthetic event)")
+  .option(
+    "-f, --force",
+    "Force click even if element has no layout (uses synthetic event)",
+  )
   .action(async (ref: string, cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     try {
       const result = await runCommand("click", [
         ref,
-        { button: cmdOpts.button, clickCount: parseInt(cmdOpts.count), force: cmdOpts.force },
+        {
+          button: cmdOpts.button,
+          clickCount: parseInt(cmdOpts.count),
+          force: cmdOpts.force,
+        },
       ]);
       output(result, opts.json ?? false);
     } catch (e) {
@@ -1893,7 +1990,9 @@ program
 
 program
   .command("get <what> [selector]")
-  .description("Get page info: url, title, text, html, value, box, visible, checked")
+  .description(
+    "Get page info: url, title, text, html, value, box, visible, checked",
+  )
   .action(async (what: string, selector?: string) => {
     const opts = program.opts<GlobalOpts>();
     try {
@@ -1950,7 +2049,6 @@ program
         tree: string;
         xpathMap?: Record<string, string>;
         urlMap?: Record<string, string>;
-        cssMap?: Record<string, string>;
       };
       if (cmdOpts.compact && !opts.json) {
         console.log(result.tree);

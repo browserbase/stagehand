@@ -4,7 +4,7 @@ import { promises as fs } from "fs";
 import * as path from "path";
 import * as os from "os";
 
-const CLI_PATH = path.join(__dirname, "../src/index.ts");
+const CLI_PATH = path.join(__dirname, "../dist/index.js");
 const TEST_SESSION = `env-test-${Date.now()}`;
 
 async function browse(
@@ -15,7 +15,7 @@ async function browse(
   const env = { ...process.env, ...options.env };
 
   return new Promise((resolve) => {
-    const fullArgs = `tsx ${CLI_PATH} --session ${TEST_SESSION} ${args}`;
+    const fullArgs = `node ${CLI_PATH} --headless --session ${TEST_SESSION} ${args}`;
     exec(fullArgs, { timeout, env }, (error, stdout, stderr) => {
       resolve({
         stdout: stdout.trim(),
@@ -26,9 +26,9 @@ async function browse(
   });
 }
 
-function parseJson(output: string): any {
+function parseJson<T = Record<string, unknown>>(output: string): T {
   try {
-    return JSON.parse(output);
+    return JSON.parse(output) as T;
   } catch {
     throw new Error(`Failed to parse JSON: ${output}`);
   }
@@ -91,8 +91,6 @@ describe("Browse CLI env command", () => {
       },
     });
     expect(result.exitCode).not.toBe(0);
-    expect(result.stderr).toContain(
-      "Remote mode requires BROWSERBASE_API_KEY",
-    );
+    expect(result.stderr).toContain("Remote mode requires BROWSERBASE_API_KEY");
   });
 });
