@@ -124,19 +124,19 @@ function wrapToolWithTimeout<T extends Record<string, any>>(
       try {
         return await withTimeout(originalExecute(...args), timeoutMs, toolName);
       } catch (error) {
-        const isTimeout = error instanceof TimeoutError;
-        const message = isTimeout
-          ? `TimeoutError: ${error.message}${timeoutHint ? ` ${timeoutHint}` : ""}`
-          : ((error as Error)?.message ?? String(error));
-        v3.logger({
-          category: "agent",
-          message,
-          level: 0,
-        });
-        return {
-          success: false,
-          error: message,
-        };
+        if (error instanceof TimeoutError) {
+          const message = `TimeoutError: ${error.message}${timeoutHint ? ` ${timeoutHint}` : ""}`;
+          v3.logger({
+            category: "agent",
+            message,
+            level: 0,
+          });
+          return {
+            success: false,
+            error: message,
+          };
+        }
+        throw error;
       }
     },
   } as T;
