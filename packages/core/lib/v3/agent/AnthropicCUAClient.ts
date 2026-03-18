@@ -136,6 +136,8 @@ export class AnthropicCUAClient extends AgentClient {
     try {
       // Execute steps until completion or max steps reached
       while (!completed && currentStep < maxSteps) {
+        await this.preStepHook?.();
+
         logger({
           category: "agent",
           message: `Executing step ${currentStep + 1}/${maxSteps}`,
