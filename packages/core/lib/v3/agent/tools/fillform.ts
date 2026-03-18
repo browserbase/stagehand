@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
 import type { AgentModelConfig, Variables } from "../../types/public/agent.js";
+import { TimeoutError } from "../../types/public/sdkErrors.js";
 
 export const fillFormTool = (
   v3: V3,
@@ -77,6 +78,9 @@ export const fillFormTool = (
           playwrightArguments: replayableActions,
         };
       } catch (error) {
+        if (error instanceof TimeoutError) {
+          throw error;
+        }
         return {
           success: false,
           error: error?.message ?? String(error),

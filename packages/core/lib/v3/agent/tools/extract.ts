@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z, ZodTypeAny } from "zod";
 import type { V3 } from "../../v3.js";
 import type { AgentModelConfig } from "../../types/public/agent.js";
+import { TimeoutError } from "../../types/public/sdkErrors.js";
 
 interface JsonSchema {
   type?: string;
@@ -99,6 +100,9 @@ export const extractTool = (
         });
         return { success: true, result };
       } catch (error) {
+        if (error instanceof TimeoutError) {
+          throw error;
+        }
         return { success: false, error: error?.message ?? String(error) };
       }
     },

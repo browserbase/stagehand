@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
+import { TimeoutError } from "../../types/public/sdkErrors.js";
 
 export const ariaTreeTool = (v3: V3, toolTimeout?: number) =>
   tool({
@@ -35,6 +36,9 @@ export const ariaTreeTool = (v3: V3, toolTimeout?: number) =>
 
         return { success: true, content, pageUrl };
       } catch (error) {
+        if (error instanceof TimeoutError) {
+          throw error;
+        }
         return {
           content: "",
           error: error?.message ?? String(error),
