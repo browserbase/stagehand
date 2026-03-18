@@ -205,7 +205,7 @@ streaming:
       handle: yield
     - data_starts_with: error
       handle: error
-    - event_type: null
+    - kind: fallthrough
       handle: yield
 
 settings:
