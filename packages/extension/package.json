@@ -1,0 +1,28 @@
+{
+  "name": "@browserbasehq/stagehand-extension",
+  "version": "0.1.0",
+  "description": "Stagehand Chrome Extension - control browser tabs via AI using CDP",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsx scripts/generate-icons.ts && vite build --config vite.config.mts",
+    "watch": "vite build --watch --config vite.config.mts",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm run build && tsx --test test/extension-cdp-proxy.test.ts test/stagehand-integration.test.ts",
+    "test:extension": "pnpm run build && tsx --test test/extension-cdp-proxy.test.ts",
+    "test:stagehand": "pnpm run build && tsx --test test/stagehand-integration.test.ts"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.315",
+    "@types/ws": "^8.5.10",
+    "chrome-launcher": "^1.1.2",
+    "tsx": "^4.7.0",
+    "typescript": "^5.8.2",
+    "vite": "^5.4.21",
+    "ws": "^8.18.0"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "workspace:*"
+  }
+}

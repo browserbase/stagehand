@@ -21,7 +21,7 @@
     "gen:openapi": "tsx scripts/gen-openapi.ts"
   },
   "dependencies": {
-    "@browserbasehq/sdk": "^2.7.0",
+    "@browserbasehq/sdk": "^2.4.0",
     "@browserbasehq/stagehand": "workspace:*",
     "@fastify/cors": "^11.0.1",
     "@fastify/swagger": "^9.6.1",
@@ -36,10 +36,12 @@
     "pino-pretty": "^11.3.0",
     "playwright": "1.52.0",
     "uuid": "^11.0.5",
+    "ws": "^8.18.0",
     "zod": "^4.2.1"
   },
   "devDependencies": {
     "@types/node": "22.13.1",
+    "@types/ws": "^8.5.13",
     "eslint": "10.0.2",
     "eslint-plugin-security": "^3.0.1",
     "openai": "4.87.1",
