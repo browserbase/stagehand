@@ -156,8 +156,8 @@ export const PageClipSchema = z
   .object({
     x: z.number(),
     y: z.number(),
-    width: z.number().positive(),
-    height: z.number().positive(),
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
   })
   .strict()
   .meta({ id: "PageClip" });

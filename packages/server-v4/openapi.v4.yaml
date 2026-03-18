@@ -2532,11 +2532,13 @@ components:
         y:
           type: number
         width:
-          type: number
+          type: integer
           exclusiveMinimum: 0
+          maximum: 9007199254740991
         height:
-          type: number
+          type: integer
           exclusiveMinimum: 0
+          maximum: 9007199254740991
       required:
         - x
         - y

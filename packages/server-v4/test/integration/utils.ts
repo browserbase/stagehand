@@ -252,20 +252,6 @@ export async function endSession(
   });
 }
 
-export async function navigateSession(
-  sessionId: string,
-  targetUrl: string,
-  headers: Record<string, string>,
-): Promise<Response> {
-  const url = getBaseUrl();
-
-  return fetch(`${url}/v4/sessions/${sessionId}/navigate`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ url: targetUrl, frameId: "" }),
-  });
-}
-
 /**
  * Gets the main frame ID from a CDP session
  */

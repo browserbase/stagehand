@@ -81,6 +81,19 @@ export function buildStubNavigationResult(url = "https://stub.invalid") {
   };
 }
 
+function extractPageParams<TAction extends PageAction>(
+  input: PageRequestBody<TAction> | PageRequestQuery<TAction>,
+): TAction["params"] {
+  if ("params" in input) {
+    return input.params;
+  }
+
+  const params = { ...input };
+  delete (params as { id?: string }).id;
+  delete (params as { sessionId?: string }).sessionId;
+  return params as TAction["params"];
+}
+
 export function createPageActionHandler<TAction extends PageAction>(options: {
   actionSchema: z.ZodType<TAction>;
   execute: (
@@ -95,9 +108,7 @@ export function createPageActionHandler<TAction extends PageAction>(options: {
       | PageRequestBody<TAction>
       | PageRequestQuery<TAction>;
     const sessionId = input.sessionId ?? "session_stub";
-    const params = (
-      "params" in input ? input.params : input
-    ) as TAction["params"];
+    const params = extractPageParams(input);
     const result = await options.execute({
       params,
       request,
