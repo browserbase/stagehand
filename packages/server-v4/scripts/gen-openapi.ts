@@ -136,6 +136,19 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
       servers: [
         {
           url: "https://api.stagehand.browserbase.com",
+          description: "Default us-west-2 Stagehand API endpoint",
+        },
+        {
+          url: "https://api.use1.stagehand.browserbase.com",
+          description: "us-east-1 Stagehand API endpoint",
+        },
+        {
+          url: "https://api.euc1.stagehand.browserbase.com",
+          description: "eu-central-1 Stagehand API endpoint",
+        },
+        {
+          url: "https://api.apse1.stagehand.browserbase.com",
+          description: "ap-southeast-1 Stagehand API endpoint",
         },
       ],
       components: {

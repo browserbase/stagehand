@@ -289,7 +289,11 @@ export const BrowserbaseSessionCreateParamsSchema = z
     extensionId: z.string().optional(),
     keepAlive: z.boolean().optional(),
     proxies: z.union([z.boolean(), z.array(ProxyConfigSchema)]).optional(),
-    region: BrowserbaseRegionSchema.optional(),
+    region: BrowserbaseRegionSchema.optional().meta({
+      description:
+        "Deprecated. On hosted Stagehand API, the Browserbase session region is determined by the Stagehand API base URL you call. Prefer selecting the regional endpoint via the SDK client's baseUrl.",
+      example: "eu-central-1",
+    }),
     timeout: z.number().optional(),
     userMetadata: z.record(z.string(), z.unknown()).optional(),
   })

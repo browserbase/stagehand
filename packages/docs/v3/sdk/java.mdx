@@ -251,6 +251,25 @@ See this table for the available options:
 
 System properties take precedence over environment variables.
 
+Use `baseUrl` to select the Stagehand API region:
+
+```java
+import com.browserbase.api.client.StagehandClient;
+import com.browserbase.api.client.okhttp.StagehandOkHttpClient;
+
+StagehandClient client = StagehandOkHttpClient.builder()
+    .browserbaseApiKey("My Browserbase API Key")
+    .browserbaseProjectId("My Browserbase Project ID")
+    .modelApiKey("My Model API Key")
+    .baseUrl("https://api.euc1.stagehand.browserbase.com")
+    .build();
+```
+
+For hosted Stagehand API, prefer selecting the regional endpoint with `baseUrl`.
+The request-level `region` field is retained for compatibility, but the hosted
+API determines the actual browser region from the Stagehand API endpoint you
+call.
+
 > [!TIP]
 > Don't create more than one client in the same application. Each client has a connection pool and
 > thread pools, which are more efficient to share between requests.

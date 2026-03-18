@@ -146,6 +146,24 @@ bundle install
 bundle exec ruby examples/basic.rb
 ```
 
+### Client configuration
+
+Use `base_url` to select the Stagehand API region:
+
+```ruby
+client = Stagehand::Client.new(
+  browserbase_api_key: "My Browserbase API Key",
+  browserbase_project_id: "My Browserbase Project ID",
+  model_api_key: "My Model API Key",
+  base_url: "https://api.euc1.stagehand.browserbase.com"
+)
+```
+
+For hosted Stagehand API, prefer selecting the regional endpoint with `base_url`.
+The request-level `region` field is retained for compatibility, but the hosted
+API determines the actual browser region from the Stagehand API endpoint you
+call.
+
 ### Streaming
 
 We provide support for streaming responses using Server-Sent Events (SSE).
