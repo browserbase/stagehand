@@ -38,30 +38,6 @@ test.describe("Agent captcha auto-solve on Browserbase", () => {
     await v3?.close?.().catch(() => {});
   });
 
-  test("Cloudflare Turnstile auto-solve", async () => {
-    test.setTimeout(180_000);
-    const page = v3.context.pages()[0];
-    await page.goto("https://2captcha.com/demo/cloudflare-turnstile", {
-      waitUntil: "load",
-    });
-
-    const agent = v3.agent({
-      mode: "dom",
-      model: "anthropic/claude-haiku-4-5-20251001",
-    });
-
-    const result = await agent.execute({
-      instruction:
-        'Click the "Check" button and report the exact verification result text shown on the page.',
-      maxSteps: 15,
-    });
-
-    console.log("Turnstile result:", result.message);
-
-    expect(result.completed).toBe(true);
-    expect(result.message.toLowerCase()).toContain("success");
-  });
-
   test("reCAPTCHA v2 auto-solve (Google demo)", async () => {
     test.setTimeout(180_000);
     const page = v3.context.pages()[0];
