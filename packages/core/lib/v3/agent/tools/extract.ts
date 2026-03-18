@@ -101,16 +101,7 @@ export const extractTool = (
         return { success: true, result };
       } catch (error) {
         if (error instanceof TimeoutError) {
-          const timeoutMessage = `TimeoutError: extract() timed out — try using a smaller or simpler schema`;
-          v3.logger({
-            category: "agent",
-            message: timeoutMessage,
-            level: 0,
-          });
-          return {
-            success: false,
-            error: timeoutMessage,
-          };
+          throw error;
         }
         return { success: false, error: error?.message ?? String(error) };
       }

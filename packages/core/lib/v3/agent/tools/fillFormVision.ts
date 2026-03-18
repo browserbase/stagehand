@@ -146,7 +146,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
       } catch (error) {
         return {
           success: false,
-          error: `Error filling form: ${(error as Error).message}`,
+          error: `Error filling form: ${error.message}`,
         };
       }
     },

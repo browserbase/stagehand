@@ -79,16 +79,7 @@ export const fillFormTool = (
         };
       } catch (error) {
         if (error instanceof TimeoutError) {
-          const timeoutMessage = `TimeoutError while waiting for fillForm() to complete (it may continue executing in the background)`;
-          v3.logger({
-            category: "agent",
-            message: timeoutMessage,
-            level: 0,
-          });
-          return {
-            success: false,
-            error: `${timeoutMessage} — try filling fewer fields at once or use a different tool`,
-          };
+          throw error;
         }
         return {
           success: false,

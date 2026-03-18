@@ -81,7 +81,7 @@ export const clickAndHoldTool = (v3: V3, provider?: string) =>
       } catch (error) {
         return {
           success: false,
-          error: `Error clicking and holding: ${(error as Error).message}`,
+          error: `Error clicking and holding: ${error.message}`,
         };
       }
     },

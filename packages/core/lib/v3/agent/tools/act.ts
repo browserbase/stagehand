@@ -64,16 +64,7 @@ export const actTool = (
         return response;
       } catch (error) {
         if (error instanceof TimeoutError) {
-          const timeoutMessage = `TimeoutError while waiting for act() to complete (it may continue executing in the background)`;
-          v3.logger({
-            category: "agent",
-            message: timeoutMessage,
-            level: 0,
-          });
-          return {
-            success: false,
-            error: `${timeoutMessage} — try using a different description for the action`,
-          };
+          throw error;
         }
         return {
           success: false,

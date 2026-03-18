@@ -37,18 +37,7 @@ export const ariaTreeTool = (v3: V3, toolTimeout?: number) =>
         return { success: true, content, pageUrl };
       } catch (error) {
         if (error instanceof TimeoutError) {
-          const timeoutMessage = `TimeoutError: ariaTree() timed out — the page may be too large`;
-          v3.logger({
-            category: "agent",
-            message: timeoutMessage,
-            level: 0,
-          });
-          return {
-            content: "",
-            error: timeoutMessage,
-            success: false,
-            pageUrl: "",
-          };
+          throw error;
         }
         return {
           content: "",

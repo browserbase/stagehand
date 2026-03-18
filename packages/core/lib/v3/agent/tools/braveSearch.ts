@@ -72,7 +72,7 @@ async function performBraveSearch(query: string): Promise<SearchResponse> {
   } catch (error) {
     console.error("Search error", error);
     return {
-      error: `Error performing search: ${(error as Error).message}`,
+      error: `Error performing search: ${error.message}`,
       data: { results: [] },
     };
   }
