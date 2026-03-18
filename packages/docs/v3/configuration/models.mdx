@@ -226,7 +226,7 @@ import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
-  model: "minimax/MiniMax-M2.5"
+  model: "minimax/MiniMax-M2.7"
   // API key auto-loads from MINIMAX_API_KEY - set in your .env
 });
 
@@ -235,7 +235,7 @@ await stagehand.init();
 
 </CodeGroup>
 
-Available models: `MiniMax-M2.5` (204K context), `MiniMax-M2.5-highspeed` (204K context, optimized for speed).
+Available models: `MiniMax-M2.7` (recommended), `MiniMax-M2.7-highspeed` (optimized for speed), `MiniMax-M2.5` (204K context), `MiniMax-M2.5-highspeed` (204K context, optimized for speed).
 
 [View all supported MiniMax models →](https://platform.minimaxi.com/document/Models)
 </Tab>
@@ -854,6 +854,8 @@ The following models work without the `provider/` prefix in the model parameter 
 </Accordion>
 <Accordion title="MiniMax">
 
+- `minimax-MiniMax-M2.7`
+- `minimax-MiniMax-M2.7-highspeed`
 - `minimax-MiniMax-M2.5`
 - `minimax-MiniMax-M2.5-highspeed`
 

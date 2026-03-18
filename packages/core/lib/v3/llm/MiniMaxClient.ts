@@ -41,9 +41,18 @@ export class MiniMaxClient extends LLMClient {
   }
 
   /**
+   * Strip thinking tags from M2.7 model responses.
+   * M2.7 models include `<think>...</think>` blocks in their output.
+   */
+  private stripThinking(content: string | null): string | null {
+    if (!content) return content;
+    return content.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim() || null;
+  }
+
+  /**
    * Extract the actual model name to send to the MiniMax API.
-   * Handles both modern format (minimax/MiniMax-M2.5) and
-   * deprecated format (minimax-MiniMax-M2.5).
+   * Handles both modern format (minimax/MiniMax-M2.7) and
+   * deprecated format (minimax-MiniMax-M2.7).
    */
   private getApiModelName(): string {
     if (this.modelName.includes("/")) {
@@ -171,6 +180,10 @@ export class MiniMaxClient extends LLMClient {
         tool_choice: options.tool_choice || "auto",
       });
 
+      // Strip thinking tags from M2.7 model responses
+      const rawContent = apiResponse.choices[0]?.message?.content || null;
+      const cleanedContent = this.stripThinking(rawContent);
+
       // Format the response to match the expected LLMResponse format
       const response: LLMResponse = {
         id: apiResponse.id,
@@ -182,7 +195,7 @@ export class MiniMaxClient extends LLMClient {
             index: 0,
             message: {
               role: "assistant",
-              content: apiResponse.choices[0]?.message?.content || null,
+              content: cleanedContent,
               tool_calls: apiResponse.choices[0]?.message?.tool_calls || [],
             },
             finish_reason: apiResponse.choices[0]?.finish_reason || "stop",
