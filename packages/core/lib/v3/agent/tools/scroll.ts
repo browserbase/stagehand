@@ -25,53 +25,44 @@ export const scrollTool = (v3: V3) =>
       direction,
       percentage = 80,
     }): Promise<ScrollToolResult> => {
-      try {
-        v3.logger({
-          category: "agent",
-          message: `Agent calling tool: scroll`,
-          level: 1,
-          auxiliary: {
-            arguments: {
-              value: JSON.stringify({ direction, percentage }),
-              type: "object",
-            },
+      v3.logger({
+        category: "agent",
+        message: `Agent calling tool: scroll`,
+        level: 1,
+        auxiliary: {
+          arguments: {
+            value: JSON.stringify({ direction, percentage }),
+            type: "object",
           },
-        });
+        },
+      });
 
-        const page = await v3.context.awaitActivePage();
+      const page = await v3.context.awaitActivePage();
 
-        const { w, h } = await page.mainFrame().evaluate<{
-          w: number;
-          h: number;
-        }>("({ w: window.innerWidth, h: window.innerHeight })");
+      const { w, h } = await page.mainFrame().evaluate<{
+        w: number;
+        h: number;
+      }>("({ w: window.innerWidth, h: window.innerHeight })");
 
-        const scrollDistance = Math.round((h * percentage) / 100);
-        const cx = Math.floor(w / 2);
-        const cy = Math.floor(h / 2);
-        const deltaY = direction === "up" ? -scrollDistance : scrollDistance;
+      const scrollDistance = Math.round((h * percentage) / 100);
+      const cx = Math.floor(w / 2);
+      const cy = Math.floor(h / 2);
+      const deltaY = direction === "up" ? -scrollDistance : scrollDistance;
 
-        await page.scroll(cx, cy, 0, deltaY);
+      await page.scroll(cx, cy, 0, deltaY);
 
-        v3.recordAgentReplayStep({
-          type: "scroll",
-          deltaX: 0,
-          deltaY,
-          anchor: { x: cx, y: cy },
-        });
+      v3.recordAgentReplayStep({
+        type: "scroll",
+        deltaX: 0,
+        deltaY,
+        anchor: { x: cx, y: cy },
+      });
 
-        return {
-          success: true,
-          message: `Scrolled ${percentage}% ${direction} (${scrollDistance}px)`,
-          scrolledPixels: scrollDistance,
-        };
-      } catch (error) {
-        return {
-          success: false,
-          error: `Error scrolling: ${error.message}`,
-          message: "",
-          scrolledPixels: 0,
-        };
-      }
+      return {
+        success: true,
+        message: `Scrolled ${percentage}% ${direction} (${scrollDistance}px)`,
+        scrolledPixels: scrollDistance,
+      };
     },
     toModelOutput: (result) => {
       if (result.success === false || result.error !== undefined) {
@@ -114,78 +105,69 @@ export const scrollVisionTool = (v3: V3, provider?: string) =>
       coordinates,
       percentage = 80,
     }): Promise<ScrollVisionToolResult> => {
-      try {
-        const page = await v3.context.awaitActivePage();
+      const page = await v3.context.awaitActivePage();
 
-        const { w, h } = await page.mainFrame().evaluate<{
-          w: number;
-          h: number;
-        }>("({ w: window.innerWidth, h: window.innerHeight })");
+      const { w, h } = await page.mainFrame().evaluate<{
+        w: number;
+        h: number;
+      }>("({ w: window.innerWidth, h: window.innerHeight })");
 
-        // Process coordinates if provided, otherwise use viewport center
-        let cx: number;
-        let cy: number;
-        if (coordinates) {
-          const processed = processCoordinates(
-            coordinates[0],
-            coordinates[1],
-            provider,
-            v3,
-          );
-          cx = processed.x;
-          cy = processed.y;
-        } else {
-          cx = Math.floor(w / 2);
-          cy = Math.floor(h / 2);
-        }
-
-        v3.logger({
-          category: "agent",
-          message: `Agent calling tool: scroll`,
-          level: 1,
-          auxiliary: {
-            arguments: {
-              value: JSON.stringify({
-                direction,
-                coordinates,
-                percentage,
-                processed: { cx, cy },
-              }),
-              type: "object",
-            },
-          },
-        });
-
-        const scrollDistance = Math.round((h * percentage) / 100);
-        const deltaY = direction === "up" ? -scrollDistance : scrollDistance;
-
-        await page.scroll(cx, cy, 0, deltaY);
-
-        const screenshotBase64 = await waitAndCaptureScreenshot(page, 100);
-
-        v3.recordAgentReplayStep({
-          type: "scroll",
-          deltaX: 0,
-          deltaY,
-          anchor: { x: cx, y: cy },
-        });
-
-        return {
-          success: true,
-          message: coordinates
-            ? `Scrolled ${percentage}% ${direction} at (${cx}, ${cy})`
-            : `Scrolled ${percentage}% ${direction}`,
-          scrolledPixels: scrollDistance,
-          screenshotBase64,
-        };
-      } catch (error) {
-        return {
-          success: false,
-          error: `Error scrolling: ${error.message}`,
-          message: "",
-          scrolledPixels: 0,
-        };
+      // Process coordinates if provided, otherwise use viewport center
+      let cx: number;
+      let cy: number;
+      if (coordinates) {
+        const processed = processCoordinates(
+          coordinates[0],
+          coordinates[1],
+          provider,
+          v3,
+        );
+        cx = processed.x;
+        cy = processed.y;
+      } else {
+        cx = Math.floor(w / 2);
+        cy = Math.floor(h / 2);
       }
+
+      v3.logger({
+        category: "agent",
+        message: `Agent calling tool: scroll`,
+        level: 1,
+        auxiliary: {
+          arguments: {
+            value: JSON.stringify({
+              direction,
+              coordinates,
+              percentage,
+              processed: { cx, cy },
+            }),
+            type: "object",
+          },
+        },
+      });
+
+      const scrollDistance = Math.round((h * percentage) / 100);
+      const deltaY = direction === "up" ? -scrollDistance : scrollDistance;
+
+      await page.scroll(cx, cy, 0, deltaY);
+
+      const screenshotBase64 = await waitAndCaptureScreenshot(page, 100);
+
+      v3.recordAgentReplayStep({
+        type: "scroll",
+        deltaX: 0,
+        deltaY,
+        anchor: { x: cx, y: cy },
+      });
+
+      return {
+        success: true,
+        message: coordinates
+          ? `Scrolled ${percentage}% ${direction} at (${cx}, ${cy})`
+          : `Scrolled ${percentage}% ${direction}`,
+        scrolledPixels: scrollDistance,
+        screenshotBase64,
+      };
     },
     toModelOutput: (result) => {
       if (result.success === false || result.error !== undefined) {

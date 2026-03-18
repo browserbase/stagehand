@@ -18,20 +18,20 @@ export const screenshotTool = (v3: V3) =>
         const buffer = await page.screenshot({ fullPage: false });
         const pageUrl = page.url();
         return {
-          success: true as const,
+          success: true,
           base64: buffer.toString("base64"),
           timestamp: Date.now(),
           pageUrl,
         };
       } catch (error) {
         return {
-          success: false as const,
-          error: `Error taking screenshot: ${error.message}`,
+          success: false,
+          error: `Error taking screenshot: ${(error as Error).message}`,
         };
       }
     },
     toModelOutput: (result) => {
-      if (result.success === false) {
+      if (result.success === false || result.error !== undefined) {
         return {
           type: "content",
           value: [{ type: "text", text: JSON.stringify(result) }],

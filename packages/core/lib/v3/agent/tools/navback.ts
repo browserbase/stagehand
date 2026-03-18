@@ -9,24 +9,17 @@ export const navBackTool = (v3: V3) =>
       reasoningText: z.string().describe("Why you're going back"),
     }),
     execute: async () => {
-      try {
-        v3.logger({
-          category: "agent",
-          message: `Agent calling tool: navback`,
-          level: 1,
-        });
-        const page = await v3.context.awaitActivePage();
-        await page.goBack({ waitUntil: "domcontentloaded" });
-        v3.recordAgentReplayStep({
-          type: "navback",
-          waitUntil: "domcontentloaded",
-        });
-        return { success: true };
-      } catch (error) {
-        return {
-          success: false,
-          error: `Error navigating back: ${error.message}`,
-        };
-      }
+      v3.logger({
+        category: "agent",
+        message: `Agent calling tool: navback`,
+        level: 1,
+      });
+      const page = await v3.context.awaitActivePage();
+      await page.goBack({ waitUntil: "domcontentloaded" });
+      v3.recordAgentReplayStep({
+        type: "navback",
+        waitUntil: "domcontentloaded",
+      });
+      return { success: true };
     },
   });

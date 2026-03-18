@@ -72,35 +72,27 @@ export const searchTool = (v3: V3, apiKey: string) =>
       query: z.string().describe("The search query to look for on the web"),
     }),
     execute: async ({ query }) => {
-      try {
-        v3.logger({
-          category: "agent",
-          message: `Agent calling tool: search`,
-          level: 1,
-          auxiliary: {
-            arguments: {
-              value: JSON.stringify({ query }),
-              type: "object",
-            },
+      v3.logger({
+        category: "agent",
+        message: `Agent calling tool: search`,
+        level: 1,
+        auxiliary: {
+          arguments: {
+            value: JSON.stringify({ query }),
+            type: "object",
           },
-        });
+        },
+      });
 
-        const result = await performBrowserbaseSearch(v3, query, apiKey);
+      const result = await performBrowserbaseSearch(v3, query, apiKey);
 
-        v3.recordAgentReplayStep({
-          type: "search",
-          instruction: query,
-          playwrightArguments: { query },
-          message: result.error ?? `Found ${result.results.length} results`,
-        });
+      v3.recordAgentReplayStep({
+        type: "search",
+        instruction: query,
+        playwrightArguments: { query },
+        message: result.error ?? `Found ${result.results.length} results`,
+      });
 
-        return { ...result, timestamp: Date.now() };
-      } catch (error) {
-        return {
-          results: [],
-          error: `Error performing search: ${error.message}`,
-          timestamp: Date.now(),
-        };
-      }
+      return { ...result, timestamp: Date.now() };
     },
   });

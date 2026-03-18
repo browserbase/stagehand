@@ -86,39 +86,31 @@ export const searchTool = (v3: V3) =>
       query: z.string().describe("The search query to look for on the web"),
     }),
     execute: async ({ query }) => {
-      try {
-        v3.logger({
-          category: "agent",
-          message: `Agent calling tool: search`,
-          level: 1,
-          auxiliary: {
-            arguments: {
-              value: JSON.stringify({ query }),
-              type: "object",
-            },
+      v3.logger({
+        category: "agent",
+        message: `Agent calling tool: search`,
+        level: 1,
+        auxiliary: {
+          arguments: {
+            value: JSON.stringify({ query }),
+            type: "object",
           },
-        });
+        },
+      });
 
-        const result = await performBraveSearch(query);
+      const result = await performBraveSearch(query);
 
-        v3.recordAgentReplayStep({
-          type: "search",
-          instruction: query,
-          playwrightArguments: { query },
-          message:
-            result.error ?? `Found ${result.data?.results.length ?? 0} results`,
-        });
+      v3.recordAgentReplayStep({
+        type: "search",
+        instruction: query,
+        playwrightArguments: { query },
+        message:
+          result.error ?? `Found ${result.data?.results.length ?? 0} results`,
+      });
 
-        return {
-          ...result,
-          timestamp: Date.now(),
-        };
-      } catch (error) {
-        return {
-          error: `Error performing search: ${error.message}`,
-          data: { results: [] },
-          timestamp: Date.now(),
-        };
-      }
+      return {
+        ...result,
+        timestamp: Date.now(),
+      };
     },
   });
