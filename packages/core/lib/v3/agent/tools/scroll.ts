@@ -90,7 +90,7 @@ export const scrollTool = (v3: V3, toolTimeout?: number) =>
         }
         return {
           success: false,
-          error: `Error scrolling: ${(error as Error).message}`,
+          error: `Error scrolling: ${error.message}`,
           message: "",
           scrolledPixels: 0,
         };
@@ -229,7 +229,7 @@ export const scrollVisionTool = (
         }
         return {
           success: false,
-          error: `Error scrolling: ${(error as Error).message}`,
+          error: `Error scrolling: ${error.message}`,
           message: "",
           scrolledPixels: 0,
         };

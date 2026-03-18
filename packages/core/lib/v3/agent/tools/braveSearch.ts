@@ -74,7 +74,7 @@ async function performBraveSearch(query: string): Promise<SearchResponse> {
   } catch (error) {
     console.error("Search error", error);
     return {
-      error: `Error performing search: ${(error as Error).message}`,
+      error: `Error performing search: ${error.message}`,
       data: { results: [] },
     };
   }
@@ -137,7 +137,7 @@ export const searchTool = (v3: V3, toolTimeout?: number) =>
           };
         }
         return {
-          error: `Error performing search: ${(error as Error).message}`,
+          error: `Error performing search: ${error.message}`,
           data: { results: [] },
           timestamp: Date.now(),
         };

@@ -45,7 +45,7 @@ export const navBackTool = (v3: V3, toolTimeout?: number) =>
         }
         return {
           success: false,
-          error: `Error navigating back: ${(error as Error).message}`,
+          error: `Error navigating back: ${error.message}`,
         };
       }
     },

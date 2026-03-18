@@ -46,7 +46,7 @@ export const screenshotTool = (v3: V3, toolTimeout?: number) =>
         }
         return {
           success: false as const,
-          error: `Error taking screenshot: ${(error as Error).message}`,
+          error: `Error taking screenshot: ${error.message}`,
         };
       }
     },

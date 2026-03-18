@@ -81,7 +81,7 @@ Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) a
             error: timeoutMessage,
           };
         }
-        return { success: false, error: (error as Error).message };
+        return { success: false, error: error.message };
       }
     },
   });

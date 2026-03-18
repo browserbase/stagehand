@@ -121,7 +121,7 @@ export const dragAndDropTool = (
         }
         return {
           success: false,
-          error: `Error dragging: ${(error as Error).message}`,
+          error: `Error dragging: ${error.message}`,
         };
       }
     },

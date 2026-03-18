@@ -56,12 +56,12 @@ async function performBrowserbaseSearch(
   } catch (error) {
     v3.logger({
       category: "agent",
-      message: `Search error: ${(error as Error).message}`,
+      message: `Search error: ${error.message}`,
       level: 0,
     });
     return {
       results: [],
-      error: `Error performing search: ${(error as Error).message}`,
+      error: `Error performing search: ${error.message}`,
     };
   }
 }
@@ -119,7 +119,7 @@ export const searchTool = (v3: V3, apiKey: string, toolTimeout?: number) =>
         }
         return {
           results: [],
-          error: `Error performing search: ${(error as Error).message}`,
+          error: `Error performing search: ${error.message}`,
           timestamp: Date.now(),
         };
       }
