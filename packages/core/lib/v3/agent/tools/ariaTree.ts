@@ -2,7 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
 
-export const ariaTreeTool = (v3: V3) =>
+export const ariaTreeTool = (v3: V3, toolTimeout?: number) =>
   tool({
     description:
       "gets the accessibility (ARIA) hybrid tree text for the current page. use this to understand structure and content.",
@@ -15,7 +15,10 @@ export const ariaTreeTool = (v3: V3) =>
           level: 1,
         });
         const page = await v3.context.awaitActivePage();
-        const { pageText } = (await v3.extract()) as {
+        const extractOptions = toolTimeout
+          ? { timeout: toolTimeout }
+          : undefined;
+        const { pageText } = (await v3.extract(extractOptions)) as {
           pageText: string;
         };
         const pageUrl = page.url();

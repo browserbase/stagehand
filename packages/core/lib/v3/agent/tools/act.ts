@@ -8,6 +8,7 @@ export const actTool = (
   v3: V3,
   executionModel?: string | AgentModelConfig,
   variables?: Variables,
+  toolTimeout?: number,
 ) => {
   const hasVariables = variables && Object.keys(variables).length > 0;
   const actionDescription = hasVariables
@@ -34,8 +35,8 @@ export const actTool = (
           },
         });
         const options = executionModel
-          ? { model: executionModel, variables }
-          : { variables };
+          ? { model: executionModel, variables, timeout: toolTimeout }
+          : { variables, timeout: toolTimeout };
 
         const result = await v3.act(action, options);
         const actions = (result.actions as Action[] | undefined) ?? [];

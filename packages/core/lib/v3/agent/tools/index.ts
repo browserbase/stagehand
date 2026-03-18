@@ -152,14 +152,14 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
 
   const allTools: ToolSet = {
     act: wrapToolWithTimeout(
-      actTool(v3, executionModel, variables),
+      actTool(v3, executionModel, variables, toolTimeout),
       "act()",
       v3,
       toolTimeout,
       "(it may continue executing in the background) — try using a different description for the action",
     ),
     ariaTree: wrapToolWithTimeout(
-      ariaTreeTool(v3),
+      ariaTreeTool(v3, toolTimeout),
       "ariaTree()",
       v3,
       toolTimeout,
@@ -184,14 +184,14 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
       toolTimeout,
     ),
     extract: wrapToolWithTimeout(
-      extractTool(v3, executionModel),
+      extractTool(v3, executionModel, toolTimeout),
       "extract()",
       v3,
       toolTimeout,
       "— try using a smaller or simpler schema",
     ),
     fillForm: wrapToolWithTimeout(
-      fillFormTool(v3, executionModel, variables),
+      fillFormTool(v3, executionModel, variables, toolTimeout),
       "fillForm()",
       v3,
       toolTimeout,
