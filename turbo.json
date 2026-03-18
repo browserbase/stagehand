@@ -388,6 +388,7 @@
       "outputs": [],
       "cache": false,
       "env": [
+        "BROWSERBASE_FLOW_LOGS",
         "VITEST_CONSOLE_REPORTER"
       ],
       "inputs": [
