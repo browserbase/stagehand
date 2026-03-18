@@ -20,6 +20,7 @@ import { ExtractHandler } from "./handlers/extractHandler.js";
 import { ObserveHandler } from "./handlers/observeHandler.js";
 import { V3AgentHandler } from "./handlers/v3AgentHandler.js";
 import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler.js";
+import { CAPTCHA_CUA_SYSTEM_PROMPT_NOTE } from "./agent/utils/captchaSolver.js";
 import { createBrowserbaseSession } from "./launch/browserbase.js";
 import { launchLocalChrome } from "./launch/local.js";
 import { LLMClient } from "./llm/LLMClient.js";
@@ -179,6 +180,18 @@ export class V3 {
    */
   public get isBrowserbase(): boolean {
     return this.state.kind === "BROWSERBASE";
+  }
+
+  /**
+   * Returns true if captcha auto-solving is enabled on Browserbase.
+   * Defaults to true when not explicitly set to false.
+   */
+  public get isCaptchaAutoSolveEnabled(): boolean {
+    return (
+      this.isBrowserbase &&
+      this.opts.browserbaseSessionCreateParams?.browserSettings
+        ?.solveCaptchas !== false
+    );
   }
 
   /**
@@ -1727,6 +1740,7 @@ export class V3 {
       options?.systemPrompt,
       tools,
       options?.mode,
+      this.isCaptchaAutoSolveEnabled,
     );
 
     const resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions =
@@ -1893,8 +1907,11 @@ export class V3 {
                 modelName,
                 clientOptions,
                 userProvidedInstructions:
-                  options.systemPrompt ??
-                  `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
+                  (options.systemPrompt ??
+                    `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`) +
+                  (this.isCaptchaAutoSolveEnabled
+                    ? CAPTCHA_CUA_SYSTEM_PROMPT_NOTE
+                    : ""),
               },
               tools,
             );
