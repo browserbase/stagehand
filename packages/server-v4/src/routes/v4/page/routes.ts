@@ -1,4 +1,6 @@
-import type { RouteOptions } from "fastify";
+import type { FastifyPluginCallback, RouteOptions } from "fastify";
+import { ResponseSerializationError } from "fastify-zod-openapi";
+import { StatusCodes } from "http-status-codes";
 
 import addInitScriptRoute from "./addInitScript.js";
 import asProtocolFrameTreeRoute from "./asProtocolFrameTree.js";
@@ -35,6 +37,7 @@ import waitForMainLoadStateRoute from "./waitForMainLoadState.js";
 import waitForSelectorRoute from "./waitForSelector.js";
 import waitForTimeoutRoute from "./waitForTimeout.js";
 import reloadRoute from "./reload.js";
+import { buildErrorResponse } from "../../../schemas/v4/page.js";
 
 export const pageRoutes: RouteOptions[] = [
   clickRoute,
@@ -73,3 +76,50 @@ export const pageRoutes: RouteOptions[] = [
   pageActionListRoute,
   pageActionDetailsRoute,
 ];
+
+export const pageRoutesPlugin: FastifyPluginCallback = (
+  instance,
+  _opts,
+  done,
+) => {
+  instance.addHook("onRoute", (routeOptions) => {
+    if (!routeOptions.schema || routeOptions.schema.hide) {
+      return;
+    }
+
+    const existingTags = Array.isArray(routeOptions.schema.tags)
+      ? routeOptions.schema.tags
+      : [];
+    routeOptions.schema.tags = [...new Set([...existingTags, "page"])];
+  });
+
+  instance.setErrorHandler((error, _request, reply) => {
+    const statusCode = (error as { validation?: unknown[] }).validation
+      ? StatusCodes.BAD_REQUEST
+      : error instanceof ResponseSerializationError
+        ? StatusCodes.INTERNAL_SERVER_ERROR
+        : ((error as { statusCode?: number }).statusCode ??
+          StatusCodes.INTERNAL_SERVER_ERROR);
+    const errorMessage = (error as { validation?: unknown[] }).validation
+      ? "Request validation failed"
+      : error instanceof ResponseSerializationError
+        ? "Response validation failed"
+        : error instanceof Error
+          ? error.message
+          : String(error);
+
+    return reply.status(statusCode).send(
+      buildErrorResponse({
+        error: errorMessage,
+        statusCode,
+        stack: error instanceof Error ? (error.stack ?? null) : null,
+      }),
+    );
+  });
+
+  for (const route of pageRoutes) {
+    instance.route(route);
+  }
+
+  done();
+};

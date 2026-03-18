@@ -1,4 +1,6 @@
-import type { RouteOptions } from "fastify";
+import type { FastifyPluginCallback, RouteOptions } from "fastify";
+import { ResponseSerializationError } from "fastify-zod-openapi";
+import { StatusCodes } from "http-status-codes";
 
 import browserSessionActionDetailsRoute from "./action/_actionId.js";
 import browserSessionActionListRoute from "./action/index.js";
@@ -21,6 +23,7 @@ import newPageRoute from "./newPage.js";
 import pagesRoute from "./pages.js";
 import resolvePageByMainFrameIdRoute from "./resolvePageByMainFrameId.js";
 import setExtraHTTPHeadersRoute from "./setExtraHTTPHeaders.js";
+import { buildBrowserSessionErrorResponse } from "../../../schemas/v4/browserSession.js";
 
 export const browserSessionRoutes: RouteOptions[] = [
   createBrowserSessionRoute,
@@ -45,3 +48,52 @@ export const browserSessionRoutes: RouteOptions[] = [
   browserSessionActionListRoute,
   browserSessionActionDetailsRoute,
 ];
+
+export const browserSessionRoutesPlugin: FastifyPluginCallback = (
+  instance,
+  _opts,
+  done,
+) => {
+  instance.addHook("onRoute", (routeOptions) => {
+    if (!routeOptions.schema || routeOptions.schema.hide) {
+      return;
+    }
+
+    const existingTags = Array.isArray(routeOptions.schema.tags)
+      ? routeOptions.schema.tags
+      : [];
+    routeOptions.schema.tags = [
+      ...new Set([...existingTags, "browserSession"]),
+    ];
+  });
+
+  instance.setErrorHandler((error, _request, reply) => {
+    const statusCode = (error as { validation?: unknown[] }).validation
+      ? StatusCodes.BAD_REQUEST
+      : error instanceof ResponseSerializationError
+        ? StatusCodes.INTERNAL_SERVER_ERROR
+        : ((error as { statusCode?: number }).statusCode ??
+          StatusCodes.INTERNAL_SERVER_ERROR);
+    const errorMessage = (error as { validation?: unknown[] }).validation
+      ? "Request validation failed"
+      : error instanceof ResponseSerializationError
+        ? "Response validation failed"
+        : error instanceof Error
+          ? error.message
+          : String(error);
+
+    return reply.status(statusCode).send(
+      buildBrowserSessionErrorResponse({
+        error: errorMessage,
+        statusCode,
+        stack: error instanceof Error ? (error.stack ?? null) : null,
+      }),
+    );
+  });
+
+  for (const route of browserSessionRoutes) {
+    instance.route(route);
+  }
+
+  done();
+};
