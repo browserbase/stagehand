@@ -248,6 +248,7 @@ test.describe("V3 hard timeouts", () => {
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
     expect(output.error).toContain("TimeoutError");
+    expect(output.error).toContain("1ms");
   });
 
   test("agent toolTimeout enforces timeout for extract tool", async () => {
@@ -258,6 +259,7 @@ test.describe("V3 hard timeouts", () => {
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
     expect(output.error).toContain("TimeoutError");
+    expect(output.error).toContain("1ms");
   });
 
   test("agent toolTimeout enforces timeout for fillForm tool", async () => {
@@ -267,6 +269,7 @@ test.describe("V3 hard timeouts", () => {
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
     expect(output.error).toContain("TimeoutError");
+    expect(output.error).toContain("1ms");
   });
 
   test("agent toolTimeout enforces timeout for ariaTree", async () => {
@@ -274,6 +277,7 @@ test.describe("V3 hard timeouts", () => {
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
     expect(output.error).toContain("TimeoutError");
+    expect(output.error).toContain("1ms");
   });
 
   test("agent toolTimeout enforces timeout for goto tool", async () => {
@@ -283,6 +287,7 @@ test.describe("V3 hard timeouts", () => {
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
     expect(output.error).toContain("TimeoutError");
+    expect(output.error).toContain("1ms");
   });
 
   test("agent toolTimeout enforces timeout for navback tool", async () => {
@@ -292,6 +297,7 @@ test.describe("V3 hard timeouts", () => {
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
     expect(output.error).toContain("TimeoutError");
+    expect(output.error).toContain("1ms");
   });
 
   test("agent toolTimeout enforces timeout for screenshot tool", async () => {
@@ -299,6 +305,7 @@ test.describe("V3 hard timeouts", () => {
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
     expect(output.error).toContain("TimeoutError");
+    expect(output.error).toContain("1ms");
   });
 
   test("agent toolTimeout enforces timeout for scroll tool", async () => {
@@ -308,6 +315,7 @@ test.describe("V3 hard timeouts", () => {
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
     expect(output.error).toContain("TimeoutError");
+    expect(output.error).toContain("1ms");
   });
 
   test("agent toolTimeout enforces timeout for keys tool", async () => {
@@ -318,6 +326,7 @@ test.describe("V3 hard timeouts", () => {
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
     expect(output.error).toContain("TimeoutError");
+    expect(output.error).toContain("1ms");
   });
 
   test("agent toolTimeout enforces timeout for click tool (hybrid)", async () => {
@@ -329,6 +338,7 @@ test.describe("V3 hard timeouts", () => {
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
     expect(output.error).toContain("TimeoutError");
+    expect(output.error).toContain("1ms");
   });
 
   test("agent toolTimeout enforces timeout for type tool (hybrid)", async () => {
@@ -344,6 +354,7 @@ test.describe("V3 hard timeouts", () => {
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
     expect(output.error).toContain("TimeoutError");
+    expect(output.error).toContain("1ms");
   });
 
   test("agent toolTimeout enforces timeout for dragAndDrop tool (hybrid)", async () => {
@@ -359,6 +370,7 @@ test.describe("V3 hard timeouts", () => {
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
     expect(output.error).toContain("TimeoutError");
+    expect(output.error).toContain("1ms");
   });
 
   test("agent toolTimeout enforces timeout for clickAndHold tool (hybrid)", async () => {
@@ -374,6 +386,7 @@ test.describe("V3 hard timeouts", () => {
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
     expect(output.error).toContain("TimeoutError");
+    expect(output.error).toContain("1ms");
   });
 
   test("agent toolTimeout enforces timeout for fillFormVision tool (hybrid)", async () => {
@@ -398,5 +411,6 @@ test.describe("V3 hard timeouts", () => {
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
     expect(output.error).toContain("TimeoutError");
+    expect(output.error).toContain("1ms");
   });
 });
