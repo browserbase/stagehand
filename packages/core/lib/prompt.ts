@@ -123,7 +123,7 @@ export function buildObserveSystemPrompt(
         .map((key) => `%${key}%`)
         .join(
           ", ",
-        )}. When an action needs a dynamic or sensitive value, return the matching %variableName% placeholder in the action arguments instead of a literal value.`
+        )}. When an action needs a dynamic or sensitive value, return the matching %variableName% placeholder in the action arguments instead of a literal value`
     : "";
 
   const observeSystemPrompt = `

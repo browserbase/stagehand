@@ -608,6 +608,36 @@ components:
           anyOf:
             - $ref: "#/components/schemas/ModelConfig"
             - type: string
+        variables:
+          description: Variables whose names are exposed to the model so
+            observe() returns %variableName% placeholders in suggested action
+            arguments instead of literal values. Accepts flat primitives or
+            { value, description? } objects.
+          example:
+            username:
+              value: john@example.com
+              description: The login email
+            rememberMe: true
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            anyOf:
+              - type: string
+              - type: number
+              - type: boolean
+              - type: object
+                properties:
+                  value:
+                    anyOf:
+                      - type: string
+                      - type: number
+                      - type: boolean
+                  description:
+                    type: string
+                required:
+                  - value
+                additionalProperties: false
         timeout:
           description: Timeout in ms for the observation
           example: 30000
@@ -1526,6 +1556,36 @@ components:
           anyOf:
             - $ref: "#/components/schemas/ModelConfigOutput"
             - type: string
+        variables:
+          description: Variables whose names are exposed to the model so
+            observe() returns %variableName% placeholders in suggested action
+            arguments instead of literal values. Accepts flat primitives or
+            { value, description? } objects.
+          example:
+            username:
+              value: john@example.com
+              description: The login email
+            rememberMe: true
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            anyOf:
+              - type: string
+              - type: number
+              - type: boolean
+              - type: object
+                properties:
+                  value:
+                    anyOf:
+                      - type: string
+                      - type: number
+                      - type: boolean
+                  description:
+                    type: string
+                required:
+                  - value
+                additionalProperties: false
         timeout:
           description: Timeout in ms for the observation
           example: 30000

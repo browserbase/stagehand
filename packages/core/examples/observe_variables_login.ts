@@ -10,7 +10,7 @@ import { Action, Stagehand } from "../lib/v3/index.js";
 import chalk from "chalk";
 
 const variables = {
-  username: "test@browserbaser.com",
+  username: "test@browserbase.com",
   password: "stagehand=goated",
 };
 

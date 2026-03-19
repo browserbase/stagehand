@@ -534,6 +534,22 @@ export const ExtractResponseSchema = wrapResponse(
 // Observe
 // =============================================================================
 
+const ObserveVariablePrimitiveSchema = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+]);
+
+const ObserveVariableValueSchema = z.union([
+  ObserveVariablePrimitiveSchema,
+  z
+    .object({
+      value: ObserveVariablePrimitiveSchema,
+      description: z.string().optional(),
+    })
+    .strict(),
+]);
+
 export const ObserveOptionsSchema = z
   .object({
     model: z.union([ModelConfigSchema, z.string()]).optional().meta({
@@ -541,12 +557,18 @@ export const ObserveOptionsSchema = z
         "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
     }),
     variables: z
-      .record(z.string(), z.string())
+      .record(z.string(), ObserveVariableValueSchema)
       .optional()
       .meta({
         description:
-          "Variables to substitute into observed action arguments using %variableName% placeholders",
-        example: { username: "john_doe" },
+          "Variables whose names are exposed to the model so observe() returns %variableName% placeholders in suggested action arguments instead of literal values. Accepts flat primitives or { value, description? } objects.",
+        example: {
+          username: {
+            value: "john@example.com",
+            description: "The login email",
+          },
+          rememberMe: true,
+        },
       }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the observation",
