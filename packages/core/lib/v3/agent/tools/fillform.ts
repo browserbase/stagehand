@@ -12,22 +12,18 @@ export const fillFormTool = (
   toolTimeout?: number,
 ) => {
   const hasVariables = variables && Object.keys(variables).length > 0;
-  const valueDescription = hasVariables
-    ? `Text to type into the target. Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}`
-    : "Text to type into the target";
+  const actionDescription = hasVariables
+    ? `Must follow the pattern: "type <exact value> into the <field name> <fieldType>". Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}. Examples: "type %email% into the email input", "type %password% into the password input"`
+    : 'Must follow the pattern: "type <exact value> into the <field name> <fieldType>". Examples: "type john@example.com into the email input", "type John into the first name input"';
 
   return tool({
-    description: `📝 FORM FILL - MULTI-FIELD INPUT TOOL\nFor any form with 2+ inputs/textareas. Faster than individual typing.`,
+    description:
+      'FORM FILL - MULTI-FIELD INPUT TOOL\nFill 2+ form inputs/textareas at once. Each action MUST include the exact text to type and the target field, e.g. "type john@example.com into the email field".',
     inputSchema: z.object({
       fields: z
         .array(
           z.object({
-            action: z
-              .string()
-              .describe(
-                'Description of typing action, e.g. "type foo into the email field"',
-              ),
-            value: z.string().describe(valueDescription),
+            action: z.string().describe(actionDescription),
           }),
         )
         .min(1, "Provide at least one field to fill"),

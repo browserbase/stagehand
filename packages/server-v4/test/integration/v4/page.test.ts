@@ -930,6 +930,43 @@ describe("v4 page routes", { concurrency: false }, () => {
     }
   });
 
+  it("POST /v4/page/click accepts css, text, and coordinate selector types", async () => {
+    const gotoCtx = await postPageRoute("goto", sessionId, {
+      url: CLICK_TEST_URL,
+      waitUntil: "load",
+    });
+    assertSuccessAction(gotoCtx, "goto");
+
+    const cssSelectorCtx = await postPageRoute("click", sessionId, {
+      selector: { css: "#click-target" },
+    });
+    assertSuccessAction(cssSelectorCtx, "click");
+
+    const textSelectorCtx = await postPageRoute("click", sessionId, {
+      selector: { text: "Submit" },
+    });
+    assertSuccessAction(textSelectorCtx, "click");
+
+    const coordSelectorCtx = await postPageRoute("click", sessionId, {
+      selector: { x: 100, y: 200 },
+    });
+    assertSuccessAction(coordSelectorCtx, "click");
+  });
+
+  it("POST /v4/page/dragAndDrop accepts mixed selector types (xpath from, coordinates to)", async () => {
+    const gotoCtx = await postPageRoute("goto", sessionId, {
+      url: METHODS_TEST_URL,
+      waitUntil: "load",
+    });
+    assertSuccessAction(gotoCtx, "goto");
+
+    const dragCtx = await postPageRoute("dragAndDrop", sessionId, {
+      from: { xpath: "//div[@id='drag-source']" },
+      to: { x: 200, y: 300 },
+    });
+    assertSuccessAction(dragCtx, "dragAndDrop");
+  });
+
   it("POST /v4/page/click returns the new top-level failure shape for validation errors", async () => {
     const ctx = await postPageRoute("click", sessionId, {});
 
