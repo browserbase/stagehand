@@ -37,9 +37,8 @@ type PageActionHandlerContext<TAction extends PageAction> = {
   sessionId: string;
 };
 
-// Selector stays wrapped in an object even though we only consume xpath today,
-// because we may add more optional locator fields later without changing the
-// v4 request shape.
+// Selector is a discriminated union of xpath, css, text, or coordinate types.
+// Only xpath is fully resolved today; other types fall back to a stub xpath.
 function normalizeXPath(xpath: string): string {
   return xpath.startsWith("xpath=") || xpath.startsWith("/")
     ? xpath

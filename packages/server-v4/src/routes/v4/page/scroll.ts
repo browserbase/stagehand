@@ -27,9 +27,9 @@ const scrollRoute: RouteOptions = {
     method: "scroll",
     actionSchema: PageScrollActionSchema,
     execute: async ({ params }) => {
+      const sel = params.selector;
       return PageXPathResultSchema.parse({
-        xpath:
-          "selector" in params ? params.selector.xpath : "xpath=//stub-scroll",
+        xpath: "xpath" in sel ? sel.xpath : "xpath=//stub-scroll",
       });
     },
   }),
