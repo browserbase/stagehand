@@ -112,7 +112,7 @@ export const PageActionStatusSchema = z
 export const XPathSelectorSchema = z
   .object({
     xpath: z.string().min(1).meta({ example: "//button[text()='Submit']" }),
-    index: z.number().int().nonnegative().optional(),
+    index: z.number().int().nonnegative().optional().meta({ example: 0 }),
   })
   .strict()
   .meta({ id: "XPathSelector" });
@@ -120,7 +120,7 @@ export const XPathSelectorSchema = z
 export const CssSelectorSchema = z
   .object({
     css: z.string().min(1).meta({ example: ".btn-submit" }),
-    index: z.number().int().nonnegative().optional(),
+    index: z.number().int().nonnegative().optional().meta({ example: 0 }),
   })
   .strict()
   .meta({ id: "CssSelector" });
@@ -128,7 +128,7 @@ export const CssSelectorSchema = z
 export const TextSelectorSchema = z
   .object({
     text: z.string().min(1).meta({ example: "Submit" }),
-    index: z.number().int().nonnegative().optional(),
+    index: z.number().int().nonnegative().optional().meta({ example: 0 }),
   })
   .strict()
   .meta({ id: "TextSelector" });
