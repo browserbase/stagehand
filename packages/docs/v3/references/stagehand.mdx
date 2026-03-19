@@ -48,6 +48,7 @@ interface V3Options {
 
   // Local browser options
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
+  browserContext?: BrowserContext; // Playwright-native: bring your own context
 
   // AI/LLM configuration
   model?: ModelConfiguration;
@@ -157,6 +158,34 @@ interface V3Options {
       Attach to existing Chrome instance via CDP WebSocket URL.
     </ParamField>
   </Expandable>
+</ParamField>
+
+<ParamField path="browserContext" type="BrowserContext" optional>
+  Pass an externally-managed Playwright `BrowserContext` (e.g. from camoufox or a custom browser launch) instead of letting Stagehand create its own browser. When set, Stagehand operates entirely through the Playwright public API — no CDP required.
+
+  <Note>When using `browserContext`, you must pass the `page` option explicitly to `act()`, `extract()`, and `observe()` since Stagehand does not manage the browser lifecycle.</Note>
+
+  See the [Playwright-Native Mode guide](/v3/configuration/playwright-native) for full details.
+
+  **Example:**
+  ```typescript
+  import { chromium } from "playwright-core";
+  import { Stagehand } from "@browserbasehq/stagehand";
+
+  const browser = await chromium.connect({ wsEndpoint: process.env.CAMOUFOX_WS });
+  const ctx = browser.contexts()[0] ?? await browser.newContext();
+
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    browserContext: ctx,
+    model: { modelName: "gpt-4o", apiKey: process.env.OPENAI_API_KEY },
+  });
+  await stagehand.init();
+
+  const page = ctx.pages()[0] ?? await ctx.newPage();
+  await page.goto("https://example.com");
+  await stagehand.act("click the button", { page });
+  ```
 </ParamField>
 
 #### AI/LLM Configuration

@@ -173,6 +173,50 @@ const dataExtractionStagehand = new Stagehand({
 });
 ```
 
+### Using Local Cache with Playwright-Native Mode
+
+`cacheDir` works in **all** browser modes, including Playwright-native mode (camoufox, custom browser contexts). The cache key is derived from the instruction and page URL — it is browser-agnostic.
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import { chromium } from "playwright-core";
+
+const browser = await chromium.connect({ wsEndpoint: process.env.CAMOUFOX_WS });
+const ctx = browser.contexts()[0] ?? await browser.newContext();
+
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  browserContext: ctx,
+  cacheDir: ".cache/camoufox-run",  // works exactly like standard mode
+  model: { modelName: "gpt-4o", apiKey: process.env.OPENAI_API_KEY },
+});
+await stagehand.init();
+
+const page = ctx.pages()[0] ?? await ctx.newPage();
+await page.goto("https://example.com");
+
+// First run: LLM resolves selector, writes to .cache/camoufox-run/
+// Second run: selector replayed from disk — no LLM call
+await stagehand.act("click the login button", { page });
+```
+
+<Note>
+**Detecting local cache hits**: `ActResult.cacheStatus` reflects only the Browserbase server-side cache. For local `cacheDir` hits, intercept the `logger` callback:
+
+```typescript
+let wasHit = false;
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  cacheDir: ".cache/my-flow",
+  logger: (line) => {
+    if (line.category === "cache" && String(line.message).includes("act cache hit")) {
+      wasHit = true;
+    }
+  },
+});
+```
+</Note>
+
 ### Best Practices
 
 <AccordionGroup>

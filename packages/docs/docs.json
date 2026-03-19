@@ -51,6 +51,7 @@
                 "group": "Configuration",
                 "pages": [
                   "v3/configuration/browser",
+                  "v3/configuration/playwright-native",
                   "v3/configuration/observability",
                   "v3/configuration/logging",
                   "v3/configuration/models"
@@ -60,6 +61,7 @@
                 "group": "Best Practices",
                 "pages": [
                   "v3/best-practices/caching",
+                  "v3/best-practices/shadow-dom",
                   "v3/best-practices/cost-optimization",
                   "v3/best-practices/deterministic-agent",
                   "v3/best-practices/using-multiple-tabs",

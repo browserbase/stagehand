@@ -33,7 +33,7 @@ interface ObserveOptions {
   model?: ModelConfiguration;
   timeout?: number;
   selector?: string;
-  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page | PlaywrightNativePage;
   serverCache?: boolean;
 }
 
@@ -84,14 +84,17 @@ type ModelConfiguration =
   Optional XPath selector to focus the observation on a specific part of the page. Useful for narrowing down the search area.
 </ParamField>
 
-<ParamField path="page" type="PlaywrightPage | PuppeteerPage | PatchrightPage | Page" optional>
+<ParamField path="page" type="PlaywrightPage | PuppeteerPage | PatchrightPage | Page | PlaywrightNativePage" optional>
   Optional: Specify which page to perform the observation on. Supports multiple browser automation libraries:
   - **Playwright**: Native Playwright Page objects
   - **Puppeteer**: Puppeteer Page objects
   - **Patchright**: Patchright Page objects
   - **Stagehand Page**: Stagehand's wrapped Page object
+  - **PlaywrightNativePage**: Required when using `browserContext` (Playwright-native mode)
 
   If not specified, defaults to the current "active" page in your Stagehand instance.
+
+  <Note>When using `browserContext` (Playwright-native mode with an external browser like camoufox), you **must** pass `page` explicitly since Stagehand does not manage the browser lifecycle.</Note>
 </ParamField>
 
 <ParamField path="serverCache" type="boolean" optional>

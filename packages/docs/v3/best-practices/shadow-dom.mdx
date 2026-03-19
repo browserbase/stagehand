@@ -1,0 +1,176 @@
+---
+title: Shadow DOM
+sidebarTitle: Shadow DOM
+description: Interact with open and closed shadow roots, including enterprise UI components
+---
+
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
+## Overview
+
+The Shadow DOM is a browser mechanism that encapsulates a component's markup and styles from the rest of the page. Stagehand pierces shadow roots automatically, so `act()`, `extract()`, and `observe()` work on shadow-DOM elements without extra configuration.
+
+Stagehand v3 adds support for **closed** shadow roots — the harder case that blocked automation of enterprise UI frameworks like SAP Fiori, Salesforce Lightning, and ServiceNow.
+
+---
+
+## Open vs Closed Shadow Roots
+
+| | Open shadow root | Closed shadow root |
+| --- | --- | --- |
+| **How created** | `attachShadow({ mode: "open" })` | `attachShadow({ mode: "closed" })` |
+| **External JS access** | `el.shadowRoot` works | `el.shadowRoot === null` |
+| **Example frameworks** | Most web components | SAP Fiori, Salesforce Lightning, ServiceNow |
+| **Stagehand v3 support** | Yes (default) | Yes (opt-in interceptor) |
+
+---
+
+## Open Shadow DOM (default)
+
+Open shadow roots are handled automatically. No extra steps needed:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL", model });
+await stagehand.init();
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://app-with-open-shadows.example.com");
+
+// Works on buttons/inputs inside open shadow roots
+await stagehand.act("click the submit button inside the checkout widget");
+const price = await stagehand.extract("get the total price", schema);
+```
+
+---
+
+## Closed Shadow DOM (enterprise apps)
+
+Closed shadow roots hide their internals from external JavaScript. To reach them, install Stagehand's `attachShadow` interceptor **as an `addInitScript`** before the page loads:
+
+```typescript
+const CLOSED_SHADOW_INTERCEPTOR = `(function() {
+  if (window.__stagehandClosedRootInstalled) return;
+  try {
+    var _closed = new WeakMap();
+    var _orig = Element.prototype.attachShadow;
+    Element.prototype.attachShadow = function(init) {
+      var root = _orig.call(this, init);
+      if (init && init.mode === "closed") _closed.set(this, root);
+      return root;
+    };
+    window.__stagehandClosedRoot = function(host) { return _closed.get(host) ?? null; };
+    window.__stagehandClosedRootInstalled = true;
+  } catch (e) {}
+})();`;
+```
+
+Install it on the context (applies to all pages) or on a specific page:
+
+```typescript
+import { chromium } from "playwright-core";
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await chromium.launch({ headless: true });
+const ctx = await browser.newContext();
+
+// Install BEFORE any navigation — addInitScript runs before inline <script> tags
+await ctx.addInitScript(CLOSED_SHADOW_INTERCEPTOR);
+
+const stagehand = new Stagehand({ env: "LOCAL", browserContext: ctx, model });
+await stagehand.init();
+
+const page = ctx.pages()[0] ?? await ctx.newPage();
+await page.goto("https://enterprise-app.example.com");
+
+// act() / extract() / observe() now see elements inside closed shadow roots
+await stagehand.act("click the Approve button in the workflow panel", { page });
+```
+
+<Warning>
+The interceptor must be installed **before** the page's `<script>` tags run. Using `page.addInitScript()` or `context.addInitScript()` guarantees this ordering.
+
+If you navigate to the page first and then install the interceptor, closed shadow roots created by the page's own scripts will **not** be captured.
+</Warning>
+
+---
+
+## How the Interceptor Works
+
+The interceptor monkey-patches `Element.prototype.attachShadow` to store a reference to every closed shadow root in a `WeakMap`. When Stagehand's DOM walker encounters a shadow host, it calls `window.__stagehandClosedRoot(host)` to retrieve the hidden root and recurse into it.
+
+This is the only reliable approach — there is no standard API to access a closed shadow root from outside the component.
+
+---
+
+## Stagehand-Managed Browser (non-native mode)
+
+If you are using Stagehand's built-in browser (`env: "LOCAL"` without `browserContext`), install the interceptor on the Stagehand context after `init()`:
+
+```typescript
+const stagehand = new Stagehand({ env: "LOCAL", model });
+await stagehand.init();
+
+// Install on the Stagehand-managed context
+await stagehand.context.addInitScript(CLOSED_SHADOW_INTERCEPTOR);
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://enterprise-app.example.com");
+
+await stagehand.act("click the Save button");
+```
+
+<Note>
+When installed on the context object, the interceptor applies automatically to every new page opened within that context.
+</Note>
+
+---
+
+## Verifying Shadow DOM Coverage
+
+Use `captureNativeSnapshot` directly to inspect what the ARIA snapshot can see:
+
+```typescript
+import { captureNativeSnapshot } from "@browserbasehq/stagehand/internal";
+
+// Without interceptor: only open shadows visible
+const snapshotA = await captureNativeSnapshot(page, { pierceShadow: true });
+console.log(snapshotA.combinedTree.split("\n").length, "nodes");
+
+// With interceptor installed + pierceShadow: "including-closed"
+const snapshotB = await captureNativeSnapshot(page, { pierceShadow: "including-closed" });
+console.log(snapshotB.combinedTree.split("\n").length, "nodes");
+// Closed shadow content is now visible to act/extract/observe
+```
+
+A runnable demo comparing both modes is at:
+[`packages/core/examples/v3/demo_03_shadow_dom.ts`](https://github.com/browserbase/stagehand/blob/main/packages/core/examples/v3/demo_03_shadow_dom.ts)
+
+```bash
+pnpm example v3/demo_03_shadow_dom
+```
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+
+<Accordion title="Elements inside closed shadow roots are not found">
+1. Check that `addInitScript` is called **before** `page.goto()` or `page.setContent()`
+2. Verify the interceptor is installed: `await page.evaluate(() => !!window.__stagehandClosedRootInstalled)` should return `true`
+3. Some frameworks create shadow roots in response to user interaction. Install the interceptor on the context (`context.addInitScript(...)`) so it covers all future navigations
+</Accordion>
+
+<Accordion title="Act() still fails on closed shadow elements">
+Shadow DOM visibility is necessary but not sufficient. The element must also be reachable by the XPath that Stagehand generates. If the element is deeply nested inside multiple shadow roots, describe it in plain language in your instruction and Stagehand will walk the shadow tree to find it.
+</Accordion>
+
+<Accordion title="Performance impact of the interceptor">
+The interceptor adds negligible overhead — it only stores a `WeakMap` entry per `attachShadow` call, which happens a fixed number of times per page load. There is no per-interaction cost.
+</Accordion>
+
+</AccordionGroup>

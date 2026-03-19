@@ -1,0 +1,217 @@
+---
+title: Playwright-Native Mode
+sidebarTitle: Playwright-Native Mode
+description: Connect Stagehand to any Playwright browser — Firefox, camoufox, or your own custom context
+---
+
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
+## Overview
+
+By default Stagehand launches and manages its own Chromium browser. **Playwright-Native Mode** inverts this: you launch any Playwright-compatible browser yourself and hand Stagehand a `BrowserContext` to operate on.
+
+This unlocks:
+
+- **Firefox** — Playwright's Firefox engine, including [camoufox](https://camoufox.com/) (hardened anti-detection Firefox)
+- **Custom launch flags** — proxy chains, custom profiles, extensions, persistent user-data dirs
+- **CDP-free automation** — Stagehand uses only the Playwright public API; no Chrome DevTools Protocol tunnel required
+- **Shared browser sessions** — hand the same context to Stagehand and other Playwright code simultaneously
+
+---
+
+## Quick Start
+
+```typescript
+import { chromium } from "playwright-core";
+import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod";
+
+// 1. Launch the browser yourself
+const browser = await chromium.connect({ wsEndpoint: process.env.CAMOUFOX_WS });
+const ctx = browser.contexts()[0] ?? await browser.newContext();
+const page = ctx.pages()[0] ?? await ctx.newPage();
+
+// 2. Wire Stagehand to the external context
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  browserContext: ctx,
+  model: { modelName: "gpt-4o", apiKey: process.env.OPENAI_API_KEY },
+});
+await stagehand.init();
+
+// 3. Use Stagehand — always pass `page` explicitly
+await page.goto("https://quotes.toscrape.com");
+await page.waitForLoadState("networkidle");
+
+const actions = await stagehand.observe("list all navigation links", { page });
+console.log(actions.length, "links found");
+
+const result = await stagehand.extract(
+  "extract up to 5 quotes",
+  z.object({ quotes: z.array(z.object({ author: z.string(), text: z.string() })) }),
+  { page },
+);
+console.log(result.quotes);
+
+// 4. Close in the right order
+await stagehand.close();   // disconnect Stagehand (browser stays alive)
+await browser.close();     // you decide when to close the browser
+```
+
+---
+
+## Using camoufox (Firefox stealth browser)
+
+[camoufox](https://camoufox.com/) is a hardened Firefox fork that randomises browser fingerprints and bypasses many bot-detection heuristics. Install it with:
+
+```bash
+pip install camoufox
+python -m camoufox fetch       # download the Firefox binary (~100 MB, one time)
+python -m camoufox run         # prints  ws://localhost:<PORT>/<TOKEN>
+```
+
+Set `CAMOUFOX_WS` to the printed `ws://` URL, then connect:
+
+```typescript
+import { chromium } from "playwright-core";
+
+const browser = await chromium.connect({ wsEndpoint: process.env.CAMOUFOX_WS });
+const ctx = browser.contexts()[0] ?? await browser.newContext();
+```
+
+<Tip>
+camoufox exposes a Playwright CDP endpoint, so `chromium.connect()` works even though the underlying engine is Firefox.
+</Tip>
+
+---
+
+## Constructor Options
+
+The only new option is `browserContext`. All other `V3Options` apply normally.
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  browserContext: ctx,        // the externally-managed Playwright BrowserContext
+  model: { ... },
+  cacheDir: ".cache/native",  // local caching works as normal
+  verbose: 1,
+});
+```
+
+See the [`Stagehand` reference](/v3/references/stagehand) for the full option list.
+
+---
+
+## Passing `page` to Methods
+
+When using `browserContext`, Stagehand has no concept of an "active page" — you control the page. **You must pass `page` explicitly** to every AI method call:
+
+```typescript
+const page = ctx.pages()[0] ?? await ctx.newPage();
+await page.goto("https://example.com");
+
+// ✅ Correct — page passed explicitly
+await stagehand.act("click the login button", { page });
+const data = await stagehand.extract("get the title", schema, { page });
+const found = await stagehand.observe("find all buttons", { page });
+
+// ❌ Will throw — no active page in native mode
+await stagehand.act("click the login button");
+```
+
+---
+
+## Local Caching in Native Mode
+
+`cacheDir` works the same way in Playwright-native mode. Cache entries are keyed by instruction + page URL and are browser-agnostic:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  browserContext: ctx,
+  cacheDir: ".cache/camoufox-login",
+});
+```
+
+On the second run, every `act()` call whose selector was cached replays instantly — no LLM call, no network round-trip.
+
+<Note>
+`ActResult.cacheStatus` reflects the Browserbase server-side cache only. To detect local cache hits, intercept the `logger`:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  browserContext: ctx,
+  cacheDir: ".cache/my-flow",
+  logger: (line) => {
+    if (line.category === "cache" && String(line.message).includes("act cache hit")) {
+      console.log("cache HIT");
+    }
+  },
+});
+```
+</Note>
+
+---
+
+## Shadow DOM in Native Mode
+
+Playwright-native mode fully supports the shadow DOM improvements added in Stagehand v3. To pierce closed shadow roots (e.g. SAP, Salesforce, ServiceNow components), install the interceptor as an `addInitScript` **before** navigating:
+
+```typescript
+// captureNativeSnapshot is the underlying snapshot engine
+import { captureNativeSnapshot } from "@browserbasehq/stagehand/internal";
+
+// Install the closed-shadow interceptor on the page
+await page.addInitScript(`(function() {
+  var _closed = new WeakMap();
+  var _orig = Element.prototype.attachShadow;
+  Element.prototype.attachShadow = function(init) {
+    var root = _orig.call(this, init);
+    if (init && init.mode === "closed") _closed.set(this, root);
+    return root;
+  };
+  window.__stagehandClosedRoot = function(host) { return _closed.get(host) ?? null; };
+  window.__stagehandClosedRootInstalled = true;
+})()`);
+
+await page.goto("https://enterprise-app.example.com");
+// Now act()/extract()/observe() can see elements inside closed shadow roots
+```
+
+See the [Shadow DOM guide](/v3/best-practices/shadow-dom) for full details.
+
+---
+
+## Comparison: Standard vs Playwright-Native
+
+| | Standard Mode | Playwright-Native Mode |
+| --- | --- | --- |
+| **Browser engine** | Chromium (auto-launched) | Any Playwright browser |
+| **Firefox / camoufox** | No | Yes |
+| **CDP** | Required internally | Not required |
+| **`page` in methods** | Optional | **Required** |
+| **Browser lifecycle** | Managed by Stagehand | Managed by you |
+| **`stagehand.close()`** | Terminates browser | Disconnects only |
+| **Local caching** | Yes | Yes |
+| **Shadow DOM** | Yes | Yes |
+| **Browserbase** | Yes | No (`env` must be `"LOCAL"`) |
+
+---
+
+## Complete Example
+
+A fully-annotated demo is available at [`packages/core/examples/v3/demo_02_camoufox_extract.ts`](https://github.com/browserbase/stagehand/blob/main/packages/core/examples/v3/demo_02_camoufox_extract.ts).
+
+Run it with:
+
+```bash
+# Set env vars in .env
+CAMOUFOX_WS=ws://localhost:PORT/TOKEN
+OPENAI_API_KEY=...   # or OPENROUTER_API_KEY
+
+pnpm example v3/demo_02_camoufox_extract
+```

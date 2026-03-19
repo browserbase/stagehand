@@ -263,6 +263,88 @@ const stagehand = new Stagehand({
 await stagehand.init();
 ```
 
+## Playwright-Native Mode
+
+Playwright-Native Mode lets you connect Stagehand to a browser that **you** launch and manage — instead of Stagehand creating one for you. This is useful when:
+
+- You want to use **Firefox** (e.g. via [camoufox](https://camoufox.com/) for anti-bot stealth)
+- You need full control over the browser launch flags, profiles, or extensions
+- You want Stagehand to operate on a **CDP-free** browser that only exposes the Playwright public API
+
+### How It Works
+
+Pass a Playwright `BrowserContext` to `browserContext` in the constructor. Stagehand will use that context directly for all operations — it will not launch or close the browser.
+
+```typescript
+import { chromium } from "playwright-core";
+import { Stagehand } from "@browserbasehq/stagehand";
+
+// Launch (or connect to) the browser yourself
+const browser = await chromium.connect({ wsEndpoint: process.env.CAMOUFOX_WS });
+const ctx = browser.contexts()[0] ?? await browser.newContext();
+
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  browserContext: ctx,
+  model: { modelName: "gpt-4o", apiKey: process.env.OPENAI_API_KEY },
+});
+await stagehand.init();
+
+const page = ctx.pages()[0] ?? await ctx.newPage();
+await page.goto("https://example.com");
+
+// Always pass the page explicitly in native mode
+await stagehand.act("click the login button", { page });
+const data = await stagehand.extract("get the page title", schema, { page });
+
+await stagehand.close();       // disconnects Stagehand — browser keeps running
+await browser.close();         // you close the browser when you're done
+```
+
+### Key Differences from Standard Mode
+
+| | Standard Mode | Playwright-Native Mode |
+| --- | --- | --- |
+| **Browser** | Stagehand launches Chromium | You supply any Playwright browser |
+| **Firefox support** | No | Yes (camoufox, Playwright Firefox) |
+| **CDP required** | Yes (internally) | No |
+| **`page` in methods** | Optional (uses active page) | **Required** — must be passed explicitly |
+| **Browser lifecycle** | Managed by Stagehand | Managed by you |
+| **`stagehand.close()`** | Terminates browser | Disconnects only — browser stays alive |
+
+### Using camoufox
+
+[camoufox](https://camoufox.com/) is a hardened Firefox build that mimics real browser fingerprints. Connect to it via its WebSocket endpoint:
+
+```bash
+# Install and launch camoufox (copy the ws:// URL it prints)
+pip install camoufox
+python -m camoufox fetch
+python -m camoufox run
+```
+
+```typescript
+const browser = await chromium.connect({
+  wsEndpoint: process.env.CAMOUFOX_WS  // e.g. ws://localhost:PORT/TOKEN
+});
+const ctx = browser.contexts()[0] ?? await browser.newContext();
+
+const stagehand = new Stagehand({ env: "LOCAL", browserContext: ctx, model });
+await stagehand.init();
+```
+
+<Tip>
+`cacheDir` works normally in Playwright-native mode. Local action caches are keyed by instruction + URL and are browser-agnostic.
+</Tip>
+
+<Note>
+Local cache hits are visible via the `logger` callback (look for `"act cache hit"` in `line.message`), not via `ActResult.cacheStatus` — that field only reflects Browserbase server-side cache.
+</Note>
+
+For a complete working example see [`packages/core/examples/v3/demo_02_camoufox_extract.ts`](https://github.com/browserbase/stagehand/blob/main/packages/core/examples/v3/demo_02_camoufox_extract.ts).
+
+---
+
 ## Advanced Configuration
 
 ### Keep Alive
