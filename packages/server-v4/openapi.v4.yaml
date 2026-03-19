@@ -6256,6 +6256,8 @@ paths:
     post:
       operationId: BrowserSessionCreate
       summary: Create a browser session
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6302,6 +6304,8 @@ paths:
     get:
       operationId: BrowserSessionStatus
       summary: Get browser session status
+      tags:
+        - browserSession
       parameters:
         - schema:
             $ref: "#/components/schemas/BrowserSessionId"
@@ -6329,6 +6333,8 @@ paths:
     post:
       operationId: BrowserSessionEnd
       summary: End a browser session
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6362,6 +6368,8 @@ paths:
     post:
       operationId: BrowserSessionAddInitScript
       summary: browserSession.addInitScript
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6426,6 +6434,8 @@ paths:
     post:
       operationId: BrowserSessionSetExtraHTTPHeaders
       summary: browserSession.setExtraHTTPHeaders
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6490,6 +6500,8 @@ paths:
     post:
       operationId: BrowserSessionPages
       summary: browserSession.pages
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6554,6 +6566,8 @@ paths:
     post:
       operationId: BrowserSessionActivePage
       summary: browserSession.activePage
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6618,6 +6632,8 @@ paths:
     post:
       operationId: BrowserSessionAwaitActivePage
       summary: browserSession.awaitActivePage
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6682,6 +6698,8 @@ paths:
     post:
       operationId: BrowserSessionResolvePageByMainFrameId
       summary: browserSession.resolvePageByMainFrameId
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6746,6 +6764,8 @@ paths:
     post:
       operationId: BrowserSessionGetFullFrameTreeByMainFrameId
       summary: browserSession.getFullFrameTreeByMainFrameId
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6810,6 +6830,8 @@ paths:
     post:
       operationId: BrowserSessionNewPage
       summary: browserSession.newPage
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6874,6 +6896,8 @@ paths:
     post:
       operationId: BrowserSessionCookies
       summary: browserSession.cookies
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6938,6 +6962,8 @@ paths:
     post:
       operationId: BrowserSessionAddCookies
       summary: browserSession.addCookies
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -7002,6 +7028,8 @@ paths:
     post:
       operationId: BrowserSessionClearCookies
       summary: browserSession.clearCookies
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -7066,6 +7094,8 @@ paths:
     post:
       operationId: BrowserSessionConnectURL
       summary: browserSession.connectURL
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -7130,6 +7160,8 @@ paths:
     post:
       operationId: BrowserSessionConfiguredViewport
       summary: browserSession.configuredViewport
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -7194,6 +7226,8 @@ paths:
     post:
       operationId: BrowserSessionBrowserbaseSessionID
       summary: browserSession.browserbaseSessionID
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -7258,6 +7292,8 @@ paths:
     post:
       operationId: BrowserSessionBrowserbaseSessionURL
       summary: browserSession.browserbaseSessionURL
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -7322,6 +7358,8 @@ paths:
     post:
       operationId: BrowserSessionBrowserbaseDebugURL
       summary: browserSession.browserbaseDebugURL
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -7386,6 +7424,8 @@ paths:
     get:
       operationId: BrowserSessionActionList
       summary: browserSession.actions
+      tags:
+        - browserSession
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -7471,6 +7511,8 @@ paths:
     get:
       operationId: BrowserSessionActionDetails
       summary: browserSession.action
+      tags:
+        - browserSession
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -7543,6 +7585,8 @@ paths:
     post:
       operationId: PageClick
       summary: page.click
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -7607,6 +7651,8 @@ paths:
     post:
       operationId: PageHover
       summary: page.hover
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -7671,6 +7717,8 @@ paths:
     post:
       operationId: PageScroll
       summary: page.scroll
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -7735,6 +7783,8 @@ paths:
     post:
       operationId: PageDragAndDrop
       summary: page.dragAndDrop
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -7799,6 +7849,8 @@ paths:
     post:
       operationId: PageType
       summary: page.type
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -7863,6 +7915,8 @@ paths:
     post:
       operationId: PageKeyPress
       summary: page.keyPress
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -7927,6 +7981,8 @@ paths:
     post:
       operationId: PageGoto
       summary: page.goto
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -7991,6 +8047,8 @@ paths:
     post:
       operationId: PageReload
       summary: page.reload
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -8055,6 +8113,8 @@ paths:
     post:
       operationId: PageGoBack
       summary: page.goBack
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -8119,6 +8179,8 @@ paths:
     post:
       operationId: PageGoForward
       summary: page.goForward
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -8183,6 +8245,8 @@ paths:
     post:
       operationId: PageClose
       summary: page.close
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -8247,6 +8311,8 @@ paths:
     post:
       operationId: PageEnableCursorOverlay
       summary: page.enableCursorOverlay
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -8311,6 +8377,8 @@ paths:
     post:
       operationId: PageAddInitScript
       summary: page.addInitScript
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -8375,6 +8443,8 @@ paths:
     get:
       operationId: PageTargetId
       summary: page.targetId
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -8446,6 +8516,8 @@ paths:
     get:
       operationId: PageMainFrameId
       summary: page.mainFrameId
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -8517,6 +8589,8 @@ paths:
     get:
       operationId: PageMainFrame
       summary: page.mainFrame
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -8588,6 +8662,8 @@ paths:
     get:
       operationId: PageGetFullFrameTree
       summary: page.getFullFrameTree
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -8659,6 +8735,8 @@ paths:
     get:
       operationId: PageAsProtocolFrameTree
       summary: page.asProtocolFrameTree
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -8735,6 +8813,8 @@ paths:
     get:
       operationId: PageListAllFrameIds
       summary: page.listAllFrameIds
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -8806,6 +8886,8 @@ paths:
     get:
       operationId: PageGetOrdinal
       summary: page.getOrdinal
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -8882,6 +8964,8 @@ paths:
     get:
       operationId: PageTitle
       summary: page.title
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -8953,6 +9037,8 @@ paths:
     get:
       operationId: PageUrl
       summary: page.url
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -9024,6 +9110,8 @@ paths:
     get:
       operationId: PageFrames
       summary: page.frames
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -9095,6 +9183,8 @@ paths:
     post:
       operationId: PageSetExtraHTTPHeaders
       summary: page.setExtraHTTPHeaders
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9159,6 +9249,8 @@ paths:
     post:
       operationId: PageWaitForMainLoadState
       summary: page.waitForMainLoadState
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9223,6 +9315,8 @@ paths:
     post:
       operationId: PageScreenshot
       summary: page.screenshot
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9287,6 +9381,8 @@ paths:
     post:
       operationId: PageSnapshot
       summary: page.snapshot
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9351,6 +9447,8 @@ paths:
     post:
       operationId: PageSetViewportSize
       summary: page.setViewportSize
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9415,6 +9513,8 @@ paths:
     post:
       operationId: PageWaitForLoadState
       summary: page.waitForLoadState
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9479,6 +9579,8 @@ paths:
     post:
       operationId: PageWaitForSelector
       summary: page.waitForSelector
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9543,6 +9645,8 @@ paths:
     post:
       operationId: PageWaitForTimeout
       summary: page.waitForTimeout
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9607,6 +9711,8 @@ paths:
     post:
       operationId: PageEvaluate
       summary: page.evaluate
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9671,6 +9777,8 @@ paths:
     post:
       operationId: PageSendCDP
       summary: page.sendCDP
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9735,6 +9843,8 @@ paths:
     get:
       operationId: PageActionList
       summary: page.action
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -9820,6 +9930,8 @@ paths:
     get:
       operationId: PageActionDetails
       summary: page.actionById
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
