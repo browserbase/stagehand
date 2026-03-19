@@ -21,6 +21,45 @@ export {
 // Shared Components
 // =============================================================================
 
+function getModelProvider(modelName: string | undefined): string | undefined {
+  return typeof modelName === "string" && modelName.includes("/")
+    ? modelName.split("/", 1)[0]
+    : undefined;
+}
+
+function addProviderConfigValidation<
+  T extends z.ZodObject<Record<string, z.ZodTypeAny>>,
+>(schema: T): T {
+  return schema.superRefine((value, ctx) => {
+    const modelName =
+      "modelName" in value && typeof value.modelName === "string"
+        ? value.modelName
+        : undefined;
+    const providerConfig =
+      "providerConfig" in value &&
+      value.providerConfig &&
+      typeof value.providerConfig === "object" &&
+      "provider" in value.providerConfig &&
+      typeof value.providerConfig.provider === "string"
+        ? value.providerConfig
+        : undefined;
+
+    const modelProvider = getModelProvider(modelName);
+
+    if (
+      modelProvider &&
+      providerConfig &&
+      providerConfig.provider !== modelProvider
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `providerConfig.provider "${providerConfig.provider}" must match the model provider "${modelProvider}"`,
+        path: ["providerConfig", "provider"],
+      });
+    }
+  }) as T;
+}
+
 /** Browser launch options for local browsers */
 export const LocalBrowserLaunchOptionsSchema = z
   .object({
@@ -56,16 +95,70 @@ export const LocalBrowserLaunchOptionsSchema = z
   .meta({ id: "LocalBrowserLaunchOptions" });
 
 /** Detailed model configuration object */
-export const ModelConfigObjectSchema = z
+export const GoogleServiceAccountCredentialsSchema = z
   .object({
-    provider: z
-      .enum(["openai", "anthropic", "google", "microsoft", "bedrock"])
-      .optional()
-      .meta({
-        description:
-          "AI provider for the model (or provide a baseURL endpoint instead)",
-        example: "openai",
-      }),
+    type: z.string().optional(),
+    project_id: z.string().optional(),
+    private_key_id: z.string().optional(),
+    private_key: z.string().optional(),
+    client_email: z.string().optional(),
+    client_id: z.string().optional(),
+    auth_uri: z.string().optional(),
+    token_uri: z.string().optional(),
+    auth_provider_x509_cert_url: z.string().optional(),
+    client_x509_cert_url: z.string().optional(),
+    universe_domain: z.string().optional(),
+  })
+  .strict()
+  .meta({ id: "GoogleServiceAccountCredentials" });
+
+export const VertexProviderOptionsSchema = z
+  .object({
+    project: z.string().optional(),
+    location: z.string().optional(),
+    headers: z.record(z.string(), z.string()).optional(),
+    googleAuthOptions: z
+      .object({
+        credentials: GoogleServiceAccountCredentialsSchema.optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+  .meta({ id: "VertexProviderOptions" });
+
+export const BedrockProviderOptionsSchema = z
+  .object({
+    region: z.string().optional(),
+    accessKeyId: z.string().optional(),
+    secretAccessKey: z.string().optional(),
+    sessionToken: z.string().optional(),
+  })
+  .strict()
+  .meta({ id: "BedrockProviderOptions" });
+
+export const ProviderConfigSchema = z
+  .discriminatedUnion("provider", [
+    z
+      .object({
+        provider: z.literal("bedrock"),
+        options: BedrockProviderOptionsSchema,
+      })
+      .strict()
+      .meta({ id: "BedrockProviderConfig" }),
+    z
+      .object({
+        provider: z.literal("vertex"),
+        options: VertexProviderOptionsSchema,
+      })
+      .strict()
+      .meta({ id: "VertexProviderConfig" }),
+  ])
+  .meta({ id: "ProviderConfig" });
+
+export const ModelConfigObjectSchema = addProviderConfigValidation(
+  z
+  .object({
     modelName: z.string().meta({
       description:
         "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
@@ -84,15 +177,20 @@ export const ModelConfigObjectSchema = z
         "Custom headers sent with every request to the model provider",
       example: { "X-Custom-Header": "value" },
     }),
-    providerOptions: z.record(z.string(), z.unknown()).optional().meta({
+    providerConfig: ProviderConfigSchema.optional().meta({
       description:
-        "Provider-specific options passed through to the AI SDK provider constructor. " +
-        "For Bedrock: { region, accessKeyId, secretAccessKey, sessionToken }. " +
-        "For Vertex: { project, location, googleAuthOptions }.",
-      example: { region: "us-east-1", accessKeyId: "AKIAIOSFODNN7EXAMPLE" },
+        "Provider-specific configuration for model providers that require extra constructor options.",
+      example: {
+        provider: "bedrock",
+        options: {
+          region: "us-east-1",
+          accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+        },
+      },
     }),
   })
-  .meta({ id: "ModelConfigObject" });
+  .meta({ id: "ModelConfigObject" }),
+);
 
 /** Model configuration */
 export const ModelConfigSchema = ModelConfigObjectSchema.meta({
@@ -100,12 +198,35 @@ export const ModelConfigSchema = ModelConfigObjectSchema.meta({
 });
 
 /** Session-level model client options used when initializing the session model */
-export const ModelClientOptionsSchema = ModelConfigObjectSchema.omit({
-  modelName: true,
-  provider: true,
-}).meta({
-  id: "ModelClientOptions",
-});
+export const ModelClientOptionsSchema = z
+  .object({
+    apiKey: z.string().optional().meta({
+      description: "API key for the model provider",
+      example: "sk-some-openai-api-key",
+    }),
+    baseURL: z.string().url().optional().meta({
+      description: "Base URL for the model provider",
+      example: "https://api.openai.com/v1",
+    }),
+    headers: z.record(z.string(), z.string()).optional().meta({
+      description: "Custom headers for the model provider",
+      example: { "X-Custom-Header": "value" },
+    }),
+    providerConfig: ProviderConfigSchema.optional().meta({
+      description:
+        "Provider-specific configuration for model providers that require extra constructor options.",
+      example: {
+        provider: "vertex",
+        options: {
+          project: "my-gcp-project",
+          location: "us-central1",
+        },
+      },
+    }),
+  })
+  .meta({
+    id: "ModelClientOptions",
+  });
 
 /** Action object returned by observe and used by act */
 export const ActionSchema = z
@@ -376,6 +497,22 @@ export const SessionStartRequestSchema = z
     actTimeoutMs: z.number().optional().meta({
       description: "Timeout in ms for act operations (deprecated, v2 only)",
     }),
+  })
+  .superRefine((value, ctx) => {
+    const providerConfig = value.modelClientOptions?.providerConfig;
+    const modelProvider = getModelProvider(value.modelName);
+
+    if (
+      modelProvider &&
+      providerConfig &&
+      providerConfig.provider !== modelProvider
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `providerConfig.provider "${providerConfig.provider}" must match the model provider "${modelProvider}"`,
+        path: ["modelClientOptions", "providerConfig", "provider"],
+      });
+    }
   })
   .meta({ id: "SessionStartRequest" });
 

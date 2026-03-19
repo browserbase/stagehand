@@ -613,6 +613,72 @@ describe("POST /v1/sessions/start - V3 format", () => {
     await endSession(ctx.body.data.sessionId, pythonHeaders);
   });
 
+  it("should accept typed providerConfig in modelClientOptions", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<StartResponse>(
+      `${url}/v1/sessions/start`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
+          modelClientOptions: {
+            providerConfig: {
+              provider: "bedrock",
+              options: {
+                region: "us-east-1",
+              },
+            },
+          },
+          ...localBrowser,
+        }),
+      },
+    );
+
+    assertFetchStatus(ctx, HTTP_OK, "Request should succeed");
+    assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+    assertFetchOk(
+      isSuccessResponse(ctx.body),
+      "Should be a success response",
+      ctx,
+    );
+
+    await endSession(ctx.body.data.sessionId, headers);
+  });
+
+  it("should reject mismatched providerConfig on session start", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<StartResponse>(
+      `${url}/v1/sessions/start`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
+          modelClientOptions: {
+            providerConfig: {
+              provider: "vertex",
+              options: {
+                project: "my-gcp-project",
+              },
+            },
+          },
+          ...localBrowser,
+        }),
+      },
+    );
+
+    assertFetchStatus(ctx, HTTP_BAD_REQUEST, "Request should fail with 400");
+    assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+    assertFetchOk(
+      JSON.stringify(ctx.body).includes("providerConfig.provider"),
+      "Error should reference providerConfig.provider",
+      ctx,
+    );
+  });
+
   it("should start session with extended options (timeouts, verbose)", async () => {
     const url = getBaseUrl();
 

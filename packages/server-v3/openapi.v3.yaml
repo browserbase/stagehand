@@ -76,6 +76,30 @@ components:
         id: $response.body#/data/sessionId
       description: End the session and release resources
   schemas:
+    BedrockProviderConfig:
+      type: object
+      properties:
+        provider:
+          type: string
+          const: bedrock
+        options:
+          $ref: "#/components/schemas/BedrockProviderOptions"
+      required:
+        - provider
+        - options
+      additionalProperties: false
+    VertexProviderConfig:
+      type: object
+      properties:
+        provider:
+          type: string
+          const: vertex
+        options:
+          $ref: "#/components/schemas/VertexProviderOptions"
+      required:
+        - provider
+        - options
+      additionalProperties: false
     AgentCacheEntry:
       type: object
       properties:
@@ -168,19 +192,77 @@ components:
         acceptDownloads:
           type: boolean
       additionalProperties: false
+    GoogleServiceAccountCredentials:
+      type: object
+      properties:
+        type:
+          type: string
+        project_id:
+          type: string
+        private_key_id:
+          type: string
+        private_key:
+          type: string
+        client_email:
+          type: string
+        client_id:
+          type: string
+        auth_uri:
+          type: string
+        token_uri:
+          type: string
+        auth_provider_x509_cert_url:
+          type: string
+        client_x509_cert_url:
+          type: string
+        universe_domain:
+          type: string
+      additionalProperties: false
+    VertexProviderOptions:
+      type: object
+      properties:
+        project:
+          type: string
+        location:
+          type: string
+        headers:
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
+        googleAuthOptions:
+          type: object
+          properties:
+            credentials:
+              $ref: "#/components/schemas/GoogleServiceAccountCredentials"
+          additionalProperties: false
+      additionalProperties: false
+    BedrockProviderOptions:
+      type: object
+      properties:
+        region:
+          type: string
+        accessKeyId:
+          type: string
+        secretAccessKey:
+          type: string
+        sessionToken:
+          type: string
+      additionalProperties: false
+    ProviderConfig:
+      oneOf:
+        - $ref: "#/components/schemas/BedrockProviderConfig"
+        - $ref: "#/components/schemas/VertexProviderConfig"
+      type: object
+      discriminator:
+        propertyName: provider
+        mapping:
+          bedrock: "#/components/schemas/BedrockProviderConfig"
+          vertex: "#/components/schemas/VertexProviderConfig"
     ModelConfigObject:
       type: object
       properties:
-        provider:
-          description: AI provider for the model (or provide a baseURL endpoint instead)
-          example: openai
-          type: string
-          enum:
-            - openai
-            - anthropic
-            - google
-            - microsoft
-            - bedrock
         modelName:
           description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
           example: openai/gpt-5.4-mini
@@ -203,18 +285,15 @@ components:
             type: string
           additionalProperties:
             type: string
-        providerOptions:
-          description: "Provider-specific options passed through to the AI SDK provider
-            constructor. For Bedrock: { region, accessKeyId, secretAccessKey,
-            sessionToken }. For Vertex: { project, location, googleAuthOptions
-            }."
+        providerConfig:
+          description: Provider-specific configuration for model providers that require
+            extra constructor options.
           example:
-            region: us-east-1
-            accessKeyId: AKIAIOSFODNN7EXAMPLE
-          type: object
-          propertyNames:
-            type: string
-          additionalProperties: {}
+            provider: bedrock
+            options:
+              region: us-east-1
+              accessKeyId: AKIAIOSFODNN7EXAMPLE
+          $ref: "#/components/schemas/ProviderConfig"
       required:
         - modelName
     ModelConfig:
@@ -240,18 +319,15 @@ components:
             type: string
           additionalProperties:
             type: string
-        providerOptions:
-          description: "Provider-specific options passed through to the AI SDK provider
-            constructor. For Bedrock: { region, accessKeyId, secretAccessKey,
-            sessionToken }. For Vertex: { project, location, googleAuthOptions
-            }."
+        providerConfig:
+          description: Provider-specific configuration for model providers that require
+            extra constructor options.
           example:
-            region: us-east-1
-            accessKeyId: AKIAIOSFODNN7EXAMPLE
-          type: object
-          propertyNames:
-            type: string
-          additionalProperties: {}
+            provider: vertex
+            options:
+              project: my-gcp-project
+              location: us-central1
+          $ref: "#/components/schemas/ProviderConfig"
     Action:
       description: Action object returned by observe and used by act
       type: object
@@ -1218,16 +1294,6 @@ components:
     ModelConfigObjectOutput:
       type: object
       properties:
-        provider:
-          description: AI provider for the model (or provide a baseURL endpoint instead)
-          example: openai
-          type: string
-          enum:
-            - openai
-            - anthropic
-            - google
-            - microsoft
-            - bedrock
         modelName:
           description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
           example: openai/gpt-5.4-mini
@@ -1250,18 +1316,15 @@ components:
             type: string
           additionalProperties:
             type: string
-        providerOptions:
-          description: "Provider-specific options passed through to the AI SDK provider
-            constructor. For Bedrock: { region, accessKeyId, secretAccessKey,
-            sessionToken }. For Vertex: { project, location, googleAuthOptions
-            }."
+        providerConfig:
+          description: Provider-specific configuration for model providers that require
+            extra constructor options.
           example:
-            region: us-east-1
-            accessKeyId: AKIAIOSFODNN7EXAMPLE
-          type: object
-          propertyNames:
-            type: string
-          additionalProperties: {}
+            provider: bedrock
+            options:
+              region: us-east-1
+              accessKeyId: AKIAIOSFODNN7EXAMPLE
+          $ref: "#/components/schemas/ProviderConfig"
       required:
         - modelName
       additionalProperties: false
@@ -1288,18 +1351,15 @@ components:
             type: string
           additionalProperties:
             type: string
-        providerOptions:
-          description: "Provider-specific options passed through to the AI SDK provider
-            constructor. For Bedrock: { region, accessKeyId, secretAccessKey,
-            sessionToken }. For Vertex: { project, location, googleAuthOptions
-            }."
+        providerConfig:
+          description: Provider-specific configuration for model providers that require
+            extra constructor options.
           example:
-            region: us-east-1
-            accessKeyId: AKIAIOSFODNN7EXAMPLE
-          type: object
-          propertyNames:
-            type: string
-          additionalProperties: {}
+            provider: vertex
+            options:
+              project: my-gcp-project
+              location: us-central1
+          $ref: "#/components/schemas/ProviderConfig"
       additionalProperties: false
     ActionOutput:
       description: Action object returned by observe and used by act

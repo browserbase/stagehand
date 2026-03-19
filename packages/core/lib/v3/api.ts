@@ -30,6 +30,7 @@ import type {
   AgentCacheTransferPayload,
 } from "./types/private/index.js";
 import type { ClientOptions, ModelConfiguration } from "./types/public/model.js";
+import { normalizeClientOptionsForModel } from "./providerConfig.js";
 import { toJsonSchema } from "./zodCompat.js";
 import type { StagehandZodSchema } from "./zodCompat.js";
 
@@ -222,7 +223,10 @@ export class StagehandAPIClient {
 
     // Store session model config to resend on each request (for hosted deployments
     // that don't persist modelClientOptions server-side).
-    const serializedMco = this.toSessionStartModelClientOptions(modelClientOptions);
+    const serializedMco = this.toSessionStartModelClientOptions(
+      modelClientOptions,
+      modelName,
+    );
     if (modelName && serializedMco && Object.keys(serializedMco).length > 0) {
       this.sessionModelConfig = {
         modelName,
@@ -247,8 +251,7 @@ export class StagehandAPIClient {
     // Build wire-format request body (Api.SessionStartRequest shape)
     const requestBody: Api.SessionStartRequest = {
       modelName,
-      modelClientOptions:
-        this.toSessionStartModelClientOptions(modelClientOptions),
+      modelClientOptions: serializedMco,
       domSettleTimeoutMs,
       verbose,
       systemPrompt,
@@ -642,9 +645,14 @@ export class StagehandAPIClient {
       };
     }
 
-    if (!model.apiKey) {
-      const provider = model.modelName?.includes("/")
-        ? model.modelName.split("/")[0]
+    const normalizedModel = {
+      modelName: model.modelName,
+      ...(this.toSessionStartModelClientOptions(model, model.modelName) ?? {}),
+    };
+
+    if (!normalizedModel.apiKey) {
+      const provider = normalizedModel.modelName?.includes("/")
+        ? normalizedModel.modelName.split("/")[0]
         : undefined;
       const apiKey =
         provider && provider !== this.modelProvider
@@ -652,13 +660,13 @@ export class StagehandAPIClient {
           : this.modelApiKey;
       if (apiKey) {
         return {
-          ...model,
+          ...normalizedModel,
           apiKey,
         };
       }
     }
 
-    return model as { modelName: string } & Record<string, unknown>;
+    return normalizedModel as { modelName: string } & Record<string, unknown>;
   }
 
   /**
@@ -683,22 +691,33 @@ export class StagehandAPIClient {
 
   private toSessionStartModelClientOptions(
     options?: ClientOptions,
+    modelName?: string,
   ): Api.ModelClientOptions | undefined {
     if (!options) {
       return undefined;
     }
 
-    const requestOptions = { ...options } as Record<string, unknown>;
+    const normalizedOptions = normalizeClientOptionsForModel(options, modelName);
+    if (!normalizedOptions) {
+      return undefined;
+    }
+
+    const requestOptions = { ...normalizedOptions } as Record<string, unknown>;
     delete requestOptions.provider;
 
     const headers = requestOptions.headers;
+    if (typeof Headers !== "undefined" && headers instanceof Headers) {
+      requestOptions.headers = Object.fromEntries(headers.entries());
+    }
+
+    const normalizedHeaders = requestOptions.headers;
     if (
-      headers !== undefined &&
-      (headers === null ||
-        typeof headers !== "object" ||
-        Array.isArray(headers) ||
-        "then" in headers ||
-        Object.values(headers as Record<string, unknown>).some(
+      normalizedHeaders !== undefined &&
+      (normalizedHeaders === null ||
+        typeof normalizedHeaders !== "object" ||
+        Array.isArray(normalizedHeaders) ||
+        "then" in normalizedHeaders ||
+        Object.values(normalizedHeaders as Record<string, unknown>).some(
           (value) => typeof value !== "string",
         ))
     ) {

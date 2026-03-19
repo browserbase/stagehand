@@ -32,10 +32,11 @@ export interface GoogleServiceAccountCredentials {
   universe_domain?: string;
 }
 
-export type GoogleVertexProviderSettings = Pick<
-  GoogleVertexProviderSettingsBase,
-  "project" | "location" | "headers"
+export type GoogleVertexProviderSettings = Omit<
+  Pick<GoogleVertexProviderSettingsBase, "project" | "location" | "headers">,
+  "headers"
 > & {
+  headers?: Record<string, string>;
   googleAuthOptions?: {
     credentials?: GoogleServiceAccountCredentials;
   };
@@ -45,6 +46,18 @@ export type BedrockProviderOptions = Pick<
   AmazonBedrockProviderSettingsBase,
   "region" | "accessKeyId" | "secretAccessKey" | "sessionToken"
 >;
+
+export interface BedrockProviderConfig {
+  provider: "bedrock";
+  options: BedrockProviderOptions;
+}
+
+export interface VertexProviderConfig {
+  provider: "vertex";
+  options: GoogleVertexProviderSettings;
+}
+
+export type ProviderConfig = BedrockProviderConfig | VertexProviderConfig;
 
 export type AnthropicJsonSchemaObject = {
   definitions?: {
@@ -101,21 +114,22 @@ export type ModelProvider =
   | "cerebras"
   | "groq"
   | "google"
+  | "vertex"
+  | "bedrock"
   | "aisdk";
 
-export type ClientOptions = {
+export type ClientOptions = (
+  | OpenAIClientOptions
+  | AnthropicClientOptions
+  | GoogleVertexProviderSettings
+) & {
   apiKey?: string;
   provider?: AgentProviderType;
   baseURL?: string;
   /** Custom headers for the model provider */
   headers?: Record<string, string>;
-  /** Provider-specific options passed through to the AI SDK provider constructor.
-   * Use BedrockProviderOptions for Bedrock (region, accessKeyId, etc.)
-   * or GoogleVertexProviderSettings for Vertex (project, location, etc.).
-   * Other providers can pass arbitrary options via type assertion. */
-  providerOptions?:
-    | BedrockProviderOptions
-    | GoogleVertexProviderSettings;
+  /** Provider-specific config normalized before calling the underlying AI SDK provider. */
+  providerConfig?: ProviderConfig;
   /** OpenAI organization ID */
   organization?: string;
   /** Delay between agent actions in ms */

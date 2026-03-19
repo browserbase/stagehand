@@ -42,6 +42,10 @@ async function main() {
       BrowserbaseRegion: Api.BrowserbaseRegionSchema,
       // Shared components
       LocalBrowserLaunchOptions: Api.LocalBrowserLaunchOptionsSchema,
+      GoogleServiceAccountCredentials: Api.GoogleServiceAccountCredentialsSchema,
+      VertexProviderOptions: Api.VertexProviderOptionsSchema,
+      BedrockProviderOptions: Api.BedrockProviderOptionsSchema,
+      ProviderConfig: Api.ProviderConfigSchema,
       ModelConfigObject: Api.ModelConfigObjectSchema,
       ModelConfig: Api.ModelConfigSchema,
       ModelClientOptions: Api.ModelClientOptionsSchema,

@@ -68,36 +68,56 @@ describe("getAISDKLanguageModel", () => {
     });
   });
 
-  describe("providerOptions flattening", () => {
-    it("flattens providerOptions into the AI SDK constructor args", () => {
-      // Bedrock with providerOptions should work — the flattening merges
-      // providerOptions into the top-level options before calling createAmazonBedrock
+  describe("providerConfig handling", () => {
+    it("maps Bedrock providerConfig into the AI SDK constructor args", () => {
       const model = getAISDKLanguageModel(
         "bedrock",
         "anthropic.claude-3-7-sonnet-20250219-v1:0",
         {
           apiKey: "bedrock-bearer-token",
-          providerOptions: {
-            region: "us-west-2",
+          providerConfig: {
+            provider: "bedrock",
+            options: {
+              region: "us-west-2",
+            },
           },
         },
       );
       expect(model).toBeDefined();
     });
 
-    it("works without providerOptions", () => {
-      const model = getAISDKLanguageModel("openai", "gpt-4o", {
-        apiKey: "test-key",
+    it("normalizes legacy Vertex top-level options", () => {
+      const model = getAISDKLanguageModel("vertex", "gemini-2.5-pro", {
+        project: "test-project",
+        location: "us-central1",
       });
       expect(model).toBeDefined();
     });
 
-    it("works with empty providerOptions", () => {
-      const model = getAISDKLanguageModel("openai", "gpt-4o", {
-        apiKey: "test-key",
-        providerOptions: {},
+    it("accepts typed Vertex providerConfig", () => {
+      const model = getAISDKLanguageModel("vertex", "gemini-2.5-pro", {
+        providerConfig: {
+          provider: "vertex",
+          options: {
+            project: "test-project",
+            location: "us-central1",
+          },
+        },
       });
       expect(model).toBeDefined();
+    });
+
+    it("throws when providerConfig does not match the model provider", () => {
+      expect(() =>
+        getAISDKLanguageModel("bedrock", "anthropic.claude-3-haiku", {
+          providerConfig: {
+            provider: "vertex",
+            options: {
+              project: "test-project",
+            },
+          },
+        }),
+      ).toThrow(/providerConfig\.provider/);
     });
   });
 });

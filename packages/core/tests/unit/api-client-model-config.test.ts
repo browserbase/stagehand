@@ -29,7 +29,10 @@ describe("StagehandAPIClient model config handling", () => {
       modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
       modelClientOptions: {
         apiKey: "bedrock-bearer-token",
-        providerOptions: { region: "us-east-1" },
+        providerConfig: {
+          provider: "bedrock",
+          options: { region: "us-east-1" },
+        },
       },
     });
 
@@ -43,7 +46,121 @@ describe("StagehandAPIClient model config handling", () => {
       modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
       modelClientOptions: {
         apiKey: "bedrock-bearer-token",
-        providerOptions: { region: "us-east-1" },
+        providerConfig: {
+          provider: "bedrock",
+          options: { region: "us-east-1" },
+        },
+      },
+    });
+  });
+
+  it("normalizes legacy Vertex top-level settings into providerConfig on session start", async () => {
+    const client = new StagehandAPIClient({
+      apiKey: "bb-api-key",
+      projectId: "bb-project-id",
+      logger: () => {},
+    });
+    const fetchWithCookies = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            available: true,
+            sessionId: "session-id",
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    (client as unknown as { fetchWithCookies: typeof fetchWithCookies })
+      .fetchWithCookies = fetchWithCookies;
+
+    await client.init({
+      modelName: "vertex/gemini-2.5-pro",
+      modelClientOptions: {
+        project: "test-project",
+        location: "us-central1",
+        googleAuthOptions: {
+          credentials: {
+            client_email: "test@example.com",
+          },
+        },
+      },
+    });
+
+    expect(fetchWithCookies).toHaveBeenCalledTimes(1);
+    const [, requestInit] = fetchWithCookies.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(JSON.parse(String(requestInit.body))).toMatchObject({
+      modelName: "vertex/gemini-2.5-pro",
+      modelClientOptions: {
+        providerConfig: {
+          provider: "vertex",
+          options: {
+            project: "test-project",
+            location: "us-central1",
+            googleAuthOptions: {
+              credentials: {
+                client_email: "test@example.com",
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it("serializes Headers instances in modelClientOptions", async () => {
+    const client = new StagehandAPIClient({
+      apiKey: "bb-api-key",
+      projectId: "bb-project-id",
+      logger: () => {},
+    });
+    const fetchWithCookies = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            available: true,
+            sessionId: "session-id",
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    (client as unknown as { fetchWithCookies: typeof fetchWithCookies })
+      .fetchWithCookies = fetchWithCookies;
+
+    await client.init({
+      modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
+      modelClientOptions: {
+        headers: new Headers({
+          "x-bedrock-test-header": "present",
+        }) as unknown as Record<string, string>,
+        providerConfig: {
+          provider: "bedrock",
+          options: { region: "us-east-1" },
+        },
+      },
+    });
+
+    const [, requestInit] = fetchWithCookies.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(JSON.parse(String(requestInit.body))).toMatchObject({
+      modelClientOptions: {
+        headers: {
+          "x-bedrock-test-header": "present",
+        },
+        providerConfig: {
+          provider: "bedrock",
+          options: { region: "us-east-1" },
+        },
       },
     });
   });
@@ -73,9 +190,12 @@ describe("StagehandAPIClient model config handling", () => {
         modelProvider: "bedrock",
         sessionModelConfig: {
           modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
-          providerOptions: {
-            region: "us-east-1",
-            accessKeyId: "AKIATEST",
+          providerConfig: {
+            provider: "bedrock",
+            options: {
+              region: "us-east-1",
+              accessKeyId: "AKIATEST",
+            },
           },
         },
         execute,
@@ -92,9 +212,12 @@ describe("StagehandAPIClient model config handling", () => {
           options: {
             model: {
               modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
-              providerOptions: {
-                region: "us-east-1",
-                accessKeyId: "AKIATEST",
+              providerConfig: {
+                provider: "bedrock",
+                options: {
+                  region: "us-east-1",
+                  accessKeyId: "AKIATEST",
+                },
               },
             },
           },
@@ -215,7 +338,10 @@ describe("StagehandAPIClient model config handling", () => {
       options: {
         model: {
           modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
-          providerOptions: { region: "us-east-1" },
+          providerConfig: {
+            provider: "bedrock",
+            options: { region: "us-east-1" },
+          },
         },
       },
     });
@@ -227,6 +353,9 @@ describe("StagehandAPIClient model config handling", () => {
       "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
     );
     expect(model.apiKey).toBeUndefined();
-    expect(model.providerOptions).toEqual({ region: "us-east-1" });
+    expect(model.providerConfig).toEqual({
+      provider: "bedrock",
+      options: { region: "us-east-1" },
+    });
   });
 });

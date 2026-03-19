@@ -22,14 +22,20 @@ describe("header model config helpers", () => {
       modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
       modelClientOptions: {
         apiKey: "bedrock-bearer-token",
-        providerOptions: { region: "us-east-1" },
+        providerConfig: {
+          provider: "bedrock",
+          options: { region: "us-east-1" },
+        },
       },
     });
 
     assert.deepEqual(getRequestModelConfig(request), {
       modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
       apiKey: "bedrock-bearer-token",
-      providerOptions: { region: "us-east-1" },
+      providerConfig: {
+        provider: "bedrock",
+        options: { region: "us-east-1" },
+      },
     });
     assert.equal(
       getModelName(request),
@@ -43,9 +49,12 @@ describe("header model config helpers", () => {
       options: {
         model: {
           modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
-          providerOptions: {
-            region: "us-east-1",
-            accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+          providerConfig: {
+            provider: "bedrock",
+            options: {
+              region: "us-east-1",
+              accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+            },
           },
         },
       },
@@ -53,9 +62,12 @@ describe("header model config helpers", () => {
 
     assert.deepEqual(getRequestModelConfig(request), {
       modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
-      providerOptions: {
-        region: "us-east-1",
-        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+      providerConfig: {
+        provider: "bedrock",
+        options: {
+          region: "us-east-1",
+          accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+        },
       },
     });
     assert.equal(

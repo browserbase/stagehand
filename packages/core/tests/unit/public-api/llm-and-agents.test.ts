@@ -3,26 +3,39 @@ import * as Stagehand from "@browserbasehq/stagehand";
 
 describe("LLM and Agents public API types", () => {
   describe("ModelConfiguration", () => {
-    it("accepts Vertex providerOptions in model config", () => {
+    it("accepts legacy Vertex top-level settings in model config", () => {
       const googleConfig = {
-        modelName: "google/gemini-3-flash-preview",
-        headers: {
-          "X-Goog-Priority": "high",
-        },
-        providerOptions: {
-          project: "test-project",
-          location: "global",
-        },
+        modelName: "vertex/gemini-3-flash-preview",
+        project: "test-project",
+        location: "global",
       } satisfies Stagehand.ModelConfiguration;
 
       void googleConfig;
+    });
+
+    it("accepts typed Vertex providerConfig in model config", () => {
+      const vertexConfig = {
+        modelName: "vertex/gemini-3-flash-preview",
+        providerConfig: {
+          provider: "vertex",
+          options: {
+            project: "test-project",
+            location: "global",
+          },
+        },
+      } satisfies Stagehand.ModelConfiguration;
+
+      void vertexConfig;
     });
 
     it("accepts Bedrock bearer token settings in model config", () => {
       const bedrockConfig = {
         modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
         apiKey: "bedrock-bearer-token",
-        providerOptions: { region: "us-east-1" },
+        providerConfig: {
+          provider: "bedrock",
+          options: { region: "us-east-1" },
+        },
       } satisfies Stagehand.ModelConfiguration;
 
       void bedrockConfig;
@@ -31,11 +44,14 @@ describe("LLM and Agents public API types", () => {
     it("accepts Bedrock AWS credential settings in model config", () => {
       const bedrockConfig = {
         modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
-        providerOptions: {
-          accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-          secretAccessKey: "secret",
-          sessionToken: "session-token",
-          region: "us-east-1",
+        providerConfig: {
+          provider: "bedrock",
+          options: {
+            accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+            secretAccessKey: "secret",
+            sessionToken: "session-token",
+            region: "us-east-1",
+          },
         },
       } satisfies Stagehand.ModelConfiguration;
 
