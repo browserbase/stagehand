@@ -609,10 +609,10 @@ components:
             - $ref: "#/components/schemas/ModelConfig"
             - type: string
         variables:
-          description: Variables whose names are exposed to the model so
-            observe() returns %variableName% placeholders in suggested action
-            arguments instead of literal values. Accepts flat primitives or
-            { value, description? } objects.
+          description: Variables whose names are exposed to the model so observe() returns
+            %variableName% placeholders in suggested action arguments instead of
+            literal values. Accepts flat primitives or { value, description? }
+            objects.
           example:
             username:
               value: john@example.com
@@ -623,9 +623,10 @@ components:
             type: string
           additionalProperties:
             anyOf:
-              - type: string
-              - type: number
-              - type: boolean
+              - anyOf:
+                  - type: string
+                  - type: number
+                  - type: boolean
               - type: object
                 properties:
                   value:
@@ -1557,10 +1558,10 @@ components:
             - $ref: "#/components/schemas/ModelConfigOutput"
             - type: string
         variables:
-          description: Variables whose names are exposed to the model so
-            observe() returns %variableName% placeholders in suggested action
-            arguments instead of literal values. Accepts flat primitives or
-            { value, description? } objects.
+          description: Variables whose names are exposed to the model so observe() returns
+            %variableName% placeholders in suggested action arguments instead of
+            literal values. Accepts flat primitives or { value, description? }
+            objects.
           example:
             username:
               value: john@example.com
@@ -1571,9 +1572,10 @@ components:
             type: string
           additionalProperties:
             anyOf:
-              - type: string
-              - type: number
-              - type: boolean
+              - anyOf:
+                  - type: string
+                  - type: number
+                  - type: boolean
               - type: object
                 properties:
                   value:
