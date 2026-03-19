@@ -1,6 +1,20 @@
 import { StatusCodes } from "http-status-codes";
 
-import { AppError } from "../lib/errorHandler.js";
+export class AppError extends Error {
+  public readonly statusCode: number;
+  public readonly isInternal: boolean;
+
+  constructor(
+    message: string,
+    statusCode: number = StatusCodes.INTERNAL_SERVER_ERROR,
+    isInternal = false,
+  ) {
+    super(message);
+    this.name = new.target.name;
+    this.statusCode = statusCode;
+    this.isInternal = isInternal;
+  }
+}
 
 export class UnknownModelError extends AppError {
   constructor(model: string) {

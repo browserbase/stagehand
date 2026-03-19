@@ -17,8 +17,14 @@ import {
 } from "../types/public/agent.js";
 import { LogLine } from "../types/public/logs.js";
 import { type Action, V3FunctionName } from "../types/public/methods.js";
-import { SessionFileLogger } from "../flowLogger.js";
+import { FlowLogger } from "../flowlogger/FlowLogger.js";
+import { toTitleCase } from "../../utils.js";
 import { StagehandClosedError } from "../types/public/sdkErrors.js";
+import {
+  CaptchaSolver,
+  CAPTCHA_SOLVED_MSG,
+  CAPTCHA_ERRORED_MSG,
+} from "../agent/utils/captchaSolver.js";
 
 export class V3CuaAgentHandler {
   private v3: V3;
@@ -28,6 +34,9 @@ export class V3CuaAgentHandler {
   private agentClient: AgentClient;
   private options: AgentHandlerOptions;
   private highlightCursor: boolean;
+  private captchaSolver: CaptchaSolver | null = null;
+  private captchaClickGuardRemaining = 0;
+  private currentInstruction = "";
 
   constructor(
     v3: V3,
@@ -73,7 +82,38 @@ export class V3CuaAgentHandler {
     // Provide action executor
     this.agentClient.setActionHandler(async (action) => {
       this.ensureNotClosed();
+
+      // Wait for captcha solver to finish before executing action
+      if (this.captchaSolver) {
+        if (this.captchaSolver.isSolving()) {
+          this.logger({
+            category: "agent",
+            message:
+              "Captcha detected — waiting for Browserbase to solve it before continuing",
+            level: 1,
+          });
+        }
+        await this.captchaSolver.waitIfSolving();
+        this.handleCaptchaSolveResult(this.captchaSolver.consumeSolveResult());
+      }
+
       action.pageUrl = (await this.v3.context.awaitActivePage()).url();
+      if (await this.shouldSkipSolvedCaptchaInteraction(action)) {
+        this.captchaClickGuardRemaining = Math.max(
+          0,
+          this.captchaClickGuardRemaining - 1,
+        );
+        this.agentClient.addContextNote(
+          `The captcha has already been solved automatically. Do not click the captcha checkbox, widget, or challenge again. Continue with the original task outside the captcha area. Original task: ${this.currentInstruction}`,
+        );
+        this.logger({
+          category: "agent",
+          message:
+            "Skipped click on solved captcha widget — injected follow-up guidance",
+          level: 1,
+        });
+        return;
+      }
 
       const defaultDelay = 500;
       const waitBetween =
@@ -93,16 +133,19 @@ export class V3CuaAgentHandler {
         // Page.screenshot in captureAndSendScreenshot() is logged separately
         const shouldLog = action.type !== "screenshot";
         if (shouldLog) {
-          SessionFileLogger.logUnderstudyActionEvent({
-            actionType: `v3CUA.${action.type}`,
-            target: this.computePointerTarget(action),
-            args: [action],
-          });
-        }
-        try {
+          await FlowLogger.runWithLogging(
+            {
+              eventType: `V3Cua${toTitleCase(action.type)}`, // e.g. "V3CuaClick"
+              data: {
+                target: this.computePointerTarget(action),
+              },
+            },
+            async (loggedAction: typeof action) =>
+              await this.executeAction(loggedAction),
+            [action],
+          );
+        } else {
           await this.executeAction(action);
-        } finally {
-          if (shouldLog) SessionFileLogger.logUnderstudyActionCompleted();
         }
 
         action.timestamp = Date.now();
@@ -154,6 +197,7 @@ export class V3CuaAgentHandler {
     this.setSafetyConfirmationHandler(options.callbacks?.onSafetyConfirmation);
 
     this.highlightCursor = options.highlightCursor !== false;
+    this.currentInstruction = options.instruction;
 
     // Redirect if blank
     const page = await this.v3.context.awaitActivePage();
@@ -165,6 +209,26 @@ export class V3CuaAgentHandler {
         level: 1,
       });
       await page.goto("https://www.google.com", { waitUntil: "load" });
+    }
+
+    // Set up captcha solver for Browserbase environments
+    if (this.v3.isCaptchaAutoSolveEnabled) {
+      this.captchaSolver = new CaptchaSolver();
+      this.captchaSolver.init(() => this.v3.context.awaitActivePage());
+
+      // Block the CUA agent loop before each step while a captcha is being solved
+      this.agentClient.setPreStepHook(async () => {
+        if (this.captchaSolver?.isSolving()) {
+          this.logger({
+            category: "agent",
+            message:
+              "Captcha detected — waiting for Browserbase to solve it before continuing",
+            level: 1,
+          });
+        }
+        await this.captchaSolver?.waitIfSolving();
+        this.handleCaptchaSolveResult(this.captchaSolver?.consumeSolveResult());
+      });
     }
 
     if (this.highlightCursor) {
@@ -183,7 +247,13 @@ export class V3CuaAgentHandler {
     }
 
     const start = Date.now();
-    const result = await this.agent.execute({ options, logger: this.logger });
+    let result: AgentResult;
+    try {
+      result = await this.agent.execute({ options, logger: this.logger });
+    } finally {
+      this.captchaSolver?.dispose();
+      this.captchaSolver = null;
+    }
     const inferenceTimeMs = Date.now() - start;
     if (result.usage) {
       this.v3.updateMetrics(
@@ -596,8 +666,6 @@ export class V3CuaAgentHandler {
       const page = await this.v3.context.awaitActivePage();
       const screenshotBuffer = await page.screenshot({ fullPage: false });
 
-      // Emit screenshot event via the bus
-      this.v3.bus.emit("agent_screenshot_taken_event", screenshotBuffer);
       const currentUrl = page.url();
       return await this.agentClient.captureScreenshot({
         base64Image: screenshotBuffer.toString("base64"),
@@ -610,6 +678,101 @@ export class V3CuaAgentHandler {
         level: 0,
       });
       return null;
+    }
+  }
+
+  private handleCaptchaSolveResult(result?: {
+    solved: boolean;
+    errored: boolean;
+  }): void {
+    if (!result) return;
+
+    if (result.solved) {
+      this.captchaClickGuardRemaining = 3;
+      this.agentClient.addContextNote(CAPTCHA_SOLVED_MSG);
+      this.logger({
+        category: "agent",
+        message: "Captcha solved — continuing with task",
+        level: 1,
+      });
+    }
+
+    if (result.errored) {
+      this.captchaClickGuardRemaining = 0;
+      this.agentClient.addContextNote(CAPTCHA_ERRORED_MSG);
+      this.logger({
+        category: "agent",
+        message: "Captcha solver failed or errored",
+        level: 1,
+      });
+    }
+  }
+
+  private async shouldSkipSolvedCaptchaInteraction(
+    action: AgentAction,
+  ): Promise<boolean> {
+    if (this.captchaClickGuardRemaining <= 0) {
+      return false;
+    }
+
+    if (action.type !== "click") {
+      return false;
+    }
+
+    const x = action.x;
+    const y = action.y;
+    if (typeof x !== "number" || typeof y !== "number") {
+      return false;
+    }
+
+    try {
+      const page = await this.v3.context.awaitActivePage();
+      const boxes = await page.evaluate<
+        Array<{ left: number; top: number; right: number; bottom: number }>
+      >(() => {
+        const selectors = [
+          'iframe[title*="reCAPTCHA"]',
+          'iframe[src*="recaptcha"]',
+          'iframe[src*="hcaptcha"]',
+          'iframe[src*="turnstile"]',
+          ".g-recaptcha",
+          "[data-sitekey]",
+          '[class*="captcha"]',
+          '[id*="captcha"]',
+        ];
+
+        const seen = new Set<Element>();
+        const bounds: Array<{
+          left: number;
+          top: number;
+          right: number;
+          bottom: number;
+        }> = [];
+
+        for (const selector of selectors) {
+          for (const element of document.querySelectorAll(selector)) {
+            if (seen.has(element)) continue;
+            seen.add(element);
+            const rect = element.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) continue;
+            bounds.push({
+              left: rect.left,
+              top: rect.top,
+              right: rect.right,
+              bottom: rect.bottom,
+            });
+          }
+        }
+
+        return bounds;
+      });
+
+      return boxes.some(
+        (box) =>
+          x >= box.left && x <= box.right && y >= box.top && y <= box.bottom,
+      );
+    } catch {
+      return false;
     }
   }
 

@@ -431,6 +431,47 @@ console.log("Math.random() returned:", result);
 // Math.random() returned: 42
 ```
 
+## HTTP Headers
+
+### setExtraHTTPHeaders()
+
+Set HTTP headers that will be included in every request made by this page.
+
+```typescript
+await page.setExtraHTTPHeaders(headers: Record<string, string>): Promise<void>
+```
+
+<ParamField path="headers" type="Record<string, string>" required>
+  A plain object of header name–value pairs. All values must be strings.
+</ParamField>
+
+This method:
+- Applies the headers to the page's main CDP session and all of its child sessions (e.g. out-of-process iframes)
+- Automatically applies the same headers to any child sessions adopted after calling `setExtraHTTPHeaders()`
+- Calling it again replaces all previously set extra headers (it does not merge)
+- To clear all extra headers, pass an empty object: `await page.setExtraHTTPHeaders({})`
+
+<Note>
+Headers set via `page.setExtraHTTPHeaders()` are page-scoped. They apply to every network request from this page only, including navigation requests, XHR/fetch calls, and subresource loads. Use [`context.setExtraHTTPHeaders()`](/v3/references/context#setextrahttpheaders) to set headers across all pages in the context.
+</Note>
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+
+// Set custom headers for all requests from this page
+await page.setExtraHTTPHeaders({
+  "X-Custom-Token": "my-secret-token",
+  "Accept-Language": "en-US",
+});
+
+// All subsequent requests from this page will include these headers
+await page.goto("https://example.com");
+```
+
 ## Screenshot
 
 ### screenshot()
@@ -918,6 +959,36 @@ await page.setViewportSize(375, 667, {
 
 // Then take a screenshot at this size
 const screenshot = await page.screenshot();
+```
+
+</Tab>
+<Tab title="Custom HTTP Headers">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+
+// Set authorization headers for requests from this page
+await page.setExtraHTTPHeaders({
+  Authorization: "Bearer my-api-token",
+});
+
+// Navigate — the headers are sent with every request from this page
+await page.goto("https://api.example.com/dashboard");
+
+// Replace headers (previous headers are removed)
+await page.setExtraHTTPHeaders({
+  Authorization: "Bearer refreshed-token",
+  "X-Request-Id": "abc-123",
+});
+
+// Clear all extra headers
+await page.setExtraHTTPHeaders({});
+
+await stagehand.close();
 ```
 
 </Tab>

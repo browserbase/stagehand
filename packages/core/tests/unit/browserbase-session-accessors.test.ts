@@ -74,6 +74,7 @@ describe("browserbase accessors", () => {
 
       expect(v3.browserbaseSessionURL).toBe(MOCK_SESSION_URL);
       expect(v3.browserbaseDebugURL).toBe(MOCK_DEBUG_URL);
+      expect(v3.isCaptchaAutoSolveEnabled).toBe(true);
     } finally {
       await v3.close().catch(() => {});
     }
@@ -91,6 +92,26 @@ describe("browserbase accessors", () => {
 
     expect(v3.browserbaseSessionURL).toBeUndefined();
     expect(v3.browserbaseDebugURL).toBeUndefined();
+  });
+
+  it("disables captcha solving when solveCaptchas is explicitly false", async () => {
+    const v3 = new V3({
+      env: "BROWSERBASE",
+      disableAPI: true,
+      verbose: 0,
+      browserbaseSessionCreateParams: {
+        browserSettings: {
+          solveCaptchas: false,
+        },
+      },
+    });
+
+    try {
+      await v3.init();
+      expect(v3.isCaptchaAutoSolveEnabled).toBe(false);
+    } finally {
+      await v3.close().catch(() => {});
+    }
   });
 });
 

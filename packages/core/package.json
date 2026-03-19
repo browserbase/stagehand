@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "type": "module",
   "main": "./dist/cjs/index.js",
@@ -97,7 +97,7 @@
     "@ai-sdk/perplexity": "^2.0.13",
     "@ai-sdk/togetherai": "^1.0.23",
     "@ai-sdk/xai": "^2.0.26",
-    "@langchain/core": "^0.3.40",
+    "@langchain/core": "^0.3.80",
     "bufferutil": "^4.0.9",
     "chrome-launcher": "^1.2.0",
     "ollama-ai-provider-v2": "^1.5.0",

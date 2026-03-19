@@ -1,8 +1,4 @@
-import { randomUUID } from "crypto";
-
-import cors from "@fastify/cors";
 import fastify from "fastify";
-import metricsPlugin from "fastify-metrics";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUI from "@fastify/swagger-ui";
 import {
@@ -11,64 +7,49 @@ import {
   serializerCompiler,
   validatorCompiler,
   type FastifyZodOpenApiTypeProvider,
-  RequestValidationError,
   ResponseSerializationError,
 } from "fastify-zod-openapi";
 import { StatusCodes } from "http-status-codes";
 
-import { logging } from "./lib/logging/index.js";
+import { browserSessionOpenApiComponents } from "./schemas/v4/browserSession.js";
 import {
-  destroySessionStore,
-  initializeSessionStore,
-} from "./lib/sessionStoreManager.js";
+  buildErrorResponse,
+  pageOpenApiComponents,
+} from "./schemas/v4/page.js";
+import { buildBrowserSessionErrorResponse } from "./schemas/v4/browserSession.js";
 import healthcheckRoute from "./routes/healthcheck.js";
 import readinessRoute, { setReady, setUnready } from "./routes/readiness.js";
-import actRoute from "./routes/v4/sessions/_id/act.js";
-import agentExecuteRoute from "./routes/v4/sessions/_id/agentExecute.js";
-import endRoute from "./routes/v4/sessions/_id/end.js";
-import extractRoute from "./routes/v4/sessions/_id/extract.js";
-import navigateRoute from "./routes/v4/sessions/_id/navigate.js";
-import observeRoute from "./routes/v4/sessions/_id/observe.js";
-import replayRoute from "./routes/v4/sessions/_id/replay.js";
-import startRoute from "./routes/v4/sessions/start.js";
-
-// Constants for graceful shutdown
-const READY_WAIT_PERIOD = 10_000; // 10 seconds
-const GRACEFUL_SHUTDOWN_PERIOD = 30_000; // 30 seconds
-
-const usePrettyLogs = process.env.NODE_ENV === "development" && !process.env.CI;
+import { browserSessionRoutes } from "./routes/v4/browsersession/routes.js";
+import { pageRoutes } from "./routes/v4/page/routes.js";
 
 const app = fastify({
-  disableRequestLogging: true,
-
-  genReqId: () => {
-    return randomUUID();
-  },
-
-  logger: {
-    formatters: {
-      level(label: string) {
-        return { level: label };
-      },
-    },
-
-    level: process.env.NODE_ENV === "production" ? "info" : "trace",
-
-    ...(usePrettyLogs && {
-      transport: {
-        options: {
-          colorize: true,
-          ignore: "pid,hostname",
-        },
-        target: "pino-pretty",
-      },
-    }),
-  },
-
+  logger: false,
   return503OnClosing: false,
 });
 
-export const logger = app.log;
+const isPageRoute = (request: {
+  routeOptions?: { url?: string };
+  url: string;
+}) => {
+  const routeUrl = request.routeOptions?.url ?? "";
+  return (
+    routeUrl.startsWith("/page/") ||
+    routeUrl.startsWith("/v4/page/") ||
+    request.url.startsWith("/v4/page/")
+  );
+};
+
+const isBrowserSessionRoute = (request: {
+  routeOptions?: { url?: string };
+  url: string;
+}) => {
+  const routeUrl = request.routeOptions?.url ?? "";
+  return (
+    routeUrl.startsWith("/browsersession") ||
+    routeUrl.startsWith("/v4/browsersession") ||
+    request.url.startsWith("/v4/browsersession")
+  );
+};
 
 // Allow requests with `Content-Type: application/json` and an empty body (0 bytes).
 // Some clients always send the header even when there is no request body (e.g. /end).
@@ -86,71 +67,19 @@ app.addContentTypeParser<string>(
   },
 );
 
-process.on("uncaughtException", (error) => {
-  app.log.error(error, "Uncaught Exception:");
-});
-
-process.on("unhandledRejection", (reason, promise) => {
-  app.log.error(
-    reason instanceof Error ? reason : new Error(String(reason)),
-    "Unhandled Rejection at:",
-    promise,
-    "reason:",
-    reason,
-  );
-});
-
-// Graceful shutdown handler
-const gracefulShutdown = async () => {
-  app.log.info("gracefulShutdown");
-
-  setUnready();
-
-  await new Promise((resolve) => setTimeout(resolve, READY_WAIT_PERIOD));
-
-  const timeout = setTimeout(() => {
-    app.log.warn("forcefully shutting down after 30 seconds");
-    process.exit(1);
-  }, GRACEFUL_SHUTDOWN_PERIOD);
-
-  timeout.unref();
-
-  await app.close();
-  await destroySessionStore();
-  clearTimeout(timeout);
-
-  app.log.info("gracefulShutdown complete");
-  process.exit(0);
-};
-
-// Handle termination signals
-process.on("SIGTERM", () => {
-  gracefulShutdown().catch((err: unknown) => {
-    app.log.error(err, "error gracefully shutting down");
-  });
-});
-
-process.on("SIGINT", () => {
-  gracefulShutdown().catch((err: unknown) => {
-    app.log.error(err, "error gracefully shutting down");
-  });
-});
-
 const start = async () => {
   try {
-    if (process.env.NODE_ENV === "development") {
-      await app.register(cors, {
-        origin: ["http://localhost:3000"],
-        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allowedHeaders: ["*"],
-        credentials: true,
-      });
-    }
-
     app.setValidatorCompiler(validatorCompiler);
     app.setSerializerCompiler(serializerCompiler);
 
-    await app.register(fastifyZodOpenApiPlugin);
+    await app.register(fastifyZodOpenApiPlugin, {
+      components: {
+        schemas: {
+          ...browserSessionOpenApiComponents.schemas,
+          ...pageOpenApiComponents.schemas,
+        },
+      },
+    });
 
     await app.register(fastifySwagger, {
       openapi: {
@@ -170,41 +99,39 @@ const start = async () => {
       });
     }
 
-    app.setSchemaErrorFormatter(function (errors, dataVar) {
-      const zodIssues = errors
-        .filter((err) => err instanceof RequestValidationError)
-        .map((err) => err.params.issue);
-      this.log.warn({ dataVar, zodIssues }, "request validation failed");
-      return new Error(`${dataVar} validation failed`);
-    });
-
     app.setErrorHandler((error, request, reply) => {
-      if ((error as { validation?: unknown }).validation) {
-        const zodIssues = (error as { validation: unknown[] }).validation
-          .filter((err) => err instanceof RequestValidationError)
-          .map((err) => (err as RequestValidationError).params.issue);
+      const statusCode = (error as { validation?: unknown[] }).validation
+        ? StatusCodes.BAD_REQUEST
+        : error instanceof ResponseSerializationError
+          ? StatusCodes.INTERNAL_SERVER_ERROR
+          : ((error as { statusCode?: number }).statusCode ??
+            StatusCodes.INTERNAL_SERVER_ERROR);
+      const errorMessage = (error as { validation?: unknown[] }).validation
+        ? "Request validation failed"
+        : error instanceof ResponseSerializationError
+          ? "Response validation failed"
+          : error instanceof Error
+            ? error.message
+            : String(error);
 
-        request.log.warn({ zodIssues }, "request validation failed");
-        return reply.status(StatusCodes.BAD_REQUEST).send({
-          error: "Request validation failed",
-          issues: zodIssues,
-        });
+      if (isPageRoute(request)) {
+        return reply.status(statusCode).send(
+          buildErrorResponse({
+            error: errorMessage,
+            statusCode,
+            stack: error instanceof Error ? (error.stack ?? null) : null,
+          }),
+        );
       }
-
-      if (error instanceof ResponseSerializationError) {
-        request.log.error({ err: error }, "response serialization failed");
-        return reply
-          .status(StatusCodes.INTERNAL_SERVER_ERROR)
-          .send({ error: "Response validation failed" });
+      if (isBrowserSessionRoute(request)) {
+        return reply.status(statusCode).send(
+          buildBrowserSessionErrorResponse({
+            error: errorMessage,
+            statusCode,
+            stack: error instanceof Error ? (error.stack ?? null) : null,
+          }),
+        );
       }
-
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      request.log.error(`Server error: ${errorMessage}`);
-
-      const statusCode =
-        (error as { statusCode?: number }).statusCode ??
-        StatusCodes.INTERNAL_SERVER_ERROR;
 
       reply.status(statusCode).send({
         error:
@@ -215,43 +142,20 @@ const start = async () => {
       });
     });
 
-    await app.register(metricsPlugin, {
-      defaultMetrics: {
-        enabled: true,
-        prefix: "stagehand_api_",
-      },
-      routeMetrics: {
-        overrides: {
-          histogram: {
-            name: "stagehand_api_http_request_duration_seconds",
-          },
-          summary: {
-            name: "stagehand_api_http_request_summary_seconds",
-          },
-        },
-      },
-    });
-
-    initializeSessionStore();
-
     const appWithTypes = app.withTypeProvider<FastifyZodOpenApiTypeProvider>();
 
     await appWithTypes.register(
       (instance, _opts, done) => {
-        instance.route(actRoute);
-        instance.route(endRoute);
-        instance.route(extractRoute);
-        instance.route(navigateRoute);
-        instance.route(observeRoute);
-        instance.route(replayRoute);
-        instance.route(startRoute);
-        instance.route(agentExecuteRoute);
+        for (const route of browserSessionRoutes) {
+          instance.route(route);
+        }
+        for (const route of pageRoutes) {
+          instance.route(route);
+        }
         done();
       },
       { prefix: "/v4" },
     );
-
-    logging(app);
 
     // Register health and readiness routes at the root level
     appWithTypes.route(healthcheckRoute);
@@ -262,15 +166,32 @@ const start = async () => {
       host: "0.0.0.0",
       port: parseInt(process.env.PORT ?? "3000", 10),
     });
-    console.log("Routes registered:", app.printRoutes());
-
-    // Mark the server as ready after it's started
     setReady();
   } catch (err) {
     console.error("Failed to start server:", err);
     process.exit(1);
   }
 };
+
+const shutdown = async () => {
+  setUnready();
+  await app.close();
+  process.exit(0);
+};
+
+process.on("SIGTERM", () => {
+  shutdown().catch((err: unknown) => {
+    console.error("Failed to shut down cleanly:", err);
+    process.exit(1);
+  });
+});
+
+process.on("SIGINT", () => {
+  shutdown().catch((err: unknown) => {
+    console.error("Failed to shut down cleanly:", err);
+    process.exit(1);
+  });
+});
 
 start().catch((err: unknown) => {
   console.error("Failed to start server:", err);

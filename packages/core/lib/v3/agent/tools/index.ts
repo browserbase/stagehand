@@ -14,7 +14,8 @@ import { clickAndHoldTool } from "./clickAndHold.js";
 import { keysTool } from "./keys.js";
 import { fillFormVisionTool } from "./fillFormVision.js";
 import { thinkTool } from "./think.js";
-import { searchTool } from "./search.js";
+import { searchTool as browserbaseSearchTool } from "./browserbaseSearch.js";
+import { searchTool as braveSearchTool } from "./braveSearch.js";
 
 import type { ToolSet, InferUITools } from "ai";
 import type { V3 } from "../../v3.js";
@@ -24,6 +25,8 @@ import type {
   AgentModelConfig,
   Variables,
 } from "../../types/public/agent.js";
+import { withTimeout } from "../../timeoutConfig.js";
+import { TimeoutError } from "../../types/public/sdkErrors.js";
 
 export interface V3AgentToolOptions {
   executionModel?: string | AgentModelConfig;
@@ -49,10 +52,20 @@ export interface V3AgentToolOptions {
    */
   variables?: Variables;
   /**
-   * Timeout in milliseconds for tool calls that invoke v3 methods (act, extract, fillForm, ariaTree).
-   * Forwarded to the underlying v3 call's `timeout` option.
+   * Timeout in milliseconds for async tool calls.
+   * Applied to all tools that perform I/O (except wait and think).
    */
   toolTimeout?: number;
+  /**
+   * Whether to enable the Browserbase-powered web search tool.
+   * Requires a valid Browserbase API key.
+   */
+  useSearch?: boolean;
+  /**
+   * The Browserbase API key used for the search tool.
+   * Resolved from BROWSERBASE_API_KEY env var or the Stagehand constructor.
+   */
+  browserbaseApiKey?: string;
 }
 
 /**
@@ -89,6 +102,46 @@ function filterTools(
   return filtered;
 }
 
+/**
+ * Wraps an AI SDK tool's execute function with a timeout guard.
+ * On timeout, returns `{ success: false, error: "TimeoutError: ..." }` to the LLM
+ * and logs the error. Also acts as a safety net for any uncaught errors.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function wrapToolWithTimeout<T extends Record<string, any>>(
+  agentTool: T,
+  toolName: string,
+  v3: V3,
+  timeoutMs?: number,
+  timeoutHint?: string,
+): T {
+  if (!timeoutMs || !agentTool.execute) return agentTool;
+
+  const originalExecute = agentTool.execute;
+  return {
+    ...agentTool,
+    execute: async (...args: unknown[]) => {
+      try {
+        return await withTimeout(originalExecute(...args), timeoutMs, toolName);
+      } catch (error) {
+        if (error instanceof TimeoutError) {
+          const message = `TimeoutError: ${error.message}${timeoutHint ? ` ${timeoutHint}` : ""}`;
+          v3.logger({
+            category: "agent",
+            message,
+            level: 0,
+          });
+          return {
+            success: false,
+            error: message,
+          };
+        }
+        throw error;
+      }
+    },
+  } as T;
+}
+
 export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const executionModel = options?.executionModel;
   const mode = options?.mode ?? "dom";
@@ -97,7 +150,15 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const variables = options?.variables;
   const toolTimeout = options?.toolTimeout;
 
-  const allTools: ToolSet = {
+  const timeoutHints: Record<string, string> = {
+    act: "(it may continue executing in the background) — try using a different description for the action",
+    ariaTree: "— the page may be too large",
+    extract: "— try using a smaller or simpler schema",
+    fillForm:
+      "(it may continue executing in the background) — try filling fewer fields at once or use a different tool",
+  };
+
+  const unwrappedTools: ToolSet = {
     act: actTool(v3, executionModel, variables, toolTimeout),
     ariaTree: ariaTreeTool(v3, toolTimeout),
     click: clickTool(v3, provider),
@@ -111,14 +172,34 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     navback: navBackTool(v3),
     screenshot: screenshotTool(v3),
     scroll: mode === "hybrid" ? scrollVisionTool(v3, provider) : scrollTool(v3),
-    think: thinkTool(),
     type: typeTool(v3, provider, variables),
-    wait: waitTool(v3, mode),
   };
 
-  if (process.env.BRAVE_API_KEY) {
-    allTools.search = searchTool(v3);
+  if (options?.useSearch && options.browserbaseApiKey) {
+    unwrappedTools.search = browserbaseSearchTool(
+      v3,
+      options.browserbaseApiKey,
+    );
+  } else if (process.env.BRAVE_API_KEY) {
+    unwrappedTools.search = braveSearchTool(v3);
   }
+
+  const allTools: ToolSet = {
+    ...Object.fromEntries(
+      Object.entries(unwrappedTools).map(([name, t]) => [
+        name,
+        wrapToolWithTimeout(
+          t,
+          `${name}()`,
+          v3,
+          toolTimeout,
+          timeoutHints[name],
+        ),
+      ]),
+    ),
+    think: thinkTool(),
+    wait: waitTool(v3, mode),
+  };
 
   return filterTools(allTools, mode, excludeTools);
 }
@@ -127,7 +208,7 @@ export type AgentTools = ReturnType<typeof createAgentTools>;
 
 /**
  * Type map of all agent tools for strong typing of tool calls and results.
- * Note: `search` is optional as it's only available when BRAVE_API_KEY is configured.
+ * Note: `search` is optional — enabled via useSearch: true (Browserbase) or BRAVE_API_KEY env var (legacy).
  */
 export type AgentToolTypesMap = {
   act: ReturnType<typeof actTool>;
@@ -143,7 +224,9 @@ export type AgentToolTypesMap = {
   navback: ReturnType<typeof navBackTool>;
   screenshot: ReturnType<typeof screenshotTool>;
   scroll: ReturnType<typeof scrollTool> | ReturnType<typeof scrollVisionTool>;
-  search?: ReturnType<typeof searchTool>;
+  search?:
+    | ReturnType<typeof browserbaseSearchTool>
+    | ReturnType<typeof braveSearchTool>;
   think: ReturnType<typeof thinkTool>;
   type: ReturnType<typeof typeTool>;
   wait: ReturnType<typeof waitTool>;

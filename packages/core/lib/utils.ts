@@ -742,6 +742,13 @@ export function trimTrailingTextNode(
   return path?.replace(/\/text\(\)(\[\d+\])?$/iu, "");
 }
 
+export function toTitleCase(str: string): string {
+  return str.replace(
+    /\w\S*/g,
+    (text) => text.charAt(0).toUpperCase() + text.substring(1),
+  );
+}
+
 // TODO: move to separate types file
 export interface JsonSchemaProperty {
   type: string;
