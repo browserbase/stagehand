@@ -6,43 +6,30 @@ import type { V3 } from "../../lib/v3/v3.js";
 
 /**
  * Minimal mock of V3 that captures how tools pass `model` options
- * into v3.act(), v3.extract(), and v3.observe().
+ * into v3.act(), v3.extract(), and v3.observe(), plus observe variables.
  */
 function createMockV3() {
-  const calls: { method: string; model: unknown; variables: unknown }[] = [];
+  const calls: { method: string; model: unknown; variables?: unknown }[] = [];
 
   const mock = {
     logger: vi.fn(),
     recordAgentReplayStep: vi.fn(),
-    act: vi.fn(
-      async (
-        _instruction: unknown,
-        options?: { model?: unknown; variables?: unknown },
-      ) => {
-        calls.push({
-          method: "act",
-          model: options?.model,
-          variables: options?.variables,
-        });
-        return {
-          success: true,
-          message: "ok",
-          actionDescription: "clicked",
-          actions: [],
-        };
-      },
-    ),
+    act: vi.fn(async (_instruction: unknown, options?: { model?: unknown }) => {
+      calls.push({ method: "act", model: options?.model });
+      return {
+        success: true,
+        message: "ok",
+        actionDescription: "clicked",
+        actions: [],
+      };
+    }),
     extract: vi.fn(
       async (
         _instruction: unknown,
         _schema: unknown,
-        options?: { model?: unknown; variables?: unknown },
+        options?: { model?: unknown },
       ) => {
-        calls.push({
-          method: "extract",
-          model: options?.model,
-          variables: options?.variables,
-        });
+        calls.push({ method: "extract", model: options?.model });
         return { extraction: "data" };
       },
     ),
