@@ -703,13 +703,14 @@ export const AgentExecuteOptionsSchema = z
       example: true,
     }),
     useSearch: z.boolean().optional().meta({
-      description: "Whether to enable the web search tool powered by Browserbase Search API",
+      description:
+        "Whether to enable the web search tool powered by Browserbase Search API",
       example: true,
     }),
     toolTimeout: z.number().optional().meta({
       description: "Timeout in milliseconds for each agent tool call",
       example: 30000,
-    })
+    }),
   })
   .meta({ id: "AgentExecuteOptions" });
 
