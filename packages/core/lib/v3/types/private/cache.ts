@@ -104,7 +104,7 @@ export interface AgentReplayActStep {
 
 export interface AgentReplayFillFormStep {
   type: "fillForm";
-  fields?: Array<{ action: string; value: string }>;
+  fields?: Array<{ action: string }>;
   observeResults?: Action[];
   actions?: Action[];
 }

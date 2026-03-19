@@ -264,7 +264,7 @@ test.describe("V3 hard timeouts", () => {
 
   test("agent toolTimeout enforces timeout for fillForm tool", async () => {
     const { toolOutput } = await runAgentToolTimeoutScenario("fillForm", {
-      fields: [{ action: "type hello into name", value: "hello" }],
+      fields: [{ action: "type hello into name" }],
     });
     const output = toolOutput as { success: boolean; error: string };
     expect(output.success).toBe(false);
