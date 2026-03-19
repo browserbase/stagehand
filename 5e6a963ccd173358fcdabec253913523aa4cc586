@@ -1,0 +1,351 @@
+packages/server-v4/src/routes/v4/browsersession/_id/end.ts
+  c3126112736266df 1-50
+packages/core/lib/v3/v3.ts
+  c3126112736266df 23,88-90,158-159,186-196,248-250,292,396-410,783,883,921-923,925-927,982,1101-1103,1257-1259,1353-1355,1459,1494-1495,1512-1517,1745,1886-1888,1891,1912-1916,2010-2016,2023,2031,2146-2152
+packages/server-v4/src/routes/v4/browsersession/setExtraHTTPHeaders.ts
+  c3126112736266df 1-42
+packages/server-v4/src/routes/v4/browsersession/activePage.ts
+  c3126112736266df 1-43
+packages/server-v4/src/routes/v4/page/click.ts
+  c3126112736266df 1-38
+packages/server-v4/src/routes/v4/page/getOrdinal.ts
+  c3126112736266df 1-38
+packages/core/lib/v3/types/public/agent.ts
+  c3126112736266df 321,340,405-418
+packages/docs/v3/first-steps/quickstart.mdx
+  c3126112736266df 10
+packages/docs/v2/integrations/mcp/configuration.mdx
+  c3126112736266df 46,273,282
+eslint.config.mjs
+  c3126112736266df 22-24,80-83
+packages/server-v4/src/routes/v4/page/reload.ts
+  c3126112736266df 1-42
+stainless.yml
+  c3126112736266df 205
+.prettierignore
+  c3126112736266df 13
+packages/core/lib/v3/agent/tools/clickAndHold.ts
+  c3126112736266df 84
+packages/evals/tasks/agent/onlineMind2Web.ts
+  c3126112736266df 46,49,56
+packages/server-v4/src/routes/v4/page/waitForLoadState.ts
+  c3126112736266df 1-37
+packages/core/lib/v3/agent/tools/click.ts
+  c3126112736266df 85
+packages/server-v4/scripts/gen-openapi.ts
+  c3126112736266df 15-18,37-38,51,81-86
+packages/server-v4/src/routes/v4/browsersession/action/_actionId.ts
+  c3126112736266df 1-32
+packages/core/tests/integration/agent-captcha-autosolve.spec.ts
+  c3126112736266df 1-69
+packages/core/lib/v3/agent/tools/act.ts
+  c3126112736266df 67
+packages/core/lib/v3/agent/tools/extract.ts
+  c3126112736266df 104
+packages/core/tests/integration/agent-hybrid-mode.spec.ts
+  c3126112736266df 135,140,144,147,152,155
+packages/core/lib/v3/agent/GoogleCUAClient.ts
+  c3126112736266df 37-40,249-250,373,376,446,449
+packages/server-v4/src/routes/v4/browsersession/shared.ts
+  c3126112736266df 1-263
+packages/server-v4/test/integration/v4/page.test.ts
+  c3126112736266df 1-978
+packages/docs/v2/first-steps/quickstart.mdx
+  c3126112736266df 6
+packages/core/lib/v3/handlers/handlerUtils/actHandlerUtils.ts
+  c3126112736266df 9-10,46-56,59-60,62-63,68,71,73-74,76-77,83,85-88,96-99
+packages/docs/v3/best-practices/mcp-integrations.mdx
+  c3126112736266df 283,287
+packages/core/lib/v3/types/public/model.ts
+  c3126112736266df 117-118
+packages/server-v4/src/routes/v4/page/action/index.ts
+  c3126112736266df 1-27
+packages/server-v4/src/routes/v4/page/hover.ts
+  c3126112736266df 1-38
+packages/server-v4/src/routes/v4/page/mainFrame.ts
+  c3126112736266df 1-42
+packages/core/tests/unit/flowlogger-capturing-llm.test.ts
+  c3126112736266df 1-50
+packages/server-v4/src/routes/v4/page/snapshot.ts
+  c3126112736266df 1-39
+packages/server-v4/src/routes/v4/page/targetId.ts
+  c3126112736266df 1-41
+packages/cli/package.json
+  c3126112736266df 3,30,49-50,52,54,66-67,70-71
+packages/server-v3/package.json
+  c3126112736266df 3
+packages/server-v4/src/routes/v4/browsersession/browserbaseSessionID.ts
+  c3126112736266df 1-42
+packages/core/lib/v3/types/public/options.ts
+  c3126112736266df 22-28
+packages/core/lib/v3/flowlogger/EventEmitter.ts
+  c3126112736266df 1-41
+packages/core/lib/v3/agent/OpenAICUAClient.ts
+  c3126112736266df 23-26,33-34,36-37,115-123,153-154,182-191,288,489-506,517,520,538,541,732-744,841-848
+packages/server-v4/src/routes/v4/page/screenshot.ts
+  c3126112736266df 1-38
+packages/server-v4/src/routes/v4/browsersession/addInitScript.ts
+  c3126112736266df 1-40
+.github/workflows/claude.yml
+  c3126112736266df 13-15,29,32,36-40,42-45,56-57,59,61,65-67,69-72
+packages/core/tests/unit/openai-cua-client.test.ts
+  c3126112736266df 1-137
+packages/server-v4/src/routes/v4/page/goForward.ts
+  c3126112736266df 1-42
+packages/docs/v3/references/page.mdx
+  c3126112736266df 434-474,964-991
+packages/server-v4/src/schemas/v4/page.ts
+  c3126112736266df 1-1576
+packages/server-v4/src/routes/v4/page/close.ts
+  c3126112736266df 1-35
+packages/docs/v3/basics/agent.mdx
+  c3126112736266df 429,452,479-489
+packages/core/lib/v3/agent/tools/type.ts
+  c3126112736266df 102
+packages/core/lib/v3/agent/utils/handleDoneToolCall.ts
+  c3126112736266df 110-113
+packages/core/lib/v3/agent/tools/keys.ts
+  c3126112736266df 64
+packages/server-v4/src/routes/v4/page/listAllFrameIds.ts
+  c3126112736266df 1-37
+packages/core/lib/v3/flowlogger/prettify.ts
+  c3126112736266df 1-552
+packages/core/lib/v3/agent/AnthropicCUAClient.ts
+  c3126112736266df 25-28,139-140,516,519,535,538
+packages/server-v4/src/schemas/v4/browserSession.ts
+  c3126112736266df 1-1204
+packages/core/lib/v3/agent/tools/dragAndDrop.ts
+  c3126112736266df 100
+packages/server-v4/src/server.ts
+  c3126112736266df 14,16-19,22-23,26,30-52,75-82,103-123,126-132,149-154,176-179,181-194
+packages/server-v4/src/routes/v4/browsersession/clearCookies.ts
+  c3126112736266df 1-40
+packages/core/lib/v3/agent/utils/captchaSolver.ts
+  c3126112736266df 1-194
+packages/server-v4/src/routes/v4/page/dragAndDrop.ts
+  c3126112736266df 1-39
+packages/docs/v2/integrations/mcp/tools.mdx
+  c3126112736266df 9,15,23,32-33,40-41,43-44,48,50-51,53,55-56,60-61,63,65
+packages/core/lib/v3/agent/tools/ariaTree.ts
+  c3126112736266df 40
+packages/cli/tsconfig.json
+  c3126112736266df 2,8
+packages/core/tests/unit/agent-captcha-hooks.test.ts
+  c3126112736266df 1-434
+packages/core/tests/unit/captcha-solver.test.ts
+  c3126112736266df 1-191
+packages/server-v4/src/routes/v4/browsersession/cookies.ts
+  c3126112736266df 1-43
+packages/evals/CHANGELOG.md
+  c3126112736266df 3-9
+packages/evals/tasks/agent/webvoyager.ts
+  c3126112736266df 45,48,103
+packages/server-v4/src/routes/readiness.ts
+  c3126112736266df 43,50
+packages/core/lib/v3/understudy/cdp.ts
+  c3126112736266df 6-9,39-40,64-72,81,148-161,171-172,205,270-294,297-320,358,365,372-375,377-381,384-406,410-416,419-424,437-457,468-469
+packages/server-v4/src/routes/v4/browsersession/browserbaseDebugURL.ts
+  c3126112736266df 1-42
+packages/server-v4/src/routes/v4/page/getFullFrameTree.ts
+  c3126112736266df 1-44
+packages/server-v4/src/routes/v4/page/setExtraHTTPHeaders.ts
+  c3126112736266df 1-37
+.github/workflows/ci.yml
+  c3126112736266df 18,261-278,415
+.github/workflows/external-contributor-pr-approval-handoff.yml
+  c3126112736266df 1-43
+packages/server-v4/src/routes/v4/page/frames.ts
+  c3126112736266df 1-42
+packages/server-v4/src/routes/v4/page/goto.ts
+  c3126112736266df 1-41
+packages/core/CHANGELOG.md
+  c3126112736266df 3-36
+packages/server-v4/src/routes/v4/page/type.ts
+  c3126112736266df 1-35
+packages/server-v4/test/integration/utils.ts
+  c3126112736266df 58,72-73,75-76,112-113,117,198,215,223,226-227,229,237-238,248
+packages/core/package.json
+  c3126112736266df 3,100
+packages/server-v4/src/routes/v4/browsersession/routes.ts
+  c3126112736266df 1-47
+packages/server-v4/src/routes/v4/page/sendCDP.ts
+  c3126112736266df 1-40
+packages/cli/CHANGELOG.md
+  c3126112736266df 1-16
+packages/core/lib/v3/flowlogger/FlowLogger.ts
+  c3126112736266df 1-886
+packages/server-v4/src/routes/v4/browsersession/action/index.ts
+  c3126112736266df 1-30
+packages/server-v4/src/routes/v4/page/evaluate.ts
+  c3126112736266df 1-40
+packages/core/lib/utils.ts
+  c3126112736266df 745-751
+packages/core/lib/v3/flowlogger/EventStore.ts
+  c3126112736266df 1-186
+packages/core/lib/v3/llm/aisdk.ts
+  c3126112736266df 21-23,155,158,161,198,254,299,302,305,326,374
+packages/core/tests/integration/flowLogger.spec.ts
+  c3126112736266df 1-973
+packages/core/tests/unit/flowlogger-capturing-cdp.test.ts
+  c3126112736266df 1-136
+packages/core/tests/unit/public-api/public-types.test.ts
+  c3126112736266df 223,244
+packages/server-v4/CHANGELOG.md
+  c3126112736266df 3,7-8
+packages/docs/v3/integrations/mcp/configuration.mdx
+  c3126112736266df 49,249,258-260
+packages/server-v4/src/routes/v4/browsersession/awaitActivePage.ts
+  c3126112736266df 1-43
+packages/server-v4/src/types/error.ts
+  c3126112736266df 3-17
+packages/docs/v2/integrations/mcp/introduction.mdx
+  c3126112736266df 9,12-16,31,34-35,50,78,164,168,173,178,184,188-189,192-193
+turbo.json
+  c3126112736266df 87-100,391,554-563
+packages/server-v4/src/routes/v4/browsersession/browserbaseSessionURL.ts
+  c3126112736266df 1-42
+package.json
+  c3126112736266df 20
+packages/core/lib/v3/understudy/page.ts
+  c3126112736266df 4,654,799,862,909,962-964,1094-1096,1269-1271,1299-1301,1336,1390,1423,1515,1566,1609-1611,1716,1843,1895
+packages/core/tests/integration/timeouts.spec.ts
+  c3126112736266df 10,14-23,166,182-184,251,262,272,280-410,414
+packages/server-v3/CHANGELOG.md
+  c3126112736266df 3-11
+packages/server-v4/src/routes/healthcheck.ts
+  c3126112736266df 20,22
+packages/server-v4/src/routes/v4/page/asProtocolFrameTree.ts
+  c3126112736266df 1-40
+packages/server-v4/src/routes/v4/page/keyPress.ts
+  c3126112736266df 1-35
+packages/core/lib/v3/agent/tools/fillFormVision.ts
+  c3126112736266df 149
+packages/core/lib/v3/agent/MicrosoftCUAClient.ts
+  c3126112736266df 878-879
+.changeset/crazy-nights-prove.md
+  c3126112736266df 1-5
+packages/evals/tasks/agent/webtailbench.ts
+  c3126112736266df 48,51
+.github/workflows/external-contributor-pr.yml
+  c3126112736266df 1-598
+packages/server-v4/src/routes/v4/page/goBack.ts
+  c3126112736266df 1-42
+packages/core/lib/v3/agent/tools/index.ts
+  c3126112736266df 17-18,28-29,55-56,59-68,105-142,153-161,178-184,187-202,211,228-229
+packages/evals/utils/ScreenshotCollector.ts
+  c3126112736266df 147
+packages/server-v4/src/routes/v4/browsersession/addCookies.ts
+  c3126112736266df 1-42
+packages/server-v4/src/routes/v4/browsersession/resolvePageByMainFrameId.ts
+  c3126112736266df 1-43
+packages/core/lib/v3/handlers/v3CuaAgentHandler.ts
+  c3126112736266df 20-21,23-27,37-39,85-99,101-116,136,138-145,147,200,214-231,250-256,684-775
+packages/evals/package.json
+  c3126112736266df 3
+packages/server-v4/src/routes/v4/page/title.ts
+  c3126112736266df 1-35
+packages/server-v3/scripts/test-server.ts
+  c3126112736266df 195
+packages/server-v4/src/routes/v4/page/mainFrameId.ts
+  c3126112736266df 1-35
+packages/server-v4/src/routes/v4/page/url.ts
+  c3126112736266df 1-41
+packages/server-v4/test/integration/v4/browsersession.test.ts
+  c3126112736266df 1-140
+packages/server-v4/openapi.v4.yaml
+  c3126112736266df 10-11,79,82-84,86,88-96,98,100,102,104,106,108-109,111-115,117,121-134,136-144,146-147,149-150,153-155,158-164,166-176,179,181-184,225,228-236,239-246,248-252,265-275,293-300,302-316,319-321,323-335,338-350,352,354-365,367-368,370-373,376-442,444-450,453-455,458-463,466-476,478,481-483,486-501,504,506-508,511-514,516-518,521-526,529,531-539,544-546,549,552,554,556,559,563-566,569-570,572-574,577,579-584,587,589-595,597-601,603,605-609,612-614,617-618,620-622,625,628-630,633,636-638,641-643,645-665,668-671,674-675,677-679,682-687,690-695,699-702,704,706,709-714,717,719-721,724-731,734-739,741-744,747,750-752,755,758-760,763,765-766,768-771,774,776-785,787-791,794-797,799,801,804-812,814-815,817,820-821,823,825,828-829,831,833,836-838,841-842,844,847-850,852,854,857,859,861,864,866,868,871-872,874,876,949,952,954-956,958-980,982-1001,1003,1006-1011,1014-1020,1022-1026,1028-1036,1038-1045,1047-1049,1051,1053,1056-1057,1059,1061-1092,1095-1101,1103-1107,1109,1112-1120,1122-1126,1129-1131,1133-1140,1142,1145,1147,1149,1151,1153,1155,1157-1161,1164-1166,1168-1169,1171,1174,1176,1179,1181-1185,1188-1193,1195,1198,1200-1206,1208-1209,1211,1214-1215,1217,1219,1222-1223,1225,1227,1229,1231,1233,1235,1238-1241,1243,1246-1247,1249,1251,1254-1255,1257,1259,1262,1265,1268,1271-1272,1275,1278,1281,1283,1285-1287,1289,1291,1293,1295,1297,1299,1301,1303,1305-1319,1321,1324-1329,1331-1332,1334,1337-1342,1344-1345,1347,1350-1355,1357-1358,1360,1363-1368,1370-1371,1373,1376-1381,1383-1384,1386,1389-1394,1396-1397,1399,1402-1407,1409-1410,1412,1415-1420,1422-1423,1425,1428-1433,1435-1436,1438,1441-1446,1448-1449,1451,1454-1459,1461-1527,1529,1533-1534,1536-1558,1561-1568,1570,1573-1575,1577-1609,1611,1614-1616,1618-1640,1642-1647,1649-1650,1652,1655-1691,1693,1697-1698,1700-1722,1725-1732,1734-9414,9416-9417,9422,9441-9472,9477-9478,9480-9487,9505-9536,9541-9542,9544-9545,9550,9569-9576,9581-9606,9608-9609,9614,9633-9664,9669-9670,9672-9673,9678,9697-9710,9715-9734,9736-9737,9740-9741,9743-9746,9749-9765,9782-9783,9788-9814,9818-9822,9825-9826,9828-9836,9854-9885,9890
+packages/server-v4/package.json
+  c3126112736266df 3
+packages/server-v4/src/routes/v4/browsersession/connectURL.ts
+  c3126112736266df 1-42
+packages/core/lib/v3/agent/tools/browserbaseSearch.ts
+  c3126112736266df 1-98
+packages/server-v4/src/routes/v4/page/waitForMainLoadState.ts
+  c3126112736266df 1-37
+packages/docs/v2/integrations/mcp/setup.mdx
+  c3126112736266df 4,9-10,13,15-27,33,36,39,43-99,101-137,141,143,145,149,155,157-165,173,200,204,223,245,283-284,288,291
+packages/core/lib/v3/agent/AgentClient.ts
+  c3126112736266df 45-60
+packages/core/tests/unit/browserbase-session-accessors.test.ts
+  c3126112736266df 77,96-114
+packages/docs/v3/integrations/mcp/tools.mdx
+  c3126112736266df 13,19,27,36-37,44-45,47-49,54-55,57,59-61,64-65,67
+packages/server-v3/src/lib/stream.ts
+  c3126112736266df 10,162-174
+packages/cli/tests/cli.test.ts
+  c3126112736266df 14,20-21,35,47,49,257,295-298,367-368,379,387,406,414,475,523-524
+packages/core/tests/integration/testUtils.ts
+  c3126112736266df 2-9,59-309
+packages/core/lib/v3/agent/tools/fillform.ts
+  c3126112736266df 82
+packages/server-v4/src/routes/v4/page/enableCursorOverlay.ts
+  c3126112736266df 1-35
+packages/server-v4/src/routes/v4/browsersession/index.ts
+  c3126112736266df 1-80
+packages/server-v4/src/routes/v4/page/waitForTimeout.ts
+  c3126112736266df 1-35
+packages/docs/v3/integrations/mcp/introduction.mdx
+  c3126112736266df 12,15-19,37-38,53,73,81,128-131,167,171,176,181,187,191-192,195-196
+packages/core/lib/v3/agent/prompts/agentSystemPrompt.ts
+  c3126112736266df 2,9-10,15-16,128,131,138,200-201,203
+packages/server-v4/src/routes/v4/page/shared.ts
+  c3126112736266df 1-195
+packages/core/lib/v3/flowlogger/EventSink.ts
+  c3126112736266df 1-265
+packages/server-v4/src/routes/v4/page/routes.ts
+  c3126112736266df 1-75
+packages/server-v3/scripts/build-sea.ts
+  c3126112736266df 26,123-130,179,182-185,192,201-205,230-233,504
+packages/server-v4/src/routes/v4/page/action/_actionId.ts
+  c3126112736266df 1-29
+packages/server-v4/src/routes/v4/browsersession/newPage.ts
+  c3126112736266df 1-43
+packages/server-v4/src/routes/v4/page/scroll.ts
+  c3126112736266df 1-38
+packages/server-v4/src/routes/v4/browsersession/_id/index.ts
+  c3126112736266df 1-48
+packages/cli/tests/mode.test.ts
+  c3126112736266df 7,18,29,31,94
+packages/cli/src/index.ts
+  c3126112736266df 12,19-20,24,45,64,90,117,124,154-155,216-225,228-230,237-245,292-293,310,320,335-340,349-357,362-363,376,431,448-450,453,457,594,649,698,706,720,769,1064-1170,1182,1315,1333,1526-1527,1578,1589,1610,1624,1662-1670,1674-1716,1780,1790,1994
+packages/server-v4/src/routes/v4/browsersession/configuredViewport.ts
+  c3126112736266df 1-44
+packages/docs/v3/integrations/mcp/setup.mdx
+  c3126112736266df 4,12-13,16-22,24,26-30,36,39,42,46-102,104-140,144,146,148,152,158,160-168,176,203,207,226,248,286-287,291,294
+packages/server-v4/src/routes/v4/page/addInitScript.ts
+  c3126112736266df 1-35
+packages/core/lib/v3/agent/tools/braveSearch.ts
+  c3126112736266df 1-116
+packages/core/tests/unit/flowlogger-eventstore.test.ts
+  c3126112736266df 1-323
+packages/server-v4/src/routes/v4/browsersession/getFullFrameTreeByMainFrameId.ts
+  c3126112736266df 1-43
+packages/server-v4/src/routes/v4/page/setViewportSize.ts
+  c3126112736266df 1-39
+packages/core/lib/v3/handlers/v3AgentHandler.ts
+  c3126112736266df 20,38,43-47,83,93,102,125,128,131-139,145,162,198,202-207,211-221,225-233,326,345-350,380-381,385-388,412-413,439-440,470-474,507-509,517-518,522,530,537,539,547-549,559,561,568-578,649,660-661
+packages/server-v4/src/routes/v4/browsersession/pages.ts
+  c3126112736266df 1-43
+packages/server-v4/src/routes/v4/page/waitForSelector.ts
+  c3126112736266df 1-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "5e6a963ccd173358fcdabec253913523aa4cc586",
+  "prompts": {
+    "c3126112736266df": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cfd05-7ba8-71a0-9f24-53aa5d849137",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Filip Michalsky <filip@paywithsoap.com>",
+      "messages": [],
+      "total_additions": 23821,
+      "total_deletions": 10866,
+      "accepted_lines": 23607,
+      "overriden_lines": 0
+    }
+  }
+}
