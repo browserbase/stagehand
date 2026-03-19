@@ -942,6 +942,11 @@ describe("v4 page routes", { concurrency: false }, () => {
     });
     assertSuccessAction(cssSelectorCtx, "click");
 
+    const cssWithIndexCtx = await postPageRoute("click", sessionId, {
+      selector: { css: "button", index: 0 },
+    });
+    assertSuccessAction(cssWithIndexCtx, "click");
+
     const textSelectorCtx = await postPageRoute("click", sessionId, {
       selector: { text: "Submit" },
     });
