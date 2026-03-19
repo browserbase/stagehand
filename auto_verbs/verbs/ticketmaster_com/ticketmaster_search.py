@@ -3,11 +3,10 @@ Ticketmaster – Concerts in Los Angeles
 Generated: 2026-03-10T23:50:27.317Z
 Pure Playwright – no AI.
 """
-import re, os, traceback, sys, shutil
+import re, os, traceback, sys, threading
 from playwright.sync_api import Playwright, sync_playwright
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
 from dataclasses import dataclass
 
@@ -33,18 +32,38 @@ class TicketmasterSearchResult:
 
 
 def search_ticketmaster_events(playwright, request: TicketmasterSearchRequest) -> TicketmasterSearchResult:
-    port = get_free_port()
-    profile_dir = get_temp_profile_dir("ticketmaster_com")
-    chrome_proc = launch_chrome(profile_dir, port)
-    ws_url = wait_for_cdp_ws(port)
-    browser = playwright.chromium.connect_over_cdp(ws_url)
-    context = browser.contexts[0]
+    user_data_dir = os.path.join(
+        os.environ["USERPROFILE"],
+        "AppData", "Local", "Google", "Chrome", "User Data", "Default"
+    )
+    context = playwright.chromium.launch_persistent_context(
+        user_data_dir,
+        channel="chrome",
+        headless=False,
+        viewport=None,
+        args=[
+            "--disable-blink-features=AutomationControlled",
+            "--disable-infobars",
+            "--disable-extensions",
+        ],
+    )
     page = context.pages[0] if context.pages else context.new_page()
     events = []
+
+    def _watchdog():
+        print("\n⏱️  WATCHDOG: 90s timeout — force exit")
+        os._exit(1)
+
+    timer = threading.Timer(90, _watchdog)
+    timer.daemon = True
+    timer.start()
     try:
         print("STEP 1: Navigate to Ticketmaster concert search...")
-        page.goto("https://www.ticketmaster.com/search?q=concerts&loc=Los+Angeles%2C+CA&daterange=thisweekend",
-                   wait_until="domcontentloaded", timeout=30000)
+        loc_encoded = request.location.replace(" ", "+")
+        page.goto(
+            f"https://www.ticketmaster.com/search?q=concerts&loc={loc_encoded}&daterange=thisweekend",
+            wait_until="domcontentloaded", timeout=30000,
+        )
         page.wait_for_timeout(5000)
 
         for sel in ["button:has-text('Accept')", "button:has-text('Got It')", "#onetrust-accept-btn-handler"]:
@@ -60,31 +79,74 @@ def search_ticketmaster_events(playwright, request: TicketmasterSearchRequest) -
             page.wait_for_timeout(800)
 
         print("STEP 2: Extract event data...")
-        body = page.locator("body").inner_text(timeout=10000)
 
-        events = []
+        events = page.evaluate(f"""((maxResults) => {{
+            const results = [];
+            const links = Array.from(document.querySelectorAll('[data-testid="event-list-link"]'));
 
-        if not events:
-            # Try to parse from body
-            lines = body.split("\n")
-            current_event = {}
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    if current_event.get("name"):
-                        events.append(current_event)
-                        current_event = {}
-                    continue
-                if "$" in line and not current_event.get("price"):
-                    m = re.search(r"\$[\d,]+", line)
-                    if m:
-                        current_event["price"] = m.group(0)
-                elif re.search(r"\d{1,2}/\d{1,2}/\d{2,4}|\w+ \d{1,2},", line) and not current_event.get("datetime"):
-                    current_event["datetime"] = line[:60]
-                elif len(line) > 5 and len(line) < 100 and not current_event.get("name"):
-                    current_event["name"] = line
-                if len(events) >= request.max_results:
-                    break
+            for (const el of links) {{
+                if (results.length >= maxResults) break;
+
+                // <li> is the natural boundary for one event card.
+                const card = el.closest('li') || el;
+
+                // ── Promoted filter ───────────────────────────────────────────────
+                // Promoted badge is a visible leaf <span> in the card (not inside
+                // the link or a button), containing exactly "Promoted".
+                const hasPromoBadge = Array.from(card.querySelectorAll('span')).some(
+                    s => !s.closest('a') && !s.closest('button') &&
+                         s.children.length === 0 && /^Promoted$/i.test(s.textContent.trim())
+                );
+                if (hasPromoBadge) continue;
+
+                // ── Name / City / Venue ───────────────────────────────────────────
+                // The <button> ("Open additional information…") is the structural
+                // anchor. DOM inspection shows name lives in the FIRST <span> sibling
+                // AFTER the button, and city+venue in the SECOND <span> sibling.
+                // This holds for both dated events (span before button = time display)
+                // and undated events (span before button = "No date yet").
+                const btn = card.querySelector('button');
+                let nameEl = null, cvEl = null;
+                if (btn) {{
+                    let sib = btn.nextElementSibling;
+                    while (sib && sib.tagName !== 'SPAN') sib = sib.nextElementSibling;
+                    nameEl = sib;
+                    sib = nameEl && nameEl.nextElementSibling;
+                    while (sib && sib.tagName !== 'SPAN') sib = sib.nextElementSibling;
+                    cvEl = sib;
+                }}
+                const nameLeaf = nameEl && nameEl.querySelector('span');
+                const cvLeafs = cvEl ? Array.from(cvEl.querySelectorAll('span')).filter(
+                    l => l.children.length === 0 && l.textContent.trim().length > 1
+                ) : [];
+                const name = nameLeaf ? nameLeaf.textContent.trim() : 'N/A';
+                const city = cvLeafs[0] ? cvLeafs[0].textContent.trim() : '';
+                const venueName = cvLeafs[1] ? cvLeafs[1].textContent.trim() : '';
+                const venue = [city, venueName].filter(Boolean).join(' · ') || 'N/A';
+
+                // ── Date ─────────────────────────────────────────────────────────
+                // Prefer <time> (semantic HTML), then the long full-date span in
+                // the date column (e.g. "August 2, 2026").
+                let datetime = 'N/A';
+                const timeEl = card.querySelector('time');
+                if (timeEl) {{
+                    datetime = timeEl.textContent.trim() || timeEl.getAttribute('datetime') || 'N/A';
+                }} else {{
+                    for (const span of card.querySelectorAll('span')) {{
+                        const t = span.textContent.trim();
+                        if (/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i.test(t) && t.length < 60) {{
+                            datetime = t;
+                            break;
+                        }}
+                    }}
+                }}
+
+                if (name && name !== 'N/A') {{
+                    results.push({{ name, venue, datetime, price: 'N/A' }});
+                }}
+            }}
+            return results;
+        }})({request.max_results})""")
 
         print(f"\nDONE – Top {len(events)} Events:")
         for i, e in enumerate(events, 1):
@@ -95,17 +157,7 @@ def search_ticketmaster_events(playwright, request: TicketmasterSearchRequest) -
         print(f"Error: {e}")
         traceback.print_exc()
     finally:
-        try:
-
-            browser.close()
-
-        except Exception:
-
-            pass
-
-        chrome_proc.terminate()
-
-        shutil.rmtree(profile_dir, ignore_errors=True)
+        timer.cancel()
     return TicketmasterSearchResult(
         location=request.location,
         events=[TicketmasterEvent(
@@ -120,9 +172,10 @@ def test_ticketmaster_events():
     request = TicketmasterSearchRequest(location="Los Angeles", max_results=5)
     with sync_playwright() as pl:
         result = search_ticketmaster_events(pl, request)
-    print(f"\nTotal events: {len(result.events)}")
-    for i, e in enumerate(result.events, 1):
-        print(f"  {i}. {e.name}  {e.venue}  {e.datetime}")
+        print(f"\nTotal events: {len(result.events)}")
+        for i, e in enumerate(result.events, 1):
+            print(f"  {i}. {e.name}  {e.venue}  {e.datetime}")
+        os._exit(0)
 
 
 if __name__ == "__main__":

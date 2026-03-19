@@ -1,0 +1,140 @@
+[
+  {
+    "timestamp": 1037,
+    "type": "goto",
+    "url": "https://www.google.com/maps",
+    "description": "Navigate to https://www.google.com/maps"
+  },
+  {
+    "timestamp": 11931,
+    "type": "act",
+    "instruction": "Click the search box on Google Maps",
+    "description": "Click search box",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[2]/div[9]/div[3]/div[1]/div[1]/div[1]/div[1]/form[1]/input[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "combobox: Search Google Maps",
+    "aria": {
+      "tagName": "input",
+      "type": null,
+      "role": "combobox",
+      "implicitRole": "textbox",
+      "ariaLabel": null,
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "",
+      "name": "q",
+      "id": "ucc-1",
+      "className": "UGojuc fontBodyMedium EmSKud lpggsf ",
+      "bestLabel": null,
+      "matchCount": 1,
+      "nearestAncestorId": null,
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": "search",
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": "Google Maps",
+          "role": null,
+          "id": null,
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 11955,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Click search box"
+  },
+  {
+    "timestamp": 14803,
+    "type": "act",
+    "instruction": "Type search query",
+    "description": "Type 'dealerships near urbana champaign'",
+    "method": "type"
+  },
+  {
+    "timestamp": 17290,
+    "type": "act",
+    "instruction": "Press Enter",
+    "description": "Submit search",
+    "method": "keypress"
+  },
+  {
+    "timestamp": 37864,
+    "type": "extract",
+    "instruction": "Extract business detail 1",
+    "description": "Extracted: Sam Leman Chevrolet of Champaign",
+    "results": {
+      "name": "Sam Leman Chevrolet of Champaign",
+      "address": "440 Anthony Dr, Champaign, IL 61822",
+      "rating": "4.6",
+      "phone": "(217) 600-3179",
+      "website": "champaignchevrolet.com"
+    }
+  },
+  {
+    "timestamp": 50763,
+    "type": "extract",
+    "instruction": "Extract business detail 2",
+    "description": "Extracted: Sam Leman Chevrolet of Champaign",
+    "results": {
+      "name": "Sam Leman Chevrolet of Champaign",
+      "address": "440 Anthony Dr, Champaign, IL 61822",
+      "rating": "4.6",
+      "phone": "(217) 600-3179",
+      "website": "champaignchevrolet.com"
+    }
+  },
+  {
+    "timestamp": 62334,
+    "type": "extract",
+    "instruction": "Extract business detail 3",
+    "description": "Extracted: Sam Leman Chevrolet of Champaign",
+    "results": {
+      "name": "Sam Leman Chevrolet of Champaign",
+      "address": "440 Anthony Dr, Champaign, IL 61822",
+      "rating": "4.6",
+      "phone": "(217) 600-3179",
+      "website": "champaignchevrolet.com"
+    }
+  },
+  {
+    "timestamp": 84720,
+    "type": "extract",
+    "instruction": "Extract business detail 4",
+    "description": "Extracted: Champaign Chrysler Dodge Jeep Ram",
+    "results": {
+      "name": "Champaign Chrysler Dodge Jeep Ram",
+      "address": "1906 Moreland Blvd, Champaign, IL 61822",
+      "rating": "4.0",
+      "phone": "(217) 352-4273",
+      "website": "champaignchryslerdodgejeep.com"
+    }
+  },
+  {
+    "timestamp": 102676,
+    "type": "extract",
+    "instruction": "Extract business detail 5",
+    "description": "Extracted: Champaign Chrysler Dodge Jeep Ram",
+    "results": {
+      "name": "Champaign Chrysler Dodge Jeep Ram",
+      "address": "1906 Moreland Blvd, Champaign, IL 61822",
+      "rating": "4.0",
+      "phone": "(217) 352-4273",
+      "website": "champaignchryslerdodgejeep.com"
+    }
+  }
+]

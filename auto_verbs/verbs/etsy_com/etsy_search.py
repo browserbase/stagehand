@@ -100,11 +100,26 @@ def search_etsy_listings(
         print(f"   Loaded: {page.url}\n")
 
         print("STEP 2: Extract listings...")
-        card_loc = page.locator("[data-search-raw_results] .v2-listing-card")
+        
+        # Use the selector that works with current Etsy structure
+        card_loc = page.locator(".listing-link")
         total = card_loc.count()
+        
+        # Fallback to other selectors if needed
         if total == 0:
-            card_loc = page.locator(".search-listing-card")
-            total = card_loc.count()
+            fallback_selectors = [
+                "[data-search-raw_results] .v2-listing-card",
+                ".search-listing-card",
+                "[data-test-id='listing'] article"
+            ]
+            for selector in fallback_selectors:
+                test_loc = page.locator(selector)
+                count = test_loc.count()
+                if count > 0:
+                    card_loc = test_loc
+                    total = count
+                    break
+        
         print(f"   Found {total} listing cards (need {max_results})")
 
         seen_titles = set()

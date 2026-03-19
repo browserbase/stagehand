@@ -8,35 +8,18 @@ Pure Playwright – no AI. Uses .s-item CSS class selectors discovered via explo
 from datetime import date, timedelta
 import re
 import os
-import shutil
-import tempfile
+import threading
 import traceback
 from playwright.sync_api import Playwright, sync_playwright
 
 import sys as _sys
 import os as _os
 _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
-from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
 from dataclasses import dataclass
 
 
 URL = "https://www.ebay.com/sch/i.html?_nkw=vintage%20mechanical%20keyboard&LH_BIN=1&_sop=15"
-
-
-def get_temp_profile_dir(site="ebay"):
-    """Create a temp Chrome profile dir to avoid locking the real one."""
-    tmp = os.path.join(tempfile.gettempdir(), f"{site}_chrome_profile_{os.getpid()}")
-    os.makedirs(tmp, exist_ok=True)
-    src = os.path.join(
-        os.environ.get("LOCALAPPDATA", ""),
-        "Google", "Chrome", "User Data", "Default",
-    )
-    for f in ["Preferences", "Local State"]:
-        s = os.path.join(src, f)
-        if os.path.exists(s):
-            shutil.copy2(s, os.path.join(tmp, f))
-    return tmp
 
 
 def dismiss_popups(page):
@@ -92,14 +75,35 @@ def search_ebay_listings(
     print(f"  Filter: Buy It Now | Sort: Price + Shipping lowest")
     print(f"  Max raw_results: {max_results}\n")
 
-    port = get_free_port()
-    profile_dir = get_temp_profile_dir("ebay_com")
-    chrome_proc = launch_chrome(profile_dir, port)
-    ws_url = wait_for_cdp_ws(port)
-    browser = playwright.chromium.connect_over_cdp(ws_url)
-    context = browser.contexts[0]
+    user_data_dir = os.path.join(
+        os.environ["USERPROFILE"],
+        "AppData", "Local", "Google", "Chrome", "User Data", "Default"
+    )
+    context = playwright.chromium.launch_persistent_context(
+        user_data_dir,
+        channel="chrome",
+        headless=False,
+        viewport=None,
+        args=[
+            "--disable-blink-features=AutomationControlled",
+            "--disable-infobars",
+            "--disable-extensions",
+        ],
+    )
     page = context.pages[0] if context.pages else context.new_page()
     raw_results = []
+
+    def _watchdog():
+        print("\n⏱️  WATCHDOG: 90s timeout — closing browser...")
+        try:
+            context.close()
+        except Exception:
+            pass
+        os._exit(1)
+
+    timer = threading.Timer(90, _watchdog)
+    timer.daemon = True
+    timer.start()
 
     try:
         print("STEP 1: Navigate to eBay search raw_results...")
@@ -237,12 +241,11 @@ def search_ebay_listings(
         print(f"\nError: {e}")
         traceback.print_exc()
     finally:
+        timer.cancel()
         try:
-            browser.close()
+            context.close()
         except Exception:
             pass
-        chrome_proc.terminate()
-        shutil.rmtree(profile_dir, ignore_errors=True)
 
     return EbaySearchResult(
         search_query=search_query,

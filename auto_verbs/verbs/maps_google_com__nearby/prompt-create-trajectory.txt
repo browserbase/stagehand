@@ -1,0 +1,9 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://maps.google.com
+
+* Concrete task
+- Search for nearby "dealerships" from "urbana champaign".
+- For each result card, click into it to obtain its business name, address, review score, phone number and website url.
+- return the list of the first 5 results you clicked.

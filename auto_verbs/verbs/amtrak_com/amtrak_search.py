@@ -29,8 +29,7 @@ from playwright.sync_api import Playwright, sync_playwright
 import sys as _sys
 import os as _os
 _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
-from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
-import shutil
+import threading
 
 MONTHS = [
     "January", "February", "March", "April", "May", "June",
@@ -465,13 +464,34 @@ def search_amtrak_trains(
     print(f"  {origin} -> {destination}")
     print(f"  Departure: {dep_display}  (1 adult, one-way)\n")
 
-    port = get_free_port()
-    profile_dir = get_temp_profile_dir("amtrak_com")
-    chrome_proc = launch_chrome(profile_dir, port)
-    ws_url = wait_for_cdp_ws(port)
-    browser = playwright.chromium.connect_over_cdp(ws_url)
-    context = browser.contexts[0]
+    user_data_dir = os.path.join(
+        os.environ["USERPROFILE"],
+        "AppData", "Local", "Google", "Chrome", "User Data", "Default"
+    )
+    context = playwright.chromium.launch_persistent_context(
+        user_data_dir,
+        channel="chrome",
+        headless=False,
+        viewport=None,
+        args=[
+            "--disable-blink-features=AutomationControlled",
+            "--disable-infobars",
+            "--disable-extensions",
+        ],
+    )
     page = context.pages[0] if context.pages else context.new_page()
+
+    def _watchdog():
+        print("\n⏱️  WATCHDOG: 90s timeout — closing browser...")
+        try:
+            context.close()
+        except Exception:
+            pass
+        os._exit(1)
+
+    timer = threading.Timer(90, _watchdog)
+    timer.daemon = True
+    timer.start()
     try:
         print("Loading Amtrak...")
         page.goto("https://www.amtrak.com")
@@ -504,12 +524,7 @@ def search_amtrak_trains(
         print(f"\nError: {e}")
         traceback.print_exc()
     finally:
-        try:
-            browser.close()
-        except Exception:
-            pass
-        chrome_proc.terminate()
-        shutil.rmtree(profile_dir, ignore_errors=True)
+        timer.cancel()
     return AmtrakSearchResult(
         origin=origin,
         destination=destination,
@@ -539,10 +554,11 @@ def test_search_amtrak_trains() -> None:
     )
     with sync_playwright() as playwright:
         result = search_amtrak_trains(playwright, request)
-    assert result.origin == request.origin
-    assert result.destination == request.destination
-    assert len(result.trains) <= request.max_results
-    print(f"\nTotal trains found: {len(result.trains)}")
+        assert result.origin == request.origin
+        assert result.destination == request.destination
+        assert len(result.trains) <= request.max_results
+        print(f"\nTotal trains found: {len(result.trains)}")
+        os._exit(0)
 
 
 if __name__ == "__main__":

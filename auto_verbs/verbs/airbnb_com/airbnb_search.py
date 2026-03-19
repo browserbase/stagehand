@@ -18,7 +18,7 @@ from playwright.sync_api import Playwright, sync_playwright
 import sys as _sys
 import os as _os
 _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
-from cdp_utils import cdp_cleanup, get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
+import threading
 
 
 MONTH_NAMES = [
@@ -74,18 +74,37 @@ def search_airbnb_listings(
     print(f"  Destination: {destination}")
     print(f"  Check-in: {checkin_display}  Check-out: {checkout_display}  ({nights} nights, {num_guests} guests)\n")
 
-    port = get_free_port()
-    profile_dir = get_temp_profile_dir("airbnb_com")
-    chrome_proc = None
-    browser = None
     results: list[AirbnbListing] = []
+    user_data_dir = os.path.join(
+        os.environ["USERPROFILE"],
+        "AppData", "Local", "Google", "Chrome", "User Data", "Default"
+    )
+    context = playwright.chromium.launch_persistent_context(
+        user_data_dir,
+        channel="chrome",
+        headless=False,
+        viewport=None,
+        args=[
+            "--disable-blink-features=AutomationControlled",
+            "--disable-infobars",
+            "--disable-extensions",
+        ],
+    )
+    page = context.pages[0] if context.pages else context.new_page()
+
+    def _watchdog():
+        print("\n⏱️  WATCHDOG: 90s timeout — closing browser...")
+        try:
+            context.close()
+        except Exception:
+            pass
+        os._exit(1)
+
+    timer = threading.Timer(90, _watchdog)
+    timer.daemon = True
+    timer.start()
 
     try:
-        chrome_proc = launch_chrome(profile_dir, port)
-        ws_url = wait_for_cdp_ws(port)
-        browser = playwright.chromium.connect_over_cdp(ws_url)
-        context = browser.contexts[0]
-        page = context.pages[0] if context.pages else context.new_page()
 
         # ── Navigate ──────────────────────────────────────────────────
         print("Loading Airbnb...")
@@ -367,7 +386,7 @@ def search_airbnb_listings(
         print(f"Error: {e}")
         traceback.print_exc()
     finally:
-        cdp_cleanup(browser, chrome_proc, profile_dir)
+        timer.cancel()
 
     return AirbnbSearchResult(
         destination=destination,
@@ -394,15 +413,14 @@ def test_search_airbnb_listings() -> None:
 
     with sync_playwright() as playwright:
         result = search_airbnb_listings(playwright, request)
-
-    assert result.destination == request.destination
-    assert result.num_guests == request.num_guests
-    assert result.checkin_date == request.checkin_date
-    assert result.checkout_date == request.checkout_date
-    assert result.nights == (request.checkout_date - request.checkin_date).days
-    assert len(result.listings) <= request.max_results
-
-    print(f"\nTotal listings found: {len(result.listings)}")
+        assert result.destination == request.destination
+        assert result.num_guests == request.num_guests
+        assert result.checkin_date == request.checkin_date
+        assert result.checkout_date == request.checkout_date
+        assert result.nights == (request.checkout_date - request.checkin_date).days
+        assert len(result.listings) <= request.max_results
+        print(f"\nTotal listings found: {len(result.listings)}")
+        os._exit(0)
 
 
 if __name__ == "__main__":

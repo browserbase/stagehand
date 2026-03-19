@@ -16,7 +16,7 @@ from dataclasses import dataclass
 import re
 import os
 import sys
-import tempfile
+import threading
 import traceback
 from datetime import date, timedelta
 from urllib.parse import quote_plus
@@ -26,12 +26,6 @@ from playwright.sync_api import Playwright, sync_playwright
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from dateutil.relativedelta import relativedelta
-from cdp_utils import (
-    get_free_port,
-    launch_chrome,
-    wait_for_cdp_ws,
-    cdp_cleanup,
-)
 
 
 
@@ -174,27 +168,37 @@ def search_expedia_hotels(
     url = build_search_url(dest_info, ci_str, co_str)
     print(f"   URL: {url}\n")
 
-    # Launch real Chrome directly (like Stagehand JS does)
-    tmp_profile = tempfile.mkdtemp(prefix="expedia_")
-    port = get_free_port()
-    chrome_proc = None
-    browser = None
     raw_results = []
+    user_data_dir = os.path.join(
+        os.environ["USERPROFILE"],
+        "AppData", "Local", "Google", "Chrome", "User Data", "Default"
+    )
+    context = playwright.chromium.launch_persistent_context(
+        user_data_dir,
+        channel="chrome",
+        headless=False,
+        viewport=None,
+        args=[
+            "--disable-blink-features=AutomationControlled",
+            "--disable-infobars",
+            "--disable-extensions",
+        ],
+    )
+    page = context.pages[0] if context.pages else context.new_page()
 
-    print(f"  Temp profile: {tmp_profile}")
-    print(f"  CDP port: {port}")
+    def _watchdog():
+        print("\n⏱️  WATCHDOG: 90s timeout — closing browser...")
+        try:
+            context.close()
+        except Exception:
+            pass
+        os._exit(1)
+
+    timer = threading.Timer(90, _watchdog)
+    timer.daemon = True
+    timer.start()
 
     try:
-        print("  Launching real Chrome (no Playwright automation markers)...")
-        chrome_proc = launch_chrome(tmp_profile, port)
-        ws_url = wait_for_cdp_ws(port)
-        print(f"  ✅ Chrome running (pid={chrome_proc.pid}), connecting via CDP...")
-
-        # Connect Playwright to the already-running Chrome via CDP
-        browser = playwright.chromium.connect_over_cdp(ws_url)
-        context = browser.contexts[0]
-        page = context.pages[0] if context.pages else context.new_page()
-
         print("STEP 2: Navigate to search results…")
         page.goto(url, wait_until="domcontentloaded", timeout=30000)
         page.wait_for_timeout(6000)
@@ -374,7 +378,11 @@ def search_expedia_hotels(
         print(f"\nError: {e}")
         traceback.print_exc()
     finally:
-        cdp_cleanup(browser, chrome_proc, tmp_profile)
+        timer.cancel()
+        try:
+            context.close()
+        except Exception:
+            pass
 
     return ExpediaSearchResult(
         destination=destination,

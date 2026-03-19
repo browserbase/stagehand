@@ -1,7 +1,19 @@
-# Clears all items from the Amazon shopping cart and returns True on success.
+# Searches Amazon for products matching a query, sorted by customer review rank, and returns up to max_results results.
 
 @dataclass(frozen=True)
-class AmazonClearCartResult:
-    success: bool
+class AmazonSearchRequest:
+    query: str
+    max_results: int
 
-def clear_amazon_cart(playwright) -> AmazonClearCartResult
+@dataclass(frozen=True)
+class AmazonProduct:
+    name: str
+    price: str
+    rating: str
+
+@dataclass(frozen=True)
+class AmazonSearchResult:
+    query: str
+    products: list[AmazonProduct]
+
+def search_amazon_products(playwright, request: AmazonSearchRequest) -> AmazonSearchResult

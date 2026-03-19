@@ -2,7 +2,7 @@
 Udemy – Search "Python programming" → sort Highest Rated → extract top 5 courses.
 Pure Playwright – no AI.
 """
-import re, os, sys, traceback, shutil, tempfile
+import re, os, sys, traceback, shutil, tempfile, threading
 from playwright.sync_api import Playwright, sync_playwright
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -42,31 +42,75 @@ def search_udemy_courses(playwright, request: UdemySearchRequest) -> UdemySearch
     context = browser.contexts[0]
     page = context.pages[0] if context.pages else context.new_page()
     courses = []
-    try:
-        # Navigate to Udemy Python topic page
-        print("STEP 1: Navigate to Udemy Python topic page...")
-        page.goto("https://www.udemy.com/topic/python/",
-                  wait_until="domcontentloaded", timeout=30000)
-        page.wait_for_timeout(6000)
 
-        # Dismiss popups / cookie banners
-        for sel in ["button:has-text('Accept')", "button:has-text('Agree')",
-                     "button[data-purpose='accept-cookie']",
-                     "button:has-text('Dismiss')", "[aria-label='Close']"]:
+    # Watchdog: force-kill everything after 90s so the script never hangs
+    def _watchdog():
+        print("\n⏱️  WATCHDOG: 90s timeout — force-killing Chrome...")
+        try:
+            chrome_proc.kill()
+        except Exception:
+            pass
+        os._exit(1)
+
+    timer = threading.Timer(90, _watchdog)
+    timer.daemon = True
+    timer.start()
+
+    try:
+        # STEP 1: Navigate directly to search results URL (avoids homepage bot detection)
+        import urllib.parse
+        q = urllib.parse.quote_plus(request.query)
+        search_url = f"https://www.udemy.com/courses/search/?q={q}"
+        print(f"STEP 1: Navigate to search results for '{request.query}'...")
+        print(f"   URL: {search_url}")
+        page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_timeout(4000)
+        print(f"   ✅ Landed on: {page.url}")
+
+        # Dismiss cookie consent wall FIRST — it blocks page content
+        print("   Dismissing cookie/consent banners...")
+        for sel in [
+            "button:has-text('Accept All')",
+            "button:has-text('Accept all')",
+            "button:has-text('Accept')",
+            "button:has-text('Agree')",
+            "button[data-purpose='accept-cookie']",
+            "button:has-text('Dismiss')",
+            "[aria-label='Close']",
+            "#onetrust-accept-btn-handler",
+            "button.cookie-consent--accept",
+        ]:
             try:
                 loc = page.locator(sel).first
-                if loc.is_visible(timeout=800):
-                    loc.evaluate("el => el.click()")
-                    page.wait_for_timeout(500)
+                if loc.is_visible(timeout=1000):
+                    loc.click()
+                    print(f"   Dismissed: {sel}")
+                    page.wait_for_timeout(1500)
+                    break
             except Exception:
                 pass
+
+        page.wait_for_timeout(3000)
 
         # Scroll to load more courses
         for _ in range(8):
             page.evaluate("window.scrollBy(0, 600)")
             page.wait_for_timeout(800)
 
-        print("STEP 2: Extract courses...")
+        print("STEP 3: Extract courses...")
+        print(f"   Current URL: {page.url}")
+        
+        # Debug: check what's on the page
+        h3_count = page.locator("h3").count()
+        div_count = page.locator("div").count()
+        course_card_count = page.locator("[data-purpose*='course'], [class*='course-card'], [class*='CourseCard']").count()
+        print(f"   Page has: {div_count} divs, {h3_count} h3s, {course_card_count} course cards")
+        if h3_count > 0:
+            sample = page.locator("h3").first.text_content() or ""
+            print(f"   First h3: '{sample.strip()[:80]}'")
+        # Check page title to detect bot block
+        title = page.title()
+        print(f"   Page title: '{title[:80]}'")
 
         # Strategy 1: parse body text for course patterns
         # Pattern: Title line → description with "Rating: X.X out of 5" →
@@ -162,12 +206,19 @@ def search_udemy_courses(playwright, request: UdemySearchRequest) -> UdemySearch
         if not courses:
             print("   Strategy 1 found 0 — trying h3 tags...")
             h3s = page.locator("h3").all()
+            skip_phrases = {
+                "strictly necessary cookies", "sale of personal information",
+                "cookie list", "privacy", "google", "targeting cookies",
+                "performance cookies", "functional cookies",
+            }
             for h3 in h3s:
                 if len(courses) >= request.max_results:
                     break
                 try:
                     text = h3.inner_text(timeout=1500).strip()
-                    if len(text) > 10 and "Privacy" not in text and "Google" not in text:
+                    if (len(text) > 10
+                            and text.lower() not in skip_phrases
+                            and not any(p in text.lower() for p in skip_phrases)):
                         key = text.lower()[:60]
                         if key not in seen:
                             seen.add(key)
@@ -192,11 +243,23 @@ def search_udemy_courses(playwright, request: UdemySearchRequest) -> UdemySearch
         print(f"Error: {e}")
         traceback.print_exc()
     finally:
+        timer.cancel()
+        # browser.close() must run on the playwright thread — do it directly
         try:
             browser.close()
         except Exception:
             pass
-        chrome_proc.terminate()
+        try:
+            chrome_proc.kill()
+            chrome_proc.wait(timeout=5)
+        except Exception:
+            pass
+        try:
+            import subprocess as _sp
+            _sp.call(["taskkill", "/F", "/T", "/PID", str(chrome_proc.pid)],
+                     stdout=_sp.DEVNULL, stderr=_sp.DEVNULL)
+        except Exception:
+            pass
         shutil.rmtree(profile_dir, ignore_errors=True)
     return UdemySearchResult(
         query=request.query,

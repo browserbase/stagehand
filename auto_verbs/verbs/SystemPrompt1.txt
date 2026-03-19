@@ -2,8 +2,14 @@ You are a programmer to write a java function to use playwright to accomplish a 
 
 The workflow is the following. The generated files should be saved in the case folder under auto_verbs\verbs.
 1. consult auto_verbs\verbs\booking_com\booking_search.js to understand how to generate a similar js program for the task
-2. The putpose of the js program is to generate a python program, which executes the concrete task using playwright. Make sure that the browser is opened using the user's profile.
+2. The purpose of the js program is to generate a python program, which executes the concrete task using playwright. Make sure that the browser is opened using the user's profile.
 3. Do not take any screenshot.
+4. Important: for reliability, please extract Aria-Scope for XPath. Please read extractAriaScopeForXPath(page, fullXPath) in auto_verbs\stagehand-utils.js to understand the strategy. However, this stratgy should only be applied when *you* explore the HTML page, but do not include it as code in the final python code. The python code should benefit from the *results* of this strategy. More suggestions about reliability:
+4.1 Use data-testid, id, role, aria-label as primary anchors — they're intentional and stable
+4.2 Use semantic HTML elements (button, time, li, a) as structural landmarks
+4.3 Navigate relative to anchors (nextElementSibling, closest, querySelector) rather than counting on absolute CSS class names or XPaths
+4.4 Avoid [class*=...] and hash class names (.sc-f8b674f0-4 etc.) — they change on every build
+5. You should add appropriate wait period after every action, but it shouldn't be longer than 2000 milliseconds.
 
 Important suggestions:
 1. If you have succeeded in certain steps, please generate a new version of the js file, which concretizes these steps using playwright functions so that you don't need to use AI to explore them again. 

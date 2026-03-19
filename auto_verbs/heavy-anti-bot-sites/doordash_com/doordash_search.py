@@ -4,11 +4,10 @@ Generated: 2026-02-28T22:57:09.763Z
 Pure Playwright – no AI.
 """
 from datetime import date, timedelta
-import re, time, os, traceback, sys, shutil
+import re, time, os, traceback, sys, threading
 from playwright.sync_api import Playwright, sync_playwright
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
 from dataclasses import dataclass
 
@@ -258,14 +257,35 @@ def search_doordash_restaurants(
     QUERY = request.query
     MAX_RESULTS = request.max_results
     raw_results = []
-    port = get_free_port()
-    profile_dir = get_temp_profile_dir("doordash_com")
-    chrome_proc = launch_chrome(profile_dir, port)
-    ws_url = wait_for_cdp_ws(port)
-    browser = playwright.chromium.connect_over_cdp(ws_url)
-    context = browser.contexts[0]
+    user_data_dir = os.path.join(
+        os.environ["USERPROFILE"],
+        "AppData", "Local", "Google", "Chrome", "User Data", "Default"
+    )
+    context = playwright.chromium.launch_persistent_context(
+        user_data_dir,
+        channel="chrome",
+        headless=False,
+        viewport=None,
+        args=[
+            "--disable-blink-features=AutomationControlled",
+            "--disable-infobars",
+            "--disable-extensions",
+        ],
+    )
     page = context.pages[0] if context.pages else context.new_page()
     raw_results = []
+
+    def _watchdog():
+        print("\n⏱️  WATCHDOG: 90s timeout — closing browser...")
+        try:
+            context.close()
+        except Exception:
+            pass
+        os._exit(1)
+
+    timer = threading.Timer(90, _watchdog)
+    timer.daemon = True
+    timer.start()
     try:
         # STEP 1: Go to homepage first (avoids some anti-bot redirects)
         print("STEP 1: Navigate to DoorDash homepage...")
@@ -313,12 +333,11 @@ def search_doordash_restaurants(
         print(f"Error: {e}")
         traceback.print_exc()
     finally:
+        timer.cancel()
         try:
-            browser.close()
+            context.close()
         except Exception:
             pass
-        chrome_proc.terminate()
-        shutil.rmtree(profile_dir, ignore_errors=True)
     return DoorDashSearchResult(
         address=request.address,
         query=request.query,

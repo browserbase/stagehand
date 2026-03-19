@@ -1,0 +1,16 @@
+@dataclass(frozen=True)
+class CreateListRequest:
+    list_name: str      # name for the new saved list
+    places: List[str]   # place names to add to the list
+
+
+@dataclass(frozen=True)
+class CreateListResult:
+    list_name: str          # name of the created list
+    places_added: List[str] # places that were successfully added
+    success: bool           # True if all places were added
+
+
+# Create a new saved list on Google Maps and add the specified places to it.
+# Requires the user to be logged into Google in the Chrome profile.
+def create_saved_list(playwright: Playwright, request: CreateListRequest) -> CreateListResult:

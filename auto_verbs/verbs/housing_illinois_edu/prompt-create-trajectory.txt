@@ -1,0 +1,9 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://www.housing.illinois.edu/cost
+
+* Concrete task
+- Select all Undergraduate Halls that matches "Room & 12 Classic Meals + 15 Dining Dollars" and "Single" 
+- Among them, select those within the price range (15000, 17000)
+- return the list.

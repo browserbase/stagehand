@@ -25,6 +25,29 @@ from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_f
 from dataclasses import dataclass
 
 
+@dataclass(frozen=True)
+class ApartmentsSearchRequest:
+    location: str
+    price_min: int
+    price_max: int
+    max_results: int
+
+
+@dataclass(frozen=True)
+class ApartmentListing:
+    name: str
+    address: str
+    price: str
+    beds_baths: str
+
+
+@dataclass(frozen=True)
+class ApartmentsSearchResult:
+    location: str
+    price_min: int
+    price_max: int
+    listings: list["ApartmentListing"]
+
 
 def _kill_chrome():
     """Kill all Chrome processes to release the profile lock."""
@@ -43,13 +66,16 @@ def _kill_chrome():
         print("  Could not check for Chrome processes")
 
 
-def run(
+# Searches Apartments.com for apartment listings matching location and price range,
+# returning up to max_results listings with name, address, price, and beds/baths.
+def search_apartments(
     playwright: Playwright,
-    location: str = "Austin, TX",
-    price_min: int = 1000,
-    price_max: int = 2000,
-    max_results: int = 5,
-) -> list:
+    request: ApartmentsSearchRequest,
+) -> ApartmentsSearchResult:
+    location = request.location
+    price_min = request.price_min
+    price_max = request.price_max
+    max_results = request.max_results
     print("=" * 59)
     print("  Apartments.com - Apartment Search (concretized v2)")
     print("=" * 59)
@@ -484,7 +510,37 @@ def run(
         # Only delete temp profiles, never the real Chrome profile
         if not using_real_profile:
             shutil.rmtree(profile_dir, ignore_errors=True)
-    return results
+    return ApartmentsSearchResult(
+        location=location,
+        price_min=price_min,
+        price_max=price_max,
+        listings=[
+            ApartmentListing(
+                name=r["name"],
+                address=r["address"],
+                price=r["price"],
+                beds_baths=r["beds_baths"],
+            )
+            for r in results
+        ],
+    )
+
+
+def test_search_apartments() -> None:
+    request = ApartmentsSearchRequest(
+        location="Austin, TX",
+        price_min=1000,
+        price_max=2000,
+        max_results=5,
+    )
+    with sync_playwright() as playwright:
+        result = search_apartments(playwright, request)
+    print(f"\nTotal listings found: {len(result.listings)}")
+    for i, listing in enumerate(result.listings, 1):
+        print(f"  {i}. {listing.name}")
+        print(f"     Address:    {listing.address}")
+        print(f"     Price:      {listing.price}")
+        print(f"     Beds/Baths: {listing.beds_baths}")
 
 
 if __name__ == "__main__":

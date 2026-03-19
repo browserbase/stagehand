@@ -18,8 +18,7 @@ from playwright.sync_api import Playwright, sync_playwright
 import sys as _sys
 import os as _os
 _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
-from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
-import shutil
+import threading
 
 from dataclasses import dataclass
 
@@ -54,14 +53,35 @@ def locate_boa_branches(
     print(f"  Location: {location}")
     print(f"  Max raw_results: {max_results}\n")
 
-    port = get_free_port()
-    profile_dir = get_temp_profile_dir("bankofamerica_com")
-    chrome_proc = launch_chrome(profile_dir, port)
-    ws_url = wait_for_cdp_ws(port)
-    browser = playwright.chromium.connect_over_cdp(ws_url)
-    context = browser.contexts[0]
+    user_data_dir = os.path.join(
+        os.environ["USERPROFILE"],
+        "AppData", "Local", "Google", "Chrome", "User Data", "Default"
+    )
+    context = playwright.chromium.launch_persistent_context(
+        user_data_dir,
+        channel="chrome",
+        headless=False,
+        viewport=None,
+        args=[
+            "--disable-blink-features=AutomationControlled",
+            "--disable-infobars",
+            "--disable-extensions",
+        ],
+    )
     page = context.pages[0] if context.pages else context.new_page()
     raw_results = []
+
+    def _watchdog():
+        print("\n⏱️  WATCHDOG: 90s timeout — closing browser...")
+        try:
+            context.close()
+        except Exception:
+            pass
+        os._exit(1)
+
+    timer = threading.Timer(90, _watchdog)
+    timer.daemon = True
+    timer.start()
 
     try:
         # ── Navigate ──────────────────────────────────────────────────────
@@ -244,12 +264,11 @@ def locate_boa_branches(
         print(f"\nError: {e}")
         traceback.print_exc()
     finally:
+        timer.cancel()
         try:
-            browser.close()
+            context.close()
         except Exception:
             pass
-        chrome_proc.terminate()
-        shutil.rmtree(profile_dir, ignore_errors=True)
     return BoaLocatorResult(
         location=location,
         locations=[BoaLocation(name=r["name"], address=r["address"], distance=r["distance"]) for r in raw_results],

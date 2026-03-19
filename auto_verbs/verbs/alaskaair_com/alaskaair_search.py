@@ -14,8 +14,7 @@ from playwright.sync_api import Playwright, sync_playwright
 import sys as _sys
 import os as _os
 _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
-from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
-import shutil
+import threading
 
 
 @dataclass(frozen=True)
@@ -110,14 +109,35 @@ def search_alaska_flights(
     print(f"  {origin} -> {destination}")
     print(f"  Dep: {departure_date}  Ret: {return_date}\n")
 
-    port = get_free_port()
-    profile_dir = get_temp_profile_dir("alaskaair_com")
-    chrome_proc = launch_chrome(profile_dir, port)
-    ws_url = wait_for_cdp_ws(port)
-    browser = playwright.chromium.connect_over_cdp(ws_url)
-    context = browser.contexts[0]
+    user_data_dir = os.path.join(
+        os.environ["USERPROFILE"],
+        "AppData", "Local", "Google", "Chrome", "User Data", "Default"
+    )
+    context = playwright.chromium.launch_persistent_context(
+        user_data_dir,
+        channel="chrome",
+        headless=False,
+        viewport=None,
+        args=[
+            "--disable-blink-features=AutomationControlled",
+            "--disable-infobars",
+            "--disable-extensions",
+        ],
+    )
     page = context.pages[0] if context.pages else context.new_page()
     raw_results = []
+
+    def _watchdog():
+        print("\n⏱️  WATCHDOG: 90s timeout — closing browser...")
+        try:
+            context.close()
+        except Exception:
+            pass
+        os._exit(1)
+
+    timer = threading.Timer(90, _watchdog)
+    timer.daemon = True
+    timer.start()
 
     try:
         # ── Navigate ──────────────────────────────────────────────────────
@@ -551,12 +571,7 @@ def search_alaska_flights(
         print(f"Error: {e}")
         traceback.print_exc()
     finally:
-        try:
-            browser.close()
-        except Exception:
-            pass
-        chrome_proc.terminate()
-        shutil.rmtree(profile_dir, ignore_errors=True)
+        timer.cancel()
 
     flights = [
         AlaskaFlight(itinerary=r["itinerary"], economy_price=r["price"])
@@ -586,13 +601,13 @@ def test_search_alaska_flights() -> None:
 
     with sync_playwright() as playwright:
         result = search_alaska_flights(playwright, request)
-
-    assert result.origin == request.origin
-    assert result.destination == request.destination
-    assert result.departure_date == request.departure_date
-    assert result.return_date == request.return_date
-    assert len(result.flights) <= request.max_results
-    print(f"\nTotal flights found: {len(result.flights)}")
+        assert result.origin == request.origin
+        assert result.destination == request.destination
+        assert result.departure_date == request.departure_date
+        assert result.return_date == request.return_date
+        assert len(result.flights) <= request.max_results
+        print(f"\nTotal flights found: {len(result.flights)}")
+        os._exit(0)
 
 
 if __name__ == "__main__":

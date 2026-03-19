@@ -1,14 +1,13 @@
 """
 Amazon – Product Search
-Pure Playwright CDP – no AI.
+Pure Playwright – no AI.
 """
-import re, os, sys, shutil, traceback
+import re, os, sys, shutil, traceback, threading
 from playwright.sync_api import sync_playwright
 
 import sys as _sys
 import os as _os
 _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
-from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
 
 from dataclasses import dataclass
 
@@ -33,14 +32,37 @@ class AmazonSearchResult:
 
 
 def search_amazon_products(playwright, request: AmazonSearchRequest) -> AmazonSearchResult:
-    port = get_free_port()
-    profile_dir = get_temp_profile_dir("amazon_com")
-    chrome_proc = launch_chrome(profile_dir, port)
-    ws_url = wait_for_cdp_ws(port)
-    browser = playwright.chromium.connect_over_cdp(ws_url)
-    context = browser.contexts[0]
+    # Use real Chrome profile (same as open_browser.py) to avoid bot detection
+    user_data_dir = os.path.join(
+        os.environ["USERPROFILE"],
+        "AppData", "Local", "Google", "Chrome", "User Data", "Default"
+    )
+    context = playwright.chromium.launch_persistent_context(
+        user_data_dir,
+        channel="chrome",
+        headless=False,
+        viewport=None,
+        args=[
+            "--disable-blink-features=AutomationControlled",
+            "--disable-infobars",
+            "--disable-extensions",
+        ],
+    )
     page = context.pages[0] if context.pages else context.new_page()
     products = []
+
+    def _watchdog():
+        print("\n⏱️  WATCHDOG: 90s timeout — closing browser...")
+        try:
+            context.close()
+        except Exception:
+            pass
+        os._exit(1)
+
+    timer = threading.Timer(90, _watchdog)
+    timer.daemon = True
+    timer.start()
+
     try:
         query_encoded = request.query.replace(" ", "+")
         url = f"https://www.amazon.com/s?k={query_encoded}&s=review-rank"
@@ -73,10 +95,11 @@ def search_amazon_products(playwright, request: AmazonSearchRequest) -> AmazonSe
             if len(products) >= request.max_results:
                 break
             try:
-                # Name
-                name_el = item.locator("h2 a span, h2 span").first
+                # Name — h2 span holds the title directly in current Amazon markup
+                name_el = item.locator("h2 span").first
                 name = name_el.inner_text(timeout=1000).strip()
-                if not name or len(name) < 5:
+                # Skip HTML-tag garbage or too-short strings
+                if not name or len(name) < 5 or re.search(r'</?\w+>', name):
                     continue
                 key = name.lower()[:60]
                 if key in seen:
@@ -114,14 +137,15 @@ def search_amazon_products(playwright, request: AmazonSearchRequest) -> AmazonSe
             print(f"  {i}. {p['name']}")
             print(f"     Price: {p['price']}  Rating: {p['rating']}")
 
-        browser.close()
-
     except Exception as e:
         print(f"Error: {e}")
         traceback.print_exc()
     finally:
-        chrome_proc.terminate()
-        shutil.rmtree(profile_dir, ignore_errors=True)
+        timer.cancel()
+        try:
+            context.close()
+        except Exception:
+            pass
 
     return AmazonSearchResult(
         query=request.query,

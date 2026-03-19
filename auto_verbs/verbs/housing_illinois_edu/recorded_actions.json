@@ -1,0 +1,223 @@
+[
+  {
+    "timestamp": 1148,
+    "type": "goto",
+    "url": "https://www.housing.illinois.edu/cost",
+    "description": "Navigate to https://www.housing.illinois.edu/cost"
+  },
+  {
+    "timestamp": 17208,
+    "type": "act",
+    "instruction": "Find and click the meal plan dropdown or selector on this page",
+    "description": "Open meal plan dropdown",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[1]/main[1]/div[1]/article[1]/div[1]/div[1]/div[3]/div[1]/div[1]/details[7]/summary[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "DisclosureTriangle for 'Meal Plans and Additional Rates 2026 – 2027'",
+    "aria": {
+      "tagName": "summary",
+      "type": null,
+      "role": null,
+      "implicitRole": null,
+      "ariaLabel": null,
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "Meal Plans and Additional Rates 2026 – 2027",
+      "name": null,
+      "id": null,
+      "className": "field field--name-field-accordion-summary field--type-string-long field--label-hidden field__item",
+      "bestLabel": "Meal Plans and Additional Rates 2026 – 2027",
+      "matchCount": 1,
+      "nearestAncestorId": "paragraph--2269",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "paragraph--2269",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "block-sasubtheme-content",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "main",
+          "ariaLabel": null,
+          "role": "main",
+          "id": "main-content",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 17243,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Open meal plan dropdown"
+  },
+  {
+    "timestamp": 23060,
+    "type": "act",
+    "instruction": "Select the option \"Room & 12 Classic Meals + 15 Dining Dollars\" from the meal plan list or dropdown",
+    "description": "Select meal plan option",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[1]/main[1]/div[1]/article[1]/div[1]/div[1]/div[3]/div[1]/div[1]/details[7]/summary[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Disclosure triangle for 'Meal Plans and Additional Rates 2026 – 2027'",
+    "aria": {
+      "tagName": "summary",
+      "type": null,
+      "role": null,
+      "implicitRole": null,
+      "ariaLabel": null,
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "Meal Plans and Additional Rates 2026 – 2027",
+      "name": null,
+      "id": null,
+      "className": "field field--name-field-accordion-summary field--type-string-long field--label-hidden field__item",
+      "bestLabel": "Meal Plans and Additional Rates 2026 – 2027",
+      "matchCount": 1,
+      "nearestAncestorId": "paragraph--2269",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "paragraph--2269",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "block-sasubtheme-content",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "main",
+          "ariaLabel": null,
+          "role": "main",
+          "id": "main-content",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 23073,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Select meal plan option"
+  },
+  {
+    "timestamp": 28723,
+    "type": "act",
+    "instruction": "Find and click the room type filter or column/tab for \"Single\" rooms",
+    "description": "Select Single room type",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[1]/main[1]/div[1]/article[1]/div[1]/div[1]/div[3]/div[1]/div[1]/details[1]/summary[1]",
+    "method": "click",
+    "arguments": [],
+    "observedDescription": "Disclosure triangle for 'New Resident Rates 2026 – 2027', which may contain room type filters or columns for 'Single' rooms.",
+    "aria": {
+      "tagName": "summary",
+      "type": null,
+      "role": null,
+      "implicitRole": null,
+      "ariaLabel": null,
+      "placeholder": null,
+      "title": null,
+      "tooltip": null,
+      "textContent": "New Resident Rates 2026 – 2027",
+      "name": null,
+      "id": null,
+      "className": "field field--name-field-accordion-summary field--type-string-long field--label-hidden field__item",
+      "bestLabel": "New Resident Rates 2026 – 2027",
+      "matchCount": 1,
+      "nearestAncestorId": "paragraph--2269",
+      "ariaAncestors": [
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "paragraph--2269",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "div",
+          "ariaLabel": null,
+          "role": null,
+          "id": "block-sasubtheme-content",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        },
+        {
+          "tagName": "main",
+          "ariaLabel": null,
+          "role": "main",
+          "id": "main-content",
+          "placeholder": null,
+          "title": null,
+          "tooltip": null
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": 28737,
+    "type": "wait",
+    "ms": 1000,
+    "description": "Wait after: Select Single room type"
+  },
+  {
+    "timestamp": 33173,
+    "type": "extract",
+    "instruction": "Extract undergraduate hall names and prices",
+    "description": "Extract hall names and prices for Single room with selected meal plan",
+    "results": {
+      "halls": []
+    }
+  },
+  {
+    "timestamp": 35724,
+    "type": "aria-scope",
+    "element": "pricing-table",
+    "selector": "xpath=/html[1]/body[1]/div[1]/div[1]/main[1]/div[1]/article[1]/div[1]/div[1]/div[3]/div[1]/div[1]/details[1]",
+    "ariaScope": {
+      "targetText": "New Resident Rates 2026 – 2027\n\n  2026 – 2027 RatesUndergraduate HallsTraditional Hall (with air conditioning): Allen*, Babcock*, Barton, Blaisdell*, Busey, Carr*, Evans, Hopkins, Lundgren, Oglesby*, Saunders*, Scott, Snyder, Townsend*, Trelease*, Wardall* and Weston* HallsTraditional Hall (with air-conditioning)SingleSingle + Private Bath*DoubleTripleQuadRoom & 12 Classic Meals + 15 Dining Dollars$16,564$17,204$14,558$13,774$13,202Room & 10 Classic Meals + 45 Dining Dollars$17,462$18,102$15,456$14,672$14,100Room & All Dining Dollars (275)$17,948$18,588$15,942$15,158$14,586Room & All Classic Meals$17,948$18,588$15,942$15,158$14,586Traditional Hall (without air conditioning) Leonard, Shelden, Taft and Van Doren HallsTraditional Hall (without air conditioning)SingleSingle Taft and Van Doren (larger single rooms)Single w/ Private Bath*DoubleTripleRoom & 12 Classic Meals + 15 Dining Dollars$16,122$16,416N/A$14,116$13,320Room & 10 Classic Meals + 45 Dining Dollars$17,020$17,314N/A$15,014$14,218Room & All Dining Dollars (275)$17,506$17,800N/A$15,500$14,704Room & All Classic Meals$17,506$17,800N/A$15,500$14,704Nugent Hall (with air conditioning)Nugent Hall (with air conditioning)Single Double Single with Shared BathSingle with Private BathSingle with Shared Bath & Surehands Room & 12 Classic Meals + 15 Dining Dollars$17,050$15,042$17,832$18,612 $19,660Room & 10 Classic Meals + 45 Dining Dollars$17,948$15,940$18,730$19,510 $20,558Room & All Dining Dollars (275)$18,434$16,426$19,216$19,996 $21,044Room & All Classic Meals$18,434$16,426$19,216$19,996 $21,044Bousfield Hall (with air conditioning)Bousfield Hall (with air conditioning)Double Suite with Shared BathSingle with Shared Bath Single Suite with Shared BathSingle with Private BathRoom & 12 Classic Meals + 15 Dining Dollars$15,754$17,832$18,458$18,612Room & 10 Classic Meals + 45 Dining Dollars$16,652$18,730$19,356$19,510Room & All Dining Dollars (275) $17,138$19,216$19,842$19,996Room & All Classic Meals$17,138$19,216$19,842$19,996Wassaja Hall (with air conditioning)Wassaja Hall (with air conditioning)Double with Shared Individual-Use BathSingle with Shared Individual-Use BathSingle with Private BathRoom & 12 Classic Meals + 15 Dining Dollars$15,440$17,488$18,612Room & 10 Classic Meals + 45 Dining Dollars$16,338$18,386$19,510Room & All Dining Dollars (275)$16,824$18,872$19,996Room & All Classic Meals$16,824$18,872$19,996Please Note:Rates are for both semesters of the academic year. You are required to honor your contract if you attend the University. Refer to your residence hall contract terms for cancellation policies. You are encouraged to read the contract terms carefully before signing.Cost estimates provided on Financial Aid notifications calculate an estimated cost for housing of $15,858 based on an average room rate and the All Classic Meal plan.Constant Rate: If you live continuously with University Housing, your rate structure will stay locked in at the 2026–2027 rates (for up to 4 consecutive years). In the future, if you select a different room type or meal plan with University Housing, you will pay the 2026–2027 rate structure for those choices. Residents who reassign to an LLC in years where the fee increases will see an increase in their total charge even though their room and board rate will remain constant.Living-Learning Communities*: a fee supports the co-curricular and extracurricular learning opportunities in these communities.Allen/Unit One--add $326 per academic yearBusiness LLC--add $300 per academic yearExploration--add $276 per academic yearGlobal Crossroads--add $200 per academic yearHonors LLC--add $300 per academic yearInnovation LLC--add $276 per academic yearIntersections--add $200 per academic yearLEADS LLC--add $200 per academic yearSustainability--add $276 per academic yearWIMSE--add $200 per academic yearGraduate Upper-Division HallsDaniels and Sherman Hall Rates 2026–2027The rates below apply to students who are new to University Housing in fall 2026 or spring 2027 or those who have not lived continuously with University Housing. 2027 spring-only contracts are 50% of the rates below.Cost estimates provided on Financial Aid notifications calculate an estimated cost for graduate professional housing of $16,512 based on a median room rate and the All Classic Meal plan.New to University Housing in fall 2026 or spring 2027Academic Year RatesSingle w/Private BathSingle w/ Shared BathDoubleSherman Hall (room-only rate) (air-conditioned)N/A$7,212$6,906Daniels Hall (room-only rate) (air-conditioned)$9,522$9,140$8,34012-Month Contract$12,480$11,972$10,938Resident Meal Plan (Meals and Dining Dollars per Week)Resident Meal Plan (Meals and Dining Dollars per Week)Cost for Academic Year6 Classic$2,8726 Classic + 25 Dining Dollars$3,60212 Classic + 15 Dining Dollars$6,06210 Classic + 45 Dining Dollars$6,960All Dining Dollars (275)$7,446All Classic Meals$7,446",
+      "targetTag": "details",
+      "ancestor": {
+        "tagName": "div",
+        "ariaLabel": null,
+        "role": null,
+        "id": "paragraph--2269",
+        "stepsFromTarget": 2
+      },
+      "textMatchCount": 0,
+      "regexMatchCount": 0,
+      "xpathTail": "div[1]/details[1]"
+    }
+  }
+]

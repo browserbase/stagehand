@@ -1,0 +1,10 @@
+Please read auto_verbs\verbs\SystemPrompt1.txt
+
+* The target website
+https://maps.google.com
+
+* Concrete task
+- Click "Saved", then "Lists"
+- Create a list named "urbana champaign dealerships"
+- add "Napleton's Auto Park of Urbana", "Sam Leman Chevrolet of Champaign" and "Champaign Urbana Auto Park" into the list
+- return whether the operation is successful.

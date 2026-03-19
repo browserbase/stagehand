@@ -14,8 +14,6 @@ from playwright.sync_api import Playwright, sync_playwright, expect
 import sys as _sys
 import os as _os
 _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), ".."))
-from cdp_utils import get_free_port, get_temp_profile_dir, launch_chrome, wait_for_cdp_ws
-import shutil
 
 from dataclasses import dataclass
 
@@ -39,12 +37,21 @@ def send_teams_message(playwright, request: TeamsMessageRequest) -> TeamsMessage
     Send a message to a recipient in Microsoft Teams.
     Returns True if the message was successfully sent, False otherwise.
     """
-    port = get_free_port()
-    profile_dir = get_temp_profile_dir("teams_microsoft_com")
-    chrome_proc = launch_chrome(profile_dir, port)
-    ws_url = wait_for_cdp_ws(port)
-    browser = playwright.chromium.connect_over_cdp(ws_url)
-    context = browser.contexts[0]
+    user_data_dir = os.path.join(
+        os.environ["USERPROFILE"],
+        "AppData", "Local", "Google", "Chrome", "User Data", "Default"
+    )
+    context = playwright.chromium.launch_persistent_context(
+        user_data_dir,
+        channel="chrome",
+        headless=False,
+        viewport=None,
+        args=[
+            "--disable-blink-features=AutomationControlled",
+            "--disable-infobars",
+            "--disable-extensions",
+        ],
+    )
     page = context.pages[0] if context.pages else context.new_page()
 
     success = False
@@ -127,11 +134,9 @@ def send_teams_message(playwright, request: TeamsMessageRequest) -> TeamsMessage
         success = False
     finally:
         try:
-            browser.close()
+            context.close()
         except Exception:
             pass
-        chrome_proc.terminate()
-        shutil.rmtree(profile_dir, ignore_errors=True)
 
     return TeamsMessageResult(recipient=request.recipient, message=request.message, success=success)
 

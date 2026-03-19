@@ -63,10 +63,44 @@ def search_costco_products(
         page.wait_for_load_state("domcontentloaded")
         page.wait_for_timeout(3000)
 
-        # Find and fill the search box
-        search_input = page.get_by_role("combobox", name=re.compile(r"Search Costco", re.IGNORECASE)).first
-        if not search_input.is_visible(timeout=3000):
-            search_input = page.get_by_role("searchbox", name=re.compile(r"Search", re.IGNORECASE)).first
+        # Find and fill the search box with multiple fallback strategies
+        search_input = None
+        search_selectors = [
+            "input[placeholder*='Search']",
+            "input[type='search']",
+            "input[aria-label*='Search']",
+            "input#search-field",
+            "input[name*='search']",
+            "input[id*='search']",
+            "#search input",
+            ".search input",
+            "form input[type='text']"
+        ]
+        
+        for selector in search_selectors:
+            try:
+                test_input = page.locator(selector).first
+                if test_input.is_visible(timeout=2000):
+                    search_input = test_input
+                    print(f"Found search input with selector: {selector}")
+                    break
+            except Exception:
+                continue
+        
+        if not search_input:
+            print("DEBUG: Could not find search input. Page title:", page.title())
+            print("DEBUG: Available input elements:")
+            inputs = page.locator("input").all()
+            for i, inp in enumerate(inputs[:5]):  # Show first 5 inputs
+                try:
+                    placeholder = inp.get_attribute("placeholder") or ""
+                    input_type = inp.get_attribute("type") or ""
+                    input_id = inp.get_attribute("id") or ""
+                    print(f"  Input {i}: type='{input_type}' id='{input_id}' placeholder='{placeholder}'")
+                except Exception:
+                    pass
+            raise Exception("Could not find search input element")
+        
         search_input.evaluate("el => el.click()")
         search_input.fill(search_query)
         page.wait_for_timeout(500)

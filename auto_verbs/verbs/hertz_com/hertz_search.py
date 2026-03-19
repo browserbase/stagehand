@@ -167,8 +167,8 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class HertzSearchRequest:
     pickup_location: str
-    pickup_date: object      # datetime.date
-    dropoff_date: object     # datetime.date
+    pickup_date: date
+    dropoff_date: date
     max_results: int = 5
 
 
@@ -182,9 +182,9 @@ class HertzCar:
 @dataclass(frozen=True)
 class HertzSearchResult:
     pickup_location: str
-    pickup_date: object
-    dropoff_date: object
-    cars: list
+    pickup_date: date
+    dropoff_date: date
+    cars: list[HertzCar]
 
 
 def search_hertz_cars(playwright, request: HertzSearchRequest) -> HertzSearchResult:
@@ -334,7 +334,7 @@ def search_hertz_cars(playwright, request: HertzSearchRequest) -> HertzSearchRes
         raw_cars = extract_cars(page, 5)
 
         # Fallback: body text scan
-        if not cars:
+        if not raw_cars:
             print("  DOM extraction returned 0 — falling back to body text…")
             body = page.evaluate("document.body.innerText")
             lines = [l.strip() for l in body.split("\n") if l.strip()]
@@ -350,7 +350,7 @@ def search_hertz_cars(playwright, request: HertzSearchRequest) -> HertzSearchRes
                             break
                     raw_cars.append({"car_name": display, "daily_price": price,
                                  "total_price": "N/A"})
-                if len(cars) >= 5:
+                if len(raw_cars) >= 5:
                     break
 
         browser.close()

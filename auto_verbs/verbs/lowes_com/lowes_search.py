@@ -51,7 +51,7 @@ def search_lowes_products(
         # Navigate to main page first (avoid direct search URL block)
         print("STEP 1: Navigate to Lowe's homepage...")
         page.goto("https://www.lowes.com", wait_until="domcontentloaded", timeout=30000)
-        page.wait_for_timeout(6000)
+        page.wait_for_timeout(2000)
 
         # Dismiss popups
         for sel in ["button:has-text('Accept')", "button:has-text('Close')",

@@ -5,3 +5,12 @@ I am going to sleep now. Can you please go through every folder under auto_verbs
 *please see amazon, Amtrak, bankofamerica, booking.com, Costco, Microsoft Teams as examples.*
 
  Thank you very much!
+
+ --
+ I am going to a long meeting now. Can you please go through every folder under auto_verbs\verbs to determine if it contains a js file but not a py file. If so, this is an incomplete case. please follow prompt1.txt in this folder to solve this case.
+
+*Please test run the js program, which is supposed to generate the py program. Then, test-run the py program to see if it gets the same result as the js program.  The py program should not use stagehand AI, but only platwright calls.*
+*do not hardcode the result obtained from the JS program in the python code! It would miss the whole point of this effort. Instead, please write real code to extract data from the webpage*
+*please see amazon, Amtrak, bankofamerica, booking.com, Costco, Microsoft Teams as examples.*
+
+ Thank you very much!

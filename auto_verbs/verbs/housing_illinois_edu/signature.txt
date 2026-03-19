@@ -1,0 +1,35 @@
+# Search undergraduate hall pricing on housing.illinois.edu/cost.
+# Opens the "New Resident Rates" accordion, finds all halls whose table
+# contains a column matching the requested room_type and a row matching
+# the requested meal_plan, then returns only those within (price_min, price_max).
+
+@dataclass(frozen=True)
+class HousingSearchRequest:
+    """Parameters for the housing cost search."""
+    meal_plan: str          # Full meal-plan row label. One of:
+                            #   "Room & 12 Classic Meals + 15 Dining Dollars"
+                            #   "Room & 10 Classic Meals + 45 Dining Dollars"
+                            #   "Room & All Dining Dollars (275)"
+                            #   "Room & All Classic Meals"
+    room_type: str          # Column header to match, e.g. "Single", "Double", "Triple"
+    price_min: int          # Lower bound of price filter (exclusive)
+    price_max: int          # Upper bound of price filter (exclusive)
+
+@dataclass(frozen=True)
+class HallPricing:
+    """A single undergraduate hall with its price for the requested room/meal combo."""
+    hall_name: str
+    meal_plan: str
+    room_type: str
+    price: int              # Annual price in whole dollars
+
+@dataclass(frozen=True)
+class HousingSearchResult:
+    """Return value: filtered list of halls plus the search criteria used."""
+    halls: List[HallPricing]
+    meal_plan: str
+    room_type: str
+    price_min: int
+    price_max: int
+
+def search_housing_cost(playwright: Playwright, request: HousingSearchRequest) -> HousingSearchResult
