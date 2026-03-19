@@ -1,0 +1,23 @@
+packages/core/lib/prompt.ts
+  6861c24670e422df 126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "d57f72f8bdf768cc1e547140ed5ded22af4f4688",
+  "prompts": {
+    "6861c24670e422df": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "81c3e28a-0b39-43ae-8e7f-07e4afdc806b",
+        "model": "claude-4.6-opus-high-thinking"
+      },
+      "human_author": "Filip Michalsky <filip@paywithsoap.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
