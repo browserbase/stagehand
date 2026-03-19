@@ -1,0 +1,25 @@
+packages/server-v3/src/routes/v1/sessions/_id/observe.ts
+  c3126112736266df 4-6,58,60
+packages/server-v3/openapi.v3.yaml
+  c3126112736266df 626-627,1575-1576
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "8664746838b5e2f023174c207ed684c8609fa934",
+  "prompts": {
+    "c3126112736266df": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cfd05-7ba8-71a0-9f24-53aa5d849137",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Filip Michalsky <filip@paywithsoap.com>",
+      "messages": [],
+      "total_additions": 23,
+      "total_deletions": 16,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}
