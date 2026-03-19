@@ -27,9 +27,9 @@ const hoverRoute: RouteOptions = {
     method: "hover",
     actionSchema: PageHoverActionSchema,
     execute: async ({ params }) => {
+      const sel = params.selector;
       return PageXPathResultSchema.parse({
-        xpath:
-          "selector" in params ? params.selector.xpath : "xpath=//stub-hover",
+        xpath: "xpath" in sel ? sel.xpath : "xpath=//stub-hover",
       });
     },
   }),

@@ -297,143 +297,6 @@ components:
         - us-east-1
         - eu-central-1
         - ap-southeast-1
-    PageClickSelectorParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        selector:
-          $ref: "#/components/schemas/PageSelector"
-        button:
-          $ref: "#/components/schemas/MouseButton"
-        clickCount:
-          type: integer
-          minimum: 1
-          maximum: 9007199254740991
-      required:
-        - selector
-      additionalProperties: false
-    PageClickCoordinatesParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        x:
-          type: number
-        y:
-          type: number
-        button:
-          $ref: "#/components/schemas/MouseButton"
-        clickCount:
-          type: integer
-          minimum: 1
-          maximum: 9007199254740991
-      required:
-        - x
-        - y
-      additionalProperties: false
-    PageHoverSelectorParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        selector:
-          $ref: "#/components/schemas/PageSelector"
-      required:
-        - selector
-      additionalProperties: false
-    PageHoverCoordinatesParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        x:
-          type: number
-        y:
-          type: number
-      required:
-        - x
-        - y
-      additionalProperties: false
-    PageScrollSelectorParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        selector:
-          $ref: "#/components/schemas/PageSelector"
-        percentage:
-          type: number
-          minimum: 0
-          maximum: 100
-      required:
-        - selector
-        - percentage
-      additionalProperties: false
-    PageScrollCoordinatesParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        x:
-          type: number
-        y:
-          type: number
-        deltaX:
-          type: number
-        deltaY:
-          type: number
-      required:
-        - x
-        - y
-        - deltaY
-      additionalProperties: false
-    PageDragAndDropSelectorParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        from:
-          $ref: "#/components/schemas/PageSelector"
-        to:
-          $ref: "#/components/schemas/PageSelector"
-        button:
-          $ref: "#/components/schemas/MouseButton"
-        steps:
-          type: integer
-          exclusiveMinimum: 0
-          maximum: 9007199254740991
-        delay:
-          type: integer
-          minimum: 0
-          maximum: 9007199254740991
-      required:
-        - from
-        - to
-      additionalProperties: false
-    PageDragAndDropCoordinatesParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        from:
-          $ref: "#/components/schemas/PagePoint"
-        to:
-          $ref: "#/components/schemas/PagePoint"
-        button:
-          $ref: "#/components/schemas/MouseButton"
-        steps:
-          type: integer
-          exclusiveMinimum: 0
-          maximum: 9007199254740991
-        delay:
-          type: integer
-          minimum: 0
-          maximum: 9007199254740991
-      required:
-        - from
-        - to
-      additionalProperties: false
     SessionHeaders:
       type: object
       properties:
@@ -834,7 +697,7 @@ components:
       type: object
       properties:
         selector:
-          $ref: "#/components/schemas/PageSelector"
+          $ref: "#/components/schemas/PageElementSelector"
         matched:
           type: boolean
       required:
@@ -2485,7 +2348,7 @@ components:
         - completed
         - failed
         - canceled
-    PageSelector:
+    PageXPathSelector:
       type: object
       properties:
         xpath:
@@ -2495,7 +2358,27 @@ components:
       required:
         - xpath
       additionalProperties: false
-    PagePoint:
+    PageCssSelector:
+      type: object
+      properties:
+        css:
+          example: .btn-submit
+          type: string
+          minLength: 1
+      required:
+        - css
+      additionalProperties: false
+    PageTextSelector:
+      type: object
+      properties:
+        text:
+          example: Submit
+          type: string
+          minLength: 1
+      required:
+        - text
+      additionalProperties: false
+    PageCoordinateSelector:
       type: object
       properties:
         x:
@@ -2506,6 +2389,17 @@ components:
         - x
         - y
       additionalProperties: false
+    PageSelector:
+      anyOf:
+        - $ref: "#/components/schemas/PageXPathSelector"
+        - $ref: "#/components/schemas/PageCssSelector"
+        - $ref: "#/components/schemas/PageTextSelector"
+        - $ref: "#/components/schemas/PageCoordinateSelector"
+    PageElementSelector:
+      anyOf:
+        - $ref: "#/components/schemas/PageXPathSelector"
+        - $ref: "#/components/schemas/PageCssSelector"
+        - $ref: "#/components/schemas/PageTextSelector"
     PageHeaders:
       type: object
       properties: {}
@@ -2549,21 +2443,88 @@ components:
       type: string
       minLength: 1
     PageClickParams:
-      anyOf:
-        - $ref: "#/components/schemas/PageClickSelectorParams"
-        - $ref: "#/components/schemas/PageClickCoordinatesParams"
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        selector:
+          $ref: "#/components/schemas/PageSelector"
+        button:
+          $ref: "#/components/schemas/MouseButton"
+        clickCount:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+      required:
+        - selector
+      additionalProperties: false
     PageHoverParams:
-      anyOf:
-        - $ref: "#/components/schemas/PageHoverSelectorParams"
-        - $ref: "#/components/schemas/PageHoverCoordinatesParams"
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        selector:
+          $ref: "#/components/schemas/PageSelector"
+      required:
+        - selector
+      additionalProperties: false
+    PageScrollElementParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        selector:
+          $ref: "#/components/schemas/PageElementSelector"
+        percentage:
+          type: number
+          minimum: 0
+          maximum: 100
+      required:
+        - selector
+        - percentage
+      additionalProperties: false
+    PageScrollCoordinateParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        selector:
+          $ref: "#/components/schemas/PageCoordinateSelector"
+        deltaX:
+          type: number
+        deltaY:
+          type: number
+      required:
+        - selector
+        - deltaY
+      additionalProperties: false
     PageScrollParams:
       anyOf:
-        - $ref: "#/components/schemas/PageScrollSelectorParams"
-        - $ref: "#/components/schemas/PageScrollCoordinatesParams"
+        - $ref: "#/components/schemas/PageScrollElementParams"
+        - $ref: "#/components/schemas/PageScrollCoordinateParams"
     PageDragAndDropParams:
-      anyOf:
-        - $ref: "#/components/schemas/PageDragAndDropSelectorParams"
-        - $ref: "#/components/schemas/PageDragAndDropCoordinatesParams"
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        from:
+          $ref: "#/components/schemas/PageSelector"
+        to:
+          $ref: "#/components/schemas/PageSelector"
+        button:
+          $ref: "#/components/schemas/MouseButton"
+        steps:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+        delay:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - from
+        - to
+      additionalProperties: false
     PageTypeParams:
       type: object
       properties:
@@ -2834,7 +2795,7 @@ components:
         pageId:
           $ref: "#/components/schemas/PageId"
         selector:
-          $ref: "#/components/schemas/PageSelector"
+          $ref: "#/components/schemas/PageElementSelector"
         state:
           $ref: "#/components/schemas/WaitForSelectorState"
         timeout:
@@ -6030,6 +5991,17 @@ components:
           maximum: 500
       required:
         - sessionId
+      additionalProperties: false
+    PagePoint:
+      type: object
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+      required:
+        - x
+        - y
       additionalProperties: false
     ValidationErrorResponse:
       type: object
