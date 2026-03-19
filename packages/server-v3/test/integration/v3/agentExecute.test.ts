@@ -1218,3 +1218,114 @@ describe("POST /v1/sessions/:id/agentExecute - validation errors (V3)", () => {
     );
   });
 });
+
+// =============================================================================
+// V3 Format Tests - executeOptions.useSearch and executeOptions.toolTimeout
+// =============================================================================
+
+describe("POST /v1/sessions/:id/agentExecute (V3) - useSearch & toolTimeout", () => {
+  let sessionId: string;
+  const headers = getHeaders("3.0.0");
+
+  before(async () => {
+    ({ sessionId } = await createSessionWithCdp(headers));
+  });
+
+  beforeEach(async () => {
+    const navResponse = await navigateSession(
+      sessionId,
+      "https://example.com",
+      headers,
+    );
+    assert.equal(navResponse.status, HTTP_OK, "Navigate should succeed");
+  });
+
+  after(async () => {
+    if (sessionId) {
+      await endSession(sessionId, headers);
+      sessionId = "";
+    }
+  });
+
+  it("should accept executeOptions.useSearch as boolean", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<{
+      success: boolean;
+      data?: { result: unknown; actionId?: string };
+    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        agentConfig: {},
+        executeOptions: {
+          instruction: "Describe the main heading on this page",
+          useSearch: true,
+        },
+      }),
+    });
+
+    assertFetchStatus(
+      ctx,
+      HTTP_OK,
+      "Agent execute with useSearch should succeed",
+    );
+    assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
+    assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+  });
+
+  it("should accept executeOptions.toolTimeout as number", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<{
+      success: boolean;
+      data?: { result: unknown; actionId?: string };
+    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        agentConfig: {},
+        executeOptions: {
+          instruction: "Describe the main heading on this page",
+          toolTimeout: 30000,
+        },
+      }),
+    });
+
+    assertFetchStatus(
+      ctx,
+      HTTP_OK,
+      "Agent execute with toolTimeout should succeed",
+    );
+    assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
+    assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+  });
+
+  it("should accept both useSearch and toolTimeout together", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<{
+      success: boolean;
+      data?: { result: unknown; actionId?: string };
+    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        agentConfig: {},
+        executeOptions: {
+          instruction: "Describe the main heading on this page",
+          useSearch: false,
+          toolTimeout: 60000,
+        },
+      }),
+    });
+
+    assertFetchStatus(
+      ctx,
+      HTTP_OK,
+      "Agent execute with both options should succeed",
+    );
+    assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
+    assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+  });
+});
