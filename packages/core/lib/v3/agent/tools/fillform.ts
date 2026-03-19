@@ -18,7 +18,7 @@ export const fillFormTool = (
 
   return tool({
     description:
-      '📝 FORM FILL - MULTI-FIELD INPUT TOOL\nFill 2+ form inputs/textareas at once. Each action MUST include the exact text to type and the target field, e.g. "type john@example.com into the email field".',
+      'FORM FILL - MULTI-FIELD INPUT TOOL\nFill 2+ form inputs/textareas at once. Each action MUST include the exact text to type and the target field, e.g. "type john@example.com into the email field".',
     inputSchema: z.object({
       fields: z
         .array(
