@@ -90,7 +90,7 @@ describe("agent tools pass full executionModel config to v3 methods", () => {
     const v3 = createMockV3();
     const tool = fillFormTool(v3, modelConfig);
     await tool.execute!(
-      { fields: [{ action: "type hello into name", value: "hello" }] },
+      { fields: [{ action: "type hello into name" }] },
       {
         toolCallId: "t3",
         messages: [],
