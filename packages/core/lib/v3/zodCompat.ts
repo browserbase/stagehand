@@ -1,4 +1,4 @@
-import { z, toJSONSchema as zodV4ToJsonSchema } from "zod";
+import { z } from "zod";
 import type {
   ZodObject as Zod4Object,
   ZodRawShape as Zod4RawShape,
@@ -35,8 +35,17 @@ export function toJsonSchema(schema: StagehandZodSchema): JsonSchemaDocument {
     return zodToJsonSchema(schema);
   }
 
-  // Use the named import directly, which is resolved at module load time
-  // and not susceptible to tree-shaking or bundler resolution issues
-  // that can strip z.toJSONSchema from the namespace object.
-  return zodV4ToJsonSchema(schema as Zod4TypeAny) as JsonSchemaDocument;
+  // For v4 schemas, use built-in z.toJSONSchema() method
+  const zodWithJsonSchema = z as typeof z & {
+    toJSONSchema?: (schema: Zod4TypeAny) => JsonSchemaDocument;
+  };
+
+  if (zodWithJsonSchema.toJSONSchema) {
+    return zodWithJsonSchema.toJSONSchema(schema as Zod4TypeAny);
+  }
+
+  // Fallback to zod-to-json-schema when the native method isn't available.
+  // This can happen when the root zod import resolves to a build that
+  // doesn't expose toJSONSchema (e.g., some bundler configurations).
+  return zodToJsonSchema(schema as Parameters<typeof zodToJsonSchema>[0]);
 }
