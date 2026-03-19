@@ -697,7 +697,7 @@ components:
       type: object
       properties:
         selector:
-          $ref: "#/components/schemas/PageElementSelector"
+          $ref: "#/components/schemas/ElementSelector"
         matched:
           type: boolean
       required:
@@ -2348,7 +2348,7 @@ components:
         - completed
         - failed
         - canceled
-    PageXPathSelector:
+    XPathSelector:
       type: object
       properties:
         xpath:
@@ -2358,7 +2358,7 @@ components:
       required:
         - xpath
       additionalProperties: false
-    PageCssSelector:
+    CssSelector:
       type: object
       properties:
         css:
@@ -2368,7 +2368,7 @@ components:
       required:
         - css
       additionalProperties: false
-    PageTextSelector:
+    TextSelector:
       type: object
       properties:
         text:
@@ -2378,7 +2378,7 @@ components:
       required:
         - text
       additionalProperties: false
-    PageCoordinateSelector:
+    CoordinateSelector:
       type: object
       properties:
         x:
@@ -2389,17 +2389,17 @@ components:
         - x
         - y
       additionalProperties: false
-    PageSelector:
+    Selector:
       anyOf:
-        - $ref: "#/components/schemas/PageXPathSelector"
-        - $ref: "#/components/schemas/PageCssSelector"
-        - $ref: "#/components/schemas/PageTextSelector"
-        - $ref: "#/components/schemas/PageCoordinateSelector"
-    PageElementSelector:
+        - $ref: "#/components/schemas/XPathSelector"
+        - $ref: "#/components/schemas/CssSelector"
+        - $ref: "#/components/schemas/TextSelector"
+        - $ref: "#/components/schemas/CoordinateSelector"
+    ElementSelector:
       anyOf:
-        - $ref: "#/components/schemas/PageXPathSelector"
-        - $ref: "#/components/schemas/PageCssSelector"
-        - $ref: "#/components/schemas/PageTextSelector"
+        - $ref: "#/components/schemas/XPathSelector"
+        - $ref: "#/components/schemas/CssSelector"
+        - $ref: "#/components/schemas/TextSelector"
     PageHeaders:
       type: object
       properties: {}
@@ -2448,7 +2448,7 @@ components:
         pageId:
           $ref: "#/components/schemas/PageId"
         selector:
-          $ref: "#/components/schemas/PageSelector"
+          $ref: "#/components/schemas/Selector"
         button:
           $ref: "#/components/schemas/MouseButton"
         clickCount:
@@ -2464,7 +2464,7 @@ components:
         pageId:
           $ref: "#/components/schemas/PageId"
         selector:
-          $ref: "#/components/schemas/PageSelector"
+          $ref: "#/components/schemas/Selector"
       required:
         - selector
       additionalProperties: false
@@ -2474,7 +2474,7 @@ components:
         pageId:
           $ref: "#/components/schemas/PageId"
         selector:
-          $ref: "#/components/schemas/PageElementSelector"
+          $ref: "#/components/schemas/ElementSelector"
         percentage:
           type: number
           minimum: 0
@@ -2489,7 +2489,7 @@ components:
         pageId:
           $ref: "#/components/schemas/PageId"
         selector:
-          $ref: "#/components/schemas/PageCoordinateSelector"
+          $ref: "#/components/schemas/CoordinateSelector"
         deltaX:
           type: number
         deltaY:
@@ -2508,9 +2508,9 @@ components:
         pageId:
           $ref: "#/components/schemas/PageId"
         from:
-          $ref: "#/components/schemas/PageSelector"
+          $ref: "#/components/schemas/Selector"
         to:
-          $ref: "#/components/schemas/PageSelector"
+          $ref: "#/components/schemas/Selector"
         button:
           $ref: "#/components/schemas/MouseButton"
         steps:
@@ -2795,7 +2795,7 @@ components:
         pageId:
           $ref: "#/components/schemas/PageId"
         selector:
-          $ref: "#/components/schemas/PageElementSelector"
+          $ref: "#/components/schemas/ElementSelector"
         state:
           $ref: "#/components/schemas/WaitForSelectorState"
         timeout:
@@ -5991,17 +5991,6 @@ components:
           maximum: 500
       required:
         - sessionId
-      additionalProperties: false
-    PagePoint:
-      type: object
-      properties:
-        x:
-          type: number
-        y:
-          type: number
-      required:
-        - x
-        - y
       additionalProperties: false
     ValidationErrorResponse:
       type: object

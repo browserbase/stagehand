@@ -109,53 +109,49 @@ export const PageActionStatusSchema = z
   .enum(["queued", "running", "completed", "failed", "canceled"])
   .meta({ id: "PageActionStatus" });
 
-export const PageXPathSelectorSchema = z
+export const XPathSelectorSchema = z
   .object({
     xpath: z.string().min(1).meta({ example: "//button[text()='Submit']" }),
   })
   .strict()
-  .meta({ id: "PageXPathSelector" });
+  .meta({ id: "XPathSelector" });
 
-export const PageCssSelectorSchema = z
+export const CssSelectorSchema = z
   .object({
     css: z.string().min(1).meta({ example: ".btn-submit" }),
   })
   .strict()
-  .meta({ id: "PageCssSelector" });
+  .meta({ id: "CssSelector" });
 
-export const PageTextSelectorSchema = z
+export const TextSelectorSchema = z
   .object({
     text: z.string().min(1).meta({ example: "Submit" }),
   })
   .strict()
-  .meta({ id: "PageTextSelector" });
+  .meta({ id: "TextSelector" });
 
-export const PageCoordinateSelectorSchema = z
+export const CoordinateSelectorSchema = z
   .object({
     x: z.number(),
     y: z.number(),
   })
   .strict()
-  .meta({ id: "PageCoordinateSelector" });
+  .meta({ id: "CoordinateSelector" });
 
 // Full union (all 4 types)
-export const PageSelectorSchema = z
+export const SelectorSchema = z
   .union([
-    PageXPathSelectorSchema,
-    PageCssSelectorSchema,
-    PageTextSelectorSchema,
-    PageCoordinateSelectorSchema,
+    XPathSelectorSchema,
+    CssSelectorSchema,
+    TextSelectorSchema,
+    CoordinateSelectorSchema,
   ])
-  .meta({ id: "PageSelector" });
+  .meta({ id: "Selector" });
 
 // Element-only (no coordinates) — for waitForSelector
-export const PageElementSelectorSchema = z
-  .union([
-    PageXPathSelectorSchema,
-    PageCssSelectorSchema,
-    PageTextSelectorSchema,
-  ])
-  .meta({ id: "PageElementSelector" });
+export const ElementSelectorSchema = z
+  .union([XPathSelectorSchema, CssSelectorSchema, TextSelectorSchema])
+  .meta({ id: "ElementSelector" });
 
 export const PageHeadersSchema = z
   .object({})
@@ -272,7 +268,7 @@ function createPageResponseSchema<T extends z.ZodTypeAny>(
 }
 
 export const PageClickParamsSchema = PageWithPageIdSchema.extend({
-  selector: PageSelectorSchema,
+  selector: SelectorSchema,
   button: MouseButtonSchema.optional(),
   clickCount: z.number().int().min(1).optional(),
 })
@@ -280,20 +276,20 @@ export const PageClickParamsSchema = PageWithPageIdSchema.extend({
   .meta({ id: "PageClickParams" });
 
 export const PageHoverParamsSchema = PageWithPageIdSchema.extend({
-  selector: PageSelectorSchema,
+  selector: SelectorSchema,
 })
   .strict()
   .meta({ id: "PageHoverParams" });
 
 export const PageScrollElementParamsSchema = PageWithPageIdSchema.extend({
-  selector: PageElementSelectorSchema,
+  selector: ElementSelectorSchema,
   percentage: z.number().min(0).max(100),
 })
   .strict()
   .meta({ id: "PageScrollElementParams" });
 
 export const PageScrollCoordinateParamsSchema = PageWithPageIdSchema.extend({
-  selector: PageCoordinateSelectorSchema,
+  selector: CoordinateSelectorSchema,
   deltaX: z.number().optional(),
   deltaY: z.number(),
 })
@@ -305,8 +301,8 @@ export const PageScrollParamsSchema = z
   .meta({ id: "PageScrollParams" });
 
 export const PageDragAndDropParamsSchema = PageWithPageIdSchema.extend({
-  from: PageSelectorSchema,
-  to: PageSelectorSchema,
+  from: SelectorSchema,
+  to: SelectorSchema,
   button: MouseButtonSchema.optional(),
   steps: z.number().int().positive().optional(),
   delay: z.number().int().min(0).optional(),
@@ -482,7 +478,7 @@ export const PageWaitForMainLoadStateParamsSchema = PageWithPageIdSchema.extend(
   .meta({ id: "PageWaitForMainLoadStateParams" });
 
 export const PageWaitForSelectorParamsSchema = PageWithPageIdSchema.extend({
-  selector: PageElementSelectorSchema,
+  selector: ElementSelectorSchema,
   state: WaitForSelectorStateSchema.optional(),
   timeout: z.number().int().nonnegative().optional(),
   pierceShadow: z.boolean().optional(),
@@ -845,7 +841,7 @@ export const PageWaitForLoadStateResultSchema = z
 
 export const PageWaitForSelectorResultSchema = z
   .object({
-    selector: PageElementSelectorSchema,
+    selector: ElementSelectorSchema,
     matched: z.boolean(),
   })
   .strict()
@@ -1388,13 +1384,12 @@ export const pageOpenApiComponents = {
     ScreenshotCaret: ScreenshotCaretSchema,
     PageActionMethod: PageActionMethodSchema,
     PageActionStatus: PageActionStatusSchema,
-    PageXPathSelector: PageXPathSelectorSchema,
-    PageCssSelector: PageCssSelectorSchema,
-    PageTextSelector: PageTextSelectorSchema,
-    PageCoordinateSelector: PageCoordinateSelectorSchema,
-    PageSelector: PageSelectorSchema,
-    PageElementSelector: PageElementSelectorSchema,
-
+    XPathSelector: XPathSelectorSchema,
+    CssSelector: CssSelectorSchema,
+    TextSelector: TextSelectorSchema,
+    CoordinateSelector: CoordinateSelectorSchema,
+    Selector: SelectorSchema,
+    ElementSelector: ElementSelectorSchema,
     PageHeaders: PageHeadersSchema,
     PageInitScript: PageInitScriptSchema,
     PageClip: PageClipSchema,
