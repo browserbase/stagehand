@@ -44,6 +44,8 @@ export function toJsonSchema(schema: StagehandZodSchema): JsonSchemaDocument {
     return zodWithJsonSchema.toJSONSchema(schema as Zod4TypeAny);
   }
 
-  // This should never happen with Zod v4.1+
-  throw new Error("Zod v4 toJSONSchema method not found");
+  // Fallback to zod-to-json-schema when the native method isn't available.
+  // This can happen when the root zod import resolves to a build that
+  // doesn't expose toJSONSchema (e.g., some bundler configurations).
+  return zodToJsonSchema(schema as Parameters<typeof zodToJsonSchema>[0]);
 }
