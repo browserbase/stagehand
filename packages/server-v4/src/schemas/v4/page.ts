@@ -157,14 +157,6 @@ export const PageElementSelectorSchema = z
   ])
   .meta({ id: "PageElementSelector" });
 
-export const PagePointSchema = z
-  .object({
-    x: z.number(),
-    y: z.number(),
-  })
-  .strict()
-  .meta({ id: "PagePoint" });
-
 export const PageHeadersSchema = z
   .object({})
   .catchall(z.string())
@@ -293,14 +285,14 @@ export const PageHoverParamsSchema = PageWithPageIdSchema.extend({
   .strict()
   .meta({ id: "PageHoverParams" });
 
-const PageScrollElementParamsSchema = PageWithPageIdSchema.extend({
+export const PageScrollElementParamsSchema = PageWithPageIdSchema.extend({
   selector: PageElementSelectorSchema,
   percentage: z.number().min(0).max(100),
 })
   .strict()
   .meta({ id: "PageScrollElementParams" });
 
-const PageScrollCoordinateParamsSchema = PageWithPageIdSchema.extend({
+export const PageScrollCoordinateParamsSchema = PageWithPageIdSchema.extend({
   selector: PageCoordinateSelectorSchema,
   deltaX: z.number().optional(),
   deltaY: z.number(),
@@ -1402,7 +1394,7 @@ export const pageOpenApiComponents = {
     PageCoordinateSelector: PageCoordinateSelectorSchema,
     PageSelector: PageSelectorSchema,
     PageElementSelector: PageElementSelectorSchema,
-    PagePoint: PagePointSchema,
+
     PageHeaders: PageHeadersSchema,
     PageInitScript: PageInitScriptSchema,
     PageClip: PageClipSchema,
