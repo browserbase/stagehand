@@ -1,6 +1,4 @@
 import type { FastifyPluginCallback, RouteOptions } from "fastify";
-import { ResponseSerializationError } from "fastify-zod-openapi";
-import { StatusCodes } from "http-status-codes";
 
 import addInitScriptRoute from "./addInitScript.js";
 import asProtocolFrameTreeRoute from "./asProtocolFrameTree.js";
@@ -38,46 +36,7 @@ import waitForSelectorRoute from "./waitForSelector.js";
 import waitForTimeoutRoute from "./waitForTimeout.js";
 import reloadRoute from "./reload.js";
 import { buildErrorResponse } from "../../../schemas/v4/page.js";
-
-function withTag(route: RouteOptions, tag: string): RouteOptions {
-  if (!route.schema) {
-    return route;
-  }
-
-  return {
-    ...route,
-    schema: {
-      ...route.schema,
-      tags: [tag],
-    },
-  };
-}
-
-function normalizePluginError(error: unknown): {
-  errorMessage: string;
-  statusCode: number;
-} {
-  if ((error as { validation?: unknown[] }).validation) {
-    return {
-      errorMessage: "Request validation failed",
-      statusCode: StatusCodes.BAD_REQUEST,
-    };
-  }
-
-  if (error instanceof ResponseSerializationError) {
-    return {
-      errorMessage: "Response validation failed",
-      statusCode: StatusCodes.INTERNAL_SERVER_ERROR,
-    };
-  }
-
-  return {
-    errorMessage: error instanceof Error ? error.message : String(error),
-    statusCode:
-      (error as { statusCode?: number }).statusCode ??
-      StatusCodes.INTERNAL_SERVER_ERROR,
-  };
-}
+import { normalizePluginError, withTag } from "../pluginUtils.js";
 
 const rawPageRoutes: RouteOptions[] = [
   clickRoute,
@@ -127,13 +86,13 @@ export const pageRoutesPlugin: FastifyPluginCallback = (
   done,
 ) => {
   instance.setErrorHandler((error, _request, reply) => {
-    const { errorMessage, statusCode } = normalizePluginError(error);
+    const { errorMessage, stack, statusCode } = normalizePluginError(error);
 
     return reply.status(statusCode).send(
       buildErrorResponse({
         error: errorMessage,
         statusCode,
-        stack: error instanceof Error ? (error.stack ?? null) : null,
+        stack,
       }),
     );
   });

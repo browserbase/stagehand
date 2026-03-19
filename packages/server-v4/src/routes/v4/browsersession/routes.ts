@@ -1,6 +1,4 @@
 import type { FastifyPluginCallback, RouteOptions } from "fastify";
-import { ResponseSerializationError } from "fastify-zod-openapi";
-import { StatusCodes } from "http-status-codes";
 
 import browserSessionActionDetailsRoute from "./action/_actionId.js";
 import browserSessionActionListRoute from "./action/index.js";
@@ -24,46 +22,7 @@ import pagesRoute from "./pages.js";
 import resolvePageByMainFrameIdRoute from "./resolvePageByMainFrameId.js";
 import setExtraHTTPHeadersRoute from "./setExtraHTTPHeaders.js";
 import { buildBrowserSessionErrorResponse } from "../../../schemas/v4/browserSession.js";
-
-function withTag(route: RouteOptions, tag: string): RouteOptions {
-  if (!route.schema) {
-    return route;
-  }
-
-  return {
-    ...route,
-    schema: {
-      ...route.schema,
-      tags: [tag],
-    },
-  };
-}
-
-function normalizePluginError(error: unknown): {
-  errorMessage: string;
-  statusCode: number;
-} {
-  if ((error as { validation?: unknown[] }).validation) {
-    return {
-      errorMessage: "Request validation failed",
-      statusCode: StatusCodes.BAD_REQUEST,
-    };
-  }
-
-  if (error instanceof ResponseSerializationError) {
-    return {
-      errorMessage: "Response validation failed",
-      statusCode: StatusCodes.INTERNAL_SERVER_ERROR,
-    };
-  }
-
-  return {
-    errorMessage: error instanceof Error ? error.message : String(error),
-    statusCode:
-      (error as { statusCode?: number }).statusCode ??
-      StatusCodes.INTERNAL_SERVER_ERROR,
-  };
-}
+import { normalizePluginError, withTag } from "../pluginUtils.js";
 
 const rawBrowserSessionRoutes: RouteOptions[] = [
   createBrowserSessionRoute,
@@ -99,13 +58,13 @@ export const browserSessionRoutesPlugin: FastifyPluginCallback = (
   done,
 ) => {
   instance.setErrorHandler((error, _request, reply) => {
-    const { errorMessage, statusCode } = normalizePluginError(error);
+    const { errorMessage, stack, statusCode } = normalizePluginError(error);
 
     return reply.status(statusCode).send(
       buildBrowserSessionErrorResponse({
         error: errorMessage,
         statusCode,
-        stack: error instanceof Error ? (error.stack ?? null) : null,
+        stack,
       }),
     );
   });
