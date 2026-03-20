@@ -96,8 +96,11 @@ describe("agent tools pass full executionModel config to v3 methods", () => {
   it("fillFormTool passes AgentModelConfig object to v3.observe()", async () => {
     const v3 = createMockV3();
     const tool = fillFormTool(v3, modelConfig);
+    const input = {
+      fields: [{ action: "type hello into name", value: "hello" }],
+    } as Parameters<NonNullable<typeof tool.execute>>[0];
     await tool.execute!(
-      { fields: [{ action: "type hello into name", value: "hello" }] },
+      input,
       {
         toolCallId: "t3",
         messages: [],
@@ -119,10 +122,11 @@ describe("agent tools pass full executionModel config to v3 methods", () => {
       },
     };
     const tool = fillFormTool(v3, undefined, variables);
+    const input = {
+      fields: [{ action: "type into the email field", value: "%username%" }],
+    } as Parameters<NonNullable<typeof tool.execute>>[0];
     await tool.execute!(
-      {
-        fields: [{ action: "type into the email field", value: "%username%" }],
-      },
+      input,
       {
         toolCallId: "t3-variables",
         messages: [],
