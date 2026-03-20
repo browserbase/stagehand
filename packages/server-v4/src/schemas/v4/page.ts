@@ -270,12 +270,14 @@ export const PageClickParamsSchema = PageWithPageIdSchema.extend({
   selector: SelectorSchema,
   button: MouseButtonSchema.optional(),
   clickCount: z.number().int().min(1).optional(),
+  returnSelector: z.boolean().optional(),
 })
   .strict()
   .meta({ id: "PageClickParams" });
 
 export const PageHoverParamsSchema = PageWithPageIdSchema.extend({
   selector: SelectorSchema,
+  returnSelector: z.boolean().optional(),
 })
   .strict()
   .meta({ id: "PageHoverParams" });
@@ -305,6 +307,7 @@ export const PageDragAndDropParamsSchema = PageWithPageIdSchema.extend({
   button: MouseButtonSchema.optional(),
   steps: z.number().int().positive().optional(),
   delay: z.number().int().min(0).optional(),
+  returnSelector: z.boolean().optional(),
 })
   .strict()
   .meta({ id: "PageDragAndDropParams" });
