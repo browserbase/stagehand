@@ -1,0 +1,25 @@
+packages/core/tests/unit/agent-execution-model.test.ts
+  0e75df2802004198 99-101,103,125-127,129
+packages/server-v3/openapi.v3.yaml
+  0e75df2802004198 614,616-617,622,1544,1546-1547,1552
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "c0535767ee8b0110fc8a79a7944b8bef0a820b34",
+  "prompts": {
+    "0e75df2802004198": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d0adf-071c-7c72-b453-3398f9931c1a",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Filip Michalsky <filip@paywithsoap.com>",
+      "messages": [],
+      "total_additions": 16,
+      "total_deletions": 50,
+      "accepted_lines": 16,
+      "overriden_lines": 0
+    }
+  }
+}
