@@ -2355,7 +2355,7 @@ components:
           example: //button[text()='Submit']
           type: string
           minLength: 1
-        index:
+        idx:
           example: 0
           type: integer
           minimum: 0
@@ -2370,7 +2370,7 @@ components:
           example: .btn-submit
           type: string
           minLength: 1
-        index:
+        idx:
           example: 0
           type: integer
           minimum: 0
@@ -2385,7 +2385,7 @@ components:
           example: Submit
           type: string
           minLength: 1
-        index:
+        idx:
           example: 0
           type: integer
           minimum: 0
