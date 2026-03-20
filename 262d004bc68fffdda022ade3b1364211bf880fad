@@ -1,0 +1,61 @@
+packages/server-v4/src/routes/v4/page/click.ts
+  0e75df2802004198 30,32
+packages/core/lib/v3/agent/tools/fillform.ts
+  0e75df2802004198 15-17,21,26
+packages/server-v4/src/schemas/v4/page.ts
+  0e75df2802004198 112,114-115,118,120,122-136,142-152,154-157,273-274,281-282,287-288,292,294-295,300,303,306-308,484,847,1390-1395,1405-1406
+packages/server-v4/src/routes/v4/browsersession/routes.ts
+  0e75df2802004198 1,24-25,27,50-77
+packages/server-v4/src/routes/v4/pluginUtils.ts
+  0e75df2802004198 1-81
+packages/core/lib/v3/agent/prompts/agentSystemPrompt.ts
+  0e75df2802004198 216
+stainless.yml
+  0e75df2802004198 205
+packages/core/tests/integration/timeouts.spec.ts
+  0e75df2802004198 267
+packages/server-v4/openapi.v4.yaml
+  0e75df2802004198 700,2351,2358-2362,2366-2394,2396,2407-2417,2461-2475,2477-2515,2518-2519,2521-2542,2813,6235-6236,6283-6284,6312-6313,6347-6348,6413-6414,6479-6480,6545-6546,6611-6612,6677-6678,6743-6744,6809-6810,6875-6876,6941-6942,7007-7008,7073-7074,7139-7140,7205-7206,7271-7272,7337-7338,7403-7404,7490-7491,7564-7565,7630-7631,7696-7697,7762-7763,7828-7829,7894-7895,7960-7961,8026-8027,8092-8093,8158-8159,8224-8225,8290-8291,8356-8357,8422-8423,8495-8496,8568-8569,8641-8642,8714-8715,8792-8793,8865-8866,8943-8944,9016-9017,9089-9090,9162-9163,9228-9229,9294-9295,9360-9361,9426-9427,9492-9493,9558-9559,9624-9625,9690-9691,9756-9757,9822-9823,9909-9910
+packages/core/lib/v3/types/private/cache.ts
+  0e75df2802004198 107
+packages/core/lib/v3/types/public/api.ts
+  0e75df2802004198 713-721
+packages/server-v3/openapi.v3.yaml
+  0e75df2802004198 798-806,1698-1706
+packages/server-v4/src/routes/v4/page/hover.ts
+  0e75df2802004198 30,32
+packages/server-v4/src/routes/v4/page/routes.ts
+  0e75df2802004198 1,38-39,41,78-105
+packages/server-v4/src/routes/v4/page/scroll.ts
+  0e75df2802004198 30,32
+packages/server-v3/test/integration/v3/agentExecute.test.ts
+  0e75df2802004198 1221-1331
+packages/core/tests/unit/agent-execution-model.test.ts
+  0e75df2802004198 100,123
+packages/server-v4/src/routes/v4/page/shared.ts
+  0e75df2802004198 40-41
+packages/server-v4/src/server.ts
+  0e75df2802004198 14,17-18,62-71,83,86,90,105-106
+packages/server-v4/test/integration/v4/page.test.ts
+  0e75df2802004198 933-984
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "262d004bc68fffdda022ade3b1364211bf880fad",
+  "prompts": {
+    "0e75df2802004198": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d0adf-071c-7c72-b453-3398f9931c1a",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Filip Michalsky <filip@paywithsoap.com>",
+      "messages": [],
+      "total_additions": 677,
+      "total_deletions": 330,
+      "accepted_lines": 673,
+      "overriden_lines": 0
+    }
+  }
+}
