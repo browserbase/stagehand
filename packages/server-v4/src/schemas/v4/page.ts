@@ -632,6 +632,14 @@ export const PageXPathResultSchema = z
   .strict()
   .meta({ id: "PageXPathResult" });
 
+export const PageScrollResultSchema = z
+  .object({
+    x: z.number(),
+    y: z.number(),
+  })
+  .strict()
+  .meta({ id: "PageScrollResult" });
+
 export const PageDragAndDropResultSchema = z
   .object({
     fromXpath: z.string().optional(),
@@ -838,7 +846,7 @@ export const PageScrollActionSchema = createPageActionSchema(
   "PageScrollAction",
   "scroll",
   PageScrollParamsSchema,
-  PageXPathResultSchema,
+  PageScrollResultSchema,
 );
 
 export const PageDragAndDropActionSchema = createPageActionSchema(
