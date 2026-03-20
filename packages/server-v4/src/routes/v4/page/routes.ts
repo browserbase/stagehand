@@ -1,4 +1,4 @@
-import type { RouteOptions } from "fastify";
+import type { FastifyPluginCallback, RouteOptions } from "fastify";
 
 import addInitScriptRoute from "./addInitScript.js";
 import asProtocolFrameTreeRoute from "./asProtocolFrameTree.js";
@@ -35,8 +35,10 @@ import waitForMainLoadStateRoute from "./waitForMainLoadState.js";
 import waitForSelectorRoute from "./waitForSelector.js";
 import waitForTimeoutRoute from "./waitForTimeout.js";
 import reloadRoute from "./reload.js";
+import { buildErrorResponse } from "../../../schemas/v4/page.js";
+import { normalizePluginError, withTag } from "../pluginUtils.js";
 
-export const pageRoutes: RouteOptions[] = [
+const rawPageRoutes: RouteOptions[] = [
   clickRoute,
   hoverRoute,
   scrollRoute,
@@ -73,3 +75,31 @@ export const pageRoutes: RouteOptions[] = [
   pageActionListRoute,
   pageActionDetailsRoute,
 ];
+
+export const pageRoutes: RouteOptions[] = rawPageRoutes.map((route) =>
+  withTag(route, "page"),
+);
+
+export const pageRoutesPlugin: FastifyPluginCallback = (
+  instance,
+  _opts,
+  done,
+) => {
+  instance.setErrorHandler((error, _request, reply) => {
+    const { errorMessage, stack, statusCode } = normalizePluginError(error);
+
+    return reply.status(statusCode).send(
+      buildErrorResponse({
+        error: errorMessage,
+        statusCode,
+        stack,
+      }),
+    );
+  });
+
+  for (const route of pageRoutes) {
+    instance.route(route);
+  }
+
+  done();
+};

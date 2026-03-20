@@ -297,143 +297,6 @@ components:
         - us-east-1
         - eu-central-1
         - ap-southeast-1
-    PageClickSelectorParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        selector:
-          $ref: "#/components/schemas/PageSelector"
-        button:
-          $ref: "#/components/schemas/MouseButton"
-        clickCount:
-          type: integer
-          minimum: 1
-          maximum: 9007199254740991
-      required:
-        - selector
-      additionalProperties: false
-    PageClickCoordinatesParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        x:
-          type: number
-        y:
-          type: number
-        button:
-          $ref: "#/components/schemas/MouseButton"
-        clickCount:
-          type: integer
-          minimum: 1
-          maximum: 9007199254740991
-      required:
-        - x
-        - y
-      additionalProperties: false
-    PageHoverSelectorParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        selector:
-          $ref: "#/components/schemas/PageSelector"
-      required:
-        - selector
-      additionalProperties: false
-    PageHoverCoordinatesParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        x:
-          type: number
-        y:
-          type: number
-      required:
-        - x
-        - y
-      additionalProperties: false
-    PageScrollSelectorParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        selector:
-          $ref: "#/components/schemas/PageSelector"
-        percentage:
-          type: number
-          minimum: 0
-          maximum: 100
-      required:
-        - selector
-        - percentage
-      additionalProperties: false
-    PageScrollCoordinatesParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        x:
-          type: number
-        y:
-          type: number
-        deltaX:
-          type: number
-        deltaY:
-          type: number
-      required:
-        - x
-        - y
-        - deltaY
-      additionalProperties: false
-    PageDragAndDropSelectorParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        from:
-          $ref: "#/components/schemas/PageSelector"
-        to:
-          $ref: "#/components/schemas/PageSelector"
-        button:
-          $ref: "#/components/schemas/MouseButton"
-        steps:
-          type: integer
-          exclusiveMinimum: 0
-          maximum: 9007199254740991
-        delay:
-          type: integer
-          minimum: 0
-          maximum: 9007199254740991
-      required:
-        - from
-        - to
-      additionalProperties: false
-    PageDragAndDropCoordinatesParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        from:
-          $ref: "#/components/schemas/PagePoint"
-        to:
-          $ref: "#/components/schemas/PagePoint"
-        button:
-          $ref: "#/components/schemas/MouseButton"
-        steps:
-          type: integer
-          exclusiveMinimum: 0
-          maximum: 9007199254740991
-        delay:
-          type: integer
-          minimum: 0
-          maximum: 9007199254740991
-      required:
-        - from
-        - to
-      additionalProperties: false
     SessionHeaders:
       type: object
       properties:
@@ -834,7 +697,7 @@ components:
       type: object
       properties:
         selector:
-          $ref: "#/components/schemas/PageSelector"
+          $ref: "#/components/schemas/ElementSelector"
         matched:
           type: boolean
       required:
@@ -2485,17 +2348,52 @@ components:
         - completed
         - failed
         - canceled
-    PageSelector:
+    XPathSelector:
       type: object
       properties:
         xpath:
           example: //button[text()='Submit']
           type: string
           minLength: 1
+        idx:
+          example: 0
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
       required:
         - xpath
       additionalProperties: false
-    PagePoint:
+    CssSelector:
+      type: object
+      properties:
+        css:
+          example: .btn-submit
+          type: string
+          minLength: 1
+        idx:
+          example: 0
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - css
+      additionalProperties: false
+    TextSelector:
+      type: object
+      properties:
+        text:
+          example: Submit
+          type: string
+          minLength: 1
+        idx:
+          example: 0
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - text
+      additionalProperties: false
+    CoordinateSelector:
       type: object
       properties:
         x:
@@ -2506,6 +2404,17 @@ components:
         - x
         - y
       additionalProperties: false
+    Selector:
+      anyOf:
+        - $ref: "#/components/schemas/XPathSelector"
+        - $ref: "#/components/schemas/CssSelector"
+        - $ref: "#/components/schemas/TextSelector"
+        - $ref: "#/components/schemas/CoordinateSelector"
+    ElementSelector:
+      anyOf:
+        - $ref: "#/components/schemas/XPathSelector"
+        - $ref: "#/components/schemas/CssSelector"
+        - $ref: "#/components/schemas/TextSelector"
     PageHeaders:
       type: object
       properties: {}
@@ -2549,21 +2458,88 @@ components:
       type: string
       minLength: 1
     PageClickParams:
-      anyOf:
-        - $ref: "#/components/schemas/PageClickSelectorParams"
-        - $ref: "#/components/schemas/PageClickCoordinatesParams"
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        selector:
+          $ref: "#/components/schemas/Selector"
+        button:
+          $ref: "#/components/schemas/MouseButton"
+        clickCount:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+      required:
+        - selector
+      additionalProperties: false
     PageHoverParams:
-      anyOf:
-        - $ref: "#/components/schemas/PageHoverSelectorParams"
-        - $ref: "#/components/schemas/PageHoverCoordinatesParams"
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        selector:
+          $ref: "#/components/schemas/Selector"
+      required:
+        - selector
+      additionalProperties: false
+    PageScrollElementParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        selector:
+          $ref: "#/components/schemas/ElementSelector"
+        percentage:
+          type: number
+          minimum: 0
+          maximum: 100
+      required:
+        - selector
+        - percentage
+      additionalProperties: false
+    PageScrollCoordinateParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        selector:
+          $ref: "#/components/schemas/CoordinateSelector"
+        deltaX:
+          type: number
+        deltaY:
+          type: number
+      required:
+        - selector
+        - deltaY
+      additionalProperties: false
     PageScrollParams:
       anyOf:
-        - $ref: "#/components/schemas/PageScrollSelectorParams"
-        - $ref: "#/components/schemas/PageScrollCoordinatesParams"
+        - $ref: "#/components/schemas/PageScrollElementParams"
+        - $ref: "#/components/schemas/PageScrollCoordinateParams"
     PageDragAndDropParams:
-      anyOf:
-        - $ref: "#/components/schemas/PageDragAndDropSelectorParams"
-        - $ref: "#/components/schemas/PageDragAndDropCoordinatesParams"
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        from:
+          $ref: "#/components/schemas/Selector"
+        to:
+          $ref: "#/components/schemas/Selector"
+        button:
+          $ref: "#/components/schemas/MouseButton"
+        steps:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+        delay:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - from
+        - to
+      additionalProperties: false
     PageTypeParams:
       type: object
       properties:
@@ -2834,7 +2810,7 @@ components:
         pageId:
           $ref: "#/components/schemas/PageId"
         selector:
-          $ref: "#/components/schemas/PageSelector"
+          $ref: "#/components/schemas/ElementSelector"
         state:
           $ref: "#/components/schemas/WaitForSelectorState"
         timeout:
@@ -6256,6 +6232,8 @@ paths:
     post:
       operationId: BrowserSessionCreate
       summary: Create a browser session
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6302,6 +6280,8 @@ paths:
     get:
       operationId: BrowserSessionStatus
       summary: Get browser session status
+      tags:
+        - browserSession
       parameters:
         - schema:
             $ref: "#/components/schemas/BrowserSessionId"
@@ -6329,6 +6309,8 @@ paths:
     post:
       operationId: BrowserSessionEnd
       summary: End a browser session
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6362,6 +6344,8 @@ paths:
     post:
       operationId: BrowserSessionAddInitScript
       summary: browserSession.addInitScript
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6426,6 +6410,8 @@ paths:
     post:
       operationId: BrowserSessionSetExtraHTTPHeaders
       summary: browserSession.setExtraHTTPHeaders
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6490,6 +6476,8 @@ paths:
     post:
       operationId: BrowserSessionPages
       summary: browserSession.pages
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6554,6 +6542,8 @@ paths:
     post:
       operationId: BrowserSessionActivePage
       summary: browserSession.activePage
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6618,6 +6608,8 @@ paths:
     post:
       operationId: BrowserSessionAwaitActivePage
       summary: browserSession.awaitActivePage
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6682,6 +6674,8 @@ paths:
     post:
       operationId: BrowserSessionResolvePageByMainFrameId
       summary: browserSession.resolvePageByMainFrameId
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6746,6 +6740,8 @@ paths:
     post:
       operationId: BrowserSessionGetFullFrameTreeByMainFrameId
       summary: browserSession.getFullFrameTreeByMainFrameId
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6810,6 +6806,8 @@ paths:
     post:
       operationId: BrowserSessionNewPage
       summary: browserSession.newPage
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6874,6 +6872,8 @@ paths:
     post:
       operationId: BrowserSessionCookies
       summary: browserSession.cookies
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -6938,6 +6938,8 @@ paths:
     post:
       operationId: BrowserSessionAddCookies
       summary: browserSession.addCookies
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -7002,6 +7004,8 @@ paths:
     post:
       operationId: BrowserSessionClearCookies
       summary: browserSession.clearCookies
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -7066,6 +7070,8 @@ paths:
     post:
       operationId: BrowserSessionConnectURL
       summary: browserSession.connectURL
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -7130,6 +7136,8 @@ paths:
     post:
       operationId: BrowserSessionConfiguredViewport
       summary: browserSession.configuredViewport
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -7194,6 +7202,8 @@ paths:
     post:
       operationId: BrowserSessionBrowserbaseSessionID
       summary: browserSession.browserbaseSessionID
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -7258,6 +7268,8 @@ paths:
     post:
       operationId: BrowserSessionBrowserbaseSessionURL
       summary: browserSession.browserbaseSessionURL
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -7322,6 +7334,8 @@ paths:
     post:
       operationId: BrowserSessionBrowserbaseDebugURL
       summary: browserSession.browserbaseDebugURL
+      tags:
+        - browserSession
       requestBody:
         content:
           application/json:
@@ -7386,6 +7400,8 @@ paths:
     get:
       operationId: BrowserSessionActionList
       summary: browserSession.actions
+      tags:
+        - browserSession
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -7471,6 +7487,8 @@ paths:
     get:
       operationId: BrowserSessionActionDetails
       summary: browserSession.action
+      tags:
+        - browserSession
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -7543,6 +7561,8 @@ paths:
     post:
       operationId: PageClick
       summary: page.click
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -7607,6 +7627,8 @@ paths:
     post:
       operationId: PageHover
       summary: page.hover
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -7671,6 +7693,8 @@ paths:
     post:
       operationId: PageScroll
       summary: page.scroll
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -7735,6 +7759,8 @@ paths:
     post:
       operationId: PageDragAndDrop
       summary: page.dragAndDrop
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -7799,6 +7825,8 @@ paths:
     post:
       operationId: PageType
       summary: page.type
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -7863,6 +7891,8 @@ paths:
     post:
       operationId: PageKeyPress
       summary: page.keyPress
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -7927,6 +7957,8 @@ paths:
     post:
       operationId: PageGoto
       summary: page.goto
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -7991,6 +8023,8 @@ paths:
     post:
       operationId: PageReload
       summary: page.reload
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -8055,6 +8089,8 @@ paths:
     post:
       operationId: PageGoBack
       summary: page.goBack
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -8119,6 +8155,8 @@ paths:
     post:
       operationId: PageGoForward
       summary: page.goForward
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -8183,6 +8221,8 @@ paths:
     post:
       operationId: PageClose
       summary: page.close
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -8247,6 +8287,8 @@ paths:
     post:
       operationId: PageEnableCursorOverlay
       summary: page.enableCursorOverlay
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -8311,6 +8353,8 @@ paths:
     post:
       operationId: PageAddInitScript
       summary: page.addInitScript
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -8375,6 +8419,8 @@ paths:
     get:
       operationId: PageTargetId
       summary: page.targetId
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -8446,6 +8492,8 @@ paths:
     get:
       operationId: PageMainFrameId
       summary: page.mainFrameId
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -8517,6 +8565,8 @@ paths:
     get:
       operationId: PageMainFrame
       summary: page.mainFrame
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -8588,6 +8638,8 @@ paths:
     get:
       operationId: PageGetFullFrameTree
       summary: page.getFullFrameTree
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -8659,6 +8711,8 @@ paths:
     get:
       operationId: PageAsProtocolFrameTree
       summary: page.asProtocolFrameTree
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -8735,6 +8789,8 @@ paths:
     get:
       operationId: PageListAllFrameIds
       summary: page.listAllFrameIds
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -8806,6 +8862,8 @@ paths:
     get:
       operationId: PageGetOrdinal
       summary: page.getOrdinal
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -8882,6 +8940,8 @@ paths:
     get:
       operationId: PageTitle
       summary: page.title
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -8953,6 +9013,8 @@ paths:
     get:
       operationId: PageUrl
       summary: page.url
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -9024,6 +9086,8 @@ paths:
     get:
       operationId: PageFrames
       summary: page.frames
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -9095,6 +9159,8 @@ paths:
     post:
       operationId: PageSetExtraHTTPHeaders
       summary: page.setExtraHTTPHeaders
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9159,6 +9225,8 @@ paths:
     post:
       operationId: PageWaitForMainLoadState
       summary: page.waitForMainLoadState
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9223,6 +9291,8 @@ paths:
     post:
       operationId: PageScreenshot
       summary: page.screenshot
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9287,6 +9357,8 @@ paths:
     post:
       operationId: PageSnapshot
       summary: page.snapshot
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9351,6 +9423,8 @@ paths:
     post:
       operationId: PageSetViewportSize
       summary: page.setViewportSize
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9415,6 +9489,8 @@ paths:
     post:
       operationId: PageWaitForLoadState
       summary: page.waitForLoadState
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9479,6 +9555,8 @@ paths:
     post:
       operationId: PageWaitForSelector
       summary: page.waitForSelector
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9543,6 +9621,8 @@ paths:
     post:
       operationId: PageWaitForTimeout
       summary: page.waitForTimeout
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9607,6 +9687,8 @@ paths:
     post:
       operationId: PageEvaluate
       summary: page.evaluate
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9671,6 +9753,8 @@ paths:
     post:
       operationId: PageSendCDP
       summary: page.sendCDP
+      tags:
+        - page
       requestBody:
         content:
           application/json:
@@ -9735,6 +9819,8 @@ paths:
     get:
       operationId: PageActionList
       summary: page.action
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"
@@ -9820,6 +9906,8 @@ paths:
     get:
       operationId: PageActionDetails
       summary: page.actionById
+      tags:
+        - page
       parameters:
         - schema:
             $ref: "#/components/schemas/RequestId"

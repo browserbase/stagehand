@@ -710,6 +710,15 @@ export const AgentExecuteOptionsSchema = z
       description: "Whether to visually highlight the cursor during execution",
       example: true,
     }),
+    useSearch: z.boolean().optional().meta({
+      description:
+        "Whether to enable the web search tool powered by Browserbase Search API",
+      example: true,
+    }),
+    toolTimeout: z.number().optional().meta({
+      description: "Timeout in milliseconds for each agent tool call",
+      example: 30000,
+    }),
   })
   .meta({ id: "AgentExecuteOptions" });
 

@@ -7,49 +7,20 @@ import {
   serializerCompiler,
   validatorCompiler,
   type FastifyZodOpenApiTypeProvider,
-  ResponseSerializationError,
 } from "fastify-zod-openapi";
 import { StatusCodes } from "http-status-codes";
 
 import { browserSessionOpenApiComponents } from "./schemas/v4/browserSession.js";
-import {
-  buildErrorResponse,
-  pageOpenApiComponents,
-} from "./schemas/v4/page.js";
-import { buildBrowserSessionErrorResponse } from "./schemas/v4/browserSession.js";
+import { pageOpenApiComponents } from "./schemas/v4/page.js";
 import healthcheckRoute from "./routes/healthcheck.js";
 import readinessRoute, { setReady, setUnready } from "./routes/readiness.js";
-import { browserSessionRoutes } from "./routes/v4/browsersession/routes.js";
-import { pageRoutes } from "./routes/v4/page/routes.js";
+import { browserSessionRoutesPlugin } from "./routes/v4/browsersession/routes.js";
+import { pageRoutesPlugin } from "./routes/v4/page/routes.js";
 
 const app = fastify({
   logger: false,
   return503OnClosing: false,
 });
-
-const isPageRoute = (request: {
-  routeOptions?: { url?: string };
-  url: string;
-}) => {
-  const routeUrl = request.routeOptions?.url ?? "";
-  return (
-    routeUrl.startsWith("/page/") ||
-    routeUrl.startsWith("/v4/page/") ||
-    request.url.startsWith("/v4/page/")
-  );
-};
-
-const isBrowserSessionRoute = (request: {
-  routeOptions?: { url?: string };
-  url: string;
-}) => {
-  const routeUrl = request.routeOptions?.url ?? "";
-  return (
-    routeUrl.startsWith("/browsersession") ||
-    routeUrl.startsWith("/v4/browsersession") ||
-    request.url.startsWith("/v4/browsersession")
-  );
-};
 
 // Allow requests with `Content-Type: application/json` and an empty body (0 bytes).
 // Some clients always send the header even when there is no request body (e.g. /end).
@@ -88,6 +59,16 @@ const start = async () => {
           version: "3.0.5",
         },
         openapi: "3.1.0",
+        tags: [
+          {
+            name: "browserSession",
+            description: "Browser session lifecycle and browser-scoped actions",
+          },
+          {
+            name: "page",
+            description: "Page-scoped actions and action history endpoints",
+          },
+        ],
       },
       ...fastifyZodOpenApiTransformers,
     });
@@ -99,39 +80,16 @@ const start = async () => {
       });
     }
 
-    app.setErrorHandler((error, request, reply) => {
+    app.setErrorHandler((error, _request, reply) => {
       const statusCode = (error as { validation?: unknown[] }).validation
         ? StatusCodes.BAD_REQUEST
-        : error instanceof ResponseSerializationError
-          ? StatusCodes.INTERNAL_SERVER_ERROR
-          : ((error as { statusCode?: number }).statusCode ??
-            StatusCodes.INTERNAL_SERVER_ERROR);
+        : ((error as { statusCode?: number }).statusCode ??
+          StatusCodes.INTERNAL_SERVER_ERROR);
       const errorMessage = (error as { validation?: unknown[] }).validation
         ? "Request validation failed"
-        : error instanceof ResponseSerializationError
-          ? "Response validation failed"
-          : error instanceof Error
-            ? error.message
-            : String(error);
-
-      if (isPageRoute(request)) {
-        return reply.status(statusCode).send(
-          buildErrorResponse({
-            error: errorMessage,
-            statusCode,
-            stack: error instanceof Error ? (error.stack ?? null) : null,
-          }),
-        );
-      }
-      if (isBrowserSessionRoute(request)) {
-        return reply.status(statusCode).send(
-          buildBrowserSessionErrorResponse({
-            error: errorMessage,
-            statusCode,
-            stack: error instanceof Error ? (error.stack ?? null) : null,
-          }),
-        );
-      }
+        : error instanceof Error
+          ? error.message
+          : String(error);
 
       reply.status(statusCode).send({
         error:
@@ -144,18 +102,8 @@ const start = async () => {
 
     const appWithTypes = app.withTypeProvider<FastifyZodOpenApiTypeProvider>();
 
-    await appWithTypes.register(
-      (instance, _opts, done) => {
-        for (const route of browserSessionRoutes) {
-          instance.route(route);
-        }
-        for (const route of pageRoutes) {
-          instance.route(route);
-        }
-        done();
-      },
-      { prefix: "/v4" },
-    );
+    await appWithTypes.register(browserSessionRoutesPlugin, { prefix: "/v4" });
+    await appWithTypes.register(pageRoutesPlugin, { prefix: "/v4" });
 
     // Register health and readiness routes at the root level
     appWithTypes.route(healthcheckRoute);

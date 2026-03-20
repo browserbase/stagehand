@@ -795,6 +795,15 @@ components:
           description: Whether to visually highlight the cursor during execution
           example: true
           type: boolean
+        useSearch:
+          description: Whether to enable the web search tool powered by Browserbase Search
+            API
+          example: true
+          type: boolean
+        toolTimeout:
+          description: Timeout in milliseconds for each agent tool call
+          example: 30000
+          type: number
       required:
         - instruction
     AgentExecuteRequest:
@@ -1686,6 +1695,15 @@ components:
           description: Whether to visually highlight the cursor during execution
           example: true
           type: boolean
+        useSearch:
+          description: Whether to enable the web search tool powered by Browserbase Search
+            API
+          example: true
+          type: boolean
+        toolTimeout:
+          description: Timeout in milliseconds for each agent tool call
+          example: 30000
+          type: number
       required:
         - instruction
       additionalProperties: false

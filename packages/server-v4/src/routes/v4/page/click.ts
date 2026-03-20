@@ -27,9 +27,9 @@ const clickRoute: RouteOptions = {
     method: "click",
     actionSchema: PageClickActionSchema,
     execute: async ({ params }) => {
+      const sel = params.selector;
       return PageXPathResultSchema.parse({
-        xpath:
-          "selector" in params ? params.selector.xpath : "xpath=//stub-click",
+        xpath: "xpath" in sel ? sel.xpath : "xpath=//stub-click",
       });
     },
   }),
