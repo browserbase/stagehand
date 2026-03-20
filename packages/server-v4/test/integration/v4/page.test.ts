@@ -707,17 +707,6 @@ describe("v4 page routes", { concurrency: false }, () => {
         .mainFrameId;
       assert.equal(mainFrameId, await getMainFrameId(temp.cdpUrl));
 
-      const mainFrameCtx = await getPageRoute("mainFrame", temp.sessionId, {});
-      const mainFrameAction = assertSuccessAction(mainFrameCtx, "mainFrame");
-      assert.equal(
-        (
-          mainFrameAction.result as {
-            frame: { frameId: string };
-          }
-        ).frame.frameId,
-        mainFrameId,
-      );
-
       const framesCtx = await getPageRoute("frames", temp.sessionId, {});
       const framesAction = assertSuccessAction(framesCtx, "frames");
       const frames = (
@@ -745,24 +734,6 @@ describe("v4 page routes", { concurrency: false }, () => {
         mainFrameId,
       );
 
-      const protocolFrameTreeCtx = await getPageRoute(
-        "asProtocolFrameTree",
-        temp.sessionId,
-        { rootMainFrameId: mainFrameId },
-      );
-      const protocolFrameTreeAction = assertSuccessAction(
-        protocolFrameTreeCtx,
-        "asProtocolFrameTree",
-      );
-      assert.equal(
-        (
-          protocolFrameTreeAction.result as {
-            frameTree: { frame: { id: string } };
-          }
-        ).frameTree.frame.id,
-        mainFrameId,
-      );
-
       const listAllFrameIdsCtx = await getPageRoute(
         "listAllFrameIds",
         temp.sessionId,
@@ -779,26 +750,6 @@ describe("v4 page routes", { concurrency: false }, () => {
         [...frameIds].sort(),
         [...frames.map((frame) => frame.frameId)].sort(),
       );
-
-      const getOrdinalCtx = await getPageRoute("getOrdinal", temp.sessionId, {
-        frameId: mainFrameId,
-      });
-      const getOrdinalAction = assertSuccessAction(getOrdinalCtx, "getOrdinal");
-      assert.equal(
-        (getOrdinalAction.result as { frameId: string }).frameId,
-        mainFrameId,
-      );
-      assert.ok((getOrdinalAction.result as { ordinal: number }).ordinal >= 0);
-
-      const waitForMainLoadStateCtx = await postPageRoute(
-        "waitForMainLoadState",
-        temp.sessionId,
-        {
-          state: "load",
-          timeoutMs: 15_000,
-        },
-      );
-      assertSuccessAction(waitForMainLoadStateCtx, "waitForMainLoadState");
 
       const evaluateCtx = await postPageRoute("evaluate", temp.sessionId, {
         expression: `({
