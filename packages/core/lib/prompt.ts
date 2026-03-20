@@ -117,10 +117,16 @@ export function buildObserveSystemPrompt(
   const actionsString = supportedActions?.length
     ? `\n\nSupported actions: ${supportedActions.join(", ")}`
     : "";
-  const variableNames = variables ? Object.keys(variables) : [];
-  const variablesString = variableNames.length
-    ? `\n\nAvailable variables: ${variableNames
-        .map((key) => `%${key}%`)
+  const variableEntries = variables ? Object.entries(variables) : [];
+  const variablesString = variableEntries.length
+    ? `\n\nAvailable variables: ${variableEntries
+        .map(([key, value]) => {
+          const description =
+            typeof value === "object" && value !== null && "value" in value
+              ? value.description
+              : undefined;
+          return description ? `%${key}% (${description})` : `%${key}%`;
+        })
         .join(
           ", ",
         )}. When an action needs a dynamic or sensitive value, return the matching %variableName% placeholder in the action arguments instead of a literal value`

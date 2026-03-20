@@ -112,6 +112,9 @@ export const ActionSchema = z
     description: "Action object returned by observe and used by act",
   });
 
+/** Shared flat variables wire format for API requests */
+const WireVariablesSchema = z.record(z.string(), z.string());
+
 /** Session ID path parameter */
 export const SessionIdParamsSchema = z
   .object({
@@ -405,13 +408,10 @@ export const ActOptionsSchema = z
       description:
         "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
     }),
-    variables: z
-      .record(z.string(), z.string())
-      .optional()
-      .meta({
-        description: "Variables to substitute in the action instruction",
-        example: { username: "john_doe" },
-      }),
+    variables: WireVariablesSchema.optional().meta({
+      description: "Variables to substitute in the action instruction",
+      example: { username: "john_doe" },
+    }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the action",
       example: 30000,
@@ -534,42 +534,20 @@ export const ExtractResponseSchema = wrapResponse(
 // Observe
 // =============================================================================
 
-const ObserveVariablePrimitiveSchema = z.union([
-  z.string(),
-  z.number(),
-  z.boolean(),
-]);
-
-const ObserveVariableValueSchema = z.union([
-  ObserveVariablePrimitiveSchema,
-  z
-    .object({
-      value: ObserveVariablePrimitiveSchema,
-      description: z.string().optional(),
-    })
-    .strict(),
-]);
-
 export const ObserveOptionsSchema = z
   .object({
     model: z.union([ModelConfigSchema, z.string()]).optional().meta({
       description:
         "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
     }),
-    variables: z
-      .record(z.string(), ObserveVariableValueSchema)
-      .optional()
-      .meta({
-        description:
-          "Variables whose names are exposed to the model so observe() returns %variableName% placeholders in suggested action arguments instead of literal values. Accepts flat primitives or { value, description? } objects.",
-        example: {
-          username: {
-            value: "john@example.com",
-            description: "The login email",
-          },
-          rememberMe: true,
-        },
-      }),
+    variables: WireVariablesSchema.optional().meta({
+      description:
+        "Variables whose names are exposed to the model so observe() returns %variableName% placeholders in suggested action arguments instead of literal values.",
+      example: {
+        username: "john@example.com",
+        password: "secret123",
+      },
+    }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the observation",
       example: 30000,

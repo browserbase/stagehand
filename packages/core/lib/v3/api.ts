@@ -293,6 +293,9 @@ export class StagehandAPIClient {
         if (restOptions.model) {
           restOptions.model = this.prepareModelConfig(restOptions.model);
         }
+        if (restOptions.variables) {
+          restOptions.variables = flattenVariables(restOptions.variables);
+        }
         wireOptions = restOptions as unknown as Api.ActRequest["options"];
       }
     }
