@@ -625,13 +625,6 @@ export const PageCloseRequestSchema = createPageRequestSchema(
   PageCloseParamsSchema,
 );
 
-export const PageXPathResultSchema = z
-  .object({
-    xpath: z.string().optional(),
-  })
-  .strict()
-  .meta({ id: "PageXPathResult" });
-
 export const PageScrollResultSchema = z
   .object({
     x: z.number(),
@@ -640,10 +633,39 @@ export const PageScrollResultSchema = z
   .strict()
   .meta({ id: "PageScrollResult" });
 
+export const ResultSelectorSchema = z
+  .object({
+    xpath: z.string().optional(),
+    css: z.string().optional(),
+    text: z.string().optional(),
+    coordinates: z
+      .object({
+        x: z.number(),
+        y: z.number(),
+      })
+      .optional(),
+  })
+  .strict()
+  .meta({ id: "ResultSelector" });
+
+export const PageClickResultSchema = z
+  .object({
+    selector: ResultSelectorSchema,
+  })
+  .strict()
+  .meta({ id: "PageClickResult" });
+
+export const PageHoverResultSchema = z
+  .object({
+    selector: ResultSelectorSchema,
+  })
+  .strict()
+  .meta({ id: "PageHoverResult" });
+
 export const PageDragAndDropResultSchema = z
   .object({
-    fromXpath: z.string().optional(),
-    toXpath: z.string().optional(),
+    startSelector: ResultSelectorSchema,
+    endSelector: ResultSelectorSchema,
   })
   .strict()
   .meta({ id: "PageDragAndDropResult" });
@@ -832,14 +854,14 @@ export const PageClickActionSchema = createPageActionSchema(
   "PageClickAction",
   "click",
   PageClickParamsSchema,
-  PageXPathResultSchema,
+  PageClickResultSchema,
 );
 
 export const PageHoverActionSchema = createPageActionSchema(
   "PageHoverAction",
   "hover",
   PageHoverParamsSchema,
-  PageXPathResultSchema,
+  PageHoverResultSchema,
 );
 
 export const PageScrollActionSchema = createPageActionSchema(
@@ -1291,6 +1313,7 @@ export const pageOpenApiComponents = {
     CoordinateSelector: CoordinateSelectorSchema,
     Selector: SelectorSchema,
     ElementSelector: ElementSelectorSchema,
+    ResultSelector: ResultSelectorSchema,
     PageHeaders: PageHeadersSchema,
     PageInitScript: PageInitScriptSchema,
     PageClip: PageClipSchema,
