@@ -55,6 +55,21 @@ export const LocalBrowserLaunchOptionsSchema = z
   .strict()
   .meta({ id: "LocalBrowserLaunchOptions" });
 
+/** Launch options for Lightpanda headless browser */
+export const LightpandaLaunchOptionsSchema = z
+  .object({
+    cdpUrl: z
+      .string()
+      .optional()
+      .meta({
+        description:
+          "WebSocket URL of a running Lightpanda instance (e.g. ws://127.0.0.1:9222)",
+      }),
+    connectTimeoutMs: z.number().optional(),
+  })
+  .strict()
+  .meta({ id: "LightpandaLaunchOptions" });
+
 /** Detailed model configuration object */
 export const ModelConfigObjectSchema = z
   .object({

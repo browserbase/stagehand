@@ -23,6 +23,7 @@ import { V3AgentHandler } from "./handlers/v3AgentHandler.js";
 import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler.js";
 import { CAPTCHA_CUA_SYSTEM_PROMPT_NOTE } from "./agent/utils/captchaSolver.js";
 import { createBrowserbaseSession } from "./launch/browserbase.js";
+import { connectLightpanda } from "./launch/lightpanda.js";
 import { launchLocalChrome } from "./launch/local.js";
 import { LLMClient } from "./llm/LLMClient.js";
 import { LLMProvider } from "./llm/LLMProvider.js";
@@ -67,6 +68,7 @@ import {
   AvailableModel,
   ClientOptions,
   ModelConfiguration,
+  LightpandaLaunchOptions,
   LocalBrowserLaunchOptions,
   V3Options,
   AnyPage,
@@ -224,7 +226,7 @@ export class V3 {
       };
     }
 
-    // LOCAL env
+    // LOCAL or LIGHTPANDA env — Lightpanda has no viewport config, use defaults
     const vp = this.opts.localBrowserLaunchOptions?.viewport;
     return {
       width: vp?.width ?? defaultWidth,
@@ -1054,6 +1056,40 @@ export class V3 {
           return;
         }
 
+        if (this.opts.env === "LIGHTPANDA") {
+          const lpo: LightpandaLaunchOptions =
+            this.opts.lightpandaLaunchOptions ?? {};
+
+          const cdpUrl = lpo.cdpUrl;
+          if (!cdpUrl) {
+            throw new StagehandInitError(
+              "lightpandaLaunchOptions.cdpUrl is required when env is LIGHTPANDA. " +
+                "Start Lightpanda separately and provide the CDP WebSocket URL.",
+            );
+          }
+
+          this.logger({
+            category: "init",
+            message: "Connecting to Lightpanda browser",
+            level: 1,
+            auxiliary: {
+              cdpUrl: { value: cdpUrl, type: "string" },
+            },
+          });
+
+          const { ws } = await connectLightpanda({
+            cdpUrl,
+            connectTimeoutMs: lpo.connectTimeoutMs,
+          });
+
+          this.ctx = await V3Context.create(ws, { env: "LIGHTPANDA" });
+          this.ctx.conn.flowLoggerContext = this.flowLoggerContext;
+          this.ctx.conn.onTransportClosed(this._onCdpClosed);
+          this.state = { kind: "LIGHTPANDA", ws };
+          this.resetBrowserbaseSessionMetadata();
+          return;
+        }
+
         const neverEnv: never = this.opts.env;
         throw new StagehandInitError(`Unsupported env: ${neverEnv}`);
       });
@@ -1491,6 +1527,9 @@ export class V3 {
         // ignore
       }
 
+      // Lightpanda: no child process to kill (external instance)
+      // No cleanup needed beyond closing the CDP context above.
+
       // Kill local Chrome and clean up temp profile when keepAlive is not enabled
       if (!keepAlive && this.state.kind === "LOCAL") {
         const localState = this.state;
@@ -1902,6 +1941,13 @@ export class V3 {
 
       if (!isCua) {
         throw new CuaModelRequiredError(AVAILABLE_CUA_MODELS);
+      }
+
+      if (this.opts.env === "LIGHTPANDA") {
+        throw new StagehandInvalidArgumentError(
+          "CUA agent is not supported with Lightpanda browser because it requires screenshots for visual feedback. " +
+            "Use act(), extract(), or observe() instead.",
+        );
       }
 
       const agentConfigSignature =

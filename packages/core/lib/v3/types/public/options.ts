@@ -5,15 +5,20 @@ import { LogLine } from "./logs.js";
 import {
   type BrowserbaseSessionCreateParams,
   LocalBrowserLaunchOptionsSchema,
+  LightpandaLaunchOptionsSchema,
 } from "./api.js";
 
-export type V3Env = "LOCAL" | "BROWSERBASE";
+export type V3Env = "LOCAL" | "BROWSERBASE" | "LIGHTPANDA";
 
 // Re-export for backwards compatibility (camelCase alias)
 export const localBrowserLaunchOptionsSchema = LocalBrowserLaunchOptionsSchema;
 
 export type LocalBrowserLaunchOptions = z.infer<
   typeof LocalBrowserLaunchOptionsSchema
+>;
+
+export type LightpandaLaunchOptions = z.infer<
+  typeof LightpandaLaunchOptionsSchema
 >;
 
 /** Constructor options for V3 */
@@ -42,6 +47,9 @@ export interface V3Options {
 
   // Local Chromium (optional)
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
+
+  // Lightpanda (optional, used when env = "LIGHTPANDA")
+  lightpandaLaunchOptions?: LightpandaLaunchOptions;
 
   model?: ModelConfiguration;
   llmClient?: LLMClient; // allow user to pass their own

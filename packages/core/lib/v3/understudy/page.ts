@@ -94,6 +94,7 @@ export class Page {
   /** cache Frames per frameId so everyone uses the same one */
   private readonly frameCache = new Map<string, Frame>();
   private readonly browserIsRemote: boolean;
+  private readonly browserEnv: "LOCAL" | "BROWSERBASE" | "LIGHTPANDA";
 
   /** Stable id for Frames created by this Page (use top-level TargetId). */
   private readonly pageId: string;
@@ -122,10 +123,12 @@ export class Page {
     mainFrameId: string,
     apiClient?: StagehandAPIClient | null,
     browserIsRemote = false,
+    browserEnv: "LOCAL" | "BROWSERBASE" | "LIGHTPANDA" = "LOCAL",
   ) {
     this.pageId = _targetId;
     this.apiClient = apiClient ?? null;
     this.browserIsRemote = browserIsRemote;
+    this.browserEnv = browserEnv;
 
     // own the main session
     if (mainSession.id) this.sessions.set(mainSession.id, mainSession);
@@ -303,6 +306,7 @@ export class Page {
     apiClient?: StagehandAPIClient | null,
     localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null,
     browserIsRemote = false,
+    browserEnv: "LOCAL" | "BROWSERBASE" | "LIGHTPANDA" = "LOCAL",
   ): Promise<Page> {
     // Context already issues Page.enable + lifecycle enable before resume.
     // Re-issue here only as best-effort and do not block page registration on
@@ -324,6 +328,7 @@ export class Page {
       mainFrameId,
       apiClient,
       browserIsRemote,
+      browserEnv,
     );
     // Seed current URL from initial frame tree
     try {
@@ -1095,6 +1100,12 @@ export class Page {
     eventType: "PageScreenshot",
   })
   async screenshot(options?: ScreenshotOptions): Promise<Buffer> {
+    if (this.browserEnv === "LIGHTPANDA") {
+      throw new StagehandInvalidArgumentError(
+        "Screenshots are not supported with Lightpanda browser (no graphical rendering)",
+      );
+    }
+
     const opts = options ?? {};
     const type = opts.type ?? "png";
 

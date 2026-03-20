@@ -102,7 +102,7 @@ function getFirstTopLevelPageTimeoutMs(): number {
 export class V3Context {
   private constructor(
     readonly conn: CdpConnection,
-    private readonly env: "LOCAL" | "BROWSERBASE" = "LOCAL",
+    private readonly env: "LOCAL" | "BROWSERBASE" | "LIGHTPANDA" = "LOCAL",
     private readonly apiClient: StagehandAPIClient | null = null,
     private readonly localBrowserLaunchOptions: LocalBrowserLaunchOptions | null = null,
   ) {}
@@ -157,7 +157,7 @@ export class V3Context {
   static async create(
     wsUrl: string,
     opts?: {
-      env?: "LOCAL" | "BROWSERBASE";
+      env?: "LOCAL" | "BROWSERBASE" | "LIGHTPANDA";
       apiClient?: StagehandAPIClient | null;
       localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null;
       cdpHeaders?: Record<string, string>;
@@ -781,6 +781,7 @@ export class V3Context {
             this.apiClient,
             this.localBrowserLaunchOptions,
             this.env === "BROWSERBASE",
+            this.env,
           );
         } catch (error) {
           createError = error;
