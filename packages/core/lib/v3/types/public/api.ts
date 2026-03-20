@@ -10,6 +10,12 @@
  */
 import { z } from "zod/v4";
 import type Browserbase from "@browserbasehq/sdk";
+import { VariablesSchema } from "./variables.js";
+export {
+  VariablePrimitiveSchema,
+  VariableValueSchema,
+  VariablesSchema,
+} from "./variables.js";
 
 // =============================================================================
 // Shared Components
@@ -111,9 +117,6 @@ export const ActionSchema = z
     id: "Action",
     description: "Action object returned by observe and used by act",
   });
-
-/** Shared flat variables wire format for API requests */
-const WireVariablesSchema = z.record(z.string(), z.string());
 
 /** Session ID path parameter */
 export const SessionIdParamsSchema = z
@@ -408,9 +411,16 @@ export const ActOptionsSchema = z
       description:
         "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
     }),
-    variables: WireVariablesSchema.optional().meta({
-      description: "Variables to substitute in the action instruction",
-      example: { username: "john_doe" },
+    variables: VariablesSchema.optional().meta({
+      description:
+        "Variables to substitute in the action instruction. Accepts flat primitives or { value, description? } objects.",
+      example: {
+        username: "john_doe",
+        password: {
+          value: "secret123",
+          description: "The login password",
+        },
+      },
     }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the action",
@@ -540,12 +550,15 @@ export const ObserveOptionsSchema = z
       description:
         "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
     }),
-    variables: WireVariablesSchema.optional().meta({
+    variables: VariablesSchema.optional().meta({
       description:
-        "Variables whose names are exposed to the model so observe() returns %variableName% placeholders in suggested action arguments instead of literal values.",
+        "Variables whose names are exposed to the model so observe() returns %variableName% placeholders in suggested action arguments instead of literal values. Accepts flat primitives or { value, description? } objects.",
       example: {
-        username: "john@example.com",
-        password: "secret123",
+        username: {
+          value: "john@example.com",
+          description: "The login email",
+        },
+        rememberMe: true,
       },
     }),
     timeout: z.number().optional().meta({

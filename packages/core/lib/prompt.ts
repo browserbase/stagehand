@@ -1,5 +1,6 @@
 import { ChatMessage } from "./v3/llm/LLMClient.js";
 import type { Variables } from "./v3/types/public/agent.js";
+import { getVariablePromptEntries } from "./v3/agent/utils/variables.js";
 
 export function buildUserInstructionsString(
   userProvidedInstructions?: string,
@@ -117,15 +118,11 @@ export function buildObserveSystemPrompt(
   const actionsString = supportedActions?.length
     ? `\n\nSupported actions: ${supportedActions.join(", ")}`
     : "";
-  const variableEntries = variables ? Object.entries(variables) : [];
+  const variableEntries = getVariablePromptEntries(variables);
   const variablesString = variableEntries.length
     ? `\n\nAvailable variables: ${variableEntries
-        .map(([key, value]) => {
-          const description =
-            typeof value === "object" && value !== null && "value" in value
-              ? value.description
-              : undefined;
-          return description ? `%${key}% (${description})` : `%${key}%`;
+        .map(({ name, description }) => {
+          return description ? `%${name}% (${description})` : `%${name}%`;
         })
         .join(
           ", ",
