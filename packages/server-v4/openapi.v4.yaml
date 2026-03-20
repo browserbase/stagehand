@@ -547,33 +547,6 @@ components:
       required:
         - mainFrameId
       additionalProperties: false
-    PageMainFrameResult:
-      type: object
-      properties:
-        frame:
-          $ref: "#/components/schemas/PageFrame"
-      required:
-        - frame
-      additionalProperties: false
-    PageFrame:
-      type: object
-      properties:
-        frameId:
-          $ref: "#/components/schemas/FrameId"
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        sessionId:
-          anyOf:
-            - $ref: "#/components/schemas/CDPSessionId"
-            - type: "null"
-        isBrowserRemote:
-          type: boolean
-      required:
-        - frameId
-        - pageId
-        - sessionId
-        - isBrowserRemote
-      additionalProperties: false
     PageFrameTreeResult:
       type: object
       properties:
@@ -590,19 +563,6 @@ components:
             $ref: "#/components/schemas/FrameId"
       required:
         - frameIds
-      additionalProperties: false
-    PageGetOrdinalResult:
-      type: object
-      properties:
-        frameId:
-          $ref: "#/components/schemas/FrameId"
-        ordinal:
-          type: integer
-          minimum: 0
-          maximum: 9007199254740991
-      required:
-        - frameId
-        - ordinal
       additionalProperties: false
     PageTitleResult:
       type: object
@@ -660,6 +620,25 @@ components:
             $ref: "#/components/schemas/PageFrame"
       required:
         - frames
+      additionalProperties: false
+    PageFrame:
+      type: object
+      properties:
+        frameId:
+          $ref: "#/components/schemas/FrameId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        sessionId:
+          anyOf:
+            - $ref: "#/components/schemas/CDPSessionId"
+            - type: "null"
+        isBrowserRemote:
+          type: boolean
+      required:
+        - frameId
+        - pageId
+        - sessionId
+        - isBrowserRemote
       additionalProperties: false
     PageSetViewportSizeResult:
       type: object
@@ -2321,11 +2300,8 @@ components:
         - goForward
         - targetId
         - mainFrameId
-        - mainFrame
         - getFullFrameTree
-        - asProtocolFrameTree
         - listAllFrameIds
-        - getOrdinal
         - title
         - url
         - screenshot
@@ -2334,7 +2310,6 @@ components:
         - setViewportSize
         - setExtraHTTPHeaders
         - waitForLoadState
-        - waitForMainLoadState
         - waitForSelector
         - waitForTimeout
         - evaluate
@@ -2654,43 +2629,17 @@ components:
         pageId:
           $ref: "#/components/schemas/PageId"
       additionalProperties: false
-    PageMainFrameParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-      additionalProperties: false
     PageGetFullFrameTreeParams:
       type: object
       properties:
         pageId:
           $ref: "#/components/schemas/PageId"
       additionalProperties: false
-    PageAsProtocolFrameTreeParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        rootMainFrameId:
-          $ref: "#/components/schemas/FrameId"
-      required:
-        - rootMainFrameId
-      additionalProperties: false
     PageListAllFrameIdsParams:
       type: object
       properties:
         pageId:
           $ref: "#/components/schemas/PageId"
-      additionalProperties: false
-    PageGetOrdinalParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        frameId:
-          $ref: "#/components/schemas/FrameId"
-      required:
-        - frameId
       additionalProperties: false
     PageTitleParams:
       type: object
@@ -2777,20 +2726,6 @@ components:
         - headers
       additionalProperties: false
     PageWaitForLoadStateParams:
-      type: object
-      properties:
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        state:
-          $ref: "#/components/schemas/LoadState"
-        timeoutMs:
-          type: integer
-          minimum: 0
-          maximum: 9007199254740991
-      required:
-        - state
-      additionalProperties: false
-    PageWaitForMainLoadStateParams:
       type: object
       properties:
         pageId:
@@ -3081,19 +3016,6 @@ components:
           $ref: "#/components/schemas/SessionId"
         params:
           $ref: "#/components/schemas/PageWaitForLoadStateParams"
-      required:
-        - sessionId
-        - params
-      additionalProperties: false
-    PageWaitForMainLoadStateRequest:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
-        sessionId:
-          $ref: "#/components/schemas/SessionId"
-        params:
-          $ref: "#/components/schemas/PageWaitForMainLoadStateParams"
       required:
         - sessionId
         - params
@@ -3737,47 +3659,6 @@ components:
         - params
         - result
       additionalProperties: false
-    PageMainFrameAction:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/ActionId"
-        method:
-          type: string
-          const: mainFrame
-        status:
-          $ref: "#/components/schemas/PageActionStatus"
-        sessionId:
-          $ref: "#/components/schemas/SessionId"
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        createdAt:
-          $ref: "#/components/schemas/Timestamp"
-        updatedAt:
-          $ref: "#/components/schemas/Timestamp"
-        completedAt:
-          $ref: "#/components/schemas/Timestamp"
-        error:
-          anyOf:
-            - $ref: "#/components/schemas/PageError"
-            - type: "null"
-        params:
-          $ref: "#/components/schemas/PageMainFrameParams"
-        result:
-          anyOf:
-            - $ref: "#/components/schemas/PageMainFrameResult"
-            - type: "null"
-      required:
-        - id
-        - method
-        - status
-        - sessionId
-        - createdAt
-        - updatedAt
-        - error
-        - params
-        - result
-      additionalProperties: false
     PageGetFullFrameTreeAction:
       type: object
       properties:
@@ -3804,47 +3685,6 @@ components:
             - type: "null"
         params:
           $ref: "#/components/schemas/PageGetFullFrameTreeParams"
-        result:
-          anyOf:
-            - $ref: "#/components/schemas/PageFrameTreeResult"
-            - type: "null"
-      required:
-        - id
-        - method
-        - status
-        - sessionId
-        - createdAt
-        - updatedAt
-        - error
-        - params
-        - result
-      additionalProperties: false
-    PageAsProtocolFrameTreeAction:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/ActionId"
-        method:
-          type: string
-          const: asProtocolFrameTree
-        status:
-          $ref: "#/components/schemas/PageActionStatus"
-        sessionId:
-          $ref: "#/components/schemas/SessionId"
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        createdAt:
-          $ref: "#/components/schemas/Timestamp"
-        updatedAt:
-          $ref: "#/components/schemas/Timestamp"
-        completedAt:
-          $ref: "#/components/schemas/Timestamp"
-        error:
-          anyOf:
-            - $ref: "#/components/schemas/PageError"
-            - type: "null"
-        params:
-          $ref: "#/components/schemas/PageAsProtocolFrameTreeParams"
         result:
           anyOf:
             - $ref: "#/components/schemas/PageFrameTreeResult"
@@ -3889,47 +3729,6 @@ components:
         result:
           anyOf:
             - $ref: "#/components/schemas/PageListAllFrameIdsResult"
-            - type: "null"
-      required:
-        - id
-        - method
-        - status
-        - sessionId
-        - createdAt
-        - updatedAt
-        - error
-        - params
-        - result
-      additionalProperties: false
-    PageGetOrdinalAction:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/ActionId"
-        method:
-          type: string
-          const: getOrdinal
-        status:
-          $ref: "#/components/schemas/PageActionStatus"
-        sessionId:
-          $ref: "#/components/schemas/SessionId"
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        createdAt:
-          $ref: "#/components/schemas/Timestamp"
-        updatedAt:
-          $ref: "#/components/schemas/Timestamp"
-        completedAt:
-          $ref: "#/components/schemas/Timestamp"
-        error:
-          anyOf:
-            - $ref: "#/components/schemas/PageError"
-            - type: "null"
-        params:
-          $ref: "#/components/schemas/PageGetOrdinalParams"
-        result:
-          anyOf:
-            - $ref: "#/components/schemas/PageGetOrdinalResult"
             - type: "null"
       required:
         - id
@@ -4270,47 +4069,6 @@ components:
         - params
         - result
       additionalProperties: false
-    PageWaitForMainLoadStateAction:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/ActionId"
-        method:
-          type: string
-          const: waitForMainLoadState
-        status:
-          $ref: "#/components/schemas/PageActionStatus"
-        sessionId:
-          $ref: "#/components/schemas/SessionId"
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        createdAt:
-          $ref: "#/components/schemas/Timestamp"
-        updatedAt:
-          $ref: "#/components/schemas/Timestamp"
-        completedAt:
-          $ref: "#/components/schemas/Timestamp"
-        error:
-          anyOf:
-            - $ref: "#/components/schemas/PageError"
-            - type: "null"
-        params:
-          $ref: "#/components/schemas/PageWaitForMainLoadStateParams"
-        result:
-          anyOf:
-            - $ref: "#/components/schemas/PageWaitForLoadStateResult"
-            - type: "null"
-      required:
-        - id
-        - method
-        - status
-        - sessionId
-        - createdAt
-        - updatedAt
-        - error
-        - params
-        - result
-      additionalProperties: false
     PageWaitForSelectorAction:
       type: object
       properties:
@@ -4532,11 +4290,8 @@ components:
         - $ref: "#/components/schemas/PageGoForwardAction"
         - $ref: "#/components/schemas/PageTargetIdAction"
         - $ref: "#/components/schemas/PageMainFrameIdAction"
-        - $ref: "#/components/schemas/PageMainFrameAction"
         - $ref: "#/components/schemas/PageGetFullFrameTreeAction"
-        - $ref: "#/components/schemas/PageAsProtocolFrameTreeAction"
         - $ref: "#/components/schemas/PageListAllFrameIdsAction"
-        - $ref: "#/components/schemas/PageGetOrdinalAction"
         - $ref: "#/components/schemas/PageTitleAction"
         - $ref: "#/components/schemas/PageUrlAction"
         - $ref: "#/components/schemas/PageScreenshotAction"
@@ -4545,7 +4300,6 @@ components:
         - $ref: "#/components/schemas/PageSetViewportSizeAction"
         - $ref: "#/components/schemas/PageSetExtraHTTPHeadersAction"
         - $ref: "#/components/schemas/PageWaitForLoadStateAction"
-        - $ref: "#/components/schemas/PageWaitForMainLoadStateAction"
         - $ref: "#/components/schemas/PageWaitForSelectorAction"
         - $ref: "#/components/schemas/PageWaitForTimeoutAction"
         - $ref: "#/components/schemas/PageEvaluateAction"
@@ -5105,21 +4859,6 @@ components:
         - error
         - action
       additionalProperties: false
-    PageMainFrameResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          const: true
-        error:
-          type: "null"
-        action:
-          $ref: "#/components/schemas/PageMainFrameAction"
-      required:
-        - success
-        - error
-        - action
-      additionalProperties: false
     PageGetFullFrameTreeResponse:
       type: object
       properties:
@@ -5135,21 +4874,6 @@ components:
         - error
         - action
       additionalProperties: false
-    PageAsProtocolFrameTreeResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          const: true
-        error:
-          type: "null"
-        action:
-          $ref: "#/components/schemas/PageAsProtocolFrameTreeAction"
-      required:
-        - success
-        - error
-        - action
-      additionalProperties: false
     PageListAllFrameIdsResponse:
       type: object
       properties:
@@ -5160,21 +4884,6 @@ components:
           type: "null"
         action:
           $ref: "#/components/schemas/PageListAllFrameIdsAction"
-      required:
-        - success
-        - error
-        - action
-      additionalProperties: false
-    PageGetOrdinalResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          const: true
-        error:
-          type: "null"
-        action:
-          $ref: "#/components/schemas/PageGetOrdinalAction"
       required:
         - success
         - error
@@ -5295,21 +5004,6 @@ components:
           type: "null"
         action:
           $ref: "#/components/schemas/PageWaitForLoadStateAction"
-      required:
-        - success
-        - error
-        - action
-      additionalProperties: false
-    PageWaitForMainLoadStateResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          const: true
-        error:
-          type: "null"
-        action:
-          $ref: "#/components/schemas/PageWaitForMainLoadStateAction"
       required:
         - success
         - error
@@ -6087,18 +5781,6 @@ components:
       required:
         - sessionId
       additionalProperties: false
-    PageMainFrameRequest:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
-        sessionId:
-          $ref: "#/components/schemas/SessionId"
-        pageId:
-          $ref: "#/components/schemas/PageId"
-      required:
-        - sessionId
-      additionalProperties: false
     PageGetFullFrameTreeRequest:
       type: object
       properties:
@@ -6111,21 +5793,6 @@ components:
       required:
         - sessionId
       additionalProperties: false
-    PageAsProtocolFrameTreeRequest:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
-        sessionId:
-          $ref: "#/components/schemas/SessionId"
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        rootMainFrameId:
-          $ref: "#/components/schemas/FrameId"
-      required:
-        - sessionId
-        - rootMainFrameId
-      additionalProperties: false
     PageListAllFrameIdsRequest:
       type: object
       properties:
@@ -6137,21 +5804,6 @@ components:
           $ref: "#/components/schemas/PageId"
       required:
         - sessionId
-      additionalProperties: false
-    PageGetOrdinalRequest:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/RequestId"
-        sessionId:
-          $ref: "#/components/schemas/SessionId"
-        pageId:
-          $ref: "#/components/schemas/PageId"
-        frameId:
-          $ref: "#/components/schemas/FrameId"
-      required:
-        - sessionId
-        - frameId
       additionalProperties: false
     PageTitleRequest:
       type: object
@@ -8561,79 +8213,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/V4ErrorResponse"
-  /v4/page/mainFrame:
-    get:
-      operationId: PageMainFrame
-      summary: page.mainFrame
-      tags:
-        - page
-      parameters:
-        - schema:
-            $ref: "#/components/schemas/RequestId"
-          in: query
-          name: id
-        - schema:
-            $ref: "#/components/schemas/SessionId"
-          in: query
-          name: sessionId
-          required: true
-        - schema:
-            $ref: "#/components/schemas/PageId"
-          in: query
-          name: pageId
-        - schema:
-            description: Whether to stream the response via SSE
-            example: "true"
-            type: string
-            enum:
-              - "true"
-              - "false"
-          in: header
-          name: x-stream-response
-          description: Whether to stream the response via SSE
-      responses:
-        "200":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PageMainFrameResponse"
-        "400":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "401":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "404":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "408":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "422":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "500":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
   /v4/page/getFullFrameTree:
     get:
       operationId: PageGetFullFrameTree
@@ -8707,84 +8286,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/V4ErrorResponse"
-  /v4/page/asProtocolFrameTree:
-    get:
-      operationId: PageAsProtocolFrameTree
-      summary: page.asProtocolFrameTree
-      tags:
-        - page
-      parameters:
-        - schema:
-            $ref: "#/components/schemas/RequestId"
-          in: query
-          name: id
-        - schema:
-            $ref: "#/components/schemas/SessionId"
-          in: query
-          name: sessionId
-          required: true
-        - schema:
-            $ref: "#/components/schemas/PageId"
-          in: query
-          name: pageId
-        - schema:
-            $ref: "#/components/schemas/FrameId"
-          in: query
-          name: rootMainFrameId
-          required: true
-        - schema:
-            description: Whether to stream the response via SSE
-            example: "true"
-            type: string
-            enum:
-              - "true"
-              - "false"
-          in: header
-          name: x-stream-response
-          description: Whether to stream the response via SSE
-      responses:
-        "200":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PageAsProtocolFrameTreeResponse"
-        "400":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "401":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "404":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "408":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "422":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "500":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
   /v4/page/listAllFrameIds:
     get:
       operationId: PageListAllFrameIds
@@ -8822,84 +8323,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PageListAllFrameIdsResponse"
-        "400":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "401":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "404":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "408":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "422":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "500":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-  /v4/page/getOrdinal:
-    get:
-      operationId: PageGetOrdinal
-      summary: page.getOrdinal
-      tags:
-        - page
-      parameters:
-        - schema:
-            $ref: "#/components/schemas/RequestId"
-          in: query
-          name: id
-        - schema:
-            $ref: "#/components/schemas/SessionId"
-          in: query
-          name: sessionId
-          required: true
-        - schema:
-            $ref: "#/components/schemas/PageId"
-          in: query
-          name: pageId
-        - schema:
-            $ref: "#/components/schemas/FrameId"
-          in: query
-          name: frameId
-          required: true
-        - schema:
-            description: Whether to stream the response via SSE
-            example: "true"
-            type: string
-            enum:
-              - "true"
-              - "false"
-          in: header
-          name: x-stream-response
-          description: Whether to stream the response via SSE
-      responses:
-        "200":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PageGetOrdinalResponse"
         "400":
           description: Default Response
           content:
@@ -9185,72 +8608,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PageSetExtraHTTPHeadersResponse"
-        "400":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "401":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "404":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "408":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "422":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-        "500":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/V4ErrorResponse"
-  /v4/page/waitForMainLoadState:
-    post:
-      operationId: PageWaitForMainLoadState
-      summary: page.waitForMainLoadState
-      tags:
-        - page
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PageWaitForMainLoadStateRequest"
-        required: true
-      parameters:
-        - schema:
-            description: Whether to stream the response via SSE
-            example: "true"
-            type: string
-            enum:
-              - "true"
-              - "false"
-          in: header
-          name: x-stream-response
-          description: Whether to stream the response via SSE
-      responses:
-        "200":
-          description: Default Response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PageWaitForMainLoadStateResponse"
         "400":
           description: Default Response
           content:
