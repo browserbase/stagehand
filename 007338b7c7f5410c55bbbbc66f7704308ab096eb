@@ -1,0 +1,25 @@
+packages/core/lib/v3/types/public/api.ts
+  0e75df2802004198 13-18,414,416,418-422,553,555,557-561
+packages/core/tests/unit/api-client-observe-variables.test.ts
+  0e75df2802004198 5,42-45,55,87-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "007338b7c7f5410c55bbbbc66f7704308ab096eb",
+  "prompts": {
+    "0e75df2802004198": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d0adf-071c-7c72-b453-3398f9931c1a",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Filip Michalsky <filip@paywithsoap.com>",
+      "messages": [],
+      "total_additions": 47,
+      "total_deletions": 35,
+      "accepted_lines": 31,
+      "overriden_lines": 0
+    }
+  }
+}
