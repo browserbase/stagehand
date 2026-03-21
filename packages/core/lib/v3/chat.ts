@@ -41,25 +41,28 @@ const commands: Record<
   },
 
   // stagehand.*
-  "act": async (ctx, raw) => {
+  act: async (ctx, raw) => {
     const instruction = arg(raw);
     if (!instruction) return dim('  stagehand.act("...")');
     const r = await ctx.act(instruction);
     return r.success ? grn(`  ✓ ${r.message}`) : red(`  ✗ ${r.message}`);
   },
-  "extract": async (ctx, raw) => {
+  extract: async (ctx, raw) => {
     const instruction = arg(raw);
     if (!instruction) return dim('  stagehand.extract("...")');
     const r = await ctx.extract(instruction);
     return cyn(`  → "${r.extraction}"`);
   },
-  "observe": async (ctx, raw) => {
+  observe: async (ctx, raw) => {
     const instruction = arg(raw);
     if (!instruction) return dim('  stagehand.observe("...")');
     const actions = await ctx.observe(instruction);
     if (actions.length === 0) return dim("  (no actions found)");
     return actions
-      .map((a) => cyn(`  → ${a.description}`) + dim(a.method ? ` (${a.method})` : ""))
+      .map(
+        (a) =>
+          cyn(`  → ${a.description}`) + dim(a.method ? ` (${a.method})` : ""),
+      )
       .join("\n");
   },
 };
@@ -68,7 +71,10 @@ const commands: Record<
 function resolve(input: string): string | null {
   const lower = input.toLowerCase();
   for (const key of Object.keys(commands)) {
-    if (lower.startsWith(key + "(") || lower.startsWith("stagehand." + key + "(")) {
+    if (
+      lower.startsWith(key + "(") ||
+      lower.startsWith("stagehand." + key + "(")
+    ) {
       return key;
     }
     // bare: page.url()
@@ -81,7 +87,9 @@ function resolve(input: string): string | null {
 
 export async function chat(ctx: ChatContext): Promise<void> {
   if (!stdin.isTTY) {
-    console.log(dim("[stagehand] chat() requires an interactive terminal, skipping."));
+    console.log(
+      dim("[stagehand] chat() requires an interactive terminal, skipping."),
+    );
     return;
   }
 
@@ -102,13 +110,17 @@ export async function chat(ctx: ChatContext): Promise<void> {
 
     if (line.trim().toLowerCase() === "help") {
       console.log();
-      console.log(dim("  stagehand.act(\"...\")      Perform an action on the page"));
-      console.log(dim("  stagehand.extract(\"...\")  Extract data from the page"));
-      console.log(dim("  stagehand.observe(\"...\")  Find candidate actions"));
+      console.log(
+        dim('  stagehand.act("...")      Perform an action on the page'),
+      );
+      console.log(
+        dim('  stagehand.extract("...")  Extract data from the page'),
+      );
+      console.log(dim('  stagehand.observe("...")  Find candidate actions'));
       console.log();
       console.log(dim("  page.url()                Current page URL"));
       console.log(dim("  page.title()              Current page title"));
-      console.log(dim("  page.goto(\"...\")          Navigate to a URL"));
+      console.log(dim('  page.goto("...")          Navigate to a URL'));
       console.log(dim("  page.reload()             Reload the page"));
       console.log();
       console.log(dim("  Enter                     Continue script execution"));
